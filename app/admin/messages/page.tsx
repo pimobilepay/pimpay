@@ -12,7 +12,7 @@ import {
   User,
 } from "lucide-react";
 
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";

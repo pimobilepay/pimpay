@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/Card";
 
 export default function Analytics({ token }: { token: string }) {
   const [stats, setStats] = useState<any>(null);

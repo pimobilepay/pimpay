@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/Card";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
