@@ -61,42 +61,42 @@ enum SupportStatus {
 //  USER
 // ---------------------------
 model User {
-  id               String            @id @default(cuid())
-  phone            String            @unique
-  country          String?
-  pin              String?
-  password         String?
-  email            String?           @unique
-  name             String?
-  avatar           String?
-  kycStatus        KycStatus         @default(NONE)
-  status           UserStatus        @default(ACTIVE)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id        String     @id @default(cuid())
+  phone     String     @unique
+  country   String?
+  pin       String?
+  password  String?
+  email     String?    @unique
+  name      String?
+  avatar    String?
+  kycStatus KycStatus  @default(NONE)
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  wallets          Wallet[]
-  qrPayments       QRPayment[]
-  supportTickets   SupportTicket[]
-  auditLogs        AuditLog[]
+  wallets        Wallet[]
+  qrPayments     QRPayment[]
+  supportTickets SupportTicket[]
+  auditLogs      AuditLog[]
 
   // Relations with transactions
-  transactionsFrom Transaction[]     @relation("tx_from_user")
-  transactionsTo   Transaction[]     @relation("tx_to_user")
+  transactionsFrom Transaction[] @relation("tx_from_user")
+  transactionsTo   Transaction[] @relation("tx_to_user")
 }
 
 // ---------------------------
 //  WALLET
 // ---------------------------
 model Wallet {
-  id         String         @id @default(cuid())
-  userId     String
-  balance    Float          @default(0)
-  currency   String
-  type       WalletType     @default(PI)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id        String     @id @default(cuid())
+  userId    String
+  balance   Float      @default(0)
+  currency  String
+  type      WalletType @default(PI)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Relations with transactions
   transactionsFrom Transaction[] @relation("tx_from_wallet")
@@ -107,80 +107,80 @@ model Wallet {
 //  TRANSACTION
 // ---------------------------
 model Transaction {
-  id             String            @id @default(cuid())
-  amount         Float
-  type           TransactionType
-  status         TransactionStatus @default(PENDING)
-  reference      String?           @unique
-  createdAt      DateTime          @default(now())
+  id        String            @id @default(cuid())
+  amount    Float
+  type      TransactionType
+  status    TransactionStatus @default(PENDING)
+  reference String?           @unique
+  createdAt DateTime          @default(now())
 
   // Relation fields
-  fromUserId     String?
-  toUserId       String?
-  fromWalletId   String?
-  toWalletId     String?
+  fromUserId   String?
+  toUserId     String?
+  fromWalletId String?
+  toWalletId   String?
 
-  fromUser       User?             @relation("tx_from_user", fields: [fromUserId], references: [id], onDelete: SetNull)
-  toUser         User?             @relation("tx_to_user", fields: [toUserId], references: [id], onDelete: SetNull)
+  fromUser User? @relation("tx_from_user", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser   User? @relation("tx_to_user", fields: [toUserId], references: [id], onDelete: SetNull)
 
-  fromWallet     Wallet?           @relation("tx_from_wallet", fields: [fromWalletId], references: [id], onDelete: SetNull)
-  toWallet       Wallet?           @relation("tx_to_wallet", fields: [toWalletId], references: [id], onDelete: SetNull)
+  fromWallet Wallet? @relation("tx_from_wallet", fields: [fromWalletId], references: [id], onDelete: SetNull)
+  toWallet   Wallet? @relation("tx_to_wallet", fields: [toWalletId], references: [id], onDelete: SetNull)
 
-  qrPayment      QRPayment?        @relation("qr_transactions", fields: [reference], references: [reference], onDelete: SetNull)
+  qrPayment QRPayment? @relation("qr_transactions", fields: [reference], references: [reference], onDelete: SetNull)
 }
 
 // ---------------------------
 //  QR PAYMENT
 // ---------------------------
 model QRPayment {
-  id          String          @id @default(cuid())
-  userId      String
-  reference   String          @unique
-  amount      Float
-  currency    String
-  createdAt   DateTime        @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  reference String   @unique
+  amount    Float
+  currency  String
+  createdAt DateTime @default(now())
 
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  transactions Transaction[]   @relation("qr_transactions")
+  transactions Transaction[] @relation("qr_transactions")
 }
 
 // ---------------------------
 //  SUPPORT TICKET
 // ---------------------------
 model SupportTicket {
-  id        String          @id @default(cuid())
+  id        String        @id @default(cuid())
   userId    String
   subject   String
-  status    SupportStatus   @default(OPEN)
-  createdAt DateTime        @default(now())
+  status    SupportStatus @default(OPEN)
+  createdAt DateTime      @default(now())
 
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  messages  Message[]
+  messages Message[]
 }
 
 // ---------------------------
 //  MESSAGE (Support Ticket)
 // ---------------------------
 model Message {
-  id        String        @id @default(cuid())
+  id        String   @id @default(cuid())
   ticketId  String?
   senderId  String
   content   String
-  createdAt DateTime      @default(now())
+  createdAt DateTime @default(now())
 
-  ticket    SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------
 //  AUDIT LOG
 // ---------------------------
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  action     String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  createdAt DateTime @default(now())
 
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
