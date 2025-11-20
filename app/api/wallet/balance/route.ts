@@ -20,19 +20,13 @@ function getUserIdFromAuth(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
     const userId = getUserIdFromAuth(req);
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { pin } = await req.json();
-    if (!pin || typeof pin !== "string" || pin.length < 4) {
-      return NextResponse.json({ error: "Invalid pin" }, { status: 400 });
-    }
-
-    await prisma.user.update({ where: { id: userId }, data: { pin } });
-
-    return NextResponse.json({ ok: true });
+    const wallets = await prisma.wallet.findMany({ where: { userId } });
+    return NextResponse.json({ ok: true, wallets });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

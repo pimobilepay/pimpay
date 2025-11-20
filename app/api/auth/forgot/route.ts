@@ -1,32 +1,42 @@
-// app/api/auth/forgot/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import crypto from "crypto";
+import { sendSMS } from "@/lib/sms";
+
+const OTP_EXPIRE_MIN = parseInt(process.env.OTP_EXPIRE_MIN || "5", 10);
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json();
-    if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+    const { phone } = await req.json();
+    if (!phone) return NextResponse.json({ error: "phone required" }, { status: 400 });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      // do not reveal existence
-      return NextResponse.json({ ok: true });
+    // find user by phone
+    const user = await prisma.user.findUnique({ where: { phone } });
+
+    // generate OTP
+    const code = (Math.floor(100000 + Math.random() * 900000)).toString();
+    const expiresAt = new Date(Date.now() + OTP_EXPIRE_MIN * 60 * 1000);
+
+    // upsert into otp table (or create if not exists)
+    // adapt model name: use `otp` table in schema
+    await prisma.oTP.upsert({
+      where: { phone },
+      update: { code, expiresAt },
+      create: { phone, code, expiresAt },
+    }).catch(() => { /* if model missing, ignore */ });
+
+    // send SMS
+    const text = `Your PIMPAY verification code is: ${code}. It expires in ${OTP_EXPIRE_MIN} minutes.`;
+    try {
+      await sendSMS(phone, text);
+    } catch (err) {
+      console.error("SMS send failed:", err);
+      return NextResponse.json({ error: "SMS send failed" }, { status: 500 });
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1h
-
-    await prisma.passwordReset.upsert({
-      where: { userId: user.id },
-      update: { token, expiresAt },
-      create: { id: crypto.randomUUID(), userId: user.id, token, expiresAt },
-    }).catch(() => { /* ignore if no model exists; create one in schema if needed */ });
-
-    // TODO: send email with token (SMTP)
-    // For now return ok
+    // don't reveal user existence
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);

@@ -1,14 +1,14 @@
 // ---------------------------------------------------
-//  PIMPAY — Prisma Schema (FULLY FIXED)
+//  PIMPAY — Prisma Schema (FIXED FOR TERMUX + PRISMA 7)
 // ---------------------------------------------------
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "node-api"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ===================================================
@@ -57,9 +57,6 @@ enum SupportStatus {
 //  MODELS
 // ===================================================
 
-// ---------------------------
-//  USER
-// ---------------------------
 model User {
   id        String     @id @default(cuid())
   phone     String     @unique
@@ -79,14 +76,10 @@ model User {
   supportTickets SupportTicket[]
   auditLogs      AuditLog[]
 
-  // Relations with transactions
   transactionsFrom Transaction[] @relation("tx_from_user")
   transactionsTo   Transaction[] @relation("tx_to_user")
 }
 
-// ---------------------------
-//  WALLET
-// ---------------------------
 model Wallet {
   id        String     @id @default(cuid())
   userId    String
@@ -98,14 +91,10 @@ model Wallet {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations with transactions
   transactionsFrom Transaction[] @relation("tx_from_wallet")
   transactionsTo   Transaction[] @relation("tx_to_wallet")
 }
 
-// ---------------------------
-//  TRANSACTION
-// ---------------------------
 model Transaction {
   id        String            @id @default(cuid())
   amount    Float
@@ -114,7 +103,6 @@ model Transaction {
   reference String?           @unique
   createdAt DateTime          @default(now())
 
-  // Relation fields
   fromUserId   String?
   toUserId     String?
   fromWalletId String?
@@ -129,9 +117,6 @@ model Transaction {
   qrPayment QRPayment? @relation("qr_transactions", fields: [reference], references: [reference], onDelete: SetNull)
 }
 
-// ---------------------------
-//  QR PAYMENT
-// ---------------------------
 model QRPayment {
   id        String   @id @default(cuid())
   userId    String
@@ -145,9 +130,6 @@ model QRPayment {
   transactions Transaction[] @relation("qr_transactions")
 }
 
-// ---------------------------
-//  SUPPORT TICKET
-// ---------------------------
 model SupportTicket {
   id        String        @id @default(cuid())
   userId    String
@@ -160,9 +142,6 @@ model SupportTicket {
   messages Message[]
 }
 
-// ---------------------------
-//  MESSAGE (Support Ticket)
-// ---------------------------
 model Message {
   id        String   @id @default(cuid())
   ticketId  String?
@@ -173,9 +152,6 @@ model Message {
   ticket SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-// ---------------------------
-//  AUDIT LOG
-// ---------------------------
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
@@ -183,4 +159,11 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Otp {
+  phone     String   @id
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

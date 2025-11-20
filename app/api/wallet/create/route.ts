@@ -25,14 +25,18 @@ export async function POST(req: Request) {
     const userId = getUserIdFromAuth(req);
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { pin } = await req.json();
-    if (!pin || typeof pin !== "string" || pin.length < 4) {
-      return NextResponse.json({ error: "Invalid pin" }, { status: 400 });
-    }
+    const { currency = "USD", type = "PI" } = await req.json();
 
-    await prisma.user.update({ where: { id: userId }, data: { pin } });
+    const wallet = await prisma.wallet.create({
+      data: {
+        userId,
+        currency,
+        type: type as any,
+        balance: 0,
+      },
+    });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, wallet });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

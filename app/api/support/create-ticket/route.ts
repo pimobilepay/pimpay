@@ -5,19 +5,11 @@ import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
 function getUserIdFromAuth(req: Request) {
   const auth = req.headers.get("authorization") || "";
   const m = auth.match(/^Bearer (.+)$/);
   if (!m) return null;
-  try {
-    // @ts-ignore
-    const payload = jwt.verify(m[1], JWT_SECRET || "");
-    // @ts-ignore
-    return payload.userId;
-  } catch {
-    return null;
-  }
+  try { /* @ts-ignore */ return jwt.verify(m[1], JWT_SECRET || "").userId; } catch { return null; }
 }
 
 export async function POST(req: Request) {
@@ -25,14 +17,24 @@ export async function POST(req: Request) {
     const userId = getUserIdFromAuth(req);
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { pin } = await req.json();
-    if (!pin || typeof pin !== "string" || pin.length < 4) {
-      return NextResponse.json({ error: "Invalid pin" }, { status: 400 });
-    }
+    const { subject, message } = await req.json();
+    if (!subject || !message) return NextResponse.json({ error: "Missing" }, { status: 400 });
 
-    await prisma.user.update({ where: { id: userId }, data: { pin } });
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        userId,
+        subject,
+        messages: {
+          create: {
+            senderId: userId,
+            content: message,
+          },
+        },
+      },
+      include: { messages: true },
+    });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, ticket });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
