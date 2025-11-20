@@ -1,26 +1,41 @@
 // app/api/auth/set-pin/route.ts
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth";
-import { verifyJwt } from "@/lib/jwt";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+async function getUserIdFromAuth(req: Request) {
+  const auth = req.headers.get("authorization") || "";
+  const m = auth.match(/^Bearer (.+)$/);
+  if (!m) return null;
+  const token = m[1];
+  try {
+    const payload = jwt.verify(token, JWT_SECRET || ""); // will throw if missing
+    // @ts-ignore
+    return payload.userId || null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
-  const { pin } = await req.json();
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.replace("Bearer ", "") || null;
-
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   try {
-    const payload = verifyJwt<{ sub: string }>(token);
-    if (!payload?.sub) throw new Error("Invalid token");
+    const userId = await getUserIdFromAuth(req);
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!pin || pin.length !== 4) return NextResponse.json({ error: "Invalid PIN" }, { status: 400 });
-    const hashedPin = await hashPassword(pin);
+    const { pin } = await req.json();
+    if (!pin || typeof pin !== "string" || pin.length < 4) {
+      return NextResponse.json({ error: "Invalid pin" }, { status: 400 });
+    }
 
-    await prisma.user.update({ where: { id: payload.sub }, data: { pin: hashedPin } });
+    await prisma.user.update({ where: { id: userId }, data: { pin } });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

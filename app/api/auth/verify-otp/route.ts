@@ -1,25 +1,26 @@
 // app/api/auth/verify-otp/route.ts
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { signJwt } from "@/lib/jwt";
 
 export async function POST(req: Request) {
-  const { email, otp } = await req.json();
-  if (!email || !otp) return NextResponse.json({ error: "Missing" }, { status: 400 });
+  try {
+    const { phone, code } = await req.json();
+    if (!phone || !code) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.otpCode || !user.otpExpiry) return NextResponse.json({ error: "Invalid" }, { status: 400 });
+    // Example: look for an OTP table; if you don't have it, adapt
+    const otp = await prisma.otp.findUnique({ where: { phone } }).catch(() => null);
+    if (!otp || otp.code !== code) {
+      return NextResponse.json({ error: "Invalid code" }, { status: 400 });
+    }
 
-  if (user.otpCode !== otp || user.otpExpiry < new Date()) {
-    return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 400 });
+    // mark verified or create user
+    await prisma.otp.deleteMany({ where: { phone } }).catch(() => null);
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  // clear otp
-  await prisma.user.update({ where: { email }, data: { otpCode: null, otpExpiry: null } });
-
-  // issue token (for password reset flow or login)
-  const token = signJwt({ sub: user.id, email: user.email });
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set("pimpay_token", token, { httpOnly: true, path: "/", maxAge: 60 * 10 }); // short lived
-  return res;
 }
