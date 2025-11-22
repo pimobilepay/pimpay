@@ -15,16 +15,18 @@ import {
   Hash,
 } from "lucide-react";
 
+// Pour le téléchargement PDF
+import jsPDF from "jspdf";
+
 export default function MPayDetailsPage() {
   const router = useRouter();
   const params = useSearchParams();
 
   const receiver = params.get("to") || "Utilisateur inconnu";
   const amount = params.get("amount") || "0";
-  const status = params.get("status") || "success"; // success | failed | pending
+  const status = params.get("status") || "success";
   const txid = params.get("txid") || "TX-PMPY-9821739181";
   const method = params.get("method") || "MPay Wallet";
-
   const date =
     params.get("date") ||
     new Date().toLocaleString("fr-FR", {
@@ -58,9 +60,50 @@ export default function MPayDetailsPage() {
     }
   };
 
+  // ===========================
+  // 📌 Télécharger le reçu PDF
+  // ===========================
+  const handleDownload = () => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(20);
+    doc.text("Reçu de Transaction PIMPAY", 10, 20);
+
+    doc.setFontSize(12);
+    doc.text(`Destinataire : ${receiver}`, 10, 40);
+    doc.text(`Montant : ${amount} π`, 10, 50);
+    doc.text(`Statut : ${status}`, 10, 60);
+    doc.text(`ID Transaction : ${txid}`, 10, 70);
+    doc.text(`Méthode : ${method}`, 10, 80);
+    doc.text(`Date : ${date}`, 10, 90);
+
+    doc.save(`recu_${txid}.pdf`);
+  };
+
+  // ===========================
+  // 📌 Partager la transaction
+  // ===========================
+  const handleShare = async () => {
+    const text = `Transaction PIMPAY\n\nID: ${txid}\nMontant: ${amount} π\nDestinataire: ${receiver}\nStatut: ${status}\nDate: ${date}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Transaction PIMPAY",
+          text,
+        });
+      } catch (e) {
+        console.log("Partage annulé");
+      }
+    } else {
+      // Fallback pour vieux navigateurs
+      navigator.clipboard.writeText(text);
+      alert("Informations copiées !");
+    }
+  };
+
   return (
     <div className="p-6 pb-24">
-
       {/* HEADER */}
       <div className="flex items-center gap-4 mb-6">
         <button
@@ -73,7 +116,7 @@ export default function MPayDetailsPage() {
         <h1 className="text-xl font-bold text-foreground">Détails du paiement</h1>
       </div>
 
-      {/* ICONE STATUS */}
+      {/* STATUS ICON */}
       <div className="flex justify-center mb-6">
         {status === "success" ? (
           <CheckCircle2 size={95} className="text-green-500 drop-shadow-lg" />
@@ -84,7 +127,7 @@ export default function MPayDetailsPage() {
         )}
       </div>
 
-      {/* CARD PRINCIPALE */}
+      {/* MAIN CARD */}
       <div
         className="
           p-6 rounded-2xl
@@ -115,9 +158,7 @@ export default function MPayDetailsPage() {
             <Coins className="text-primary" />
             <span className="text-foreground font-semibold">Montant</span>
           </div>
-          <span className="text-foreground font-bold text-lg">
-            {amount} π
-          </span>
+          <span className="text-foreground font-bold text-lg">{amount} π</span>
         </div>
 
         {/* DATE */}
@@ -126,9 +167,7 @@ export default function MPayDetailsPage() {
             <Calendar className="text-primary" />
             <span className="text-foreground">Date</span>
           </div>
-          <span className="text-foreground/80 text-sm text-right">
-            {date}
-          </span>
+          <span className="text-foreground/80 text-sm text-right">{date}</span>
         </div>
 
         {/* TXID */}
@@ -150,8 +189,9 @@ export default function MPayDetailsPage() {
         </div>
       </div>
 
-      {/* BOUTONS ACTION */}
+      {/* DOWNLOAD BUTTON */}
       <button
+        onClick={handleDownload}
         className="
           w-full mt-8 py-4 rounded-xl text-lg font-semibold
           flex items-center justify-center gap-3
@@ -162,7 +202,9 @@ export default function MPayDetailsPage() {
         <Download size={22} /> Télécharger le reçu
       </button>
 
+      {/* SHARE BUTTON */}
       <button
+        onClick={handleShare}
         className="
           w-full mt-3 py-4 rounded-xl text-lg font-semibold
           flex items-center justify-center gap-3

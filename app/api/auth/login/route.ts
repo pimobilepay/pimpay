@@ -1,44 +1,73 @@
 // app/api/auth/login/route.ts
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { comparePassword, signToken, setTokenCookie } from "@/lib/auth";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error("Missing JWT_SECRET env var");
-}
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, password } = body;
+    const { phone, password } = body;
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password required" }, { status: 400 });
+    if (!phone || !password) {
+      return NextResponse.json(
+        { error: "Missing fields" },
+        { status: 400 }
+      );
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { phone },
+    });
+
     if (!user || !user.password) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Invalid phone or password" },
+        { status: 401 }
+      );
     }
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    const match = await comparePassword(password, user.password);
+
+    if (!match) {
+      return NextResponse.json(
+        { error: "Invalid phone or password" },
+        { status: 401 }
+      );
     }
 
-    if (!JWT_SECRET) {
-      return NextResponse.json({ error: "Server misconfigured: missing JWT_SECRET" }, { status: 500 });
-    }
+    // ----------------------------------
+    // Créer le JWT avec rôle
+    // ----------------------------------
+    const token = signToken({
+      id: user.id,
+      email: user.email || null,
+      phone: user.phone,
+      role: user.role, // "admin" | "user"
+    });
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+    // ----------------------------------
+    // Réponse + cookie sécurisé
+    // ----------------------------------
+    const res = NextResponse.json({
+      message: "Login success",
+      user: {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
 
-    return NextResponse.json({ ok: true, token, user: { id: user.id, email: user.email, name: user.name } });
+    // Set cookie pimpay_token
+    setTokenCookie(res.headers, token);
+
+    return res;
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("Login error:", err);
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
   }
 }

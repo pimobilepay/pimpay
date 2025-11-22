@@ -1,11 +1,10 @@
 // ---------------------------------------------------
-//  PIMPAY — Prisma Schema (FIXED FOR TERMUX + PRISMA 7)
+//  PIMPAY — Prisma Schema (UPDATED + ROLE SUPPORT)
 // ---------------------------------------------------
 
 generator client {
   provider   = "prisma-client-js"
   engineType = "binary"
-
 }
 
 datasource db {
@@ -21,6 +20,11 @@ enum UserStatus {
   ACTIVE
   BLOCKED
   PENDING
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }
 
 enum KycStatus {
@@ -68,8 +72,11 @@ model User {
   email     String?    @unique
   name      String?
   avatar    String?
+
+  role      UserRole   @default(USER)
   kycStatus KycStatus  @default(NONE)
   status    UserStatus @default(ACTIVE)
+
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -105,18 +112,19 @@ model Transaction {
   reference String?           @unique
   createdAt DateTime          @default(now())
 
+  // RELATIONS
   fromUserId   String?
   toUserId     String?
   fromWalletId String?
   toWalletId   String?
 
-  fromUser User? @relation("tx_from_user", fields: [fromUserId], references: [id], onDelete: SetNull)
-  toUser   User? @relation("tx_to_user", fields: [toUserId], references: [id], onDelete: SetNull)
+  fromUser   User?   @relation("tx_from_user", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser     User?   @relation("tx_to_user", fields: [toUserId], references: [id], onDelete: SetNull)
 
   fromWallet Wallet? @relation("tx_from_wallet", fields: [fromWalletId], references: [id], onDelete: SetNull)
   toWallet   Wallet? @relation("tx_to_wallet", fields: [toWalletId], references: [id], onDelete: SetNull)
 
-  qrPayment QRPayment? @relation("qr_transactions", fields: [reference], references: [reference], onDelete: SetNull)
+  qrPayment  QRPayment? @relation("qr_transactions", fields: [reference], references: [reference], onDelete: SetNull)
 }
 
 model QRPayment {
