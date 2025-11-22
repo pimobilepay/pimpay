@@ -16,6 +16,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# settings secrets
+.json*
+config.json*
+
 # env files
 .env*
 
