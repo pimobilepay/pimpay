@@ -103,7 +103,17 @@ model Wallet {
   transactionsFrom Transaction[] @relation("tx_from_wallet")
   transactionsTo   Transaction[] @relation("tx_to_wallet")
 }
+model VirtualCard {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  number    String
+  exp       String
+  holder    String
+  locked    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
+  user      User     @relation(fields: [userId], references: [id])
+}
 model Transaction {
   id        String            @id @default(cuid())
   amount    Float
