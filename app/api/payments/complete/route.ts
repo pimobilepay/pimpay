@@ -1,27 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyAuth } from '@/lib/auth'
+export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: Request) {
   try {
-    const user = await verifyAuth(req)
-    if (!user) return NextResponse.json({ error: "Auth required" }, { status: 401 })
+    const { paymentId, txid } = await req.json();
+    const PI_API_KEY = process.env.PI_API_KEY;
 
-    const { paymentId, txid } = await req.json()
+    // 1. Notifier Pi Network que nous avons enregistré la transaction
+    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${PI_API_KEY}`,
+      },
+      body: JSON.stringify({ txid }),
+    });
 
-    // Mise à jour de la transaction dans la base de données
-    const transaction = await prisma.transaction.update({
-      where: { piPaymentId: paymentId },
-      data: { 
-        status: "COMPLETED",
-        txid: txid,
-        completedAt: new Date()
-      }
-    })
+    if (!response.ok) throw new Error("Complétion échouée");
 
-    return NextResponse.json({ success: true, transaction })
+    // 2. Mettre à jour la balance dans ta base de données
+    // (Tu dois récupérer l'ID de l'utilisateur via le cookie ici)
+    // await prisma.user.update({ ... });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Payment Complete Error:", error)
-    return NextResponse.json({ error: "Failed to complete payment" }, { status: 500 })
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

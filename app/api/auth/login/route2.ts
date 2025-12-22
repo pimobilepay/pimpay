@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET!;
 if (!JWT_SECRET) throw new Error("JWT_SECRET is not defined");
 
 export async function POST(req: Request) {
@@ -14,29 +14,41 @@ export async function POST(req: Request) {
     const { email, password } = await req.json();
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Email et mot de passe requis" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email et mot de passe requis" },
+        { status: 400 }
+      );
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
+
     if (!user || !user.password) {
-      return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Identifiants invalides" },
+        { status: 401 }
+      );
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Identifiants invalides" },
+        { status: 401 }
+      );
     }
 
-    // 🔐 Générer le JWT
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    // 🍪 Définir le cookie HttpOnly
-    cookies().set("access_token", token, {
+    cookies().set("pimpay_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 jours
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return NextResponse.json({
@@ -49,6 +61,9 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("LOGIN ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erreur serveur" },
+      { status: 500 }
+    );
   }
 }

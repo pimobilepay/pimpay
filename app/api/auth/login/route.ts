@@ -20,6 +20,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // On récupère l'utilisateur
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.password) {
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // Vérification du mot de passe
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return NextResponse.json(
@@ -37,18 +39,24 @@ export async function POST(req: Request) {
       );
     }
 
+    // Création du Token JWT
     const token = jwt.sign(
       { id: user.id, role: user.role },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
+    // ✅ CONFIGURATION OPTIMISÉE POUR PI BROWSER
+    // Note: En développement local sans HTTPS, 'secure: true' peut bloquer le cookie.
+    // Mais le Pi Browser exige souvent 'secure' et 'sameSite: none' pour les Apps Pi.
+    const isProd = process.env.NODE_ENV === "production";
+
     cookies().set("pimpay_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true, // Recommandé pour Pi Browser (nécessite HTTPS)
+      sameSite: "none", // Indispensable si l'app est encapsulée dans le Pi Browser
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 7, // 7 jours
     });
 
     return NextResponse.json({
