@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Ajout de useEffect
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,22 +17,7 @@ export default function TransferPage() {
   const [mode, setMode] = useState<TransferMode>("mpay");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [mounted, setMounted] = useState(false); // Pour éviter l'erreur d'hydration
-
   const availableBalance = 1250.75;
-
-  // Correction de l'hydration : On attend que le composant soit monté côté client
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Fonction de formatage stable (on force le format FR avec espace et virgule)
-  const formatBalance = (num: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
-  };
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
@@ -61,10 +46,7 @@ export default function TransferPage() {
           </div>
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Available Ledger</p>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-white tracking-tighter">
-              {/* On n'affiche le nombre que lorsque le client est prêt pour éviter le mismatch */}
-              π {mounted ? formatBalance(availableBalance) : "---"}
-            </span>
+            <span className="text-3xl font-black text-white tracking-tighter">π {availableBalance.toLocaleString()}</span>
             <span className="text-[10px] font-bold text-blue-400 uppercase">Verified</span>
           </div>
         </Card>
@@ -72,7 +54,7 @@ export default function TransferPage() {
 
       <div className="px-6 space-y-8">
         
-        {/* SELECTEUR DE MODE */}
+        {/* SELECTEUR DE MODE (SANS ITALIQUE) */}
         <div className="flex gap-2 p-1.5 bg-slate-900/50 border border-white/5 rounded-[2rem]">
           <button 
             onClick={() => setMode("mpay")}
@@ -104,7 +86,7 @@ export default function TransferPage() {
                   placeholder={mode === "mpay" ? "@username ou email" : "GDUO... (Mainnet Address)"}
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
-                  className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold focus:border-blue-500/30 transition-all text-white placeholder:text-slate-700 outline-none ring-0 focus-visible:ring-0"
+                  className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold focus:border-blue-500/30 transition-all text-white placeholder:text-slate-700"
                 />
                 <ShieldCheck size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-700" />
               </div>
@@ -118,7 +100,7 @@ export default function TransferPage() {
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black focus:border-blue-500/30 transition-all text-white placeholder:text-slate-700 outline-none ring-0 focus-visible:ring-0"
+                  className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black focus:border-blue-500/30 transition-all text-white placeholder:text-slate-700"
                 />
                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-500 font-black text-xs">PI COIN</span>
               </div>

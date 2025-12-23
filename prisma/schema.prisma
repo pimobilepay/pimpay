@@ -26,23 +26,58 @@ model User {
   firstName        String?
   lastName         String?
   username         String?         @unique
-  auditLogs        AuditLog[]
+
+  // Relations
+  auditLogs        AuditLog[]      @relation("admin_actions")
+  targetLogs       AuditLog[]      @relation("target_user")
+  securityLogs     SecurityLog[]
   qrPayments       QRPayment[]
   sessions         Session[]
   supportTickets   SupportTicket[]
+  notifications    Notification[]  // ✅ Ajouté pour les notifications réelles
   transactionsFrom Transaction[]   @relation("tx_from_user")
   transactionsTo   Transaction[]   @relation("tx_to_user")
   virtualCards     VirtualCard[]
   wallets          Wallet[]
 }
 
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        String   // Ex: "success", "info", "error", "KYC_SUCCESS"
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminId     String?
+  adminName   String?
+  targetId    String?
+  targetEmail String?
+  action      String   
+  details     String?  
+  metadata    Json?    
+  createdAt   DateTime @default(now())
+
+  admin       User?    @relation("admin_actions", fields: [adminId], references: [id])
+  target      User?    @relation("target_user", fields: [targetId], references: [id])
+}
+
 model SecurityLog {
   id        String   @id @default(uuid())
   userId    String
   action    String
-  ip        String
-  device    String
+  ip        String?
+  device    String?
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Session {
@@ -70,7 +105,7 @@ model Wallet {
   id               String        @id @default(cuid())
   userId           String
   balance          Float         @default(0)
-  currency         String
+  currency         String        @default("PI")
   type             WalletType    @default(PI)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -103,11 +138,12 @@ model Transaction {
   fromWalletId String?
   toWalletId   String?
   qrPaymentId  String?
+
   fromUser     User?             @relation("tx_from_user", fields: [fromUserId], references: [id])
-  fromWallet   Wallet?           @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
-  qrPayment    QRPayment?        @relation("qr_transactions", fields: [qrPaymentId], references: [id])
   toUser       User?             @relation("tx_to_user", fields: [toUserId], references: [id])
+  fromWallet   Wallet?           @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
   toWallet     Wallet?           @relation("tx_to_wallet", fields: [toWalletId], references: [id])
+  qrPayment    QRPayment?        @relation("qr_transactions", fields: [qrPaymentId], references: [id])
 
   @@index([reference])
 }
@@ -141,15 +177,6 @@ model Message {
   ticket    SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  createdAt DateTime @default(now())
-  metadata  Json?
-  user      User?    @relation(fields: [userId], references: [id])
-}
-
 model Otp {
   phone     String   @id
   code      String
@@ -157,6 +184,7 @@ model Otp {
   createdAt DateTime @default(now())
 }
 
+// ENUMS
 enum UserRole {
   ADMIN
   USER
@@ -164,7 +192,7 @@ enum UserRole {
 
 enum UserStatus {
   ACTIVE
-  BLOCKED
+  BANNED
   PENDING
 }
 
