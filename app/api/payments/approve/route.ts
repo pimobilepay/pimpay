@@ -1,19 +1,32 @@
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Ton instance Prisma
+// Change l'importation ici : ajoute des accolades { }
+import { prisma } from "@/lib/prisma"; 
 
-export async function POST(request: Request) {
-  const { paymentId, userId, amount } = await request.json();
+export async function POST(req: Request) {
+  try {
+    const { paymentId } = await req.json();
+    const PI_API_KEY = process.env.PI_API_KEY;
 
-  // 1. Ici, on devrait normalement vérifier auprès de Pi Network 
-  // que le paymentId est valide (via leur API de plateforme).
-
-  // 2. Si c'est bon, on met à jour le solde de l'utilisateur dans la DB
-  await prisma.user.update({
-    where: { id: userId },
-    data: { 
-      balance: { increment: amount } 
+    if (!PI_API_KEY) {
+      return NextResponse.json({ error: "Clé API manquante" }, { status: 500 });
     }
-  });
 
-  return NextResponse.json({ message: "Paiement approuvé et solde mis à jour" });
+    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${PI_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) throw new Error("Approbation échouée auprès de Pi");
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("APPROVE ERROR:", error);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  }
 }
+
