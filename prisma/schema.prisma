@@ -1,3 +1,7 @@
+// -----------------------------------------------------------------------------
+// CONFIGURATION GÉNÉRALE
+// -----------------------------------------------------------------------------
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native"]
@@ -8,7 +12,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- UTILISATEURS ---
+// -----------------------------------------------------------------------------
+// UTILISATEURS & PROFIL
+// -----------------------------------------------------------------------------
+
 model User {
   id             String    @id @default(cuid())
   phone          String    @unique
@@ -17,16 +24,21 @@ model User {
   password       String?   // Haché
   pin            String?   // Haché (Code à 4 chiffres)
   refreshToken   String?   @unique
+  
   firstName      String?
   lastName       String?
-  name           String?   // Nom d'affichage
+  name           String?   // Nom d'affichage (ex: utilisé sur la carte)
   avatar         String?
+  
+  // Localisation & Naissance
   country        String?
   city           String?
   address        String?
   birthDate      DateTime?
+  latitude       Float?
+  longitude      Float?
 
-  // --- CHAMPS KYC AVANCÉS ---
+  // KYC AVANCÉ
   nationality    String?
   idType         String?   // PASSPORT, NATIONAL_ID, DRIVING_LICENSE
   idNumber       String?
@@ -37,7 +49,7 @@ model User {
   kycSubmittedAt DateTime?
   kycVerifiedAt  DateTime?
 
-  // --- GROWTH & LIMITS ---
+  // LIMITES & CROISSANCE
   referralCode   String?   @unique @default(cuid())
   referredById   String?
   referredBy     User?     @relation("Referrals", fields: [referredById], references: [id])
@@ -45,16 +57,13 @@ model User {
   dailyLimit     Float     @default(1000)
   monthlyLimit   Float     @default(10000)
 
+  // STATUTS & RÔLES
   role           UserRole   @default(USER)
   kycStatus      KycStatus  @default(NONE)
   status         UserStatus @default(ACTIVE)
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
-  // GÉOLOCALISATION
-  latitude       Float?
-  longitude      Float?
 
   // WEB3 & PI NETWORK
   walletAddress  String? @unique
@@ -76,12 +85,15 @@ model User {
   supportTickets   SupportTicket[]
 }
 
-// --- FINANCE & ÉPARGNE ---
+// -----------------------------------------------------------------------------
+// FINANCE & ÉPARGNE (WEB3)
+// -----------------------------------------------------------------------------
+
 model Wallet {
   id        String     @id @default(cuid())
   userId    String
   balance   Float      @default(0)
-  currency  String     @default("PI")
+  currency  String     @default("PI") // PI, USDT, EUR, etc.
   type      WalletType @default(PI)
 
   createdAt DateTime @default(now())
@@ -113,17 +125,20 @@ model Beneficiary {
   userId      String
   name        String
   accountInfo String
-  provider    String
+  provider    String // PI_NETWORK, BANK_TRANSFER, PIMPAY_USER
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// --- TRANSACTIONS ---
+// -----------------------------------------------------------------------------
+// TRANSACTIONS & PAIEMENTS
+// -----------------------------------------------------------------------------
+
 model Transaction {
   id           String            @id @default(cuid())
-  reference    String            @unique
-  blockchainTx String?           @unique
+  reference    String            @unique // Référence interne PIMPAY-XXXX
+  blockchainTx String?           @unique // Hash de la transaction sur la blockchain Pi
   amount       Float
   fee          Float             @default(0)
   netAmount    Float?
@@ -132,11 +147,13 @@ model Transaction {
   description  String?
   createdAt    DateTime          @default(now())
 
+  // Émetteur
   fromUserId   String?
   fromUser     User?    @relation("tx_from_user", fields: [fromUserId], references: [id])
   fromWalletId String?
   fromWallet   Wallet?  @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
 
+  // Bénéficiaire
   toUserId     String?
   toUser       User?    @relation("tx_to_user", fields: [toUserId], references: [id])
   toWalletId   String?
@@ -150,7 +167,40 @@ model Transaction {
   @@index([reference])
 }
 
-// --- SÉCURITÉ ---
+// -----------------------------------------------------------------------------
+// CARTES VIRTUELLES & QR
+// -----------------------------------------------------------------------------
+
+model VirtualCard {
+  id        String   @id @default(cuid())
+  userId    String
+  number    String   @unique
+  exp       String   // MM/YY
+  cvv       String?
+  holder    String   // Nom sur la carte
+  brand     String   @default("VISA")
+  locked    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QRPayment {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Float?
+  currency  String   @default("PI")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+// -----------------------------------------------------------------------------
+// SÉCURITÉ & LOGS
+// -----------------------------------------------------------------------------
+
 model Session {
   id           String   @id @default(cuid())
   userId       String
@@ -167,7 +217,7 @@ model Session {
 
 model Otp {
   id         String   @id @default(cuid())
-  identifier String
+  identifier String   // Email ou Phone
   code       String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
@@ -177,7 +227,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   adminId     String?
   adminName   String?
-  action      String
+  action      String   // Ex: UPDATE_KYC, BAN_USER
   targetId    String?
   targetEmail String?
   details     String?
@@ -190,39 +240,18 @@ model AuditLog {
 model SecurityLog {
   id        String   @id @default(cuid())
   userId    String
-  action    String
+  action    String   // Ex: LOGIN_ATTEMPT, PIN_CHANGED
   ip        String?
   device    String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// --- CARTES & PAIEMENTS ---
-model VirtualCard {
-  id        String   @id @default(cuid())
-  userId    String
-  number    String   @unique
-  exp       String
-  cvv       String?
-  holder    String
-  locked    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+// -----------------------------------------------------------------------------
+// SUPPORT & NOTIFICATIONS
+// -----------------------------------------------------------------------------
 
-model QRPayment {
-  id        String   @id @default(cuid())
-  userId    String
-  amount    Float?
-  currency  String   @default("PI")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-}
-
-// --- SUPPORT ---
 model SupportTicket {
   id        String        @id @default(cuid())
   userId    String
@@ -230,7 +259,8 @@ model SupportTicket {
   status    SupportStatus @default(OPEN)
   createdAt DateTime      @default(now())
   messages  Message[]
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -239,17 +269,17 @@ model Message {
   senderId  String
   content   String
   createdAt DateTime      @default(now())
+  
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-// --- NOTIFICATIONS CORRIGÉES ---
 model Notification {
   id        String   @id @default(cuid())
   userId    String
   title     String
   message   String
   type      String   @default("info") // info, success, warning, error
-  read      Boolean  @default(false)  // Utilisé par le frontend (read au lieu de isRead)
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -258,7 +288,10 @@ model Notification {
   @@index([createdAt])
 }
 
-// --- ENUMS ---
+// -----------------------------------------------------------------------------
+// ENUMÉRATIONS (TYPES)
+// -----------------------------------------------------------------------------
+
 enum UserRole {
   ADMIN
   USER
