@@ -2,14 +2,35 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 export async function POST() {
-  const cookieStore = cookies();
-  
-  // Supprimer le cookie en le mettant à une date passée
-  cookieStore.set("pimpay_token", "", {
-    httpOnly: true,
-    expires: new Date(0),
-    path: "/",
-  });
+  try {
+    const cookieStore = cookies();
 
-  return NextResponse.json({ message: "Déconnecté avec succès" });
+    // 1. Supprimer le cookie "token" (nom utilisé dans ton login actuel)
+    cookieStore.set("token", "", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      expires: new Date(0), // Expire immédiatement
+      path: "/",
+    });
+
+    // 2. Par sécurité, supprimer aussi l'ancien nom si présent
+    cookieStore.set("pimpay_token", "", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      expires: new Date(0),
+      path: "/",
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Déconnecté avec succès" 
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Erreur lors de la déconnexion" }, 
+      { status: 500 }
+    );
+  }
 }

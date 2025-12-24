@@ -1,5 +1,4 @@
-"use client";
-
+"use client";                                     
 import React, { useEffect, useState } from "react";
 import { CreditCard, ShieldCheck, Zap, Wallet as WalletIcon, Smartphone, Home, ArrowDownToLine, ArrowUpFromLine, Menu, Send } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -7,13 +6,10 @@ import Link from "next/link";
 
 // --- BOTTOM NAV IDENTIQUE ---
 function BottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
-  const pathname = usePathname();
-  const navItems = [
+  const pathname = usePathname();                   const navItems = [
     { href: "/", icon: Home, label: "Accueil" },
     { href: "/wallet", icon: WalletIcon, label: "Wallet" },
-    { href: "/deposit", icon: ArrowDownToLine, label: "Dépôt" },
-    { href: "/mpay", icon: Smartphone, label: "MPay", special: true },
-    { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
+    { href: "/deposit", icon: ArrowDownToLine, label: "Dépôt" },                                        { href: "/mpay", icon: Smartphone, label: "MPay", special: true },                                  { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
     { href: "/transfer", icon: Send, label: "Envoi" },
     { href: "#", icon: Menu, label: "Menu", isMenuButton: true },
   ];
@@ -50,7 +46,7 @@ export default function WalletPage() {
     <div className="min-h-screen bg-[#020617] text-white pb-32">
       <div className="px-6 pt-12">
         <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-8">Mon Portefeuille</h1>
-        
+
         {/* CARTE VIRTUELLE (VirtualCard Model) */}
         <div className="w-full aspect-[1.58/1] bg-gradient-to-tr from-slate-800 to-slate-950 rounded-[24px] p-8 border border-white/10 relative overflow-hidden mb-10 shadow-2xl">
           <div className="absolute top-0 right-0 p-8 opacity-20"><Zap size={100} /></div>

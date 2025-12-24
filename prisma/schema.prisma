@@ -8,62 +8,182 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- UTILISATEURS ---
 model User {
   id               String          @id @default(cuid())
   phone            String          @unique
-  country          String?
-  pin              String?
-  password         String?
   email            String?         @unique
-  name             String?
+  username         String?         @unique
+  password         String?         // Haché
+  pin              String?         // Haché (Code à 4 chiffres)
+  refreshToken     String?         @unique
+
+  firstName        String?
+  lastName         String?
+  name             String?         // Nom d'affichage
   avatar           String?
+  country          String?
+  city             String?
+  address          String?
+  birthDate        DateTime?
+
+  // --- CHAMPS KYC AVANCÉS ---
+  nationality      String?
+  idType           String?         // PASSPORT, NATIONAL_ID, DRIVING_LICENSE
+  idNumber         String?
+  sourceOfFunds    String?
+  kycFrontUrl      String?
+  kycBackUrl       String?
+  kycSelfieUrl     String?
+  kycSubmittedAt   DateTime?
+  kycVerifiedAt    DateTime?
+
+  // --- GROWTH & LIMITS (NOUVEAU) ---
+  referralCode     String?         @unique @default(cuid())
+  referredById     String?
+  referredBy       User?           @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]          @relation("Referrals")
+  dailyLimit       Float           @default(1000) // Limite de retrait quotidienne
+  monthlyLimit     Float           @default(10000)
+
   role             UserRole        @default(USER)
   kycStatus        KycStatus       @default(NONE)
   status           UserStatus      @default(ACTIVE)
+
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
-  birthDate        DateTime?
-  firstName        String?
-  lastName         String?
-  username         String?         @unique
 
-  // Relations
-  auditLogs        AuditLog[]      @relation("admin_actions")
-  targetLogs       AuditLog[]      @relation("target_user")
-  securityLogs     SecurityLog[]
-  qrPayments       QRPayment[]
-  sessions         Session[]
-  supportTickets   SupportTicket[]
-  notifications    Notification[]  // ✅ Ajouté pour les notifications réelles
+  // GÉOLOCALISATION
+  latitude         Float?
+  longitude        Float?
+
+  // WEB3 & PI NETWORK
+  walletAddress    String?         @unique
+  piUserId         String?         @unique
+
+  // RELATIONS
+  wallets          Wallet[]
+  vaults           Vault[]         // Pour le Staking/Épargne
+  beneficiaries    Beneficiary[]   // Contacts favoris
   transactionsFrom Transaction[]   @relation("tx_from_user")
   transactionsTo   Transaction[]   @relation("tx_to_user")
   virtualCards     VirtualCard[]
-  wallets          Wallet[]
+  sessions         Session[]
+  notifications    Notification[]
+  qrPayments       QRPayment[]
+  auditLogs        AuditLog[]      @relation("admin_actions")
+  targetLogs       AuditLog[]      @relation("target_user")
+  securityLogs     SecurityLog[]
+  supportTickets   SupportTicket[]
 }
 
-model Notification {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  message     String
-  type        String   // Ex: "success", "info", "error", "KYC_SUCCESS"
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// --- FINANCE & ÉPARGNE (ENRICHI) ---
+model Wallet {
+  id               String        @id @default(cuid())
+  userId           String
+  balance          Float         @default(0)
+  currency         String        @default("PI") // PI, USDT, XAF, etc.
+  type             WalletType    @default(PI)
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionsFrom Transaction[] @relation("tx_from_wallet")
+  transactionsTo   Transaction[] @relation("tx_to_wallet")
 
   @@index([userId])
+}
+
+model Vault {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String    // Ex: "Épargne Mariage" ou "Staking PI"
+  amount       Float     @default(0)
+  targetAmount Float?
+  interestRate Float     @default(0) // Taux d'intérêt annuel
+  lockUntil    DateTime? // Date de déblocage des fonds
+  createdAt    DateTime  @default(now())
+  
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Beneficiary {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String   // Nom du contact
+  accountInfo  String   // Wallet address ou numéro de téléphone
+  provider     String   // PIMPAY, PI_NETWORK, ORANGE, MTNC
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// --- TRANSACTIONS ---
+model Transaction {
+  id           String            @id @default(cuid())
+  reference    String            @unique
+  blockchainTx String?           @unique
+
+  amount       Float
+  fee          Float             @default(0)
+  netAmount    Float?
+
+  type         TransactionType
+  status       TransactionStatus @default(PENDING)
+  description  String?
+
+  createdAt    DateTime          @default(now())
+
+  fromUserId   String?
+  fromUser     User?             @relation("tx_from_user", fields: [fromUserId], references: [id])
+  fromWalletId String?
+  fromWallet   Wallet?           @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
+
+  toUserId     String?
+  toUser       User?             @relation("tx_to_user", fields: [toUserId], references: [id])
+  toWalletId   String?
+  toWallet     Wallet?           @relation("tx_to_wallet", fields: [toWalletId], references: [id])
+
+  qrPaymentId  String?
+  qrPayment    QRPayment?        @relation(fields: [qrPaymentId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([reference])
+}
+
+// --- SÉCURITÉ ---
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  ip           String?
+  userAgent    String?
+  deviceName   String?
+  isActive     Boolean  @default(true)
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  identifier String   // Email ou Phone
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model AuditLog {
   id          String   @id @default(cuid())
   adminId     String?
   adminName   String?
+  action      String
   targetId    String?
   targetEmail String?
-  action      String   
-  details     String?  
-  metadata    Json?    
+  details     String?
   createdAt   DateTime @default(now())
 
   admin       User?    @relation("admin_actions", fields: [adminId], references: [id])
@@ -71,7 +191,7 @@ model AuditLog {
 }
 
 model SecurityLog {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid())
   userId    String
   action    String
   ip        String?
@@ -80,84 +200,32 @@ model SecurityLog {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  token        String   @unique
-  deviceName   String?
-  os           String?
-  browser      String?
-  ip           String?
-  location     String?
-  country      String?
-  platform     String?
-  userAgent    String?
-  lastActiveAt DateTime @default(now())
-  createdAt    DateTime @default(now())
-  isActive     Boolean  @default(true)
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([token])
-}
-
-model Wallet {
-  id               String        @id @default(cuid())
-  userId           String
-  balance          Float         @default(0)
-  currency         String        @default("PI")
-  type             WalletType    @default(PI)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  transactionsFrom Transaction[] @relation("tx_from_wallet")
-  transactionsTo   Transaction[] @relation("tx_to_wallet")
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
+// --- CARTES & PAIEMENTS ---
 model VirtualCard {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid())
   userId    String
-  number    String
+  number    String   @unique
   exp       String
+  cvv       String?
   holder    String
   locked    Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Transaction {
-  id           String            @id @default(cuid())
-  amount       Float
-  type         TransactionType
-  status       TransactionStatus @default(PENDING)
-  reference    String?           @unique
-  createdAt    DateTime          @default(now())
-  fromUserId   String?
-  toUserId     String?
-  fromWalletId String?
-  toWalletId   String?
-  qrPaymentId  String?
-
-  fromUser     User?             @relation("tx_from_user", fields: [fromUserId], references: [id])
-  toUser       User?             @relation("tx_to_user", fields: [toUserId], references: [id])
-  fromWallet   Wallet?           @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
-  toWallet     Wallet?           @relation("tx_to_wallet", fields: [toWalletId], references: [id])
-  qrPayment    QRPayment?        @relation("qr_transactions", fields: [qrPaymentId], references: [id])
-
-  @@index([reference])
 }
 
 model QRPayment {
   id           String        @id @default(cuid())
   userId       String
-  amount       Float
-  currency     String
+  amount       Float?
+  currency     String        @default("PI")
+  active       Boolean       @default(true)
   createdAt    DateTime      @default(now())
+
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[] @relation("qr_transactions")
+  transactions Transaction[]
 }
 
+// --- SUPPORT ---
 model SupportTicket {
   id        String        @id @default(cuid())
   userId    String
@@ -170,24 +238,29 @@ model SupportTicket {
 
 model Message {
   id        String         @id @default(cuid())
-  ticketId  String?
+  ticketId  String
   senderId  String
   content   String
-  createdAt DateTime       @default(now())
-  ticket    SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now()) // CORRIGÉ : @default(now()) au lieu de @now()
+  ticket    SupportTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-model Otp {
-  phone     String   @id
-  code      String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// ENUMS
+// --- ENUMS ---
 enum UserRole {
   ADMIN
   USER
+  MERCHANT
 }
 
 enum UserStatus {
@@ -214,12 +287,14 @@ enum TransactionType {
   WITHDRAW
   DEPOSIT
   PAYMENT
+  EXCHANGE
 }
 
 enum TransactionStatus {
   PENDING
   SUCCESS
   FAILED
+  CANCELLED
 }
 
 enum SupportStatus {
