@@ -1,177 +1,198 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Wallet, ArrowUpRight, ArrowDownLeft, RefreshCcw, 
+import {
+  Wallet, ArrowUpRight, ArrowDownLeft, RefreshCcw,
   ShieldCheck, TrendingUp, CreditCard, LayoutGrid,
-  History, Settings, Bell, ChevronRight
+  History, Bell, ChevronRight, Loader2, ArrowUpCircle, ArrowDownCircle
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { PI_CONSENSUS_USD, formatLocalCurrency } from "@/lib/exchange";
+import { PI_CONSENSUS_USD } from "@/lib/exchange";
 import { BottomNav } from "@/components/bottom-nav";
 
 export default function UserDashboard() {
-  const [balance, setBalance] = useState(124.50); // En PI
-  const [fiatCurrency, setFiatCurrency] = useState("USD");
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setIsLoaded(true);
+    async function fetchDashboardData() {
+      try {
+        // On récupère les infos comme dans HomePage (pimpay_user)
+        const savedUser = localStorage.getItem("pimpay_user");
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        }
+
+        // On tente quand même une mise à jour via l'API pour le solde frais
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/user/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          // On fusionne les données de l'API avec l'état
+          setUser((prev: any) => ({
+            ...prev,
+            balance: result.stats?.piBalance ?? prev?.balance,
+            fullName: result.profile?.fullName ?? prev?.name,
+            timeline: result.timeline ?? []
+          }));
+        }
+      } catch (err) {
+        console.error("Erreur chargement dashboard:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchDashboardData();
   }, []);
 
-  const totalFiatValue = balance * PI_CONSENSUS_USD;
+  const balance = user?.balance || 0;
+  const userName = user?.fullName || user?.name || "Pioneer";
+  const timeline = user?.timeline || [];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans overflow-x-hidden">
-      
-      {/* --- TOP NAVIGATION / HEADER --- */}
-      <header className="px-6 pt-10 pb-6 flex justify-between items-center bg-gradient-to-b from-blue-600/10 to-transparent">
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
+
+      {/* --- HEADER (Style Home) --- */}
+      <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white shadow-lg shadow-blue-600/20">
-            P
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold italic shadow-lg shadow-blue-500/20">
+            {userName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mainnet Balance</p>
-            <h1 className="text-lg font-black text-white tracking-tighter uppercase italic">PimPay Ledger</h1>
+            <h1 className="text-lg font-black italic uppercase tracking-tighter leading-none">{userName}</h1>
+            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Mainnet Balance</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 relative">
-            <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
-          </button>
-        </div>
+        <button className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 relative">
+          <Bell size={20} />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
+        </button>
       </header>
 
-      {/* --- MAIN ASSET CARD --- */}
-      <section className="px-6 mb-8">
-        <Card className="bg-gradient-to-br from-blue-600 to-indigo-900 border-none rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl shadow-blue-600/20">
-          <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12">
-            <Wallet size={240} />
+      <main className="px-6">
+        {/* --- MAIN CARD (Style Home aspect-[16/9]) --- */}
+        <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 to-indigo-900 rounded-[32px] p-6 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-white/60 text-xs uppercase font-bold tracking-widest mb-1">Solde Total (PI)</p>
+            <h2 className="text-4xl font-black tracking-tighter mb-4">
+               π {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+            </h2>
+            
+            <div className="flex items-center gap-2 bg-black/20 w-fit px-3 py-1 rounded-full backdrop-blur-md border border-white/5">
+              <p className="text-[10px] font-mono font-medium tracking-tight">
+                ≈ ${(balance * PI_CONSENSUS_USD).toLocaleString()} USD
+              </p>
+            </div>
           </div>
-          
-          <div className="relative z-10 space-y-6">
-            <div className="flex justify-between items-start">
-              <span className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest">
-                GCV Protocol Active
-              </span>
-              <ShieldCheck className="text-blue-200 opacity-50" size={20} />
-            </div>
 
-            <div className="space-y-1">
-              <p className="text-6xl font-black text-white tracking-tighter">
-                {balance.toFixed(2)} <span className="text-2xl text-blue-200">π</span>
-              </p>
-              <p className="text-xl font-bold text-blue-100/70 tracking-tight">
-                ≈ {totalFiatValue.toLocaleString()} {fiatCurrency}
-              </p>
+          <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+            <div>
+              <p className="font-mono text-[10px] opacity-40 uppercase tracking-tighter">ID: {user?.id?.substring(0, 8) || "GUEST"}...</p>
+              <p className="font-mono text-[10px] opacity-40 uppercase">Status: GCV Active</p>
             </div>
+            <ShieldCheck size={24} className="opacity-30 text-blue-200" />
+          </div>
 
-            <div className="pt-4 flex gap-3">
-              <div className="flex -space-x-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-indigo-800 bg-slate-800 flex items-center justify-center text-[10px] font-bold">
-                    {i === 3 ? "+" : "U"}
+          {/* Décoration Wallet en fond */}
+          <div className="absolute -right-6 -top-6 opacity-10 rotate-12">
+            <Wallet size={180} />
+          </div>
+        </div>
+
+        {/* --- QUICK ACTIONS --- */}
+        <section className="mb-10">
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
+              { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
+              { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/dashboard/exchange" },
+              { icon: <LayoutGrid />, label: "Plus", color: "bg-slate-800", link: "/dashboard/services" },
+            ].map((action, i) => (
+              <div key={i} className="flex flex-col items-center gap-3">
+                <button 
+                  onClick={() => window.location.href = action.link}
+                  className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform active:scale-90`}
+                >
+                  {action.icon}
+                </button>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{action.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* --- RECENT ACTIVITY (Style Home) --- */}
+        <section className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Activités Récentes</h3>
+            <History size={16} className="text-slate-600" />
+          </div>
+
+          <div className="space-y-4">
+            {timeline.length > 0 ? timeline.map((tx: any, i: number) => (
+              <div key={i} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800/60 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${tx.type === 'RECEIVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                    {tx.type === 'RECEIVED' ? <ArrowDownCircle size={22} /> : <ArrowUpCircle size={22} />}
                   </div>
-                ))}
+                  <div>
+                    <p className="text-[13px] font-bold leading-tight">
+                      {tx.type === 'RECEIVED' ? 'Reçu de ' : 'Envoyé à '} {tx.contact?.firstName || 'Pioneer'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        {tx.status}
+                      </p>
+                      <span className="text-[9px] text-slate-600 font-medium">
+                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className={`text-sm font-black ${tx.type === 'RECEIVED' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  {tx.type === 'RECEIVED' ? '+' : '-'}π {tx.amount}
+                </p>
               </div>
-              <p className="text-[10px] text-blue-100/60 font-medium">Trusted by 2.4M Pioneers</p>
-            </div>
+            )) : (
+              <div className="text-center py-10 border border-dashed border-white/10 rounded-[24px]">
+                 <p className="text-[10px] font-bold uppercase text-slate-600 tracking-widest">Aucune transaction</p>
+              </div>
+            )}
           </div>
-        </Card>
-      </section>
+        </section>
 
-      {/* --- QUICK ACTIONS --- */}
-      <section className="px-6 mb-10">
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/dashboard/send" },
-            { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/dashboard/withdraw" },
-            { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/dashboard/exchange" },
-            { icon: <LayoutGrid />, label: "Plus", color: "bg-slate-800", link: "/dashboard/services" },
-          ].map((action, i) => (
-            <div key={i} className="flex flex-col items-center gap-3">
-              <button className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform active:scale-90`}>
-                {action.icon}
-              </button>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{action.label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* --- SERVICES & VAULTS --- */}
-      <section className="px-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-black uppercase tracking-widest text-white italic">Web3 Ecosystem</h2>
-          <span className="text-[10px] text-blue-500 font-bold uppercase">Voir tout</span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          {/* Staking Vault */}
-          <div className="p-6 bg-slate-900/40 border border-white/5 rounded-3xl flex items-center justify-between hover:bg-slate-900/60 transition-all cursor-pointer">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                <TrendingUp size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-white">Staking GCV</h3>
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Earn up to 12% APY</p>
-              </div>
-            </div>
-            <ChevronRight className="text-slate-700" size={20} />
-          </div>
-
-          {/* Virtual Card */}
-          <div className="p-6 bg-slate-900/40 border border-white/5 rounded-3xl flex items-center justify-between hover:bg-slate-900/60 transition-all cursor-pointer">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500">
-                <CreditCard size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-white">Carte Virtuelle</h3>
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Dépensez vos Pi partout</p>
-              </div>
-            </div>
-            <div className="px-3 py-1 bg-pink-500/10 rounded-full text-[8px] font-black text-pink-500 uppercase tracking-widest">
-              Soon
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* --- RECENT ACTIVITY --- */}
-      <section className="px-6 mt-10 space-y-6 pb-10">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-black uppercase tracking-widest text-white italic">Recent Activity</h2>
-          <History className="text-slate-700" size={18} />
-        </div>
-
-        <div className="space-y-3">
-          {[
-            { type: "Conversion", amount: "+ 895,353 CDF", sub: "0.001 PI", status: "Success", time: "12:40" },
-            { type: "Transfert", amount: "- 0.50 PI", sub: "À: @Pioneer_RDC", status: "Pending", time: "Hier" },
-          ].map((tx, i) => (
-            <div key={i} className="p-4 bg-slate-900/20 border border-white/5 rounded-2xl flex justify-between items-center">
-              <div className="flex gap-3 items-center">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.amount.startsWith('+') ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                  {tx.amount.startsWith('+') ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+        {/* --- SERVICES (Style Ecosystem) --- */}
+        <section className="space-y-4 pb-10">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Ecosystème Web3</h2>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="p-5 bg-slate-900/40 border border-white/5 rounded-3xl flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                  <TrendingUp size={24} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-white">{tx.type}</p>
-                  <p className="text-[10px] text-slate-500 font-medium">{tx.sub} • {tx.time}</p>
+                  <h3 className="text-sm font-bold text-white">Staking GCV</h3>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Earn up to 12% APY</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className={`text-sm font-black ${tx.amount.startsWith('+') ? 'text-emerald-400' : 'text-slate-200'}`}>{tx.amount}</p>
-                <p className={`text-[9px] font-bold uppercase tracking-widest ${tx.status === 'Pending' ? 'text-orange-500' : 'text-slate-600'}`}>{tx.status}</p>
-              </div>
+              <ChevronRight className="text-slate-700" size={20} />
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      </main>
 
-      {/* NAVIGATION BAS DE PAGE */}
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );

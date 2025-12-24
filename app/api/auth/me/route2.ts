@@ -1,13 +1,14 @@
+// app/api/auth/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/adminAuth";
+import { verifyAuth } from "@/lib/adminAuth"; // Utilise verifyAuth ici !
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const payload = verifyAuth(req);
-    
+
     if (!payload) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
@@ -17,21 +18,9 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         name: true,
-        firstName: true,
-        lastName: true,
-        username: true,
         email: true,
-        phone: true,
         role: true,
-        birthDate: true,
-        nationality: true,
-        country: true,
-        city: true,
-        address: true,
         walletAddress: true,
-        status: true,
-        kycStatus: true,
-        avatar: true,
         wallets: {
           where: { type: "PI" },
           select: { balance: true }
@@ -39,22 +28,16 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
-    }
-
-    // Extraction de la balance pour un accès plus facile côté frontend
-    const balance = user.wallets[0]?.balance ?? 0;
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     return NextResponse.json({
       authenticated: true,
       user: {
         ...user,
-        balance: balance
+        balance: user.wallets[0]?.balance ?? 0
       }
     });
   } catch (error) {
-    console.error("Erreur API /me:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

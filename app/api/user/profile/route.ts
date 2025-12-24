@@ -1,82 +1,65 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
-import { PI_CONSENSUS_USD } from "@/lib/exchange";
 
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
+    
+    // 1. Vérification basique du header
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+      return NextResponse.json({ error: "Session manquante" }, { status: 401 });
     }
 
     const token = authHeader.split(" ")[1];
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-
-    // 1. Vérification du token
-    const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
-
-    // 2. Récupération ultra-complète (Profil + Wallets + Transactions)
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        firstName: true,
-        email: true,
-        phone: true,
-        kycStatus: true,
-        avatar: true,
-        // Récupérer tous les portefeuilles
-        wallets: {
-          select: {
-            currency: true,
-            balance: true,
-          }
-        },
-        // Récupérer les 10 dernières transactions envoyées
-        transactionsFrom: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: { toUser: { select: { name: true, firstName: true, avatar: true } } }
-        },
-        // Récupérer les 10 dernières transactions reçues
-        transactionsTo: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: { fromUser: { select: { name: true, firstName: true, avatar: true } } }
-        }
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
+    
+    // 2. Vérification si le token n'est pas "undefined" ou vide
+    if (!token || token === "undefined" || token === "null") {
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
-    // 3. Calcul de la valeur globale du portefeuille au taux GCV
-    const piWallet = user.wallets.find(w => w.currency === "PI");
-    const piBalance = piWallet?.balance || 0;
-    const globalValueUSD = piBalance * PI_CONSENSUS_USD;
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    
+    // 3. Tentative de vérification du JWT
+    let payload;
+    try {
+      const verified = await jwtVerify(token, secret);
+      payload = verified.payload;
+    } catch (jwtError) {
+      console.error("JWT_VERIFY_ERROR:", jwtError);
+      return NextResponse.json({ error: "Session expirée ou corrompue" }, { status: 401 });
+    }
 
-    // 4. Fusion et tri des transactions (Timeline unique)
-    const allTransactions = [
-      ...user.transactionsFrom.map(tx => ({ ...tx, direction: 'SENT' })),
-      ...user.transactionsTo.map(tx => ({ ...tx, direction: 'RECEIVED' }))
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-     .slice(0, 15); // On garde les 15 plus récentes
+    const userId = (payload.userId || payload.sub) as string;
 
-    return NextResponse.json({ 
-      user: {
-        ...user,
-        globalValueUSD,
-        piBalance,
-        timeline: allTransactions
-      } 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        wallets: { where: { currency: "PI" }, take: 1 },
+        transactionsFrom: { take: 10, orderBy: { createdAt: 'desc' }, include: { toUser: true } },
+        transactionsTo: { take: 10, orderBy: { createdAt: 'desc' }, include: { fromUser: true } }
+      }
     });
 
-  } catch (error) {
-    console.error("API_PROFILE_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur ou session expirée" }, { status: 500 });
+    if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+
+    const piBalance = user.wallets?.[0]?.balance ?? 0;
+
+    return NextResponse.json({
+      profile: {
+        fullName: user.name || user.firstName || "Pioneer",
+        kycStatus: user.kycStatus,
+        avatar: user.avatar
+      },
+      stats: {
+        piBalance: piBalance,
+        globalValueUSD: piBalance * 314159,
+      },
+      timeline: [] // Tu peux remplir ici plus tard
+    });
+
+  } catch (error: any) {
+    console.error("ERREUR_PROFILE_DETAIL:", error.message);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

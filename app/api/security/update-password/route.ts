@@ -1,78 +1,70 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
-export async function PUT(req: NextRequest) {
+export async function PUT(req: Request) {
   try {
     console.log("🔹 Requête update-password reçue");
 
-    // 1️⃣ Vérifier le token
+    // 1. Extraction et vérification du Token
     const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      console.log("❌ Token manquant ou mal formaté");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
     const token = authHeader.split(" ")[1];
-    let payload: any;
-    try {
-      payload = jwt.verify(token, process.env.JWT_SECRET!);
-      console.log("✅ Token valide:", payload);
-    } catch (err) {
-      console.log("❌ Token invalide:", err);
-      return NextResponse.json({ error: "Token invalide ou expiré" }, { status: 401 });
-    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    const { payload } = await jwtVerify(token, secret);
+    const userId = (payload.userId || payload.id || payload.sub) as string;
 
-    const userId = payload.id;
-    if (!userId) {
-      console.log("❌ userId non trouvé dans le token");
-      return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 401 });
-    }
-
-    // 2️⃣ Lire le body
-    const body = await req.json();
-    const { oldPassword, newPassword } = body;
-    console.log("🔹 Body reçu:", body);
+    // 2. Récupération des données
+    const { oldPassword, newPassword } = await req.json();
 
     if (!oldPassword || !newPassword) {
-      console.log("❌ Champs manquants");
-      return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
+      return NextResponse.json({ error: "Tous les champs sont requis" }, { status: 400 });
     }
 
-    // 3️⃣ Charger l'utilisateur
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.password) {
-      console.log("❌ Utilisateur introuvable ou sans mot de passe");
-      return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: "Le nouveau mot de passe doit faire au moins 8 caractères" }, { status: 400 });
     }
 
-    console.log("🔹 Utilisateur trouvé:", { id: user.id, email: user.email });
-
-    // 4️⃣ Vérifier ancien mot de passe
-    const isValid = await bcrypt.compare(oldPassword, user.password);
-    console.log("🔹 Résultat bcrypt:", isValid);
-
-    if (!isValid) {
-      return NextResponse.json({ error: "Ancien mot de passe incorrect" }, { status: 400 });
-    }
-
-    // 5️⃣ Hasher & mettre à jour
-    const hashed = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
-
-    // 6️⃣ Générer un nouveau token (optionnel)
-    const newToken = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: "7d" });
-
-    console.log("✅ Mot de passe mis à jour");
-
-    return NextResponse.json({
-      message: "Mot de passe mis à jour avec succès",
-      token: newToken,
+    // 3. Recherche de l'utilisateur
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true }
     });
 
-  } catch (error) {
-    console.error("🔴 ERREUR UPDATE PASSWORD:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    if (!user || !user.password) {
+      return NextResponse.json({ error: "Utilisateur non trouvé ou mot de passe non défini" }, { status: 404 });
+    }
+
+    // 4. Vérification du mot de passe actuel
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    console.log(`🔹 Comparaison mot de passe: ${isMatch ? "✅ MATCH" : "❌ NO MATCH"}`);
+
+    if (!isMatch) {
+      return NextResponse.json({ error: "L'ancien mot de passe est incorrect" }, { status: 400 });
+    }
+
+    // 5. Hachage du nouveau mot de passe
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // 6. Mise à jour dans la base de données
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+
+    console.log("✅ Mot de passe mis à jour avec succès");
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Mot de passe modifié avec succès" 
+    });
+
+  } catch (error: any) {
+    console.error("❌ ERREUR_UPDATE_PASSWORD:", error.message);
+    return NextResponse.json({ error: "Erreur lors de la modification" }, { status: 500 });
   }
 }

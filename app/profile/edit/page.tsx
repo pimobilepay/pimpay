@@ -1,29 +1,18 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  ArrowLeft, 
-  Camera, 
-  User, 
-  Mail, 
-  Phone, 
-  Lock, 
-  Check, 
-  Loader2,
-  Home,
-  Wallet,
-  ArrowDownToLine,
-  Smartphone,
-  ArrowUpFromLine,
-  Send,
-  Menu
+import {
+  ArrowLeft, Camera, User, Mail, Phone, Lock,
+  Check, Loader2, Home, Wallet, ArrowDownToLine,
+  Smartphone, ArrowUpFromLine, Send, Menu, Globe, MapPin,
+  Calendar, Fingerprint, Landmark
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
 
-// --- BOTTOM NAV IDENTIQUE ---
+// --- BOTTOM NAV ---
 function BottomNav() {
   const pathname = usePathname();
   const navItems = [
@@ -51,144 +40,188 @@ export default function EditProfilePage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  // États du formulaire
   const [formData, setFormData] = useState({
-    fullName: "Pi Pioneer",
-    email: "pioneer@pi.network",
-    phone: "+237 677 00 00 00",
-    username: "pi_pioneer_237"
+    firstName: "",
+    lastName: "",
+    username: "",
+    email: "",
+    phone: "",
+    birthDate: "",
+    nationality: "",
+    country: "",
+    city: "",
+    address: "",
+    walletAddress: "",
   });
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    const fetchUserData = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setFormData({
+            firstName: data.user.firstName || "",
+            lastName: data.user.lastName || "",
+            username: data.user.username || "",
+            email: data.user.email || "",
+            phone: data.user.phone || "",
+            birthDate: data.user.birthDate ? data.user.birthDate.split('T')[0] : "",
+            nationality: data.user.nationality || "",
+            country: data.user.country || "",
+            city: data.user.city || "",
+            address: data.user.address || "",
+            walletAddress: data.user.walletAddress || "",
+          });
+        }
+      } catch (err) {
+        toast.error("Erreur de chargement");
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchUserData();
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    // Simulation d'appel API
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Profil mis à jour avec succès !");
+    try {
+      const res = await fetch("/api/user/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) throw new Error("Erreur de mise à jour");
+      toast.success("Profil complet mis à jour !");
       router.push("/profile");
-    }, 2000);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!mounted) return null;
+  if (!mounted || fetching) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <Loader2 className="text-blue-500 animate-spin" size={32} />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-32">
-      {/* HEADER AVEC BOUTON RETOUR */}
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       <header className="px-6 pt-12 pb-6 flex items-center justify-between sticky top-0 bg-[#020617]/80 backdrop-blur-md z-50">
-        <button 
-          onClick={() => router.back()}
-          className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center border border-white/10"
-        >
+        <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center border border-white/10 active:scale-90 transition-transform">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">Modifier Profil</h1>
-        <div className="w-10"></div> {/* Spacer pour centrer le titre */}
+        <h1 className="text-xl font-black italic uppercase tracking-tighter">Édition Profil</h1>
+        <div className="w-10"></div>
       </header>
 
       <main className="px-6">
-        {/* AVATAR EDIT SECTION */}
+        {/* AVATAR HEADER */}
         <div className="flex flex-col items-center mb-10">
           <div className="relative group">
-            <div className="w-28 h-28 rounded-[32px] bg-gradient-to-tr from-blue-600 to-indigo-900 flex items-center justify-center text-4xl font-black italic border-4 border-slate-900 shadow-2xl">
-              P
+            <div className="w-28 h-28 rounded-[32px] bg-gradient-to-tr from-blue-600 to-indigo-900 flex items-center justify-center text-4xl font-black italic border-4 border-slate-900 shadow-2xl uppercase">
+              {formData.username?.[0] || "P"}
             </div>
-            <button className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center border-4 border-slate-900 shadow-lg group-active:scale-90 transition-transform">
+            <button className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center border-4 border-slate-900 shadow-lg">
               <Camera size={18} />
             </button>
           </div>
-          <p className="text-[10px] text-slate-500 font-bold uppercase mt-4 tracking-widest">Changer la photo</p>
+          <p className="text-[10px] text-blue-500 font-black uppercase mt-4 tracking-[3px]">Member Verified</p>
         </div>
 
-        {/* FORMULAIRE */}
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-4">
+          
+          {/* SECTION : IDENTITÉ */}
           <div className="space-y-4">
-            {/* Champ Nom */}
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Identité Personnelle</h3>
+            
             <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50 transition-all">
-              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2">
-                <User size={12} /> Nom Complet
-              </label>
-              <input 
-                type="text" 
-                value={formData.fullName}
-                onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                className="w-full bg-transparent outline-none font-bold text-sm"
-              />
+              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Fingerprint size={12} /> Nom d'utilisateur (Public)</label>
+              <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm text-blue-400" placeholder="pi_master" />
             </div>
 
-            {/* Champ Username */}
-            <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50 transition-all">
-              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2">
-                @ Username
-              </label>
-              <input 
-                type="text" 
-                value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className="w-full bg-transparent outline-none font-bold text-sm text-blue-400"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Prénom</label>
+                <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
+              </div>
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Nom</label>
+                <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
+              </div>
             </div>
 
-            {/* Champ Email */}
-            <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50 transition-all">
-              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2">
-                <Mail size={12} /> Email
-              </label>
-              <input 
-                type="email" 
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-transparent outline-none font-bold text-sm"
-              />
-            </div>
-
-            {/* Champ Téléphone (Désactivé car lié au compte) */}
-            <div className="p-4 bg-slate-900/20 border border-white/5 rounded-2xl opacity-60">
-              <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2 mb-2">
-                <Phone size={12} /> Téléphone (Non modifiable)
-              </label>
-              <input 
-                type="text" 
-                value={formData.phone}
-                readOnly
-                className="w-full bg-transparent outline-none font-bold text-sm cursor-not-allowed"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Calendar size={12} /> Naissance</label>
+                <input type="date" value={formData.birthDate} onChange={(e) => setFormData({...formData, birthDate: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm text-slate-300 [color-scheme:dark]" />
+              </div>
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Globe size={12} /> Nationalité</label>
+                <input type="text" value={formData.nationality} onChange={(e) => setFormData({...formData, nationality: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" placeholder="Ex: Camerounais" />
+              </div>
             </div>
           </div>
 
-          {/* LIEN CHANGEMENT PIN */}
-          <Link 
-            href="/profile/change-pin"
-            className="flex items-center justify-between p-4 bg-blue-600/5 border border-blue-500/10 rounded-2xl group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center text-blue-500">
-                <Lock size={16} />
-              </div>
-              <span className="text-sm font-bold">Sécurité du Code PIN</span>
+          {/* SECTION : CONTACT & WEB3 */}
+          <div className="space-y-4 pt-4">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Contact & Web3</h3>
+            
+            <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl">
+              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Mail size={12} /> Email de secours</label>
+              <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
             </div>
-            <Check size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </Link>
 
-          {/* BOUTON SAUVEGARDER */}
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 h-16 rounded-[24px] font-black uppercase italic tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-          >
-            {loading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <>Sauvegarder les modifications</>
-            )}
-          </button>
+            <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Landmark size={12} /> Pi Wallet Address</label>
+              <input type="text" value={formData.walletAddress} onChange={(e) => setFormData({...formData, walletAddress: e.target.value})} className="w-full bg-transparent outline-none font-mono text-[11px] text-amber-500 overflow-ellipsis" placeholder="GD3A..." />
+            </div>
+          </div>
+
+          {/* SECTION : LOCALISATION */}
+          <div className="space-y-4 pt-4">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Localisation</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Pays</label>
+                <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
+              </div>
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Ville</label>
+                <input type="text" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
+              </div>
+            </div>
+            
+            <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
+              <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><MapPin size={12} /> Adresse de résidence</label>
+              <input type="text" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" placeholder="Rue, Quartier, Porte" />
+            </div>
+          </div>
+
+          <div className="pt-6 space-y-4">
+            <Link href="/settings/password" className="flex items-center justify-between p-4 bg-blue-600/5 border border-blue-500/10 rounded-2xl group transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center text-blue-500"><Lock size={16} /></div>
+                <span className="text-sm font-bold">Modifier le mot de passe</span>
+              </div>
+              <Check size={16} className="text-blue-500 opacity-50" />
+            </Link>
+
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 h-16 rounded-[24px] font-black uppercase italic tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+              {loading ? <Loader2 className="animate-spin" /> : <>Mettre à jour le profil</>}
+            </button>
+          </div>
         </form>
       </main>
-
       <BottomNav />
     </div>
   );

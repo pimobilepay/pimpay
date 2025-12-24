@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-// Remplacement de ShieldLock par Shield et Lock pour éviter l'erreur undefined
 import { ArrowLeft, Key, Eye, EyeOff, Shield, Lock, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,7 +14,6 @@ export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Correction pour éviter les erreurs d'hydratation Next.js
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -23,47 +21,66 @@ export default function ChangePasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      toast.error("Champs incomplets");
+    const cleanOld = oldPassword.trim();
+    const cleanNew = newPassword.trim();
+    const cleanConfirm = confirmPassword.trim();
+
+    if (!cleanOld || !cleanNew || !cleanConfirm) {
+      toast.error("Veuillez remplir tous les champs");
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (cleanNew !== cleanConfirm) {
       toast.error("Les nouveaux mots de passe ne correspondent pas");
+      return;
+    }
+
+    if (cleanNew.length < 8) {
+      toast.error("Le nouveau mot de passe doit faire au moins 8 caractères");
       return;
     }
 
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("pimpay_token");
-      if (!token) {
-        toast.error("Session expirée");
-        router.push("/login");
-        return;
-      }
+      // On tente de récupérer le token sur les deux clés possibles dans ton projet
+      const token = localStorage.getItem("token") || localStorage.getItem("pimpay_token");
 
-      const res = await fetch("/api/security/update-password", {
-        method: "PUT",
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST", // Utilisation de POST comme défini dans ton API fonctionnelle
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ oldPassword, newPassword }),
+        credentials: "include", // Indispensable pour les cookies de session
+        body: JSON.stringify({
+          oldPassword: cleanOld,
+          newPassword: cleanNew
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Échec de la mise à jour");
-        return;
+        if (res.status === 401) {
+          toast.error("Session expirée, veuillez vous reconnecter");
+          router.push("/auth/login");
+          return;
+        }
+        throw new Error(data.error || "Échec de la mise à jour");
       }
 
       toast.success("Mot de passe mis à jour !");
-      router.back();
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      
+      setTimeout(() => {
+        router.push("/");
+      }, 1500);
 
-    } catch (err) {
-      toast.error("Erreur de connexion");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur de connexion au serveur");
     } finally {
       setLoading(false);
     }
@@ -80,14 +97,14 @@ export default function ChangePasswordPage() {
 
       {/* HEADER */}
       <div className="relative px-6 pt-12 flex items-center gap-4 z-10">
-        <button 
-          onClick={() => router.back()} 
+        <button
+          onClick={() => router.back()}
           className="p-3 rounded-2xl bg-slate-900 border border-white/10 active:scale-95"
         >
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tighter">Sécurité</h1>
+          <h1 className="text-xl font-black uppercase tracking-tighter italic">Sécurité</h1>
           <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest">Update Protocol</p>
         </div>
       </div>
@@ -95,7 +112,7 @@ export default function ChangePasswordPage() {
       {/* FORM */}
       <div className="relative flex-1 flex flex-col justify-center px-6 z-10">
         <div className="w-full max-w-md mx-auto space-y-8">
-          
+
           <div className="text-center">
             <div className="inline-flex p-4 rounded-3xl bg-blue-600/10 border border-blue-500/20 mb-4">
               <Shield className="text-blue-500" size={32} />
@@ -113,8 +130,9 @@ export default function ChangePasswordPage() {
                   type={showPassword ? "text" : "password"}
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none"
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none transition-all"
                   placeholder="••••••••"
+                  required
                 />
               </div>
             </div>
@@ -127,13 +145,14 @@ export default function ChangePasswordPage() {
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none"
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none transition-all"
                   placeholder="••••••••"
+                  required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -148,8 +167,9 @@ export default function ChangePasswordPage() {
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none"
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm focus:border-blue-500 outline-none transition-all"
                   placeholder="••••••••"
+                  required
                 />
               </div>
             </div>
@@ -157,9 +177,9 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all mt-4"
+              className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all mt-4 shadow-lg shadow-blue-600/20 active:scale-95"
             >
-              {loading ? "Mise à jour..." : "Confirmer le changement"}
+              {loading ? "Mise à jour en cours..." : "Confirmer le changement"}
             </button>
           </form>
 

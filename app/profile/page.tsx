@@ -1,74 +1,98 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  User, Mail, Shield, Bell, Smartphone, 
-  ChevronRight, LogOut, Camera, CheckCircle2, 
-  Wallet, Fingerprint, Globe, CreditCard
+import {
+  User, Mail, Shield, Bell, Smartphone, ChevronRight, LogOut, Camera, CheckCircle2,
+  Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 
 interface UserData {
+  id: string;
   name: string;
+  username: string;
   email: string;
-  uid: string;
+  phone: string;
   joinedAt: string;
   isVerified: boolean;
+  kycStatus: string;
+  country: string;
+  city: string;
+  walletAddress: string;
+  birthDate?: string;
+  role: string;
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("pimpay_user");
-    if (stored) {
+    const fetchProfile = async () => {
       try {
-        const parsed = JSON.parse(stored);
-        // Simulation de données complémentaires FinTech
-        setUser({
-          name: parsed.name || parsed.username || "Utilisateur Pi",
-          email: parsed.email || "non-configuré@pi.com",
-          uid: parsed.uid || "ID_NON_DISPONIBLE",
-          joinedAt: "Décembre 2025",
-          isVerified: true
-        });
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setUser({
+            ...data.user,
+            name: data.user.name || `${data.user.firstName} ${data.user.lastName}`,
+            joinedAt: new Date(data.user.createdAt || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+            isVerified: data.user.kycStatus === "VERIFIED"
+          });
+        }
       } catch (e) {
-        console.error("Erreur chargement profil");
+        toast.error("Erreur de synchronisation");
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+    fetchProfile();
   }, []);
 
   const profileSections = [
     {
-      title: "Sécurité & Accès",
+      title: "Informations Personnelles",
       items: [
-        { label: "Authentification Biométrique", icon: <Fingerprint size={20} />, active: true, toggle: true },
-        { label: "Code PIN de Transaction", icon: <Shield size={20} />, active: true, value: "Activé" },
-        { label: "Appareils Connectés", icon: <Smartphone size={20} />, value: "2 actifs" },
+        { label: "Nom d'utilisateur", icon: <User size={20} />, value: `@${user?.username || 'pioneer'}` },
+        { label: "Email", icon: <Mail size={20} />, value: user?.email },
+        { label: "Localisation", icon: <MapPin size={20} />, value: `${user?.city || 'Douala'}, ${user?.country || 'CM'}` },
+        { label: "Date de naissance", icon: <Calendar size={20} />, value: user?.birthDate ? new Date(user?.birthDate).toLocaleDateString() : "Non configurée" },
+      ]
+    },
+    {
+      title: "Sécurité & Web3",
+      items: [
+        { label: "Pi Wallet Address", icon: <Wallet size={20} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 6)}...` : "Non liée" },
+        { label: "Code PIN Transaction", icon: <Shield size={20} />, active: true, value: "Sécurisé" },
+        { label: "Auth Biométrique", icon: <Fingerprint size={20} />, toggle: true },
       ]
     },
     {
       title: "Préférences",
       items: [
         { label: "Notifications", icon: <Bell size={20} />, path: "/settings/notifications" },
-        { label: "Langue", icon: <Globe size={20} />, value: "Français" },
         { label: "Devise d'affichage", icon: <CreditCard size={20} />, value: "USD ($)" },
       ]
     }
   ];
 
+  if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32">
-      {/* HEADER : Avatar et Infos de base */}
+      {/* HEADER */}
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
         <div className="flex flex-col items-center">
           <div className="relative">
-            <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-500 to-purple-600 p-1 shadow-2xl shadow-blue-500/20">
-              <div className="w-full h-full rounded-[22px] bg-[#020617] flex items-center justify-center text-3xl font-bold">
-                {user?.name?.[0]?.toUpperCase() || "P"}
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-500 to-purple-600 p-1 shadow-2xl">
+              <div className="w-full h-full rounded-[22px] bg-[#020617] flex items-center justify-center text-3xl font-black italic">
+                {user?.name?.[0]?.toUpperCase()}
               </div>
             </div>
-            <button className="absolute -bottom-2 -right-2 p-2 bg-blue-600 rounded-xl border-4 border-[#020617] hover:bg-blue-500 transition-colors">
+            <button className="absolute -bottom-2 -right-2 p-2 bg-blue-600 rounded-xl border-4 border-[#020617]">
               <Camera size={16} />
             </button>
           </div>
@@ -77,23 +101,33 @@ export default function ProfilePage() {
             {user?.name}
             {user?.isVerified && <CheckCircle2 size={20} className="text-blue-400" />}
           </h1>
-          <p className="text-slate-500 text-sm font-medium">Membre depuis {user?.joinedAt}</p>
+          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            {user?.role === 'ADMIN' ? 'Administrator' : `Pioneer depuis ${user?.joinedAt}`}
+          </p>
+          
+          {/* BOUTON MODIFIER PROFIL */}
+          <Link href="/profile/edit" className="mt-4 flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">
+            <UserPen size={14} className="text-blue-400" />
+            Modifier mes informations
+          </Link>
         </div>
       </div>
 
-      {/* DASHBOARD MINI-STATS */}
+      {/* STATS FINTECH */}
       <div className="grid grid-cols-2 gap-4 px-6 mb-8">
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
-          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Niveau KYC</p>
-          <p className="text-sm font-bold text-emerald-400">Niveau 2 (Vérifié)</p>
+          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Status KYC</p>
+          <p className={`text-sm font-bold ${user?.isVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {user?.kycStatus || 'NON VÉRIFIÉ'}
+          </p>
         </div>
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
-          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Limite 24h</p>
-          <p className="text-sm font-bold text-white">5,000 Pi</p>
+          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Réseau</p>
+          <p className="text-sm font-bold text-white">Pi Mainnet</p>
         </div>
       </div>
 
-      {/* SECTIONS DE PARAMÈTRES */}
+      {/* SECTIONS */}
       <div className="px-6 space-y-8">
         {profileSections.map((section, idx) => (
           <div key={idx}>
@@ -104,6 +138,7 @@ export default function ProfilePage() {
               {section.items.map((item, iIdx) => (
                 <button
                   key={iIdx}
+                  onClick={() => item.path && router.push(item.path)}
                   className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
                 >
                   <div className="flex items-center gap-4">
@@ -113,11 +148,9 @@ export default function ProfilePage() {
                     <span className="font-semibold text-sm text-slate-200">{item.label}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    {item.value && <span className="text-xs text-slate-500 font-medium">{item.value}</span>}
+                    {item.value && <span className="text-[11px] text-slate-500 font-bold">{item.value}</span>}
                     {item.toggle ? (
-                      <div className="w-10 h-5 bg-blue-600 rounded-full relative">
-                        <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                      </div>
+                      <div className="w-10 h-5 bg-blue-600 rounded-full relative"><div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" /></div>
                     ) : (
                       <ChevronRight size={16} className="text-slate-700" />
                     )}
@@ -128,20 +161,19 @@ export default function ProfilePage() {
           </div>
         ))}
 
-        {/* LOGOUT */}
-        <button 
-          onClick={() => {
-            localStorage.clear();
-            window.location.href = "/auth/login";
+        <button
+          onClick={async () => {
+             await fetch("/api/auth/logout", { method: "POST" });
+             router.replace("/auth/login");
           }}
           className="w-full flex items-center justify-center gap-3 p-5 rounded-[32px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8"
         >
           <LogOut size={20} />
-          Déconnexion du compte
+          Déconnexion Sécurisée
         </button>
 
         <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-          ID Utilisateur: {user?.uid.substring(0, 15)}...
+          Version 2.0.1 - Pi Network Protocol
         </p>
       </div>
     </div>
