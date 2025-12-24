@@ -1,29 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // Ajout du router
 import {
   Wallet, ArrowUpRight, ArrowDownLeft, RefreshCcw,
-  ShieldCheck, TrendingUp, CreditCard, LayoutGrid,
+  ShieldCheck, TrendingUp, LayoutGrid,
   History, Bell, ChevronRight, Loader2, ArrowUpCircle, ArrowDownCircle
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { PI_CONSENSUS_USD } from "@/lib/exchange";
 import { BottomNav } from "@/components/bottom-nav";
 
 export default function UserDashboard() {
+  const router = useRouter(); // Initialisation du router
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // On récupère les infos comme dans HomePage (pimpay_user)
         const savedUser = localStorage.getItem("pimpay_user");
         if (savedUser) {
           setUser(JSON.parse(savedUser));
         }
 
-        // On tente quand même une mise à jour via l'API pour le solde frais
         const token = localStorage.getItem("token");
         const response = await fetch("/api/user/profile", {
           headers: { Authorization: `Bearer ${token}` },
@@ -31,9 +30,9 @@ export default function UserDashboard() {
 
         if (response.ok) {
           const result = await response.json();
-          // On fusionne les données de l'API avec l'état
           setUser((prev: any) => ({
             ...prev,
+            id: result.profile?.id ?? prev?.id, // Assure-toi d'avoir l'ID pour les détails
             balance: result.stats?.piBalance ?? prev?.balance,
             fullName: result.profile?.fullName ?? prev?.name,
             timeline: result.timeline ?? []
@@ -63,8 +62,8 @@ export default function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
-
-      {/* --- HEADER (Style Home) --- */}
+      
+      {/* HEADER */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold italic shadow-lg shadow-blue-500/20">
@@ -82,14 +81,14 @@ export default function UserDashboard() {
       </header>
 
       <main className="px-6">
-        {/* --- MAIN CARD (Style Home aspect-[16/9]) --- */}
+        {/* MAIN CARD */}
         <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 to-indigo-900 rounded-[32px] p-6 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
           <div className="relative z-10">
             <p className="text-white/60 text-xs uppercase font-bold tracking-widest mb-1">Solde Total (PI)</p>
             <h2 className="text-4xl font-black tracking-tighter mb-4">
                π {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
             </h2>
-            
+
             <div className="flex items-center gap-2 bg-black/20 w-fit px-3 py-1 rounded-full backdrop-blur-md border border-white/5">
               <p className="text-[10px] font-mono font-medium tracking-tight">
                 ≈ ${(balance * PI_CONSENSUS_USD).toLocaleString()} USD
@@ -105,24 +104,23 @@ export default function UserDashboard() {
             <ShieldCheck size={24} className="opacity-30 text-blue-200" />
           </div>
 
-          {/* Décoration Wallet en fond */}
           <div className="absolute -right-6 -top-6 opacity-10 rotate-12">
             <Wallet size={180} />
           </div>
         </div>
 
-        {/* --- QUICK ACTIONS --- */}
+        {/* QUICK ACTIONS - LIEN VERS /send MIS À JOUR */}
         <section className="mb-10">
           <div className="grid grid-cols-4 gap-4">
             {[
-              { icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
+              { icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/send" },
               { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
               { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/dashboard/exchange" },
               { icon: <LayoutGrid />, label: "Plus", color: "bg-slate-800", link: "/dashboard/services" },
             ].map((action, i) => (
               <div key={i} className="flex flex-col items-center gap-3">
-                <button 
-                  onClick={() => window.location.href = action.link}
+                <button
+                  onClick={() => router.push(action.link)}
                   className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform active:scale-90`}
                 >
                   {action.icon}
@@ -133,7 +131,7 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* --- RECENT ACTIVITY (Style Home) --- */}
+        {/* RECENT ACTIVITY - REDIRECTION VERS DÉTAILS */}
         <section className="mb-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Activités Récentes</h3>
@@ -142,7 +140,11 @@ export default function UserDashboard() {
 
           <div className="space-y-4">
             {timeline.length > 0 ? timeline.map((tx: any, i: number) => (
-              <div key={i} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800/60 transition-colors">
+              <div 
+                key={i} 
+                onClick={() => router.push(`/transactions/${tx.id}`)} // Navigation vers la page détails
+                className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800/60 transition-colors cursor-pointer"
+              >
                 <div className="flex items-center gap-4">
                   <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${tx.type === 'RECEIVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                     {tx.type === 'RECEIVED' ? <ArrowDownCircle size={22} /> : <ArrowUpCircle size={22} />}
@@ -161,9 +163,12 @@ export default function UserDashboard() {
                     </div>
                   </div>
                 </div>
-                <p className={`text-sm font-black ${tx.type === 'RECEIVED' ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  {tx.type === 'RECEIVED' ? '+' : '-'}π {tx.amount}
-                </p>
+                <div className="flex items-center gap-2">
+                   <p className={`text-sm font-black ${tx.type === 'RECEIVED' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                    {tx.type === 'RECEIVED' ? '+' : '-'}π {tx.amount}
+                  </p>
+                  <ChevronRight size={14} className="text-slate-700" />
+                </div>
               </div>
             )) : (
               <div className="text-center py-10 border border-dashed border-white/10 rounded-[24px]">
@@ -173,11 +178,11 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* --- SERVICES (Style Ecosystem) --- */}
+        {/* ECOSYSTEME */}
         <section className="space-y-4 pb-10">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Ecosystème Web3</h2>
           <div className="grid grid-cols-1 gap-4">
-            <div className="p-5 bg-slate-900/40 border border-white/5 rounded-3xl flex items-center justify-between">
+            <div className="p-5 bg-slate-900/40 border border-white/5 rounded-3xl flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
                   <TrendingUp size={24} />
