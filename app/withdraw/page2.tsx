@@ -5,15 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
-import { 
-  ArrowLeft, ArrowUpFromLine, Smartphone, Building2, 
-  Clock, ShieldCheck, Zap, CircleDot 
+import {
+  ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
+  Clock, ShieldCheck, Zap, CircleDot
 } from "lucide-react";
 import Link from "next/link";
 import { CountrySelect } from "@/components/country-select";
 import { countries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PI_CONSENSUS_USD, FIAT_RATES } from "@/lib/exchange"; // Importation des nouvelles constantes
 import "flag-icons/css/flag-icons.min.css";
 
 export default function WithdrawPage() {
@@ -33,9 +34,13 @@ export default function WithdrawPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const piPrice = 314159.0;
+  // Utilisation du taux de la bibliothèque centrale
+  const piPrice = PI_CONSENSUS_USD;
+  
+  // Calcul du taux local dynamique basé sur FIAT_RATES
+  // Si la devise n'est pas dans nos rates, on fallback sur le taux du fichier country-data
+  const currentFiatRate = FIAT_RATES[selectedCountry.currency] || selectedCountry.piToLocalRate;
 
-  // Formattage stable pour l'hydratation (Zéro Italique)
   const formatValue = (val: number, locale: string = "en-US") => {
     return new Intl.NumberFormat(locale, {
       minimumFractionDigits: 2,
@@ -47,8 +52,8 @@ export default function WithdrawPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
-      
-      {/* HEADER FINTECH - TITRE EN HAUT / LEDGER EN BAS */}
+
+      {/* HEADER FINTECH */}
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/">
@@ -100,7 +105,7 @@ export default function WithdrawPage() {
 
           <TabsContent value="mobile" className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <div className="space-y-6">
-              
+
               {/* PAYS & OPERATEUR */}
               <div className="grid grid-cols-1 gap-6 px-2">
                 <div className="space-y-2">
@@ -166,9 +171,10 @@ export default function WithdrawPage() {
                       <span className="text-sm font-bold text-white">$ {formatValue(Number(piAmount) * piPrice)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Net Cash Out</span>
+                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Net Cash Out ({selectedCountry.currency})</span>
                       <span className="text-xl font-black text-blue-400 tracking-tighter">
-                        {formatValue(Number(piAmount) * selectedCountry.piToLocalRate, "fr-FR")} {selectedCountry.currency}
+                        {/* Utilisation du taux calculé : PI * Consensus * Taux Fiat */}
+                        {formatValue(Number(piAmount) * piPrice * currentFiatRate, "fr-FR")} {selectedCountry.currency}
                       </span>
                     </div>
                   </div>
@@ -200,8 +206,8 @@ export default function WithdrawPage() {
           <div>
             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Pimpay Security Protocol</p>
             <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-              Toutes les transactions de retrait sont traitées via notre passerelle custodial sécurisée. 
-              Le délai de réception dépend de votre opérateur local.
+              Toutes les transactions de retrait sont traitées via notre passerelle custodial sécurisée.
+              Le délai de réception dépend de votre opérateur local (M-Pesa, Orange, Airtel).
             </p>
           </div>
         </div>

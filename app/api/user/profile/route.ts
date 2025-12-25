@@ -5,46 +5,46 @@ import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   try {
-    // 1. Récupération du token (On vérifie Header ET Cookies pour plus de sécurité)
-    const authHeader = request.headers.get("authorization");
-    let token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+    // 1. Extraction du token depuis les cookies uniquement (plus stable)
+    const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
 
     if (!token) {
-      token = cookies().get("token")?.value || null;
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    if (!token || token === "undefined" || token === "null") {
-      return NextResponse.json({ error: "Session manquante" }, { status: 401 });
-    }
-
+    // 2. Vérification JWT
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-
-    // 2. Vérification du JWT
     let payload;
     try {
-      const verified = await jwtVerify(token, secret);
-      payload = verified.payload;
-    } catch (jwtError) {
-      console.error("JWT_VERIFY_ERROR:", jwtError);
-      return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      const { payload: verified } = await jwtVerify(token, secret);
+      payload = verified;
+    } catch (e) {
+      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
-    // IMPORTANT : Utilise 'id' car c'est ce que tu as mis dans ton API Login
-    const userId = (payload.id || payload.sub) as string;
-
-    if (!userId) {
-      return NextResponse.json({ error: "Format de token invalide" }, { status: 401 });
-    }
-
-    // 3. Récupération utilisateur avec gestion d'erreur Prisma
+    // 3. Récupération des données (Lecture seule - pas d'update)
+    // On ne sélectionne que des champs dont on est SUR qu'ils existent d'après tes logs
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        wallets: { 
-          // Correction : On enlève le filtre currency si ton wallet n'a que "type"
-          // Ou on s'adapte à ton schéma (tu utilisais 'type' dans login)
-          take: 1 
-        },
+      where: { id: payload.id as string },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        role: true,
+        status: true,
+        kycStatus: true,
+        avatar: true,
+        walletAddress: true,
+        // On récupère le wallet lié
+        wallets: {
+          take: 1,
+          select: {
+            balance: true,
+            currency: true
+          }
+        }
       }
     });
 
@@ -52,30 +52,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
     }
 
-    // Calcul de la balance (S'adapte si le wallet est vide)
-    const piBalance = user.wallets?.[0]?.balance ?? 0;
+    // 4. Préparation de la réponse propre
+    const balance = user.wallets[0]?.balance ?? 0;
 
-    // 4. Réponse structurée
     return NextResponse.json({
       success: true,
-      profile: {
-        id: user.id,
-        fullName: user.name || "Pioneer",
-        email: user.email,
-        kycStatus: user.kycStatus,
-        avatar: user.avatar,
-        role: user.role
-      },
-      stats: {
-        piBalance: piBalance,
-        globalValueUSD: piBalance * 314159, // Prix GCV
-      },
-      timeline: [] 
+      id: user.id,
+      email: user.email,
+      name: user.name || user.username || "Pioneer",
+      role: user.role,
+      status: user.status,
+      kycStatus: user.kycStatus,
+      balance: balance,
+      walletAddress: user.walletAddress,
+      avatar: user.avatar,
+      gcvValue: balance * 314159
     });
 
   } catch (error: any) {
-    console.error("ERREUR_PROFILE_DETAIL:", error.message);
-    // On ne renvoie pas l'erreur brute pour la sécurité
-    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 });
+    console.error("ERREUR_CRITIQUE_PROFILE:", error.message);
+    return NextResponse.json({ 
+      error: "Erreur interne", 
+      details: "Vérifiez la structure de la base de données" 
+    }, { status: 500 });
   }
 }

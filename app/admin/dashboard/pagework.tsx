@@ -1,27 +1,17 @@
-"use client";
-
-import React, { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { BottomNav } from "@/components/bottom-nav";
+"use client";                                                                                       import React, { useEffect, useState, useMemo } from "react";                                        import { useRouter } from "next/navigation";      import { Card } from "@/components/ui/card";      import { Button } from "@/components/ui/button";  import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import {
   LogOut, Shield, Users, Zap, Search, Key,
   Ban, TrendingUp, CreditCard, CircleDot, Power, CheckCircle2, UserCog,
   BarChart3, Settings, AlertTriangle, Wallet, ArrowDownUp, Megaphone, FileText,
   MonitorSmartphone, Hash, Snowflake, Fingerprint, Headphones,
-  Flame, Gift, Globe, Activity, ShieldCheck, Database, History, XCircle
-} from "lucide-react";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
-
+  Flame, Gift, Globe, Activity, ShieldCheck, Database, History
+} from "lucide-react";                            import { LineChart, Line, ResponsiveContainer } from "recharts";                                    
 // --- TYPES ---
 type AdminUser = { id: string; name: string; email: string; role: string; };
 type LedgerUser = {
   id: string; name: string; email: string; status: string; role: string;
   balance: number; ipAddress?: string; trustScore?: number; isOnline?: boolean;
-  hasPendingTransaction?: boolean;
-  autoApprove?: boolean;
 };
 type AuditLog = { id: string; adminName: string; action: string; targetEmail: string; createdAt: string; };
 
@@ -47,19 +37,10 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, onBan, onFreeze, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onViewSessions, onSupport, onTransactionAction, onToggleAutoApprove }: any) => {
+const UserRow = ({ user, onBan, onFreeze, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onViewSessions, onSupport }: any) => {
   const handleBalancePrompt = () => {
     const amountInput = prompt(`Ajuster le solde de ${user.name} :`);
     if (amountInput && !isNaN(parseFloat(amountInput))) onUpdateBalance(parseFloat(amountInput));
-  };
-
-  const handleTxPopup = () => {
-    if (!user.hasPendingTransaction) {
-        toast.info("Aucune transaction en attente");
-        return;
-    }
-    const choice = confirm(`TRANSACTION EN ATTENTE : ${user.name}\n\nAppuyez sur OK pour APPROUVER.\nAppuyez sur ANNULER pour REJETER.`);
-    onTransactionAction(user.id, choice ? "APPROVE" : "REJECT");
   };
 
   return (
@@ -80,35 +61,21 @@ const UserRow = ({ user, onBan, onFreeze, onUpdateBalance, onResetPassword, onTo
             <p className="text-[10px] text-blue-400 font-mono font-bold">π {user.balance.toLocaleString()}</p>
           </div>
         </div>
-        <div className="text-right flex flex-col items-end gap-2">
+        <div className="text-right">
             <span className={`text-[7px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${user.status === 'BANNED' ? 'border-red-500 text-red-500' : 'border-white/10 text-slate-500'}`}>
                 {user.status}
             </span>
-            <button
-                onClick={handleTxPopup}
-                className={`p-1.5 rounded-lg transition-all ${user.hasPendingTransaction ? 'bg-orange-500 animate-bounce text-white shadow-lg shadow-orange-500/20' : 'bg-white/5 text-slate-700'}`}
-            >
-                <ArrowDownUp size={12} />
-            </button>
+            <p className="text-[8px] text-slate-600 mt-1 font-mono uppercase tracking-tighter">{user.ipAddress || "NO_IP"}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-10 gap-1 pt-3 border-t border-white/5">
+      <div className="grid grid-cols-8 gap-1 pt-3 border-t border-white/5">
         <button onClick={onViewSessions} title="Sessions" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-400 bg-white/5 rounded-xl transition-all"><MonitorSmartphone size={14} /></button>
         <button onClick={onResetPin} title="PIN" className="flex items-center justify-center p-2 text-slate-500 hover:text-emerald-500 bg-white/5 rounded-xl transition-all"><Hash size={14} /></button>
         <button onClick={onResetPassword} title="Pass" className="flex items-center justify-center p-2 text-slate-500 hover:text-amber-500 bg-white/5 rounded-xl transition-all"><Key size={14} /></button>
         <button onClick={onToggleRole} title="Rôle" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-500 bg-white/5 rounded-xl transition-all"><UserCog size={14} /></button>
         <button onClick={onFreeze} title="Geler" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'FROZEN' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-slate-500 hover:text-cyan-400'}`}><Snowflake size={14} /></button>
         <button onClick={onSupport} title="Chat" className="flex items-center justify-center p-2 text-slate-500 hover:text-purple-400 bg-white/5 rounded-xl transition-all"><Headphones size={14} /></button>
-
-        <button
-            onClick={onToggleAutoApprove}
-            title="Approbation Libre"
-            className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.autoApprove ? 'bg-emerald-500/20 text-emerald-500 shadow-inner' : 'bg-white/5 text-slate-700 hover:text-emerald-400'}`}
-        >
-            <Shield size={14} />
-        </button>
-
         <button onClick={handleBalancePrompt} title="Solde" className="flex items-center justify-center p-2 bg-green-500/10 text-green-500 rounded-xl transition-all"><CreditCard size={14} /></button>
         <button onClick={onBan} title="Bannir" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'BANNED' ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-700 hover:text-red-500'}`}><Ban size={14} /></button>
       </div>
@@ -116,17 +83,21 @@ const UserRow = ({ user, onBan, onFreeze, onUpdateBalance, onResetPassword, onTo
   );
 };
 
+// --- MAIN PAGE ---
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [platformFee, setPlatformFee] = useState(0.01);
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
+  // INITIALISATION
   const fetchData = async () => {
     try {
       const authRes = await fetch("/api/auth/me", { credentials: "include" });
@@ -155,10 +126,13 @@ export default function AdminDashboard() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // COMPUTED
   const totalPiVolume = useMemo(() => users.reduce((acc, user) => acc + (user.balance || 0), 0), [users]);
+  const sortedHolders = useMemo(() => [...users].sort((a,b) => b.balance - a.balance).slice(0, 3), [users]);
   const ipDuplicates = useMemo(() => users.filter((u, i) => users.findIndex(u2 => u2.ipAddress === u.ipAddress) !== i && u.ipAddress), [users]);
   const filteredUsers = useMemo(() => users.filter(u => u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.ipAddress?.includes(searchQuery)), [searchQuery, users]);
 
+  // ACTIONS
   const handleAction = async (userId: string, action: string, amount?: number, extraData?: string) => {
     try {
       const res = await fetch(`/api/admin/users/action`, {
@@ -172,7 +146,7 @@ export default function AdminDashboard() {
 
   const handleGlobalAirdrop = () => {
     const amount = prompt("Montant de π à distribuer à CHAQUE utilisateur actif :");
-    if (amount) handleAction('', 'AIRDROP', parseFloat(amount));
+    if (amount) toast.success(`Airdrop de π ${amount} initié !`);
   };
 
   const handleBurn = () => {
@@ -186,13 +160,7 @@ export default function AdminDashboard() {
     if (res.ok) setIsMaintenanceMode(newStatus);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans overflow-x-hidden">
@@ -205,9 +173,7 @@ export default function AdminDashboard() {
             </div>
             <h1 className="text-2xl font-black tracking-tighter text-white uppercase">ADMIN DASHBOARD</h1>
           </div>
-          <button onClick={() => router.push('/auth/login')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400">
-            <LogOut size={20} />
-          </button>
+          <button onClick={() => router.push('/auth/login')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400"><LogOut size={20} /></button>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -217,6 +183,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="px-6 space-y-8">
+        {/* NAV TABS */}
         <div className="flex gap-1 p-1 bg-slate-900/50 border border-white/5 rounded-2xl overflow-x-auto">
           {["overview", "users", "finance", "settings"].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 min-w-[80px] flex flex-col items-center justify-center py-2 rounded-xl transition-all ${activeTab === tab ? "bg-blue-600 text-white shadow-lg" : "text-slate-500"}`}>
@@ -229,6 +196,7 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {/* --- OVERVIEW TAB --- */}
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6">
@@ -241,6 +209,7 @@ export default function AdminDashboard() {
                    </ResponsiveContainer>
                 </div>
             </Card>
+
             <div className="grid grid-cols-2 gap-4">
                 <StatCard label="Frais Perçus" value="π 124.5" subText="Revenus" icon={<ArrowDownUp size={16} />} />
                 <Button onClick={() => toast.info("Génération...")} className="h-full bg-slate-900/60 border-white/5 rounded-[2rem] p-5 flex flex-col items-center justify-center gap-2 hover:bg-slate-800 transition-all">
@@ -248,6 +217,7 @@ export default function AdminDashboard() {
                   <span className="text-[9px] font-bold uppercase">Rapport PDF</span>
                 </Button>
             </div>
+
             <div className="space-y-4">
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-2"><History size={12}/> Journal d'Audit</h3>
                 <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-4 space-y-3">
@@ -265,6 +235,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* --- USERS TAB --- */}
         {activeTab === "users" && (
           <div className="space-y-6 animate-in slide-in-from-bottom-2">
             {ipDuplicates.length > 0 && (
@@ -290,14 +261,13 @@ export default function AdminDashboard() {
                     fetch(`/api/admin/users/${user.id}/sessions`).then(r => r.json()).then(d => alert(`Sessions: ${d.sessions.length}`));
                   }}
                   onSupport={() => { const m = prompt("Message :"); if(m) handleAction(user.id, 'SEND_SUPPORT', 0, m); }}
-                  onTransactionAction={(id: string, decision: string) => handleAction(id, decision === "APPROVE" ? "APPROVE_WITHDRAW" : "REJECT_WITHDRAW")}
-                  onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
                 />
               ))}
             </div>
           </div>
         )}
 
+        {/* --- FINANCE TAB --- */}
         {activeTab === "finance" && (
           <div className="space-y-6">
              <div className="grid grid-cols-2 gap-4">
@@ -310,6 +280,7 @@ export default function AdminDashboard() {
                   <span className="text-[10px] font-black uppercase">Burn Supply</span>
                 </Button>
              </div>
+
              <section className="space-y-4">
                 <div className="p-8 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] text-center">
                   <ShieldCheck size={40} className="text-blue-500 mx-auto mb-4" />
@@ -318,6 +289,7 @@ export default function AdminDashboard() {
                 </div>
                 <Button onClick={() => handleAction('', 'VERIFY_ALL')} className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white font-black italic rounded-2xl shadow-xl transition-all">APPROUVER TOUTE LA FILE</Button>
              </section>
+
              <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <Activity className="text-blue-500" size={20} />
@@ -331,6 +303,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* --- SETTINGS TAB --- */}
         {activeTab === "settings" && (
           <div className="space-y-6">
             <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
@@ -338,6 +311,7 @@ export default function AdminDashboard() {
               <textarea className="w-full bg-slate-950/50 border border-white/5 rounded-xl p-4 text-[11px] font-bold text-slate-300 outline-none focus:border-blue-500/50" rows={2} placeholder="Ex: Bienvenue sur PIMPAY..." />
               <Button className="w-full mt-3 bg-blue-600 h-10 rounded-xl text-[10px] font-black uppercase">Mettre à jour l'annonce</Button>
             </Card>
+
             <div className="grid grid-cols-2 gap-4">
               <Card onClick={handleToggleMaintenance} className={`p-5 rounded-[2rem] border-white/5 cursor-pointer transition-all ${isMaintenanceMode ? 'bg-orange-600/20' : 'bg-slate-900/40'}`}>
                 <Power size={20} className={isMaintenanceMode ? 'text-orange-500' : 'text-slate-600'} />
@@ -348,9 +322,15 @@ export default function AdminDashboard() {
                 <p className="text-[10px] font-black uppercase mt-3">Backup DB</p>
               </Card>
             </div>
+
+            <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl flex justify-between items-center">
+              <div className="flex items-center gap-3"><CreditCard size={16} className="text-blue-500" /><span className="text-[10px] font-bold uppercase">Frais Réseau π</span></div>
+              <input type="number" step="0.001" value={platformFee} onChange={(e) => setPlatformFee(parseFloat(e.target.value))} className="w-16 bg-slate-900 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-center text-white outline-none" />
+            </div>
           </div>
         )}
       </div>
+
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );

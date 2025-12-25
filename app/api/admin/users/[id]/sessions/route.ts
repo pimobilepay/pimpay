@@ -1,46 +1,55 @@
 export const runtime = "nodejs";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET!;
+import { jwtVerify } from "jose"; // Utilisation de jose pour la compatibilité Next.js Edge/Server
+import { cookies } from "next/headers";
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = req.headers.get("authorization");
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. RÉCUPÉRATION DU TOKEN DEPUIS LES COOKIES (Méthode Dashboard)
+    const token = cookies().get("token")?.value;
 
-    const token = auth.split(" ")[1];
-    const payload: any = jwt.verify(token, JWT_SECRET);
+    if (!token) {
+      return NextResponse.json({ error: "Non autorisé (Token manquant)" }, { status: 401 });
+    }
 
-    // Vérification stricte du rôle ADMIN
+    // 2. VÉRIFICATION DU TOKEN
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+    const { payload }: any = await jwtVerify(token, secret);
+
+    // 3. VÉRIFICATION STRICTE DU RÔLE ADMIN
     const admin = await prisma.user.findUnique({ where: { id: payload.id } });
     if (!admin || admin.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Accès refusé (Admin requis)" }, { status: 403 });
     }
 
     const userId = params.id;
 
-    // Récupération de toutes les sessions de l'utilisateur cible
+    // 4. RÉCUPÉRATION DES SESSIONS
     const sessions = await prisma.session.findMany({
       where: { userId: userId },
       orderBy: { lastActiveAt: "desc" },
     });
 
-    // Enrichissement avec les données de localisation (Optionnel mais recommandé)
+    // 5. ENRICHISSEMENT AVEC GEOLOCALISATION
     const enrichedSessions = await Promise.all(
       sessions.map(async (s) => {
         let city = "Inconnu";
-        if (s.ip && s.ip !== "::1" && s.ip !== "127.0.0.1") {
+        // Correction : On utilise 'ipAddress' ou 'ip' selon ton schéma
+        const currentIp = (s as any).ipAddress || (s as any).ip;
+        
+        if (currentIp && currentIp !== "::1" && currentIp !== "127.0.0.1") {
           try {
-            const geoRes = await fetch(`http://ip-api.com/json/${s.ip}?fields=city`);
+            const geoRes = await fetch(`http://ip-api.com/json/${currentIp}?fields=city`, {
+                next: { revalidate: 3600 } // Cache pour éviter de spammer l'API IP
+            });
             const geo = await geoRes.json();
             city = geo.city || "Inconnu";
           } catch (e) {
-            console.error("Geo fetch failed for admin view");
+            console.error("Geo fetch failed for IP:", currentIp);
           }
         }
         return { ...s, city };
@@ -48,8 +57,13 @@ export async function GET(
     );
 
     return NextResponse.json({ sessions: enrichedSessions });
-  } catch (error) {
-    console.error("ADMIN_GET_SESSIONS_ERROR:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    
+  } catch (error: any) {
+    console.error("ADMIN_GET_SESSIONS_ERROR:", error.message);
+    // Si le token est invalide ou expiré
+    if (error.code === 'ERR_JWT_EXPIRED') {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    }
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

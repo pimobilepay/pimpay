@@ -48,7 +48,7 @@ model User {
   kycSelfieUrl   String?
   kycSubmittedAt DateTime?
   kycVerifiedAt  DateTime?
-  kycReason      String?   // Raison en cas de rejet (NOUVEAU)
+  kycReason      String?
 
   // LIMITES & CROISSANCE
   referralCode   String?   @unique @default(cuid())
@@ -63,6 +63,13 @@ model User {
   kycStatus      KycStatus  @default(NONE)
   status         UserStatus @default(ACTIVE)
 
+  // ADMIN & SÉCURITÉ
+  autoApprove      Boolean    @default(false)
+  twoFactorEnabled Boolean    @default(false)
+  twoFactorSecret  String?
+  failedLoginAttempts Int     @default(0)
+  lastLoginAt      DateTime?
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -73,6 +80,7 @@ model User {
   // RELATIONS
   wallets          Wallet[]
   vaults           Vault[]
+  stakings         Staking[]
   beneficiaries    Beneficiary[]
   transactionsFrom Transaction[]   @relation("tx_from_user")
   transactionsTo   Transaction[]   @relation("tx_to_user")
@@ -94,7 +102,7 @@ model Wallet {
   id        String     @id @default(cuid())
   userId    String
   balance   Float      @default(0)
-  currency  String     @default("PI") 
+  currency  String     @default("PI")
   type      WalletType @default(PI)
 
   createdAt DateTime @default(now())
@@ -108,13 +116,14 @@ model Wallet {
   @@index([userId])
 }
 
-// --- CONFIGURATION SYSTÈME (NOUVEAU) ---
 model SystemConfig {
   id                String   @id @default("GLOBAL_CONFIG")
   maintenanceMode   Boolean  @default(false)
-  transactionFee    Float    @default(0.01) // Frais en Pi
-  minWithdrawal     Float    @default(1.0)  // Minimum pour retirer
-  consensusPrice    Float    @default(314159.0) // Prix de référence USD
+  transactionFee    Float    @default(0.01)
+  minWithdrawal     Float    @default(1.0)
+  maxWithdrawal     Float    @default(5000.0)
+  consensusPrice    Float    @default(314159.0)
+  stakingAPY        Float    @default(15.0)
   updatedAt         DateTime @updatedAt
 }
 
@@ -131,12 +140,25 @@ model Vault {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Staking {
+  id          String    @id @default(cuid())
+  userId      String
+  amount      Float
+  apy         Float
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  isActive    Boolean   @default(true)
+  rewardsEarned Float   @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Beneficiary {
   id          String   @id @default(cuid())
   userId      String
   name        String
   accountInfo String
-  provider    String // PI_NETWORK, BANK_TRANSFER, PIMPAY_USER
+  provider    String
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -147,25 +169,24 @@ model Beneficiary {
 // -----------------------------------------------------------------------------
 
 model Transaction {
-  id           String            @id // Sera remplacé par NanoID dans ton API
-  reference    String            @unique // PMP-TX-XXXX
-  blockchainTx String?           @unique // Hash Pi Blockchain
+  id           String            @id
+  reference    String            @unique
+  blockchainTx String?           @unique
   amount       Float
   fee          Float             @default(0)
   netAmount    Float?
   type         TransactionType
   status       TransactionStatus @default(PENDING)
   description  String?
-  metadata     Json?             // Stockage flexible pour infos Web3 (NOUVEAU)
+  note         String?           
+  metadata     Json?
   createdAt    DateTime          @default(now())
 
-  // Émetteur
   fromUserId   String?
   fromUser     User?    @relation("tx_from_user", fields: [fromUserId], references: [id])
   fromWalletId String?
   fromWallet   Wallet?  @relation("tx_from_wallet", fields: [fromWalletId], references: [id])
 
-  // Bénéficiaire
   toUserId     String?
   toUser       User?    @relation("tx_to_user", fields: [toUserId], references: [id])
   toWalletId   String?
@@ -187,9 +208,9 @@ model VirtualCard {
   id        String   @id @default(cuid())
   userId    String
   number    String   @unique
-  exp       String   // MM/YY
+  exp       String
   cvv       String?
-  holder    String   // Nom sur la carte
+  holder    String
   brand     String   @default("VISA")
   locked    Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -229,8 +250,9 @@ model Session {
 
 model Otp {
   id         String   @id @default(cuid())
-  identifier String   
+  identifier String
   code       String
+  type       String   @default("VERIFICATION")
   expiresAt  DateTime
   createdAt  DateTime @default(now())
 }
@@ -239,7 +261,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   adminId     String?
   adminName   String?
-  action      String   // Ex: UPDATE_KYC, BAN_USER, CHANGE_FEE
+  action      String
   targetId    String?
   targetEmail String?
   details     String?
@@ -252,7 +274,7 @@ model AuditLog {
 model SecurityLog {
   id        String   @id @default(cuid())
   userId    String
-  action    String   
+  action    String
   ip        String?
   device    String?
   createdAt DateTime @default(now())
@@ -269,6 +291,7 @@ model SupportTicket {
   userId    String
   subject   String
   status    SupportStatus @default(OPEN)
+  priority  String        @default("MEDIUM")
   createdAt DateTime      @default(now())
   messages  Message[]
 
@@ -290,8 +313,8 @@ model Notification {
   userId    String
   title     String
   message   String
-  type      String   @default("info") 
-  read      Boolean  @default(false)
+  type      String   @default("info")
+  read      Boolean  @default(false) // <--- FIX: @false est devenu @default(false)
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -301,7 +324,7 @@ model Notification {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMÉRATIONS (TYPES)
+// ENUMÉRATIONS
 // -----------------------------------------------------------------------------
 
 enum UserRole {
@@ -314,6 +337,7 @@ enum UserStatus {
   ACTIVE
   BANNED
   PENDING
+  FROZEN
 }
 
 enum KycStatus {
@@ -335,6 +359,7 @@ enum TransactionType {
   DEPOSIT
   PAYMENT
   EXCHANGE
+  STAKING_REWARD
 }
 
 enum TransactionStatus {

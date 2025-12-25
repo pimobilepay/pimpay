@@ -7,17 +7,20 @@ import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
-  Clock, ShieldCheck, Zap, CircleDot
+  Clock, ShieldCheck, Zap, CircleDot, Loader2
 } from "lucide-react";
 import Link from "next/link";
 import { CountrySelect } from "@/components/country-select";
 import { countries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PI_CONSENSUS_USD, FIAT_RATES } from "@/lib/exchange"; // Importation des nouvelles constantes
+import { PI_CONSENSUS_USD, FIAT_RATES } from "@/lib/exchange"; 
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function WithdrawPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [piAmount, setPiAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -25,27 +28,78 @@ export default function WithdrawPage() {
     countries.find((c) => c.code === "CD") || countries[0],
   );
   const [selectedOperator, setSelectedOperator] = useState("");
-  const [balance, setBalance] = useState<number>(250.75);
+  const [balance, setBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [issubmitting, setIsSubmitting] = useState(false);
 
+  // 1. RECUPERATION DU SOLDE RÉEL
   useEffect(() => {
     setMounted(true);
-    const timer = setTimeout(() => setLoadingBalance(false), 800);
-    return () => clearTimeout(timer);
+    async function fetchBalance() {
+      try {
+        const res = await fetch("/api/user/profile");
+        if (res.ok) {
+          const data = await res.json();
+          setBalance(data.balance || 0);
+        }
+      } catch (err) {
+        console.error("Erreur solde:", err);
+      } finally {
+        setLoadingBalance(false);
+      }
+    }
+    fetchBalance();
   }, []);
 
-  // Utilisation du taux de la bibliothèque centrale
   const piPrice = PI_CONSENSUS_USD;
-  
-  // Calcul du taux local dynamique basé sur FIAT_RATES
-  // Si la devise n'est pas dans nos rates, on fallback sur le taux du fichier country-data
   const currentFiatRate = FIAT_RATES[selectedCountry.currency] || selectedCountry.piToLocalRate;
 
-  const formatValue = (val: number, locale: string = "en-US") => {
-    return new Intl.NumberFormat(locale, {
+  const formatValue = (val: number) => {
+    return new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 4,
     }).format(val);
+  };
+
+  // 2. FONCTION DE SOUMISSION DU RETRAIT
+  const handleWithdraw = async () => {
+    const amount = parseFloat(piAmount);
+    
+    if (!amount || amount <= 0) return toast.error("Montant invalide");
+    if (amount > balance) return toast.error("Solde insuffisant");
+    if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
+    if (!phoneNumber) return toast.error("Numéro de téléphone requis");
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/transaction/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amount,
+          currency: selectedCountry.currency,
+          phoneNumber: `${selectedCountry.dialCode}${phoneNumber}`,
+          provider: selectedOperator
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success("Demande de retrait enregistrée !");
+        // Optionnel : rediriger vers l'historique ou vider les champs
+        setPiAmount("");
+        setPhoneNumber("");
+        // On rafraîchit le solde localement
+        setBalance(prev => prev - amount);
+      } else {
+        toast.error(result.error || "Une erreur est survenue");
+      }
+    } catch (error) {
+      toast.error("Erreur de connexion au serveur");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!mounted) return null;
@@ -53,10 +107,9 @@ export default function WithdrawPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
 
-      {/* HEADER FINTECH */}
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/">
+          <Link href="/dashboard">
             <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all">
               <ArrowLeft size={20} />
             </div>
@@ -70,7 +123,6 @@ export default function WithdrawPage() {
           </div>
         </div>
 
-        {/* BALANCE CARD CORE ENGINE */}
         <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10">
             <ArrowUpFromLine size={80} className="text-blue-500" />
@@ -78,9 +130,13 @@ export default function WithdrawPage() {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Available to Withdraw</p>
-              <p className="text-3xl font-black text-white tracking-tighter">
-                {loadingBalance ? "..." : `π ${formatValue(balance)}`}
-              </p>
+              <div className="text-3xl font-black text-white tracking-tighter">
+                {loadingBalance ? (
+                  <Loader2 className="animate-spin text-blue-500" size={24} />
+                ) : (
+                  `π ${formatValue(balance)}`
+                )}
+              </div>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
               <Zap size={20} />
@@ -106,7 +162,6 @@ export default function WithdrawPage() {
           <TabsContent value="mobile" className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <div className="space-y-6">
 
-              {/* PAYS & OPERATEUR */}
               <div className="grid grid-cols-1 gap-6 px-2">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Select Region</label>
@@ -134,7 +189,6 @@ export default function WithdrawPage() {
                 </div>
               </div>
 
-              {/* COORDONNEES */}
               <div className="space-y-2 px-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Receiving Number</label>
                 <div className="flex gap-3">
@@ -145,12 +199,11 @@ export default function WithdrawPage() {
                     placeholder="Numéro de téléphone"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1 h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold text-white placeholder:text-slate-700 focus:border-blue-500/30"
+                    className="flex-1 h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold text-white placeholder:text-slate-700 focus:border-blue-500/30 outline-none"
                   />
                 </div>
               </div>
 
-              {/* MONTANT RETRAIT */}
               <div className="space-y-2 px-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Withdrawal Amount (π)</label>
                 <div className="relative">
@@ -159,7 +212,7 @@ export default function WithdrawPage() {
                     placeholder="0.00"
                     value={piAmount}
                     onChange={(e) => setPiAmount(e.target.value)}
-                    className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black text-white focus:border-blue-500/30"
+                    className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black text-white focus:border-blue-500/30 outline-none"
                   />
                   <span className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-500 font-black text-xs uppercase">Pi Coin</span>
                 </div>
@@ -173,19 +226,26 @@ export default function WithdrawPage() {
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Net Cash Out ({selectedCountry.currency})</span>
                       <span className="text-xl font-black text-blue-400 tracking-tighter">
-                        {/* Utilisation du taux calculé : PI * Consensus * Taux Fiat */}
-                        {formatValue(Number(piAmount) * piPrice * currentFiatRate, "fr-FR")} {selectedCountry.currency}
+                        {formatValue(Number(piAmount) * piPrice * currentFiatRate)} {selectedCountry.currency}
                       </span>
                     </div>
                   </div>
                 )}
               </div>
 
-              <Button className="w-full h-20 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] shadow-xl shadow-blue-600/20 group transition-all mt-4">
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-black uppercase tracking-[4px]">Confirm Cashout</span>
-                  <span className="text-[9px] font-bold text-blue-200 uppercase opacity-60">Settlement processing</span>
-                </div>
+              <Button 
+                onClick={handleWithdraw}
+                disabled={issubmitting || !piAmount || !phoneNumber}
+                className="w-full h-20 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] shadow-xl shadow-blue-600/20 group transition-all mt-4 flex flex-col items-center justify-center disabled:opacity-50"
+              >
+                {issubmitting ? (
+                  <Loader2 className="animate-spin" size={24} />
+                ) : (
+                  <>
+                    <span className="text-xs font-black uppercase tracking-[4px]">Confirm Cashout</span>
+                    <span className="text-[9px] font-bold text-blue-200 uppercase opacity-60">Settlement processing</span>
+                  </>
+                )}
               </Button>
             </div>
           </TabsContent>
@@ -196,9 +256,15 @@ export default function WithdrawPage() {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bank wire coming soon</p>
             </div>
           </TabsContent>
+
+          <TabsContent value="history" className="mt-8">
+            <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem] space-y-4">
+              <Clock size={32} className="mx-auto text-slate-700" />
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No recent withdrawals</p>
+            </div>
+          </TabsContent>
         </Tabs>
 
-        {/* SECURITY FOOTER */}
         <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] flex items-start gap-4">
           <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
             <ShieldCheck size={20} />

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
-import { cookies } from "next/headers";           
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-
+    
     const requester = await prisma.user.findUnique({ where: { id: payload.id as string } });
     if (!requester || requester.role !== "ADMIN") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
@@ -23,24 +23,31 @@ export async function POST(req: NextRequest) {
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {
+      // --- NOUVELLE FONCTIONNALITÉ : APPROUVER RETRAIT ---
       case "APPROVE_WITHDRAW":
         const txToApprove = await prisma.transaction.findFirst({
           where: { fromUserId: userId, status: "PENDING", type: "WITHDRAWAL" },
           orderBy: { createdAt: 'desc' }
         });
+
         if (!txToApprove) return NextResponse.json({ error: "Aucun retrait en attente" }, { status: 404 });
+
         await prisma.transaction.update({
           where: { id: txToApprove.id },
           data: { status: "COMPLETED" }
         });
         break;
 
+      // --- NOUVELLE FONCTIONNALITÉ : REJETER RETRAIT (REMBOURSEMENT) ---
       case "REJECT_WITHDRAW":
         const txToReject = await prisma.transaction.findFirst({
           where: { fromUserId: userId, status: "PENDING", type: "WITHDRAWAL" },
           orderBy: { createdAt: 'desc' }
         });
+
         if (!txToReject) return NextResponse.json({ error: "Aucun retrait en attente" }, { status: 404 });
+
+        // Transaction atomique pour éviter les erreurs de solde
         await prisma.$transaction([
           prisma.transaction.update({
             where: { id: txToReject.id },
@@ -53,9 +60,11 @@ export async function POST(req: NextRequest) {
         ]);
         break;
 
+      // --- NOUVELLE FONCTIONNALITÉ : TOGGLE AUTO-APPROVE ---
       case "TOGGLE_AUTO_APPROVE":
         const userToToggle = await prisma.user.findUnique({ where: { id: userId } });
         if (!userToToggle) return NextResponse.json({ error: "User non trouvé" }, { status: 404 });
+
         await prisma.user.update({
           where: { id: userId },
           data: { autoApprove: !userToToggle.autoApprove }
@@ -64,19 +73,17 @@ export async function POST(req: NextRequest) {
 
       case "BAN":
         const userToBan = await prisma.user.findUnique({ where: { id: userId } });
-        if (!userToBan) return NextResponse.json({ error: "User non trouvé" }, { status: 404 });
         await prisma.user.update({
           where: { id: userId },
-          data: { status: userToBan.status === "BANNED" ? "ACTIVE" : "BANNED" }
+          data: { status: userToBan?.status === "BANNED" ? "ACTIVE" : "BANNED" }
         });
         break;
 
       case "FREEZE":
       case "UNFREEZE":
-        // Correction : On utilise "BANNED" car "FROZEN" provoque une erreur de schéma (Enum)
         await prisma.user.update({
           where: { id: userId },
-          data: { status: action === "FREEZE" ? "BANNED" : "ACTIVE" }
+          data: { status: action === "FREEZE" ? "FROZEN" : "ACTIVE" }
         });
         break;
 
@@ -84,6 +91,7 @@ export async function POST(req: NextRequest) {
         if (amount === undefined) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
         const userWallet = await prisma.wallet.findFirst({ where: { userId } });
         if (!userWallet) return NextResponse.json({ error: "Wallet introuvable" }, { status: 404 });
+
         await prisma.wallet.update({
           where: { id: userWallet.id },
           data: { balance: { increment: amount } }
@@ -103,16 +111,15 @@ export async function POST(req: NextRequest) {
         if (!extraData) return NextResponse.json({ error: "PIN requis" }, { status: 400 });
         await prisma.user.update({
           where: { id: userId },
-          data: { pin: extraData }
+          data: { pin: extraData } 
         });
         break;
 
       case "TOGGLE_ROLE":
         const targetUser = await prisma.user.findUnique({ where: { id: userId } });
-        if (!targetUser) return NextResponse.json({ error: "User non trouvé" }, { status: 404 });
         await prisma.user.update({
           where: { id: userId },
-          data: { role: targetUser.role === "ADMIN" ? "USER" : "ADMIN" }
+          data: { role: targetUser?.role === "ADMIN" ? "USER" : "ADMIN" }
         });
         break;
 
@@ -165,6 +172,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("API_ADMIN_ACTION_ERROR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur serveur lors de l'action" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur lors de l'action" }, { status: 500 });
   }
 }
