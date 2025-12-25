@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import * as jose from "jose";
+import * as jose from "jose"; // Utilisation de jose pour le middleware (Edge Runtime)
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
 
 export async function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
-  const isMaintenance = req.cookies.get("maintenance_mode")?.value === "true";
   const { pathname } = req.nextUrl;
 
   // 1. Autoriser les requêtes API et les fichiers statiques
@@ -20,41 +19,24 @@ export async function middleware(req: NextRequest) {
   if (isAuthPage) {
     if (token) {
       try {
+        // Si déjà connecté, rediriger vers le dashboard
         await jose.jwtVerify(token, JWT_SECRET);
         return NextResponse.redirect(new URL("/", req.url));
       } catch (e) {
+        // Token invalide, on laisse l'utilisateur sur la page login
         return NextResponse.next();
       }
     }
     return NextResponse.next();
   }
 
-  // 3. Pages protégées
+  // 3. Pages protégées (Dashboard, Wallet, etc.)
   if (!token) {
-    // Si maintenance active et pas de token, on envoie vers maintenance plutôt que login
-    if (isMaintenance && pathname !== "/maintenance") {
-       return NextResponse.redirect(new URL("/maintenance", req.url));
-    }
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 
   try {
-    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
-    const userRole = payload.role as string;
-
-    // --- LOGIQUE DE MAINTENANCE ---
-    // Si le mode maintenance est ON, on redirige tout le monde sauf les ADMINS
-    if (isMaintenance && pathname !== "/maintenance") {
-      if (userRole !== "ADMIN") {
-        return NextResponse.redirect(new URL("/maintenance", req.url));
-      }
-    }
-
-    // Si l'utilisateur est sur la page maintenance alors qu'elle n'est plus active
-    if (!isMaintenance && pathname === "/maintenance") {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-
+    await jose.jwtVerify(token, JWT_SECRET);
     return NextResponse.next();
   } catch (error) {
     // Si le token est expiré ou corrompu, retour au login

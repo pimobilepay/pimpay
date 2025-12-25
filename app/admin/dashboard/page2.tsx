@@ -8,8 +8,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import {
   LogOut, Shield, Users, Zap, Search, Key,
-  Ban, TrendingUp, CreditCard, CircleDot, Power, CheckCircle2, UserCog,
-  BarChart3, Settings, AlertTriangle, Wallet, ArrowDownUp, Megaphone, FileText
+  Ban, TrendingUp, CreditCard, CircleDot, Power, CheckCircle2, UserCog
 } from "lucide-react";
 
 // --- TYPES ---
@@ -84,6 +83,7 @@ const UserRow = ({ user, onBan, onVerify, onUpdateBalance, onResetPassword, onTo
         </div>
       </div>
       <div className="flex items-center gap-1">
+        {/* Actions secondaires dans un style compact */}
         <button onClick={onResetPassword} title="Reset Password" className="p-2 text-slate-500 hover:text-amber-500">
           <Key size={14} />
         </button>
@@ -93,7 +93,7 @@ const UserRow = ({ user, onBan, onVerify, onUpdateBalance, onResetPassword, onTo
         <button onClick={handleBalancePrompt} className="p-2 bg-green-500/10 text-green-500 rounded-lg">
           <CreditCard size={14} />
         </button>
-        {(user.status !== "Verified" && user.status !== "ACTIVE" && user.status !== "VERIFIED") && (
+        {(user.status !== "Verified" && user.status !== "ACTIVE") && (
           <button onClick={onVerify} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
             <CheckCircle2 size={14} />
           </button>
@@ -116,12 +116,12 @@ export default function AdminDashboard() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  const [platformFee, setPlatformFee] = useState(0.01);
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   const fetchData = async () => {
     try {
+      // Important: On vérifie l'auth avec credentials pour les cookies
       const authRes = await fetch("/api/auth/me", { credentials: "include" });
       const authData = await authRes.json();
 
@@ -131,19 +131,13 @@ export default function AdminDashboard() {
       }
       setAdmin(authData.user);
 
-      const [usersRes, logsRes, configRes] = await Promise.all([
+      const [usersRes, logsRes] = await Promise.all([
         fetch("/api/admin/users"),
-        fetch("/api/admin/logs"),
-        fetch("/api/admin/config")
+        fetch("/api/admin/logs")
       ]);
 
       if (usersRes.ok) setUsers(await usersRes.json());
       if (logsRes.ok) setLogs(await logsRes.json());
-      if (configRes.ok) {
-        const config = await configRes.json();
-        setIsMaintenanceMode(config.maintenanceMode);
-        setPlatformFee(config.transactionFee);
-      }
 
     } catch (err) {
       toast.error("Erreur de synchronisation");
@@ -182,74 +176,6 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       toast.error("Erreur réseau");
-    }
-  };
-
-  const handleToggleMaintenance = async () => {
-    const newStatus = !isMaintenanceMode;
-    try {
-      const res = await fetch("/api/admin/maintenance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: newStatus })
-      });
-
-      if (res.ok) {
-        setIsMaintenanceMode(newStatus);
-        toast.success(newStatus ? "Mode Maintenance activé" : "Plateforme en ligne");
-      }
-    } catch (error) {
-      toast.error("Erreur de configuration");
-    }
-  };
-
-  const handleApproveAllKYC = async () => {
-    if (!confirm("Voulez-vous vraiment approuver tous les dossiers en attente ?")) return;
-    try {
-      const res = await fetch("/api/admin/kyc/verify-all", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`${data.count} utilisateurs approuvés !`);
-        fetchData();
-      }
-    } catch (err) {
-      toast.error("Erreur lors de la validation massive");
-    }
-  };
-
-  const handleExportCSV = () => {
-    window.location.href = "/api/admin/export/transactions";
-    toast.success("Téléchargement lancé...");
-  };
-
-  const handleGenerateReport = async () => {
-    try {
-      const res = await fetch("/api/admin/reports/daily");
-      const data = await res.json();
-      if (res.ok) {
-        alert(`📊 RAPPORT PIMPAY (24h)\n------------------------\nNouveaux Users : ${data.metrics.newUsers}\nTransactions : ${data.metrics.transactionCount}\nVolume : π ${data.metrics.volumePi}\nFrais perçus : π ${data.metrics.feesCollected}`);
-        toast.success("Rapport généré");
-      }
-    } catch (err) {
-      toast.error("Erreur rapport");
-    }
-  };
-
-  const handleSendGlobalNotif = async () => {
-    const title = prompt("Titre de l'annonce :");
-    const message = prompt("Message pour tous :");
-    if (title && message) {
-      try {
-        const res = await fetch("/api/admin/notifications/global", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, message })
-        });
-        const data = await res.json();
-        if (res.ok) toast.success(`Envoyé à ${data.recipientCount} membres`);
-      } catch (err) {
-        toast.error("Erreur diffusion");
-      }
     }
   };
 
@@ -300,44 +226,43 @@ export default function AdminDashboard() {
       </div>
 
       <div className="px-6 space-y-8">
-        <div className="flex gap-1 p-1 bg-slate-900/50 border border-white/5 rounded-2xl">
-          {[
-            { id: "overview", icon: <BarChart3 size={14}/> },
-            { id: "users", icon: <Users size={14}/> },
-            { id: "finance", icon: <Wallet size={14}/> },
-            { id: "settings", icon: <Settings size={14}/> }
-          ].map((tab) => (
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 p-1 bg-slate-900/50 border border-white/5 rounded-2xl">
+          {["overview", "users", "kyc"].map((tab) => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
-                activeTab === tab.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-500"
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all ${
+                activeTab === tab ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-500"
               }`}
             >
-              {tab.icon}
-              <span className="text-[8px] font-bold uppercase mt-1 tracking-tighter">{tab.id}</span>
+              {tab}
             </button>
           ))}
         </div>
 
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-2 gap-4">
-               <StatCard label="Fraix perçus" value="π 124.50" subText="Revenue Platform" icon={<ArrowDownUp size={16} />} />
-               <Button onClick={handleGenerateReport} className="h-full bg-slate-900/60 border-white/5 rounded-[2rem] p-5 flex flex-col items-center justify-center gap-2 hover:bg-slate-800">
-                  <FileText className="text-blue-400" size={20} />
-                  <span className="text-[9px] font-bold uppercase tracking-tighter">Rapport 24H</span>
-               </Button>
-            </div>
+            <Card onClick={() => setIsMaintenanceMode(!isMaintenanceMode)} className={`border-white/5 rounded-[2rem] p-6 flex justify-between items-center transition-all cursor-pointer ${isMaintenanceMode ? 'bg-orange-500/10 border-orange-500/20 shadow-lg shadow-orange-500/5' : 'bg-slate-900/40'}`}>
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl ${isMaintenanceMode ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                  <Power size={18} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold">Mode Maintenance</p>
+                  <p className="text-[10px] text-slate-500">{isMaintenanceMode ? 'Accès restreint aux Admins' : 'Portails Clients Ouverts'}</p>
+                </div>
+              </div>
+            </Card>
 
             <div className="space-y-4">
                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Journal d'Audit</h3>
                <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-4 space-y-3">
-                  {logs.length > 0 ? logs.slice(0, 5).map(log => (
+                  {logs.length > 0 ? logs.slice(0, 6).map(log => (
                     <div key={log.id} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
                       <div>
                         <p className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">{log.action.replace('_', ' ')}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">{log.adminName} ➔ {log.targetEmail?.split('@')[0] || 'N/A'}...</p>
+                        <p className="text-[9px] text-slate-400 font-medium">{log.adminName} ➔ {log.targetEmail.split('@')[0]}...</p>
                       </div>
                       <span className="text-[8px] text-slate-600 font-mono bg-slate-950 px-2 py-1 rounded-md">
                         {new Date(log.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -355,11 +280,11 @@ export default function AdminDashboard() {
           <div className="space-y-4 animate-in slide-in-from-bottom-2">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none text-white focus:border-blue-500/50 transition-all"
-                placeholder="Rechercher nom ou email..."
+              <input 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none text-white focus:border-blue-500/50 transition-all" 
+                placeholder="Rechercher nom ou email..." 
               />
             </div>
             <div className="space-y-3">
@@ -382,85 +307,26 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === "finance" && (
-          <div className="space-y-6 animate-in zoom-in-95">
-             <section className="space-y-4">
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2 text-center">Gestion Liquidité</h3>
-                <div className="p-8 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] text-center">
-                  <Shield size={40} className="text-blue-500 mx-auto mb-4" />
-                  <h3 className="font-bold text-white text-lg italic tracking-tighter">Vérification KYC</h3>
-                  <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest leading-relaxed">
-                    {users.filter(u => u.status === 'PENDING').length} fichiers en attente.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleApproveAllKYC}
-                  className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white font-black italic rounded-2xl shadow-xl active:scale-95 transition-all"
-                >
-                  APPROUVER TOUTES LES FILES
-                </Button>
-             </section>
-
-             <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-4">Exportation Données</p>
-                <div className="grid grid-cols-2 gap-3">
-                   <button onClick={handleExportCSV} className="py-3 bg-white/5 rounded-xl text-[10px] font-bold uppercase border border-white/5 hover:bg-white/10">Transactions CSV</button>
-                   <button className="py-3 bg-white/5 rounded-xl text-[10px] font-bold uppercase border border-white/5 hover:bg-white/10">Users JSON</button>
-                </div>
-             </Card>
-          </div>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="space-y-6 animate-in slide-in-from-right-2">
-            <Card onClick={handleToggleMaintenance} className={`border-white/5 rounded-[2rem] p-6 flex justify-between items-center transition-all cursor-pointer ${isMaintenanceMode ? 'bg-orange-500/10 border-orange-500/20' : 'bg-slate-900/40'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${isMaintenanceMode ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  <Power size={18} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold">Mode Maintenance</p>
-                  <p className="text-[10px] text-slate-500">{isMaintenanceMode ? 'Système Locké' : 'Portails Ouverts'}</p>
-                </div>
+        {activeTab === "kyc" && (
+          <div className="space-y-4 animate-in zoom-in-95">
+            <div className="p-8 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] text-center">
+              <div className="relative inline-block mb-4">
+                 <Shield size={40} className="text-blue-500" />
+                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#020617] flex items-center justify-center">
+                    <span className="text-[8px] font-bold text-white">{users.filter(u => u.status === 'PENDING').length}</span>
+                 </div>
               </div>
-            </Card>
-
-            <Card onClick={handleSendGlobalNotif} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6 flex justify-between items-center cursor-pointer hover:bg-slate-800/60 transition-all">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
-                  <Megaphone size={18} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold">Annonce Globale</p>
-                  <p className="text-[10px] text-slate-500">Notifier tous les membres</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                   <div className="flex items-center gap-3">
-                      <CreditCard size={18} className="text-blue-500" />
-                      <p className="text-xs font-bold text-white">Frais de Réseau</p>
-                   </div>
-                   <input
-                      type="number"
-                      step="0.001"
-                      value={platformFee}
-                      onChange={(e) => setPlatformFee(parseFloat(e.target.value))}
-                      className="w-16 bg-slate-950 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-center outline-none text-white"
-                    />
-                </div>
-                <div className="pt-4 border-t border-white/5">
-                   <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle size={14} className="text-red-500" />
-                      <p className="text-[10px] font-bold text-red-500 uppercase">Zone de Danger</p>
-                   </div>
-                   <Button variant="destructive" className="w-full rounded-xl text-[10px] font-bold py-6">
-                      RÉINITIALISER TOUS LES LOGS
-                   </Button>
-                </div>
-            </Card>
+              <h3 className="font-bold text-white text-lg italic tracking-tighter">Files KYC</h3>
+              <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest leading-relaxed">
+                Validation des identités Pi Network<br/>en attente de revue manuelle.
+              </p>
+            </div>
+            <Button 
+              onClick={() => handleAction('all', 'VERIFY_ALL')}
+              className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white font-black italic rounded-2xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
+            >
+              APPROUVER LA SÉLECTION
+            </Button>
           </div>
         )}
       </div>

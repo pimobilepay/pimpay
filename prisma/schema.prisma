@@ -24,12 +24,12 @@ model User {
   password       String?   // Haché
   pin            String?   // Haché (Code à 4 chiffres)
   refreshToken   String?   @unique
-  
+
   firstName      String?
   lastName       String?
-  name           String?   // Nom d'affichage (ex: utilisé sur la carte)
+  name           String?   // Nom d'affichage
   avatar         String?
-  
+
   // Localisation & Naissance
   country        String?
   city           String?
@@ -48,6 +48,7 @@ model User {
   kycSelfieUrl   String?
   kycSubmittedAt DateTime?
   kycVerifiedAt  DateTime?
+  kycReason      String?   // Raison en cas de rejet (NOUVEAU)
 
   // LIMITES & CROISSANCE
   referralCode   String?   @unique @default(cuid())
@@ -93,7 +94,7 @@ model Wallet {
   id        String     @id @default(cuid())
   userId    String
   balance   Float      @default(0)
-  currency  String     @default("PI") // PI, USDT, EUR, etc.
+  currency  String     @default("PI") 
   type      WalletType @default(PI)
 
   createdAt DateTime @default(now())
@@ -105,6 +106,16 @@ model Wallet {
 
   @@unique([userId, currency])
   @@index([userId])
+}
+
+// --- CONFIGURATION SYSTÈME (NOUVEAU) ---
+model SystemConfig {
+  id                String   @id @default("GLOBAL_CONFIG")
+  maintenanceMode   Boolean  @default(false)
+  transactionFee    Float    @default(0.01) // Frais en Pi
+  minWithdrawal     Float    @default(1.0)  // Minimum pour retirer
+  consensusPrice    Float    @default(314159.0) // Prix de référence USD
+  updatedAt         DateTime @updatedAt
 }
 
 model Vault {
@@ -136,15 +147,16 @@ model Beneficiary {
 // -----------------------------------------------------------------------------
 
 model Transaction {
-  id           String            @id @default(cuid())
-  reference    String            @unique // Référence interne PIMPAY-XXXX
-  blockchainTx String?           @unique // Hash de la transaction sur la blockchain Pi
+  id           String            @id // Sera remplacé par NanoID dans ton API
+  reference    String            @unique // PMP-TX-XXXX
+  blockchainTx String?           @unique // Hash Pi Blockchain
   amount       Float
   fee          Float             @default(0)
   netAmount    Float?
   type         TransactionType
   status       TransactionStatus @default(PENDING)
   description  String?
+  metadata     Json?             // Stockage flexible pour infos Web3 (NOUVEAU)
   createdAt    DateTime          @default(now())
 
   // Émetteur
@@ -181,7 +193,7 @@ model VirtualCard {
   brand     String   @default("VISA")
   locked    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -217,7 +229,7 @@ model Session {
 
 model Otp {
   id         String   @id @default(cuid())
-  identifier String   // Email ou Phone
+  identifier String   
   code       String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
@@ -227,7 +239,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   adminId     String?
   adminName   String?
-  action      String   // Ex: UPDATE_KYC, BAN_USER
+  action      String   // Ex: UPDATE_KYC, BAN_USER, CHANGE_FEE
   targetId    String?
   targetEmail String?
   details     String?
@@ -240,11 +252,11 @@ model AuditLog {
 model SecurityLog {
   id        String   @id @default(cuid())
   userId    String
-  action    String   // Ex: LOGIN_ATTEMPT, PIN_CHANGED
+  action    String   
   ip        String?
   device    String?
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -259,7 +271,7 @@ model SupportTicket {
   status    SupportStatus @default(OPEN)
   createdAt DateTime      @default(now())
   messages  Message[]
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -269,7 +281,7 @@ model Message {
   senderId  String
   content   String
   createdAt DateTime      @default(now())
-  
+
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
@@ -278,7 +290,7 @@ model Notification {
   userId    String
   title     String
   message   String
-  type      String   @default("info") // info, success, warning, error
+  type      String   @default("info") 
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
