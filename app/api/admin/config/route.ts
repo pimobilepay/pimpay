@@ -10,15 +10,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // Utilisation du nom exact du modèle : systemConfig (Prisma transforme les noms de modèles en camelCase)
-    // On cherche l'ID fixe défini dans ton schéma : "GLOBAL_CONFIG"
-    let config = await prisma.systemConfig.findUnique({
+    // Détection dynamique du modèle (Prisma change parfois la casse)
+    const db = prisma as any;
+    const ConfigModel = db.systemConfig || db.SystemConfig;
+
+    if (!ConfigModel) {
+      console.error("ERREUR CRITIQUE : Le modèle SystemConfig est introuvable dans Prisma.");
+      return NextResponse.json({ 
+        error: "Modèle manquant", 
+        help: "Lancez 'npx prisma generate && npx prisma db push'" 
+      }, { status: 500 });
+    }
+
+    // Récupération avec l'ID défini dans ton schéma
+    let config = await ConfigModel.findUnique({
       where: { id: "GLOBAL_CONFIG" }
     });
 
-    // Initialisation si la table est vide
     if (!config) {
-      config = await prisma.systemConfig.create({
+      config = await ConfigModel.create({
         data: {
           id: "GLOBAL_CONFIG",
           maintenanceMode: false,
@@ -32,21 +42,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(config);
   } catch (error: any) {
     console.error("CONFIG_GET_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const payload = verifyAuth(req) as { id: string; role: string } | null;
-    if (!payload || payload.role !== "ADMIN") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    if (!payload || payload.role !== "ADMIN") return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const body = await req.json();
+    const db = prisma as any;
+    const ConfigModel = db.systemConfig || db.SystemConfig;
 
-    // Mise à jour ou création forcée sur l'ID "GLOBAL_CONFIG"
-    const updatedConfig = await prisma.systemConfig.upsert({
+    const updatedConfig = await ConfigModel.upsert({
       where: { id: "GLOBAL_CONFIG" },
       update: {
         maintenanceMode: body.maintenanceMode,
@@ -65,7 +74,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(updatedConfig);
   } catch (error: any) {
-    console.error("CONFIG_POST_ERROR:", error);
     return NextResponse.json({ error: "Erreur de mise à jour" }, { status: 500 });
   }
 }
