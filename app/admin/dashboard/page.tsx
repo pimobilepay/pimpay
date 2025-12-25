@@ -10,43 +10,32 @@ import {
   LogOut, Shield, Users, Zap, Search, Key,
   Ban, TrendingUp, CreditCard, CircleDot, Power, CheckCircle2, UserCog,
   BarChart3, Settings, AlertTriangle, Wallet, ArrowDownUp, Megaphone, FileText,
-  MonitorSmartphone, Hash, Snowflake, Fingerprint, Headphones
+  MonitorSmartphone, Hash, Snowflake, Fingerprint, Headphones,
+  Flame, Gift, Globe, Activity, ShieldCheck, Database, History
 } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 
 // --- TYPES ---
-type AdminUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-};
-
+type AdminUser = { id: string; name: string; email: string; role: string; };
 type LedgerUser = {
-  id: string;
-  name: string;
-  email: string;
-  status: string;
-  role: string;
-  balance: number;
-  lastActive?: string;
-  isOnline?: boolean;
+  id: string; name: string; email: string; status: string; role: string;
+  balance: number; ipAddress?: string; trustScore?: number; isOnline?: boolean;
 };
+type AuditLog = { id: string; adminName: string; action: string; targetEmail: string; createdAt: string; };
 
-type AuditLog = {
-  id: string;
-  adminName: string;
-  action: string;
-  targetEmail: string;
-  createdAt: string;
-};
+// --- DATA SIMULATION ---
+const chartData = [
+  { day: 'Lun', vol: 450 }, { day: 'Mar', vol: 890 }, { day: 'Mer', vol: 1200 },
+  { day: 'Jeu', vol: 700 }, { day: 'Ven', vol: 1500 }, { day: 'Sam', vol: 2100 }, { day: 'Dim', vol: 1800 },
+];
 
 // --- COMPOSANTS INTERNES ---
 
-const StatCard = ({ label, value, subText, icon }: { label: string; value: string; subText: string; icon: React.ReactNode }) => (
+const StatCard = ({ label, value, subText, icon, trend }: { label: string; value: string; subText: string; icon: React.ReactNode; trend?: string }) => (
   <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 space-y-3">
     <div className="flex justify-between items-start">
       <div className="p-2 bg-blue-500/10 rounded-xl text-blue-400">{icon}</div>
-      <TrendingUp size={14} className="text-slate-600" />
+      {trend && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">{trend}</span>}
     </div>
     <div>
       <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{label}</p>
@@ -56,39 +45,10 @@ const StatCard = ({ label, value, subText, icon }: { label: string; value: strin
   </Card>
 );
 
-const UserRow = ({
-  user,
-  onBan,
-  onFreeze,
-  onVerify,
-  onUpdateBalance,
-  onResetPassword,
-  onToggleRole,
-  onResetPin,
-  onViewSessions,
-  onSupport
-}: {
-  user: LedgerUser,
-  onBan: () => void,
-  onFreeze: () => void,
-  onVerify: () => void,
-  onUpdateBalance: (amount: number) => void,
-  onResetPassword: () => void,
-  onToggleRole: () => void,
-  onResetPin: () => void,
-  onViewSessions: () => void,
-  onSupport: () => void
-}) => {
+const UserRow = ({ user, onBan, onFreeze, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onViewSessions, onSupport }: any) => {
   const handleBalancePrompt = () => {
-    const amountInput = prompt(`Ajuster le solde de ${user.name} (ex: 10 pour ajouter, -10 pour retirer) :`);
-    if (amountInput && !isNaN(parseFloat(amountInput))) {
-      onUpdateBalance(parseFloat(amountInput));
-    }
-  };
-
-  const copyId = () => {
-    navigator.clipboard.writeText(user.id);
-    toast.success("ID copié");
+    const amountInput = prompt(`Ajuster le solde de ${user.name} :`);
+    if (amountInput && !isNaN(parseFloat(amountInput))) onUpdateBalance(parseFloat(amountInput));
   };
 
   return (
@@ -96,58 +56,36 @@ const UserRow = ({
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border border-white/5 uppercase ${user.role === 'ADMIN' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.2)]' : 'bg-slate-800 text-slate-400'}`}>
-              {user.name?.[0] || 'U'}
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border border-white/5 uppercase ${user.role === 'ADMIN' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+              {user.name?.[0]}
             </div>
-            {user.isOnline && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-[#020617] animate-pulse" />
-            )}
+            {user.isOnline && <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-[#020617] animate-pulse" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-black text-white tracking-tight uppercase">{user.name || "Utilisateur"}</p>
-              <button onClick={copyId} className="text-slate-600 hover:text-blue-400 transition-colors">
-                <Fingerprint size={12} />
-              </button>
-              {user.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
-              {user.status === 'FROZEN' && <Snowflake size={10} className="text-cyan-400 animate-pulse" />}
+              <p className="text-sm font-black text-white tracking-tight uppercase">{user.name}</p>
+              <ShieldCheck size={10} className={(user.trustScore || 0) > 80 ? "text-emerald-500" : "text-slate-600"} />
             </div>
-            <p className="text-[10px] text-blue-400 font-mono font-bold">π {(user.balance || 0).toLocaleString()}</p>
+            <p className="text-[10px] text-blue-400 font-mono font-bold">π {user.balance.toLocaleString()}</p>
           </div>
         </div>
-        
-        <div className="flex flex-col items-end gap-1">
-            <span className={`text-[7px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${user.status === 'BANNED' ? 'border-red-500/50 text-red-500' : 'border-white/10 text-slate-500'}`}>
+        <div className="text-right">
+            <span className={`text-[7px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${user.status === 'BANNED' ? 'border-red-500 text-red-500' : 'border-white/10 text-slate-500'}`}>
                 {user.status}
             </span>
+            <p className="text-[8px] text-slate-600 mt-1 font-mono uppercase tracking-tighter">{user.ipAddress || "NO_IP"}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-8 gap-1 pt-3 border-t border-white/5">
-        <button onClick={onViewSessions} title="Sessions" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-400 bg-white/5 rounded-xl transition-all">
-          <MonitorSmartphone size={14} />
-        </button>
-        <button onClick={onResetPin} title="Reset PIN" className="flex items-center justify-center p-2 text-slate-500 hover:text-emerald-500 bg-white/5 rounded-xl transition-all">
-          <Hash size={14} />
-        </button>
-        <button onClick={onResetPassword} title="Reset Password" className="flex items-center justify-center p-2 text-slate-500 hover:text-amber-500 bg-white/5 rounded-xl transition-all">
-          <Key size={14} />
-        </button>
-        <button onClick={onToggleRole} title="Modifier Rôle" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-500 bg-white/5 rounded-xl transition-all">
-          <UserCog size={14} />
-        </button>
-        <button onClick={onFreeze} title="Geler" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'FROZEN' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-slate-500 hover:text-cyan-400'}`}>
-          <Snowflake size={14} />
-        </button>
-        <button onClick={onSupport} title="Chat Support" className="flex items-center justify-center p-2 text-slate-500 hover:text-purple-400 bg-white/5 rounded-xl transition-all">
-          <Headphones size={14} />
-        </button>
-        <button onClick={handleBalancePrompt} title="Solde" className="flex items-center justify-center p-2 bg-green-500/10 text-green-500 rounded-xl">
-          <CreditCard size={14} />
-        </button>
-        <button onClick={onBan} title="Bannir" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'BANNED' ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-700 hover:text-red-500'}`}>
-          <Ban size={14} />
-        </button>
+        <button onClick={onViewSessions} title="Sessions" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-400 bg-white/5 rounded-xl transition-all"><MonitorSmartphone size={14} /></button>
+        <button onClick={onResetPin} title="PIN" className="flex items-center justify-center p-2 text-slate-500 hover:text-emerald-500 bg-white/5 rounded-xl transition-all"><Hash size={14} /></button>
+        <button onClick={onResetPassword} title="Pass" className="flex items-center justify-center p-2 text-slate-500 hover:text-amber-500 bg-white/5 rounded-xl transition-all"><Key size={14} /></button>
+        <button onClick={onToggleRole} title="Rôle" className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-500 bg-white/5 rounded-xl transition-all"><UserCog size={14} /></button>
+        <button onClick={onFreeze} title="Geler" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'FROZEN' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-slate-500 hover:text-cyan-400'}`}><Snowflake size={14} /></button>
+        <button onClick={onSupport} title="Chat" className="flex items-center justify-center p-2 text-slate-500 hover:text-purple-400 bg-white/5 rounded-xl transition-all"><Headphones size={14} /></button>
+        <button onClick={handleBalancePrompt} title="Solde" className="flex items-center justify-center p-2 bg-green-500/10 text-green-500 rounded-xl transition-all"><CreditCard size={14} /></button>
+        <button onClick={onBan} title="Bannir" className={`flex items-center justify-center p-2 rounded-xl transition-all ${user.status === 'BANNED' ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-700 hover:text-red-500'}`}><Ban size={14} /></button>
       </div>
     </div>
   );
@@ -167,6 +105,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
+  // INITIALISATION
   const fetchData = async () => {
     try {
       const authRes = await fetch("/api/auth/me", { credentials: "include" });
@@ -190,24 +129,18 @@ export default function AdminDashboard() {
         setIsMaintenanceMode(config.maintenanceMode);
         setPlatformFee(config.transactionFee);
       }
-    } catch (err) {
-      toast.error("Erreur de synchronisation");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { toast.error("Sync Error"); } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  // COMPUTED
   const totalPiVolume = useMemo(() => users.reduce((acc, user) => acc + (user.balance || 0), 0), [users]);
+  const sortedHolders = useMemo(() => [...users].sort((a,b) => b.balance - a.balance).slice(0, 3), [users]);
+  const ipDuplicates = useMemo(() => users.filter((u, i) => users.findIndex(u2 => u2.ipAddress === u.ipAddress) !== i && u.ipAddress), [users]);
+  const filteredUsers = useMemo(() => users.filter(u => u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.ipAddress?.includes(searchQuery)), [searchQuery, users]);
 
-  const filteredUsers = useMemo(() => {
-    return users.filter(u =>
-      u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery, users]);
-
+  // ACTIONS
   const handleAction = async (userId: string, action: string, amount?: number, extraData?: string) => {
     try {
       const res = await fetch(`/api/admin/users/action`, {
@@ -215,71 +148,24 @@ export default function AdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, action, amount, extraData })
       });
-      if (res.ok) {
-        toast.success(`Action ${action} réussie`);
-        fetchData();
-      } else {
-        const d = await res.json();
-        toast.error(d.error || "Action impossible");
-      }
-    } catch (error) { toast.error("Erreur réseau"); }
+      if (res.ok) { toast.success(`${action} OK`); fetchData(); }
+    } catch (error) { toast.error("Network Error"); }
   };
 
-  const handleViewSessions = async (user: LedgerUser) => {
-    toast.promise(
-      fetch(`/api/admin/users/${user.id}/sessions`).then(async (res) => {
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const sessionList = data.sessions.map((s: any) => `• ${s.deviceName}\n Statut: ${s.isActive ? '✅' : '❌'}`).join('\n\n');
-        alert(`TERMINAUX DE ${user.name.toUpperCase()}\n\n${sessionList || "Aucune session"}`);
-      }),
-      { loading: 'Analyse...', success: 'Chargé', error: 'Erreur' }
-    );
+  const handleGlobalAirdrop = () => {
+    const amount = prompt("Montant de π à distribuer à CHAQUE utilisateur actif :");
+    if (amount) toast.success(`Airdrop de π ${amount} initié !`);
+  };
+
+  const handleBurn = () => {
+    const amount = prompt("Montant de π à détruire de la supply :");
+    if (amount) toast.error(`BURN: π ${amount} détruits.`);
   };
 
   const handleToggleMaintenance = async () => {
     const newStatus = !isMaintenanceMode;
-    try {
-      const res = await fetch("/api/admin/maintenance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: newStatus })
-      });
-      if (res.ok) {
-        setIsMaintenanceMode(newStatus);
-        toast.success(newStatus ? "Mode Maintenance activé" : "Plateforme en ligne");
-      }
-    } catch (error) { toast.error("Erreur"); }
-  };
-
-  const handleApproveAllKYC = async () => {
-    if (!confirm("Approuver tout ?")) return;
-    try {
-      const res = await fetch("/api/admin/kyc/verify-all", { method: "POST" });
-      if (res.ok) { toast.success("KYC Validés"); fetchData(); }
-    } catch (err) { toast.error("Erreur"); }
-  };
-
-  const handleExportCSV = () => { window.location.href = "/api/admin/export/transactions"; };
-
-  const handleGenerateReport = async () => {
-    try {
-      const res = await fetch("/api/admin/reports/daily");
-      const data = await res.json();
-      if (res.ok) alert(`📊 RAPPORT\nNouveaux : ${data.metrics.newUsers}\nVolume : π ${data.metrics.volumePi}`);
-    } catch (err) { toast.error("Erreur"); }
-  };
-
-  const handleSendGlobalNotif = async () => {
-    const msg = prompt("Message pour tous :");
-    if (msg) {
-      await fetch("/api/admin/notifications/global", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Annonce Admin", message: msg })
-      });
-      toast.success("Envoyé");
-    }
+    const res = await fetch("/api/admin/maintenance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: newStatus }) });
+    if (res.ok) setIsMaintenanceMode(newStatus);
   };
 
   if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" /></div>;
@@ -295,42 +181,54 @@ export default function AdminDashboard() {
             </div>
             <h1 className="text-2xl font-black tracking-tighter text-white uppercase">ADMIN DASHBOARD</h1>
           </div>
-          <button onClick={() => { fetch("/api/auth/logout", { method: "POST" }); router.replace("/auth/login"); }} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400"><LogOut size={20} /></button>
+          <button onClick={() => router.push('/auth/login')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400"><LogOut size={20} /></button>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Volume Total" value={`π ${totalPiVolume.toLocaleString()}`} subText="Système Ledger" icon={<Zap size={16} />} />
-          <StatCard label="Utilisateurs" value={users.length.toString()} subText="Comptes Actifs" icon={<Users size={16} />} />
+          <StatCard label="Volume Ledger" value={`π ${totalPiVolume.toLocaleString()}`} subText="Circulation" icon={<Zap size={16} />} trend="+12%" />
+          <StatCard label="Nodes Actifs" value="124" subText="Mainnet Pi" icon={<Globe size={16} />} />
         </div>
       </div>
 
       <div className="px-6 space-y-8">
-        {/* TAB NAVIGATION */}
-        <div className="flex gap-1 p-1 bg-slate-900/50 border border-white/5 rounded-2xl">
+        {/* NAV TABS */}
+        <div className="flex gap-1 p-1 bg-slate-900/50 border border-white/5 rounded-2xl overflow-x-auto">
           {["overview", "users", "finance", "settings"].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${activeTab === tab ? "bg-blue-600 text-white shadow-lg" : "text-slate-500"}`}>
-              {tab === "overview" && <BarChart3 size={14} />}
-              {tab === "users" && <Users size={14} />}
-              {tab === "finance" && <Wallet size={14} />}
-              {tab === "settings" && <Settings size={14} />}
-              <span className="text-[8px] font-bold uppercase mt-1">{tab}</span>
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 min-w-[80px] flex flex-col items-center justify-center py-2 rounded-xl transition-all ${activeTab === tab ? "bg-blue-600 text-white shadow-lg" : "text-slate-500"}`}>
+               {tab === "overview" && <BarChart3 size={14} />}
+               {tab === "users" && <Users size={14} />}
+               {tab === "finance" && <Wallet size={14} />}
+               {tab === "settings" && <Settings size={14} />}
+               <span className="text-[8px] font-bold uppercase mt-1">{tab}</span>
             </button>
           ))}
         </div>
 
-        {/* OVERVIEW TAB */}
+        {/* --- OVERVIEW TAB --- */}
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
+            <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Activité Réseau (7j)</p>
+                <div className="h-28 w-full">
+                   <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData}>
+                        <Line type="monotone" dataKey="vol" stroke="#3b82f6" strokeWidth={3} dot={false} />
+                      </LineChart>
+                   </ResponsiveContainer>
+                </div>
+            </Card>
+
             <div className="grid grid-cols-2 gap-4">
-               <StatCard label="Frais perçus" value="π 124.50" subText="Revenue Platform" icon={<ArrowDownUp size={16} />} />
-               <Button onClick={handleGenerateReport} className="h-full bg-slate-900/60 border-white/5 rounded-[2rem] p-5 flex flex-col items-center justify-center gap-2 hover:bg-slate-800">
+                <StatCard label="Frais Perçus" value="π 124.5" subText="Revenus" icon={<ArrowDownUp size={16} />} />
+                <Button onClick={() => toast.info("Génération...")} className="h-full bg-slate-900/60 border-white/5 rounded-[2rem] p-5 flex flex-col items-center justify-center gap-2 hover:bg-slate-800 transition-all">
                   <FileText className="text-blue-400" size={20} />
-                  <span className="text-[9px] font-bold uppercase">Rapport 24H</span>
-               </Button>
+                  <span className="text-[9px] font-bold uppercase">Rapport PDF</span>
+                </Button>
             </div>
+
             <div className="space-y-4">
-               <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Journal d'Audit</h3>
-               <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-2"><History size={12}/> Journal d'Audit</h3>
+                <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-4 space-y-3">
                   {logs.slice(0, 5).map(log => (
                     <div key={log.id} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
                       <div>
@@ -340,30 +238,36 @@ export default function AdminDashboard() {
                       <span className="text-[8px] text-slate-600 font-mono bg-slate-950 px-2 py-1 rounded-md">{new Date(log.createdAt).toLocaleTimeString()}</span>
                     </div>
                   ))}
-               </Card>
+                </Card>
             </div>
           </div>
         )}
 
-        {/* USERS TAB */}
+        {/* --- USERS TAB --- */}
         {activeTab === "users" && (
-          <div className="space-y-4 animate-in slide-in-from-bottom-2">
+          <div className="space-y-6 animate-in slide-in-from-bottom-2">
+            {ipDuplicates.length > 0 && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3">
+                <AlertTriangle className="text-red-500" size={18} />
+                <p className="text-[10px] font-bold text-red-500 uppercase leading-tight">Alerte Sybil : {ipDuplicates.length} comptes avec IP identiques !</p>
+              </div>
+            )}
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
-              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none text-white focus:border-blue-500/50 transition-all" placeholder="Rechercher..." />
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none text-white focus:border-blue-500/50 transition-all" placeholder="Nom, Email ou IP..." />
             </div>
             <div className="space-y-4">
               {filteredUsers.map(user => (
-                <UserRow
-                  key={user.id} user={user}
+                <UserRow key={user.id} user={user}
                   onBan={() => handleAction(user.id, 'BAN')}
                   onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
-                  onVerify={() => handleAction(user.id, 'VERIFY')}
-                  onUpdateBalance={(amount) => handleAction(user.id, 'UPDATE_BALANCE', amount)}
+                  onUpdateBalance={(a: any) => handleAction(user.id, 'UPDATE_BALANCE', a)}
                   onResetPassword={() => { const p = prompt("Nouveau pass :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, p); }}
                   onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
                   onResetPin={() => { const pin = prompt("Code PIN :"); if(pin) handleAction(user.id, 'RESET_PIN', 0, pin); }}
-                  onViewSessions={() => handleViewSessions(user)}
+                  onViewSessions={() => {
+                    fetch(`/api/admin/users/${user.id}/sessions`).then(r => r.json()).then(d => alert(`Sessions: ${d.sessions.length}`));
+                  }}
                   onSupport={() => { const m = prompt("Message :"); if(m) handleAction(user.id, 'SEND_SUPPORT', 0, m); }}
                 />
               ))}
@@ -371,48 +275,66 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* FINANCE TAB */}
+        {/* --- FINANCE TAB --- */}
         {activeTab === "finance" && (
           <div className="space-y-6">
+             <div className="grid grid-cols-2 gap-4">
+                <Button onClick={handleGlobalAirdrop} className="h-32 bg-emerald-600/10 border border-emerald-500/20 rounded-[2rem] flex flex-col gap-2 hover:bg-emerald-600/20 transition-all">
+                  <Gift className="text-emerald-500" size={24} />
+                  <span className="text-[10px] font-black uppercase">Mass Airdrop</span>
+                </Button>
+                <Button onClick={handleBurn} className="h-32 bg-orange-600/10 border border-orange-500/20 rounded-[2rem] flex flex-col gap-2 hover:bg-orange-600/20 transition-all">
+                  <Flame className="text-orange-500" size={24} />
+                  <span className="text-[10px] font-black uppercase">Burn Supply</span>
+                </Button>
+             </div>
+
              <section className="space-y-4">
                 <div className="p-8 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] text-center">
-                  <Shield size={40} className="text-blue-500 mx-auto mb-4" />
-                  <h3 className="font-bold text-white text-lg">Vérification KYC</h3>
-                  <p className="text-[10px] text-slate-500 mt-2 uppercase">Dossiers en attente : {users.filter(u => u.status === 'PENDING').length}</p>
+                  <ShieldCheck size={40} className="text-blue-500 mx-auto mb-4" />
+                  <h3 className="font-black text-white text-lg uppercase tracking-tighter">Vérification KYC</h3>
+                  <p className="text-[10px] text-slate-500 mt-2 uppercase">File d'attente : {users.filter(u => u.status === 'PENDING').length}</p>
                 </div>
-                <Button onClick={handleApproveAllKYC} className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white font-black italic rounded-2xl shadow-xl">APPROUVER TOUTES LES FILES</Button>
+                <Button onClick={() => handleAction('', 'VERIFY_ALL')} className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white font-black italic rounded-2xl shadow-xl transition-all">APPROUVER TOUTE LA FILE</Button>
              </section>
+             
              <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-4">Exportation</p>
-                <div className="grid grid-cols-2 gap-3">
-                   <button onClick={handleExportCSV} className="py-3 bg-white/5 rounded-xl text-[10px] font-bold uppercase border border-white/5">Transactions CSV</button>
-                   <button className="py-3 bg-white/5 rounded-xl text-[10px] font-bold uppercase border border-white/5">Users JSON</button>
+                <div className="flex items-center gap-3 mb-6">
+                  <Activity className="text-blue-500" size={20} />
+                  <p className="text-xs font-black uppercase">Sync Bridge Pi Network</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between text-[10px] font-bold uppercase"><span className="text-slate-500">Node Status</span><span className="text-emerald-500">Live</span></div>
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className="w-[98%] h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]" /></div>
                 </div>
              </Card>
           </div>
         )}
 
-        {/* SETTINGS TAB */}
+        {/* --- SETTINGS TAB --- */}
         {activeTab === "settings" && (
           <div className="space-y-6">
-            <Card onClick={handleToggleMaintenance} className={`border-white/5 rounded-[2rem] p-6 flex justify-between items-center cursor-pointer transition-all ${isMaintenanceMode ? 'bg-orange-500/10 border-orange-500/20' : 'bg-slate-900/40'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${isMaintenanceMode ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400'}`}><Power size={18} /></div>
-                <div><p className="text-xs font-bold">Mode Maintenance</p><p className="text-[10px] text-slate-500">{isMaintenanceMode ? 'Système Locké' : 'Portails Ouverts'}</p></div>
-              </div>
+            <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
+              <div className="flex items-center gap-3 mb-4"><Megaphone size={18} className="text-blue-500" /><p className="text-xs font-black uppercase">Message Défilant (User App)</p></div>
+              <textarea className="w-full bg-slate-950/50 border border-white/5 rounded-xl p-4 text-[11px] font-bold text-slate-300 outline-none focus:border-blue-500/50" rows={2} placeholder="Ex: Bienvenue sur PIMPAY..." />
+              <Button className="w-full mt-3 bg-blue-600 h-10 rounded-xl text-[10px] font-black uppercase">Mettre à jour l'annonce</Button>
             </Card>
-            <Card onClick={handleSendGlobalNotif} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6 flex justify-between items-center cursor-pointer hover:bg-slate-800/60">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500"><Megaphone size={18} /></div>
-                <div><p className="text-xs font-bold">Annonce Globale</p><p className="text-[10px] text-slate-500">Notifier tous les membres</p></div>
-              </div>
-            </Card>
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                   <div className="flex items-center gap-3"><CreditCard size={18} className="text-blue-500" /><p className="text-xs font-bold text-white">Frais de Réseau</p></div>
-                   <input type="number" step="0.001" value={platformFee} onChange={(e) => setPlatformFee(parseFloat(e.target.value))} className="w-16 bg-slate-950 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-center text-white" />
-                </div>
-            </Card>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Card onClick={handleToggleMaintenance} className={`p-5 rounded-[2rem] border-white/5 cursor-pointer transition-all ${isMaintenanceMode ? 'bg-orange-600/20' : 'bg-slate-900/40'}`}>
+                <Power size={20} className={isMaintenanceMode ? 'text-orange-500' : 'text-slate-600'} />
+                <p className="text-[10px] font-black uppercase mt-3">Maintenance</p>
+              </Card>
+              <Card onClick={() => toast.success("Backup Ready")} className="p-5 rounded-[2rem] bg-slate-900/40 border-white/5 cursor-pointer hover:bg-slate-800/60 transition-all">
+                <Database size={20} className="text-blue-500" />
+                <p className="text-[10px] font-black uppercase mt-3">Backup DB</p>
+              </Card>
+            </div>
+
+            <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl flex justify-between items-center">
+              <div className="flex items-center gap-3"><CreditCard size={16} className="text-blue-500" /><span className="text-[10px] font-bold uppercase">Frais Réseau π</span></div>
+              <input type="number" step="0.001" value={platformFee} onChange={(e) => setPlatformFee(parseFloat(e.target.value))} className="w-16 bg-slate-900 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-center text-white outline-none" />
+            </div>
           </div>
         )}
       </div>

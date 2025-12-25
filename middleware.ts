@@ -9,60 +9,76 @@ export async function middleware(req: NextRequest) {
   const isMaintenance = req.cookies.get("maintenance_mode")?.value === "true";
   const { pathname } = req.nextUrl;
 
-  // 1. Autoriser les requêtes API et les fichiers statiques
-  if (pathname.startsWith("/api") || pathname.includes(".")) {
+  // 1. Autoriser immédiatement les fichiers statiques et API internes
+  if (
+    pathname.startsWith("/_next") || 
+    pathname.startsWith("/api") || 
+    pathname.includes(".")
+  ) {
     return NextResponse.next();
   }
 
-  // 2. Pages publiques (Login, Register)
   const isAuthPage = pathname.startsWith("/auth");
+  const isMaintenancePage = pathname === "/maintenance";
 
-  if (isAuthPage) {
-    if (token) {
-      try {
-        await jose.jwtVerify(token, JWT_SECRET);
+  // 2. Si l'utilisateur a un token
+  if (token) {
+    try {
+      const { payload } = await jose.jwtVerify(token, JWT_SECRET);
+      const userRole = payload.role as string;
+
+      // Rediriger loin des pages d'auth s'il est déjà connecté
+      if (isAuthPage) {
         return NextResponse.redirect(new URL("/", req.url));
-      } catch (e) {
-        return NextResponse.next();
       }
+
+      // Logique de Maintenance
+      if (isMaintenance) {
+        if (userRole !== "ADMIN" && !isMaintenancePage) {
+          return NextResponse.redirect(new URL("/maintenance", req.url));
+        }
+      } else if (isMaintenancePage) {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
+
+      // Protection Admin
+      if (pathname.startsWith("/admin") && userRole !== "ADMIN") {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
+
+      return NextResponse.next();
+    } catch (e) {
+      // Token invalide ou expiré : On nettoie et on redirige
+      const response = NextResponse.redirect(new URL("/auth/login", req.url));
+      response.cookies.delete("token");
+      return response;
     }
-    return NextResponse.next();
   }
 
-  // 3. Pages protégées
+  // 3. Si l'utilisateur n'a PAS de token
   if (!token) {
-    // Si maintenance active et pas de token, on envoie vers maintenance plutôt que login
-    if (isMaintenance && pathname !== "/maintenance") {
-       return NextResponse.redirect(new URL("/maintenance", req.url));
+    // Permettre l'accès aux pages d'auth et à la page maintenance
+    if (isAuthPage || isMaintenancePage) {
+      return NextResponse.next();
     }
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+
+    // Si maintenance active -> /maintenance, sinon -> /login
+    const redirectUrl = isMaintenance ? "/maintenance" : "/auth/login";
+    return NextResponse.redirect(new URL(redirectUrl, req.url));
   }
 
-  try {
-    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
-    const userRole = payload.role as string;
-
-    // --- LOGIQUE DE MAINTENANCE ---
-    // Si le mode maintenance est ON, on redirige tout le monde sauf les ADMINS
-    if (isMaintenance && pathname !== "/maintenance") {
-      if (userRole !== "ADMIN") {
-        return NextResponse.redirect(new URL("/maintenance", req.url));
-      }
-    }
-
-    // Si l'utilisateur est sur la page maintenance alors qu'elle n'est plus active
-    if (!isMaintenance && pathname === "/maintenance") {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-
-    return NextResponse.next();
-  } catch (error) {
-    // Si le token est expiré ou corrompu, retour au login
-    return NextResponse.redirect(new URL("/auth/login", req.url));
-  }
+  return NextResponse.next();
 }
 
-// Configurer sur quelles routes le middleware s'applique
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
 };
