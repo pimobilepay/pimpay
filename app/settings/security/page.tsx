@@ -1,16 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import {
-  ShieldCheck,
-  Fingerprint,
-  KeyRound,
-  Mail,
-  MessageCircle,
-  ChevronRight,
-  Lock,
-  ArrowLeft,
-  ShieldAlert
+import {                                            ShieldCheck,
+  Fingerprint,                                      KeyRound,
+  Mail,                                             MessageCircle,
+  ChevronRight,                                     Lock,
+  ArrowLeft,                                        ShieldAlert
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -50,8 +45,8 @@ export default function SecurityPage() {
       {/* HEADER DYNAMIQUE */}
       <div className="px-6 pt-12">
         <div className="flex items-center gap-4 mb-8">
-          <button 
-            onClick={() => router.back()} 
+          <button
+            onClick={() => router.back()}
             className="p-3 rounded-2xl bg-slate-900 border border-white/10 active:scale-90 transition-all"
           >
             <ArrowLeft size={20} />
@@ -77,7 +72,7 @@ export default function SecurityPage() {
           </div>
           {/* Progress bar */}
           <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-            <div 
+            <div
               className={`h-full transition-all duration-1000 ${securityScore === 3 ? 'bg-emerald-500' : 'bg-blue-500'}`}
               style={{ width: `${(securityScore / 3) * 100}%` }}
             />
@@ -114,14 +109,14 @@ export default function SecurityPage() {
                 icon={<Lock size={20} />}
                 label="Mot de passe"
                 description="Modifier votre clé d'accès principale"
-                path="/security/change-password"
+                path="settings/security/change-password"
               />
               <div className="h-[1px] w-full bg-white/5 mx-6" />
               <SecurityAction
                 icon={<KeyRound size={20} />}
                 label="Code PIN"
                 description="Gérer votre code de transaction à 4 chiffres"
-                path="/security/pin"
+                path="/settings/security/pin"
               />
             </div>
           </section>

@@ -1,10 +1,9 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+                                                  import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, UploadCloud, UserCheck, Clock, XCircle, 
-  CheckCircle2, Camera, ShieldCheck, FileText, MapPin 
+import {
+  ArrowLeft, UploadCloud, UserCheck, Clock, XCircle,
+  CheckCircle2, Camera, ShieldCheck, FileText, MapPin
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -113,7 +112,7 @@ export default function KycPage() {
         {/* FORMULAIRE */}
         {status === "not_started" && (
           <form onSubmit={submitKyc} className="space-y-8">
-            
+
             {/* PROGRESS STEPS */}
             <div className="flex items-center gap-4 mb-8">
                 <div className={`flex-1 h-1 rounded-full transition-all ${step >= 1 ? 'bg-blue-600' : 'bg-slate-800'}`} />
@@ -146,8 +145,8 @@ export default function KycPage() {
                   </div>
                 </div>
 
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setStep(2)}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-600/20"
                 >
@@ -194,8 +193,8 @@ function KycInput({ label, value, onChange, type = "text", placeholder, options 
     <div className="space-y-2">
       <label className="text-[10px] uppercase font-bold text-slate-500 ml-1 tracking-widest">{label}</label>
       {type === "select" ? (
-        <select 
-            value={value} 
+        <select
+            value={value}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 px-4 text-sm focus:border-blue-500 outline-none transition-all appearance-none text-white"
         >

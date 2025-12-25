@@ -14,13 +14,15 @@ import {
   Wallet as WalletIcon,
   Send,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  Eye,
+  EyeOff,
+  RefreshCw
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-// Assure-toi que ce fichier existe bien dans hooks/usePiPayment.ts
-import { usePiPayment } from "@/hooks/usePiPayment"; 
+import { usePiPayment } from "@/hooks/usePiPayment";
 
 interface BottomNavProps {
   onOpenMenu: () => void;
@@ -83,24 +85,36 @@ function BottomNav({ onOpenMenu }: BottomNavProps) {
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showBalance, setShowBalance] = useState(true);
   const router = useRouter();
   const { handlePayment } = usePiPayment();
 
+  const fetchUserData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/user/profile");
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+      } else if (res.status === 401) {
+        router.push("/auth/login");
+      }
+    } catch (err) {
+      toast.error("Erreur de synchronisation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
-    const savedUser = localStorage.getItem("pimpay_user");
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error("Erreur parse user", e);
-      }
-    }
+    fetchUserData();
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("pimpay_user");
-    setUser(null);
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+    localStorage.removeItem("token");
     toast.success("Déconnexion réussie");
     router.push("/auth/login");
   };
@@ -119,6 +133,9 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button onClick={() => fetchUserData()} className={`p-2 text-slate-400 ${loading ? 'animate-spin' : ''}`}>
+            <RefreshCw size={18} />
+          </button>
           {user ? (
             <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-900 border border-white/10 px-4 py-2 rounded-full active:scale-95 transition-all">
               <LogOut size={14} className="text-rose-500" />
@@ -135,29 +152,45 @@ export default function HomePage() {
 
       <main className="px-6">
         <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 to-indigo-900 rounded-[32px] p-6 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
-          <p className="text-white/60 text-xs uppercase font-bold tracking-widest mb-1">Solde Total (PI)</p>
-          <h2 className="text-4xl font-black tracking-tighter mb-4">
-             π {user?.balance?.toFixed(2) || "1,250.75"}
-          </h2>
-          <div className="flex items-center gap-2 bg-black/20 w-fit px-3 py-1 rounded-full backdrop-blur-md border border-white/5">
-            <p className="text-[10px] font-mono font-medium">1 Pi = $314,159.00 USD</p>
-          </div>
-          <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+          <div className="flex justify-between items-start">
             <div>
-              <p className="font-mono text-[10px] opacity-40 uppercase tracking-tighter">ID: {user?.id?.substring(0, 8) || "GUEST"}...</p>
-              <p className="font-mono text-[10px] opacity-40 uppercase">Network: Mainnet</p>
+               <p className="text-white/60 text-[10px] uppercase font-bold tracking-widest mb-1">Solde Disponible</p>
+               <div className="flex items-center gap-3">
+                  <h2 className="text-4xl font-black tracking-tighter">
+                    π {loading ? "..." : (showBalance ? (user?.balance?.toLocaleString() || "0.00") : "****")}
+                  </h2>
+                  <button onClick={() => setShowBalance(!showBalance)} className="opacity-60">
+                    {showBalance ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+               </div>
             </div>
             <CreditCard size={24} className="opacity-30" />
+          </div>
+
+          <div className="mt-6 flex items-center gap-2 bg-black/20 w-fit px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/5">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <p className="text-[10px] font-mono font-medium text-emerald-400">
+              GCV: ${showBalance ? (user?.balance * 314159)?.toLocaleString() : "****"} USD
+            </p>
+          </div>
+
+          <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+            <div>
+              <p className="font-mono text-[9px] text-white/40 uppercase">Propriétaire: {user?.name || "Pioneer"}</p>
+              <p className="font-mono text-[9px] text-white/40 uppercase">Network: Pi Mainnet</p>
+            </div>
+            <div className="text-[10px] font-black italic bg-white/10 px-2 py-1 rounded">VIP</div>
           </div>
         </div>
 
         <section>
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Activités Récentes</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
             <History size={16} className="text-slate-600" />
           </div>
 
           <div className="space-y-4">
+            {/* On pourrait mapper ici user?.transactions si l'API les renvoyait */}
             <TransactionItem title="Recharge Mobile Money" type="DEPOSIT" amount="+π 50.00" status="SUCCESS" time="Il y a 2h" />
             <TransactionItem title="Transfert à @moussa" type="TRANSFER" amount="-π 25.50" status="SUCCESS" time="Hier" />
             <TransactionItem title="Retrait Wave CI" type="WITHDRAW" amount="-π 5.00" status="PENDING" time="Hier" />
@@ -165,7 +198,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <BottomNav onOpenMenu={() => toast.info(`Utilisateur: ${user?.name || "Non connecté"}`)} />
+      <BottomNav onOpenMenu={() => toast.info(`Session active: ${user?.email || "Invité"}`)} />
     </div>
   );
 }

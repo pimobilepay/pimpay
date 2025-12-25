@@ -199,6 +199,23 @@ model Transaction {
   @@index([toUserId])
   @@index([reference])
 }
+model Merchant {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  category        String   // ex: "Restaurant", "Hôtel", "Tech"
+  address         String
+  city            String
+  country         String
+  latitude        Float
+  longitude       Float
+  piPaymentStatus String   @default("ACCEPTED") // ACCEPTED, GCV_ONLY
+  rating          Float    @default(0.0)
+  logoUrl         String?
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
 
 // -----------------------------------------------------------------------------
 // CARTES VIRTUELLES & QR

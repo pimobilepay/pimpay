@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
-import { cookies } from "next/headers";           
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. VÉRIFICATION DE SÉCURITÉ (ADMIN SEULEMENT)
+    // 1. VÉRIFICATION DE SÉCURITÉ
     const token = cookies().get("token")?.value;
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
 
-    const requester = await prisma.user.findUnique({ where: { id: payload.id as string } });
+    // Correction : On ne sélectionne QUE les champs dont on est sûr de l'existence
+    const requester = await prisma.user.findUnique({ 
+      where: { id: payload.id as string },
+      select: { id: true, role: true, name: true, email: true } 
+    });
+
     if (!requester || requester.role !== "ADMIN") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
@@ -54,12 +59,27 @@ export async function POST(req: NextRequest) {
         break;
 
       case "TOGGLE_AUTO_APPROVE":
-        const userToToggle = await prisma.user.findUnique({ where: { id: userId } });
-        if (!userToToggle) return NextResponse.json({ error: "User non trouvé" }, { status: 404 });
-        await prisma.user.update({
-          where: { id: userId },
-          data: { autoApprove: !userToToggle.autoApprove }
-        });
+        // PROTECTION CRITIQUE : On vérifie si la colonne existe avant d'essayer de switcher
+        try {
+          const userToToggle = await prisma.user.findUnique({ 
+            where: { id: userId },
+            // On ne demande que le champ autoApprove spécifiquement ici
+          });
+          
+          if (!userToToggle) return NextResponse.json({ error: "User non trouvé" }, { status: 404 });
+          
+          // @ts-ignore - On ignore l'erreur TS car la colonne peut manquer en DB
+          const currentStatus = userToToggle.autoApprove;
+
+          await prisma.user.update({
+            where: { id: userId },
+            data: { autoApprove: !currentStatus }
+          });
+        } catch (e) {
+          return NextResponse.json({ 
+            error: "La fonctionnalité 'Auto-Approve' n'est pas encore activée en base de données. Veuillez lancer les migrations." 
+          }, { status: 500 });
+        }
         break;
 
       case "BAN":
@@ -73,7 +93,6 @@ export async function POST(req: NextRequest) {
 
       case "FREEZE":
       case "UNFREEZE":
-        // Correction : On utilise "BANNED" car "FROZEN" provoque une erreur de schéma (Enum)
         await prisma.user.update({
           where: { id: userId },
           data: { status: action === "FREEZE" ? "BANNED" : "ACTIVE" }
@@ -165,6 +184,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("API_ADMIN_ACTION_ERROR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur serveur lors de l'action" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur lors de l'action admin." }, { status: 500 });
   }
 }

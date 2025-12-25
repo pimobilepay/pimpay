@@ -1,35 +1,48 @@
-import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { jwtVerify } from "jose";
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error("JWT_SECRET n'est pas défini");
+export const runtime = "nodejs";
 
 export async function PUT(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const token = authHeader.split(" ")[1];
-    const payload: any = jwt.verify(token, JWT_SECRET);
-    if (!payload?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { newPin } = await req.json();
+
     if (!newPin || newPin.length !== 4) {
-      return NextResponse.json({ error: "PIN invalide" }, { status: 400 });
+      return NextResponse.json({ error: "Format PIN invalide" }, { status: 400 });
     }
 
-    const hashedPin = await bcrypt.hash(newPin, 10);
+    // Extraction sécurisée du token
+    const cookieStore = cookies();
+    const tokenCookie = cookieStore.get("token")?.value;
+    const authHeader = req.headers.get("authorization");
+    const token = tokenCookie || (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
+
+    if (!token || token === "undefined" || token === "null") {
+      return NextResponse.json({ error: "Session non valide" }, { status: 401 });
+    }
+
+    let userId: string;
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+      const { payload } = await jwtVerify(token, secret);
+      userId = (payload.id || payload.userId || payload.sub) as string;
+    } catch (err) {
+      return NextResponse.json({ error: "JWT malformé ou expiré" }, { status: 401 });
+    }
+
+    const hashedPin = await bcrypt.hash(newPin, 12);
 
     await prisma.user.update({
-      where: { id: payload.id },
+      where: { id: userId },
       data: { pin: hashedPin },
     });
 
-    return NextResponse.json({ message: "PIN mis à jour avec succès" });
-  } catch (err: any) {
-    console.error("UPDATE PIN ERROR:", err.message || err);
+    return NextResponse.json({ success: true, message: "PIN mis à jour" });
+  } catch (error: any) {
+    console.error("UPDATE_PIN_FATAL_ERROR:", error.message);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
