@@ -1,19 +1,19 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BottomNav } from "@/components/bottom-nav";                                    
-import { toast } from "sonner";             
+import { BottomNav } from "@/components/bottom-nav";
+import { toast } from "sonner";
 import {
-  LogOut, Shield, Users, Zap, Search, Key,    
+  LogOut, Shield, Users, Zap, Search, Key,  
   CreditCard, CircleDot, UserCog, Ban,
-  Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,                                             
-  Flame, Globe, Activity, ShieldCheck, Database, History,                           
-  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock, 
+  Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,          
+  Flame, Globe, Activity, ShieldCheck, Database, History,                                 
+  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
   CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc
 } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, XAxis, Tooltip, AreaChart, Area } from "recharts";
+import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
 // --- TYPES ---
 type LedgerUser = {
@@ -50,7 +50,7 @@ const chartData = [
   { day: 'Jeu', vol: 700 }, { day: 'Ven', vol: 1500 }, { day: 'Sam', vol: 2100 }, { day: 'Dim', vol: 1800 },
 ];
 
-// --- COMPOSANTS ---
+// --- COMPOSANTS INTERNES ---
 
 const StatCard = ({ label, value, subText, icon, trend }: { label: string; value: string; subText: string; icon: React.ReactNode; trend?: string }) => (
   <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 space-y-3">
@@ -67,7 +67,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
 );
 
 const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan }: any) => {
-  const piBalance = user.wallets?.find((w: any) => w.currency === "PI" || w.currency === "pi")?.balance || 0;
+  const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
 
   return (
     <div className={`p-5 bg-slate-900/40 border ${isSelected ? 'border-blue-500/50 bg-blue-500/5' : 'border-white/5'} rounded-[2rem] space-y-4 transition-all notranslate`}>
@@ -112,36 +112,66 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
   );
 };
 
-export default function AdminDashboard() {
+// --- DASHBOARD CONTENT ---
+
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  const [maintenanceDate, setMaintenanceDate] = useState("");
-  const [maintenanceTime, setMaintenanceTime] = useState("");
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [totalProfit, setTotalProfit] = useState(0);
   const [serverStats, setServerStats] = useState<ServerStats>({
     cpuUsage: "0%", ramUsage: "0%", storage: "0%", uptime: "0h", latency: "0ms"
   });
 
+  // LOGIQUE DE TRANSFERT VIA URL
+  const handleURLTransfer = async () => {
+    const recipientId = searchParams.get('recipientId');
+    if (!recipientId) return;
+
+    const transactionData = {
+      recipientId: recipientId,
+      recipientName: searchParams.get('recipientName') || "N/A",
+      amount: parseFloat(searchParams.get('amount') || "0"),
+      description: searchParams.get('description') || "Transfer URL",
+      currency: "PI"
+    };
+
+    try {
+      const res = await fetch('/api/transaction/send', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transactionData)
+      });
+      if (res.ok) {
+        toast.success(`Transfert Automatique réussi !`);
+        fetchData();
+        router.replace('/admin'); // Nettoie l'URL
+      }
+    } catch (e) {
+      toast.error("Échec du transfert URL");
+    }
+  };
+
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [usersRes, configRes, logsRes] = await Promise.all([
         fetch("/api/admin/users"),
         fetch("/api/admin/config"),
         fetch("/api/admin/logs")
       ]);
-      
+
       if (usersRes.ok) setUsers(await usersRes.json());
       if (logsRes.ok) setLogs(await logsRes.json());
       if (configRes.ok) {
         const config = await configRes.json();
         setIsMaintenanceMode(config.maintenanceMode);
-        setTotalProfit(config.totalProfit || 0);
       }
 
       setServerStats({
@@ -155,11 +185,16 @@ export default function AdminDashboard() {
     } catch (err) { toast.error("Erreur sync"); } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+    if (searchParams.get('recipientId')) {
+        handleURLTransfer();
+    }
+  }, [searchParams]);
 
   const calculatedTotalVolume = useMemo(() => {
     return users.reduce((acc, user) => {
-      const piWallet = user.wallets?.find(w => w.currency === "PI" || w.currency === "pi");
+      const piWallet = user.wallets?.find(w => w.currency.toUpperCase() === "PI");
       return acc + (piWallet?.balance || 0);
     }, 0);
   }, [users]);
@@ -180,8 +215,8 @@ export default function AdminDashboard() {
   };
 
   const filteredUsers = useMemo(() =>
-    users.filter(u => 
-      u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    users.filter(u =>
+      u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchQuery.toLowerCase())
     ), [searchQuery, users]);
 
@@ -221,13 +256,11 @@ export default function AdminDashboard() {
             </div>
             <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">PIMPAY<span className="text-blue-500">CORE</span></h1>
           </div>
-          <div className="flex gap-2">
-            <button onClick={fetchData} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all">
-                <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
-            </button>
-          </div>
+          <button onClick={fetchData} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all">
+              <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-4">
           <StatCard label="Volume Ledger" value={`π ${calculatedTotalVolume.toLocaleString()}`} subText="Circulation" icon={<Zap size={16} />} trend="+4.1%" />
           <StatCard label="Utilisateurs" value={users.length.toString()} subText="Total Sync" icon={<Users size={16} />} />
@@ -253,7 +286,6 @@ export default function AdminDashboard() {
 
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             {/* 5 Suggestion: Dashboard de Liquidité & Profit */}
              <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-slate-900/40 border-white/5 rounded-3xl p-4 flex flex-col justify-center items-center text-center">
                     <SmartphoneNfc size={20} className="text-blue-400 mb-2" />
@@ -333,135 +365,57 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* 5 Suggestion: Tab Web3 & Marchands (FinTech Avancée) */}
         {activeTab === "web3" && (
           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-             <div className="grid grid-cols-1 gap-4">
-                {/* 1. Gestion Escrow (Tiers de confiance) */}
-                <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Gavel size={18} className="text-amber-500" />
-                        <p className="text-xs font-black uppercase tracking-widest text-white">Tiers de Confiance (Escrow)</p>
-                    </div>
-                    <div className="space-y-3 opacity-50">
-                        <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-white/5">
-                            <span className="text-[10px] font-bold">#TRX-9821 (Vente iPhone)</span>
-                            <span className="text-[8px] bg-orange-500/20 text-orange-500 px-2 py-1 rounded-full font-bold">EN ATTENTE</span>
-                        </div>
-                        <p className="text-[8px] text-center italic">Aucun litige ouvert nécessitant une intervention admin.</p>
-                    </div>
-                </Card>
-
-                {/* 2. Cartes Virtuelles & On-Ramp */}
-                <div className="grid grid-cols-2 gap-4">
-                    <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-5">
-                        <Landmark size={18} className="text-blue-400 mb-3" />
-                        <p className="text-[8px] font-black text-slate-500 uppercase">Frais Off-Ramp</p>
-                        <p className="text-lg font-black text-white">2.5%</p>
-                        <Button className="w-full mt-3 h-8 bg-blue-600 rounded-lg text-[8px] font-black uppercase">Ajuster</Button>
-                    </Card>
-                    <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-5">
-                        <CreditCard size={18} className="text-purple-400 mb-3" />
-                        <p className="text-[8px] font-black text-slate-500 uppercase">Cartes Actives</p>
-                        <p className="text-lg font-black text-white">128</p>
-                        <Button className="w-full mt-3 h-8 bg-slate-800 rounded-lg text-[8px] font-black uppercase">Gérer</Button>
-                    </Card>
+             <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Gavel size={18} className="text-amber-500" />
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Escrow & Litiges</p>
                 </div>
-
-                {/* 3. Marchands & API */}
-                <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <ShoppingBag size={18} className="text-emerald-500" />
-                        <p className="text-xs font-black uppercase tracking-widest text-white">Validation Marchands</p>
-                    </div>
-                    <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-white/5 rounded-2xl">
-                        <Activity size={24} className="text-slate-800 animate-pulse mb-2" />
-                        <p className="text-[8px] font-bold text-slate-700 uppercase">Aucune demande de licence marchande</p>
-                    </div>
-                </Card>
-             </div>
+                <div className="flex justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
+                    <span className="text-[10px] font-bold">Transactions en attente</span>
+                    <span className="text-[10px] font-black text-amber-500">12</span>
+                </div>
+             </Card>
           </div>
         )}
 
         {activeTab === "system" && (
-          <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6 space-y-6">
-              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <div className="p-3 bg-blue-500/20 rounded-2xl text-blue-500"><Terminal size={24} /></div>
-                <div>
-                    <p className="text-sm font-black text-white uppercase tracking-widest">Santé du Core</p>
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-                        <p className="text-[9px] text-emerald-500 uppercase font-black">Online</p>
-                    </div>
+          <div className="grid grid-cols-1 gap-4 animate-in zoom-in-95">
+             <div className="bg-slate-900/60 border border-white/5 rounded-[2rem] p-6 space-y-6">
+                <div className="flex items-center gap-3"><Activity size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">État du Serveur</p></div>
+                <div className="grid grid-cols-2 gap-6">
+                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">CPU Usage</p><p className="text-lg font-black text-white font-mono">{serverStats.cpuUsage}</p></div>
+                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">RAM Usage</p><p className="text-lg font-black text-white font-mono">{serverStats.ramUsage}</p></div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                {[
-                  { label: "CPU Load", val: serverStats.cpuUsage, icon: <Cpu size={14} />, color: "text-blue-400" },
-                  { label: "RAM Available", val: serverStats.ramUsage, icon: <Activity size={14} />, color: "text-purple-400" },
-                  { label: "Storage NVMe", val: serverStats.storage, icon: <HardDrive size={14} />, color: "text-amber-400" },
-                  { label: "Latency", val: serverStats.latency, icon: <Zap size={14} />, color: "text-emerald-400" },
-                  { label: "Cluster Uptime", val: serverStats.uptime, icon: <Clock size={14} />, color: "text-slate-400" },
-                  { label: "Database", val: "Neon/PostgreSQL 15", icon: <Database size={14} />, color: "text-cyan-400" }
-                ].map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <span className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-3 tracking-tighter">
-                        <span className={item.color}>{item.icon}</span> {item.label}
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-white">{item.val}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
+             </div>
           </div>
         )}
 
         {activeTab === "settings" && (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6 shadow-2xl">
-              <div className="flex items-center gap-3 mb-8">
-                <CalendarClock size={20} className="text-orange-500" />
-                <p className="text-xs font-black uppercase tracking-[4px]">System Control</p>
-              </div>
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-black text-slate-500 uppercase ml-1">Date fin</p>
-                    <input type="date" value={maintenanceDate} onChange={(e) => setMaintenanceDate(e.target.value)} className="w-full bg-slate-950/50 border border-white/10 rounded-2xl p-4 text-[11px] text-white outline-none focus:border-orange-500/50" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-black text-slate-500 uppercase ml-1">Heure fin</p>
-                    <input type="time" value={maintenanceTime} onChange={(e) => setMaintenanceTime(e.target.value)} className="w-full bg-slate-950/50 border border-white/10 rounded-2xl p-4 text-[11px] text-white outline-none focus:border-orange-500/50" />
-                  </div>
+            <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3"><Settings size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">Mode Maintenance</p></div>
+                    <button onClick={() => {
+                        if(window.confirm("Changer l'état de maintenance ?")) handleAction(null, "TOGGLE_MAINTENANCE");
+                    }} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
+                    </button>
                 </div>
-                <Button onClick={() => handleAction(null, 'SET_MAINTENANCE_TIME', 0, `${maintenanceDate}T${maintenanceTime}`)} className="w-full bg-orange-600 hover:bg-orange-500 h-14 rounded-2xl text-[10px] font-black uppercase shadow-lg">Planifier Arrêt</Button>
-                
-                <div className="pt-6 border-t border-white/5">
-                   <Button onClick={() => handleAction(null, 'TOGGLE_MAINTENANCE')} className={`w-full h-14 rounded-2xl text-[10px] font-black uppercase shadow-lg ${isMaintenanceMode ? 'bg-red-600' : 'bg-slate-800'}`}>
-                    {isMaintenanceMode ? "DÉSACTIVER MAINTENANCE" : "ACTIVER MAINTENANCE"}
-                  </Button>
-                </div>
-              </div>
+                <p className="text-[9px] text-slate-500 leading-relaxed uppercase font-bold italic opacity-50">* Le mode maintenance bloque l'accès à l'application.</p>
             </Card>
-
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-               <div className="flex items-center gap-3 mb-6">
-                <Megaphone size={20} className="text-purple-500" />
-                <p className="text-xs font-black uppercase tracking-[4px]">Broadcast Message</p>
-              </div>
-              <textarea placeholder="Notification globale aux utilisateurs..." className="w-full h-32 bg-slate-950/50 border border-white/10 rounded-2xl p-4 text-[11px] text-white outline-none mb-4 resize-none" />
-              <Button className="w-full bg-purple-600 hover:bg-purple-500 h-14 rounded-2xl text-[10px] font-black uppercase flex gap-3 justify-center items-center shadow-lg">
-                <Send size={16}/> Envoyer Notification
-              </Button>
-            </Card>
-          </div>
         )}
       </div>
-      
-      {/* Navigation Mobile Basse */}
-      <BottomNav onOpenMenu={() => {}} />
+
+      <BottomNav />
     </div>
+  );
+}
+
+export default function AdminDashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

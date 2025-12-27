@@ -4,101 +4,82 @@ import * as jose from "jose";
 
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    console.error("ERREUR: JWT_SECRET manquant.");
-    return null;
-  }
+  if (!secret) return null;
   return new TextEncoder().encode(secret);
 };
 
 export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
   const token = req.cookies.get("token")?.value;
   const isMaintenanceModeActive = req.cookies.get("maintenance_mode")?.value === "true";
-  const { pathname } = req.nextUrl;
-
-  // 1. Exceptions (Statique, API, Images)
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/favicon.ico") ||
-    pathname.includes(".")
-  ) {
-    return NextResponse.next();
-  }
 
   const isAuthPage = pathname.startsWith("/auth");
   const isMaintenancePage = pathname === "/maintenance";
   const isAdminPath = pathname.startsWith("/admin");
 
-  // 2. GESTION DE LA MAINTENANCE (Priorité haute)
-  if (isMaintenanceModeActive && !isMaintenancePage && !isAdminPath) {
-    // Si maintenance active, on vérifie si l'utilisateur est admin pour le laisser passer
-    if (token) {
-      try {
-        const secret = getJwtSecret();
-        if (secret) {
-          const { payload } = await jose.jwtVerify(token, secret);
-          if (payload.role === "ADMIN") {
-            return NextResponse.next(); // L'admin peut naviguer
-          }
-        }
-      } catch (e) {
-        // Token invalide en mode maintenance -> direction maintenance
-      }
-    }
-    // Pour tous les autres (non connectés ou non admins) -> redirection
-    return NextResponse.redirect(new URL("/maintenance", req.url));
-  }
-
-  // 3. LOGIQUE SI UTILISATEUR CONNECTÉ
+  // 1. GESTION DU TOKEN ET DU RÔLE
+  let userPayload: any = null;
   if (token) {
     try {
       const secret = getJwtSecret();
-      if (!secret) return NextResponse.next();
-
-      const { payload } = await jose.jwtVerify(token, secret);
-      const userRole = payload.role as string;
-
-      // Rediriger les gens connectés qui vont sur /login ou /register vers l'accueil
-      if (isAuthPage) {
-        return NextResponse.redirect(new URL("/", req.url));
+      if (secret) {
+        const { payload } = await jose.jwtVerify(token, secret);
+        userPayload = payload;
       }
-
-      // Protection des routes /admin
-      if (isAdminPath && userRole !== "ADMIN") {
-        return NextResponse.redirect(new URL("/", req.url));
-      }
-
-      // Si maintenance est OFF mais qu'on est sur /maintenance, on libère l'utilisateur
-      if (!isMaintenanceModeActive && isMaintenancePage) {
-        return NextResponse.redirect(new URL("/", req.url));
-      }
-
-      return NextResponse.next();
     } catch (e) {
+      // Token invalide : on nettoie et on laisse la logique de redirection s'occuper du reste
       const response = NextResponse.redirect(new URL("/auth/login", req.url));
       response.cookies.delete("token");
       return response;
     }
   }
 
-  // 4. LOGIQUE SI UTILISATEUR NON CONNECTÉ
-  if (!token) {
-    // Autoriser l'accès aux pages d'auth et à la page maintenance
-    if (isAuthPage || isMaintenancePage) {
+  // 2. PRIORITÉ : MODE MAINTENANCE
+  if (isMaintenanceModeActive && !isAdminPath && !isMaintenancePage) {
+    // Si l'utilisateur est ADMIN, il peut ignorer la maintenance
+    if (userPayload?.role === "ADMIN") {
       return NextResponse.next();
     }
+    // Sinon, direction la page maintenance
+    return NextResponse.redirect(new URL("/maintenance", req.url));
+  }
 
-    // Sinon, redirection vers login (ou maintenance si actif)
-    const destination = isMaintenanceModeActive ? "/maintenance" : "/auth/login";
-    return NextResponse.redirect(new URL(destination, req.url));
+  // 3. LOGIQUE POUR UTILISATEURS CONNECTÉS
+  if (userPayload) {
+    // Empêcher l'accès aux pages de login/register si déjà connecté
+    if (isAuthPage) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+    // Protection stricte des routes Admin
+    if (isAdminPath && userPayload.role !== "ADMIN") {
+      return NextResponse.next(); // Ou redirection vers accueil
+    }
+    // Sortir de la page maintenance si elle n'est plus active
+    if (!isMaintenanceModeActive && isMaintenancePage) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
+  // 4. LOGIQUE POUR UTILISATEURS NON CONNECTÉS
+  if (!userPayload && !isAuthPage && !isMaintenancePage) {
+    // Si pas de token et qu'on n'est pas sur une page publique -> Login
+    const dest = isMaintenanceModeActive ? "/maintenance" : "/auth/login";
+    return NextResponse.redirect(new URL(dest, req.url));
   }
 
   return NextResponse.next();
 }
 
+// Configuration du Matcher pour exclure TOUS les fichiers statiques et API
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|devices-pimpay.png).*)",
+    /*
+     * Match toutes les routes sauf :
+     * 1. /api (routes d'API)
+     * 2. /_next/static (fichiers statiques)
+     * 3. /_next/image (optimisation d'images Next.js)
+     * 4. Tous les fichiers avec une extension (ex: .png, .jpg, .svg)
+     */
+    "/((?!api|_next/static|_next/image|.*\\..*|favicon.ico).*)",
   ],
 };

@@ -2,9 +2,9 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  ArrowLeft, ShieldCheck, Zap, ArrowRight, 
-  Loader2, Lock, ChevronRight, X 
+import {
+  ArrowLeft, ShieldCheck, Zap, ArrowRight,
+  Loader2, Lock, ChevronRight, X
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -51,13 +51,16 @@ function ConfirmContent() {
       });
 
       if (response.ok) {
-        router.push(`/send/success?amount=${amount}&name=${encodeURIComponent(recipientName)}`);
+        // CORRECTION : Redirection vers /transfer/success
+        router.push(`/transfer/success?amount=${amount}&name=${encodeURIComponent(recipientName)}`);
       } else {
         const result = await response.json();
-        router.push(`/send/failed?error=${encodeURIComponent(result.error || "Échec")}`);
+        // CORRECTION : Redirection vers /transfer/failed
+        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Échec")}`);
       }
     } catch (err) {
-      router.push(`/send/failed?error=Erreur de communication`);
+      // CORRECTION : Redirection vers /transfer/failed
+      router.push(`/transfer/failed?error=Erreur de communication`);
     } finally {
       setIsLoading(false);
       setPin("");
@@ -68,7 +71,12 @@ function ConfirmContent() {
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-12">
       {/* HEADER */}
       <div className="flex items-center justify-between mb-8 pt-4">
-        <button onClick={() => router.back()} className="p-3 bg-slate-900 border border-white/5 rounded-full"><ArrowLeft size={20} /></button>
+        <button 
+          onClick={() => router.back()} 
+          className="p-3 bg-slate-900 border border-white/5 rounded-full active:scale-90 transition-transform"
+        >
+          <ArrowLeft size={20} />
+        </button>
         <div className="text-right">
           <h1 className="text-xl font-black uppercase tracking-tighter italic">Vérification</h1>
           <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Dernière étape</p>
@@ -105,9 +113,16 @@ function ConfirmContent() {
       <button
         onClick={() => setIsPinModalOpen(true)}
         disabled={isLoading}
-        className="w-full bg-blue-600 py-6 rounded-[28px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-600/20"
+        className="w-full bg-blue-600 py-6 rounded-[28px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50"
       >
-        {isLoading ? <Loader2 className="animate-spin" /> : <><span className="font-black uppercase tracking-widest">Signer la transaction</span><Lock size={18} /></>}
+        {isLoading ? (
+          <Loader2 className="animate-spin" />
+        ) : (
+          <>
+            <span className="font-black uppercase tracking-widest text-sm">Signer la transaction</span>
+            <Lock size={18} />
+          </>
+        )}
       </button>
 
       {/* MODAL CLAVIER PIN */}
@@ -116,7 +131,12 @@ function ConfirmContent() {
           <div className="p-8 pb-12 bg-slate-900/80 rounded-t-[40px] border-t border-white/10">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-sm font-black uppercase tracking-widest text-blue-500">Code de sécurité</h2>
-              <button onClick={() => { setIsPinModalOpen(false); setPin(""); }} className="p-2 bg-white/5 rounded-full"><X size={20} /></button>
+              <button 
+                onClick={() => { setIsPinModalOpen(false); setPin(""); }} 
+                className="p-2 bg-white/5 rounded-full"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 text-balance px-10">
@@ -126,7 +146,10 @@ function ConfirmContent() {
             {/* DOTS DU PIN */}
             <div className="flex justify-center gap-4 mb-12">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className={`w-4 h-4 rounded-full border-2 border-blue-500/50 transition-all duration-200 ${pin.length > i ? "bg-blue-500 scale-125 shadow-[0_0_15px_rgba(59,130,246,0.5)]" : ""}`} />
+                <div 
+                  key={i} 
+                  className={`w-4 h-4 rounded-full border-2 border-blue-500/50 transition-all duration-200 ${pin.length > i ? "bg-blue-500 scale-125 shadow-[0_0_15px_rgba(59,130,246,0.5)]" : ""}`} 
+                />
               ))}
             </div>
 
@@ -150,5 +173,9 @@ function ConfirmContent() {
 }
 
 export default function ConfirmPage() {
-  return <Suspense><ConfirmContent /></Suspense>;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>}>
+      <ConfirmContent />
+    </Suspense>
+  );
 }

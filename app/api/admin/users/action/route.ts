@@ -27,6 +27,42 @@ export async function POST(req: NextRequest) {
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {
+      // --- NOUVEAU : GESTION SÉCURITÉ (PIN & PASSWORD) ---
+      case "RESET_PIN":
+        if (!extraData) return NextResponse.json({ error: "Code PIN requis" }, { status: 400 });
+        const hashedPin = await bcrypt.hash(extraData, 10);
+        await prisma.user.update({
+          where: { id: userId },
+          data: { pinCode: hashedPin }, // Assure-toi que le champ est pinCode
+        });
+        break;
+
+      case "RESET_PASSWORD":
+        if (!extraData) return NextResponse.json({ error: "Mot de passe requis" }, { status: 400 });
+        const hashedPassword = await bcrypt.hash(extraData, 10);
+        await prisma.user.update({
+          where: { id: userId },
+          data: { password: hashedPassword },
+        });
+        break;
+
+      // --- NOUVEAU : MAINTENANCE INDIVIDUELLE & AUTO-APPROVE ---
+      case "USER_SPECIFIC_MAINTENANCE":
+        if (!extraData) return NextResponse.json({ error: "Date requise" }, { status: 400 });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { maintenanceUntil: new Date(extraData) },
+        });
+        break;
+
+      case "TOGGLE_AUTO_APPROVE":
+        const u = await prisma.user.findUnique({ where: { id: userId }, select: { autoApprove: true } });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { autoApprove: !u?.autoApprove },
+        });
+        break;
+
       // --- GESTION DES TRANSACTIONS & RETRAITS ---
       case "APPROVE_WITHDRAW":
         const txToApprove = await prisma.transaction.findFirst({
@@ -34,7 +70,6 @@ export async function POST(req: NextRequest) {
           orderBy: { createdAt: "desc" },
         });
         if (!txToApprove) return NextResponse.json({ error: "Aucun retrait en attente" }, { status: 404 });
-        
         await prisma.transaction.update({
           where: { id: txToApprove.id },
           data: { status: "COMPLETED" },
@@ -47,31 +82,16 @@ export async function POST(req: NextRequest) {
           orderBy: { createdAt: "desc" },
         });
         if (!txToReject) return NextResponse.json({ error: "Aucun retrait en attente" }, { status: 404 });
-        
         await prisma.$transaction([
           prisma.transaction.update({
             where: { id: txToReject.id },
             data: { status: "FAILED", note: extraData || "Rejeté par l'administration" },
           }),
-          prisma.wallet.update({
+          prisma.wallet.updateMany({
             where: { userId: userId, currency: "PI" },
             data: { balance: { increment: txToReject.amount } },
           }),
         ]);
-        break;
-
-      // --- GESTION DES CARTES VIRTUELLES ---
-      case "TOGGLE_CARD_LOCK":
-        const card = await prisma.virtualCard.findFirst({ where: { userId } });
-        if (!card) return NextResponse.json({ error: "Carte introuvable" }, { status: 404 });
-        await prisma.virtualCard.update({
-          where: { id: card.id },
-          data: { locked: !card.locked },
-        });
-        break;
-
-      case "DELETE_CARD":
-        await prisma.virtualCard.deleteMany({ where: { userId } });
         break;
 
       // --- GESTION DES UTILISATEURS & STATUTS ---
@@ -90,18 +110,12 @@ export async function POST(req: NextRequest) {
         });
         break;
 
-      case "SUSPEND":
-        await prisma.user.update({
-          where: { id: userId },
-          data: { status: "SUSPENDED" },
-        });
-        break;
-
       case "UPDATE_BALANCE":
         if (amount === undefined) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
-        await prisma.wallet.update({
-          where: { userId_currency: { userId, currency: "PI" } },
-          data: { balance: { increment: amount } },
+        // Utilisation de updateMany pour éviter l'erreur si l'index composé n'existe pas exactement
+        await prisma.wallet.updateMany({
+          where: { userId: userId, currency: "PI" },
+          data: { balance: amount }, // On remplace le solde comme demandé par le prompt admin
         });
         break;
 
@@ -125,14 +139,6 @@ export async function POST(req: NextRequest) {
         });
         break;
 
-      case "SET_CONSENSUS_PRICE":
-        if (!amount) return NextResponse.json({ error: "Prix requis" }, { status: 400 });
-        await prisma.systemConfig.update({
-          where: { id: "GLOBAL_CONFIG" },
-          data: { consensusPrice: amount },
-        });
-        break;
-
       // --- ACTIONS GROUPÉES (BATCH) ---
       case "BATCH_AIRDROP":
         if (!userIds || !amount) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
@@ -142,33 +148,33 @@ export async function POST(req: NextRequest) {
         });
         break;
 
-      case "VERIFY_KYC":
-        await prisma.user.update({
-          where: { id: userId },
-          data: { kycStatus: "VERIFIED", status: "ACTIVE", kycVerifiedAt: new Date() },
+      case "BATCH_BAN":
+        if (!userIds) return NextResponse.json({ error: "Utilisateurs requis" }, { status: 400 });
+        await prisma.user.updateMany({
+          where: { id: { in: userIds } },
+          data: { status: "BANNED" },
         });
         break;
 
       default:
-        return NextResponse.json({ error: `Action '${action}' non implémentée` }, { status: 400 });
+        return NextResponse.json({ error: `Action '${action}' non reconnue` }, { status: 400 });
     }
 
     // 3. LOG D'AUDIT
     await prisma.auditLog.create({
       data: {
         adminId: requester.id,
-        adminName: requester.name || requester.email,
+        adminName: requester.name || requester.email || "Admin",
         action: action,
-        targetId: userId || null,
-        targetEmail: userId || (userIds ? `${userIds.length} users` : "SYSTEM"),
-        createdAt: new Date(),
+        targetId: userId || (userIds ? "BATCH_ACTION" : "SYSTEM"),
+        targetEmail: extraData || (userIds ? `${userIds.length} users` : "N/A"),
       },
     }).catch(err => console.error("Audit Log Error:", err));
 
-    return NextResponse.json({ success: true, message: `Action ${action} exécutée avec succès` });
+    return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    console.error("API_ADMIN_ACTION_ERROR:", error.message);
-    return NextResponse.json({ error: "Erreur serveur lors de l'action admin." }, { status: 500 });
+    console.error("API_ADMIN_ACTION_ERROR:", error);
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
   }
 }

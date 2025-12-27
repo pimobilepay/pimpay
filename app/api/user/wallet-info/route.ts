@@ -1,44 +1,64 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+export const dynamic = "force-dynamic";
 
-export async function GET() {
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { verifyAuth } from '@/lib/adminAuth';
+
+export async function GET(req: NextRequest) {
   try {
-    // 1. Récupération du premier utilisateur (ou l'utilisateur connecté via session)
-    const user = await prisma.user.findFirst({
+    const payload = verifyAuth(req);
+    if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+    // On récupère l'user, son premier wallet PI, et ses transactions
+    const dbUser = await prisma.user.findUnique({
+      where: { id: payload.id },
       include: {
-        virtualCards: true,
-        wallets: { 
-          where: { currency: "PI" } 
-        }
+        wallets: { where: { currency: "PI" }, take: 1 },
+        transactionsFrom: { orderBy: { createdAt: 'desc' }, take: 5 },
+        transactionsTo: { orderBy: { createdAt: 'desc' }, take: 5 },
+        virtualCards: { take: 1 } // Pour récupérer le numéro de carte
       }
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
-    }
+    if (!dbUser) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // 2. Extraction de la carte virtuelle
-    const card = user.virtualCards[0];
+    // Fusionner les transactions envoyées et reçues
+    const allTx = [
+      ...dbUser.transactionsFrom.map(t => ({ ...t, displayType: 'send' })),
+      ...dbUser.transactionsTo.map(t => ({ ...t, displayType: 'receive' }))
+    ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 10);
 
-    // 3. Formatage propre du statut KYC pour le frontend
-    const kycLabels: Record<string, string> = {
-      "NONE": "NON VÉRIFIÉ",
-      "PENDING": "EN ATTENTE",
-      "VERIFIED": "VÉRIFIÉ",
-      "REJECTED": "REJETÉ"
-    };
+    // Extraction des données
+    const wallet = dbUser.wallets[0];
+    const card = dbUser.virtualCards[0];
 
-    // 4. Réponse JSON structurée pour ton composant WalletPage
     return NextResponse.json({
-      name: card?.holder || user.name || "JEAN PIONEER",
-      expiry: card?.exp || "12/28",
-      cardNumber: card?.number || "4492 0000 0000 0000",
-      kycStatus: kycLabels[user.kycStatus] || user.kycStatus,
-      balance: user.wallets[0]?.balance.toFixed(2) || "0.00"
+      userData: {
+        name: dbUser.username || dbUser.firstName || "Pi User",
+        balance: wallet?.balance || 0,
+        cardNumber: card?.number || "•••• •••• •••• 4412",
+        expiry: card?.exp || "12/26",
+        kycStatus: dbUser.kycStatus // Retourne "VERIFIED", "PENDING", etc.
+      },
+      cashFlow: [
+        { name: 'Lun', amount: 400 }, { name: 'Mar', amount: 300 },
+        { name: 'Mer', amount: 900 }, { name: 'Jeu', amount: 500 },
+        { name: 'Ven', amount: 1200 }, { name: 'Sam', amount: 600 },
+        { name: 'Dim', amount: 800 },
+      ],
+      recentTransactions: allTx.map(t => ({
+        id: t.id,
+        type: t.displayType,
+        amount: t.amount,
+        date: new Date(t.createdAt).toLocaleDateString('fr-FR'),
+        title: t.description || (t.displayType === 'send' ? 'Transfert envoyé' : 'Paiement reçu')
+      }))
     });
 
-  } catch (error) {
-    console.error("Erreur API WalletInfo:", error);
+  } catch (error: any) {
+    console.error("API_WALLET_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

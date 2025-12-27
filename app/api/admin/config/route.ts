@@ -1,26 +1,26 @@
 export const dynamic = "force-dynamic";
+
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/adminAuth";
+import { adminAuth } from "@/lib/adminAuth"; // Changement ici pour utiliser la version stricte
 
-// Utilitaire sécurisé pour accéder au modèle
 const getConfigModel = () => {
   return (prisma as any).systemConfig;
 };
 
 export async function GET(req: NextRequest) {
   try {
-    const payload = verifyAuth(req) as { id: string; role: string } | null;
-    if (!payload || payload.role !== "ADMIN") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    // On utilise adminAuth qui vérifie le token ET le rôle ADMIN
+    const payload = adminAuth(req);
+    
+    if (!payload) {
+      return NextResponse.json({ error: "Accès Admin requis" }, { status: 401 });
     }
 
     const ConfigModel = getConfigModel();
-    if (!ConfigModel) throw new Error("Modèle systemConfig introuvable dans Prisma");
+    if (!ConfigModel) throw new Error("Modèle systemConfig introuvable");
 
-    let config = await ConfigModel.findUnique({
-      where: { id: "GLOBAL_CONFIG" }
-    });
+    let config = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
 
     if (!config) {
       config = await ConfigModel.create({
@@ -42,7 +42,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // On récupère aussi les 5 derniers logs d'audit pour le flux visuel
     const logs = await prisma.auditLog.findMany({
       where: { action: "UPDATE_SYSTEM_CONFIG" },
       orderBy: { createdAt: 'desc' },
@@ -52,29 +51,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ...config, auditLogs: logs });
   } catch (error: any) {
     console.error("CONFIG_GET_ERROR:", error);
-    return NextResponse.json({ error: "Erreur de récupération" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = verifyAuth(req) as { id: string; role: string } | null;
-    if (!payload || payload.role !== "ADMIN") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const payload = adminAuth(req);
+    if (!payload) {
+      return NextResponse.json({ error: "Accès Admin requis" }, { status: 401 });
     }
 
     const body = await req.json();
     const ConfigModel = getConfigModel();
 
-    // 1. Récupération de l'ancienne config pour comparer
     const oldConfig = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
     const adminUser = await prisma.user.findUnique({ where: { id: payload.id } });
 
-    // 2. Préparation des données (Conversion explicite)
     const updateData: any = {};
     const changes: string[] = [];
 
-    // Mapping des champs et détection des changements pour l'audit
     const fieldsToTrack = [
       { key: 'maintenanceMode', type: 'bool' },
       { key: 'forceUpdate', type: 'bool' },
@@ -89,14 +85,8 @@ export async function POST(req: NextRequest) {
 
     fieldsToTrack.forEach(({ key, type }) => {
       if (body[key] !== undefined) {
-        let val: any;
-        if (type === 'bool') val = Boolean(body[key]);
-        else if (type === 'float') val = parseFloat(body[key]);
-        else val = body[key];
-
+        let val = type === 'bool' ? Boolean(body[key]) : type === 'float' ? parseFloat(body[key]) : body[key];
         updateData[key] = val;
-
-        // Si la valeur change, on l'ajoute au log
         if (oldConfig && oldConfig[key] !== val) {
           changes.push(`${key}: ${oldConfig[key]} → ${val}`);
         }
@@ -105,53 +95,37 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "BACKUP_DB") updateData.lastBackupAt = new Date();
 
-    // 3. TRANSACTION ATOMIQUE : Update Config + Create Log
     const result = await prisma.$transaction(async (tx) => {
       const updated = await (tx as any).systemConfig.upsert({
         where: { id: "GLOBAL_CONFIG" },
         update: updateData,
-        create: {
-          id: "GLOBAL_CONFIG",
-          ...updateData,
-          lastBackupAt: new Date(),
-        }
+        create: { id: "GLOBAL_CONFIG", ...updateData, lastBackupAt: new Date() }
       });
 
-      // On ne crée un log que s'il y a eu de vrais changements
       if (changes.length > 0) {
         await tx.auditLog.create({
           data: {
             adminId: payload.id,
-            adminName: adminUser?.name || adminUser?.email || "Admin",
+            adminName: adminUser?.username || adminUser?.email || "Admin",
             action: "UPDATE_SYSTEM_CONFIG",
             details: changes.join(" | "),
             targetId: "SYSTEM",
           }
         });
       }
-
       return updated;
     });
 
-    // 4. Gestion des Cookies
     const response = NextResponse.json(result);
     if (body.maintenanceMode !== undefined) {
-      if (body.maintenanceMode === true) {
-        response.cookies.set("maintenance_mode", "true", {
-          path: "/",
-          httpOnly: false,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 30,
-        });
-      } else {
-        response.cookies.set("maintenance_mode", "false", { path: "/", maxAge: 0 });
-      }
+      response.cookies.set("maintenance_mode", String(body.maintenanceMode), {
+        path: "/",
+        maxAge: body.maintenanceMode ? 60 * 60 * 24 * 30 : 0,
+      });
     }
 
     return response;
   } catch (error: any) {
-    console.error("CONFIG_POST_ERROR:", error);
-    return NextResponse.json({ error: "Échec de la mise à jour" }, { status: 500 });
+    return NextResponse.json({ error: "Échec de mise à jour" }, { status: 500 });
   }
 }

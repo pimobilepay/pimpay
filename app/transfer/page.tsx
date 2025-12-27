@@ -36,9 +36,13 @@ export default function SendPage() {
         const res = await fetch('/api/user/wallet-info');
         if (res.ok) {
           const data = await res.json();
-          setBalance(parseFloat(data.balance));
+          /**
+           * CORRECTION STRUCTURE PRISMA : 
+           * Le solde est maintenant dans data.userData.balance
+           */
+          setBalance(parseFloat(data.userData?.balance || 0));
         } else if (res.status === 401) {
-          router.push("/login");
+          router.push("/auth/login");
         }
       } catch (err) {
         console.error("Erreur solde:", err);
@@ -74,7 +78,6 @@ export default function SendPage() {
     return () => clearTimeout(timer);
   }, [recipientId]);
 
-  // ACTION : REDIRECTION VERS SUMMARY AU LIEU DE SEND DIRECT
   const handleGoToSummary = () => {
     const finalRecipientId = recipientData?.id || recipientId;
 
@@ -89,7 +92,6 @@ export default function SendPage() {
       return;
     }
 
-    // On encode les données pour la page Summary
     const params = new URLSearchParams({
       recipientId: finalRecipientId,
       recipientName: recipientData?.name || recipientId,
@@ -97,7 +99,7 @@ export default function SendPage() {
       description: description || "Transfert Pi"
     });
 
-    router.push(`/send/summary?${params.toString()}`);
+    router.push(`/transfer/summary?${params.toString()}`);
   };
 
   if (!mounted) return null;
@@ -118,6 +120,7 @@ export default function SendPage() {
       </div>
 
       <div className="space-y-8">
+        {/* Champ Destinataire */}
         <div className="space-y-3">
           <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Destinataire</label>
           <div className="relative">
@@ -135,9 +138,12 @@ export default function SendPage() {
           </div>
 
           {isSearching && <div className="text-[10px] text-blue-400 font-bold uppercase px-4 flex gap-2"><Loader2 className="animate-spin" size={12}/> Recherche...</div>}
+
           {recipientData && (
             <div className="mx-2 flex items-center gap-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-[20px]">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-black">{recipientData.name?.charAt(0)}</div>
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-black">
+                {recipientData.name?.charAt(0)}
+              </div>
               <div className="flex-1">
                 <p className="text-sm font-black uppercase tracking-tight">{recipientData.name}</p>
                 <p className="text-[9px] text-blue-400 uppercase font-black">Destinataire validé</p>
@@ -147,6 +153,7 @@ export default function SendPage() {
           )}
         </div>
 
+        {/* Champ Montant */}
         <div className="space-y-3">
           <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Montant</label>
           <div className="relative">
@@ -159,9 +166,12 @@ export default function SendPage() {
             />
             <span className="absolute right-8 top-8 text-blue-500 font-black italic">π</span>
           </div>
-          <p className="text-center text-[11px] font-bold text-slate-500 uppercase">Disponible : {balance.toFixed(4)} π</p>
+          <p className="text-center text-[11px] font-bold text-slate-500 uppercase">
+            Disponible : {balance.toFixed(4)} π
+          </p>
         </div>
 
+        {/* Champ Note */}
         <div className="space-y-3">
           <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Note</label>
           <input
@@ -173,6 +183,7 @@ export default function SendPage() {
           />
         </div>
 
+        {/* Bouton de validation */}
         <button
           onClick={handleGoToSummary}
           className="w-full bg-blue-600 py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl shadow-blue-600/20"
