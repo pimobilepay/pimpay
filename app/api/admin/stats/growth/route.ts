@@ -1,55 +1,53 @@
 export const dynamic = "force-dynamic";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { adminAuth } from "@/lib/adminAuth";
+import { verifyAuth } from "@/lib/adminAuth"; // Utilisation de verifyAuth pour la cohérence avec tes autres fichiers
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    // 1. VERIFICATION AUTHENTIFICATION
-    const payload = adminAuth(req as any);
+    // 1. VERIFICATION ADMIN
+    const payload = verifyAuth(req) as { role: string } | null;
     
-    // Si adminAuth renvoie une réponse (souvent une erreur 401), on la retourne immédiatement
-    if (payload instanceof NextResponse) {
-      console.log("Auth Failed: Payload is NextResponse (401/403)");
-      return payload;
+    if (!payload || payload.role !== "ADMIN") {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. LOGIQUE DE RÉCUPÉRATION DES DONNÉES
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const userGrowth = await prisma.user.findMany({
-      where: {
-        createdAt: { gte: sevenDaysAgo }
+    // 2. RÉCUPÉRATION DES POINTS DE DONNÉES DEPUIS DAILY_STATS
+    // On prend les 30 derniers jours pour avoir un graphique plus riche
+    const statsHistory = await prisma.dailyStats.findMany({
+      take: 30,
+      orderBy: {
+        date: 'asc',
       },
-      select: { createdAt: true },
-      orderBy: { createdAt: 'asc' }
     });
 
-    // 3. GROUPAGE DES DONNÉES PAR JOUR
-    // On initialise les 7 derniers jours avec 0 pour éviter les trous dans le graphique
-    const last7Days: Record<string, number> = {};
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      last7Days[d.toISOString().split('T')[0]] = 0;
-    }
-
-    userGrowth.forEach((user) => {
-      const date = user.createdAt.toISOString().split('T')[0];
-      if (last7Days[date] !== undefined) {
-        last7Days[date]++;
-      }
-    });
-
-    const chartData = Object.keys(last7Days).map(date => ({
-      date,
-      count: last7Days[date]
+    // 3. FORMATAGE POUR RECHARTS
+    // On transforme les données pour qu'elles correspondent aux clés attendues par ton composant
+    const chartData = statsHistory.map((stat) => ({
+      date: stat.date.toISOString().split('T')[0],
+      totalUsers: stat.totalUsers,
+      consensusPrice: stat.consensusPrice,
+      totalVolume: stat.totalVolume,
+      activeUsers: stat.activeUsers
     }));
 
+    // 4. FALLBACK : Si la table est vide (première utilisation)
+    if (chartData.length === 0) {
+      // Génère un point fictif pour éviter que le graphique ne crash
+      return NextResponse.json([{
+        date: new Date().toISOString().split('T')[0],
+        totalUsers: 0,
+        consensusPrice: 0
+      }]);
+    }
+
     return NextResponse.json(chartData);
+
   } catch (error) {
-    console.error("Erreur Stats API:", error);
-    return NextResponse.json({ error: "Erreur serveur stats" }, { status: 500 });
+    console.error("STATS_API_ERROR:", error);
+    return NextResponse.json(
+      { error: "Erreur lors de la récupération des statistiques" }, 
+      { status: 500 }
+    );
   }
 }

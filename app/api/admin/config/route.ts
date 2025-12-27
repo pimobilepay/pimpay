@@ -3,10 +3,9 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
-// Fonction utilitaire pour récupérer le modèle Prisma dynamiquement (ton code original)
+// Utilitaire sécurisé pour accéder au modèle
 const getConfigModel = () => {
-  const db = prisma as any;
-  return db.systemConfig || db.SystemConfig;
+  return (prisma as any).systemConfig;
 };
 
 export async function GET(req: NextRequest) {
@@ -17,18 +16,12 @@ export async function GET(req: NextRequest) {
     }
 
     const ConfigModel = getConfigModel();
+    if (!ConfigModel) throw new Error("Modèle systemConfig introuvable dans Prisma");
 
-    if (!ConfigModel) {
-      console.error("ERREUR CRITIQUE : Le modèle SystemConfig est introuvable.");
-      return NextResponse.json({ error: "Modèle manquant" }, { status: 500 });
-    }
-
-    // Récupération de la config unique
     let config = await ConfigModel.findUnique({
       where: { id: "GLOBAL_CONFIG" }
     });
 
-    // Si elle n'existe pas, on la crée avec TOUS les champs (anciens + nouveaux)
     if (!config) {
       config = await ConfigModel.create({
         data: {
@@ -36,18 +29,30 @@ export async function GET(req: NextRequest) {
           maintenanceMode: false,
           transactionFee: 0.01,
           minWithdrawal: 1.0,
+          maxWithdrawal: 1000.0,
           consensusPrice: 314159.0,
-          globalAnnouncement: "Bienvenue sur PIMPAY CTRL.", // Nouveau
-          totalVolumePi: 0, // Nouveau (pour les stats)
-          lastBackupAt: new Date(), // Nouveau
+          stakingAPY: 15.0,
+          globalAnnouncement: "Bienvenue sur PIMPAY.",
+          appVersion: "1.0.0",
+          totalVolumePi: 0,
+          totalUsers: 0,
+          totalProfit: 0,
+          lastBackupAt: new Date(),
         }
       });
     }
 
-    return NextResponse.json(config);
+    // On récupère aussi les 5 derniers logs d'audit pour le flux visuel
+    const logs = await prisma.auditLog.findMany({
+      where: { action: "UPDATE_SYSTEM_CONFIG" },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+    return NextResponse.json({ ...config, auditLogs: logs });
   } catch (error: any) {
     console.error("CONFIG_GET_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur de récupération" }, { status: 500 });
   }
 }
 
@@ -61,51 +66,92 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const ConfigModel = getConfigModel();
 
-    // On prépare les données de mise à jour dynamiquement
-    // Cela permet d'envoyer seulement une partie des données sans écraser le reste par du undefined
-    const updateData: any = {};
-    if (body.maintenanceMode !== undefined) updateData.maintenanceMode = body.maintenanceMode;
-    if (body.transactionFee !== undefined) updateData.transactionFee = body.transactionFee;
-    if (body.minWithdrawal !== undefined) updateData.minWithdrawal = body.minWithdrawal;
-    if (body.consensusPrice !== undefined) updateData.consensusPrice = body.consensusPrice;
-    if (body.globalAnnouncement !== undefined) updateData.globalAnnouncement = body.globalAnnouncement;
-    if (body.action === "BACKUP_DB") updateData.lastBackupAt = new Date();
+    // 1. Récupération de l'ancienne config pour comparer
+    const oldConfig = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+    const adminUser = await prisma.user.findUnique({ where: { id: payload.id } });
 
-    const updatedConfig = await ConfigModel.upsert({
-      where: { id: "GLOBAL_CONFIG" },
-      update: updateData,
-      create: {
-        id: "GLOBAL_CONFIG",
-        maintenanceMode: body.maintenanceMode || false,
-        transactionFee: body.transactionFee || 0.01,
-        minWithdrawal: body.minWithdrawal || 1.0,
-        consensusPrice: body.consensusPrice || 314159.0,
-        globalAnnouncement: body.globalAnnouncement || "Système stable",
-        totalVolumePi: 0,
-        lastBackupAt: new Date(),
+    // 2. Préparation des données (Conversion explicite)
+    const updateData: any = {};
+    const changes: string[] = [];
+
+    // Mapping des champs et détection des changements pour l'audit
+    const fieldsToTrack = [
+      { key: 'maintenanceMode', type: 'bool' },
+      { key: 'forceUpdate', type: 'bool' },
+      { key: 'transactionFee', type: 'float' },
+      { key: 'minWithdrawal', type: 'float' },
+      { key: 'maxWithdrawal', type: 'float' },
+      { key: 'consensusPrice', type: 'float' },
+      { key: 'stakingAPY', type: 'float' },
+      { key: 'globalAnnouncement', type: 'string' },
+      { key: 'appVersion', type: 'string' }
+    ];
+
+    fieldsToTrack.forEach(({ key, type }) => {
+      if (body[key] !== undefined) {
+        let val: any;
+        if (type === 'bool') val = Boolean(body[key]);
+        else if (type === 'float') val = parseFloat(body[key]);
+        else val = body[key];
+
+        updateData[key] = val;
+
+        // Si la valeur change, on l'ajoute au log
+        if (oldConfig && oldConfig[key] !== val) {
+          changes.push(`${key}: ${oldConfig[key]} → ${val}`);
+        }
       }
     });
 
-    // --- LOGIQUE COOKIE MAINTENANCE (Pour ton Middleware) ---
-    const response = NextResponse.json(updatedConfig);
-    
+    if (body.action === "BACKUP_DB") updateData.lastBackupAt = new Date();
+
+    // 3. TRANSACTION ATOMIQUE : Update Config + Create Log
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await (tx as any).systemConfig.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        update: updateData,
+        create: {
+          id: "GLOBAL_CONFIG",
+          ...updateData,
+          lastBackupAt: new Date(),
+        }
+      });
+
+      // On ne crée un log que s'il y a eu de vrais changements
+      if (changes.length > 0) {
+        await tx.auditLog.create({
+          data: {
+            adminId: payload.id,
+            adminName: adminUser?.name || adminUser?.email || "Admin",
+            action: "UPDATE_SYSTEM_CONFIG",
+            details: changes.join(" | "),
+            targetId: "SYSTEM",
+          }
+        });
+      }
+
+      return updated;
+    });
+
+    // 4. Gestion des Cookies
+    const response = NextResponse.json(result);
     if (body.maintenanceMode !== undefined) {
-      if (body.maintenanceMode) {
+      if (body.maintenanceMode === true) {
         response.cookies.set("maintenance_mode", "true", {
           path: "/",
           httpOnly: false,
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 365,
+          maxAge: 60 * 60 * 24 * 30,
         });
       } else {
-        response.cookies.delete("maintenance_mode");
+        response.cookies.set("maintenance_mode", "false", { path: "/", maxAge: 0 });
       }
     }
 
     return response;
   } catch (error: any) {
     console.error("CONFIG_POST_ERROR:", error);
-    return NextResponse.json({ error: "Erreur de mise à jour" }, { status: 500 });
+    return NextResponse.json({ error: "Échec de la mise à jour" }, { status: 500 });
   }
 }
