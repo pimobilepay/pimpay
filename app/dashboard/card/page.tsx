@@ -1,227 +1,216 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { VirtualCard } from "@/components/VirtualCard";
 import {
   Loader2,
-  PlusCircle,
   ShieldCheck,
   RefreshCcw,
-  Zap,
   CheckCircle,
-  Wallet,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Zap,
+  CreditCard,
+  Eye,
+  EyeOff,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  PlusCircle,
+  MinusCircle
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-// Configuration mise à jour : Ordre et prix corrigés
 const CARD_TIERS = {
-  PLATINIUM: { label: "Platinium", usd: 10, limit: "Illimitée", color: "from-slate-600/20", border: "border-slate-400/30" },
-  PREMIUM: { label: "Premium", usd: 25, limit: "1,000", color: "from-blue-600/20", border: "border-blue-500/30" },
-  GOLD: { label: "Gold", usd: 50, limit: "10,000", color: "from-yellow-600/20", border: "border-yellow-500/30" },
+  PLATINIUM: {
+    label: "Platinium",
+    usd: 10,
+    limit: "50,000",
+    color: "from-slate-600/20",
+    border: "border-slate-400/30",
+    img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2832&auto=format&fit=crop"
+  },
+  PREMIUM: {
+    label: "Premium",
+    usd: 25,
+    limit: "1,000",
+    color: "from-blue-600/20",
+    border: "border-blue-500/30",
+    img: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=2940&auto=format&fit=crop"
+  },
+  GOLD: {
+    label: "Gold",
+    usd: 50,
+    limit: "10,000",
+    color: "from-yellow-600/30",
+    border: "border-yellow-500/50",
+    img: "https://images.unsplash.com/photo-1640341719941-47398e27356a?q=80&w=2940&auto=format&fit=crop"
+  },
 };
 
 export default function CardPage() {
   const [cardData, setCardData] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Sélection par défaut sur Platinium ($10)
+  const [showCardNumber, setShowCardNumber] = useState(false);
   const [selectedTier, setSelectedTier] = useState<keyof typeof CARD_TIERS>("PLATINIUM");
-  const [paymentCurrency, setPaymentCurrency] = useState<"PI" | "USD">("PI");
-  const [piPrice, setPiPrice] = useState(314159); // Fallback GCV
 
-  const fetchCardData = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch("/api/user/card");
-      const data = await res.json();
-      if (!data.error) {
-        setCardData(data);
-      } else {
-        setCardData(null);
-      }
-
-      const configRes = await fetch("/api/admin/config");
-      const configData = await configRes.json();
-      if (configData.consensusPrice) setPiPrice(configData.consensusPrice);
-
+      const [cardRes, transRes] = await Promise.all([
+        fetch("/api/user/card"),
+        fetch("/api/user/transactions")
+      ]);
+      const cData = await cardRes.json();
+      setCardData(!cData.error ? cData : null);
+      const tData = await transRes.json();
+      setTransactions(tData.history || []);
     } catch (err) {
-      console.error("Erreur chargement carte:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchCardData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const handleCreateCard = async () => {
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/cards/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: selectedTier,
-          paymentCurrency: paymentCurrency,
-          holderName: "Utilisateur PimPay" 
-        })
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success(`Votre carte ${selectedTier} est prête !`);
-        fetchCardData();
-      } else {
-        toast.error(data.error || "Erreur lors de la création");
-      }
-    } catch (err) {
-      toast.error("Erreur réseau");
-    } finally {
-      setIsGenerating(false);
-    }
+  // Actions rapides
+  const handleAction = (type: string) => {
+    toast.success(`${type} en cours de préparation...`);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-        <p className="mt-4 text-slate-500 font-mono text-xs uppercase tracking-[0.3em]">Initialisation sécurisée...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+    </div>
+  );
 
-  const currentTierInfo = CARD_TIERS[selectedTier];
-  const priceInPi = (currentTierInfo.usd / piPrice).toFixed(6);
+  const currentTier = (cardData?.type as keyof typeof CARD_TIERS) || selectedTier;
+  const design = CARD_TIERS[currentTier];
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-6 pb-24 font-sans">
+    <main className="min-h-screen bg-[#050505] text-white p-6 pb-32 font-sans">
       <header className="max-w-md mx-auto pt-8 mb-10 flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter uppercase italic text-white">
+          <h1 className="text-3xl font-black tracking-tighter uppercase italic">
             PimPay<span className="text-blue-600">Card</span>
           </h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em]">
-            Virtual Visa Terminal
-          </p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em]">Web3 Terminal</p>
         </div>
-        <button
-          onClick={fetchCardData}
-          className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-all border border-white/5"
-        >
-          <RefreshCcw size={18} className={loading ? "animate-spin" : ""} />
+        <button onClick={fetchData} className="p-3 bg-white/5 rounded-2xl border border-white/5">
+          <RefreshCcw size={18} />
         </button>
       </header>
 
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md mx-auto space-y-8">
         {cardData ? (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            <VirtualCard
-              holderName={cardData.holder}
-              cardNumber={cardData.number}
-              expiryDate={cardData.exp || cardData.expiry}
-              cvv={cardData.cvv}
-              balance={cardData.balance || 0}
-              isLocked={cardData.locked || cardData.isLocked}
-            />
+          <>
+            {/* CARTE : COULEUR ET FOND ANCIENNE VERSION + DESIGN WALLET */}
+            <div className={`w-full aspect-[1.58/1] rounded-[2.5rem] p-8 border ${design.border} bg-gradient-to-br ${design.color} to-black relative overflow-hidden shadow-2xl flex flex-col justify-between transition-all duration-500`}>
+              
+              {/* Image d'arrière-plan récupérée */}
+              <div className="absolute inset-0 z-0 opacity-40">
+                <img src={design.img} className="w-full h-full object-cover" alt="bg" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+              </div>
 
-            <div className="flex justify-center">
-                <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${CARD_TIERS[cardData.type as keyof typeof CARD_TIERS]?.border || 'border-white/20'} bg-white/5`}>
-                    Status {cardData.type || 'PREMIUM'}
-                </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 mt-10">
-              <div className="bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 p-5 rounded-[2.5rem] flex items-start gap-4">
-                <div className="p-3 bg-blue-600/20 rounded-2xl text-blue-400">
-                  <ShieldCheck size={20} />
+              <div className="flex justify-between items-start relative z-10">
+                <div className="flex flex-col">
+                  <CreditCard className="text-white mb-2" size={32} />
+                  <span className="text-2xl font-black tracking-tight">{cardData.balance || 0} π</span>
                 </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">
+                    Visa {cardData.type}
+                  </span>
+                </div>
+              </div>
+
+              <div className="relative z-10 py-4">
+                <p className="text-xl md:text-2xl font-mono tracking-[0.25em] text-white drop-shadow-2xl">
+                  {showCardNumber ? cardData.number : `•••• •••• •••• ${cardData.number?.slice(-4)}`}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-end relative z-10 border-t border-white/10 pt-4">
                 <div>
-                  <h4 className="text-sm font-bold text-blue-100">Protection Active</h4>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                    Limite journalière : <span className="text-white font-mono">${cardData.dailyLimit || "1,000"}</span>
-                  </p>
+                  <p className="text-[7px] uppercase text-blue-400 font-black tracking-[0.2em] mb-1">CARD HOLDER</p>
+                  <p className="text-[13px] font-black uppercase tracking-widest text-white">{cardData.holder}</p>
+                </div>
+                <div className="text-right flex items-center gap-4">
+                  <div>
+                    <p className="text-[7px] uppercase text-blue-400 font-black tracking-[0.2em] mb-1">EXPIRES</p>
+                    <p className="text-[13px] font-mono font-bold text-white">{cardData.exp || "12/28"}</p>
+                  </div>
+                  <button onClick={() => setShowCardNumber(!showCardNumber)} className="text-white/50 hover:text-white transition-colors">
+                    {showCardNumber ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-6 animate-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-3 gap-3">
-              {(Object.keys(CARD_TIERS) as Array<keyof typeof CARD_TIERS>).map((tier) => (
-                <button
-                  key={tier}
-                  onClick={() => setSelectedTier(tier)}
-                  className={`p-4 rounded-3xl border transition-all flex flex-col items-center gap-2 ${
-                    selectedTier === tier
-                    ? `${CARD_TIERS[tier].border} bg-white/10 scale-105`
-                    : "border-white/5 bg-white/[0.02] opacity-50"
-                  }`}
-                >
-                  <span className="text-[10px] font-black tracking-widest uppercase">{CARD_TIERS[tier].label}</span>
-                  <span className="text-xs font-bold">${CARD_TIERS[tier].usd}</span>
-                </button>
-              ))}
+
+            {/* ACTIONS RAPIDES : RECHARGE ET RETRAIT */}
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => handleAction("Recharge")}
+                className="flex items-center justify-center gap-3 p-5 bg-blue-600 rounded-[22px] hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+              >
+                <PlusCircle size={20} />
+                <span className="text-xs font-black uppercase tracking-widest">Recharger</span>
+              </button>
+              <button 
+                onClick={() => handleAction("Retrait")}
+                className="flex items-center justify-center gap-3 p-5 bg-white/5 border border-white/10 rounded-[22px] hover:bg-white/10 transition-all active:scale-95"
+              >
+                <MinusCircle size={20} className="text-slate-400" />
+                <span className="text-xs font-black uppercase tracking-widest">Retrait</span>
+              </button>
             </div>
 
-            <div className={`p-8 rounded-[3rem] border ${currentTierInfo.border} bg-gradient-to-br ${currentTierInfo.color} to-transparent text-center relative overflow-hidden`}>
-                {/* Animation Shimmer Spécifique Gold */}
-                {selectedTier === "GOLD" && (
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 animate-[shimmer_2s_infinite] translate-x-[-200%]" />
-                    <Sparkles className="absolute top-4 right-8 text-yellow-400 animate-pulse" size={18} />
-                  </div>
-                )}
-
-                <div className="relative z-10">
-                    <h2 className={`text-3xl font-black mb-1 uppercase italic tracking-tighter ${selectedTier === "GOLD" ? "text-yellow-500" : "text-white"}`}>Visa {currentTierInfo.label}</h2>
-                    <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mb-6">PimPay Edition</p>
-
-                    <ul className="text-left space-y-3 mb-8 max-w-[200px] mx-auto">
-                        <li className="flex items-center gap-2 text-[11px] font-medium text-slate-300">
-                            <CheckCircle size={14} className={selectedTier === "GOLD" ? "text-yellow-500" : "text-blue-500"} /> Limite ${currentTierInfo.limit}/j
-                        </li>
-                        <li className="flex items-center gap-2 text-[11px] font-medium text-slate-300">
-                            <CheckCircle size={14} className={selectedTier === "GOLD" ? "text-yellow-500" : "text-blue-500"} /> Multi-devises
-                        </li>
-                    </ul>
-
-                    <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5 mb-6">
-                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Coût d'activation</p>
-                        <div className="flex justify-center items-baseline gap-2">
-                            <span className="text-2xl font-black">${currentTierInfo.usd}</span>
-                            <span className="text-xs text-slate-500">ou</span>
-                            <span className="text-sm font-bold text-blue-500">{priceInPi} PI</span>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-2 mb-6">
-                        <button
-                            onClick={() => setPaymentCurrency("PI")}
-                            className={`flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === "PI" ? "bg-white text-black" : "bg-white/5 text-white"}`}
-                        >
-                            Payer en PI
-                        </button>
-                        <button
-                            onClick={() => setPaymentCurrency("USD")}
-                            className={`flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === "USD" ? "bg-white text-black" : "bg-white/5 text-white"}`}
-                        >
-                            Payer en USD
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={handleCreateCard}
-                        disabled={isGenerating}
-                        className={`w-full h-14 font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 shadow-[0_10px_30px_rgba(37,99,235,0.3)] ${selectedTier === "GOLD" ? "bg-yellow-500 text-black hover:bg-yellow-400" : "bg-blue-600 text-white hover:bg-blue-500"}`}
-                    >
-                        {isGenerating ? <Loader2 className="animate-spin" /> : <ArrowRight size={20} />}
-                        {isGenerating ? "Activation..." : "Confirmer l'achat"}
-                    </button>
+            {/* STATUS RÉCUPÉRÉ DU WALLET */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-5 bg-white/[0.03] border border-white/5 rounded-[22px] flex items-center gap-4">
+                <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500"><ShieldCheck size={20}/></div>
+                <div>
+                  <p className="text-[8px] text-slate-500 uppercase font-black">Sécurité</p>
+                  <p className="text-[11px] font-bold">Active</p>
                 </div>
+              </div>
+              <div className="p-5 bg-white/[0.03] border border-white/5 rounded-[22px] flex items-center gap-4">
+                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500"><Zap size={20}/></div>
+                <div>
+                  <p className="text-[8px] text-slate-500 uppercase font-black">Limite /j</p>
+                  <p className="text-[11px] font-bold">${cardData.dailyLimit || "1,000"}</p>
+                </div>
+              </div>
             </div>
+
+            {/* OPÉRATIONS RÉCENTES */}
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-2">Transactions Carte</h3>
+              <div className="space-y-3">
+                {transactions.length > 0 ? transactions.slice(0, 4).map((tx) => (
+                  <div key={tx.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-[22px] flex items-center justify-between hover:bg-white/[0.04] transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === "DEPOSIT" ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-400"}`}>
+                        {tx.type === "DEPOSIT" ? <ArrowDownToLine size={18} /> : <ArrowUpFromLine size={18} />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-tight">{tx.type}</p>
+                        <p className="text-[9px] text-slate-500 font-bold">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-black text-white">{tx.amount.toFixed(2)} π</p>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 opacity-20 text-[10px] uppercase font-bold tracking-widest">Aucune donnée</div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* SECTION ACHAT SI PAS DE CARTE (CONSERVÉE) */
+          <div className="py-20 text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10">
+             <p className="text-slate-500 text-xs mb-4 uppercase tracking-widest font-bold">Initialiser votre Visa Terminal</p>
+             <button onClick={() => fetchData()} className="bg-blue-600 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Commander</button>
           </div>
         )}
       </div>

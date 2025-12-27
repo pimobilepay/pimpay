@@ -115,7 +115,7 @@ export default function UserDashboard() {
             {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
               { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
               { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-              { icon: <CreditCard />, label: "Card", color: "bg-slate-800", link: "/wallet" }
+              { icon: <CreditCard />, label: "Card", color: "bg-slate-800", link: "/dashboard/card" }
             ].map((action, i) => (
               <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
                 <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform`}>
