@@ -6,7 +6,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Smartphone,
-  Menu, // On garde Menu
+  Menu,
   Wallet,
   Send
 } from "lucide-react";
@@ -21,13 +21,15 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
-  // Correction Hydratation
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Ne pas afficher sur les pages d'authentification
-  const isAuthPage = pathname?.startsWith("/auth") || pathname?.includes("/login") || pathname?.includes("/signup");
+  // Correction précise des chemins d'exclusion
+  const isAuthPage = 
+    pathname === "/auth/login" || 
+    pathname === "/auth/signup" || 
+    pathname?.startsWith("/auth/");
 
   if (!mounted || isAuthPage) return null;
 
@@ -38,7 +40,7 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
     { href: "/mpay", icon: Smartphone, label: "MPay", special: true },
     { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
     { href: "/transfer", icon: Send, label: "Envoi" },
-    { href: "#", icon: Menu, label: "Menu", isMenuButton: true }, // Gardé tel quel
+    { href: "#", icon: Menu, label: "Menu", isMenuButton: true },
   ];
 
   return (
@@ -49,7 +51,6 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
             const isActive = pathname === item.href;
             const Icon = item.icon;
 
-            // CAS 1 : BOUTON SPÉCIAL (MPAY)
             if (item.special) {
               return (
                 <Link key={`nav-${idx}`} href={item.href} className="flex flex-col items-center -mt-8">
@@ -61,39 +62,32 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
               );
             }
 
-            // CAS 2 : BOUTON MENU (DÉCLENCHEUR)
             if (item.isMenuButton) {
               return (
                 <button
                   key={`nav-${idx}`}
                   type="button"
-                  onClick={(e) => { 
-                    e.preventDefault(); 
-                    // Sécurité : on vérifie que onOpenMenu est bien une fonction avant de l'appeler
-                    if (onOpenMenu && typeof onOpenMenu === 'function') {
-                      onOpenMenu(); 
-                    }
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onOpenMenu) onOpenMenu();
                   }}
-                  className="flex flex-col items-center justify-center gap-1 min-w-[50px] transition-all active:scale-95 group outline-none"
+                  className="flex flex-col items-center justify-center gap-1 min-w-[50px] outline-none"
                 >
-                  <Icon className="h-5 w-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter group-hover:text-blue-400">{item.label}</span>
+                  <Icon className="h-5 w-5 text-slate-500" />
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{item.label}</span>
                 </button>
               );
             }
 
-            // CAS 3 : LIENS STANDARDS
             return (
               <Link
                 key={`nav-${idx}`}
                 href={item.href}
-                className="flex flex-col items-center justify-center gap-1 min-w-[50px] transition-all active:scale-95 relative"
+                className="flex flex-col items-center justify-center gap-1 min-w-[50px] relative"
               >
-                <Icon className={`h-5 w-5 transition-colors ${isActive ? "text-blue-500" : "text-slate-500"}`} />
-                <span className={`text-[9px] font-bold uppercase tracking-tighter transition-colors ${isActive ? "text-blue-500" : "text-slate-500"}`}>{item.label}</span>
-                {isActive && (
-                  <div className="absolute -bottom-1 w-1 h-1 bg-blue-500 rounded-full shadow-[0_0_5px_#3b82f6]" />
-                )}
+                <Icon className={`h-5 w-5 ${isActive ? "text-blue-500" : "text-slate-500"}`} />
+                <span className={`text-[9px] font-bold uppercase tracking-tighter ${isActive ? "text-blue-500" : "text-slate-500"}`}>{item.label}</span>
+                {isActive && <div className="absolute -bottom-1 w-1 h-1 bg-blue-500 rounded-full" />}
               </Link>
             );
           })}

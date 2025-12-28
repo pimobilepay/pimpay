@@ -6,17 +6,18 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const payload = verifyAuth(req);
+    // 1. Vérification de l'auth avec 'await' (crucial car verifyAuth est async)
+    const payload = await verifyAuth(req);
     
-    if (!payload) {
+    if (!payload || !payload.id) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    // 2. Récupération de l'utilisateur (sans les relations pour éviter le crash PANIC)
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
       select: {
         id: true,
-        name: true,
         firstName: true,
         lastName: true,
         username: true,
@@ -32,10 +33,8 @@ export async function GET(req: NextRequest) {
         status: true,
         kycStatus: true,
         avatar: true,
-        wallets: {
-          where: { type: "PI" },
-          select: { balance: true }
-        }
+        createdAt: true,
+        name: true
       }
     });
 
@@ -43,9 +42,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    // Extraction de la balance pour un accès plus facile côté frontend
-    const balance = user.wallets[0]?.balance ?? 0;
+    // 3. Récupération de la balance Pi séparément (contourne le bug Prisma)
+    const piWallet = await prisma.wallet.findFirst({
+      where: { 
+        userId: user.id,
+        type: "PI" 
+      },
+      select: { balance: true }
+    });
 
+    const balance = piWallet?.balance ?? 0;
+
+    // 4. Réponse structurée pour le frontend
     return NextResponse.json({
       authenticated: true,
       user: {
@@ -53,8 +61,12 @@ export async function GET(req: NextRequest) {
         balance: balance
       }
     });
-  } catch (error) {
+
+  } catch (error: any) {
     console.error("Erreur API /me:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erreur serveur", message: error.message }, 
+      { status: 500 }
+    );
   }
 }

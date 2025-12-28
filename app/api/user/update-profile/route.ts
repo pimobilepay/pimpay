@@ -1,62 +1,66 @@
+// app/api/user/update-profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"; // Import nommé correspondant à votre fichier lib
 import { verifyAuth } from "@/lib/adminAuth";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authentification
-    const payload = verifyAuth(req) as any;
+    // 1. Vérification de l'authentification
+    // @ts-ignore
+    const payload = await verifyAuth(req);
+
+    // On vérifie si payload existe et contient un ID
     if (!payload || !payload.id) {
+      console.error("AUTH_FAILED: Payload vide ou invalide");
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
-    // 2. Récupération de TOUS les champs du body
+    // 2. Extraction sécurisée du body
     const body = await req.json();
-    const { 
-      firstName, 
-      lastName, 
-      username, 
-      email, 
-      country, 
-      city, 
-      address,
-      birthDate,
-      nationality,
-      walletAddress 
-    } = body;
+    
+    // 3. Mise à jour (On utilise prisma.user et non prisma.user.update sur un objet inexistant)
+    // On s'assure que prisma existe avant d'appeler .user
+    if (!prisma) {
+      throw new Error("Prisma client is not initialized");
+    }
 
-    // 3. Mise à jour dans la base de données
     const updatedUser = await prisma.user.update({
       where: { id: payload.id },
       data: {
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        username: username || undefined,
-        email: email || undefined,
-        country: country || undefined,
-        city: city || undefined,
-        address: address || undefined,
-        nationality: nationality || undefined,
-        walletAddress: walletAddress || undefined,
-        // Conversion de la date si elle est présente
-        birthDate: birthDate ? new Date(birthDate) : undefined,
-      }
+        firstName: body.firstName ?? undefined,
+        lastName: body.lastName ?? undefined,
+        username: body.username ?? undefined,
+        email: body.email ?? undefined,
+        country: body.country ?? undefined,
+        city: body.city ?? undefined,
+        address: body.address ?? undefined,
+        nationality: body.nationality ?? undefined,
+        walletAddress: body.walletAddress ?? undefined,
+        // Conversion de la date
+        birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
+      },
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    // Suppression du mot de passe pour la réponse
+    const { password: _, ...userResponse } = updatedUser as any;
+
+    return NextResponse.json({
+      success: true,
       message: "Profil mis à jour avec succès",
-      user: updatedUser 
+      user: userResponse
     });
 
   } catch (error: any) {
-    console.error("UPDATE_PROFILE_ERROR:", error);
-    
-    // Gestion d'erreur spécifique (ex: username déjà pris)
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: "Ce nom d'utilisateur ou cet email est déjà utilisé" }, { status: 400 });
+    console.error("UPDATE_PROFILE_ERROR_FULL:", error);
+
+    // Gestion d'erreur Prisma si l'utilisateur n'existe pas
+    if (error.code === 'P2025') {
+      return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
     }
 
-    return NextResponse.json({ error: "Erreur lors de la sauvegarde" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erreur lors de la mise à jour", details: error.message }, 
+      { status: 500 }
+    );
   }
 }

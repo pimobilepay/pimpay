@@ -45,7 +45,7 @@ function FailedContent() {
 
         {/* Bouton Quitter */}
         <button 
-          onClick={() => router.push("/wallet")} 
+          onClick={() => router.push("/dashboard")} 
           className="w-full bg-slate-900 border border-white/5 py-6 rounded-[28px] font-black uppercase tracking-widest flex items-center justify-center gap-3 text-slate-400 active:scale-95 transition-all"
         >
           <Home size={18} /> Annuler et quitter

@@ -42,7 +42,7 @@ function SuccessContent() {
       <div className="w-full max-w-sm space-y-4">
         {/* CORRECTION : Redirection vers le dashboard Wallet */}
         <button 
-          onClick={() => router.push("/wallet")} 
+          onClick={() => router.push("/dashboard")} 
           className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 rounded-[28px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-600/20"
         >
           <Home size={18} /> Retour au Dashboard
