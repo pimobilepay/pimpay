@@ -33,18 +33,14 @@ export default function SendPage() {
     setMounted(true);
     const fetchWallet = async () => {
       try {
-        // Utilisation de l'API de profil qui est plus fiable pour le solde
-        const res = await fetch('/api/user/profile');
+        const res = await fetch('/api/user/wallet-info');
         if (res.ok) {
           const data = await res.json();
-          
           /**
-           * CORRECTION : On vérifie plusieurs emplacements possibles pour le solde
-           * pour éviter que "balance" reste à 0.
+           * CORRECTION STRUCTURE PRISMA : 
+           * Le solde est maintenant dans data.userData.balance
            */
-          const userBalance = data.balance ?? data.userData?.balance ?? data.user?.balance ?? 0;
-          setBalance(parseFloat(userBalance));
-          
+          setBalance(parseFloat(data.userData?.balance || 0));
         } else if (res.status === 401) {
           router.push("/auth/login");
         }
@@ -91,11 +87,6 @@ export default function SendPage() {
     }
 
     const numericAmount = parseFloat(amount);
-    if (numericAmount <= 0) {
-      toast.error("Montant invalide");
-      return;
-    }
-
     if (numericAmount > balance) {
       toast.error("Solde insuffisant");
       return;
@@ -176,7 +167,7 @@ export default function SendPage() {
             <span className="absolute right-8 top-8 text-blue-500 font-black italic">π</span>
           </div>
           <p className="text-center text-[11px] font-bold text-slate-500 uppercase">
-            Disponible : {balance.toLocaleString('fr-FR', { minimumFractionDigits: 4 })} π
+            Disponible : {balance.toFixed(4)} π
           </p>
         </div>
 

@@ -32,18 +32,14 @@ function SummaryContent() {
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch('/api/user/profile', {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        
+        const res = await fetch('/api/user/wallet-info');
         if (res.ok) {
           const d = await res.json();
-          /** * CORRECTION : Extraction robuste du solde */
-          const balanceValue = parseFloat(d.balance ?? d.user?.balance ?? d.userData?.balance ?? 0);
+          /** * CORRECTION : Accès au solde via la nouvelle structure 
+           */
+          const balanceValue = parseFloat(d.userData?.balance || 0);
           setWalletBalance(balanceValue);
+          console.log("Solde Wallet détecté:", balanceValue);
         }
       } catch (err) {
         console.error("Erreur de récupération du solde:", err);
@@ -55,20 +51,19 @@ function SummaryContent() {
   const handleConfirm = async () => {
     // Vérification de sécurité locale
     if (walletBalance !== null && walletBalance < totalRequired) {
-      toast.error(`Transaction impossible : Votre solde est de ${walletBalance.toFixed(4)} π`);
+      toast.error(`Transaction impossible : Votre solde réel est de ${walletBalance.toFixed(4)} π`);
       return;
     }
 
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      
+      /**
+       * CORRECTION : Utilisation de l'URL correcte /api/user/transfer 
+       * et envoi du recipientIdentifier (peut être ID, username ou email)
+       */
       const response = await fetch("/api/user/transfer", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // AJOUTÉ : Pour éviter l'erreur 401
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientIdentifier: data.recipientId,
           amount: data.amount,
@@ -81,13 +76,7 @@ function SummaryContent() {
       if (response.ok) {
         router.push(`/transfer/success?amount=${data.amount}&name=${encodeURIComponent(data.name)}`);
       } else {
-        // Gestion spécifique de l'expiration de session
-        if (response.status === 401) {
-          toast.error("Session expirée. Veuillez vous reconnecter.");
-          router.push("/auth/login");
-          return;
-        }
-        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Erreur lors du transfert")}`);
+        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Erreur de solde")}`);
       }
     } catch (err) {
       router.push("/transfer/failed?error=Erreur de connexion au serveur");
@@ -143,7 +132,7 @@ function SummaryContent() {
           <span className="text-[10px] font-black text-slate-400 uppercase">Solde Wallet</span>
         </div>
         <span className="text-sm font-black tracking-tight">
-          {walletBalance !== null ? `${walletBalance.toLocaleString('fr-FR', { minimumFractionDigits: 4 })} π` : "Chargement..."}
+          {walletBalance !== null ? `${walletBalance.toFixed(4)} π` : "Chargement..."}
         </span>
       </div>
 
@@ -158,9 +147,9 @@ function SummaryContent() {
 
       <button
         onClick={handleConfirm}
-        disabled={isLoading || isInsufficient || walletBalance === null}
+        disabled={isLoading || isInsufficient}
         className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${
-          isInsufficient || walletBalance === null
+          isInsufficient
           ? "bg-slate-800 text-slate-600 cursor-not-allowed"
           : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20"
         }`}

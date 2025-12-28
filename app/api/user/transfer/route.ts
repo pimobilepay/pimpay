@@ -3,12 +3,18 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/adminAuth';
-import { nanoid } from 'nanoid'; // ou utilise une fonction de référence aléatoire
+import { nanoid } from 'nanoid';
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = verifyAuth(req);
-    if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    // AJOUT DE AWAIT ICI :
+    const payload = await verifyAuth(req);
+
+    // Maintenant payload sera soit l'objet utilisateur, soit null
+    if (!payload || !payload.id) {
+      console.error("Échec Auth: Payload nul ou ID manquant");
+      return NextResponse.json({ error: "Session expirée ou non autorisée" }, { status: 401 });
+    }
 
     const { recipientIdentifier, amount, description } = await req.json();
     const transferAmount = parseFloat(amount);
@@ -23,15 +29,20 @@ export async function POST(req: NextRequest) {
       include: { wallets: { where: { currency: "PI" } } }
     });
 
-    const senderWallet = sender?.wallets[0];
+    if (!sender) {
+      return NextResponse.json({ error: "Expéditeur introuvable" }, { status: 404 });
+    }
+
+    const senderWallet = sender.wallets[0];
     if (!senderWallet || senderWallet.balance < transferAmount) {
       return NextResponse.json({ error: "Solde insuffisant" }, { status: 400 });
     }
 
-    // 2. Trouver le destinataire (par username, email ou phone)
+    // 2. Trouver le destinataire
     const recipient = await prisma.user.findFirst({
       where: {
         OR: [
+          { id: recipientIdentifier },
           { username: recipientIdentifier },
           { email: recipientIdentifier },
           { phone: recipientIdentifier }
@@ -40,7 +51,7 @@ export async function POST(req: NextRequest) {
       include: { wallets: { where: { currency: "PI" } } }
     });
 
-    if (!recipient || recipient.id === sender?.id) {
+    if (!recipient || recipient.id === sender.id) {
       return NextResponse.json({ error: "Destinataire introuvable ou invalide" }, { status: 404 });
     }
 
@@ -49,29 +60,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le destinataire n'a pas de Wallet PI" }, { status: 400 });
     }
 
-    // 3. TRANSACTION ATOMIQUE (Tout ou rien)
+    // 3. TRANSACTION ATOMIQUE
     const result = await prisma.$transaction(async (tx) => {
-      // Déduire de l'expéditeur
-      const updatedSender = await tx.wallet.update({
+      await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // Ajouter au destinataire
       await tx.wallet.update({
         where: { id: recipientWallet.id },
         data: { balance: { increment: transferAmount } }
       });
 
-      // Créer la transaction de type TRANSFER
       const transaction = await tx.transaction.create({
         data: {
           reference: `TRF-${nanoid(10).toUpperCase()}`,
           amount: transferAmount,
           type: 'TRANSFER',
           status: 'SUCCESS',
-          description: description || `Transfert à ${recipient.username}`,
-          fromUserId: sender?.id,
+          description: description || `Transfert à ${recipient.username || recipient.name}`,
+          fromUserId: sender.id,
           fromWalletId: senderWallet.id,
           toUserId: recipient.id,
           toWalletId: recipientWallet.id,
@@ -85,6 +93,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("TRANSFER_ERROR:", error);
-    return NextResponse.json({ error: "Erreur lors du transfert" }, { status: 500 });
+    return NextResponse.json({
+      error: "Erreur lors du transfert",
+      details: error.message
+    }, { status: 500 });
   }
 }
