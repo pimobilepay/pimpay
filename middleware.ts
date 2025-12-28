@@ -11,13 +11,34 @@ const getJwtSecret = () => {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("token")?.value;
-  const isMaintenanceModeActive = req.cookies.get("maintenance_mode")?.value === "true";
+  
+  // 1. RÉCUPÉRATION DES ÉTATS DE MAINTENANCE
+  const maintenanceCookie = req.cookies.get("maintenance_mode")?.value;
+  const maintenanceUntil = req.cookies.get("maintenance_until")?.value;
+  
+  let isMaintenanceModeActive = maintenanceCookie === "true";
+
+  // VÉRIFICATION AUTOMATIQUE DE LA DATE DE FIN
+  if (isMaintenanceModeActive && maintenanceUntil) {
+    const now = new Date().getTime();
+    const expiry = new Date(maintenanceUntil).getTime();
+    
+    // Si la date actuelle a dépassé la date de fin prévue
+    if (now > expiry) {
+      isMaintenanceModeActive = false;
+      // On laisse passer et on nettoiera les cookies via une réponse plus tard
+    }
+  }
+
+  // PORTE DÉROBÉE (BACKDOOR)
+  const hasBypassCookie = req.cookies.has("admin_bypass");
 
   const isAuthPage = pathname.startsWith("/auth");
   const isMaintenancePage = pathname === "/maintenance";
   const isAdminPath = pathname.startsWith("/admin");
+  const isUnlockPath = pathname.startsWith("/api/unlock");
 
-  // 1. GESTION DU TOKEN ET DU RÔLE
+  // 2. GESTION DU TOKEN ET DU RÔLE
   let userPayload: any = null;
   if (token) {
     try {
@@ -27,59 +48,68 @@ export async function middleware(req: NextRequest) {
         userPayload = payload;
       }
     } catch (e) {
-      // Token invalide : on nettoie et on laisse la logique de redirection s'occuper du reste
-      const response = NextResponse.redirect(new URL("/auth/login", req.url));
-      response.cookies.delete("token");
-      return response;
+      // Token invalide ou expiré : redirection propre
+      if (!isAuthPage && !isMaintenancePage && !isUnlockPath) {
+        const response = NextResponse.redirect(new URL("/auth/login", req.url));
+        response.cookies.delete("token");
+        return response;
+      }
     }
   }
 
-  // 2. PRIORITÉ : MODE MAINTENANCE
-  if (isMaintenanceModeActive && !isAdminPath && !isMaintenancePage) {
-    // Si l'utilisateur est ADMIN, il peut ignorer la maintenance
-    if (userPayload?.role === "ADMIN") {
-      return NextResponse.next();
+  // 3. PRIORITÉ : MODE MAINTENANCE
+  // On laisse passer si : Admin, Bypass, ou route spéciale
+  if (isMaintenanceModeActive && !isMaintenancePage && !isUnlockPath) {
+    const isAdmin = userPayload?.role === "ADMIN";
+
+    if (!isAdmin && !hasBypassCookie) {
+      return NextResponse.redirect(new URL("/maintenance", req.url));
     }
-    // Sinon, direction la page maintenance
-    return NextResponse.redirect(new URL("/maintenance", req.url));
   }
 
-  // 3. LOGIQUE POUR UTILISATEURS CONNECTÉS
+  // 4. LOGIQUE POUR UTILISATEURS CONNECTÉS
   if (userPayload) {
-    // Empêcher l'accès aux pages de login/register si déjà connecté
+    // Empêcher l'accès aux pages de login si déjà connecté
     if (isAuthPage) {
       return NextResponse.redirect(new URL("/", req.url));
     }
     // Protection stricte des routes Admin
     if (isAdminPath && userPayload.role !== "ADMIN") {
-      return NextResponse.next(); // Ou redirection vers accueil
+      return NextResponse.redirect(new URL("/", req.url));
     }
-    // Sortir de la page maintenance si elle n'est plus active
+    // Sortir de la page maintenance si elle n'est plus active (ou expirée)
     if (!isMaintenanceModeActive && isMaintenancePage) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
 
-  // 4. LOGIQUE POUR UTILISATEURS NON CONNECTÉS
-  if (!userPayload && !isAuthPage && !isMaintenancePage) {
-    // Si pas de token et qu'on n'est pas sur une page publique -> Login
-    const dest = isMaintenanceModeActive ? "/maintenance" : "/auth/login";
+  // 5. LOGIQUE POUR UTILISATEURS NON CONNECTÉS
+  if (!userPayload && !isAuthPage && !isMaintenancePage && !isUnlockPath) {
+    // Si maintenance active, envoyer vers maintenance, sinon vers login
+    const dest = isMaintenanceModeActive && !hasBypassCookie ? "/maintenance" : "/auth/login";
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
-  return NextResponse.next();
+  // 6. NETTOYAGE DES COOKIES SI LA MAINTENANCE EST EXPIRÉE
+  const res = NextResponse.next();
+  if (maintenanceCookie === "true" && !isMaintenanceModeActive) {
+    res.cookies.delete("maintenance_mode");
+    res.cookies.delete("maintenance_until");
+  }
+
+  return res;
 }
 
-// Configuration du Matcher pour exclure TOUS les fichiers statiques et API
 export const config = {
   matcher: [
     /*
-     * Match toutes les routes sauf :
-     * 1. /api (routes d'API)
-     * 2. /_next/static (fichiers statiques)
-     * 3. /_next/image (optimisation d'images Next.js)
-     * 4. Tous les fichiers avec une extension (ex: .png, .jpg, .svg)
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (images, etc)
      */
-    "/((?!api|_next/static|_next/image|.*\\..*|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|images|assets|favicon.ico|logo.png).*)",
   ],
 };

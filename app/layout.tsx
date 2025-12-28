@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import Script from "next/script";
 import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
+import GlobalAlert from "@/components/GlobalAlert";
 
 export const metadata = {
   title: "PimPay - Core Ledger",
@@ -19,47 +20,51 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      // translate="no" et "notranslate" sont cruciaux pour éviter que Google Translate 
-      // n'insère des balises <font> qui cassent le Virtual DOM de React.
+      // Empêche les extensions de traduction de casser le DOM
       translate="no"
       className={`${GeistSans.variable} ${GeistMono.variable} dark notranslate`}
     >
       <head>
-        {/* Meta tag supplémentaire pour bloquer la traduction automatique de Google */}
         <meta name="google" content="notranslate" />
       </head>
-      <body className="bg-[#020617] text-white antialiased overflow-x-hidden notranslate">
-        {/* Le SDK Pi est chargé avant l'interactivité. 
-          L'utilisation de "beforeInteractive" évite les conflits d'hydratation.
-        */}
+      <body className="bg-[#02040a] text-white antialiased overflow-x-hidden notranslate selection:bg-blue-500/30">
+        {/* Chargement prioritaire du SDK Pi */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
 
-        {/* 1. Bandeau d'annonce 
-          Placé à l'extérieur du ClientLayout pour éviter les erreurs de désynchronisation 
-          si le layout client subit une re-hydratation lourde.
+        {/* 1. LAYER DE SÉCURITÉ (Maintenance, Banned, Freeze)
+            Placé ici, il s'assure d'être au-dessus de tout le reste.
+            Le div portal-root aide à prévenir les erreurs 'removeChild'.
         */}
+        <div id="portal-root">
+          <GlobalAlert />
+        </div>
+
+        {/* 2. LAYER D'INFORMATION (Bandeau d'annonce) */}
         <GlobalAnnouncement />
 
-        {/* 2. ClientLayout 
-          Contient tes Context Providers. On s'assure qu'il est bien séparé 
-          des scripts externes pour stabiliser l'arbre DOM.
+        {/* 3. LAYER APPLICATIF 
+            Le ClientLayout gère l'état global et les providers.
         */}
-        <ClientLayout>
-          {children}
-        </ClientLayout>
+        <div className="relative z-0">
+          <ClientLayout>
+            <main className="min-h-screen">
+              {children}
+            </main>
+          </ClientLayout>
+        </div>
 
-        {/* 3. Toaster 
-          On le force en mode dark pour correspondre au body et on évite 
-          qu'il ne soit injecté trop haut dans le DOM.
-        */}
-        <Toaster 
-          position="top-center" 
-          richColors 
-          closeButton 
+        {/* 4. LAYER DE NOTIFICATION */}
+        <Toaster
+          position="top-center"
+          richColors
+          closeButton
           theme="dark"
+          toastOptions={{
+            className: 'bg-[#0b1120] border border-white/10 text-white rounded-2xl backdrop-blur-xl',
+          }}
         />
       </body>
     </html>

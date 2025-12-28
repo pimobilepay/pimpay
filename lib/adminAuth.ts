@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import jwt from "jsonwebtoken";
+import * as jose from "jose";
 
-const JWT_SECRET = process.env.JWT_SECRET || "ton_secret_par_defaut_temporaire";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Interface pour sécuriser le typage du Token
@@ -9,50 +9,46 @@ const JWT_SECRET = process.env.JWT_SECRET || "ton_secret_par_defaut_temporaire";
 interface TokenPayload {
   id: string;
   role: string;
-  username?: string;
+  email?: string;
+  name?: string;
 }
 
 /**
- * verifyAuth - Vérifie si le token est valide (USER ou ADMIN)
+ * verifyAuth - Vérifie si le token est valide (Version compatible Edge/Node)
  */
-export function verifyAuth(req: NextRequest): TokenPayload | null {
+export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null> {
   try {
-    // 1. Récupération du token (Header Bearer en priorité, puis Cookie)
-    let token = req.headers.get("authorization")?.split(" ")[1];
-    
-    if (!token) {
-      token = req.cookies.get("token")?.value;
-    }
+    // 1. Récupération du token (Cookie en priorité pour Next.js, puis Header)
+    let token = req.cookies.get("token")?.value;
 
     if (!token) {
-      // console.warn("Auth: Aucun token trouvé dans les headers ou cookies");
+      token = req.headers.get("authorization")?.split(" ")[1];
+    }
+
+    if (!token || !JWT_SECRET) {
       return null;
     }
 
-    // 2. Vérification du JWT
-    const payload = jwt.verify(token, JWT_SECRET) as TokenPayload;
-    return payload;
+    // 2. Vérification du JWT avec 'jose' (plus robuste sur Next.js 14/15)
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jose.jwtVerify(token, secret);
+    
+    return payload as unknown as TokenPayload;
 
   } catch (err) {
-    console.error("JWT Verification Error:", err instanceof Error ? err.message : err);
+    // Évite de loguer les erreurs d'expiration normales pour ne pas polluer les logs
     return null;
   }
 }
 
 /**
  * adminAuth - Vérifie spécifiquement le rôle ADMIN
- * À utiliser dans /api/admin/config/route.ts
+ * Note : Puisque verifyAuth est async, adminAuth doit l'être aussi
  */
-export function adminAuth(req: NextRequest): TokenPayload | null {
-  const payload = verifyAuth(req);
+export async function adminAuth(req: NextRequest): Promise<TokenPayload | null> {
+  const payload = await verifyAuth(req);
 
-  if (!payload) {
-    console.error("Admin Auth: Token invalide ou absent");
-    return null;
-  }
-
-  if (payload.role !== "ADMIN") {
-    console.error("Admin Auth: Accès refusé. Rôle actuel:", payload.role);
+  if (!payload || payload.role !== "ADMIN") {
     return null;
   }
 

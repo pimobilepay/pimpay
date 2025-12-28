@@ -1,14 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import {
-  Home,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Smartphone,
-  Menu, // On garde Menu
-  Wallet,
-  Send
+import { 
+  Home, 
+  ArrowDownToLine, 
+  ArrowUpFromLine, 
+  Smartphone, 
+  Menu, 
+  Wallet, 
+  Send 
 } from "lucide-react";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
@@ -21,7 +21,7 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
-  // Correction Hydratation
+  // Correction Hydratation : On s'assure que le composant n'apparaît qu'au montage client
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -32,13 +32,13 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
   if (!mounted || isAuthPage) return null;
 
   const navItems = [
-    { href: "/dashboard", icon: Home, label: "Accueil" },
+    { href: "/", icon: Home, label: "Accueil" },
     { href: "/wallet", icon: Wallet, label: "Wallet" },
     { href: "/deposit", icon: ArrowDownToLine, label: "Dépôt" },
     { href: "/mpay", icon: Smartphone, label: "MPay", special: true },
     { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
     { href: "/transfer", icon: Send, label: "Envoi" },
-    { href: "#", icon: Menu, label: "Menu", isMenuButton: true }, // Gardé tel quel
+    { href: "#", icon: Menu, label: "Menu", isMenuButton: true },
   ];
 
   return (
@@ -49,7 +49,7 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
             const isActive = pathname === item.href;
             const Icon = item.icon;
 
-            // CAS 1 : BOUTON SPÉCIAL (MPAY)
+            // CAS 1 : BOUTON SPÉCIAL (CENTRAL/PRINCIPAL)
             if (item.special) {
               return (
                 <Link key={`nav-${idx}`} href={item.href} className="flex flex-col items-center -mt-8">
@@ -64,16 +64,10 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
             // CAS 2 : BOUTON MENU (DÉCLENCHEUR)
             if (item.isMenuButton) {
               return (
-                <button
-                  key={`nav-${idx}`}
-                  type="button"
-                  onClick={(e) => { 
-                    e.preventDefault(); 
-                    // Sécurité : on vérifie que onOpenMenu est bien une fonction avant de l'appeler
-                    if (onOpenMenu && typeof onOpenMenu === 'function') {
-                      onOpenMenu(); 
-                    }
-                  }}
+                <button 
+                  key={`nav-${idx}`} 
+                  type="button" 
+                  onClick={(e) => { e.preventDefault(); onOpenMenu(); }} 
                   className="flex flex-col items-center justify-center gap-1 min-w-[50px] transition-all active:scale-95 group outline-none"
                 >
                   <Icon className="h-5 w-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
@@ -84,9 +78,9 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
 
             // CAS 3 : LIENS STANDARDS
             return (
-              <Link
-                key={`nav-${idx}`}
-                href={item.href}
+              <Link 
+                key={`nav-${idx}`} 
+                href={item.href} 
                 className="flex flex-col items-center justify-center gap-1 min-w-[50px] transition-all active:scale-95 relative"
               >
                 <Icon className={`h-5 w-5 transition-colors ${isActive ? "text-blue-500" : "text-slate-500"}`} />

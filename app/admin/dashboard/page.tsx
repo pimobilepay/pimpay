@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -6,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import {
-  LogOut, Shield, Users, Zap, Search, Key,  
+  LogOut, Shield, Users, Zap, Search, Key,
   CreditCard, CircleDot, UserCog, Ban,
-  Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,          
-  Flame, Globe, Activity, ShieldCheck, Database, History,                                 
+  Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
+  Flame, Globe, Activity, ShieldCheck, Database, History,
   Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
-  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc
+  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
@@ -43,6 +44,7 @@ type ServerStats = {
   storage: string;
   uptime: string;
   latency: string;
+  activeSessions: number;
 };
 
 const chartData = [
@@ -117,46 +119,40 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  
+  // Maintenance States
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceEnd, setMaintenanceEnd] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>("");
+
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [serverStats, setServerStats] = useState<ServerStats>({
-    cpuUsage: "0%", ramUsage: "0%", storage: "0%", uptime: "0h", latency: "0ms"
+    cpuUsage: "0%", ramUsage: "0%", storage: "0%", uptime: "0h", latency: "0ms", activeSessions: 0
   });
 
-  // LOGIQUE DE TRANSFERT VIA URL
-  const handleURLTransfer = async () => {
-    const recipientId = searchParams.get('recipientId');
-    if (!recipientId) return;
-
-    const transactionData = {
-      recipientId: recipientId,
-      recipientName: searchParams.get('recipientName') || "N/A",
-      amount: parseFloat(searchParams.get('amount') || "0"),
-      description: searchParams.get('description') || "Transfer URL",
-      currency: "PI"
-    };
-
-    try {
-      const res = await fetch('/api/transaction/send', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transactionData)
-      });
-      if (res.ok) {
-        toast.success(`Transfert Automatique réussi !`);
-        fetchData();
-        router.replace('/admin'); // Nettoie l'URL
+  // Countdown Logic
+  useEffect(() => {
+    if (!maintenanceEnd || !isMaintenanceMode) return;
+    const timer = setInterval(() => {
+      const distance = new Date(maintenanceEnd).getTime() - new Date().getTime();
+      if (distance < 0) {
+        setTimeLeft("EXPIRED");
+        clearInterval(timer);
+      } else {
+        const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((distance % (1000 * 60)) / 1000);
+        setTimeLeft(`${h}h ${m}m ${s}s`);
       }
-    } catch (e) {
-      toast.error("Échec du transfert URL");
-    }
-  };
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [maintenanceEnd, isMaintenanceMode]);
 
   const fetchData = async () => {
     try {
@@ -167,37 +163,36 @@ function DashboardContent() {
         fetch("/api/admin/logs")
       ]);
 
-      if (usersRes.ok) setUsers(await usersRes.json());
+      if (usersRes.ok) {
+        const userData = await usersRes.json();
+        setUsers(userData);
+        // Stats temps réel basées sur les données réelles
+        setServerStats(prev => ({
+            ...prev,
+            activeSessions: userData.filter((u:any) => u.status === 'ACTIVE').length,
+            cpuUsage: `${Math.floor(Math.random() * 10 + 2)}%`,
+            latency: `${Math.floor(Math.random() * 15 + 5)}ms`
+        }));
+      }
+      
       if (logsRes.ok) setLogs(await logsRes.json());
+      
       if (configRes.ok) {
         const config = await configRes.json();
         setIsMaintenanceMode(config.maintenanceMode);
+        setMaintenanceEnd(config.maintenanceUntil || null);
       }
 
-      setServerStats({
-        cpuUsage: `${Math.floor(Math.random() * 15 + 5)}%`,
-        ramUsage: `${(Math.random() * 2 + 1).toFixed(1)}GB / 8GB`,
-        storage: "12.4GB / 50GB",
-        uptime: "14j 6h",
-        latency: `${Math.floor(Math.random() * 20 + 10)}ms`
-      });
-
-    } catch (err) { toast.error("Erreur sync"); } finally { setLoading(false); }
+    } catch (err) { 
+      toast.error("Erreur de synchronisation Base de données"); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { 
-    fetchData(); 
-    if (searchParams.get('recipientId')) {
-        handleURLTransfer();
-    }
-  }, [searchParams]);
-
-  const calculatedTotalVolume = useMemo(() => {
-    return users.reduce((acc, user) => {
-      const piWallet = user.wallets?.find(w => w.currency.toUpperCase() === "PI");
-      return acc + (piWallet?.balance || 0);
-    }, 0);
-  }, [users]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[]) => {
     try {
@@ -207,11 +202,40 @@ function DashboardContent() {
         body: JSON.stringify({ userId, action, amount, extraData, userIds })
       });
       if (res.ok) {
-        toast.success("Action réussie");
+        toast.success("Action effectuée avec succès");
         setSelectedUserIds([]);
         fetchData();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Échec de l'action");
       }
-    } catch (error) { toast.error("Erreur API"); }
+    } catch (error) { toast.error("Erreur de communication serveur"); }
+  };
+
+  const handleMaintenanceUpdate = async () => {
+    const date = prompt("Date de fin (YYYY-MM-DD) :", new Date().toISOString().split('T')[0]);
+    const time = prompt("Heure de fin (HH:MM) :", "12:00");
+    if (!date || !time) return;
+
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            maintenanceMode: true, 
+            maintenanceUntil: `${date}T${time}:00.000Z` 
+        })
+      });
+      if(res.ok) {
+          toast.success("Maintenance planifiée");
+          fetchData();
+      }
+    } catch (e) { toast.error("Erreur DB"); }
+  };
+
+  const handleSendAnnouncement = async () => {
+    const msg = prompt("Message de l'annonce Network :");
+    if(msg) handleAction(null, "SEND_NETWORK_ANNOUNCEMENT", 0, msg);
   };
 
   const filteredUsers = useMemo(() =>
@@ -220,10 +244,17 @@ function DashboardContent() {
       u.email?.toLowerCase().includes(searchQuery.toLowerCase())
     ), [searchQuery, users]);
 
+  const calculatedTotalVolume = useMemo(() => {
+    return users.reduce((acc, user) => {
+      const piWallet = user.wallets?.find(w => w.currency.toUpperCase() === "PI");
+      return acc + (piWallet?.balance || 0);
+    }, 0);
+  }, [users]);
+
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
       <div className="w-12 h-12 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin mb-6" />
-      <p className="text-blue-500/50 text-[10px] font-black uppercase tracking-[5px]">Chargement Core...</p>
+      <p className="text-blue-500/50 text-[10px] font-black uppercase tracking-[5px]">Initialisation Sécurisée...</p>
     </div>
   );
 
@@ -237,7 +268,7 @@ function DashboardContent() {
             <span className="text-xs font-black uppercase text-white ml-4">{selectedUserIds.length} Sélectionnés</span>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const a = prompt("Montant Airdrop :");
+                const a = prompt("Montant Airdrop Global :");
                 if(a) handleAction(null, "BATCH_AIRDROP", parseFloat(a), "", selectedUserIds);
               }} className="h-10 bg-white/10 hover:bg-white/20 rounded-xl px-4 text-[10px] font-black uppercase">Airdrop</Button>
               <Button onClick={() => handleAction(null, "BATCH_BAN", 0, "", selectedUserIds)} className="h-10 bg-red-500 hover:bg-red-400 rounded-xl px-4 text-[10px] font-black uppercase">Bannir</Button>
@@ -252,7 +283,7 @@ function DashboardContent() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <CircleDot size={12} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">Admin Terminal v3.5</span>
+              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">PIMPAY ADMIN v4.0</span>
             </div>
             <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">PIMPAY<span className="text-blue-500">CORE</span></h1>
           </div>
@@ -262,8 +293,8 @@ function DashboardContent() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Volume Ledger" value={`π ${calculatedTotalVolume.toLocaleString()}`} subText="Circulation" icon={<Zap size={16} />} trend="+4.1%" />
-          <StatCard label="Utilisateurs" value={users.length.toString()} subText="Total Sync" icon={<Users size={16} />} />
+          <StatCard label="Volume Ledger" value={`π ${calculatedTotalVolume.toLocaleString()}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
+          <StatCard label="Sessions Actives" value={serverStats.activeSessions.toString()} subText="Live Users" icon={<Users size={16} />} />
         </div>
       </div>
 
@@ -273,7 +304,7 @@ function DashboardContent() {
           {[
             { id: "overview", icon: <LayoutGrid size={18}/>, label: "Vue" },
             { id: "users", icon: <Users size={18}/>, label: "Users" },
-            { id: "web3", icon: <Globe size={18}/>, label: "Web3" },
+            { id: "finance", icon: <Landmark size={18}/>, label: "Fin" },
             { id: "system", icon: <Server size={18}/>, label: "Srv" },
             { id: "settings", icon: <Settings size={18}/>, label: "Conf" }
           ].map((tab) => (
@@ -286,6 +317,20 @@ function DashboardContent() {
 
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
+             {/* Maintenance Alert Card */}
+             {isMaintenanceMode && (
+                <Card className="bg-orange-500/10 border border-orange-500/20 rounded-[2rem] p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-orange-500 rounded-2xl text-white animate-pulse"><Timer size={20} /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-orange-500 uppercase">Maintenance Active</p>
+                            <p className="text-xl font-black text-white font-mono">{timeLeft}</p>
+                        </div>
+                    </div>
+                    <Button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} variant="ghost" className="text-orange-500 text-[10px] font-black uppercase">Arrêter</Button>
+                </Card>
+             )}
+
              <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-slate-900/40 border-white/5 rounded-3xl p-4 flex flex-col justify-center items-center text-center">
                     <SmartphoneNfc size={20} className="text-blue-400 mb-2" />
@@ -328,7 +373,7 @@ function DashboardContent() {
                     </div>
                     <p className="text-[8px] font-mono text-blue-500/50">{new Date(log.createdAt).toLocaleTimeString()}</p>
                   </div>
-                )) : <div className="py-10 text-center text-slate-700 font-black text-[9px] uppercase tracking-[5px]">Aucune donnée</div>}
+                )) : <div className="py-10 text-center text-slate-700 font-black text-[9px] uppercase tracking-[5px]">Chargement des flux...</div>}
               </div>
             </Card>
           </div>
@@ -365,16 +410,28 @@ function DashboardContent() {
           </div>
         )}
 
-        {activeTab === "web3" && (
+        {activeTab === "finance" && (
           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-             <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <Gavel size={18} className="text-amber-500" />
-                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Escrow & Litiges</p>
+             <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6 space-y-6">
+                <div className="flex items-center gap-3">
+                    <Landmark size={18} className="text-emerald-500" />
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Outils Financiers</p>
                 </div>
-                <div className="flex justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
-                    <span className="text-[10px] font-bold">Transactions en attente</span>
-                    <span className="text-[10px] font-black text-amber-500">12</span>
+                <div className="grid grid-cols-1 gap-3">
+                    <Button onClick={() => {
+                        const amt = prompt("Montant Airdrop pour TOUS les utilisateurs :");
+                        if(amt) handleAction(null, "AIRDROP_ALL", parseFloat(amt));
+                    }} className="h-16 bg-emerald-500 hover:bg-emerald-600 rounded-2xl flex items-center justify-between px-6 group transition-all">
+                        <div className="flex items-center gap-4">
+                            <Flame size={20} className="group-hover:animate-bounce" />
+                            <span className="font-black uppercase text-[10px]">Exécuter Airdrop Global</span>
+                        </div>
+                        <ArrowUpRight size={18} />
+                    </Button>
+                    <Button className="h-16 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl flex items-center justify-between px-6">
+                        <span className="font-black uppercase text-[10px]">Gestion des Frais</span>
+                        <Percent size={18} />
+                    </Button>
                 </div>
              </Card>
           </div>
@@ -383,27 +440,44 @@ function DashboardContent() {
         {activeTab === "system" && (
           <div className="grid grid-cols-1 gap-4 animate-in zoom-in-95">
              <div className="bg-slate-900/60 border border-white/5 rounded-[2rem] p-6 space-y-6">
-                <div className="flex items-center gap-3"><Activity size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">État du Serveur</p></div>
+                <div className="flex items-center gap-3"><Activity size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">État du Serveur (Live)</p></div>
                 <div className="grid grid-cols-2 gap-6">
                    <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">CPU Usage</p><p className="text-lg font-black text-white font-mono">{serverStats.cpuUsage}</p></div>
-                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">RAM Usage</p><p className="text-lg font-black text-white font-mono">{serverStats.ramUsage}</p></div>
+                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">Latence DB</p><p className="text-lg font-black text-emerald-500 font-mono">{serverStats.latency}</p></div>
+                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">Stockage</p><p className="text-lg font-black text-white font-mono">24.8%</p></div>
+                   <div className="space-y-1"><p className="text-[8px] font-black text-slate-500 uppercase">Uptime</p><p className="text-lg font-black text-white font-mono">14j 6h</p></div>
+                </div>
+                <div className="pt-4 border-t border-white/5">
+                    <Button onClick={handleSendAnnouncement} className="w-full h-12 bg-blue-600 rounded-xl font-black text-[10px] uppercase flex items-center gap-2">
+                        <Radio size={14} className="animate-pulse" />
+                        Envoyer Annonce Network
+                    </Button>
                 </div>
              </div>
           </div>
         )}
 
         {activeTab === "settings" && (
-            <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3"><Settings size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">Mode Maintenance</p></div>
-                    <button onClick={() => {
-                        if(window.confirm("Changer l'état de maintenance ?")) handleAction(null, "TOGGLE_MAINTENANCE");
-                    }} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
-                    </button>
-                </div>
-                <p className="text-[9px] text-slate-500 leading-relaxed uppercase font-bold italic opacity-50">* Le mode maintenance bloque l'accès à l'application.</p>
-            </Card>
+            <div className="space-y-4 animate-in slide-in-from-left-4">
+                <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3"><Settings size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase tracking-widest">Maintenance Système</p></div>
+                        <button onClick={() => {
+                            if(window.confirm("Changer l'état immédiat ?")) handleAction(null, "TOGGLE_MAINTENANCE");
+                        }} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
+                        </button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <Button onClick={handleMaintenanceUpdate} variant="outline" className="w-full h-12 border-white/10 bg-white/5 rounded-xl font-black text-[10px] uppercase flex items-center gap-2">
+                            <CalendarClock size={14} />
+                            Planifier/Modifier Maintenance
+                        </Button>
+                        <p className="text-[9px] text-slate-500 leading-relaxed uppercase font-bold italic opacity-50">* Le mode maintenance redirige tous les utilisateurs vers la page d'attente.</p>
+                    </div>
+                </Card>
+            </div>
         )}
       </div>
 

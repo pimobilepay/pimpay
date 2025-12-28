@@ -51,15 +51,13 @@ export default function LoginPage() {
 
       if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
-        
-        // --- MODIFICATION : REDIRECTION VERS DASHBOARD AU LIEU DE "/" ---
-        const targetPath = data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+        const targetPath = data.user.role === "ADMIN" ? "/admin/dashboard" : "/";
 
         // --- SEQUENCE DES MESSAGES DYNAMIQUES (PHASE 1 : 7.5s) ---
-
+        
         // Après 2.5s -> Sécurisation
         setTimeout(() => setDynamicMessage("Sécurisation"), 2500);
-
+        
         // Après 5s -> Synchronisation
         setTimeout(() => setDynamicMessage("Synchronisation"), 5000);
 
@@ -94,10 +92,10 @@ export default function LoginPage() {
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020617]">
           <div className="relative">
             <div className={`absolute inset-0 rounded-full bg-blue-500/20 animate-ping scale-150 transition-colors duration-1000 ${transitionStep === "success" ? "bg-green-500/20" : ""}`} />
-
+            
             <div className={`relative flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 shadow-2xl ${
-              transitionStep === "success"
-              ? "from-green-500 to-emerald-700 shadow-green-500/50"
+              transitionStep === "success" 
+              ? "from-green-500 to-emerald-700 shadow-green-500/50" 
               : "from-blue-500 to-blue-700 shadow-blue-500/50"
             }`}>
               {transitionStep === "success" ? (
@@ -112,8 +110,8 @@ export default function LoginPage() {
             <h2 className="text-white text-xl font-bold tracking-tighter uppercase">
               PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
             </h2>
-
-            <div className="flex items-center gap-2 mt-2 text-slate-400 h-10">
+            
+            <div className="flex items-center gap-2 mt-2 text-slate-400 h-10"> {/* h-10 pour éviter le saut de texte */}
               {transitionStep === "init" ? (
                 <div className="flex items-center gap-2 animate-in fade-in duration-500">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -169,7 +167,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nom@exemple.com"
-                className="h-14 pl-12 bg-slate-950/50 border-white/10 text-white rounded-2xl focus:ring-2 focus:ring-blue-500/50 outline-none"
+                className="h-14 pl-12 bg-slate-950/50 border-white/10 text-white rounded-2xl focus:ring-2 focus:ring-blue-500/50"
               />
             </div>
           </div>
@@ -187,7 +185,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="h-14 pl-12 pr-12 bg-slate-950/50 border-white/10 text-white rounded-2xl focus:ring-2 focus:ring-blue-500/50 outline-none"
+                className="h-14 pl-12 pr-12 bg-slate-950/50 border-white/10 text-white rounded-2xl focus:ring-2 focus:ring-blue-500/50"
               />
               <button
                 type="button"
