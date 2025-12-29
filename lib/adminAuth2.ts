@@ -1,38 +1,54 @@
 import { NextRequest } from "next/server";
-import jwt from "jsonwebtoken";
+import * as jose from "jose";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
- * verifyAuth - Vérifie simplement si le token est valide (pour USER et ADMIN)
+ * Interface pour sécuriser le typage du Token
  */
-export function verifyAuth(req: NextRequest) {
+interface TokenPayload {
+  id: string;
+  role: string;
+  email?: string;
+  name?: string;
+}
+
+/**
+ * verifyAuth - Vérifie si le token est valide (Version compatible Edge/Node)
+ */
+export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null> {
   try {
-    // 1. Récupération du token (Header ou Cookie)
-    let token = req.headers.get("authorization")?.split(" ")[1];
+    // 1. Récupération du token (Cookie en priorité pour Next.js, puis Header)
+    let token = req.cookies.get("token")?.value;
+
     if (!token) {
-      token = req.cookies.get("token")?.value;
+      token = req.headers.get("authorization")?.split(" ")[1];
     }
 
-    if (!token) return null;
+    if (!token || !JWT_SECRET) {
+      return null;
+    }
 
-    // 2. Vérification du JWT
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    return payload;
+    // 2. Vérification du JWT avec 'jose' (plus robuste sur Next.js 14/15)
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jose.jwtVerify(token, secret);
+    
+    return payload as unknown as TokenPayload;
 
   } catch (err) {
+    // Évite de loguer les erreurs d'expiration normales pour ne pas polluer les logs
     return null;
   }
 }
 
 /**
- * adminAuth - Vérifie si l'utilisateur est spécifiquement un ADMIN
+ * adminAuth - Vérifie spécifiquement le rôle ADMIN
+ * Note : Puisque verifyAuth est async, adminAuth doit l'être aussi
  */
-export function adminAuth(req: NextRequest) {
-  const payload = verifyAuth(req);
+export async function adminAuth(req: NextRequest): Promise<TokenPayload | null> {
+  const payload = await verifyAuth(req);
 
   if (!payload || payload.role !== "ADMIN") {
-    console.error("Auth Error: Access Denied. Role:", payload?.role);
     return null;
   }
 

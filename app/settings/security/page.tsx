@@ -109,7 +109,7 @@ export default function SecurityPage() {
                 icon={<Lock size={20} />}
                 label="Mot de passe"
                 description="Modifier votre clé d'accès principale"
-                path="settings/security/change-password"
+                path="/settings/security/change-password"
               />
               <div className="h-[1px] w-full bg-white/5 mx-6" />
               <SecurityAction

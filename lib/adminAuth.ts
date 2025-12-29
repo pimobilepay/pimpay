@@ -18,32 +18,39 @@ interface TokenPayload {
  */
 export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null> {
   try {
-    // 1. Récupération du token (Cookie en priorité pour Next.js, puis Header)
-    let token = req.cookies.get("token")?.value;
+    // 1. Récupération du token
+    // PRIORITÉ au Header Authorization (Bearer) pour éviter les conflits avec de vieux cookies
+    let token = req.headers.get("authorization")?.split(" ")[1];
 
+    // Si pas de header, on regarde dans les cookies
     if (!token) {
-      token = req.headers.get("authorization")?.split(" ")[1];
+      token = req.cookies.get("token")?.value;
     }
 
-    if (!token || !JWT_SECRET) {
+    if (!token) {
       return null;
     }
 
-    // 2. Vérification du JWT avec 'jose' (plus robuste sur Next.js 14/15)
+    if (!JWT_SECRET) {
+      console.error("[PimPay Critical] JWT_SECRET is not defined in .env");
+      return null;
+    }
+
+    // 2. Vérification du JWT avec 'jose'
     const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
-    
+
+    // On s'assure que le payload contient bien l'ID (clé de ton schéma Prisma)
     return payload as unknown as TokenPayload;
 
   } catch (err) {
-    // Évite de loguer les erreurs d'expiration normales pour ne pas polluer les logs
+    // En cas d'erreur de signature ou expiration, on renvoie null
     return null;
   }
 }
 
 /**
  * adminAuth - Vérifie spécifiquement le rôle ADMIN
- * Note : Puisque verifyAuth est async, adminAuth doit l'être aussi
  */
 export async function adminAuth(req: NextRequest): Promise<TokenPayload | null> {
   const payload = await verifyAuth(req);

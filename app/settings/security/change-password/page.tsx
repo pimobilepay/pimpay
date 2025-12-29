@@ -21,6 +21,15 @@ export default function ChangePasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 1. Récupération robuste du token
+    const token = localStorage.getItem("token") || localStorage.getItem("pimpay_token");
+    
+    if (!token) {
+      toast.error("Session introuvable, veuillez vous reconnecter");
+      router.push("/auth/login");
+      return;
+    }
+
     const cleanOld = oldPassword.trim();
     const cleanNew = newPassword.trim();
     const cleanConfirm = confirmPassword.trim();
@@ -43,16 +52,13 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      // On tente de récupérer le token sur les deux clés possibles dans ton projet
-      const token = localStorage.getItem("token") || localStorage.getItem("pimpay_token");
-
       const res = await fetch("/api/auth/change-password", {
-        method: "POST", // Utilisation de POST comme défini dans ton API fonctionnelle
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : "",
+          // CORRECTION: On s'assure que Bearer est bien écrit avec l'espace
+          "Authorization": `Bearer ${token}`,
         },
-        credentials: "include", // Indispensable pour les cookies de session
         body: JSON.stringify({
           oldPassword: cleanOld,
           newPassword: cleanNew
@@ -67,20 +73,22 @@ export default function ChangePasswordPage() {
           router.push("/auth/login");
           return;
         }
-        throw new Error(data.error || "Échec de la mise à jour");
+        // Affiche l'erreur (ex: mauvais ancien MDP) sans déconnecter
+        toast.error(data.error || "Échec de la mise à jour");
+        return;
       }
 
       toast.success("Mot de passe mis à jour !");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      
+
       setTimeout(() => {
-        router.push("/");
+        router.push("/settings/security");
       }, 1500);
 
     } catch (err: any) {
-      toast.error(err.message || "Erreur de connexion au serveur");
+      toast.error("Erreur de connexion au serveur PimPay");
     } finally {
       setLoading(false);
     }

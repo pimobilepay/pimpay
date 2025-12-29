@@ -1,19 +1,60 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ArrowLeft, Delete, Lock, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";                   
+import { toast } from "sonner";
+
 export default function ChangePinPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [pins, setPins] = useState({ 1: "", 2: "", 3: "" });                                          const [shake, setShake] = useState(false);
-  const [loading, setLoading] = useState(false);                                                      // Fonction de validation (extraite pour éviter les re-renders inutiles)
+  const [pins, setPins] = useState({ 1: "", 2: "", 3: "" });
+  const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Utilisation d'une ref pour éviter les appels API en double pendant le chargement
+  const isProcessing = useRef(false);
+
+  const handleUpdatePin = useCallback(async (finalPin: string) => {
+    if (isProcessing.current) return;
+    isProcessing.current = true;
+    setLoading(true);
+    
+    try {
+      const res = await fetch("/api/security/update-pin", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({ newPin: finalPin }),
+      });
+
+      if (res.ok) {
+        toast.success("Code PIN mis à jour !");
+        router.push("/security");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Échec de la mise à jour");
+        setPins({ 1: "", 2: "", 3: "" });
+        setStep(1);
+      }
+    } catch (err) {
+      toast.error("Erreur serveur");
+    } finally {
+      setLoading(false);
+      isProcessing.current = false;
+    }
+  }, [router]);
+
   const validateStep = useCallback(async () => {
     const currentPin = pins[step as 1 | 2 | 3];
-    if (currentPin.length !== 4 || loading) return;
+    
+    // Sécurité : Ne rien faire si déjà en cours ou si le PIN n'est pas complet
+    if (currentPin.length !== 4 || loading || isProcessing.current) return;
 
     if (step === 1) {
+      isProcessing.current = true;
       setLoading(true);
       try {
         const res = await fetch("/api/security/verify-pin", {
@@ -25,13 +66,13 @@ export default function ChangePinPage() {
           body: JSON.stringify({ pin: currentPin }),
         });
 
-        const data = await res.json();
-
         if (res.status === 401) {
           toast.error("Session expirée, reconnexion...");
           router.push("/auth/login");
           return;
         }
+
+        const data = await res.json();
 
         if (res.ok) {
           setStep(2);
@@ -45,6 +86,7 @@ export default function ChangePinPage() {
         toast.error("Erreur de connexion");
       } finally {
         setLoading(false);
+        isProcessing.current = false;
       }
     } else if (step === 2) {
       setStep(3);
@@ -56,10 +98,12 @@ export default function ChangePinPage() {
         setPins(p => ({ ...p, 3: "" }));
         return;
       }
-      handleUpdatePin();
+      // On passe le PIN directement pour éviter d'attendre le prochain cycle d'état
+      handleUpdatePin(pins[3]);
     }
-  }, [pins, step, loading, router]);
+  }, [pins, step, loading, router, handleUpdatePin]);
 
+  // Surveillance du remplissage du PIN
   useEffect(() => {
     const currentPin = pins[step as 1 | 2 | 3];
     if (currentPin.length === 4) {
@@ -68,7 +112,7 @@ export default function ChangePinPage() {
   }, [pins, step, validateStep]);
 
   const handleNumberPress = (num: number) => {
-    if (loading || shake) return;
+    if (loading || shake || isProcessing.current) return;
     setPins((prev) => {
       const current = prev[step as 1 | 2 | 3];
       if (current.length < 4) {
@@ -79,37 +123,11 @@ export default function ChangePinPage() {
   };
 
   const deleteDigit = () => {
-    if (loading) return;
+    if (loading || isProcessing.current) return;
     setPins((prev) => ({
       ...prev,
       [step]: prev[step as 1 | 2 | 3].slice(0, -1),
     }));
-  };
-
-  const handleUpdatePin = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/security/update-pin", {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({ newPin: pins[2] }),
-      });
-
-      if (res.ok) {
-        toast.success("Code PIN mis à jour !");
-        router.push("/security");
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Échec de la mise à jour");
-      }
-    } catch (err) {
-      toast.error("Erreur serveur");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const titles = ["", "Code PIN Actuel", "Nouveau Code PIN", "Confirmer le PIN"];
@@ -158,7 +176,7 @@ export default function ChangePinPage() {
         {loading && (
           <div className="mt-8 text-center flex flex-col items-center">
             <Loader2 className="animate-spin text-blue-500 mb-2" size={24} />
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest">Vérification...</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest">Traitement en cours...</p>
           </div>
         )}
       </div>
