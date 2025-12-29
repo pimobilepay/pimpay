@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut, Bell } from 'lucide-react';
+import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Utilise "export const" pour que { Sidebar } fonctionne
@@ -31,23 +31,6 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <h2 className="text-xl font-black italic text-blue-500">PIMPAY</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-400">
             <X size={24} />
-          </button>
-        </div>
-
-        {/* SECTION NOTIFICATIONS AJOUTÉE */}
-        <div className="mb-6">
-          <button
-            onClick={() => {
-              router.push('/settings/notifications');
-              onClose();
-            }}
-            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-white/5 text-slate-400 hover:text-blue-400 transition-all border border-white/5"
-          >
-            <div className="flex items-center gap-4">
-              <Bell size={20} />
-              <span className="font-bold uppercase text-xs tracking-widest">Notifications</span>
-            </div>
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
           </button>
         </div>
 

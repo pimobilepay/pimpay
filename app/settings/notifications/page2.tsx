@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, Check, Trash2, ArrowLeft, RefreshCcw,
@@ -10,8 +10,9 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-// Types alignés sur l'API robuste
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM";                                  
+// Types mis à jour selon la nouvelle API robuste
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM";
+
 type Notification = {
   id: string;
   title: string;
@@ -24,52 +25,37 @@ type Notification = {
 export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0); // Piloté par l'API
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const isMounted = useRef(true);
-
+  
   // Gestion des onglets de filtrage
   const [activeTab, setActiveTab] = useState<"ALL" | NotificationType>("ALL");
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const fetchNotifications = useCallback(async (showSilent = false) => {
     if (!showSilent) setIsRefreshing(true);
     try {
       const res = await fetch("/api/notifications");
+      if (res.status === 401) return;
       
-      if (res.status === 401) {
-        router.push("/auth/login");
-        return;
-      }
-
       const data = await res.json();
-      
-      if (res.ok && isMounted.current) {
-        // CORRECTION: On extrait les données de l'objet { notifications, unreadCount }
-        const freshNotifs = data.notifications || [];
-        setNotifications(freshNotifs);
-        setUnreadCount(data.unreadCount ?? freshNotifs.filter((n: Notification) => !n.read).length);
+      if (res.ok) {
+        // L'API renvoie maintenant { notifications: [], unreadCount: 0 }
+        setNotifications(data.notifications || data); 
       }
     } catch (err) {
       console.error("Erreur polling:", err);
     } finally {
-      if (isMounted.current) {
-        setIsRefreshing(false);
-        setLoading(false);
-      }
+      setIsRefreshing(false);
+      setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
-    isMounted.current = true;
     fetchNotifications();
-    
     const interval = setInterval(() => fetchNotifications(true), 15000);
-    
-    return () => {
-      isMounted.current = false;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [fetchNotifications]);
 
   const markAllAsRead = async () => {
@@ -81,7 +67,6 @@ export default function NotificationsPage() {
       });
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-        setUnreadCount(0);
         toast.success("Toutes les alertes ont été lues");
       }
     } catch (e) {
@@ -94,14 +79,13 @@ export default function NotificationsPage() {
       const res = await fetch(`/api/notifications?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         setNotifications(prev => prev.filter(n => n.id !== id));
-        // Recalcul simple du compteur après suppression
-        setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (e) {
       toast.error("Impossible de supprimer");
     }
   };
 
+  // Icônes spécifiques par type de notification
   const getIcon = (type: NotificationType) => {
     switch (type) {
       case "SECURITY": return <ShieldCheck className="text-rose-500" size={18} />;
@@ -113,8 +97,9 @@ export default function NotificationsPage() {
     }
   };
 
-  const filteredNotifications = activeTab === "ALL"
-    ? notifications
+  // Filtrage des notifications selon l'onglet
+  const filteredNotifications = activeTab === "ALL" 
+    ? notifications 
     : notifications.filter(n => n.type === activeTab);
 
   const tabs = [
@@ -142,14 +127,15 @@ export default function NotificationsPage() {
           </button>
         </div>
 
+        {/* SYSTÈME D'ONGLETS (TABS) */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-4">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-                activeTab === tab.id
-                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+                activeTab === tab.id 
+                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20" 
                 : "bg-white/5 border-white/5 text-slate-500"
               }`}
             >

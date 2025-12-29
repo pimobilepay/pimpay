@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, ArrowDownLeft, RefreshCcw,
-  Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
+  ShieldCheck, Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
   Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,
   LogOut, LayoutGrid, Receipt, Smartphone, Share2
 } from "lucide-react";
 import { PI_CONSENSUS_USD } from "@/lib/exchange";
 import { BottomNav } from "@/components/bottom-nav";
-import { Sidebar } from "@/components/sidebar"; // Import de la Sidebar
 import { toast } from "sonner";
 
 const RATES = {
@@ -28,9 +27,6 @@ export default function UserDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
-  
-  // ÉTAT POUR LE MENU LATÉRAL
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [currency, setCurrency] = useState<CurrencyKey>("USD");
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
@@ -70,6 +66,7 @@ export default function UserDashboard() {
     );
   }
 
+  const user = data?.user || {};
   const balance = data?.balance || 0;
   const userName = data?.name || "Pioneer";
   const transactions = data?.transactions || [];
@@ -84,10 +81,7 @@ export default function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
-      
-      {/* COMPOSANT SIDEBAR AJOUTÉ */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-
+      {/* HEADER AVEC TITRE ET SOUS-TITRE UNIQUEMENT */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white">
@@ -102,11 +96,7 @@ export default function UserDashboard() {
             <button onClick={handleLogout} className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:text-rose-500 transition-colors">
               <LogOut size={20} />
             </button>
-            {/* BOUTON NOTIFICATION CORRIGÉ */}
-            <button 
-              onClick={() => router.push("/settings/notifications")} 
-              className="p-3 rounded-2xl bg-white/5 text-slate-400 relative"
-            >
+            <button className="p-3 rounded-2xl bg-white/5 text-slate-400 relative">
               <Bell size={20} />
               <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
             </button>
@@ -244,8 +234,7 @@ export default function UserDashboard() {
         </section>
       </main>
 
-      {/* OUVERTURE DU MENU VIA BOTTOM NAV CORRIGÉE */}
-      <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
+      <BottomNav onOpenMenu={() => {}} />
     </div>
   );
 }

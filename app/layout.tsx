@@ -20,7 +20,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      // Sécurité anti-traduction pour éviter les erreurs Node.removeChild
+      // Bloque la traduction automatique qui cause l'erreur removeChild
       translate="no"
       className={`${GeistSans.variable} ${GeistMono.variable} dark notranslate`}
     >
@@ -28,31 +28,25 @@ export default function RootLayout({
         <meta name="google" content="notranslate" />
       </head>
       <body className="bg-[#02040a] text-white antialiased overflow-x-hidden notranslate selection:bg-blue-500/30">
-        {/* Chargement du SDK Pi */}
+        {/* SDK Pi chargé pour TOUTES les pages */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
 
-        {/* CORRECTION : Le contenu dynamique est enveloppé dans ClientLayout 
-          ou rendu de manière à ce que le SSR et le Client soient synchronisés.
-        */}
+        {/* Éléments globaux de sécurité */}
         <div id="portal-root">
           <GlobalAlert />
         </div>
 
         <GlobalAnnouncement />
 
-        {/* STRUCTURE : On s'assure que le contenu principal est bien géré 
-          Le z-index et la position relative sont maintenus.
-        */}
-        <div className="relative z-0">
-          <ClientLayout>
-            <main className="min-h-[100dvh]">
-              {children}
-            </main>
-          </ClientLayout>
-        </div>
+        {/* ClientLayout contient tes Providers (Auth, Context, etc.) */}
+        <ClientLayout>
+          <main className="min-h-[100dvh] relative z-0">
+            {children}
+          </main>
+        </ClientLayout>
 
         <Toaster
           position="top-center"
