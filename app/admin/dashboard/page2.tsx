@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import {
-  LogOut, Shield, Users, Zap, Search, Key,
-  CreditCard, CircleDot, UserCog, Ban,
+  LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,
   Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
   Flame, Globe, Activity, ShieldCheck, Database, History,
   Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
@@ -124,7 +123,7 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  
+
   // Maintenance States
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [maintenanceEnd, setMaintenanceEnd] = useState<string | null>(null);
@@ -157,6 +156,7 @@ function DashboardContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // Correction des endpoints pour correspondre à ta structure
       const [usersRes, configRes, logsRes] = await Promise.all([
         fetch("/api/admin/users"),
         fetch("/api/admin/config"),
@@ -166,7 +166,6 @@ function DashboardContent() {
       if (usersRes.ok) {
         const userData = await usersRes.json();
         setUsers(userData);
-        // Stats temps réel basées sur les données réelles
         setServerStats(prev => ({
             ...prev,
             activeSessions: userData.filter((u:any) => u.status === 'ACTIVE').length,
@@ -174,19 +173,19 @@ function DashboardContent() {
             latency: `${Math.floor(Math.random() * 15 + 5)}ms`
         }));
       }
-      
+
       if (logsRes.ok) setLogs(await logsRes.json());
-      
+
       if (configRes.ok) {
         const config = await configRes.json();
         setIsMaintenanceMode(config.maintenanceMode);
         setMaintenanceEnd(config.maintenanceUntil || null);
       }
 
-    } catch (err) { 
-      toast.error("Erreur de synchronisation Base de données"); 
-    } finally { 
-      setLoading(false); 
+    } catch (err) {
+      toast.error("Erreur de synchronisation Base de données");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -194,22 +193,27 @@ function DashboardContent() {
     fetchData();
   }, []);
 
+  // FONCTION UNIFIÉE POUR TOUTES LES ACTIONS (CORRIGÉE POUR TON API)
   const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[]) => {
     try {
-      const res = await fetch(`/api/admin/users/action`, {
+      const res = await fetch(`/api/admin`, { // On pointe vers la route centrale que nous avons créée
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, action, amount, extraData, userIds })
       });
+
+      const data = await res.json();
+
       if (res.ok) {
-        toast.success("Action effectuée avec succès");
+        toast.success(data.message || "Action effectuée");
         setSelectedUserIds([]);
-        fetchData();
+        fetchData(); // Rafraîchir les données
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Échec de l'action");
+        toast.error(data.error || "Échec de l'action");
       }
-    } catch (error) { toast.error("Erreur de communication serveur"); }
+    } catch (error) {
+        toast.error("Erreur de communication serveur");
+    }
   };
 
   const handleMaintenanceUpdate = async () => {
@@ -217,20 +221,7 @@ function DashboardContent() {
     const time = prompt("Heure de fin (HH:MM) :", "12:00");
     if (!date || !time) return;
 
-    try {
-      const res = await fetch('/api/admin/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            maintenanceMode: true, 
-            maintenanceUntil: `${date}T${time}:00.000Z` 
-        })
-      });
-      if(res.ok) {
-          toast.success("Maintenance planifiée");
-          fetchData();
-      }
-    } catch (e) { toast.error("Erreur DB"); }
+    handleAction(null, "PLAN_MAINTENANCE", 0, `${date}T${time}:00.000Z`);
   };
 
   const handleSendAnnouncement = async () => {
@@ -317,7 +308,6 @@ function DashboardContent() {
 
         {activeTab === "overview" && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             {/* Maintenance Alert Card */}
              {isMaintenanceMode && (
                 <Card className="bg-orange-500/10 border border-orange-500/20 rounded-[2rem] p-5 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -468,7 +458,7 @@ function DashboardContent() {
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
                         </button>
                     </div>
-                    
+
                     <div className="space-y-3">
                         <Button onClick={handleMaintenanceUpdate} variant="outline" className="w-full h-12 border-white/10 bg-white/5 rounded-xl font-black text-[10px] uppercase flex items-center gap-2">
                             <CalendarClock size={14} />

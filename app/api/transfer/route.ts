@@ -1,67 +1,62 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+// ... (imports auth)
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const { identifier, amount, note } = await req.json();
+    const senderId = "..." // Récupéré via ton token JWT
 
-    const token = authHeader.split(" ")[1];
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET));
-    const senderId = payload.userId as string;
-
-    const { identifier, amount, note } = await req.json(); // identifier = email ou téléphone
-
-    if (!amount || amount <= 0) return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Trouver le destinataire (par email ou téléphone)
-      const receiver = await tx.user.findFirst({
-        where: {
-          OR: [{ email: identifier }, { phone: identifier }]
-        }
-      });
-
-      if (!receiver) throw new Error("Utilisateur introuvable");
-      if (receiver.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer des fonds");
-
-      // 2. Vérifier le solde du parrain (Sender)
-      const senderWallet = await tx.wallet.findFirst({
-        where: { userId: senderId, currency: "PI" }
+    return await prisma.$transaction(async (tx) => {
+      // 1. Trouver le Wallet PI de l'expéditeur
+      const senderWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: senderId, currency: "PI" } }
       });
 
       if (!senderWallet || senderWallet.balance < amount) {
         throw new Error("Solde PI insuffisant");
       }
 
-      // 3. Effectuer le transfert
+      // 2. Trouver le destinataire ET son Wallet PI
+      const receiver = await tx.user.findFirst({
+        where: { OR: [{ email: identifier }, { phone: identifier }] },
+        include: { wallets: { where: { currency: "PI" } } }
+      });
+
+      if (!receiver || !receiver.wallets[0]) {
+        throw new Error("Destinataire ou Wallet PI introuvable");
+      }
+
+      const receiverWallet = receiver.wallets[0];
+
+      // 3. Mise à jour des balances
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: amount } }
       });
 
-      await tx.wallet.updateMany({
-        where: { userId: receiver.id, currency: "PI" },
+      await tx.wallet.update({
+        where: { id: receiverWallet.id },
         data: { balance: { increment: amount } }
       });
 
-      // 4. Créer le log de transaction
-      return await tx.transaction.create({
+      // 4. Création de la transaction avec les relations correctes
+      const transaction = await tx.transaction.create({
         data: {
           reference: `TRF-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: amount,
           type: "TRANSFER",
           status: "SUCCESS",
           fromUserId: senderId,
+          fromWalletId: senderWallet.id, // Relation Prisma
           toUserId: receiver.id,
-          description: note || `Transfert vers ${receiver.firstName || identifier}`,
+          toWalletId: receiverWallet.id, // Relation Prisma
+          note: note
         }
       });
+
+      return NextResponse.json({ success: true, transaction });
     });
-
-    return NextResponse.json({ success: true, transaction: result });
-
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

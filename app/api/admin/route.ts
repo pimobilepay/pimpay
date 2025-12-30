@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
     const token = cookieStore.get("token")?.value;
 
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
 
@@ -26,10 +25,70 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { userId, action, amount, extraData, userIds } = body;
+    const { userId, action, amount, extraData, userIds, transactionId } = body;
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {
+      // --- NOUVEAUTÉ : APPROBATION KYC ---
+      case "APPROVE_KYC":
+        if (!userId) return NextResponse.json({ error: "ID Utilisateur requis" }, { status: 400 });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { kycStatus: 'VERIFIED' } 
+        });
+        // Notification automatique
+        await prisma.notification.create({
+          data: {
+            userId: userId,
+            title: "KYC Validé",
+            message: "Votre identité a été vérifiée par l'administration.",
+            type: "SUCCESS"
+          }
+        });
+        break;
+
+      // --- NOUVEAUTÉ : VALIDATION DÉPÔT CRYPTO ---
+      case "VALIDATE_DEPOSIT":
+        if (!transactionId || !amount) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+        
+        // On utilise une transaction Prisma pour garantir l'intégrité
+        await prisma.$transaction(async (tx) => {
+          const depositTx = await tx.transaction.findUnique({
+            where: { id: transactionId },
+            include: { fromUser: true }
+          });
+
+          if (!depositTx || depositTx.status !== "PENDING") {
+            throw new Error("Transaction introuvable ou déjà traitée");
+          }
+
+          // Mettre à jour la transaction
+          await tx.transaction.update({
+            where: { id: transactionId },
+            data: { 
+              status: TransactionStatus.SUCCESS, 
+              amount: parseFloat(amount.toString()) 
+            }
+          });
+
+          // Créditer le portefeuille de l'utilisateur
+          await tx.wallet.updateMany({
+            where: { userId: depositTx.fromUserId, currency: "PI" },
+            data: { balance: { increment: parseFloat(amount.toString()) } }
+          });
+
+          // Notifier l'utilisateur
+          await tx.notification.create({
+            data: {
+              userId: depositTx.fromUserId,
+              title: "Dépôt Confirmé",
+              message: `Votre dépôt de ${amount} π a été crédité.`,
+              type: "SUCCESS"
+            }
+          });
+        });
+        break;
+
       // --- SYSTÈME & MAINTENANCE ---
       case "TOGGLE_MAINTENANCE":
         const currentConfig = await prisma.systemConfig.findFirst();
@@ -146,8 +205,8 @@ export async function POST(req: NextRequest) {
           adminId: requester.id,
           adminName: requester.name || requester.email || "Admin",
           action: action,
-          targetId: isBatch ? null : userId,
-          details: `Action: ${action} | Valeur: ${amount || extraData || 'N/A'} | Cibles: ${userIds?.length || 1}`,
+          targetId: isBatch ? null : (userId || transactionId),
+          details: `Action: ${action} | Valeur: ${amount || extraData || 'N/A'}`,
         },
       });
     } catch (logError) {

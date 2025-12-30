@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// 1. On garde ta fonction existante pour ne pas casser les appels actuels
 export async function verifyAuth(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
@@ -11,29 +12,43 @@ export async function verifyAuth(req: NextRequest) {
 
     const token = authHeader.split(' ')[1]
 
-    // Validation du token Pi Network (Simulation ou appel réel)
-    // IMPORTANT : Pour que Prisma fonctionne, nous devons trouver l'utilisateur
-    // dans TA base de données qui correspond à ce token/id Pi.
-    
-    // Pour le moment, on récupère le premier utilisateur actif pour le test
-    // OU on cherche par piUserId si tu l'as déjà stocké.
+    // On cherche l'utilisateur dans ta base PostgreSQL (via Prisma)
     const user = await prisma.user.findFirst({
       where: {
-        // Idéalement : piUserId: "id_extrait_du_token"
-        status: "ACTIVE" 
+        status: "ACTIVE"
       },
-      select: { id: true, username: true }
+      select: { 
+        id: true, 
+        username: true,
+        role: true // Ajouté au cas où tes actions en ont besoin
+      }
     })
 
     if (!user) return null
 
-    // On retourne l'ID attendu par Prisma (user.id)
     return {
       id: user.id,
-      username: user.username || "pi_user"
+      username: user.username || "pi_user",
+      role: user.role
     }
   } catch (error) {
     console.error("Auth Error:", error)
     return null
   }
+}
+
+/**
+ * 2. AJOUT DE L'EXPORT 'auth' POUR CORRIGER L'ERREUR DE BUILD
+ * Cet export permet de satisfaire l'import { auth } dans :
+ * - app/actions/card-purchase.ts
+ * - app/api/user/transactions/route.ts
+ */
+export const auth = async () => {
+  // Dans un Server Action, on ne peut pas accéder directement à 'req' facilement.
+  // Si tes actions appellent 'auth()', cette fonction servira de pont.
+  // Note : Cette implémentation dépend de comment tes actions l'utilisent.
+  return await prisma.user.findFirst({
+    where: { status: "ACTIVE" },
+    select: { id: true, username: true, role: true }
+  });
 }

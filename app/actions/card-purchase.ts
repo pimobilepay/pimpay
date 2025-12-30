@@ -1,29 +1,25 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth"; // Import de ton système d'authentification
+import { auth } from "@/lib/auth"; 
 import { revalidatePath } from "next/cache";
 
 /**
  * Action pour l'achat d'une carte virtuelle
- * @param cardType - Le palier de la carte (CLASSIC, GOLD, BUSINESS, ULTRA)
- * @param price - Le prix à débiter (déjà calculé en PI selon le GCV)
  */
 export async function purchaseVirtualCard(
   cardType: 'CLASSIC' | 'GOLD' | 'BUSINESS' | 'ULTRA',
   price: number
 ) {
   try {
-    // 1. Récupération de la session côté serveur (Sécurité maximale)
     const session = await auth();
-    const userId = session?.user?.id;
+    const userId = session?.id;
 
     if (!userId) {
       return { success: false, error: "Session expirée. Veuillez vous reconnecter." };
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 2. Récupérer l'utilisateur pour le nom sur la carte
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { firstName: true, lastName: true, name: true }
@@ -31,11 +27,9 @@ export async function purchaseVirtualCard(
 
       if (!user) throw new Error("Utilisateur non trouvé.");
 
-      // Construction du nom du titulaire
-      const cardHolderName = user.name || 
+      const cardHolderName = user.name ||
         (user.firstName ? `${user.firstName} ${user.lastName || ''}` : "PI PIONEER");
 
-      // 3. Vérifier le solde du Wallet PI
       const wallet = await tx.wallet.findFirst({
         where: { userId, currency: "PI" }
       });
@@ -45,21 +39,19 @@ export async function purchaseVirtualCard(
         throw new Error(`Solde insuffisant. Requis: ${price.toFixed(4)} PI, Dispo: ${currentBalance.toFixed(4)} PI.`);
       }
 
-      // 4. Déduire le montant du solde
       await tx.wallet.update({
         where: { id: wallet.id },
         data: { balance: { decrement: price } }
       });
 
-      // 5. Créer la transaction pour l'historique
       const reference = `CARD-PUB-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
       await tx.transaction.create({
         data: {
           reference: reference,
           amount: price,
-          type: "CARD_PURCHASE", 
-          status: "SUCCESS",     
+          type: "CARD_PURCHASE",
+          status: "SUCCESS",
           fromUserId: userId,
           fromWalletId: wallet.id,
           description: `Achat carte virtuelle ${cardType}`,
@@ -71,30 +63,29 @@ export async function purchaseVirtualCard(
         }
       });
 
-      // 6. Générer les infos de la carte
       const isMastercard = cardType === 'GOLD' || cardType === 'ULTRA' || cardType === 'BUSINESS';
       const prefix = isMastercard ? "5412" : "4111";
-      // Génère un numéro de 16 chiffres (prefix + 12 aléatoires)
       const cardNumber = prefix + Array.from({ length: 12 }, () => Math.floor(Math.random() * 10)).join('');
 
+      // --- SECTION CORRIGÉE SELON TON SCHEMA.PRISMA ---
       const newCard = await tx.virtualCard.create({
         data: {
           userId: userId,
           type: cardType,
           holder: cardHolderName.trim().toUpperCase(),
           number: cardNumber,
-          exp: "12/28", 
+          exp: "12/28",
           cvv: Math.floor(100 + Math.random() * 900).toString(),
           brand: isMastercard ? "MASTERCARD" : "VISA",
-          status: "ACTIVE",
           isFrozen: false,
+          // Note: On n'ajoute pas 'status' ici car il n'existe pas dans ton schema.prisma
+          // Le champ dailyLimit et allowedCurrencies prendront les valeurs par défaut du schéma
         }
       });
 
       return newCard;
     });
 
-    // 7. Rafraîchir les données de la page
     revalidatePath("/dashboard/card");
     revalidatePath("/wallet");
 

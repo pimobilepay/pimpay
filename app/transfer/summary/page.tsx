@@ -18,8 +18,9 @@ function SummaryContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
+  // Récupération des données depuis l'URL
   const data = {
-    recipientId: searchParams.get("recipientId"),
+    recipientId: searchParams.get("recipientId"), // Email ou Téléphone
     name: searchParams.get("recipientName") || "Utilisateur",
     amount: parseFloat(searchParams.get("amount") || "0"),
     description: searchParams.get("description") || "Transfert Pi",
@@ -28,69 +29,87 @@ function SummaryContent() {
 
   const totalRequired = data.amount + data.fee;
 
-  // Récupération du solde REEL depuis la base de données
+  // RÉCUPÉRATION DU SOLDE (Alignée sur le schéma Prisma Wallet[])
   useEffect(() => {
     const fetchBalance = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token) return;
+
         const res = await fetch('/api/user/profile', {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
+
         if (res.ok) {
           const d = await res.json();
-          /** * CORRECTION : Extraction robuste du solde */
-          const balanceValue = parseFloat(d.balance ?? d.user?.balance ?? d.userData?.balance ?? 0);
-          setWalletBalance(balanceValue);
+          
+          /**
+           * CORRECTION LOGIQUE :
+           * Selon ton schéma, le solde est dans la relation 'wallets'.
+           * On cherche le wallet dont la currency est "PI".
+           */
+          const wallets = d.wallets || d.user?.wallets || [];
+          const piWallet = wallets.find((w: any) => w.currency === "PI");
+          
+          // Fallback sur d.balance si ton API renvoie déjà le solde à plat
+          const balanceValue = piWallet ? piWallet.balance : (d.balance ?? 0);
+          
+          setWalletBalance(parseFloat(balanceValue));
         }
       } catch (err) {
-        console.error("Erreur de récupération du solde:", err);
+        console.error("Erreur solde:", err);
       }
     };
     fetchBalance();
   }, []);
 
   const handleConfirm = async () => {
-    // Vérification de sécurité locale
+    // 1. Validation locale
     if (walletBalance !== null && walletBalance < totalRequired) {
-      toast.error(`Transaction impossible : Votre solde est de ${walletBalance.toFixed(4)} π`);
+      toast.error("Solde insuffisant");
       return;
     }
 
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
-      
+
+      /**
+       * CORRECTION API : 
+       * 'identifier' pour le destinataire, 
+       * 'amount' en nombre, 
+       * 'note' pour la description
+       */
       const response = await fetch("/api/user/transfer", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // AJOUTÉ : Pour éviter l'erreur 401
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          recipientIdentifier: data.recipientId,
+          identifier: data.recipientId, 
           amount: data.amount,
-          description: data.description,
+          note: data.description,      
         }),
       });
 
       const result = await response.json();
 
-      if (response.ok) {
+      if (response.ok && result.success) {
+        toast.success("Transfert réussi !");
         router.push(`/transfer/success?amount=${data.amount}&name=${encodeURIComponent(data.name)}`);
       } else {
-        // Gestion spécifique de l'expiration de session
         if (response.status === 401) {
-          toast.error("Session expirée. Veuillez vous reconnecter.");
+          toast.error("Session expirée");
           router.push("/auth/login");
           return;
         }
-        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Erreur lors du transfert")}`);
+        const errorMsg = result.error || "Erreur lors du transfert";
+        router.push(`/transfer/failed?error=${encodeURIComponent(errorMsg)}`);
       }
     } catch (err) {
-      router.push("/transfer/failed?error=Erreur de connexion au serveur");
+      console.error("Erreur transfert:", err);
+      router.push("/transfer/failed?error=Erreur de connexion réseau");
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +119,7 @@ function SummaryContent() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-12">
+      {/* Header */}
       <div className="flex items-center gap-4 mb-10 pt-4">
         <button onClick={() => router.back()} className="p-3 bg-slate-900 border border-white/5 rounded-full active:scale-90 transition-transform">
           <ArrowLeft size={20} />
@@ -110,6 +130,7 @@ function SummaryContent() {
         </div>
       </div>
 
+      {/* Recap Card */}
       <div className="bg-slate-900/40 border border-white/10 rounded-[32px] overflow-hidden mb-6 shadow-2xl">
         <div className="p-10 text-center bg-white/[0.02]">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Montant à transférer</p>
@@ -130,20 +151,21 @@ function SummaryContent() {
           </div>
           <div className="pt-4 border-t border-white/5 flex justify-between items-center">
             <span className="text-blue-500 font-black text-[11px] uppercase">Total à débiter</span>
-            <span className={`text-xl font-black ${isInsufficient ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+            <span className={`text-xl font-black ${isInsufficient ? 'text-red-500' : 'text-white'}`}>
               {totalRequired.toFixed(2)} π
             </span>
           </div>
         </div>
       </div>
 
+      {/* Balance Check */}
       <div className="flex items-center justify-between p-5 bg-white/5 rounded-[24px] mb-8 border border-white/5">
         <div className="flex items-center gap-3">
           <Wallet size={18} className="text-slate-400" />
-          <span className="text-[10px] font-black text-slate-400 uppercase">Solde Wallet</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase">Ton Solde</span>
         </div>
         <span className="text-sm font-black tracking-tight">
-          {walletBalance !== null ? `${walletBalance.toLocaleString('fr-FR', { minimumFractionDigits: 4 })} π` : "Chargement..."}
+          {walletBalance !== null ? `${walletBalance.toFixed(4)} π` : "..."}
         </span>
       </div>
 
@@ -151,21 +173,24 @@ function SummaryContent() {
         <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl mb-8">
           <AlertCircle size={20} className="text-red-500" />
           <p className="text-[10px] font-black text-red-500 uppercase tracking-tight">
-            Attention : Votre solde est insuffisant pour cette opération.
+            Attention : Solde insuffisant.
           </p>
         </div>
       )}
 
+      {/* Action Button */}
       <button
         onClick={handleConfirm}
         disabled={isLoading || isInsufficient || walletBalance === null}
         className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${
           isInsufficient || walletBalance === null
           ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-          : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20"
+          : "bg-blue-600 hover:bg-blue-500 text-white"
         }`}
       >
-        {isLoading ? <Loader2 className="animate-spin" /> : (
+        {isLoading ? (
+          <Loader2 className="animate-spin" />
+        ) : (
           <>
             <span className="font-black uppercase tracking-widest text-sm">
               {isInsufficient ? "Solde insuffisant" : "Confirmer le transfert"}
@@ -175,9 +200,9 @@ function SummaryContent() {
         )}
       </button>
 
-      <div className="mt-8 flex items-center justify-center gap-2 text-emerald-500">
+      <div className="mt-8 flex items-center justify-center gap-2 text-emerald-500 opacity-50">
         <ShieldCheck size={14} />
-        <span className="text-[9px] font-black uppercase tracking-[0.2em]">Transaction sécurisée via Pi Network</span>
+        <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sécurisé par Pi Network</span>
       </div>
     </div>
   );

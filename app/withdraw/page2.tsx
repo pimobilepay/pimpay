@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
-  Clock, ShieldCheck, Zap, CircleDot, Loader2, CheckCircle2
+  Clock, ShieldCheck, Zap, CircleDot, Loader2
 } from "lucide-react";
 import Link from "next/link";
 import { CountrySelect } from "@/components/country-select";
 import { countries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PI_CONSENSUS_USD, FIAT_RATES, calculateExchangeWithFee } from "@/lib/exchange";
+import { PI_CONSENSUS_USD, FIAT_RATES } from "@/lib/exchange"; 
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import "flag-icons/css/flag-icons.min.css";
@@ -31,43 +31,40 @@ export default function WithdrawPage() {
   const [balance, setBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [issubmitting, setIsSubmitting] = useState(false);
-  const [transactions, setTransactions] = useState<any[]>([]);
 
+  // 1. RECUPERATION DU SOLDE RÉEL
   useEffect(() => {
     setMounted(true);
-    fetchData();
+    async function fetchBalance() {
+      try {
+        const res = await fetch("/api/user/profile");
+        if (res.ok) {
+          const data = await res.json();
+          setBalance(data.balance || 0);
+        }
+      } catch (err) {
+        console.error("Erreur solde:", err);
+      } finally {
+        setLoadingBalance(false);
+      }
+    }
+    fetchBalance();
   }, []);
 
-  async function fetchData() {
-    try {
-      // Fetch Balance
-      const profileRes = await fetch("/api/user/profile");
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        setBalance(data.balance || 0);
-      }
-      // Fetch Transactions for Logs
-      const txRes = await fetch("/api/user/transactions?type=WITHDRAWAL");
-      if (txRes.ok) {
-        const data = await txRes.json();
-        setTransactions(data.transactions || []);
-      }
-    } catch (err) {
-      console.error("Erreur chargement:", err);
-    } finally {
-      setLoadingBalance(false);
-    }
-  }
+  const piPrice = PI_CONSENSUS_USD;
+  const currentFiatRate = FIAT_RATES[selectedCountry.currency] || selectedCountry.piToLocalRate;
 
   const formatValue = (val: number) => {
     return new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 4,
     }).format(val);
   };
 
+  // 2. FONCTION DE SOUMISSION DU RETRAIT
   const handleWithdraw = async () => {
     const amount = parseFloat(piAmount);
+    
     if (!amount || amount <= 0) return toast.error("Montant invalide");
     if (amount > balance) return toast.error("Solde insuffisant");
     if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
@@ -82,23 +79,24 @@ export default function WithdrawPage() {
           amount: amount,
           currency: selectedCountry.currency,
           phoneNumber: `${selectedCountry.dialCode}${phoneNumber}`,
-          provider: selectedOperator,
-          accountName: "Mobile User" 
+          provider: selectedOperator
         }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        toast.success("Demande de retrait transmise !");
+        toast.success("Demande de retrait enregistrée !");
+        // Optionnel : rediriger vers l'historique ou vider les champs
         setPiAmount("");
         setPhoneNumber("");
-        fetchData(); // Rafraîchir le solde et les logs
+        // On rafraîchit le solde localement
+        setBalance(prev => prev - amount);
       } else {
-        toast.error(result.error || "Erreur lors du retrait");
+        toast.error(result.error || "Une erreur est survenue");
       }
     } catch (error) {
-      toast.error("Erreur de connexion");
+      toast.error("Erreur de connexion au serveur");
     } finally {
       setIsSubmitting(false);
     }
@@ -106,11 +104,8 @@ export default function WithdrawPage() {
 
   if (!mounted) return null;
 
-  // Calcul du montant net via ta lib exchange
-  const conversion = piAmount ? calculateExchangeWithFee(parseFloat(piAmount), selectedCountry.currency) : { total: 0 };
-
   return (
-    <div className="min-h-screen bg-[#0a0f1d] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
 
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
@@ -123,18 +118,18 @@ export default function WithdrawPage() {
             <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Retrait</h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Secured Gateway</span>
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Ledger Liquidation</span>
             </div>
           </div>
         </div>
 
         <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-6 opacity-10 text-blue-500">
-            <ArrowUpFromLine size={80} />
+          <div className="absolute top-0 right-0 p-6 opacity-10">
+            <ArrowUpFromLine size={80} className="text-blue-500" />
           </div>
-          <div className="flex justify-between items-center relative z-10">
+          <div className="flex justify-between items-center">
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Disponible pour retrait</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Available to Withdraw</p>
               <div className="text-3xl font-black text-white tracking-tighter">
                 {loadingBalance ? (
                   <Loader2 className="animate-spin text-blue-500" size={24} />
@@ -143,7 +138,7 @@ export default function WithdrawPage() {
                 )}
               </div>
             </div>
-            <div className="h-12 w-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 border border-blue-500/20 shadow-inner">
+            <div className="h-12 w-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
               <Zap size={20} />
             </div>
           </div>
@@ -154,26 +149,27 @@ export default function WithdrawPage() {
         <Tabs defaultValue="mobile" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/50 border border-white/5 rounded-2xl p-1 backdrop-blur-md">
             <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Smartphone size={14} className="mr-1" /> Mobile
+              <Smartphone size={14} className="mr-2" /> Mobile
             </TabsTrigger>
             <TabsTrigger value="bank" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Building2 size={14} className="mr-1" /> Bank
+              <Building2 size={14} className="mr-2" /> Bank
             </TabsTrigger>
             <TabsTrigger value="history" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Clock size={14} className="mr-1" /> Logs
+              <Clock size={14} className="mr-2" /> Logs
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mobile" className="mt-8 space-y-6">
+          <TabsContent value="mobile" className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <div className="space-y-6">
+
               <div className="grid grid-cols-1 gap-6 px-2">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Region</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Select Region</label>
                   <CountrySelect value={selectedCountry} onChange={setSelectedCountry} />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Operateur</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Network Operator</label>
                   <Select value={selectedOperator} onValueChange={setSelectedOperator}>
                     <SelectTrigger className="h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xs font-bold text-white focus:ring-0">
                       <SelectValue placeholder="Choisir un opérateur" />
@@ -194,60 +190,60 @@ export default function WithdrawPage() {
               </div>
 
               <div className="space-y-2 px-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Numéro bénéficiaire</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Receiving Number</label>
                 <div className="flex gap-3">
                   <div className="h-14 w-20 flex items-center justify-center bg-slate-900/40 border border-white/5 rounded-2xl text-xs font-bold text-blue-400">
                     {selectedCountry.dialCode}
                   </div>
                   <Input
-                    placeholder="Ex: 81XXXXXXX"
+                    placeholder="Numéro de téléphone"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1 h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold text-white outline-none"
+                    className="flex-1 h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold text-white placeholder:text-slate-700 focus:border-blue-500/30 outline-none"
                   />
                 </div>
               </div>
 
               <div className="space-y-2 px-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Montant (π)</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Withdrawal Amount (π)</label>
                 <div className="relative">
                   <Input
                     type="number"
                     placeholder="0.00"
                     value={piAmount}
                     onChange={(e) => setPiAmount(e.target.value)}
-                    className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black text-white outline-none"
+                    className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black text-white focus:border-blue-500/30 outline-none"
                   />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-500 font-black text-xs">PI</span>
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-500 font-black text-xs uppercase">Pi Coin</span>
                 </div>
 
                 {piAmount && (
-                  <div className="mt-4 p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-3">
+                  <div className="mt-4 p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-3 animate-in fade-in zoom-in-95">
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-bold text-slate-500 uppercase">Conversion Marché</span>
-                      <span className="text-sm font-bold text-white">$ {formatValue(Number(piAmount) * PI_CONSENSUS_USD)}</span>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Global Market (USD)</span>
+                      <span className="text-sm font-bold text-white">$ {formatValue(Number(piAmount) * piPrice)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-                      <span className="text-[9px] font-black text-blue-500 uppercase">Net à recevoir</span>
-                      <span className="text-xl font-black text-blue-400">
-                        {formatValue(conversion.total)} {selectedCountry.currency}
+                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Net Cash Out ({selectedCountry.currency})</span>
+                      <span className="text-xl font-black text-blue-400 tracking-tighter">
+                        {formatValue(Number(piAmount) * piPrice * currentFiatRate)} {selectedCountry.currency}
                       </span>
                     </div>
                   </div>
                 )}
               </div>
 
-              <Button
+              <Button 
                 onClick={handleWithdraw}
                 disabled={issubmitting || !piAmount || !phoneNumber}
-                className="w-full h-20 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] shadow-xl shadow-blue-600/20 mt-4 flex flex-col items-center justify-center disabled:opacity-50"
+                className="w-full h-20 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] shadow-xl shadow-blue-600/20 group transition-all mt-4 flex flex-col items-center justify-center disabled:opacity-50"
               >
                 {issubmitting ? (
                   <Loader2 className="animate-spin" size={24} />
                 ) : (
                   <>
-                    <span className="text-xs font-black uppercase tracking-[4px]">Confirmer le Cashout</span>
-                    <span className="text-[9px] font-bold text-blue-200 uppercase opacity-60">Paiement sécurisé</span>
+                    <span className="text-xs font-black uppercase tracking-[4px]">Confirm Cashout</span>
+                    <span className="text-[9px] font-bold text-blue-200 uppercase opacity-60">Settlement processing</span>
                   </>
                 )}
               </Button>
@@ -255,48 +251,29 @@ export default function WithdrawPage() {
           </TabsContent>
 
           <TabsContent value="bank" className="mt-8">
-             <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-12 text-center border-dashed">
-                <Building2 size={40} className="mx-auto text-slate-800 mb-4" />
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Virement bancaire bientôt disponible</p>
-             </Card>
+            <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem] space-y-4">
+              <Building2 size={32} className="mx-auto text-slate-700" />
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bank wire coming soon</p>
+            </div>
           </TabsContent>
 
-          <TabsContent value="history" className="mt-8 space-y-4">
-            {transactions.length > 0 ? (
-              transactions.map((tx) => (
-                <Card key={tx.id} className="bg-slate-900/40 border-white/5 rounded-2xl p-4 flex justify-between items-center">
-                  <div className="flex gap-3 items-center">
-                    <div className={`p-2 rounded-lg ${tx.status === 'SUCCESS' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                      {tx.status === 'SUCCESS' ? <CheckCircle2 size={16} /> : <Clock size={16} />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-white">Retrait {tx.metadata?.provider || 'Pi'}</p>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase">{new Date(tx.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-white">-{tx.amount} π</p>
-                    <p className={`text-[8px] font-black uppercase ${tx.status === 'SUCCESS' ? 'text-green-500' : 'text-amber-500'}`}>{tx.status}</p>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem]">
-                <Clock size={32} className="mx-auto text-slate-800 mb-2" />
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Aucun historique</p>
-              </div>
-            )}
+          <TabsContent value="history" className="mt-8">
+            <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem] space-y-4">
+              <Clock size={32} className="mx-auto text-slate-700" />
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No recent withdrawals</p>
+            </div>
           </TabsContent>
         </Tabs>
 
-        <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] flex items-start gap-4 backdrop-blur-sm">
+        <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] flex items-start gap-4">
           <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
             <ShieldCheck size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Pimpay Protocol</p>
+            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Pimpay Security Protocol</p>
             <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-              Le délai moyen de traitement est de 15 min à 2h. Assurez-vous que le numéro de téléphone est actif.
+              Toutes les transactions de retrait sont traitées via notre passerelle custodial sécurisée.
+              Le délai de réception dépend de votre opérateur local (M-Pesa, Orange, Airtel).
             </p>
           </div>
         </div>

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  ArrowDown, Settings2, RefreshCw, 
-  ChevronDown, Zap, AlertCircle, Loader2, ArrowLeft, Globe
+import { useState, useEffect, useCallback } from "react";
+import {
+  ArrowDown, Settings2, RefreshCw, Zap, AlertCircle, Loader2, ArrowLeft, Globe, Clock
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -14,26 +13,29 @@ export default function SwapPage() {
   const [user, setUser] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSwapping, setIsSwapping] = useState(false);
-  
+
   // États pour le formulaire
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState(0);
   const [selectedFiat, setSelectedFiat] = useState("USD");
 
-  // Taux de conversion simulés pour les devises locales
-  const fiatRates: any = {
-    USD: 1,
-    XAF: 600,
-    CDF: 2800
-  };
+  // États pour le système de Quote (Verrouillage)
+  const [quote, setQuote] = useState<any>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
 
+  const fiatRates: any = { USD: 1, XAF: 600, CDF: 2800 };
+
+  // 1. Récupération du solde
   useEffect(() => {
     async function fetchUserData() {
       try {
-        const res = await fetch("/api/user/profile");
+        const res = await fetch("/api/user/wallet-info");
         if (res.ok) {
           const data = await res.json();
-          setUser(data);
+          setUser({
+            balance: data.userData.balance,
+            kycStatus: data.userData.kycStatus
+          });
         }
       } catch (err) {
         toast.error("Erreur de synchronisation");
@@ -44,18 +46,82 @@ export default function SwapPage() {
     fetchUserData();
   }, []);
 
+  // 2. Timer pour l'expiration du devis
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (quote) {
+      setQuote(null);
+      toast.info("Le taux a expiré, veuillez rafraîchir.");
+    }
+  }, [timeLeft, quote]);
+
+  // 3. Calcul de l'estimation visuelle
   useEffect(() => {
     const amount = parseFloat(fromAmount);
     if (!isNaN(amount) && amount > 0) {
-      // Calcul : Montant Pi * GCV * Taux Fiat
-      setToAmount(amount * PI_CONSENSUS_USD * fiatRates[selectedFiat]);
+      const result = amount * PI_CONSENSUS_USD * fiatRates[selectedFiat];
+      setToAmount(result);
     } else {
       setToAmount(0);
     }
+    if (quote) setQuote(null); // Reset le devis si le montant change
   }, [fromAmount, selectedFiat]);
 
-  const handleMax = () => {
-    if (user?.balance) setFromAmount(user.balance.toString());
+  // 4. Demander un devis (Quote)
+  const getQuote = async () => {
+    const amount = parseFloat(fromAmount);
+    if (!amount || amount <= 0) return toast.error("Montant invalide");
+    if (amount > (user?.balance || 0)) return toast.error("Solde insuffisant");
+
+    setIsSwapping(true);
+    try {
+      const res = await fetch("/api/transaction/swap/quote", {
+        method: "POST",
+        body: JSON.stringify({ amount, targetCurrency: selectedFiat })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setQuote(data);
+        setTimeLeft(30);
+        toast.success("Taux verrouillé pour 30s");
+      } else {
+        toast.error(data.error);
+      }
+    } catch (e) {
+      toast.error("Erreur de connexion au moteur de swap");
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  // 5. Exécution finale du Swap
+  const handleConfirmSwap = async () => {
+    if (!quote) return;
+    setIsSwapping(true);
+
+    try {
+      const response = await fetch("/api/transaction/swap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: quote.quoteId })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Swap Pi/Fiat réussi !");
+        router.push("/wallet");
+      } else {
+        toast.error(data.error || "Le swap a échoué");
+      }
+    } catch (error) {
+      toast.error("Erreur réseau blockchain");
+    } finally {
+      setIsSwapping(false);
+      setQuote(null);
+    }
   };
 
   if (isLoadingData) {
@@ -68,114 +134,133 @@ export default function SwapPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-20 p-6 font-sans">
-      {/* Navigation & Header */}
-      <div className="flex justify-between items-center mb-2 pt-4">
-        <button onClick={() => router.back()} className="p-2 bg-white/5 rounded-xl border border-white/10">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-10 pt-4">
+        <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-black uppercase tracking-tighter">Pi Protocol Swap</h1>
-        <button className="p-2 bg-white/5 rounded-xl border border-white/10 text-slate-400">
-          <Settings2 size={20} />
-        </button>
+        <h1 className="text-xl font-black uppercase tracking-tighter italic">PimPay <span className="text-blue-500">Swap</span></h1>
+        <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500 border border-white/10">
+          <Settings2 size={18} />
+        </div>
       </div>
-      <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-8">
-        Échangez vos Pi Network Assets instantanément
-      </p>
 
-      {/* Affichage du Solde Réel */}
-      <div className="mb-6 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex justify-between items-center">
+      {/* Wallet Info */}
+      <div className="mb-6 p-5 bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-[2.5rem] flex justify-between items-center backdrop-blur-sm">
         <div>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Solde Total Disponible</p>
-          <p className="text-lg font-black text-blue-400">{user?.balance?.toLocaleString() || "0.00"} π</p>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Disponible</p>
+          <p className="text-xl font-black text-white">{user?.balance?.toFixed(4) || "0.0000"} <span className="text-blue-500 italic">π</span></p>
         </div>
         <div className="text-right">
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Valeur GCV</p>
-          <p className="text-xs font-mono font-bold text-emerald-400">≈ ${(user?.balance * PI_CONSENSUS_USD).toLocaleString()}</p>
+          <div className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest mb-2 ${user?.kycStatus === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+            KYC: {user?.kycStatus || "NON VERIFIÉ"}
+          </div>
         </div>
       </div>
 
       <div className="space-y-2 relative">
-        {/* SECTION DE DÉPART (PI) */}
-        <div className="bg-slate-900/40 border border-white/10 rounded-[32px] p-6">
+        {/* FROM (PI) */}
+        <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-6 transition-all focus-within:border-blue-500/30">
           <div className="flex justify-between mb-4">
-            <span className="text-[10px] font-black text-slate-500 uppercase">Depuis</span>
-            <button onClick={handleMax} className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">MAX</button>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendre</span>
+            <button onClick={() => setFromAmount((user?.balance - 0.01).toString())} className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full">MAX</button>
           </div>
           <div className="flex justify-between items-center">
-            <input 
-              type="number" 
+            <input
+              type="number"
               placeholder="0.00"
-              className="bg-transparent text-3xl font-black outline-none w-1/2"
+              className="bg-transparent text-4xl font-black outline-none w-2/3 placeholder:text-slate-800"
               value={fromAmount}
               onChange={(e) => setFromAmount(e.target.value)}
             />
-            <div className="bg-blue-600 px-4 py-2 rounded-2xl flex items-center gap-2 font-bold text-sm">
-              <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-[10px]">π</span>
+            <div className="flex items-center gap-2 bg-slate-800 p-2 pr-4 rounded-2xl font-bold">
+              <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-xs">π</div>
               PI
             </div>
           </div>
         </div>
 
-        {/* SWITCH ICON */}
+        {/* INTERCHANGE ICON */}
         <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="bg-[#020617] p-2 rounded-2xl border-4 border-[#020617]">
-            <div className="bg-slate-800 p-2 rounded-xl text-blue-400">
-              <ArrowDown size={18} />
+          <div className="bg-[#020617] p-2 rounded-3xl border-8 border-[#020617]">
+            <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+              <ArrowDown size={20} />
             </div>
           </div>
         </div>
 
-        {/* SECTION D'ARRIVÉE (FIAT/USD/CDF/XAF) */}
-        <div className="bg-slate-900/40 border border-white/10 rounded-[32px] p-6 pt-10">
+        {/* TO (FIAT) */}
+        <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-6 pt-12">
           <div className="flex justify-between mb-4">
-            <span className="text-[10px] font-black text-slate-500 uppercase">Vers (Estimation)</span>
-            <div className="flex gap-2">
-                {["USD", "XAF", "CDF"].map((fiat) => (
-                    <button 
-                      key={fiat}
-                      onClick={() => setSelectedFiat(fiat)}
-                      className={`text-[9px] font-black px-2 py-1 rounded-md border ${selectedFiat === fiat ? 'bg-blue-600 border-blue-600' : 'border-white/10 text-slate-500'}`}
-                    >
-                        {fiat}
-                    </button>
-                ))}
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recevoir</span>
+            <div className="flex gap-1.5">
+              {["USD", "XAF", "CDF"].map((fiat) => (
+                <button
+                  key={fiat}
+                  onClick={() => setSelectedFiat(fiat)}
+                  className={`text-[8px] font-black px-3 py-1 rounded-full border transition-all ${selectedFiat === fiat ? 'bg-white text-black border-white' : 'border-white/10 text-slate-500'}`}
+                >
+                  {fiat}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex justify-between items-center">
-            <div className="text-3xl font-black text-slate-200">
-              {toAmount > 0 ? toAmount.toLocaleString() : "0.00"}
+            <div className={`text-4xl font-black ${toAmount > 0 ? 'text-white' : 'text-slate-800'}`}>
+              {toAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
-            <div className="bg-slate-800 px-4 py-2 rounded-2xl flex items-center gap-2 font-bold text-sm">
-              <Globe size={16} className="text-emerald-500" />
+            <div className="flex items-center gap-2 bg-slate-800 p-2 pr-4 rounded-2xl font-bold">
+              <div className="w-8 h-8 bg-emerald-500/20 text-emerald-500 rounded-xl flex items-center justify-center">
+                <Globe size={16} />
+              </div>
               {selectedFiat}
             </div>
           </div>
         </div>
       </div>
 
-      {/* RECAPITULATIF */}
-      <div className="mt-8 p-6 bg-white/5 rounded-[32px] border border-white/5 space-y-4">
-        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+      {/* DÉTAILS DU DEVIS */}
+      <div className="mt-8 p-6 bg-white/[0.02] rounded-[2.5rem] border border-white/5 space-y-4">
+        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
           <span className="text-slate-500">Taux de change</span>
-          <span className="text-blue-400">1 π = {PI_CONSENSUS_USD.toLocaleString()} USD</span>
+          <span className="text-slate-300">1 π ≈ {PI_CONSENSUS_USD.toLocaleString()} USD</span>
         </div>
-        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-          <span className="text-slate-500">Frais de réseau</span>
-          <span className="text-emerald-400">0.01 π</span>
+        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+          <span className="text-slate-500">Frais (Network)</span>
+          <span className="text-blue-500">0.01 π</span>
         </div>
+        {quote && (
+          <div className="flex justify-between items-center pt-4 border-t border-white/5 animate-pulse">
+            <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
+              <Clock size={12} /> Expire dans
+            </span>
+            <span className="text-amber-500 font-mono font-bold text-sm">{timeLeft}s</span>
+          </div>
+        )}
       </div>
 
-      <button 
-        onClick={() => {
-            setIsSwapping(true);
-            setTimeout(() => { setIsSwapping(false); toast.success("Swap validé !"); router.push("/dashboard"); }, 2000);
-        }}
+      <button
+        onClick={quote ? handleConfirmSwap : getQuote}
         disabled={isSwapping || !fromAmount}
-        className="w-full mt-8 bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-[28px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+        className={`w-full mt-8 p-6 rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 ${
+          quote 
+            ? 'bg-emerald-600 shadow-emerald-600/20 active:scale-95' 
+            : 'bg-blue-600 shadow-blue-600/20 active:scale-95'
+        }`}
       >
-        {isSwapping ? <RefreshCw className="animate-spin" /> : <Zap size={20} />}
-        {isSwapping ? "Synchronisation..." : "Confirmer le Swap"}
+        {isSwapping ? (
+          <RefreshCw className="animate-spin" />
+        ) : quote ? (
+          <>Confirmer le Swap <Zap size={18} fill="currentColor" /></>
+        ) : (
+          "Calculer le taux"
+        )}
       </button>
+
+      <div className="mt-6 flex items-center justify-center gap-2 text-slate-600">
+        <AlertCircle size={12} />
+        <span className="text-[8px] font-black uppercase tracking-[0.2em]">Liquidité assurée par PimPay Protocol</span>
+      </div>
     </div>
   );
 }
