@@ -82,6 +82,7 @@
     "react-hook-form": "^7.53.0",
     "react-hot-toast": "^2.6.0",
     "react-resizable-panels": "^2.1.2",
+    "react-world-flags": "^1.6.0",
     "recharts": "^2.12.7",
     "resend": "^6.6.0",
     "sonner": "^1.5.0",

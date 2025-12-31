@@ -1,242 +1,112 @@
-// =============================
-// Pi Mobile Pay / Elara
-// Unified Payments Configuration
-// =============================
+// country-data.ts
 
-export type PaymentRules = {
-  minAmount: number;
-  maxAmount: number;
-  feePercent: number;
-  feeFlat?: number;
-  processingTime: string; // "Instant", "5–30 min", "24h"
-};
-
-export type PaymentCapabilities = {
-  deposit: boolean;
-  withdraw: boolean;
-  piNetwork: boolean;
-};
-
-export type ServiceStatus = {
-  enabled: boolean;
-  maintenance?: boolean;
-  message?: string;
-};
-
-export type FieldValidation = {
-  regex?: string;
-  example?: string;
-  minLength?: number;
-  maxLength?: number;
-};
-
-export type MobileMoneyOperator = {
+export interface Bank {
   name: string;
-  icon: string;
-  providerCode: string;
-  priority: number; // 1 = top
-  capabilities: PaymentCapabilities;
-  rules: PaymentRules;
-  status: ServiceStatus;
-  validation?: FieldValidation; // phone number rules
-};
+  swift: string; 
+}
 
-export type Bank = {
+export interface MobileOperator {
+  id: string;
   name: string;
-  swift: string;
-  icon: string;
-  providerCode: string;
-  priority: number;
-  capabilities: PaymentCapabilities;
-  rules: PaymentRules;
-  status: ServiceStatus;
-  validation?: FieldValidation; // account number / IBAN rules
-};
+  icon: string; // URL du logo
+}
 
-export type CountryCompliance = {
-  kycRequired: boolean;
-  kycLevel?: "basic" | "full";
-  dailyLimit?: number;
-};
-
-export type Country = {
-  code: string;
+export interface Country {
   name: string;
+  code: string; 
   currency: string;
-  dialCode: string;
-  piToLocalRate: number;
-  exchangeSource?: "manual" | "api";
-  lastUpdated?: string;
-  flag: string;
-  compliance?: CountryCompliance;
-  mobileMoneyOperators: MobileMoneyOperator[];
-  banks?: Bank[];
-};
-
-// =============================
-// Countries
-// =============================
+  piToLocalRate: number; 
+  dialCode: string; 
+  banks: Bank[];
+  operators: MobileOperator[]; // Ajout des opérateurs
+}
 
 export const countries: Country[] = [
-  {
-    code: "CD",
-    name: "République Démocratique du Congo",
-    currency: "CDF",
-    dialCode: "+243",
-    piToLocalRate: 2400,
-    exchangeSource: "manual",
-    lastUpdated: "2025-12-21",
-    flag: "/flags/cd.svg",
-    compliance: {
-      kycRequired: true,
-      kycLevel: "basic",
-      dailyLimit: 5000
-    },
-    mobileMoneyOperators: [
-      {
-        name: "M-Pesa",
-        icon: "/icons/mpesa.svg",
-        providerCode: "CD_MPESA",
-        priority: 1,
-        capabilities: { deposit: true, withdraw: true, piNetwork: true },
-        rules: {
-          minAmount: 1,
-          maxAmount: 5000,
-          feePercent: 1.5,
-          processingTime: "Instant"
-        },
-        status: { enabled: true },
-        validation: {
-          regex: "^\\+243[0-9]{9}$",
-          example: "+243812345678"
-        }
-      },
-      {
-        name: "Orange Money",
-        icon: "/icons/orange.svg",
-        providerCode: "CD_ORANGE_MM",
-        priority: 2,
-        capabilities: { deposit: true, withdraw: true, piNetwork: true },
-        rules: {
-          minAmount: 1,
-          maxAmount: 4000,
-          feePercent: 1.7,
-          processingTime: "Instant"
-        },
-        status: { enabled: true }
-      },
-      {
-        name: "Airtel Money",
-        icon: "/icons/airtel.svg",
-        providerCode: "CD_AIRTEL_MM",
-        priority: 3,
-        capabilities: { deposit: true, withdraw: true, piNetwork: true },
-        rules: {
-          minAmount: 1,
-          maxAmount: 3000,
-          feePercent: 1.8,
-          processingTime: "Instant"
-        },
-        status: { enabled: true }
-      }
-    ],
+  { 
+    name: "Congo (DRC)", 
+    code: "CD", 
+    currency: "CDF", 
+    piToLocalRate: 2500, 
+    dialCode: "+243", 
     banks: [
-      {
-        name: "Rawbank",
-        swift: "RAWBCDKI",
-        icon: "/banks/rawbank.svg",
-        providerCode: "CD_RAWBANK",
-        priority: 1,
-        capabilities: { deposit: true, withdraw: true, piNetwork: false },
-        rules: {
-          minAmount: 10,
-          maxAmount: 50000,
-          feePercent: 1.2,
-          processingTime: "24h"
-        },
-        status: { enabled: true },
-        validation: {
-          minLength: 8,
-          maxLength: 20
-        }
-      },
-      {
-        name: "Trust Merchant Bank",
-        swift: "TMBCCDKI",
-        icon: "/banks/tmb.svg",
-        providerCode: "CD_TMB",
-        priority: 2,
-        capabilities: { deposit: true, withdraw: true, piNetwork: false },
-        rules: {
-          minAmount: 10,
-          maxAmount: 40000,
-          feePercent: 1.3,
-          processingTime: "24h"
-        },
-        status: { enabled: true }
-      }
+      { name: "Rawbank", swift: "RAWBCDCX" }, 
+      { name: "Trust Merchant Bank", swift: "TMBRCDNX" }
+    ],
+    operators: [
+      { id: "orange", name: "Orange Money", icon: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg" },
+      { id: "vodacom", name: "M-Pesa", icon: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg" },
+      { id: "airtel", name: "Airtel Money", icon: "https://upload.wikimedia.org/wikipedia/commons/a/ad/Airtel_logo.png" }
     ]
   },
-
-  {
-    code: "RW",
-    name: "Rwanda",
-    currency: "RWF",
-    dialCode: "+250",
-    piToLocalRate: 1200,
-    exchangeSource: "manual",
-    lastUpdated: "2025-12-21",
-    flag: "/flags/rw.svg",
-    compliance: {
-      kycRequired: true,
-      kycLevel: "basic",
-      dailyLimit: 3000
-    },
-    mobileMoneyOperators: [
-      {
-        name: "MTN MoMo",
-        icon: "/icons/mtn.svg",
-        providerCode: "RW_MTN_MM",
-        priority: 1,
-        capabilities: { deposit: true, withdraw: true, piNetwork: true },
-        rules: {
-          minAmount: 1,
-          maxAmount: 3000,
-          feePercent: 1.4,
-          processingTime: "Instant"
-        },
-        status: { enabled: true }
-      }
-    ],
+  { 
+    name: "Congo (Brazzaville)", 
+    code: "CG", 
+    currency: "XAF", 
+    piToLocalRate: 610, 
+    dialCode: "+242", 
     banks: [
-      {
-        name: "Bank of Kigali",
-        swift: "BKIGRWRW",
-        icon: "/banks/bk.svg",
-        providerCode: "RW_BK",
-        priority: 1,
-        capabilities: { deposit: true, withdraw: true, piNetwork: false },
-        rules: {
-          minAmount: 20,
-          maxAmount: 30000,
-          feePercent: 1.1,
-          processingTime: "24h"
-        },
-        status: { enabled: true }
-      }
+      { name: "BGFIBank Congo", swift: "BGFICG" }, 
+      { name: "Ecobank Congo", swift: "ECOBCG" }
+    ],
+    operators: [
+      { id: "mtn", name: "MTN MoMo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg" },
+      { id: "airtel", name: "Airtel Money", icon: "https://upload.wikimedia.org/wikipedia/commons/a/ad/Airtel_logo.png" }
     ]
-  }
+  },
+  { 
+    name: "Cameroon", 
+    code: "CM", 
+    currency: "XAF", 
+    piToLocalRate: 610, 
+    dialCode: "+237", 
+    banks: [
+      { name: "Afriland First Bank", swift: "AFIBCMCM" }, 
+      { name: "Commercial Bank Cameroon", swift: "CBCCMCM" }
+    ],
+    operators: [
+      { id: "mtn", name: "MTN MoMo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg" },
+      { id: "orange", name: "Orange Money", icon: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg" }
+    ]
+  },
+  { 
+    name: "Benin", 
+    code: "BJ", 
+    currency: "XOF", 
+    piToLocalRate: 615, 
+    dialCode: "+229", 
+    banks: [
+      { name: "Bank of Africa", swift: "BOABBJBB" }, 
+      { name: "Ecobank Benin", swift: "ECOBBJBB" }
+    ],
+    operators: [
+      { id: "mtn", name: "MTN MoMo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg" },
+      { id: "moov", name: "Moov Money", icon: "https://upload.wikimedia.org/wikipedia/fr/4/4b/Logo_Moov_Africa.png" }
+    ]
+  },
+  { 
+    name: "France", 
+    code: "FR", 
+    currency: "EUR", 
+    piToLocalRate: 0.93, 
+    dialCode: "+33", 
+    banks: [
+      { name: "BNP Paribas", swift: "BNPAFRPP" }, 
+      { name: "Société Générale", swift: "SOGEFRPP" }
+    ],
+    operators: [] // Pas de Mobile Money standardisé (Type MoMo)
+  },
+  { 
+    name: "Ivory Coast", 
+    code: "CI", 
+    currency: "XOF", 
+    piToLocalRate: 615, 
+    dialCode: "+225", 
+    banks: [{ name: "NSIA Banque", swift: "NSIACI" }],
+    operators: [
+      { id: "orange", name: "Orange Money", icon: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg" },
+      { id: "mtn", name: "MTN MoMo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg" },
+      { id: "wave", name: "Wave", icon: "https://upload.wikimedia.org/wikipedia/commons/d/d6/Wave_logo.png" }
+    ]
+  },
+  // ... Ajoutez les autres pays ici en suivant le même modèle
 ];
-
-// =============================
-// Helpers
-// =============================
-
-export const getCountryByCode = (code: string) =>
-  countries.find(c => c.code === code);
-
-export const getMobileMoneyByCountry = (code: string) =>
-  getCountryByCode(code)?.mobileMoneyOperators ?? [];
-
-export const getBanksByCountry = (code: string) =>
-  getCountryByCode(code)?.banks ?? [];

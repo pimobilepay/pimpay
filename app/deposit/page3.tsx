@@ -11,24 +11,35 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { CountrySelect } from "@/components/country-select";
-import { countries, type Country } from "@/lib/country-data";
+import { countries as originalCountries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Flag from "react-world-flags";
 
+// Nettoyage des noms pour l'affichage mobile
+const countries = originalCountries.map(c => {
+  if (c.code === "CD") return { ...c, name: "Congo Kinshasa" };
+  if (c.code === "CG") return { ...c, name: "Congo Brazzaville" };
+  return c;
+});
+
 const PI_GCV_PRICE = 314159; 
+
+const operators = [
+  { id: "orange", name: "Orange Money", icon: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg" },
+  { id: "airtel", name: "Airtel Money", icon: "https://upload.wikimedia.org/wikipedia/commons/a/ad/Airtel_logo.png" },
+  { id: "vodacom", name: "M-Pesa / Vodacom", icon: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg" },
+  { id: "mtn", name: "MTN MoMo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg" },
+];
 
 export default function DepositPage() {
   const [mounted, setMounted] = useState(false);
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  
-  // État pour le pays sélectionné (par défaut Congo DRC via votre liste)
   const [selectedCountry, setSelectedCountry] = useState<Country>(
-    countries.find((c) => c.code === "CD") || countries[0]
+    countries.find((c) => c.code === "CD") || countries[0],
   );
-  
   const [selectedOperator, setSelectedOperator] = useState("");
   const [copied, setCopied] = useState(false);
   const [txHash, setTxHash] = useState("");
@@ -66,10 +77,10 @@ export default function DepositPage() {
             </div>
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Dépôt</h1>
+            <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Dépôt</h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Inflow</span>
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Refill Balance</span>
             </div>
           </div>
         </div>
@@ -109,27 +120,25 @@ export default function DepositPage() {
           <TabsContent value="mobile" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl relative overflow-hidden">
               
-              {/* Sélecteur de Pays */}
+              {/* Pays sans texte de debug */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Région / Pays</label>
-                <div className="flex items-center gap-3 w-full bg-white/5 border border-white/10 rounded-2xl p-2 px-3 h-16 transition-all focus-within:border-blue-500/50">
+                <div className="flex items-center gap-3 w-full bg-white/5 border border-white/10 rounded-2xl p-2 px-3 h-16">
                    <div className="w-9 h-9 flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-slate-800 shrink-0">
+                      {/* Flag pur, sans texte autour */}
                       <Flag code={selectedCountry.code} className="w-full h-full object-cover scale-110" />
                    </div>
                    <div className="flex-1 overflow-hidden">
                       <CountrySelect 
                         value={selectedCountry} 
-                        onChange={(country) => {
-                          setSelectedCountry(country);
-                          setSelectedOperator(""); // Reset l'opérateur quand le pays change
-                        }}
+                        onChange={setSelectedCountry}
                         options={countries}
                       />
                    </div>
                 </div>
               </div>
 
-              {/* Montant USD */}
+              {/* Montant */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Montant (USD)</label>
                 <div className="relative">
@@ -148,15 +157,15 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              {/* Opérateurs Dynamiques selon le pays sélectionné */}
+              {/* Opérateur */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Opérateur Mobile</label>
-                <Select value={selectedOperator} onValueChange={setSelectedOperator}>
-                  <SelectTrigger className="h-16 bg-white/5 border-white/10 rounded-2xl px-4 text-white focus:border-blue-500">
-                    <SelectValue placeholder={selectedCountry.operators.length > 0 ? "Choisir un réseau" : "Indisponible dans ce pays"} />
+                <Select onValueChange={setSelectedOperator}>
+                  <SelectTrigger className="h-16 bg-white/5 border-white/10 rounded-2xl px-4 text-white">
+                    <SelectValue placeholder="Choisir un réseau" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                    {selectedCountry.operators.map((op) => (
+                    {operators.map((op) => (
                       <SelectItem key={op.id} value={op.id} className="focus:bg-blue-600 rounded-xl py-3">
                         <div className="flex items-center gap-3">
                           <img src={op.icon} alt={op.name} className="w-6 h-6 object-contain rounded bg-white p-0.5" />
@@ -168,13 +177,14 @@ export default function DepositPage() {
                 </Select>
               </div>
 
-              {/* Téléphone avec Indicatif Dynamique */}
+              {/* Téléphone - Indicatif BLEU & Taille Police Réduite */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Numéro de téléphone</label>
                 <div className="flex gap-2">
-                    <div className="h-16 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-3 min-w-[85px] shadow-inner">
+                    <div className="h-16 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-3 min-w-[85px]">
+                        {/* text-sm au lieu de text-lg pour que l'indicatif soit bien visible */}
                         <span className="text-blue-500 font-black text-sm italic tracking-tighter">
-                          {selectedCountry.dialCode}
+                          +{selectedCountry.phoneCode}
                         </span>
                     </div>
                     <div className="relative flex-1">
@@ -189,46 +199,32 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              <Button 
-                disabled={!selectedOperator || !amount}
-                className="w-full h-16 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-[0.98] transition-all"
-              >
+              <Button className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-[0.98] transition-all">
                 Démarrer le dépôt
               </Button>
             </div>
           </TabsContent>
 
-          {/* Crypto Content */}
+          {/* Crypto Content reste identique mais propre */}
           <TabsContent value="crypto" className="mt-8 space-y-6">
-            <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+             {/* ... contenu crypto ... */}
+             <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
               <div className="text-center">
                 <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.2em]">Pi Mainnet Gateway</p>
               </div>
-
               <div className="space-y-4">
                 <div className="space-y-2">
                     <label className="text-[9px] font-black text-white uppercase ml-2 tracking-widest italic opacity-80">Wallet PimPay</label>
                     <div className="relative">
-                        <div className="bg-black/40 border border-blue-500/20 rounded-2xl p-5 pr-14 break-all font-mono text-[10px] text-blue-100 min-h-[70px] flex items-center shadow-inner">
+                        <div className="bg-black/40 border border-blue-500/20 rounded-2xl p-5 pr-14 break-all font-mono text-[10px] text-blue-100 min-h-[70px] flex items-center">
                             {PIMPAY_WALLET_ADDRESS}
                         </div>
-                        <button onClick={handleCopyAddress} className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-blue-600 rounded-xl text-white shadow-lg active:scale-90 transition-all">
+                        <button onClick={handleCopyAddress} className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-blue-600 rounded-xl text-white">
                             {copied ? <Check size={16}/> : <Copy size={16}/>}
                         </button>
                     </div>
                 </div>
-
-                <div className="space-y-2">
-                    <label className="text-[9px] font-black text-white uppercase ml-2 tracking-widest italic opacity-80">Hash de la transaction</label>
-                    <Input
-                        placeholder="Coller le hash ici..."
-                        value={txHash}
-                        onChange={(e) => setTxHash(e.target.value)}
-                        className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 font-mono text-xs text-white focus:border-blue-500 placeholder:text-slate-700"
-                    />
-                </div>
-
-                <Button className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl">
+                <Button className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all">
                   Vérifier mon dépôt
                 </Button>
               </div>
