@@ -1,16 +1,13 @@
 "use client";
 
-import { prisma } from "@/lib/prisma";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Ajouté pour la redirection
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, CircleDot, ArrowDownToLine, Smartphone,
-  CreditCard, Bitcoin, ShieldCheck, Copy, Check, Coins, Zap,
-  Loader2 // Importé pour l'état de chargement
+  CreditCard, Bitcoin, ShieldCheck, Copy, Check, Coins, Zap
 } from "lucide-react";
 import Link from "next/link";
 import { CountrySelect } from "@/components/country-select";
@@ -19,24 +16,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Flag from "react-world-flags";
-import { processDeposit } from "@/app/actions/deposit"; // Import de l'action
 
-const PI_GCV_PRICE = 314159;
+const PI_GCV_PRICE = 314159; 
 
 export default function DepositPage() {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // États du formulaire
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  
+  // État pour le pays sélectionné (par défaut Congo DRC via votre liste)
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     countries.find((c) => c.code === "CD") || countries[0]
   );
+  
   const [selectedOperator, setSelectedOperator] = useState("");
-  const [txHash, setTxHash] = useState("");
   const [copied, setCopied] = useState(false);
+  const [txHash, setTxHash] = useState("");
 
   const PIMPAY_WALLET_ADDRESS = "GD3SGMIZH6NAQ3RY7KQZDSSDHTN2K2HFKRRPEVAWWFJGL4CZ7MXW7UQR";
 
@@ -50,40 +45,6 @@ export default function DepositPage() {
     return (val / PI_GCV_PRICE).toFixed(8);
   };
 
-  // FONCTION PRINCIPALE DE DÉPÔT
-  const handleStartDeposit = async () => {
-    if (!amount || !phoneNumber || !selectedOperator) {
-      toast.error("Veuillez remplir tous les champs");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Simulation du UserId (Ici tu devrais récupérer l'ID de l'user connecté via ta session)
-      const mockUserId = "user_id_from_db"; 
-
-      const response = await processDeposit({
-        userId: mockUserId,
-        amount: parseFloat(amount),
-        method: selectedOperator,
-        phone: `${selectedCountry.dialCode}${phoneNumber}`,
-        currency: selectedCountry.code
-      });
-
-      if (response.success) {
-        toast.success("Dépôt initialisé !");
-        // Redirection vers la page de résumé avec la référence de transaction
-        router.push(`/deposit/summary?ref=${response.reference}`);
-      } else {
-        toast.error(response.error);
-      }
-    } catch (error) {
-      toast.error("Une erreur est survenue");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(PIMPAY_WALLET_ADDRESS);
     setCopied(true);
@@ -95,7 +56,7 @@ export default function DepositPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans selection:bg-blue-500/30">
-
+      
       {/* HEADER */}
       <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
@@ -147,7 +108,7 @@ export default function DepositPage() {
 
           <TabsContent value="mobile" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl relative overflow-hidden">
-
+              
               {/* Sélecteur de Pays */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Région / Pays</label>
@@ -156,11 +117,11 @@ export default function DepositPage() {
                       <Flag code={selectedCountry.code} className="w-full h-full object-cover scale-110" />
                    </div>
                    <div className="flex-1 overflow-hidden">
-                      <CountrySelect
-                        value={selectedCountry}
+                      <CountrySelect 
+                        value={selectedCountry} 
                         onChange={(country) => {
                           setSelectedCountry(country);
-                          setSelectedOperator("");
+                          setSelectedOperator(""); // Reset l'opérateur quand le pays change
                         }}
                         options={countries}
                       />
@@ -173,7 +134,7 @@ export default function DepositPage() {
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Montant (USD)</label>
                 <div className="relative">
                   <Coins className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
-                  <Input
+                  <Input 
                     type="number"
                     placeholder="0.00"
                     value={amount}
@@ -187,12 +148,12 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              {/* Opérateurs Dynamiques */}
+              {/* Opérateurs Dynamiques selon le pays sélectionné */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Opérateur Mobile</label>
                 <Select value={selectedOperator} onValueChange={setSelectedOperator}>
                   <SelectTrigger className="h-16 bg-white/5 border-white/10 rounded-2xl px-4 text-white focus:border-blue-500">
-                    <SelectValue placeholder={selectedCountry.operators.length > 0 ? "Choisir un réseau" : "Indisponible"} />
+                    <SelectValue placeholder={selectedCountry.operators.length > 0 ? "Choisir un réseau" : "Indisponible dans ce pays"} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
                     {selectedCountry.operators.map((op) => (
@@ -207,7 +168,7 @@ export default function DepositPage() {
                 </Select>
               </div>
 
-              {/* Téléphone */}
+              {/* Téléphone avec Indicatif Dynamique */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Numéro de téléphone</label>
                 <div className="flex gap-2">
@@ -217,7 +178,7 @@ export default function DepositPage() {
                         </span>
                     </div>
                     <div className="relative flex-1">
-                        <Input
+                        <Input 
                             type="tel"
                             placeholder="Ex: 812345678"
                             value={phoneNumber}
@@ -228,17 +189,16 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleStartDeposit}
-                disabled={!selectedOperator || !amount || isLoading}
+              <Button 
+                disabled={!selectedOperator || !amount}
                 className="w-full h-16 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-[0.98] transition-all"
               >
-                {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Démarrer le dépôt"}
+                Démarrer le dépôt
               </Button>
             </div>
           </TabsContent>
 
-          {/* Crypto Content (Vérification Hash) */}
+          {/* Crypto Content */}
           <TabsContent value="crypto" className="mt-8 space-y-6">
             <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
               <div className="text-center">
@@ -268,12 +228,8 @@ export default function DepositPage() {
                     />
                 </div>
 
-                <Button 
-                   onClick={handleStartDeposit} // On peut réutiliser la même logique pour enregistrer
-                   disabled={!txHash || isLoading}
-                   className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl"
-                >
-                  {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Vérifier mon dépôt"}
+                <Button className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl">
+                  Vérifier mon dépôt
                 </Button>
               </div>
             </div>
