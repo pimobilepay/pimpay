@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "flutterwavedoc",
+      "source": "@flutterwavedoc/v4.0.0#1c7h2umjiq89lb",
+      "integrity": "sha512-xlgaGkuQZCEZlF10LoP1r6iM55SJxYWHuMjr4spkbi6TwIRQaQDnfDaxvz6xFr8ONwJCdy/ZyZvMFAfbFqjorQ==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}

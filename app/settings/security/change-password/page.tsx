@@ -1,18 +1,12 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+                                               import React, { useState, useEffect } from "react";
 import { ArrowLeft, Key, Eye, EyeOff, Shield, Lock, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-
-export default function ChangePasswordPage() {
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
+import { useRouter } from "next/navigation";   import { toast } from "sonner";                
+export default function ChangePasswordPage() {   const router = useRouter();
+  const [mounted, setMounted] = useState(false);                                                const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);                                                const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -23,7 +17,7 @@ export default function ChangePasswordPage() {
 
     // 1. Récupération robuste du token
     const token = localStorage.getItem("token") || localStorage.getItem("pimpay_token");
-    
+
     if (!token) {
       toast.error("Session introuvable, veuillez vous reconnecter");
       router.push("/auth/login");

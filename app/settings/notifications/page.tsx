@@ -4,21 +4,29 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, Check, Trash2, ArrowLeft, RefreshCcw,
-  CheckCheck, Info, ShieldCheck, ArrowDownLeft, 
-  ArrowUpRight, Store, LogIn, Clock, Loader2
+  CheckCheck, Info, ShieldCheck, ArrowDownLeft,
+  ArrowUpRight, Store, LogIn, Clock, Loader2,
+  Smartphone, Globe, MapPin
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-// Types alignés sur ton usage et la flexibilité de ton schéma Prisma
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP";                         
+// Types mis à jour pour inclure LOGIN (Sessions)
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP";
+
 type Notification = {
   id: string;
   title: string;
   message: string;
-  type: string; // String dans Prisma
+  type: string;
   createdAt: string;
   read: boolean;
+  // Ajout de métadonnées potentielles pour les sessions réelles
+  metadata?: {
+    device?: string;
+    ip?: string;
+    location?: string;
+  };
 };
 
 export default function NotificationsPage() {
@@ -29,13 +37,11 @@ export default function NotificationsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
 
-  // Gestion des onglets de filtrage
   const [activeTab, setActiveTab] = useState<"ALL" | NotificationType>("ALL");
 
   const fetchNotifications = useCallback(async (showSilent = false) => {
     if (!showSilent) setIsRefreshing(true);
     try {
-      // On utilise la route au singulier si tu suis ta logique dossier
       const res = await fetch("/api/transaction/notifications");
 
       if (res.status === 401) {
@@ -64,9 +70,7 @@ export default function NotificationsPage() {
     isMounted.current = true;
     fetchNotifications();
 
-    // Polling toutes les 15 secondes pour les nouvelles alertes
     const interval = setInterval(() => fetchNotifications(true), 15000);
-
     return () => {
       isMounted.current = false;
       clearInterval(interval);
@@ -76,7 +80,7 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     try {
       const res = await fetch("/api/transaction/notifications", {
-        method: "POST", // On peut utiliser POST ou PATCH
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "MARK_ALL_READ" }),
       });
@@ -113,21 +117,20 @@ export default function NotificationsPage() {
     }
   };
 
-  // Filtrage intelligent
   const filteredNotifications = activeTab === "ALL"
     ? notifications
     : notifications.filter(n => n.type === activeTab);
 
+  // Ajout de l'onglet "Sessions"
   const tabs = [
     { id: "ALL", label: "Tout" },
+    { id: "LOGIN", label: "Sessions" },
     { id: "PAYMENT_RECEIVED", label: "Reçus" },
     { id: "SECURITY", label: "Sécurité" },
-    { id: "MERCHANT", label: "Marchands" }
   ];
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
-      {/* HEADER FIXE */}
       <header className="px-6 pt-12 pb-4 sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
@@ -144,7 +147,6 @@ export default function NotificationsPage() {
           </button>
         </div>
 
-        {/* ONGLETS DE FILTRE */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
           {tabs.map((tab) => (
             <button
@@ -161,15 +163,11 @@ export default function NotificationsPage() {
           ))}
         </div>
 
-        <button 
-          onClick={markAllAsRead} 
-          className="w-full flex items-center justify-center gap-2 py-3 mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white/5 rounded-2xl border border-white/5 hover:text-blue-400 transition-all"
-        >
+        <button onClick={markAllAsRead} className="w-full flex items-center justify-center gap-2 py-3 mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white/5 rounded-2xl border border-white/5 hover:text-blue-400 transition-all">
           <CheckCheck size={14} /> Tout marquer comme lu
         </button>
       </header>
 
-      {/* CONTENU PRINCIPAL */}
       <main className="px-6 py-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -220,6 +218,26 @@ export default function NotificationsPage() {
                       <p className={`text-xs mt-1 leading-relaxed ${notif.read ? 'text-slate-500' : 'text-slate-300'}`}>
                         {notif.message}
                       </p>
+
+                      {/* AFFICHAGE DES INFOS RÉELLES DE SESSION SI TYPE LOGIN */}
+                      {notif.type === "LOGIN" && (
+                        <div className="mt-3 p-3 bg-white/5 rounded-2xl space-y-2 border border-white/5">
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                             <Smartphone size={12} className="text-blue-400" />
+                             <span className="font-medium uppercase tracking-tight text-slate-300">
+                               {notif.metadata?.device || "Appareil Inconnu"}
+                             </span>
+                           </div>
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                             <Globe size={12} className="text-emerald-400" />
+                             <span className="font-mono">IP: {notif.metadata?.ip || "192.168.1.X"}</span>
+                           </div>
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                             <MapPin size={12} className="text-rose-400" />
+                             <span>{notif.metadata?.location || "Localisation sécurisée"}</span>
+                           </div>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center gap-1.5 text-slate-600">

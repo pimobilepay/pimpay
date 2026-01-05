@@ -10,14 +10,42 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useUser from "@/hooks/useUser";
 
-type KycStatus = "not_started" | "pending" | "approved" | "rejected";
+type KycStatusType = "NONE" | "PENDING" | "VERIFIED" | "REJECTED";
 
 export default function KycPage() {
   const router = useRouter();
-  const { user } = useUser(); // Adapté selon ta structure useUser
-  const [status, setStatus] = useState<KycStatus>("not_started");
+  const userData = useUser(); 
+  const user = userData?.user;
+
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [mounted, setMounted] = useState(false);
+  const [showError, setShowError] = useState(false);
+
+  // 1. Correction Hydratation et Sécurité de chargement
+  useEffect(() => {
+    setMounted(true);
+    
+    // Si après 5 secondes on n'a toujours pas de userData, on affiche un message d'erreur
+    const timer = setTimeout(() => {
+      if (!userData) setShowError(true);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [userData]);
+
+  // 2. Remplissage des données quand le user est chargé
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        fullName: user.name || "",
+        country: user.country || "",
+        city: user.city || "",
+        address: user.address || "",
+      }));
+    }
+  }, [user]);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -37,18 +65,36 @@ export default function KycPage() {
     selfie: null,
   });
 
-  // Pré-remplissage des données utilisateur
-  useEffect(() => {
-    if (user) {
-      setFormData(prev => ({
-        ...prev,
-        fullName: user.name || "",
-        country: user.country || "",
-      }));
-      // Si l'utilisateur a déjà un statut KYC dans la DB
-      if (user.kycStatus) setStatus(user.kycStatus.toLowerCase());
-    }
-  }, [user]);
+  // Empêche le rendu serveur pour éviter les erreurs de désynchronisation Node
+  if (!mounted) return null;
+
+  // GESTION DU LOADER BLOQUÉ
+  if (!userData) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-6 text-center">
+        {!showError ? (
+          <>
+            <Loader2 className="text-blue-500 animate-spin mb-4" size={40} />
+            <p className="text-slate-400 animate-pulse">Initialisation du protocole Pimpay...</p>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <XCircle className="text-rose-500 mx-auto" size={48} />
+            <p className="text-white font-bold">Session introuvable</p>
+            <p className="text-slate-400 text-sm">Nous n'avons pas pu récupérer vos informations.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-blue-600 rounded-xl text-xs font-bold uppercase"
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const currentKycStatus = (user?.kycStatus as KycStatusType) || "NONE";
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
     if (e.target.files?.[0]) {
@@ -61,14 +107,6 @@ export default function KycPage() {
     }
   };
 
-  const validateStep1 = () => {
-    if (!formData.fullName || !formData.dob || !formData.country) {
-      toast.error("Veuillez remplir les champs obligatoires");
-      return false;
-    }
-    return true;
-  };
-
   const submitKyc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!files.front || !files.selfie) {
@@ -78,21 +116,20 @@ export default function KycPage() {
 
     setLoading(true);
     try {
-      // Simulation d'envoi (Ici tu devrais utiliser FormData pour envoyer les fichiers vers S3/Cloudinary)
-      await new Promise((r) => setTimeout(r, 3000));
-      
       const response = await fetch("/api/user/kyc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, status: "PENDING" })
+        body: JSON.stringify({ ...formData })
       });
 
       if (response.ok) {
-        setStatus("pending");
         toast.success("Documents soumis avec succès");
+        router.refresh(); 
+      } else {
+        toast.error("Erreur lors de la soumission");
       }
     } catch (err) {
-      toast.error("Erreur lors de la soumission");
+      toast.error("Erreur réseau");
     } finally {
       setLoading(false);
     }
@@ -105,7 +142,7 @@ export default function KycPage() {
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-[#020617]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="p-2 hover:bg-white/10 rounded-xl transition-all active:scale-90">
+          <button onClick={() => router.back()} className="p-2 hover:bg-white/10 rounded-xl transition-all">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
@@ -113,23 +150,25 @@ export default function KycPage() {
             <p className="text-[9px] text-blue-500 font-bold uppercase tracking-widest">Identity Protocol v2.0</p>
           </div>
         </div>
-        {status !== "not_started" && (
+
+        {currentKycStatus !== "NONE" && (
             <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                status === "pending" ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                status === "approved" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                currentKycStatus === "PENDING" ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
+                currentKycStatus === "VERIFIED" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
                 "bg-rose-500/10 text-rose-500 border-rose-500/20"
             }`}>
-                {status}
+                {currentKycStatus}
             </div>
         )}
       </div>
 
       <div className="max-w-2xl mx-auto px-6 pt-8">
         <AnimatePresence mode="wait">
-          {status === "pending" ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }} 
-              animate={{ opacity: 1, y: 0 }} 
+          {currentKycStatus === "PENDING" ? (
+            <motion.div
+              key="pending-screen"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               className="bg-slate-900/40 border border-white/5 p-10 rounded-[3rem] text-center space-y-6 backdrop-blur-md"
             >
               <div className="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto border border-blue-500/20">
@@ -138,64 +177,61 @@ export default function KycPage() {
               <div className="space-y-2">
                 <h2 className="text-2xl font-black uppercase italic">Vérification en cours</h2>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
-                  Votre dossier est en file d'attente pour validation manuelle. <br/>
+                  Votre dossier Pimpay est en file d'attente. <br/>
                   <span className="text-blue-500 font-bold">Délai estimé : 12h - 24h</span>
                 </p>
               </div>
-              <button onClick={() => router.push('/wallet')} className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+              <button onClick={() => router.push('/wallet')} className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10">
                 Retour au Tableau de bord
               </button>
             </motion.div>
           ) : (
             <form onSubmit={submitKyc} className="space-y-8">
-              {/* INDICATEUR DE PROGRESSION */}
               <div className="flex items-center gap-3 px-2">
-                  <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= 1 ? 'bg-blue-600 shadow-[0_0_10px_#2563eb]' : 'bg-slate-800'}`} />
-                  <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= 2 ? 'bg-blue-600 shadow-[0_0_10px_#2563eb]' : 'bg-slate-800'}`} />
+                  <div className={`h-1.5 flex-1 rounded-full ${step >= 1 ? 'bg-blue-600 shadow-[0_0_10px_#2563eb]' : 'bg-slate-800'}`} />
+                  <div className={`h-1.5 flex-1 rounded-full ${step >= 2 ? 'bg-blue-600 shadow-[0_0_10px_#2563eb]' : 'bg-slate-800'}`} />
               </div>
 
               {step === 1 ? (
-                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-8">
+                <motion.div key="step1" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
                   <SectionTitle icon={<FileText size={18}/>} title="Profil Civil" />
-                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <KycInput label="Nom complet" value={formData.fullName} onChange={(v) => setFormData({...formData, fullName: v})} />
-                    <KycInput label="Nationalité" value={formData.nationality} placeholder="Ex: Congolaise" onChange={(v) => setFormData({...formData, nationality: v})} />
-                    <KycInput label="Date de Naissance" type="date" value={formData.dob} onChange={(v) => setFormData({...formData, dob: v})} />
-                    <KycInput label="Origine des fonds" type="select" options={["SALARY", "BUSINESS", "INVESTMENTS", "CRYPTO"]} value={formData.sourceOfFunds} onChange={(v) => setFormData({...formData, sourceOfFunds: v})} />
+                    <KycInput label="Nom complet" value={formData.fullName} onChange={(v: string) => setFormData({...formData, fullName: v})} />
+                    <KycInput label="Nationalité" value={formData.nationality} placeholder="Ex: Congolaise" onChange={(v: string) => setFormData({...formData, nationality: v})} />
+                    <KycInput label="Date de Naissance" type="date" value={formData.dob} onChange={(v: string) => setFormData({...formData, dob: v})} />
+                    <KycInput label="Origine des fonds" type="select" options={["SALARY", "BUSINESS", "INVESTMENTS", "CRYPTO"]} value={formData.sourceOfFunds} onChange={(v: string) => setFormData({...formData, sourceOfFunds: v})} />
                   </div>
 
                   <SectionTitle icon={<MapPin size={18}/>} title="Localisation" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <KycInput label="Pays" value={formData.country} onChange={(v) => setFormData({...formData, country: v})} />
-                    <KycInput label="Ville" value={formData.city} onChange={(v) => setFormData({...formData, city: v})} />
+                    <KycInput label="Pays" value={formData.country} onChange={(v: string) => setFormData({...formData, country: v})} />
+                    <KycInput label="Ville" value={formData.city} onChange={(v: string) => setFormData({...formData, city: v})} />
                     <div className="md:col-span-2">
-                      <KycInput label="Adresse résidentielle" value={formData.address} onChange={(v) => setFormData({...formData, address: v})} />
+                      <KycInput label="Adresse résidentielle" value={formData.address} onChange={(v: string) => setFormData({...formData, address: v})} />
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => validateStep1() && setStep(2)}
-                    className="w-full py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl shadow-blue-600/20 active:scale-[0.98]"
+                    onClick={() => setStep(2)}
+                    className="w-full py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl shadow-blue-600/20"
                   >
-                    Suivant : Preuves d'identité
+                    Suivant : Documents
                   </button>
                 </motion.div>
               ) : (
-                <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+                <motion.div key="step2" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
                    <SectionTitle icon={<ShieldCheck size={18}/>} title="Certification Documentaire" />
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <KycInput label="Type de Document" type="select" options={["PASSPORT", "NATIONAL_ID", "DRIVING_LICENSE"]} value={formData.idType} onChange={(v) => setFormData({...formData, idType: v})} />
-                    <KycInput label="Numéro ID" value={formData.idNumber} placeholder="Ex: AB123456" onChange={(v) => setFormData({...formData, idNumber: v})} />
+                    <KycInput label="Type de Document" type="select" options={["PASSPORT", "NATIONAL_ID", "DRIVING_LICENSE"]} value={formData.idType} onChange={(v: string) => setFormData({...formData, idType: v})} />
+                    <KycInput label="Numéro ID" value={formData.idNumber} onChange={(v: string) => setFormData({...formData, idNumber: v})} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-2">
-                      <FileUpload label="Recto (ID)" id="front" file={files.front} onChange={(e) => handleFileChange(e, 'front')} />
-                      <FileUpload label="Verso (ID)" id="back" file={files.back} onChange={(e) => handleFileChange(e, 'back')} />
+                      <FileUpload label="Recto (ID)" id="front" file={files.front} onChange={(e: any) => handleFileChange(e, 'front')} />
+                      <FileUpload label="Verso (ID)" id="back" file={files.back} onChange={(e: any) => handleFileChange(e, 'back')} />
                       <div className="md:col-span-2">
-                          <FileUpload label="Selfie avec document tenu en main" id="selfie" file={files.selfie} isSelfie onChange={(e) => handleFileChange(e, 'selfie')} />
+                          <FileUpload label="Selfie avec document tenu en main" id="selfie" file={files.selfie} isSelfie onChange={(e: any) => handleFileChange(e, 'selfie')} />
                       </div>
                   </div>
 
@@ -216,15 +252,14 @@ export default function KycPage() {
   );
 }
 
-/* --- SOUS-COMPOSANTS --- */
-
-function SectionTitle({ icon, title }: { icon: React.ReactNode, title: string }) {
-    return (
-        <div className="flex items-center gap-3 border-l-2 border-blue-600 pl-4 py-1">
-            <span className="text-blue-500">{icon}</span>
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</h3>
-        </div>
-    );
+// -- SOUS COMPOSANTS --
+function SectionTitle({ icon, title }: any) {
+  return (
+    <div className="flex items-center gap-3 border-l-2 border-blue-600 pl-4 py-1">
+      <span className="text-blue-500">{icon}</span>
+      <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</h3>
+    </div>
+  );
 }
 
 function KycInput({ label, value, onChange, type = "text", placeholder, options }: any) {
@@ -232,23 +267,20 @@ function KycInput({ label, value, onChange, type = "text", placeholder, options 
     <div className="space-y-2">
       <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">{label}</label>
       {type === "select" ? (
-        <div className="relative">
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="w-full bg-slate-900/40 border border-white/5 rounded-2xl py-4 px-5 text-sm font-bold focus:border-blue-500 outline-none transition-all appearance-none text-white"
-            >
-                {options.map((opt: string) => <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>)}
-            </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-40 text-xs">▼</div>
-        </div>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-slate-900/40 border border-white/5 rounded-2xl py-4 px-5 text-sm font-bold focus:border-blue-500 outline-none transition-all text-white appearance-none"
+        >
+          {options.map((opt: string) => <option key={opt} value={opt} className="bg-slate-900 text-white">{opt}</option>)}
+        </select>
       ) : (
         <input
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || label}
-          className="w-full bg-slate-900/40 border border-white/5 rounded-2xl py-4 px-5 text-sm font-bold focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+          className="w-full bg-slate-900/40 border border-white/5 rounded-2xl py-4 px-5 text-sm font-bold focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 text-white"
         />
       )}
     </div>
@@ -259,7 +291,7 @@ function FileUpload({ label, id, file, onChange, isSelfie }: any) {
   const [preview, setPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!file) return;
+    if (!file) { setPreview(null); return; }
     const url = URL.createObjectURL(file);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
@@ -269,7 +301,7 @@ function FileUpload({ label, id, file, onChange, isSelfie }: any) {
     <div className="space-y-2">
       <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">{label}</label>
       <label htmlFor={id} className="relative group cursor-pointer block">
-        <div className={`w-full aspect-[4/3] rounded-[2.5rem] border-2 border-dashed border-white/5 bg-slate-900/40 group-hover:bg-blue-600/5 group-hover:border-blue-500/30 transition-all flex flex-col items-center justify-center overflow-hidden`}>
+        <div className="w-full aspect-[4/3] rounded-[2.5rem] border-2 border-dashed border-white/5 bg-slate-900/40 group-hover:bg-blue-600/5 group-hover:border-blue-500/30 transition-all flex flex-col items-center justify-center overflow-hidden">
           {preview ? (
             <img src={preview} alt="Preview" className="w-full h-full object-cover" />
           ) : (
