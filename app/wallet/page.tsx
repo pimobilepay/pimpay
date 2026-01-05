@@ -5,9 +5,10 @@ import {
   CreditCard, ShieldCheck, Wallet as WalletIcon,
   ArrowDownToLine, ArrowUpFromLine, Eye, EyeOff,
   TrendingUp, ArrowUpRight, ArrowDownLeft, RefreshCcw,
-  ArrowLeftRight, ShieldAlert, History, Loader2, Plus
+  ArrowLeftRight, ShieldAlert, History, Loader2, Plus,
+  Coins
 } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';                                            import Link from "next/link";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { BottomNav } from "@/components/bottom-nav";
@@ -15,10 +16,17 @@ import { BottomNav } from "@/components/bottom-nav";
 export default function WalletPage() {
   const [mounted, setMounted] = useState(false);
   const [showCardNumber, setShowCardNumber] = useState(false);
-  const [loading, setLoading] = useState(true);       
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
+
+  // Configuration des assets
+  const assetConfig: Record<string, { name: string, color: string, bg: string }> = {
+    "PI": { name: "Pi Network", color: "text-purple-400", bg: "bg-purple-500/20" },
+    "BTC": { name: "Bitcoin", color: "text-orange-400", bg: "bg-orange-500/20" },
+    "SDA": { name: "Sidra Chain", color: "text-emerald-400", bg: "bg-emerald-500/20" },
+    "USD": { name: "US Dollar", color: "text-blue-400", bg: "bg-blue-500/20" },
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -45,7 +53,6 @@ export default function WalletPage() {
           balances: walletJson.balances || {}
         });
         setTransactions(txsJson.history || []);
-        setChartData(txsJson.chart || []);
       }
     } catch (err) {
       toast.error("Erreur de synchronisation");
@@ -56,13 +63,14 @@ export default function WalletPage() {
 
   if (!mounted) return null;
 
-  const currencies = ["PI", "USD", "XAF", "CDF"];
+  // Liste des cryptos à afficher en bas
+  const cryptoAssets = ["PI", "BTC", "SDA"];
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans selection:bg-blue-500/30">
       <div className="px-6 pt-12 max-w-md mx-auto">
 
-        {/* HEADER - Retour au style original */}
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-2xl font-black uppercase italic tracking-tighter text-white">
@@ -74,7 +82,7 @@ export default function WalletPage() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                Pi Mainnet Node v4.0
+                Multi-Asset Node v4.5
               </p>
             </div>
           </div>
@@ -86,32 +94,10 @@ export default function WalletPage() {
           </button>
         </div>
 
-        {/* SOLDES MULTI-DEVISES - Rétabli avec bordures fines */}
-        <div className="mb-8">
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Mes Soldes</p>
-          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-            {currencies.map((cur) => (
-              <Card key={`wallet-${cur}`} className="min-w-[120px] bg-white/5 border-white/10 p-4 rounded-[1.5rem] backdrop-blur-sm">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black mb-3 ${
-                  cur === 'PI' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-                }`}>
-                  {cur}
-                </div>
-                <p className="text-lg font-black text-white">
-                  {loading ? "..." : (data?.balances?.[cur]?.balance?.toLocaleString() || "0.00")}
-                </p>
-                <p className="text-[8px] text-slate-500 uppercase font-bold mt-1 tracking-widest italic">Disponible</p>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* CARTE VIRTUELLE - Rétablissement du Gradient Original (Indigo/Blue/Slate) */}
+        {/* CARTE VIRTUELLE (Focus USD Principal) */}
         <div className="group relative w-full aspect-[1.58/1] mb-4">
           <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-950 rounded-[32px] p-8 border border-white/20 shadow-2xl relative overflow-hidden transition-all duration-500 group-hover:scale-[1.01]">
-
             <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-blue-400/10 rounded-full blur-3xl" />
-
             <div className="flex justify-between items-start relative z-10">
               <div className="space-y-1">
                  <div className="flex items-center gap-2">
@@ -128,13 +114,11 @@ export default function WalletPage() {
                 USD
               </div>
             </div>
-
             <div className="mt-8 relative z-10">
               <p className="text-lg font-mono tracking-[0.25em] text-white drop-shadow-md">
                 {showCardNumber ? data?.cardNumber : `•••• •••• •••• ${data?.cardNumber?.slice(-4) || "0000"}`}
               </p>
             </div>
-
             <div className="flex justify-between items-end mt-auto relative z-10 border-t border-white/10 pt-4">
               <div>
                 <p className="text-[7px] uppercase text-blue-300/50 font-black tracking-widest mb-1">Card Holder</p>
@@ -164,7 +148,7 @@ export default function WalletPage() {
             </button>
         </div>
 
-        {/* WEB3 ACTIONS - Couleurs d'origine */}
+        {/* WEB3 ACTIONS */}
         <div className="grid grid-cols-4 gap-3 mb-10">
           {[
             { icon: <Plus />, label: "Deposit", color: "bg-blue-500", link: "/deposit" },
@@ -181,40 +165,39 @@ export default function WalletPage() {
           ))}
         </div>
 
-        {/* ANALYTICS CHART - Style original (Blue Glow) */}
-        <div className="mb-10 p-6 bg-slate-900/60 border border-white/5 rounded-[32px] relative overflow-hidden">
-          <div className="flex justify-between items-center mb-6">
-             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <TrendingUp size={14} className="text-blue-500" /> Web3 Cash-Flow
-             </h3>
-             <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">+12.4%</span>
-          </div>
-          <div className="h-32 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <Area
-                    type="monotone"
-                    dataKey="amount"
-                    stroke="#3b82f6"
-                    strokeWidth={3}
-                    fill="url(#colorAmount)"
-                    animationDuration={2000}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+        {/* NOUVELLE SECTION : MES CRYPTOS (En bas des actions) */}
+        <div className="mb-10">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 px-2">Mes Actifs Crypto</h3>
+          <div className="space-y-3">
+            {cryptoAssets.map((cur) => {
+              const config = assetConfig[cur];
+              return (
+                <div key={`asset-${cur}`} className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${config.bg} ${config.color}`}>
+                      {cur}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black uppercase text-white tracking-tight">{config.name}</p>
+                      <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Réseau Actif</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-white">
+                       {loading ? "..." : (data?.balances?.[cur]?.balance?.toLocaleString() || "0.00")}
+                    </p>
+                    <p className={`text-[8px] font-bold mt-1 uppercase italic ${config.color}`}>{cur}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* TRANSACTION FEED - Retour au style original (Emerald/Blue) */}
+        {/* TRANSACTION FEED */}
         <div className="space-y-5">
           <div className="flex justify-between items-center px-2">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Network History</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">History</h3>
             <Link href="/transactions" className="p-2 bg-white/5 rounded-xl border border-white/5">
                 <ArrowUpRight size={14} className="text-blue-500" />
             </Link>
@@ -239,7 +222,7 @@ export default function WalletPage() {
                     </div>
                     <div className="text-right">
                         <p className={`text-xs font-black ${tx.direction === "IN" ? "text-emerald-400" : "text-white"}`}>
-                        {tx.direction === "IN" ? "+" : "-"} ${tx.amount.toFixed(2)}
+                        {tx.direction === "IN" ? "+" : "-"} {tx.amount.toFixed(2)} {tx.currency || "USD"}
                         </p>
                         <p className="text-[8px] font-bold text-slate-600 mt-1 uppercase italic">{tx.status}</p>
                     </div>
