@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     const userId = (payload.id || payload.userId || payload.sub) as string;
 
-    // 3. Récupération des données avec les bons noms de champs Prisma
+    // 3. Récupération des données corrigée (sans le champ 'type' inexistant)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -47,21 +47,35 @@ export async function GET(request: Request) {
           take: 1,
           select: { id: true, balance: true, currency: true }
         },
-        // On récupère les deux types de transactions séparément
+        // On récupère les transactions en supprimant 'type' qui fait planter Prisma
         transactionsFrom: {
           take: 7,
           orderBy: { createdAt: 'desc' },
-          select: { id: true, amount: true, status: true, type: true, description: true, createdAt: true }
+          select: { 
+            id: true, 
+            amount: true, 
+            status: true, 
+            description: true, // Utilise description à la place de type
+            createdAt: true,
+            reference: true 
+          }
         },
         transactionsTo: {
           take: 7,
           orderBy: { createdAt: 'desc' },
-          select: { id: true, amount: true, status: true, type: true, description: true, createdAt: true }
+          select: { 
+            id: true, 
+            amount: true, 
+            status: true, 
+            description: true, 
+            createdAt: true,
+            reference: true
+          }
         },
         _count: {
-          select: { 
-            transactionsFrom: true, 
-            transactionsTo: true 
+          select: {
+            transactionsFrom: true,
+            transactionsTo: true
           }
         }
       }
@@ -71,19 +85,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
     }
 
-    // 4. Fusion et tri des transactions (Logique métier)
-    // On combine les envois et les réceptions dans un seul tableau
+    // 4. Fusion et tri des transactions
+    // On ajoute manuellement une propriété 'type' ou 'flow' pour le frontend
     const mergedTransactions = [
-      ...user.transactionsFrom.map(tx => ({ ...tx, flow: 'OUT' })),
-      ...user.transactionsTo.map(tx => ({ ...tx, flow: 'IN' }))
+      ...user.transactionsFrom.map(tx => ({ 
+        ...tx, 
+        flow: 'OUT', 
+        type: 'TRANSFER_SENT' // On simule le type pour ton composant WalletPage
+      })),
+      ...user.transactionsTo.map(tx => ({ 
+        ...tx, 
+        flow: 'IN', 
+        type: 'TRANSFER_RECEIVED' 
+      }))
     ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 7); // On garde les 7 plus récentes après fusion
+    .slice(0, 7);
 
     const wallet = user.wallets?.[0];
     const balance = wallet?.balance ?? 0;
 
-    // 5. Réponse structurée et compatible
+    // 5. Réponse structurée
     return NextResponse.json({
       success: true,
       user: {
@@ -94,14 +116,13 @@ export async function GET(request: Request) {
         status: user.status,
         kycStatus: user.kycStatus,
         joinedAt: user.createdAt,
+        avatar: user.avatar
       },
       balance: balance,
       currency: wallet?.currency || "PI",
       gcvValue: balance * 314159,
       name: user.name || user.username || "Pioneer",
-      
-      // On renvoie la liste fusionnée ici
-      transactions: mergedTransactions, 
+      transactions: mergedTransactions,
       stats: {
         totalTransactions: user._count.transactionsFrom + user._count.transactionsTo,
         walletId: wallet?.id || null

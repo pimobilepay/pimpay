@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import SideMenu from "@/components/SideMenu";
+// Assure-toi que le fichier SideMenu.tsx contient bien le code avec "Principal", "Transactions", etc.
+import SideMenu from "@/components/SideMenu"; 
 import { BottomNav } from "@/components/bottom-nav";
 import { usePathname } from "next/navigation";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
@@ -18,6 +19,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
+  // Détection des pages d'authentification pour pimpay
   const isAuthPage = pathname?.startsWith("/auth/login") ||
                      pathname?.startsWith("/auth/signup");
 
@@ -31,31 +33,29 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className={`min-h-screen flex transition-colors duration-500 ${
+      className={`min-h-screen flex flex-col transition-colors duration-500 ${
         isDarkMode ? "bg-[#020617] text-white" : "bg-white text-slate-900"
       }`}
     >
-      {!isAuthPage ? (
+      {/* Structure pour les pages connectées */}
+      {!isAuthPage && (
         <>
-          {/* SideMenu : Il prend sa place à gauche sur Desktop */}
+          {/* On utilise uniquement SideMenu ici */}
           <SideMenu
             open={isMenuOpen}
             onClose={() => setIsMenuOpen(false)}
           />
 
-          {/* Zone de contenu : flex-1 pour occuper tout l'espace restant à droite */}
-          <main className="flex-1 flex flex-col min-h-screen relative overflow-x-hidden">
-            <div className="flex-1 pb-24 lg:pb-8">
-              {children}
-            </div>
-
-            {/* BottomNav : Uniquement visible sur Mobile (via CSS interne de BottomNav ou Tailwind) */}
-            <div className="lg:hidden">
-              <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
-            </div>
+          <main className="flex-grow relative z-0 pb-24 lg:pb-0">
+            {children}
           </main>
+
+          <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
         </>
-      ) : (
+      )}
+
+      {/* Structure pour les pages d'authentification */}
+      {isAuthPage && (
         <main className="flex-grow">
           {children}
         </main>

@@ -20,7 +20,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      // Empêche les extensions de traduction de casser le DOM
+      // Bloque la traduction automatique qui cause l'erreur removeChild
       translate="no"
       className={`${GeistSans.variable} ${GeistMono.variable} dark notranslate`}
     >
@@ -28,42 +28,39 @@ export default function RootLayout({
         <meta name="google" content="notranslate" />
       </head>
       <body className="bg-[#02040a] text-white antialiased overflow-x-hidden notranslate selection:bg-blue-500/30">
-        {/* Chargement prioritaire du SDK Pi */}
+        {/* SDK Pi chargé pour TOUTES les pages */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
 
-        {/* 1. LAYER DE SÉCURITÉ (Maintenance, Banned, Freeze)
-            Placé ici, il s'assure d'être au-dessus de tout le reste.
-            Le div portal-root aide à prévenir les erreurs 'removeChild'.
-        */}
+        {/* Éléments globaux de sécurité */}
         <div id="portal-root">
           <GlobalAlert />
         </div>
 
-        {/* 2. LAYER D'INFORMATION (Bandeau d'annonce) */}
         <GlobalAnnouncement />
 
-        {/* 3. LAYER APPLICATIF 
-            Le ClientLayout gère l'état global et les providers.
-        */}
-        <div className="relative z-0">
-          <ClientLayout>
-            <main className="min-h-screen">
-              {children}
-            </main>
-          </ClientLayout>
-        </div>
+        {/* ClientLayout contient tes Providers (Auth, Context, etc.) */}
+        <ClientLayout>
+          <main className="min-h-[100dvh] relative z-0">
+            {children}
+          </main>
+        </ClientLayout>
 
-        {/* 4. LAYER DE NOTIFICATION */}
         <Toaster
           position="top-center"
           richColors
           closeButton
           theme="dark"
           toastOptions={{
-            className: 'bg-[#0b1120] border border-white/10 text-white rounded-2xl backdrop-blur-xl',
+            style: {
+              background: '#0b1120',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'white',
+              borderRadius: '1rem',
+              backdropFilter: 'blur(12px)',
+            },
           }}
         />
       </body>

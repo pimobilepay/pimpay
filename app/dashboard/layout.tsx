@@ -1,7 +1,6 @@
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
-// Utilisation de l'alias global pour éviter les erreurs de dossier
-import "@/app/globals.css"; 
+import "../globals.css"; // Ajout d'un point supplémentaire pour remonter au dossier parent
 import { Toaster } from "sonner";
 import Script from "next/script";
 import ClientLayout from "@/components/ClientLayout";
@@ -13,7 +12,7 @@ export const metadata = {
   description: "L'avenir de vos transactions Pi",
 };
 
-export default function DashboardLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -29,7 +28,6 @@ export default function DashboardLayout({
         <meta name="google" content="notranslate" />
       </head>
       <body className="bg-[#02040a] text-white antialiased overflow-x-hidden notranslate selection:bg-blue-500/30">
-        {/* SDK Pi Network pour pimpay */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
@@ -41,8 +39,7 @@ export default function DashboardLayout({
 
         <GlobalAnnouncement />
 
-        {/* ClientLayout centralise le SideMenu pour que les pages de retrait 
-            et de portefeuille s'affichent correctement côte à côte */}
+        {/* ClientLayout contient ton SideMenu et gère l'affichage du contenu central */}
         <ClientLayout>
           {children}
         </ClientLayout>
@@ -66,4 +63,3 @@ export default function DashboardLayout({
     </html>
   );
 }
-

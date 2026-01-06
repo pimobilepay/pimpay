@@ -20,11 +20,11 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   return (
     <div className="fixed inset-0 z-[100] flex">
       {/* Overlay sombre */}
-      <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-        onClick={onClose} 
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
       />
-      
+
       {/* Menu Drawer */}
       <aside className="relative w-80 h-full bg-[#020617] border-r border-white/10 p-6 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
         <div className="flex justify-between items-center mb-10">
