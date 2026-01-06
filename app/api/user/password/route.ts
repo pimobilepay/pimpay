@@ -1,63 +1,79 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs"; // ou ton outil de hashage
-
-const JWT_SECRET = process.env.JWT_SECRET!;
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    const auth = req.headers.get("authorization");
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. Extraction du token depuis les cookies (Méthode PimPay stable)
+    const cookieHeader = req.headers.get("cookie");
+    const currentToken = cookieHeader
+      ?.split("; ")
+      .find((row) => row.startsWith("token="))
+      ?.split("=")[1];
 
-    const token = auth.split(" ")[1];
-    const payload: any = jwt.verify(token, JWT_SECRET);
+    if (!currentToken) {
+      return NextResponse.json({ error: "Session manquante" }, { status: 401 });
+    }
+
+    // 2. Vérification de la session en base
+    const dbSession = await prisma.session.findUnique({
+      where: { token: currentToken },
+      include: { user: true },
+    });
+
+    if (!dbSession || !dbSession.isActive || !dbSession.user) {
+      return NextResponse.json({ error: "Non autorisé ou session expirée" }, { status: 401 });
+    }
+
+    const user = dbSession.user;
     const { oldPassword, newPassword } = await req.json();
 
-    // 1. Vérification de l'utilisateur
-    const user = await prisma.user.findUnique({ where: { id: payload.id } });
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    // 3. Vérification de l'ancien mot de passe (si existant)
+    if (user.password) {
+      const isValid = await bcrypt.compare(oldPassword, user.password);
+      if (!isValid) {
+        return NextResponse.json({ error: "L'ancien mot de passe est incorrect" }, { status: 400 });
+      }
+    }
 
-    // 2. Vérification de l'ancien mot de passe
-    const isValid = await bcrypt.compare(oldPassword, user.password);
-    if (!isValid) return NextResponse.json({ error: "Ancien mot de passe incorrect" }, { status: 400 });
-
-    // 3. Mise à jour du mot de passe ET invalidation des sessions
+    // 4. Hashage du nouveau mot de passe
     const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
+    // 5. TRANSACTION : Mise à jour + Sécurité
     await prisma.$transaction([
-      // Mise à jour du password
+      // Mise à jour du mot de passe
       prisma.user.update({
         where: { id: user.id },
         data: { password: hashedNewPassword }
       }),
-      // SÉCURITÉ : On passe toutes les sessions en 'false' sauf celle actuelle
+      // SÉCURITÉ : On révoque toutes les AUTRES sessions actives
       prisma.session.updateMany({
         where: {
           userId: user.id,
-          token: { not: token }, // On garde la session en cours active
+          token: { not: currentToken }, // On garde la session actuelle connectée
           isActive: true
         },
         data: { isActive: false }
       }),
-      // Audit Log de l'action
-      (prisma as any).auditLog.create({
+      // Audit Log (selon ton schéma AuditLog)
+      prisma.auditLog.create({
         data: {
-          adminId: user.id,
-          action: "PASSWORD_CHANGE_GLOBAL_LOGOUT",
-          details: "Le mot de passe a été changé. Déconnexion automatique des autres appareils."
+          adminId: user.id, // Utilisé ici comme l'auteur de l'action
+          action: "PASSWORD_CHANGE_SECURITY_REVOKE",
+          details: "Changement de mot de passe réussi. Sessions secondaires révoquées.",
+          targetId: user.id
         }
       })
     ]);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "Mot de passe mis à jour et autres sessions révoquées." 
+    return NextResponse.json({
+      success: true,
+      message: "Mot de passe mis à jour et autres sessions révoquées."
     });
 
-  } catch (err) {
-    console.error("PASSWORD_CHANGE_ERROR:", err);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  } catch (err: any) {
+    console.error("PASSWORD_CHANGE_ERROR:", err.message);
+    return NextResponse.json({ error: "Une erreur est survenue lors de la mise à jour" }, { status: 500 });
   }
 }

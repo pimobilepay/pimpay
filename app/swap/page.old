@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowDown, Settings2, RefreshCw, Zap, AlertCircle, Loader2, ArrowLeft, Globe, Clock
 } from "lucide-react";
@@ -10,9 +10,7 @@ import { PI_CONSENSUS_USD } from "@/lib/exchange";
 
 export default function SwapPage() {
   const router = useRouter();
-  
-  // Interface pour typer les données utilisateur
-  const [user, setUser] = useState<{ balance: number; kycStatus: string } | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSwapping, setIsSwapping] = useState(false);
 
@@ -25,25 +23,22 @@ export default function SwapPage() {
   const [quote, setQuote] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState(0);
 
-  const fiatRates: Record<string, number> = { USD: 1, XAF: 600, CDF: 2800 };
+  const fiatRates: any = { USD: 1, XAF: 600, CDF: 2800 };
 
-  // 1. Récupération réelle du solde depuis ton API PimPay
+  // 1. Récupération du solde
   useEffect(() => {
     async function fetchUserData() {
       try {
         const res = await fetch("/api/user/wallet-info");
         if (res.ok) {
           const data = await res.json();
-          // On s'assure de mapper correctement les données venant de ton API
           setUser({
-            balance: data.userData?.balance || 0,
-            kycStatus: data.userData?.kycStatus || "PENDING"
+            balance: data.userData.balance,
+            kycStatus: data.userData.kycStatus
           });
-        } else {
-          toast.error("Impossible de charger le solde");
         }
       } catch (err) {
-        toast.error("Erreur de synchronisation réseau");
+        toast.error("Erreur de synchronisation");
       } finally {
         setIsLoadingData(false);
       }
@@ -58,45 +53,41 @@ export default function SwapPage() {
       return () => clearTimeout(timer);
     } else if (quote) {
       setQuote(null);
-      toast.info("Le taux a expiré, veuillez recalculer.");
+      toast.info("Le taux a expiré, veuillez rafraîchir.");
     }
   }, [timeLeft, quote]);
 
-  // 3. Calcul de l'estimation visuelle (instantané)
+  // 3. Calcul de l'estimation visuelle
   useEffect(() => {
     const amount = parseFloat(fromAmount);
     if (!isNaN(amount) && amount > 0) {
-      const result = amount * PI_CONSENSUS_USD * (fiatRates[selectedFiat] || 1);
+      const result = amount * PI_CONSENSUS_USD * fiatRates[selectedFiat];
       setToAmount(result);
     } else {
       setToAmount(0);
     }
-    if (quote) setQuote(null); 
+    if (quote) setQuote(null); // Reset le devis si le montant change
   }, [fromAmount, selectedFiat]);
 
   // 4. Demander un devis (Quote)
   const getQuote = async () => {
     const amount = parseFloat(fromAmount);
-    const balance = user?.balance || 0;
-
-    if (!amount || amount <= 0) return toast.error("Entrez un montant valide");
-    if (amount > balance) return toast.error("Solde Pi insuffisant");
+    if (!amount || amount <= 0) return toast.error("Montant invalide");
+    if (amount > (user?.balance || 0)) return toast.error("Solde insuffisant");
 
     setIsSwapping(true);
     try {
       const res = await fetch("/api/transaction/swap/quote", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount, targetCurrency: selectedFiat })
       });
       const data = await res.json();
-      
       if (res.ok) {
         setQuote(data);
         setTimeLeft(30);
-        toast.success("Taux PimPay verrouillé (30s)");
+        toast.success("Taux verrouillé pour 30s");
       } else {
-        toast.error(data.error || "Erreur lors du calcul");
+        toast.error(data.error);
       }
     } catch (e) {
       toast.error("Erreur de connexion au moteur de swap");
@@ -121,7 +112,7 @@ export default function SwapPage() {
 
       if (response.ok) {
         toast.success("Swap Pi/Fiat réussi !");
-        router.push("/wallet"); // Redirection vers la page WalletPage
+        router.push("/wallet");
       } else {
         toast.error(data.error || "Le swap a échoué");
       }
@@ -154,17 +145,15 @@ export default function SwapPage() {
         </div>
       </div>
 
-      {/* Affichage du Solde Réel */}
+      {/* Wallet Info */}
       <div className="mb-6 p-5 bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-[2.5rem] flex justify-between items-center backdrop-blur-sm">
         <div>
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Disponible</p>
-          <p className="text-xl font-black text-white">
-            {user?.balance?.toFixed(4) || "0.0000"} <span className="text-blue-500 italic">π</span>
-          </p>
+          <p className="text-xl font-black text-white">{user?.balance?.toFixed(4) || "0.0000"} <span className="text-blue-500 italic">π</span></p>
         </div>
         <div className="text-right">
           <div className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest mb-2 ${user?.kycStatus === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-            KYC: {user?.kycStatus || "EN ATTENTE"}
+            KYC: {user?.kycStatus || "NON VERIFIÉ"}
           </div>
         </div>
       </div>
@@ -174,15 +163,7 @@ export default function SwapPage() {
         <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-6 transition-all focus-within:border-blue-500/30">
           <div className="flex justify-between mb-4">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendre</span>
-            <button 
-              onClick={() => {
-                const max = (user?.balance || 0) - 0.01;
-                setFromAmount(max > 0 ? max.toFixed(4) : "0");
-              }} 
-              className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full"
-            >
-              MAX
-            </button>
+            <button onClick={() => setFromAmount((user?.balance - 0.01).toString())} className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full">MAX</button>
           </div>
           <div className="flex justify-between items-center">
             <input
@@ -226,7 +207,7 @@ export default function SwapPage() {
           </div>
           <div className="flex justify-between items-center">
             <div className={`text-4xl font-black ${toAmount > 0 ? 'text-white' : 'text-slate-800'}`}>
-              {toAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {toAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
             <div className="flex items-center gap-2 bg-slate-800 p-2 pr-4 rounded-2xl font-bold">
               <div className="w-8 h-8 bg-emerald-500/20 text-emerald-500 rounded-xl flex items-center justify-center">
@@ -245,13 +226,13 @@ export default function SwapPage() {
           <span className="text-slate-300">1 π ≈ {PI_CONSENSUS_USD.toLocaleString()} USD</span>
         </div>
         <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-          <span className="text-slate-500">Frais de réseau</span>
+          <span className="text-slate-500">Frais (Network)</span>
           <span className="text-blue-500">0.01 π</span>
         </div>
         {quote && (
-          <div className="flex justify-between items-center pt-4 border-t border-white/5">
+          <div className="flex justify-between items-center pt-4 border-t border-white/5 animate-pulse">
             <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
-              <Clock size={12} className="animate-pulse" /> Expire dans
+              <Clock size={12} /> Expire dans
             </span>
             <span className="text-amber-500 font-mono font-bold text-sm">{timeLeft}s</span>
           </div>
@@ -260,10 +241,10 @@ export default function SwapPage() {
 
       <button
         onClick={quote ? handleConfirmSwap : getQuote}
-        disabled={isSwapping || !fromAmount || parseFloat(fromAmount) <= 0}
+        disabled={isSwapping || !fromAmount}
         className={`w-full mt-8 p-6 rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 ${
-          quote
-            ? 'bg-emerald-600 shadow-emerald-600/20 active:scale-95'
+          quote 
+            ? 'bg-emerald-600 shadow-emerald-600/20 active:scale-95' 
             : 'bg-blue-600 shadow-blue-600/20 active:scale-95'
         }`}
       >
@@ -272,7 +253,7 @@ export default function SwapPage() {
         ) : quote ? (
           <>Confirmer le Swap <Zap size={18} fill="currentColor" /></>
         ) : (
-          "Obtenir un devis"
+          "Calculer le taux"
         )}
       </button>
 

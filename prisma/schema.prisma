@@ -25,31 +25,31 @@ model User {
 
   firstName      String?
   lastName       String?
-  lastName2      String?   // AJOUT : Thunes Support
-  middleName     String?   // AJOUT : Thunes Support
-  nativeName     String?   // AJOUT : Thunes Support
+  lastName2      String?
+  middleName     String?
+  nativeName     String?
   name           String?
   avatar         String?
 
-  gender         String?   // AJOUT : MALE/FEMALE
+  gender         String?
   country        String?
   city           String?
   address        String?
-  postalCode     String?   // AJOUT : Thunes Support
-  provinceState  String?   // AJOUT : Thunes Support
+  postalCode     String?
+  provinceState  String?
   birthDate      DateTime?
-  countryOfBirth String?   // AJOUT : ISO Code
+  countryOfBirth String?
   latitude       Float?
   longitude      Float?
 
   nationality    String?
   idType         String?
   idNumber       String?
-  idDeliveryDate DateTime? // AJOUT : Thunes Support
-  idExpiryDate   DateTime? // AJOUT : Thunes Support
-  idCountry      String?   // AJOUT : ISO Code
-  
-  occupation     String?   // AJOUT : Métier
+  idDeliveryDate DateTime?
+  idExpiryDate   DateTime?
+  idCountry      String?
+
+  occupation     String?
   sourceOfFunds  String?
   kycFrontUrl    String?
   kycBackUrl     String?
@@ -97,6 +97,7 @@ model User {
   securityLogs     SecurityLog[]
   supportTickets   SupportTicket[]
   merchantProfile  Merchant?       @relation("user_merchant")
+  swapQuotes       SwapQuote[]     // Ajouté pour le suivi des conversions
 }
 
 // -----------------------------------------------------------------------------
@@ -106,7 +107,7 @@ model Wallet {
   id            String     @id @default(cuid())
   userId        String
   balance       Float      @default(0)
-  frozenBalance Float      @default(0) 
+  frozenBalance Float      @default(0)
   currency      String     @default("PI")
   type          WalletType @default(PI)
 
@@ -119,6 +120,19 @@ model Wallet {
 
   @@unique([userId, currency])
   @@index([userId])
+}
+
+model SwapQuote {
+  id             String   @id @default(cuid())
+  userId         String
+  fromAmount     Float
+  toAmount       Float
+  rate           Float
+  targetCurrency String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemConfig {
@@ -167,7 +181,7 @@ model Vault {
 
 model Staking {
   id            String    @id @default(cuid())
-  userId        String
+  userId       String
   amount        Float
   apy           Float
   startDate     DateTime  @default(now())
@@ -182,51 +196,50 @@ model Beneficiary {
   id           String   @id @default(cuid())
   userId       String
   name         String
-  lastname     String?  // AJOUT
-  firstname    String?  // AJOUT
-  msisdn       String?  // AJOUT : Numéro mobile Thunes
-  email        String?  // AJOUT
+  lastname     String?
+  firstname    String?
+  msisdn       String?
+  email        String?
   accountInfo  String
   provider     String
-  relationship String?  // AJOUT : Thunes (FAMILY_SUPPORT, etc.)
+  relationship String?
   createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // -----------------------------------------------------------------------------
-// TRANSACTIONS (Mise à jour pour conformité Thunes & ISO 20022)
+// TRANSACTIONS
 // -----------------------------------------------------------------------------
 model Transaction {
   id           String            @id @default(cuid())
-  reference    String            @unique // Ton ID interne
-  externalId   String?           @unique // AJOUT : ID de l'agrégateur (Thunes)
+  reference    String            @unique
+  externalId   String?           @unique
   blockchainTx String?           @unique
-  
-  amount       Float             // Montant brut envoyé (Source)
-  fee          Float             @default(0) // Frais Thunes + PimPay
-  netAmount    Float?            // Montant net reçu (Destination)
-  currency     String            @default("PI")
-  destCurrency String?           // AJOUT : Devise de réception (XOF, EUR...)
 
-  wholesaleFxRate Float?         // AJOUT : Taux de change appliqué
-  retailRate      Float?         // AJOUT : Ton taux client
-  retailFee       Float?         // AJOUT : Tes frais PimPay en plus
-  
-  purpose        String?         // AJOUT : Purpose of remittance
+  amount       Float
+  fee          Float             @default(0)
+  netAmount    Float?
+  currency     String            @default("PI")
+  destCurrency String?
+
+  wholesaleFxRate Float?
+  retailRate      Float?
+  retailFee       Float?
+
+  purpose        String?
   status         TransactionStatus @default(PENDING)
-  statusClass    String?         // AJOUT : Classe Thunes (ex: 7 pour Completed)
+  statusClass    String?
   description    String?
   note           String?
   metadata       Json?
   createdAt      DateTime          @default(now())
 
-  // AJOUTS : Pour virements bancaires et Mobile Money
-  bankBic       String?   
-  accountNumber String?   
-  accountName   String?   
-  operatorId    String?   
-  countryCode   String?   
+  bankBic       String?
+  accountNumber String?
+  accountName   String?
+  operatorId    String?
+  countryCode   String?
 
   fromUserId   String?
   fromUser     User?    @relation("tx_from_user", fields: [fromUserId], references: [id])
@@ -321,6 +334,9 @@ model Session {
   createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
 }
 
 model Otp {

@@ -1,8 +1,6 @@
-// app/api/auth/login/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -16,38 +14,64 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
     }
 
-    const { email, password } = await req.json();
+    // "identifier" peut être soit l'email, soit le username
+    const { email: identifier, password } = await req.json(); 
+    const cleanIdentifier = identifier.toLowerCase().trim();
 
-    // 1. Recherche de l'utilisateur
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() }, // Nettoyage de l'email
+    // 1. Recherche de l'utilisateur (Email OU Username)
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanIdentifier },
+          { username: cleanIdentifier }
+        ]
+      },
     });
 
     // 2. Vérification existence et mot de passe
     if (!user || !user.password) {
-      console.log(`Échec: Utilisateur ${email} non trouvé`);
+      console.log(`Échec: Identifiant ${cleanIdentifier} non trouvé`);
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
     // 3. Comparaison Bcrypt
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      console.log(`Échec: Mot de passe incorrect pour ${email}`);
+      console.log(`Échec: Mot de passe incorrect pour ${cleanIdentifier}`);
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    // 4. Génération du Token (Payload simple pour jose)
+    // 4. Génération du Token JWT
     const token = jwt.sign(
-      { 
-        id: user.id, 
+      {
+        id: user.id,
         role: user.role,
-        email: user.email 
+        email: user.email
       },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // 5. Enregistrement du Cookie
+    // 5. PERSISTANCE DE LA SESSION (Pour corriger le 401 de wallet-info)
+    try {
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: token,
+          isActive: true,
+          userAgent: req.headers.get("user-agent"),
+          ip: req.headers.get("x-forwarded-for") || "127.0.0.1",
+        },
+      });
+    } catch (sessionError) {
+      console.error("SESSION_CREATION_ERROR:", sessionError);
+    }
+
+    // 6. Logique de redirection selon le rôle
+    // Admin -> /admin/dashboard | User -> /dashboard
+    const redirectUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+
+    // 7. Enregistrement du Cookie et Réponse avec l'URL de redirection
     const response = NextResponse.json({
       success: true,
       user: {
@@ -55,6 +79,7 @@ export async function POST(req: Request) {
         username: user.username,
         role: user.role,
       },
+      redirectTo: redirectUrl // On envoie l'info au frontend
     });
 
     response.cookies.set("token", token, {

@@ -60,7 +60,8 @@ export default function SendPage() {
           const res = await fetch(`/api/user/search?query=${encodeURIComponent(recipientId)}`);
           if (res.ok) {
             const data = await res.json();
-            setRecipientData(data);
+            // On s'assure de récupérer l'objet utilisateur
+            setRecipientData(Array.isArray(data) ? data[0] : data);
           } else {
             setRecipientData(null);
           }
@@ -78,8 +79,10 @@ export default function SendPage() {
   }, [recipientId]);
 
   const handleGoToSummary = () => {
-    const finalRecipientId = recipientData?.id || recipientId;
-    if (!finalRecipientId || !amount) {
+    // CORRECTION : On utilise le username si dispo, sinon l'ID saisi
+    const finalRecipientValue = recipientData?.username || recipientId;
+
+    if (!finalRecipientValue || !amount) {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
@@ -89,9 +92,10 @@ export default function SendPage() {
       return;
     }
 
+    // CORRECTION : On envoie 'recipient' pour correspondre à l'attente de l'API finale
     const params = new URLSearchParams({
-      recipientId: finalRecipientId,
-      recipientName: recipientData?.name || recipientId,
+      recipient: finalRecipientValue, 
+      recipientName: recipientData?.name || finalRecipientValue,
       amount: amount,
       description: description || "Transfert Pi"
     });
@@ -101,19 +105,8 @@ export default function SendPage() {
   if (!mounted) return null;
 
   return (
-    /* CORRECTION AJUSTEMENT : 
-       - flex-1 : pour occuper l'espace restant à côté du SideMenu.
-       - flex justify-center : pour centrer le max-w-md.
-    */
     <div className="flex-1 min-h-screen bg-[#020617] text-white font-sans selection:bg-blue-500/30">
-      
-      {/* Le conteneur du formulaire : 
-          - Sur mobile : padding standard.
-          - Sur desktop : on s'assure qu'il est bien au centre de la zone 'main'.
-      */}
       <div className="max-w-md mx-auto px-6 pt-12 pb-32">
-
-        {/* HEADER AJUSTÉ */}
         <div className="flex items-center gap-4 mb-10">
           <button
             onClick={() => router.back()}
@@ -128,7 +121,6 @@ export default function SendPage() {
         </div>
 
         <div className="space-y-8">
-          {/* Champ Destinataire */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Destinataire</label>
             <div className="relative">
@@ -154,10 +146,10 @@ export default function SendPage() {
             {recipientData && (
               <div className="mx-2 flex items-center gap-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-[20px] animate-in fade-in slide-in-from-top-2">
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-black">
-                  {recipientData.name?.charAt(0)}
+                  {(recipientData.name || recipientData.username)?.charAt(0)}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-black uppercase tracking-tight">{recipientData.name}</p>
+                  <p className="text-sm font-black uppercase tracking-tight">{recipientData.name || recipientData.username}</p>
                   <p className="text-[9px] text-blue-400 uppercase font-black">Vérifié</p>
                 </div>
                 <CheckCircle2 className="text-blue-500" size={20} />
@@ -165,7 +157,6 @@ export default function SendPage() {
             )}
           </div>
 
-          {/* Champ Montant */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Montant</label>
             <div className="relative">
@@ -183,7 +174,6 @@ export default function SendPage() {
             </p>
           </div>
 
-          {/* Champ Note */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-2">Note (Optionnel)</label>
             <input
@@ -195,7 +185,6 @@ export default function SendPage() {
             />
           </div>
 
-          {/* Bouton de validation */}
           <button
             onClick={handleGoToSummary}
             className="w-full bg-blue-600 py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all hover:bg-blue-500 active:scale-95 shadow-2xl shadow-blue-600/20"
@@ -206,7 +195,6 @@ export default function SendPage() {
         </div>
       </div>
 
-      {/* Navigations (Layout injection) */}
       <div className="lg:hidden">
         <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
       </div>
