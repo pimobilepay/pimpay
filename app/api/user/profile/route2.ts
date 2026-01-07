@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     const userId = (payload.id || payload.userId || payload.sub) as string;
 
-    // 3. Récupération complète des données (incluant TOUS les wallets et la carte)
+    // 3. Récupération des données corrigée (sans le champ 'type' inexistant)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -43,50 +43,31 @@ export async function GET(request: Request) {
         avatar: true,
         walletAddress: true,
         createdAt: true,
-        // CORRECTION : On récupère TOUS les wallets pour avoir les soldes Fiat (USD, XAF, etc.)
         wallets: {
+          take: 1,
+          select: { id: true, balance: true, currency: true }
+        },
+        // On récupère les transactions en supprimant 'type' qui fait planter Prisma
+        transactionsFrom: {
+          take: 7,
+          orderBy: { createdAt: 'desc' },
           select: { 
             id: true, 
-            balance: true, 
-            currency: true 
-          }
-        },
-        // AJOUT : Récupération de la carte virtuelle réelle
-        virtualCards: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            number: true,
-            exp: true,
-            cvv: true,
-            holder: true,
-            brand: true,
-            type: true
-          }
-        },
-        transactionsFrom: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            status: true,
-            description: true,
+            amount: true, 
+            status: true, 
+            description: true, // Utilise description à la place de type
             createdAt: true,
-            reference: true
+            reference: true 
           }
         },
         transactionsTo: {
-          take: 10,
+          take: 7,
           orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            status: true,
-            description: true,
+          select: { 
+            id: true, 
+            amount: true, 
+            status: true, 
+            description: true, 
             createdAt: true,
             reference: true
           }
@@ -104,41 +85,47 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
     }
 
-    // 4. Préparation des transactions fusionnées
+    // 4. Fusion et tri des transactions
+    // On ajoute manuellement une propriété 'type' ou 'flow' pour le frontend
     const mergedTransactions = [
-      ...user.transactionsFrom.map(tx => ({ ...tx, flow: 'OUT' })),
-      ...user.transactionsTo.map(tx => ({ ...tx, flow: 'IN' }))
+      ...user.transactionsFrom.map(tx => ({ 
+        ...tx, 
+        flow: 'OUT', 
+        type: 'TRANSFER_SENT' // On simule le type pour ton composant WalletPage
+      })),
+      ...user.transactionsTo.map(tx => ({ 
+        ...tx, 
+        flow: 'IN', 
+        type: 'TRANSFER_RECEIVED' 
+      }))
     ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10);
+    .slice(0, 7);
 
-    // Récupération du solde principal (PI) pour compatibilité
-    const piWallet = user.wallets.find(w => w.currency === "PI");
-    const piBalance = piWallet?.balance ?? 0;
+    const wallet = user.wallets?.[0];
+    const balance = wallet?.balance ?? 0;
 
-    // 5. Réponse structurée pour PimPay
+    // 5. Réponse structurée
     return NextResponse.json({
       success: true,
-      // Infos utilisateur
-      id: user.id,
-      email: user.email,
-      username: user.username,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name || user.username || "Pioneer",
+        role: user.role,
+        status: user.status,
+        kycStatus: user.kycStatus,
+        joinedAt: user.createdAt,
+        avatar: user.avatar
+      },
+      balance: balance,
+      currency: wallet?.currency || "PI",
+      gcvValue: balance * 314159,
       name: user.name || user.username || "Pioneer",
-      role: user.role,
-      status: user.status,
-      kycStatus: user.kycStatus,
-      joinedAt: user.createdAt,
-      avatar: user.avatar,
-      
-      // Données financières
-      balance: piBalance, // Solde PI par défaut
-      currency: "PI",
-      wallets: user.wallets, // Liste complète des soldes Fiat (utilisée par ta page CardPage)
-      virtualCards: user.virtualCards, // Données réelles de la carte
       transactions: mergedTransactions,
-      
       stats: {
         totalTransactions: user._count.transactionsFrom + user._count.transactionsTo,
+        walletId: wallet?.id || null
       }
     });
 

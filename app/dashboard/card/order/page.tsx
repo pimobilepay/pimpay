@@ -11,11 +11,10 @@ import {
   Info,
   ChevronDown
 } from 'lucide-react';
-import { purchaseVirtualCard } from "@/app/actions/card-purchase";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
-// CONFIGURATION
+// CONFIGURATION ORIGINALE CONSERVÉE
 const PI_RATE_GCV = 314159;
 const CURRENCY_RATES = {
   USD: 1,
@@ -26,9 +25,9 @@ const CURRENCY_RATES = {
 };
 
 const CARD_TIERS = [
-  { id: 'CLASSIC', tier: 'Visa Lite', price: 10, limit: '1,000', color: 'from-[#1a2b3c] to-[#0f172a]', border: 'border-slate-500/30' },
-  { id: 'GOLD', tier: 'MasterCard Gold', price: 25, limit: '5,000', color: 'from-[#b45309] via-[#78350f] to-[#451a03]', border: 'border-yellow-500/40' },
-  { id: 'BUSINESS', tier: 'MasterCard Business', price: 50, limit: '25,000', color: 'from-[#1e40af] via-[#1e3a8a] to-[#172554]', border: 'border-blue-400/30' },
+  { id: 'PLATINIUM', tier: 'Visa Lite', price: 10, limit: '1,000', color: 'from-[#1a2b3c] to-[#0f172a]', border: 'border-slate-500/30' },
+  { id: 'PREMIUM', tier: 'MasterCard Gold', price: 25, limit: '5,000', color: 'from-[#b45309] via-[#78350f] to-[#451a03]', border: 'border-yellow-500/40' },
+  { id: 'GOLD', tier: 'MasterCard Business', price: 50, limit: '25,000', color: 'from-[#1e40af] via-[#1e3a8a] to-[#172554]', border: 'border-blue-400/30' },
   { id: 'ULTRA', tier: 'MCard Ultra', price: 100, limit: 'Illimité', color: 'from-[#581c87] via-[#2e1065] to-[#000000]', border: 'border-purple-500/50' }
 ];
 
@@ -44,11 +43,17 @@ export default function CardOrderPage() {
   const priceInPi = selectedCard.price / PI_RATE_GCV;
   const isBalanceInsufficient = userBalance < priceInPi;
 
-  // Récupération du solde réel
+  // Récupération du solde PI réel depuis le profil
   useEffect(() => {
     fetch("/api/user/profile")
       .then(res => res.json())
-      .then(data => setUserBalance(data.balance || 0))
+      .then(data => {
+        if (data.success && data.wallets) {
+          // On cherche le wallet PI spécifiquement
+          const piWallet = data.wallets.find((w: any) => w.currency === "PI");
+          setUserBalance(piWallet ? piWallet.balance : 0);
+        }
+      })
       .catch(console.error);
   }, []);
 
@@ -56,10 +61,19 @@ export default function CardOrderPage() {
     setLoading(true);
     const toastId = toast.loading("Minage du Smart Contract...");
     try {
-      const res = await purchaseVirtualCard(selectedCard.id as any, priceInPi);
+      // Appel à ton API de commande
+      const response = await fetch("/api/user/card/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: selectedCard.id })
+      });
+
+      const res = await response.json();
+
       if (res.success) {
         toast.success("Carte activée sur le réseau !", { id: toastId });
         router.push("/dashboard/card");
+        router.refresh();
       } else {
         toast.error(res.error || "Échec", { id: toastId });
         setShowSummary(false);
@@ -74,7 +88,7 @@ export default function CardOrderPage() {
   return (
     <div className="min-h-screen bg-[#020205] text-white p-6 pb-32 font-sans">
       <div className="max-w-md mx-auto">
-        
+
         {!showSummary ? (
           /* --- ÉTAPE 1 : SELECTION --- */
           <div className="animate-in fade-in duration-500">
@@ -86,7 +100,6 @@ export default function CardOrderPage() {
               </div>
             </header>
 
-            {/* DESIGN MASTERCARD PRÉCÉDENT */}
             <div className={`relative w-full aspect-[1.58/1] rounded-[24px] overflow-hidden shadow-2xl border ${selectedCard.border} mb-8 transition-all duration-500`}>
               <div className={`absolute inset-0 bg-gradient-to-br ${selectedCard.color}`}>
                 <svg className="absolute inset-0 opacity-20" viewBox="0 0 400 250">
@@ -125,7 +138,6 @@ export default function CardOrderPage() {
               </div>
             </div>
 
-            {/* LISTE DES PALIERS */}
             <div className="grid grid-cols-2 gap-3 mb-8">
               {CARD_TIERS.map((tier) => (
                 <button
