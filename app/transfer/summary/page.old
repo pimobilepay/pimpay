@@ -28,28 +28,34 @@ function SummaryContent() {
 
   const totalRequired = data.amount + data.fee;
 
-  // Récupération du solde REEL depuis la base de données
+  // Ton code de récupération du solde (inchangé comme demandé)
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        const res = await fetch('/api/user/wallet-info');
+        const token = localStorage.getItem("token");
+        const res = await fetch('/api/user/wallet-info', {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
         if (res.ok) {
           const d = await res.json();
-          /** * CORRECTION : Accès au solde via la nouvelle structure 
-           */
           const balanceValue = parseFloat(d.userData?.balance || 0);
           setWalletBalance(balanceValue);
           console.log("Solde Wallet détecté:", balanceValue);
+        } else if (res.status === 401) {
+          toast.error("Session expirée");
+          router.push("/login");
         }
       } catch (err) {
         console.error("Erreur de récupération du solde:", err);
       }
     };
     fetchBalance();
-  }, []);
+  }, [router]);
 
   const handleConfirm = async () => {
-    // Vérification de sécurité locale
     if (walletBalance !== null && walletBalance < totalRequired) {
       toast.error(`Transaction impossible : Votre solde réel est de ${walletBalance.toFixed(4)} π`);
       return;
@@ -57,15 +63,17 @@ function SummaryContent() {
 
     setIsLoading(true);
     try {
-      /**
-       * CORRECTION : Utilisation de l'URL correcte /api/user/transfer 
-       * et envoi du recipientIdentifier (peut être ID, username ou email)
-       */
+      const token = localStorage.getItem("token");
+      
       const response = await fetch("/api/user/transfer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
-          recipientIdentifier: data.recipientId,
+          // CORRECTION ICI : 'recipient' au lieu de 'recipientIdentifier'
+          recipient: data.recipientId, 
           amount: data.amount,
           description: data.description,
         }),

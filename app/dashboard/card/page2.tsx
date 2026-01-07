@@ -16,6 +16,7 @@ import {
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
+const PI_RATE_GCV = 314159;
 const CURRENCY_RATES = {
   USD: 1,
   XAF: 600,
@@ -63,11 +64,9 @@ export default function CardPage() {
     router.push("/dashboard/card/order");
   };
 
-  // Récupération du solde spécifique à la devise depuis la BDD (data.balances)
-  // Si le solde n'existe pas encore pour cette devise, on affiche 0
-  const getFiatBalance = (curr: CurrencyKey) => {
-    return data?.balances?.[curr] || 0;
-  };
+  // Calcul des soldes basé sur le solde Pi de l'utilisateur connecté
+  const piBalance = data?.balance || 0;
+  const getBalance = (curr: CurrencyKey) => (piBalance * PI_RATE_GCV) * CURRENCY_RATES[curr];
 
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
@@ -88,7 +87,7 @@ export default function CardPage() {
 
       <div className="max-w-md mx-auto space-y-6">
 
-        {/* CARTE VIRTUELLE AVEC INFOS RÉELLES */}
+        {/* CARTE VIRTUELLE */}
         <div
           onClick={() => cardData && setShowCardNumber(!showCardNumber)}
           className={`relative w-full aspect-[1.58/1] rounded-[24px] overflow-hidden shadow-2xl transition-all duration-700 cursor-pointer ${!cardData ? 'grayscale opacity-50' : ''}`}
@@ -105,7 +104,7 @@ export default function CardPage() {
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Balance Disponible</span>
                 <span className="text-sm font-bold tracking-tight text-white/90">
-                    {getFiatBalance(currency).toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                    {getBalance(currency).toLocaleString(undefined, { maximumFractionDigits: 2 })} {currency}
                 </span>
               </div>
 
@@ -120,9 +119,9 @@ export default function CardPage() {
                   {showPicker && (
                     <div className="absolute top-full right-0 mt-1 bg-[#1a2b3c] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
                       {Object.keys(CURRENCY_RATES).map((curr) => (
-                        <button
-                          key={curr}
-                          className="block w-full px-4 py-2 text-[10px] hover:bg-blue-600 text-left whitespace-nowrap"
+                        <button 
+                          key={curr} 
+                          className="block w-full px-4 py-2 text-[10px] hover:bg-blue-600 text-left whitespace-nowrap" 
                           onClick={(e) => { e.stopPropagation(); setCurrency(curr as CurrencyKey); setShowPicker(false); }}
                         >
                           {curr}
@@ -131,11 +130,7 @@ export default function CardPage() {
                     </div>
                   )}
                 </div>
-                {/* Affichage du CVV si la carte existe */}
-                <div className="mt-4 flex flex-col items-end">
-                  <span className="text-[5px] uppercase text-white/50">CVV</span>
-                  <span className="text-[10px] font-mono font-bold">{cardData ? (showCardNumber ? cardData.cvv : "•••") : "000"}</span>
-                </div>
+                <Zap size={20} className="mt-4 text-white/70" />
               </div>
             </div>
 
@@ -147,11 +142,12 @@ export default function CardPage() {
               </p>
               <div className="flex justify-between items-center">
                  <p className="text-[10px] font-medium tracking-wide uppercase">
-                   {cardData?.holderName || data?.name || data?.username || "NOM UTILISATEUR"}
+                   {/* Ici on affiche le nom de l'utilisateur connecté */}
+                   {data?.name || data?.username || "Chargement..."}
                  </p>
                  <div className="flex flex-col items-end">
                     <span className="text-[5px] uppercase text-white/50">Expire fin</span>
-                    <span className="text-[9px] font-mono">{cardData?.expiryDate || cardData?.exp || "12/28"}</span>
+                    <span className="text-[9px] font-mono">{cardData?.exp || "12/28"}</span>
                  </div>
               </div>
             </div>
@@ -190,12 +186,12 @@ export default function CardPage() {
             </button>
         </div>
 
-        {/* LISTE DES SOLDES PAR DEVISE (SANS LE MOT WALLET) */}
+        {/* LISTE DES SOLDES PAR DEVISE (Design type Wallet) */}
         <div className="space-y-3">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-2">Mes Portefeuilles Fiat</h3>
           {Object.keys(CURRENCY_RATES).map((curr) => (
-            <div
-              key={curr}
+            <div 
+              key={curr} 
               onClick={() => setCurrency(curr as CurrencyKey)}
               className={`p-4 rounded-[22px] border transition-all cursor-pointer flex items-center justify-between ${currency === curr ? 'bg-blue-600/10 border-blue-600/50' : 'bg-white/[0.02] border-white/5'}`}
             >
@@ -204,13 +200,13 @@ export default function CardPage() {
                   {curr.slice(0, 2)}
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase">{curr}</p>
-                  <p className="text-[8px] text-slate-500 font-bold tracking-widest">DISPONIBLE</p>
+                  <p className="text-[10px] font-black uppercase">{curr} Wallet</p>
+                  <p className="text-[8px] text-slate-500 font-bold tracking-widest">ACTIF</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs font-black">{getFiatBalance(curr as CurrencyKey).toLocaleString()} {curr}</p>
-                <p className="text-[8px] text-slate-600 italic">Compte vérifié</p>
+                <p className="text-xs font-black">{getBalance(curr as CurrencyKey).toLocaleString()} {curr}</p>
+                <p className="text-[8px] text-slate-600 italic">Taux: {CURRENCY_RATES[curr as CurrencyKey]}</p>
               </div>
             </div>
           ))}
@@ -235,7 +231,7 @@ export default function CardPage() {
                   </div>
                 </div>
                 <p className="text-xs font-black tracking-tight">
-                  {tx.type === 'DEPOSIT' ? '+' : '-'} {tx.amount.toFixed(2)} {tx.currency || 'π'}
+                  {tx.type === 'DEPOSIT' ? '+' : '-'} {tx.amount.toFixed(2)} π
                 </p>
               </div>
             )) : (

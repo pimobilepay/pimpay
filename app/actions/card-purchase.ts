@@ -1,98 +1,85 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth"; 
-import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth"; // Assure-toi que le chemin pointe vers le fichier où tu as ajouté l'export 'auth'
+import { CardType } from "@prisma/client";
 
-/**
- * Action pour l'achat d'une carte virtuelle
- */
-export async function purchaseVirtualCard(
-  cardType: 'CLASSIC' | 'GOLD' | 'BUSINESS' | 'ULTRA',
-  price: number
-) {
+export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
   try {
-    const session = await auth();
-    const userId = session?.id;
+    // Utilisation de ta nouvelle fonction auth()
+    const user = await auth();
 
-    if (!userId) {
-      return { success: false, error: "Session expirée. Veuillez vous reconnecter." };
+    if (!user || !user.id) {
+      return { error: "Session expirée ou utilisateur non trouvé" };
     }
 
+    const userId = user.id;
+
+    // 1. Récupérer le wallet PI (unique par userId et currency d'après ton schéma)
+    const wallet = await prisma.wallet.findUnique({
+      where: { 
+        userId_currency: { 
+          userId: userId, 
+          currency: "PI" 
+        } 
+      },
+    });
+
+    if (!wallet || wallet.balance < priceInPi) {
+      return { error: "Solde Pi insuffisant pour l'émission" };
+    }
+
+    // 2. Transaction Atomique Prisma
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: { firstName: true, lastName: true, name: true }
-      });
-
-      if (!user) throw new Error("Utilisateur non trouvé.");
-
-      const cardHolderName = user.name ||
-        (user.firstName ? `${user.firstName} ${user.lastName || ''}` : "PI PIONEER");
-
-      const wallet = await tx.wallet.findFirst({
-        where: { userId, currency: "PI" }
-      });
-
-      if (!wallet || wallet.balance < price) {
-        const currentBalance = wallet?.balance || 0;
-        throw new Error(`Solde insuffisant. Requis: ${price.toFixed(4)} PI, Dispo: ${currentBalance.toFixed(4)} PI.`);
-      }
-
+      // A. Déduction du solde
       await tx.wallet.update({
         where: { id: wallet.id },
-        data: { balance: { decrement: price } }
+        data: { balance: { decrement: priceInPi } },
       });
 
-      const reference = `CARD-PUB-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-
+      // B. Création de la transaction (Sans le champ 'type' manquant)
       await tx.transaction.create({
         data: {
-          reference: reference,
-          amount: price,
-          type: "CARD_PURCHASE",
+          reference: `CARD-PUB-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
+          amount: priceInPi,
           status: "SUCCESS",
           fromUserId: userId,
           fromWalletId: wallet.id,
-          description: `Achat carte virtuelle ${cardType}`,
+          description: `Achat carte virtuelle ${tier}`,
           metadata: {
-            cardType: cardType,
+            category: "CARD_PURCHASE",
+            cardType: tier,
             piRate: "GCV 314159",
             timestamp: new Date().toISOString()
-          }
-        }
+          },
+        },
       });
 
-      const isMastercard = cardType === 'GOLD' || cardType === 'ULTRA' || cardType === 'BUSINESS';
-      const prefix = isMastercard ? "5412" : "4111";
-      const cardNumber = prefix + Array.from({ length: 12 }, () => Math.floor(Math.random() * 10)).join('');
+      // C. Génération des données MasterCard
+      const cardNumber = "5412" + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
+      const expiry = "01/31";
+      const cvv = Math.floor(Math.random() * 900 + 100).toString();
 
-      // --- SECTION CORRIGÉE SELON TON SCHEMA.PRISMA ---
+      // D. Création de la carte virtuelle
       const newCard = await tx.virtualCard.create({
         data: {
           userId: userId,
-          type: cardType,
-          holder: cardHolderName.trim().toUpperCase(),
+          type: tier,
           number: cardNumber,
-          exp: "12/28",
-          cvv: Math.floor(100 + Math.random() * 900).toString(),
-          brand: isMastercard ? "MASTERCARD" : "VISA",
-          isFrozen: false,
-          // Note: On n'ajoute pas 'status' ici car il n'existe pas dans ton schema.prisma
-          // Le champ dailyLimit et allowedCurrencies prendront les valeurs par défaut du schéma
-        }
+          exp: expiry,
+          cvv: cvv,
+          holder: user.username || "Pioneer",
+          brand: (tier === "CLASSIC" || tier === "GOLD") ? "VISA" : "MASTERCARD",
+          dailyLimit: tier === "ULTRA" ? 1000000 : (tier === "BUSINESS" ? 25000 : 5000),
+        },
       });
 
       return newCard;
     });
 
-    revalidatePath("/dashboard/card");
-    revalidatePath("/wallet");
-
-    return { success: true, data: result };
-
+    return { success: true, card: result };
   } catch (error: any) {
-    console.error("CRITICAL_CARD_PURCHASE_ERROR:", error.message);
-    return { success: false, error: error.message || "Une erreur interne est survenue." };
+    console.error("CRITICAL_CARD_PURCHASE_ERROR:", error);
+    return { error: "Erreur technique lors du minage de la carte." };
   }
 }
