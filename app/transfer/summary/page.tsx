@@ -28,7 +28,7 @@ function SummaryContent() {
 
   const totalRequired = data.amount + data.fee;
 
-  // Récupération du solde REEL depuis la base de données
+  // Ton code de récupération du solde (inchangé comme demandé)
   useEffect(() => {
     const fetchBalance = async () => {
       try {
@@ -38,11 +38,9 @@ function SummaryContent() {
             "Authorization": `Bearer ${token}`
           }
         });
-        
+
         if (res.ok) {
           const d = await res.json();
-          /** * CORRECTION : Accès au solde via d.userData.balance
-           */
           const balanceValue = parseFloat(d.userData?.balance || 0);
           setWalletBalance(balanceValue);
           console.log("Solde Wallet détecté:", balanceValue);
@@ -58,7 +56,6 @@ function SummaryContent() {
   }, [router]);
 
   const handleConfirm = async () => {
-    // Vérification de sécurité locale
     if (walletBalance !== null && walletBalance < totalRequired) {
       toast.error(`Transaction impossible : Votre solde réel est de ${walletBalance.toFixed(4)} π`);
       return;
@@ -67,17 +64,16 @@ function SummaryContent() {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
-      /**
-       * CORRECTION : Ajout du token dans les headers pour l'API de transfert
-       */
+      
       const response = await fetch("/api/user/transfer", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          recipientIdentifier: data.recipientId,
+          // CORRECTION ICI : 'recipient' au lieu de 'recipientIdentifier'
+          recipient: data.recipientId, 
           amount: data.amount,
           description: data.description,
         }),
