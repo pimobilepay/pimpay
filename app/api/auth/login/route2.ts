@@ -14,22 +14,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
     }
 
-    // Sécurisation du parsing JSON pour éviter "Unexpected end of JSON input"
-    let body;
-    try {
-      body = await req.json();
-    } catch (e) {
-      return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
-    }
-
-    const { email: identifier, password } = body;
-
-    if (!identifier || !password) {
-      return NextResponse.json({ error: "Identifiants manquants" }, { status: 400 });
-    }
-
+    // "identifier" peut être soit l'email, soit le username
+    const { email: identifier, password } = await req.json(); 
     const cleanIdentifier = identifier.toLowerCase().trim();
 
+    // 1. Recherche de l'utilisateur (Email OU Username)
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -39,62 +28,50 @@ export async function POST(req: Request) {
       },
     });
 
+    // 2. Vérification existence et mot de passe
     if (!user || !user.password) {
+      console.log(`Échec: Identifiant ${cleanIdentifier} non trouvé`);
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
+    // 3. Comparaison Bcrypt
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
+      console.log(`Échec: Mot de passe incorrect pour ${cleanIdentifier}`);
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
+    // 4. Génération du Token JWT
     const token = jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
+      {
+        id: user.id,
+        role: user.role,
+        email: user.email
+      },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    const userAgent = req.headers.get("user-agent") || "";
-    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
-
+    // 5. PERSISTANCE DE LA SESSION (Pour corriger le 401 de wallet-info)
     try {
-      // 5. PERSISTANCE DE LA SESSION
       await prisma.session.create({
         data: {
           userId: user.id,
           token: token,
           isActive: true,
-          userAgent: userAgent,
-          ip: ip,
+          userAgent: req.headers.get("user-agent"),
+          ip: req.headers.get("x-forwarded-for") || "127.0.0.1",
         },
       });
-
-      // --- CRÉATION DE LA NOTIFICATION DE SESSION ---
-      const os = userAgent.includes("iPhone") ? "iPhone" :
-                 userAgent.includes("Android") ? "Android" :
-                 userAgent.includes("Windows") ? "Windows PC" : "Appareil";
-
-      await prisma.notification.create({
-        data: {
-          userId: user.id,
-          type: "LOGIN",
-          title: "Nouvelle connexion",
-          message: `Connexion établie depuis un ${os} (${ip})`,
-          metadata: {
-            device: os,
-            ip: ip,
-            location: "Oyo, Congo",
-            browser: userAgent.includes("Chrome") ? "Chrome" : "Navigateur"
-          }
-        }
-      });
     } catch (sessionError) {
-      console.error("SESSION_OR_NOTIFICATION_ERROR:", sessionError);
-      // On ne bloque pas le login si seule la notification échoue
+      console.error("SESSION_CREATION_ERROR:", sessionError);
     }
 
+    // 6. Logique de redirection selon le rôle
+    // Admin -> /admin/dashboard | User -> /dashboard
     const redirectUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
 
+    // 7. Enregistrement du Cookie et Réponse avec l'URL de redirection
     const response = NextResponse.json({
       success: true,
       user: {
@@ -102,7 +79,7 @@ export async function POST(req: Request) {
         username: user.username,
         role: user.role,
       },
-      redirectTo: redirectUrl
+      redirectTo: redirectUrl // On envoie l'info au frontend
     });
 
     response.cookies.set("token", token, {
@@ -110,13 +87,13 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 7, // 7 jours
     });
 
     return response;
 
   } catch (error: any) {
     console.error("LOGIN_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Une erreur est survenue" }, { status: 500 });
+    return NextResponse.json({ error: "Une erreur est survenue lors de la connexion" }, { status: 500 });
   }
 }

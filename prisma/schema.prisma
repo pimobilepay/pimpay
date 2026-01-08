@@ -329,8 +329,7 @@ model Session {
   ip           String?
   userAgent    String?
   deviceName   String?
-  
-  // Ajouts pour la géolocalisation et l'appareil
+
   os           String?
   browser      String?
   city         String?
@@ -404,6 +403,7 @@ model Message {
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
+// MODIFIÉ : Ajout du champ metadata pour supporter les infos de session
 model Notification {
   id        String   @id @default(cuid())
   userId    String
@@ -411,6 +411,7 @@ model Notification {
   message   String
   type      String   @default("info")
   read      Boolean  @default(false)
+  metadata  Json?    // <--- C'était ici le problème
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -420,7 +421,7 @@ model Notification {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMS (FORMAT CORRIGÉ)
+// ENUMS
 // -----------------------------------------------------------------------------
 enum CardType {
   CLASSIC
@@ -481,3 +482,4 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
+
