@@ -12,27 +12,28 @@ export async function POST(req: NextRequest) {
     const token = cookieStore.get("token")?.value;
     if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
 
     const body = await req.json();
-    const { amount, currency, phoneNumber, provider, accountName, piAddress } = body;
+    const { amount, method, currency, details } = body; 
+    // details contient soit {phone, provider} soit {iban, bankName, swift}
 
     // 2. Validations strictes
     const piAmount = parseFloat(amount);
-    // On accepte soit un retrait Fiat (phoneNumber/provider) soit un retrait Direct Pi (piAddress)
-    if (!piAmount || piAmount <= 0 || (!phoneNumber && !piAddress)) {
-      return NextResponse.json({ error: "Données de retrait incomplètes" }, { status: 400 });
+    if (!piAmount || piAmount <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // 3. Calcul de la conversion (Pi -> Fiat) si applicable
-    const conversion = calculateExchangeWithFee(piAmount, currency || "USD");
+    // 3. Calcul de la conversion (Pi -> Fiat)
+    const targetCurrency = currency || "USD";
+    const conversion = calculateExchangeWithFee(piAmount, targetCurrency);
 
-    // 4. Exécution de la transaction atomique
+    // 4. Exécution de la transaction atomique (Prisma $transaction)
     const result = await prisma.$transaction(async (tx) => {
 
-      // A. Vérifier le solde et le statut KYC de l'utilisateur
+      // A. Vérifier l'utilisateur et son solde
       const user = await tx.user.findUnique({
         where: { id: userId },
         include: { wallets: { where: { currency: "PI" } } }
@@ -44,50 +45,52 @@ export async function POST(req: NextRequest) {
         throw new Error("Solde Pi insuffisant pour cette opération");
       }
 
-      // Vérification KYC (Utilisation de VERIFIED pour correspondre à ton admin)
+      // B. Vérification du statut KYC pour les limites
       if (user?.kycStatus !== "VERIFIED" && piAmount > 50) {
         throw new Error("Limite de retrait (50 PI) dépassée pour les comptes non vérifiés.");
       }
 
-      // B. Débiter le montant du wallet immédiatement (Sécurité Anti-Double dépense)
+      // C. Débiter le montant du wallet immédiatement (Sécurité Anti-Double dépense)
       const updatedWallet = await tx.wallet.update({
         where: { id: userWallet.id },
         data: { balance: { decrement: piAmount } }
       });
 
-      // C. Créer la transaction de retrait (PENDING)
+      // D. Préparation de la description selon la méthode
+      let description = `Retrait ${method}`;
+      if (method === "mobile") description = `Retrait Mobile Money (${body.details?.provider})`;
+      if (method === "bank") description = `Retrait Bancaire (${body.details?.bankName})`;
+
+      // E. Créer la transaction de retrait (PENDING)
+      // Note: On utilise 'purpose' à la place de 'type' pour correspondre à ton schéma
       const transaction = await tx.transaction.create({
         data: {
-          id: crypto.randomUUID(),
           reference: `WTH-${Date.now()}-${userId.slice(0, 4)}`.toUpperCase(),
           amount: piAmount,
-          type: "WITHDRAWAL",
+          purpose: "WITHDRAWAL", 
           status: TransactionStatus.PENDING,
           fromUserId: userId,
           fromWalletId: userWallet.id,
-          description: piAddress 
-            ? `Retrait Pi vers adresse ${piAddress.slice(0, 6)}...` 
-            : `Retrait ${provider} vers ${phoneNumber}`,
-          fee: conversion.fee / PI_CONSENSUS_RATE,
+          description: description,
+          currency: "PI",
+          destCurrency: targetCurrency,
+          fee: conversion.fee / PI_CONSENSUS_RATE, // Frais convertis en PI
           metadata: {
-            phoneNumber: phoneNumber || null,
-            provider: provider || "PI_NETWORK",
-            accountName: accountName || user?.name,
-            piAddress: piAddress || null, // Adresse pour retrait direct Pi
-            fiatAmount: piAddress ? 0 : conversion.total,
-            currency: currency || "PI",
+            method: method, // "mobile" ou "bank"
+            transferDetails: body.details,
+            fiatAmount: conversion.total,
             exchangeRate: PI_CONSENSUS_RATE,
             submittedAt: new Date().toISOString()
           }
         }
       });
 
-      // D. Créer une notification système
+      // F. Créer une notification système
       await tx.notification.create({
         data: {
           userId: userId,
           title: "Demande de retrait reçue",
-          message: `Votre retrait de ${piAmount} PI est en attente de validation administrative.`,
+          message: `Votre retrait de ${piAmount} PI est en attente de traitement (${method}).`,
           type: "INFO"
         }
       });
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Demande de retrait transmise avec succès",
-      transactionId: result.transaction.id,
+      reference: result.transaction.reference,
       newBalance: result.newBalance
     });
 

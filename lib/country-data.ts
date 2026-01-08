@@ -1,4 +1,4 @@
-// country-data.ts
+// lib/country-data.ts
 
 export interface Bank {
   name: string;
@@ -37,7 +37,8 @@ const LOGOS = {
   moov: "https://upload.wikimedia.org/wikipedia/fr/4/4b/Logo_Moov_Africa.png",
   wave: "https://upload.wikimedia.org/wikipedia/commons/d/d6/Wave_logo.png",
   mpesa: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg",
-  telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png"
+  telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
+  vodacom: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg"
 };
 
 export const countries: Country[] = [
@@ -62,6 +63,20 @@ export const countries: Country[] = [
     ]
   },
   {
+    name: "Congo (Brazzaville)",
+    code: "CG",
+    currency: "XAF",
+    piToLocalRate: 610,
+    dialCode: "+242",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "BGFIBank Congo", bic: "BGFI CG BZ", swift: "BGFICGBZ" }],
+    operators: [
+      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+  {
     name: "Cameroon",
     code: "CM",
     currency: "XAF",
@@ -76,6 +91,20 @@ export const countries: Country[] = [
     operators: [
       { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+  {
+    name: "Gabon",
+    code: "GA",
+    currency: "XAF",
+    piToLocalRate: 610,
+    dialCode: "+241",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "BGFIBank Gabon", bic: "BGFIGAGA", swift: "BGFIGAGA" }],
+    operators: [
+      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
 
@@ -95,7 +124,8 @@ export const countries: Country[] = [
     operators: [
       { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } }
+      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } },
+      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
   {
@@ -109,7 +139,8 @@ export const countries: Country[] = [
     banks: [{ name: "CBAO", bic: "CBAOSNSN", swift: "CBAOSNSN" }],
     operators: [
       { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } }
+      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } },
+      { id: "free", name: "Free Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
   {
@@ -126,6 +157,48 @@ export const countries: Country[] = [
       { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
+  {
+    name: "Burkina Faso",
+    code: "BF",
+    currency: "XOF",
+    piToLocalRate: 615,
+    dialCode: "+226",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "Coris Bank", bic: "CORIBFBF", swift: "CORIBFBF" }],
+    operators: [
+      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+  {
+    name: "Mali",
+    code: "ML",
+    currency: "XOF",
+    piToLocalRate: 615,
+    dialCode: "+223",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "BDM-SA", bic: "BDMAMLML", swift: "BDMAMLML" }],
+    operators: [
+      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+  {
+    name: "Togo",
+    code: "TG",
+    currency: "XOF",
+    piToLocalRate: 615,
+    dialCode: "+228",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "Ecobank Togo", bic: "ECOBTGTG", swift: "ECOBTGTG" }],
+    operators: [
+      { id: "tmoney", name: "T-Money", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
 
   // --- AFRIQUE DE L'EST ---
   {
@@ -138,7 +211,38 @@ export const countries: Country[] = [
     isoStandard: "ISO20022",
     banks: [{ name: "KCB Bank", bic: "KCBKKENX", swift: "KCBKKENX" }],
     operators: [
-      { id: "safaricom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } }
+      { id: "safaricom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+  {
+    name: "Rwanda",
+    code: "RW",
+    currency: "RWF",
+    piToLocalRate: 1250,
+    dialCode: "+250",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "Bank of Kigali", bic: "BKIGRWKK", swift: "BKIGRWKK" }],
+    operators: [
+      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
+    ]
+  },
+
+  // --- AFRIQUE AUSTRALE ---
+  {
+    name: "Afrique du Sud",
+    code: "ZA",
+    currency: "ZAR",
+    piToLocalRate: 18.5,
+    dialCode: "+27",
+    continent: "AFRICA",
+    isoStandard: "ISO20022",
+    banks: [{ name: "Standard Bank", bic: "SBZA ZAJJ", swift: "SBZAZAJJ" }],
+    operators: [
+        { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
+        { id: "vodacom", name: "Vodapay", icon: LOGOS.vodacom, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
 
@@ -153,11 +257,12 @@ export const countries: Country[] = [
     isoStandard: "ISO20022",
     banks: [{ name: "Attijariwafa Bank", bic: "BCMAPMCA", swift: "BCMAPMCA" }],
     operators: [
-      { id: "iam", name: "Itissalat Cash", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } }
+      { id: "inwi", name: "inwi money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } }
     ]
   },
 
-  // --- EUROPE (SEPA / ISO 20022) ---
+  // --- EUROPE ---
   {
     name: "France",
     code: "FR",
@@ -170,10 +275,9 @@ export const countries: Country[] = [
       { name: "BNP Paribas", bic: "BNPAFRPP", swift: "BNPAFRPP", ibanStructure: "FR76" },
       { name: "Revolut", bic: "REVOUM22", swift: "REVOUM22", ibanStructure: "FR76" }
     ],
-    operators: [] // Pas de MoMo en France
+    operators: []
   }
 ];
 
-// Fonction utilitaire pour filtrer par continent dans tes Select
-export const getCountriesByContinent = (continent: string) => 
+export const getCountriesByContinent = (continent: string) =>
   countries.filter(c => c.continent === continent);

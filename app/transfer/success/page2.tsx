@@ -2,13 +2,13 @@
 
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  Share2,
-  Home,
-  ShieldCheck,
+import { 
+  CheckCircle2, 
+  Share2, 
+  Home, 
+  ShieldCheck, 
   Download,
-  ExternalLink
+  ExternalLink 
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,14 +16,13 @@ function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // RÉCUPÉRATION DYNAMIQUE (Désormais avec Currency)
+  // Données dynamiques récupérées depuis l'URL (envoyées par ConfirmPage)
   const amount = searchParams.get("amount") || "0";
   const name = searchParams.get("name") || "Utilisateur";
-  const currency = searchParams.get("currency") || "π"; // Récupère la devise, défaut sur π
-  const reference = searchParams.get("ref") || `TX-${Math.random().toString(36).toUpperCase().slice(2, 10)}`;
+  const reference = searchParams.get("ref") || "TX-PIMPAY-XXXX";
 
   const handleShare = async () => {
-    const shareText = `PimPay : J'ai envoyé ${amount} ${currency} à ${name}. Réf: ${reference}`;
+    const shareText = `PimPay : J'ai envoyé ${amount} π à ${name}. Réf: ${reference}`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -54,7 +53,7 @@ function SuccessContent() {
       </h1>
       <div className="flex items-center justify-center gap-2 mb-8 opacity-60">
         <ShieldCheck size={14} className="text-emerald-500" />
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Authentifié par PimPay Protocol</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Authentifié par Pi Network</p>
       </div>
 
       {/* REÇU DÉTAILLÉ */}
@@ -64,10 +63,10 @@ function SuccessContent() {
         </div>
 
         <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Montant de la transaction</p>
-
+        
         <div className="flex items-center justify-center gap-2 mb-6">
           <span className="text-5xl font-black tracking-tighter">{amount}</span>
-          <span className="text-2xl font-black italic text-blue-500">{currency}</span>
+          <span className="text-2xl font-black italic text-blue-500">π</span>
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5">
@@ -85,7 +84,7 @@ function SuccessContent() {
       {/* BOUTONS D'ACTION */}
       <div className="w-full max-w-sm space-y-4">
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push("/wallet")}
           className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 rounded-[28px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-600/20"
         >
           <Home size={18} /> Retour au Portefeuille
@@ -106,10 +105,10 @@ function SuccessContent() {
         </div>
       </div>
 
-      {/* Explorateur de blocs */}
+      {/* Explorateur de blocs factice/réel */}
       <div className="mt-12 flex items-center gap-2 text-slate-600 cursor-pointer hover:text-blue-400 transition-colors">
          <ExternalLink size={12} />
-         <p className="text-[9px] font-black uppercase tracking-[0.2em]">Voir sur le Block Explorer</p>
+         <p className="text-[9px] font-black uppercase tracking-[0.2em]">Voir sur le Pi Block Explorer</p>
       </div>
     </div>
   );

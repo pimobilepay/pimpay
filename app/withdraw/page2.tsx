@@ -7,17 +7,17 @@ import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
-  Clock, ShieldCheck, Zap, CircleDot, Loader2
+  Clock, ShieldCheck, CircleDot, Loader2, CheckCircle2,
+  Landmark, CreditCard
 } from "lucide-react";
 import Link from "next/link";
-import { CountrySelect } from "@/components/country-select";
 import { countries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PI_CONSENSUS_USD, FIAT_RATES } from "@/lib/exchange"; 
+import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import "flag-icons/css/flag-icons.min.css";
+import Flag from "react-world-flags";
 
 export default function WithdrawPage() {
   const router = useRouter();
@@ -31,44 +31,57 @@ export default function WithdrawPage() {
   const [balance, setBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [issubmitting, setIsSubmitting] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
 
-  // 1. RECUPERATION DU SOLDE RÉEL
+  const [bankInfo, setBankInfo] = useState({
+    bankName: "",
+    iban: "",
+    swift: "",
+    accountName: ""
+  });
+
   useEffect(() => {
     setMounted(true);
-    async function fetchBalance() {
-      try {
-        const res = await fetch("/api/user/profile");
-        if (res.ok) {
-          const data = await res.json();
-          setBalance(data.balance || 0);
-        }
-      } catch (err) {
-        console.error("Erreur solde:", err);
-      } finally {
-        setLoadingBalance(false);
-      }
-    }
-    fetchBalance();
+    fetchData();
   }, []);
 
-  const piPrice = PI_CONSENSUS_USD;
-  const currentFiatRate = FIAT_RATES[selectedCountry.currency] || selectedCountry.piToLocalRate;
+  async function fetchData() {
+    try {
+      const profileRes = await fetch("/api/user/profile");
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        setBalance(data.balance || 0);
+      }
+      const txRes = await fetch("/api/user/transactions?type=WITHDRAWAL");
+      if (txRes.ok) {
+        const data = await txRes.json();
+        setTransactions(data.transactions || []);
+      }
+    } catch (err) {
+      console.error("Erreur chargement:", err);
+    } finally {
+      setLoadingBalance(false);
+    }
+  }
 
   const formatValue = (val: number) => {
     return new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
+      maximumFractionDigits: 2,
     }).format(val);
   };
 
-  // 2. FONCTION DE SOUMISSION DU RETRAIT
-  const handleWithdraw = async () => {
+  const handleWithdraw = async (method: "mobile" | "bank") => {
     const amount = parseFloat(piAmount);
-    
     if (!amount || amount <= 0) return toast.error("Montant invalide");
     if (amount > balance) return toast.error("Solde insuffisant");
-    if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
-    if (!phoneNumber) return toast.error("Numéro de téléphone requis");
+
+    if (method === "mobile") {
+      if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
+      if (!phoneNumber) return toast.error("Numéro de téléphone requis");
+    } else {
+      if (!bankInfo.iban || !bankInfo.bankName) return toast.error("Infos bancaires incomplètes");
+    }
 
     setIsSubmitting(true);
     try {
@@ -77,26 +90,23 @@ export default function WithdrawPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: amount,
+          method: method,
           currency: selectedCountry.currency,
-          phoneNumber: `${selectedCountry.dialCode}${phoneNumber}`,
-          provider: selectedOperator
+          details: method === "mobile"
+            ? { phone: `${selectedCountry.dialCode}${phoneNumber}`, provider: selectedOperator }
+            : bankInfo
         }),
       });
 
-      const result = await response.json();
-
       if (response.ok) {
-        toast.success("Demande de retrait enregistrée !");
-        // Optionnel : rediriger vers l'historique ou vider les champs
-        setPiAmount("");
-        setPhoneNumber("");
-        // On rafraîchit le solde localement
-        setBalance(prev => prev - amount);
+        toast.success("Demande de retrait transmise !");
+        router.push("/dashboard");
       } else {
-        toast.error(result.error || "Une erreur est survenue");
+        const result = await response.json();
+        toast.error(result.error || "Erreur lors du retrait");
       }
     } catch (error) {
-      toast.error("Erreur de connexion au serveur");
+      toast.error("Erreur de connexion");
     } finally {
       setIsSubmitting(false);
     }
@@ -104,181 +114,251 @@ export default function WithdrawPage() {
 
   if (!mounted) return null;
 
-  return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
+  const conversion = piAmount ? calculateExchangeWithFee(parseFloat(piAmount), selectedCountry.currency) : { total: 0 };
 
+  return (
+    <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans">
+      
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/dashboard">
-            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all">
+            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400">
               <ArrowLeft size={20} />
             </div>
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Retrait</h1>
+            <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Retrait</h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Ledger Liquidation</span>
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Protocol</span>
             </div>
           </div>
         </div>
 
-        <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-6 opacity-10">
-            <ArrowUpFromLine size={80} className="text-blue-500" />
+        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="absolute -right-4 -top-4 opacity-10 text-blue-500">
+            <ArrowUpFromLine size={120} />
           </div>
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Available to Withdraw</p>
-              <div className="text-3xl font-black text-white tracking-tighter">
-                {loadingBalance ? (
-                  <Loader2 className="animate-spin text-blue-500" size={24} />
-                ) : (
-                  `π ${formatValue(balance)}`
-                )}
-              </div>
-            </div>
-            <div className="h-12 w-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
-              <Zap size={20} />
+          <div className="relative z-10">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Solde Pi disponible</p>
+            <div className="text-4xl font-black text-white tracking-tighter">
+              {loadingBalance ? (
+                <Loader2 className="animate-spin text-blue-500" size={24} />
+              ) : (
+                `π ${formatValue(balance)}`
+              )}
             </div>
           </div>
         </Card>
       </div>
 
-      <div className="px-6 -mt-8 space-y-8">
+      <div className="px-6 -mt-10 space-y-8">
         <Tabs defaultValue="mobile" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/50 border border-white/5 rounded-2xl p-1 backdrop-blur-md">
-            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          {/* Correction Couleur Onglets : Inactif = Slate-400, Actif = White sur Blue */}
+          <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/80 border border-white/10 rounded-2xl p-1">
+            <TabsTrigger 
+              value="mobile" 
+              className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=inactive]:text-slate-400 transition-all"
+            >
               <Smartphone size={14} className="mr-2" /> Mobile
             </TabsTrigger>
-            <TabsTrigger value="bank" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Building2 size={14} className="mr-2" /> Bank
+            <TabsTrigger 
+              value="bank" 
+              className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=inactive]:text-slate-400 transition-all"
+            >
+              <Building2 size={14} className="mr-2" /> Banque
             </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="history" 
+              className="rounded-xl font-bold text-[10px] uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=inactive]:text-slate-400 transition-all"
+            >
               <Clock size={14} className="mr-2" /> Logs
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mobile" className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            <div className="space-y-6">
-
-              <div className="grid grid-cols-1 gap-6 px-2">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Select Region</label>
-                  <CountrySelect value={selectedCountry} onChange={setSelectedCountry} />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Network Operator</label>
-                  <Select value={selectedOperator} onValueChange={setSelectedOperator}>
-                    <SelectTrigger className="h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xs font-bold text-white focus:ring-0">
-                      <SelectValue placeholder="Choisir un opérateur" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-white/10 text-white rounded-2xl">
-                      {selectedCountry.mobileMoneyOperators?.map((op) => {
-                        const name = typeof op === "string" ? op : op.name;
-                        return (
-                          <SelectItem key={name} value={name} className="focus:bg-blue-600 rounded-xl">
-                             <span className={`fi fi-${selectedCountry.code.toLowerCase()} mr-2`} />
-                             {name}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <TabsContent value="mobile" className="mt-8 space-y-6 animate-in slide-in-from-bottom-4">
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Pays</label>
+                <Select
+                  value={selectedCountry.code}
+                  onValueChange={(code) => {
+                    const country = countries.find(c => c.code === code);
+                    if (country) {
+                      setSelectedCountry(country);
+                      setSelectedOperator("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-4 text-white">
+                    <div className="flex items-center gap-3">
+                      <Flag code={selectedCountry.code} className="w-6 h-6 rounded-full object-cover" />
+                      <SelectValue placeholder="Choisir pays" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
+                    {countries.map((c) => (
+                      <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 py-3">
+                        <div className="flex items-center gap-3">
+                          <Flag code={c.code} className="w-5 h-5 rounded-full object-cover" />
+                          <span className="font-bold text-xs uppercase">{c.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-2 px-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Receiving Number</label>
-                <div className="flex gap-3">
-                  <div className="h-14 w-20 flex items-center justify-center bg-slate-900/40 border border-white/5 rounded-2xl text-xs font-bold text-blue-400">
+              {/* LISTE DES OPÉRATEURS MISES À JOUR */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Opérateur Mobile</label>
+                <Select value={selectedOperator} onValueChange={setSelectedOperator}>
+                  <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-4 text-white">
+                    <SelectValue placeholder="Choisir un opérateur" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
+                    {/* On utilise les opérateurs du pays sélectionné ou une liste par défaut si vide */}
+                    {(selectedCountry.mobileMoneyOperators && selectedCountry.mobileMoneyOperators.length > 0) ? (
+                      selectedCountry.mobileMoneyOperators.map((op: any) => {
+                        const name = typeof op === "string" ? op : op.name;
+                        return (
+                          <SelectItem key={name} value={name} className="focus:bg-blue-600 py-3">
+                             <span className="uppercase font-bold text-xs">{name}</span>
+                          </SelectItem>
+                        );
+                      })
+                    ) : (
+                      // Liste de secours si la config pays est absente
+                      ["M-Pesa", "Orange Money", "Airtel Money", "MTN Momo"].map((op) => (
+                        <SelectItem key={op} value={op} className="focus:bg-blue-600 py-3">
+                          <span className="uppercase font-bold text-xs">{op}</span>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Numéro de réception</label>
+                <div className="flex gap-2">
+                  <div className="h-16 w-20 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-sm font-black text-blue-500">
                     {selectedCountry.dialCode}
                   </div>
                   <Input
-                    placeholder="Numéro de téléphone"
+                    type="tel"
+                    placeholder="Numéro sans indicatif"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1 h-14 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-sm font-bold text-white placeholder:text-slate-700 focus:border-blue-500/30 outline-none"
+                    className="flex-1 h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-lg font-black text-white outline-none"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2 px-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Withdrawal Amount (π)</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-white uppercase tracking-widest ml-2 opacity-80">Montant à retirer (π)</label>
                 <div className="relative">
                   <Input
                     type="number"
                     placeholder="0.00"
                     value={piAmount}
                     onChange={(e) => setPiAmount(e.target.value)}
-                    className="h-16 bg-slate-900/40 border-white/5 rounded-2xl px-6 text-xl font-black text-white focus:border-blue-500/30 outline-none"
+                    className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-2xl font-black text-white"
                   />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-500 font-black text-xs uppercase">Pi Coin</span>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black">PI</div>
                 </div>
-
-                {piAmount && (
-                  <div className="mt-4 p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-3 animate-in fade-in zoom-in-95">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Global Market (USD)</span>
-                      <span className="text-sm font-bold text-white">$ {formatValue(Number(piAmount) * piPrice)}</span>
-                    </div>
-                    <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Net Cash Out ({selectedCountry.currency})</span>
-                      <span className="text-xl font-black text-blue-400 tracking-tighter">
-                        {formatValue(Number(piAmount) * piPrice * currentFiatRate)} {selectedCountry.currency}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              <Button 
-                onClick={handleWithdraw}
-                disabled={issubmitting || !piAmount || !phoneNumber}
-                className="w-full h-20 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] shadow-xl shadow-blue-600/20 group transition-all mt-4 flex flex-col items-center justify-center disabled:opacity-50"
+              {piAmount && (
+                  <div className="p-6 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-4">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      <span>Valeur Marché</span>
+                      <span className="text-white">$ {formatValue(Number(piAmount) * PI_CONSENSUS_USD)}</span>
+                    </div>
+                    <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-blue-500 uppercase">Cashout Estimé</span>
+                        <span className="text-2xl font-black text-blue-400">{formatValue(conversion.total)}</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
+                    </div>
+                  </div>
+              )}
+
+              <Button
+                onClick={() => handleWithdraw("mobile")}
+                disabled={issubmitting || !piAmount || !phoneNumber || !selectedOperator}
+                className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
               >
-                {issubmitting ? (
-                  <Loader2 className="animate-spin" size={24} />
-                ) : (
-                  <>
-                    <span className="text-xs font-black uppercase tracking-[4px]">Confirm Cashout</span>
-                    <span className="text-[9px] font-bold text-blue-200 uppercase opacity-60">Settlement processing</span>
-                  </>
-                )}
+                {issubmitting ? <Loader2 className="animate-spin" /> : "Initier le Cashout"}
               </Button>
             </div>
           </TabsContent>
 
-          <TabsContent value="bank" className="mt-8">
-            <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem] space-y-4">
-              <Building2 size={32} className="mx-auto text-slate-700" />
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bank wire coming soon</p>
+          {/* ... Reste des TabsContent (Bank et History) identiques mais avec drapeaux corrigés ... */}
+          <TabsContent value="bank" className="mt-8 animate-in slide-in-from-bottom-4">
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
+               <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                  <Landmark className="text-amber-500" size={20} />
+                  <p className="text-[10px] font-bold text-amber-500 uppercase leading-tight">Virement International (SWIFT/SEPA)</p>
+               </div>
+               <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Nom de la banque</label>
+                    <Input placeholder="Ex: RawBank, Ecobank..." className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-bold" value={bankInfo.bankName} onChange={(e) => setBankInfo({...bankInfo, bankName: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">IBAN / Compte</label>
+                    <Input placeholder="Numéro de compte" className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-mono" value={bankInfo.iban} onChange={(e) => setBankInfo({...bankInfo, iban: e.target.value})} />
+                  </div>
+                  <Button onClick={() => handleWithdraw("bank")} disabled={issubmitting || !piAmount || !bankInfo.iban} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest">
+                    {issubmitting ? <Loader2 className="animate-spin" /> : "Valider le Virement"}
+                  </Button>
+               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="history" className="mt-8">
-            <div className="py-16 text-center border border-dashed border-white/5 rounded-[2rem] space-y-4">
-              <Clock size={32} className="mx-auto text-slate-700" />
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No recent withdrawals</p>
-            </div>
+          <TabsContent value="history" className="mt-8 space-y-4">
+            {transactions.length > 0 ? (
+              transactions.map((tx) => (
+                <Card key={tx.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex justify-between items-center backdrop-blur-sm">
+                  <div className="flex gap-3 items-center">
+                    <div className={`p-3 rounded-xl ${tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                      {tx.status === 'SUCCESS' ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-white uppercase">Retrait {tx.metadata?.method || 'PimPay'}</p>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-white">-{tx.amount} π</p>
+                    <p className={`text-[8px] font-black uppercase ${tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-amber-500'}`}>{tx.status}</p>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[3rem]">
+                <Clock size={40} className="mx-auto text-slate-800 mb-4" />
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Aucun log</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
-        <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] flex items-start gap-4">
-          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+        <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-[2.5rem] flex items-start gap-4 backdrop-blur-sm">
+          <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 shadow-inner">
             <ShieldCheck size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Pimpay Security Protocol</p>
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Garantie PimPay</p>
             <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-              Toutes les transactions de retrait sont traitées via notre passerelle custodial sécurisée.
-              Le délai de réception dépend de votre opérateur local (M-Pesa, Orange, Airtel).
+              Les fonds sont déduits de votre balance immédiatement. Délai : 30 min (Mobile) à 48h (Banque).
             </p>
           </div>
         </div>
       </div>
-
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );

@@ -1,16 +1,16 @@
-"use client";
-
+"use client";                               
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, ArrowDownLeft, RefreshCcw,
   Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
   Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,
-  LogOut, LayoutGrid, Receipt, Smartphone, Share2
-} from "lucide-react";
-import { PI_CONSENSUS_USD } from "@/lib/exchange";
-import { BottomNav } from "@/components/bottom-nav";
-import { Sidebar } from "@/components/sidebar"; // Import de la Sidebar
+  LogOut, LayoutGrid, Receipt, Smartphone, Share2,
+  History
+} from "lucide-react";                      
+import { PI_CONSENSUS_USD } from "@/lib/exchange";                                      
+import { BottomNav } from "@/components/bottom-nav";                                    
+import { Sidebar } from "@/components/sidebar";                                         
 import { toast } from "sonner";
 
 const RATES = {
@@ -28,10 +28,7 @@ export default function UserDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
-  
-  // ÉTAT POUR LE MENU LATÉRAL
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   const [currency, setCurrency] = useState<CurrencyKey>("USD");
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
@@ -61,6 +58,39 @@ export default function UserDashboard() {
     router.push("/auth/login");
   };
 
+  // --- LOGIQUE DE RENDU HISTORIQUE (Style Home) ---
+  const getTransactionUI = (tx: any, currentUserId: string) => {
+    const isReceived = tx.type === 'DEPOSIT' || tx.toUserId === currentUserId;
+    
+    if (tx.type === 'SWAP') {
+      return {
+        icon: <RefreshCcw size={22} />,
+        bgColor: "bg-orange-500/10 text-orange-500",
+        sign: "",
+        amountColor: "text-orange-400",
+        label: "Swap"
+      };
+    }
+
+    if (tx.type === 'TOPUP' || tx.type === 'MOBILE_RECHARGE') {
+      return {
+        icon: <Smartphone size={22} />,
+        bgColor: "bg-blue-500/10 text-blue-400",
+        sign: "-",
+        amountColor: "text-slate-300",
+        label: "Top-up"
+      };
+    }
+
+    return {
+      icon: isReceived ? <ArrowDownCircle size={22} /> : <ArrowUpCircle size={22} />,
+      bgColor: isReceived ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500",
+      sign: isReceived ? "+" : "-",
+      amountColor: isReceived ? "text-emerald-400" : "text-slate-300",
+      label: isReceived ? "Reçu" : "Envoyé"
+    };
+  };
+
   if (!hasMounted || isLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
@@ -70,7 +100,8 @@ export default function UserDashboard() {
     );
   }
 
-  const balance = data?.balance || 0;
+  const piWallet = data?.wallets?.find((w: any) => w.currency === "PI");
+  const balance = piWallet ? piWallet.balance : (data?.balance || 0);
   const userName = data?.name || "Pioneer";
   const transactions = data?.transactions || [];
   const convertedValue = (balance * PI_CONSENSUS_USD) * RATES[currency];
@@ -84,8 +115,6 @@ export default function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
-      
-      {/* COMPOSANT SIDEBAR AJOUTÉ */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
@@ -102,11 +131,7 @@ export default function UserDashboard() {
             <button onClick={handleLogout} className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:text-rose-500 transition-colors">
               <LogOut size={20} />
             </button>
-            {/* BOUTON NOTIFICATION CORRIGÉ */}
-            <button 
-              onClick={() => router.push("/settings/notifications")} 
-              className="p-3 rounded-2xl bg-white/5 text-slate-400 relative"
-            >
+            <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative">
               <Bell size={20} />
               <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
             </button>
@@ -140,35 +165,21 @@ export default function UserDashboard() {
 
             <div className="flex justify-between items-end">
                 <div className="relative">
-                    <button
-                        onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
-                        className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2 active:scale-95 transition-all"
-                    >
+                    <button onClick={() => setShowCurrencyPicker(!showCurrencyPicker)} className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2 active:scale-95 transition-all">
                         <Globe size={12} className="text-blue-400" />
-                        <p className="text-[11px] font-mono font-bold">
-                        ≈ {showBalance ? `${formatCurrency(convertedValue)} ${currency}` : "Locked"}
-                        </p>
+                        <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${formatCurrency(convertedValue)} ${currency}` : "Locked"}</p>
                         <ChevronDown size={12} className={`transition-transform ${showCurrencyPicker ? 'rotate-180' : ''}`} />
                     </button>
-
                     {showCurrencyPicker && (
                         <div className="absolute bottom-full left-0 mb-2 w-28 bg-[#0f172a]/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50">
                             {(['USD', 'XFA', 'CDF', 'EUR'] as CurrencyKey[]).map((curr) => (
-                                <button
-                                    key={curr}
-                                    onClick={() => {
-                                        setCurrency(curr);
-                                        setShowCurrencyPicker(false);
-                                    }}
-                                    className={`w-full text-left px-4 py-2 text-[10px] font-bold hover:bg-blue-600 transition-colors ${currency === curr ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
-                                >
+                                <button key={curr} onClick={() => { setCurrency(curr); setShowCurrencyPicker(false); }} className={`w-full text-left px-4 py-2 text-[10px] font-bold hover:bg-blue-600 transition-colors ${currency === curr ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
                                     {curr}
                                 </button>
                             ))}
                         </div>
                     )}
                 </div>
-
                 <div className="text-right">
                     <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Network</p>
                     <p className="text-[10px] font-bold text-white uppercase italic">Pi Mainnet</p>
@@ -178,14 +189,14 @@ export default function UserDashboard() {
           <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
         </div>
 
-        {/* ACTIONS PRINCIPALES */}
+        {/* ACTIONS */}
         <div className="grid grid-cols-4 gap-4 mb-10">
             {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
               { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
               { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-              { icon: <CreditCard />, label: "Card", color: "bg-slate-800", link: "/dashboard/card" }
+              { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
             ].map((action, i) => (
-              <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
+              <button key={i} onClick={() => router.push(action.link || "#")} className="flex flex-col items-center gap-2">
                 <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform`}>
                   {action.icon}
                 </div>
@@ -194,57 +205,50 @@ export default function UserDashboard() {
             ))}
         </div>
 
-        {/* QUICK ACCESS */}
-        <section className="mb-10">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6 px-1">Quick Access</h3>
-          <div className="grid grid-cols-4 gap-4">
-              {[{ icon: <LayoutGrid size={20}/>, label: "Services" },
-                { icon: <Receipt size={20}/>, label: "Bill" },
-                { icon: <Smartphone size={20}/>, label: "Top-Up" },
-                { icon: <Share2 size={20}/>, label: "Network" }
-              ].map((item, i) => (
-                <button key={i} className="flex flex-col items-center gap-3 group">
-                  <div className="w-12 h-12 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-slate-400 group-active:scale-90 transition-all group-hover:border-blue-500/50 group-hover:text-blue-400">
-                    {item.icon}
-                  </div>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{item.label}</span>
-                </button>
-              ))}
-          </div>
-        </section>
-
-        {/* TRANSACTIONS RÉELLES */}
+        {/* SECTION HISTORIQUE - DESIGN PAGE ACCUEIL INTEGRÉ */}
         <section className="mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Transactions Réelles</h3>
-            <button className="text-[9px] font-black uppercase text-blue-500 tracking-widest">Voir tout</button>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
+            <History size={16} className="text-slate-600" />
           </div>
-          <div className="space-y-3">
-            {transactions.length > 0 ? transactions.map((tx: any) => (
-              <div key={tx.id} className="p-4 bg-slate-900/30 border border-white/5 rounded-[24px] flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'DEPOSIT' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                    {tx.type === 'DEPOSIT' ? <ArrowDownCircle size={20} /> : <ArrowUpCircle size={20} />}
+
+          <div className="space-y-4">
+            {transactions.length > 0 ? transactions.map((tx: any) => {
+              const ui = getTransactionUI(tx, data.id);
+              const status = tx.status || "SUCCESS";
+              
+              return (
+                <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800/60 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${ui.bgColor}`}>
+                      {ui.icon}
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-bold leading-tight uppercase">
+                        {tx.description || ui.label}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                          {status}
+                        </p>
+                        <span className="text-[9px] text-slate-600 font-medium">
+                          {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase">{tx.description || tx.type}</p>
-                    <p className="text-[10px] text-slate-500">{new Date(tx.createdAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                   <p className={`text-sm font-black ${tx.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-slate-200'}`}>
-                    {tx.type === 'DEPOSIT' ? '+' : '-'} {tx.amount.toFixed(2)} π
+                  <p className={`text-sm font-black ${ui.amountColor}`}>
+                    {ui.sign}π {tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-              </div>
-            )) : (
-              <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">No recent activity</div>
+              );
+            }) : (
+              <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">Aucune activité récente</div>
             )}
           </div>
         </section>
       </main>
 
-      {/* OUVERTURE DU MENU VIA BOTTOM NAV CORRIGÉE */}
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
     </div>
   );

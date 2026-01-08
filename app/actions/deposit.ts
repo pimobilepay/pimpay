@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { TransactionStatus, TransactionType } from "@prisma/client";
+import { TransactionStatus } from "@prisma/client";
 
 export async function processDeposit(formData: {
   amount: number;
@@ -12,23 +12,32 @@ export async function processDeposit(formData: {
   const reference = `TX-PIM-${Math.random().toString(36).toUpperCase().substring(2, 10)}`;
 
   try {
-    // 1. Récupérer un utilisateur réel pour éviter l'erreur de clé étrangère
-    // Dans un vrai projet, on utiliserait l'ID de la session (Clerk/NextAuth)
+    // 1. Récupérer un utilisateur réel
+    // Note : Plus tard, remplace ceci par la récupération de l'utilisateur connecté
     const user = await prisma.user.findFirst();
 
     if (!user) {
-      return { success: false, error: "Aucun utilisateur trouvé en base. Créez un compte d'abord." };
+      return { 
+        success: false, 
+        error: "Utilisateur introuvable. Veuillez vous connecter." 
+      };
     }
 
-    // 2. Création de la transaction liée à l'utilisateur réel
+    // 2. Création de la transaction
     const result = await prisma.transaction.create({
       data: {
         reference: reference,
         amount: formData.amount,
-        type: TransactionType.DEPOSIT,
+        // Correction : Ton schéma utilise 'purpose' (String) pour stocker le type
+        purpose: "DEPOSIT", 
         status: TransactionStatus.PENDING,
         fromUserId: user.id,
         toUserId: user.id,
+        
+        // Optionnel : On remplit aussi les champs spécifiques du schéma s'ils sont utiles
+        operatorId: formData.method,
+        countryCode: formData.currency,
+        
         description: `Dépôt via ${formData.method}`,
         metadata: {
           phone: formData.phone,
@@ -40,8 +49,11 @@ export async function processDeposit(formData: {
     });
 
     return { success: true, reference: result.reference };
-  } catch (error) {
-    console.error("Erreur Prisma:", error);
-    return { success: false, error: "Erreur lors de la création de la transaction." };
+  } catch (error: any) {
+    console.error("Erreur Prisma détaillée:", error);
+    return { 
+      success: false, 
+      error: "Le protocole PimPay n'a pas pu enregistrer la transaction." 
+    };
   }
 }
