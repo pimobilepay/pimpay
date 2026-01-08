@@ -70,40 +70,45 @@ export default function WithdrawPage() {
     }).format(val);
   };
 
-  // LOGIQUE MISE À JOUR : Redirection vers Summary
   const handleWithdraw = async (method: "mobile" | "bank") => {
     const amount = parseFloat(piAmount);
     if (!amount || amount <= 0) return toast.error("Montant invalide");
     if (amount > balance) return toast.error("Solde insuffisant");
 
-    let details = {};
     if (method === "mobile") {
       if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
       if (!phoneNumber) return toast.error("Numéro de téléphone requis");
-      details = { 
-        phone: `${selectedCountry.dialCode}${phoneNumber}`, 
-        provider: selectedOperator,
-        country: selectedCountry.name 
-      };
     } else {
       if (!bankInfo.iban || !bankInfo.bankName) return toast.error("Infos bancaires incomplètes");
-      details = bankInfo;
     }
 
-    // Calcul final pour le résumé
-    const conversion = calculateExchangeWithFee(amount, selectedCountry.currency);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/transaction/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amount,
+          method: method,
+          currency: selectedCountry.currency,
+          details: method === "mobile"
+            ? { phone: `${selectedCountry.dialCode}${phoneNumber}`, provider: selectedOperator }
+            : bankInfo
+        }),
+      });
 
-    const summaryData = {
-      amount: amount,
-      method: method,
-      currency: selectedCountry.currency,
-      fiatAmount: conversion.total,
-      details: details
-    };
-
-    // Encodage pour l'URL
-    const encodedData = btoa(JSON.stringify(summaryData));
-    router.push(`/withdraw/summary?data=${encodedData}`);
+      if (response.ok) {
+        toast.success("Demande de retrait transmise !");
+        router.push("/dashboard");
+      } else {
+        const result = await response.json();
+        toast.error(result.error || "Erreur lors du retrait");
+      }
+    } catch (error) {
+      toast.error("Erreur de connexion");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!mounted) return null;
@@ -112,7 +117,8 @@ export default function WithdrawPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans">
-      {/* Ton Design de Header reste identique */}
+
+      {/* HEADER & BALANCE */}
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/dashboard">
@@ -136,7 +142,11 @@ export default function WithdrawPage() {
           <div className="relative z-10">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Solde Pi disponible</p>
             <div className="text-4xl font-black text-white tracking-tighter">
-              {loadingBalance ? <Loader2 className="animate-spin text-blue-500" size={24} /> : `π ${formatValue(balance)}`}
+              {loadingBalance ? (
+                <Loader2 className="animate-spin text-blue-500" size={24} />
+              ) : (
+                `π ${formatValue(balance)}`
+              )}
             </div>
           </div>
         </Card>
@@ -158,12 +168,20 @@ export default function WithdrawPage() {
 
           <TabsContent value="mobile" className="mt-8 space-y-6">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
+
+              {/* PAYS - TEXTE UNIQUEMENT */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Pays de destination</label>
-                <Select value={selectedCountry.code} onValueChange={(code) => {
+                <Select
+                  value={selectedCountry.code}
+                  onValueChange={(code) => {
                     const country = countries.find(c => c.code === code);
-                    if (country) { setSelectedCountry(country); setSelectedOperator(""); }
-                  }}>
+                    if (country) {
+                      setSelectedCountry(country);
+                      setSelectedOperator("");
+                    }
+                  }}
+                >
                   <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-white outline-none focus:ring-0">
                     <SelectValue placeholder="Choisir pays" />
                   </SelectTrigger>
@@ -177,6 +195,7 @@ export default function WithdrawPage() {
                 </Select>
               </div>
 
+              {/* OPÉRATEURS */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Opérateur Mobile Money</label>
                 <Select value={selectedOperator} onValueChange={setSelectedOperator}>
@@ -196,26 +215,39 @@ export default function WithdrawPage() {
                 </Select>
               </div>
 
+              {/* TÉLÉPHONE */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Numéro bénéficiaire</label>
                 <div className="flex gap-2">
                   <div className="h-16 w-20 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-sm font-black text-blue-500">
                     {selectedCountry.dialCode}
                   </div>
-                  <Input type="tel" placeholder="Ex: 812345678" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1 h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-lg font-black text-white outline-none" />
+                  <Input
+                    type="tel"
+                    placeholder="Ex: 812345678"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="flex-1 h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-lg font-black text-white outline-none"
+                  />
                 </div>
               </div>
 
+              {/* MONTANT */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Montant à retirer (π)</label>
                 <div className="relative">
-                  <Input type="number" placeholder="0.00" value={piAmount} onChange={(e) => setPiAmount(e.target.value)}
-                    className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-2xl font-black text-white outline-none" />
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={piAmount}
+                    onChange={(e) => setPiAmount(e.target.value)}
+                    className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-2xl font-black text-white outline-none"
+                  />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black text-white">PI</div>
                 </div>
               </div>
 
+              {/* RÉSUMÉ */}
               {piAmount && (
                 <div className="p-6 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-4">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
@@ -232,13 +264,17 @@ export default function WithdrawPage() {
                 </div>
               )}
 
-              <Button onClick={() => handleWithdraw("mobile")} disabled={issubmitting || !piAmount || !phoneNumber || !selectedOperator}
-                className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
-                {issubmitting ? <Loader2 className="animate-spin" /> : "Vérifier le Cashout"}
+              <Button
+                onClick={() => handleWithdraw("mobile")}
+                disabled={issubmitting || !piAmount || !phoneNumber || !selectedOperator}
+                className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+              >
+                {issubmitting ? <Loader2 className="animate-spin" /> : "Confirmer le Cashout"}
               </Button>
             </div>
           </TabsContent>
 
+          {/* BANQUE */}
           <TabsContent value="bank" className="mt-8 space-y-6">
              <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6">
                 <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
@@ -263,19 +299,21 @@ export default function WithdrawPage() {
                    </div>
                    <div className="space-y-2">
                       <label className="text-[10px] font-black text-white/60 uppercase ml-2">Numéro de compte / IBAN</label>
-                      <Input placeholder="Coordonnées bancaires" className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-mono outline-none"
-                        value={bankInfo.iban} onChange={(e) => setBankInfo({...bankInfo, iban: e.target.value})} />
+                      <Input
+                        placeholder="Coordonnées bancaires"
+                        className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-mono outline-none"
+                        value={bankInfo.iban}
+                        onChange={(e) => setBankInfo({...bankInfo, iban: e.target.value})}
+                      />
                    </div>
-                   <Button onClick={() => handleWithdraw("bank")} disabled={issubmitting || !piAmount || !bankInfo.iban}
-                    className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all">
-                    {issubmitting ? <Loader2 className="animate-spin" /> : "Vérifier le Virement"}
+                   <Button onClick={() => handleWithdraw("bank")} disabled={issubmitting || !piAmount || !bankInfo.iban} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all">
+                    {issubmitting ? <Loader2 className="animate-spin" /> : "Initier le Virement"}
                   </Button>
                 </div>
              </div>
           </TabsContent>
 
           <TabsContent value="history" className="mt-8 space-y-4">
-             {/* Ton design de l'historique reste identique */}
             {transactions.length > 0 ? (
               transactions.map((tx) => (
                 <Card key={tx.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex justify-between items-center backdrop-blur-sm">
@@ -303,7 +341,7 @@ export default function WithdrawPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Footer Design identique */}
+        {/* FOOTER SECURITY */}
         <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-[2.5rem] flex items-start gap-4 backdrop-blur-sm">
           <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 shadow-inner">
             <ShieldCheck size={20} />

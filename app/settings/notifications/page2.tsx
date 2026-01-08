@@ -10,26 +10,24 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
-// Types des notifications PimPay
+// Types mis à jour pour inclure LOGIN (Sessions)
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP";
 
-interface Notification {
+type Notification = {
   id: string;
   title: string;
   message: string;
-  type: NotificationType;
+  type: string;
   createdAt: string;
   read: boolean;
+  // Ajout de métadonnées potentielles pour les sessions réelles
   metadata?: {
     device?: string;
     ip?: string;
     location?: string;
-    os?: string;
-    browser?: string;
   };
-}
+};
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -41,11 +39,10 @@ export default function NotificationsPage() {
 
   const [activeTab, setActiveTab] = useState<"ALL" | NotificationType>("ALL");
 
-  // CORRECTION : Utilisation de l'API /api/notifications
   const fetchNotifications = useCallback(async (showSilent = false) => {
     if (!showSilent) setIsRefreshing(true);
     try {
-      const res = await fetch("/api/notifications");
+      const res = await fetch("/api/transaction/notifications");
 
       if (res.status === 401) {
         router.push("/auth/login");
@@ -60,7 +57,7 @@ export default function NotificationsPage() {
         setUnreadCount(data.unreadCount ?? freshNotifs.filter((n: Notification) => !n.read).length);
       }
     } catch (err) {
-      console.error("Erreur PimPay Notifications:", err);
+      console.error("Erreur polling:", err);
     } finally {
       if (isMounted.current) {
         setIsRefreshing(false);
@@ -82,36 +79,34 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
-      // CORRECTION : Adapté à ton API (all: true)
-      const res = await fetch("/api/notifications", {
+      const res = await fetch("/api/transaction/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }), 
+        body: JSON.stringify({ action: "MARK_ALL_READ" }),
       });
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
-        toast.success("Notifications marquées comme lues");
+        toast.success("Toutes les alertes ont été lues");
       }
     } catch (e) {
-      toast.error("Erreur de synchronisation");
+      toast.error("Erreur de mise à jour");
     }
   };
 
   const deleteNotif = async (id: string) => {
     try {
-      // CORRECTION : Utilisation de /api/notifications
-      const res = await fetch(`/api/notifications?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/transaction/notifications?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         setNotifications(prev => prev.filter(n => n.id !== id));
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (e) {
-      toast.error("Action impossible");
+      toast.error("Suppression impossible");
     }
   };
 
-  const getIcon = (type: NotificationType) => {
+  const getIcon = (type: string) => {
     switch (type) {
       case "SECURITY": return <ShieldCheck className="text-rose-500" size={18} />;
       case "PAYMENT_RECEIVED": return <ArrowDownLeft className="text-emerald-400" size={18} />;
@@ -122,16 +117,17 @@ export default function NotificationsPage() {
     }
   };
 
+  const filteredNotifications = activeTab === "ALL"
+    ? notifications
+    : notifications.filter(n => n.type === activeTab);
+
+  // Ajout de l'onglet "Sessions"
   const tabs = [
     { id: "ALL", label: "Tout" },
     { id: "LOGIN", label: "Sessions" },
     { id: "PAYMENT_RECEIVED", label: "Reçus" },
     { id: "SECURITY", label: "Sécurité" },
   ];
-
-  const filteredNotifications = activeTab === "ALL"
-    ? notifications
-    : notifications.filter(n => n.type === activeTab);
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
@@ -156,12 +152,11 @@ export default function NotificationsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={cn(
-                "px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
+              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
                 activeTab === tab.id
-                  ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
-                  : "bg-white/5 border-white/5 text-slate-500"
-              )}
+                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+                : "bg-white/5 border-white/5 text-slate-500"
+              }`}
             >
               {tab.label}
             </button>
@@ -177,7 +172,7 @@ export default function NotificationsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-            <p className="text-[10px] font-black uppercase tracking-[3px] text-slate-500">Flux en cours...</p>
+            <p className="text-[10px] font-black uppercase tracking-[3px] text-slate-500">Vérification du flux...</p>
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -185,7 +180,7 @@ export default function NotificationsPage() {
               <Bell size={40} className="text-slate-800" />
             </div>
             <p className="text-base font-bold text-slate-400 italic">Silence radio</p>
-            <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest mt-2">Aucune alerte trouvée</p>
+            <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest mt-2">Aucune alerte trouvée ici</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -194,30 +189,25 @@ export default function NotificationsPage() {
                 <motion.div
                   key={notif.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className={cn(
-                    "relative p-5 rounded-[30px] border transition-all",
+                  className={`relative p-5 rounded-[30px] border transition-all ${
                     notif.read
-                      ? "bg-slate-900/30 border-white/5 opacity-70"
-                      : "bg-gradient-to-br from-blue-600/10 to-slate-900/50 border-blue-500/20 shadow-lg"
-                  )}
+                    ? "bg-slate-900/30 border-white/5 opacity-70"
+                    : "bg-gradient-to-br from-blue-600/10 to-slate-900/50 border-blue-500/20 shadow-lg"
+                  }`}
                 >
                   <div className="flex gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${
                       notif.read ? "bg-slate-800" : "bg-blue-600/20 text-blue-400"
-                    )}>
-                      {getIcon(notif.type as NotificationType)}
+                    }`}>
+                      {getIcon(notif.type)}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
-                        <h3 className={cn(
-                          "text-sm font-bold truncate pr-4",
-                          notif.read ? 'text-slate-400' : 'text-white'
-                        )}>
+                        <h3 className={`text-sm font-bold truncate pr-4 ${notif.read ? 'text-slate-400' : 'text-white'}`}>
                           {notif.title}
                         </h3>
                         {!notif.read && (
@@ -225,29 +215,26 @@ export default function NotificationsPage() {
                         )}
                       </div>
 
-                      <p className={cn(
-                        "text-xs mt-1 leading-relaxed",
-                        notif.read ? 'text-slate-500' : 'text-slate-300'
-                      )}>
+                      <p className={`text-xs mt-1 leading-relaxed ${notif.read ? 'text-slate-500' : 'text-slate-300'}`}>
                         {notif.message}
                       </p>
 
-                      {/* INFOS DE SESSION RÉELLES */}
-                      {notif.type === "LOGIN" && notif.metadata && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-white/5">
-                           <div className="flex items-center gap-2 text-[10px]">
+                      {/* AFFICHAGE DES INFOS RÉELLES DE SESSION SI TYPE LOGIN */}
+                      {notif.type === "LOGIN" && (
+                        <div className="mt-3 p-3 bg-white/5 rounded-2xl space-y-2 border border-white/5">
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
                              <Smartphone size={12} className="text-blue-400" />
-                             <span className="font-bold text-slate-200 uppercase tracking-tight">
-                               {notif.metadata.device || notif.metadata.os || "Appareil Inconnu"}
+                             <span className="font-medium uppercase tracking-tight text-slate-300">
+                               {notif.metadata?.device || "Appareil Inconnu"}
                              </span>
                            </div>
-                           <div className="flex items-center gap-2 text-[10px]">
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
                              <Globe size={12} className="text-emerald-400" />
-                             <span className="font-mono text-slate-400">IP : {notif.metadata.ip || "Masquée"}</span>
+                             <span className="font-mono">IP: {notif.metadata?.ip || "192.168.1.X"}</span>
                            </div>
-                           <div className="flex items-center gap-2 text-[10px]">
+                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
                              <MapPin size={12} className="text-rose-400" />
-                             <span className="text-slate-400">{notif.metadata.location || "Congo (Oyo)"}</span>
+                             <span>{notif.metadata?.location || "Localisation sécurisée"}</span>
                            </div>
                         </div>
                       )}

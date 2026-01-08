@@ -97,7 +97,7 @@ model User {
   securityLogs     SecurityLog[]
   supportTickets   SupportTicket[]
   merchantProfile  Merchant?       @relation("user_merchant")
-  swapQuotes       SwapQuote[]     // Ajouté pour le suivi des conversions
+  swapQuotes       SwapQuote[]
 }
 
 // -----------------------------------------------------------------------------
@@ -329,6 +329,15 @@ model Session {
   ip           String?
   userAgent    String?
   deviceName   String?
+  
+  // Ajouts pour la géolocalisation et l'appareil
+  os           String?
+  browser      String?
+  city         String?
+  country      String?
+  lat          Float?
+  lon          Float?
+
   isActive     Boolean  @default(true)
   lastActiveAt DateTime @default(now())
   createdAt    DateTime @default(now())
@@ -411,7 +420,7 @@ model Notification {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMS
+// ENUMS (FORMAT CORRIGÉ)
 // -----------------------------------------------------------------------------
 enum CardType {
   CLASSIC

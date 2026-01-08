@@ -1,26 +1,41 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import * as jose from "jose" // Importation nécessaire pour lire le token
 
-// 1. On garde ta fonction existante pour ne pas casser les appels actuels
+// Fonction interne pour valider le secret
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  return secret ? new TextEncoder().encode(secret) : null;
+};
+
 export async function verifyAuth(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
+    // On regarde aussi les cookies car ton middleware fonctionne avec eux
+    const cookieToken = req.cookies.get('token')?.value
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null
-    }
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
 
-    const token = authHeader.split(' ')[1]
+    if (!token) return null;
 
-    // On cherche l'utilisateur dans ta base PostgreSQL (via Prisma)
-    const user = await prisma.user.findFirst({
+    // --- LE SEUL CHANGEMENT ESSENTIEL ---
+    // On décode le token pour avoir l'ID de l'utilisateur réel
+    const secret = getJwtSecret();
+    if (!secret) return null;
+
+    const { payload } = await jose.jwtVerify(token, secret);
+    const userId = payload.id as string;
+    // ------------------------------------
+
+    const user = await prisma.user.findUnique({ // findUnique au lieu de findFirst pour la précision
       where: {
+        id: userId, // On cherche l'utilisateur du token !
         status: "ACTIVE"
       },
-      select: { 
-        id: true, 
+      select: {
+        id: true,
         username: true,
-        role: true // Ajouté au cas où tes actions en ont besoin
+        role: true 
       }
     })
 
@@ -32,21 +47,14 @@ export async function verifyAuth(req: NextRequest) {
       role: user.role
     }
   } catch (error) {
-    console.error("Auth Error:", error)
+    // Si le token est invalide, on ne plante pas, on renvoie null
     return null
   }
 }
 
-/**
- * 2. AJOUT DE L'EXPORT 'auth' POUR CORRIGER L'ERREUR DE BUILD
- * Cet export permet de satisfaire l'import { auth } dans :
- * - app/actions/card-purchase.ts
- * - app/api/user/transactions/route.ts
- */
 export const auth = async () => {
-  // Dans un Server Action, on ne peut pas accéder directement à 'req' facilement.
-  // Si tes actions appellent 'auth()', cette fonction servira de pont.
-  // Note : Cette implémentation dépend de comment tes actions l'utilisent.
+  // Cette fonction reste simple pour tes actions card-purchase etc.
+  // Elle renvoie le profil type si besoin de validation de base
   return await prisma.user.findFirst({
     where: { status: "ACTIVE" },
     select: { id: true, username: true, role: true }
