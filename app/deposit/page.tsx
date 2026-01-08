@@ -27,7 +27,7 @@ export default function DepositPage() {
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country>(
-    countries.find((c) => c.code === "CD") || countries[0]
+    countries.find((c) => c.code === "CG") || countries.find((c) => c.code === "CD") || countries[0]
   );
   const [selectedOperator, setSelectedOperator] = useState("");
   const [txHash, setTxHash] = useState("");
@@ -61,7 +61,8 @@ export default function DepositPage() {
         method: method === "mobile" ? selectedOperator : method,
         phone: method === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : "VIRTUAL_CARD",
         currency: selectedCountry.code,
-        cardInfo: method === "card" ? cardInfo : null
+        cardInfo: method === "card" ? cardInfo : null,
+        isSandbox: true
       };
 
       const response = await processDeposit(payload);
@@ -81,16 +82,18 @@ export default function DepositPage() {
   };
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(PIMPAY_WALLET_ADDRESS);
-    setCopied(true);
-    toast.success("Adresse copiée !");
-    setTimeout(() => setCopied(false), 2000);
+    if (typeof navigator !== "undefined") {
+      navigator.clipboard.writeText(PIMPAY_WALLET_ADDRESS);
+      setCopied(true);
+      toast.success("Adresse copiée !");
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
-  if (!mounted) return null;
+  if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans">
+    <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans" suppressHydrationWarning>
 
       {/* HEADER */}
       <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
@@ -101,7 +104,7 @@ export default function DepositPage() {
             </div>
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Dépôt</h1>
+            <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic"><span>Dépôt</span></h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={10} className="text-blue-500 animate-pulse" />
               <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY INFLOW</span>
@@ -120,7 +123,7 @@ export default function DepositPage() {
             <div>
               <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none">PimPay Protocol</p>
               <p className="text-[10px] text-slate-400 mt-2 leading-relaxed font-medium italic">
-                Approvisionnement sécurisé de votre compte PimPay.
+                <span>Approvisionnement sécurisé de votre compte PimPay.</span>
               </p>
             </div>
           </div>
@@ -131,23 +134,22 @@ export default function DepositPage() {
         <Tabs defaultValue="mobile" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/80 border border-white/10 rounded-2xl p-1 shadow-inner">
             <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-              <Smartphone size={14} className="mr-2" /> Mobile
+              <Smartphone size={14} className="mr-2" /> <span>Mobile</span>
             </TabsTrigger>
             <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-              <CreditCard size={14} className="mr-2" /> Carte
+              <CreditCard size={14} className="mr-2" /> <span>Carte</span>
             </TabsTrigger>
             <TabsTrigger value="crypto" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-              <Bitcoin size={14} className="mr-2" /> Crypto
+              <Bitcoin size={14} className="mr-2" /> <span>Crypto</span>
             </TabsTrigger>
           </TabsList>
 
           {/* --- MOBILE MONEY --- */}
-          <TabsContent value="mobile" className="space-y-6 mt-8">
+          <TabsContent value="mobile" key="mobile-content" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
 
-              {/* SÉLECTION DU PAYS (SANS DRAPEAU) */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Pays</label>
+                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Pays</span></label>
                 <Select
                   value={selectedCountry.code}
                   onValueChange={(code) => {
@@ -171,9 +173,8 @@ export default function DepositPage() {
                 </Select>
               </div>
 
-              {/* MONTANT */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Montant (USD)</label>
+                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Montant (USD)</span></label>
                 <div className="relative">
                   <Coins className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
                   <Input
@@ -186,13 +187,12 @@ export default function DepositPage() {
                 </div>
                 <div className="flex justify-between px-2 mt-1">
                   <span className="text-[9px] font-bold text-slate-500 uppercase">Conversion GCV</span>
-                  <span className="text-[10px] font-black text-blue-400 italic">≈ {calculatePiToReceive()} PI</span>
+                  <span className="text-[10px] font-black text-blue-400 italic"><span>≈ {calculatePiToReceive()} PI</span></span>
                 </div>
               </div>
 
-              {/* OPÉRATEUR */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Réseau</label>
+                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Réseau</span></label>
                 <Select value={selectedOperator} onValueChange={setSelectedOperator}>
                   <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-white outline-none">
                     <SelectValue placeholder="Choisir un opérateur" />
@@ -210,12 +210,11 @@ export default function DepositPage() {
                 </Select>
               </div>
 
-              {/* NUMÉRO DE TÉLÉPHONE */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Numéro Mobile Money</label>
+                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Numéro Mobile Money</span></label>
                 <div className="flex gap-2">
                     <div className="h-16 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-4 min-w-[85px] shadow-inner">
-                        <span className="text-blue-500 font-black text-sm">{selectedCountry.dialCode}</span>
+                        <span className="text-blue-500 font-black text-sm"><span>{selectedCountry.dialCode}</span></span>
                     </div>
                     <Input
                         type="tel"
@@ -232,22 +231,22 @@ export default function DepositPage() {
                 disabled={!selectedOperator || !amount || !phoneNumber || isLoading}
                 className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-[0.97]"
               >
-                {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Initier le Dépôt"}
+                {isLoading ? <Loader2 className="animate-spin mr-2" /> : <span>Initier le Dépôt</span>}
               </Button>
             </div>
           </TabsContent>
 
           {/* --- CARD --- */}
-          <TabsContent value="card" className="space-y-6 mt-8">
+          <TabsContent value="card" key="card-content" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
                 <div className="flex items-center gap-2 mb-2">
                     <Lock size={14} className="text-emerald-500" />
-                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Paiement Sécurisé</span>
+                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest"><span>Paiement Sécurisé</span></span>
                 </div>
 
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Numéro de Carte</label>
+                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Numéro de Carte</span></label>
                         <div className="relative">
                             <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                             <Input
@@ -261,7 +260,7 @@ export default function DepositPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Expiration</label>
+                            <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Expiration</span></label>
                             <Input
                                 placeholder="MM/YY"
                                 value={cardInfo.expiry}
@@ -270,7 +269,7 @@ export default function DepositPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">CVC</label>
+                            <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>CVC</span></label>
                             <Input
                                 placeholder="000"
                                 value={cardInfo.cvc}
@@ -285,18 +284,18 @@ export default function DepositPage() {
                         disabled={!cardInfo.number || !cardInfo.expiry || !cardInfo.cvc || !amount || isLoading}
                         className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all active:scale-[0.97]"
                     >
-                        {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Vérifier la Carte"}
+                        {isLoading ? <Loader2 className="animate-spin mr-2" /> : <span>Vérifier la Carte</span>}
                     </Button>
                 </div>
             </div>
           </TabsContent>
 
           {/* --- CRYPTO --- */}
-          <TabsContent value="crypto" className="mt-8 space-y-6">
+          <TabsContent value="crypto" key="crypto-content" className="mt-8 space-y-6">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-xl">
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Adresse Pi Network (PimPay)</label>
+                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2"><span>Adresse Pi Network (PimPay)</span></label>
                         <div className="relative">
                             <div className="bg-black/60 border border-blue-500/30 rounded-2xl p-5 pr-14 break-all font-mono text-[10px] text-blue-100 shadow-inner">
                                 {PIMPAY_WALLET_ADDRESS}
@@ -308,7 +307,7 @@ export default function DepositPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[9px] font-black text-white/60 uppercase ml-2 tracking-widest">Transaction Hash (ID)</label>
+                        <label className="text-[9px] font-black text-white/60 uppercase ml-2 tracking-widest"><span>Transaction Hash (ID)</span></label>
                         <Input
                             placeholder="Coller l'ID de transaction Pi..."
                             value={txHash}
@@ -322,7 +321,7 @@ export default function DepositPage() {
                         disabled={!txHash || !amount || isLoading}
                         className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl active:scale-[0.97]"
                     >
-                        {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Confirmer le Dépôt"}
+                        {isLoading ? <Loader2 className="animate-spin mr-2" /> : <span>Confirmer le Dépôt</span>}
                     </Button>
                 </div>
             </div>
@@ -332,12 +331,12 @@ export default function DepositPage() {
         {/* FOOTER STATS */}
         <div className="pt-8 border-t border-white/5 grid grid-cols-2 gap-4">
             <div className="bg-white/5 p-5 rounded-[2rem] border border-white/5 backdrop-blur-sm shadow-inner text-center">
-                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Temps Estimé</p>
-                <p className="text-lg font-black text-white mt-1">~3-5 Min</p>
+                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest"><span>Temps Estimé</span></p>
+                <p className="text-lg font-black text-white mt-1"><span>~3-5 Min</span></p>
             </div>
             <div className="bg-white/5 p-5 rounded-[2rem] border border-white/5 backdrop-blur-sm shadow-inner text-center">
-                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Frais Réseau</p>
-                <p className="text-lg font-black text-emerald-400 mt-1">0.00%</p>
+                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest"><span>Frais Réseau</span></p>
+                <p className="text-lg font-black text-emerald-400 mt-1"><span>0.00%</span></p>
             </div>
         </div>
       </div>

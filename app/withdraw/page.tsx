@@ -130,7 +130,7 @@ export default function WithdrawPage() {
             <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Retrait</h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Protocol</span>
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY OUTFLOW</span>
             </div>
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function WithdrawPage() {
           <TabsContent value="mobile" className="mt-8 space-y-6">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
 
-              {/* PAYS - TEXTE UNIQUEMENT (Pas de drapeau) */}
+              {/* PAYS - TEXTE UNIQUEMENT */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Pays de destination</label>
                 <Select
