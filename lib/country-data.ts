@@ -33,12 +33,12 @@ export interface Country {
 const LOGOS = {
   orange: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
   mtn: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg",
-  airtel: "https://upload.wikimedia.org/wikipedia/commons/a/ad/Airtel_logo.png",
-  moov: "https://upload.wikimedia.org/wikipedia/fr/4/4b/Logo_Moov_Africa.png",
-  wave: "https://upload.wikimedia.org/wikipedia/commons/d/d6/Wave_logo.png",
-  mpesa: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg",
+  airtel: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Airtel_logo-01.png",
+  moov: "https://upload.wikimedia.org/wikipedia/fr/1/1d/Moov_Africa_logo.png",
+  wave: "https://en.wikipedia.org/wiki/Wave_Financial#/media/File%3AWave_logo_RGB.png",
+  mpesa: "https://upload.wikimedia.org/wikipedia/commons/0/03/M-pesa-logo.png",
   telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
-  vodacom: "https://upload.wikimedia.org/wikipedia/commons/a/af/Vodafone_logo.svg"
+  vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg"
 };
 
 export const countries: Country[] = [
@@ -65,6 +65,7 @@ export const countries: Country[] = [
   {
     name: "Congo (Brazzaville)",
     code: "CG",
+    flag: "🇨🇬",
     currency: "XAF",
     piToLocalRate: 610,
     dialCode: "+242",
