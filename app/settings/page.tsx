@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import {
   User, ShieldCheck, Bell,
   Lock, Globe, HelpCircle, LogOut,
-  ChevronRight, Fingerprint, CreditCard, Palette,
-  Loader2, ArrowLeft, Moon, Sun, History, ShieldAlert
+  ChevronRight, CreditCard, Palette,
+  Loader2, ArrowLeft, Moon, Sun, History, ShieldAlert,
+  Facebook, Twitter, Youtube, MessageSquare
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,12 +16,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Initialisation du thème depuis le localStorage pour la persistance
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // Vérifier si un thème est déjà enregistré
     const savedTheme = localStorage.getItem("pimpay-theme");
     if (savedTheme === "light") {
       setIsDarkMode(false);
@@ -36,6 +34,10 @@ export default function SettingsPage() {
         if (response.ok) {
           const result = await response.json();
           setData(result);
+          // Mise à jour du storage pour synchroniser le SideMenu
+          if (result.user) {
+            localStorage.setItem("pimpay_user", JSON.stringify(result.user));
+          }
         } else if (response.status === 401) {
           router.push("/auth/login");
         }
@@ -49,13 +51,14 @@ export default function SettingsPage() {
   }, [router]);
 
   const user = data?.user || {};
-  const userName = user?.name || "Pioneer";
+  const userName = user?.name || user?.firstName || "Pioneer";
 
   const handleLogout = async () => {
     try {
       toast.loading("Fermeture de la session sécurisée...");
       setTimeout(() => {
         document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+        localStorage.removeItem("pimpay_user");
         router.push("/auth/login");
         toast.dismiss();
         toast.success("Déconnecté avec succès");
@@ -65,12 +68,9 @@ export default function SettingsPage() {
     }
   };
 
-  // Fonction pour basculer le thème avec sauvegarde
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    
-    // Appliquer au document pour affecter toute l'app si tu utilises Tailwind 'dark' mode
     if (newMode) {
       document.documentElement.classList.add("dark");
       localStorage.setItem("pimpay-theme", "dark");
@@ -78,7 +78,6 @@ export default function SettingsPage() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("pimpay-theme", "light");
     }
-    
     toast.success(`Mode ${newMode ? 'Sombre' : 'Clair'} activé`);
   };
 
@@ -96,11 +95,11 @@ export default function SettingsPage() {
           path: "/settings/kyc"
         },
         {
-          icon: <Fingerprint size={18} />,
-          label: "Biométrie / FaceID",
-          desc: "Activer l'accès rapide",
+          icon: <ShieldAlert size={18} />,
+          label: "Sécurité",
+          desc: "Mot de passe & Protection",
           color: "text-purple-400",
-          path: "/settings/security/biometrics",
+          path: "/settings/security",
         },
         {
           icon: <History size={18} />,
@@ -135,8 +134,10 @@ export default function SettingsPage() {
     {
       title: "Légal & Support",
       items: [
+        { icon: <MessageSquare size={18} />, label: "Contact", desc: "Discuter avec le support", color: "text-emerald-400", path: "/contact" },
         { icon: <HelpCircle size={18} />, label: "Centre d'aide", desc: "Support technique 24/7", color: "text-slate-400", path: "/support" },
-        { icon: <Lock size={18} />, label: "Confidentialité", desc: "RGPD & Sécurité des données", color: "text-slate-400", path: "/legal" },
+        { icon: <Lock size={18} />, label: "Confidentialité", desc: "RGPD & Sécurité des données", color: "text-slate-400", path: "/legal/privacy" },
+        { icon: <ShieldCheck size={18} />, label: "Conditions d'utilisation", desc: "Contrat d'utilisateur final", color: "text-slate-400", path: "/legal/terms" },
       ]
     }
   ];
@@ -172,7 +173,7 @@ export default function SettingsPage() {
         </div>
         <h2 className={`mt-4 text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{userName}</h2>
         <p className="text-[10px] font-bold text-blue-500 tracking-widest uppercase mt-1">
-          {user?.role || 'PIONEER'} MEMBER • ID: {user?.id?.substring(0, 8).toUpperCase()}
+          {user?.role || 'PIONEER'} MEMBER • ID: {user?.id?.substring(0, 8).toUpperCase() || "..."}
         </p>
       </header>
 
@@ -211,6 +212,22 @@ export default function SettingsPage() {
             </div>
           </div>
         ))}
+
+        {/* Réseaux Sociaux */}
+        <div className="space-y-3">
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Suivez-nous</h3>
+            <div className="flex items-center justify-center gap-4 p-6">
+                <a href="https://www.facebook.com/profile.php?id=61586522422346" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors`}>
+                    <Facebook size={24} />
+                </a>
+                <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-white transition-colors`}>
+                    <Twitter size={24} />
+                </a>
+                <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-red-500 transition-colors`}>
+                    <Youtube size={24} />
+                </a>
+            </div>
+        </div>
 
         <button
           onClick={handleLogout}

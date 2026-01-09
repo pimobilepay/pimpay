@@ -68,7 +68,7 @@ export default async function SessionsPage() {
             Sécurité et Sessions
           </h1>
           <p className="text-gray-500 text-sm">
-            Historique des appareils connectés à votre compte **pimpay**.
+            Gérer les sessions actives.
           </p>
         </div>
 
@@ -169,7 +169,7 @@ export default async function SessionsPage() {
           <h4 className="text-sm font-bold text-gray-900">Conseil de sécurité</h4>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
             Si vous remarquez une activité suspecte ou un appareil que vous ne reconnaissez pas,
-            utilisez le bouton <strong>Déconnexion globale</strong> et changez immédiatement votre code PIN.
+            utilisez le bouton <strong>Déconnexion de toutes les autres sessions </strong> et changez immédiatement votre code PIN.
           </p>
         </div>
       </div>

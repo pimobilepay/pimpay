@@ -3,7 +3,7 @@
 import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
-  ShieldCheck
+  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,10 +20,16 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const [user, setUser] = useState<UserData | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  // 1. Initialisation et chargement en temps réel
+  // 1. Chargement optimisé : Immédiat via localStorage + Refresh via API
   useEffect(() => {
     setMounted(true);
     
+    // Récupération instantanée pour éviter la latence
+    const savedUser = localStorage.getItem("pimpay_user");
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+
     const fetchUserData = async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: 'no-store' });
@@ -36,7 +42,6 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
               kycStatus: data.user.kycStatus
             };
             setUser(userData);
-            // On met à jour le localStorage pour les autres composants
             localStorage.setItem("pimpay_user", JSON.stringify(userData));
           }
         }
@@ -48,14 +53,12 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     if (open) {
       fetchUserData();
     }
-  }, [open]); // Se déclenche à chaque ouverture pour être sûr d'avoir les infos
+  }, [open]);
 
-  // 2. Sécurité : Fermer le menu si le pathname change
   useEffect(() => {
     onClose();
   }, [pathname]);
 
-  // 3. Bloquer le scroll du body quand le menu est ouvert
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -75,19 +78,33 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       ]
     },
     {
+      title: "Services Pimpay",
+      items: [
+        { label: "Mpay", icon: <Smartphone size={20} className="text-blue-500" />, path: "/mpay" },
+        { label: "Swap", icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
+        { label: "Carte virtuelle", icon: <CreditCard size={20} className="text-pink-400" />, path: "/cards" },
+        { label: "Recharge Mobile", icon: <Smartphone size={20} className="text-orange-400" />, path: "/recharge" },
+      ]
+    },
+    {
       title: "Transactions",
       items: [
         { label: "Dépôt", icon: <ArrowDown size={20} className="text-green-400" />, path: "/deposit" },
         { label: "Retrait", icon: <ArrowUp size={20} className="text-red-400" />, path: "/withdraw" },
         { label: "Transfert", icon: <Send size={20} className="text-sky-400" />, path: "/transfer" },
-        { label: "Recharge Mobile", icon: <Smartphone size={20} className="text-orange-400" />, path: "/mpay" },
+      ]
+    },
+    {
+      title: "Support & Aide",
+      items: [
+        { label: "Contact", icon: <HelpCircle size={20} className="text-teal-400" />, path: "/contact" },
       ]
     },
     {
       title: "Compte",
       items: [
         { label: "Mon Profil", icon: <User size={20} className="text-slate-400" />, path: "/profile" },
-        { label: "Sécurité", icon: <ShieldCheck size={20} className="text-slate-400" />, path: "/settings" },
+        { label: "Paramètres", icon: <Settings size={20} className="text-slate-400" />, path: "/settings" },
       ]
     }
   ];
@@ -113,7 +130,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
       <div className={`absolute top-0 left-0 h-full w-[280px] bg-[#020617] border-r border-white/10 shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex flex-col h-full">
-          
+
           {/* Header Profil */}
           <div className="p-6 pt-12 pb-8 bg-gradient-to-br from-blue-600/10 to-transparent relative">
             <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 transition-colors">
@@ -161,6 +178,22 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                 </div>
               </div>
             ))}
+
+            {/* Réseaux Sociaux */}
+            <div className="px-4 mt-4 mb-8">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Nous suivre</h3>
+              <div className="flex items-center gap-4">
+                <a href="https://www.facebook.com/profile.php?id=61586522422346" target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-blue-500 transition-colors">
+                  <Facebook size={20} />
+                </a>
+                <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-white transition-colors">
+                  <Twitter size={20} />
+                </a>
+                <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-red-500 transition-colors">
+                  <Youtube size={20} />
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Footer Déconnexion */}

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import {
-  User, ShieldCheck, Bell, Smartphone,
+  User, ShieldCheck, Bell,
   Lock, Globe, HelpCircle, LogOut,
   ChevronRight, Fingerprint, CreditCard, Palette,
-  Loader2, ArrowLeft
+  Loader2, ArrowLeft, Moon, Sun, History, ShieldAlert
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,9 +15,21 @@ export default function SettingsPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Initialisation du thème depuis le localStorage pour la persistance
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // 1. Récupération des informations réelles de l'utilisateur
   useEffect(() => {
+    // Vérifier si un thème est déjà enregistré
+    const savedTheme = localStorage.getItem("pimpay-theme");
+    if (savedTheme === "light") {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove("dark");
+    } else {
+      setIsDarkMode(true);
+      document.documentElement.classList.add("dark");
+    }
+
     async function fetchUserData() {
       try {
         const response = await fetch("/api/user/profile", { cache: 'no-store' });
@@ -39,15 +51,10 @@ export default function SettingsPage() {
   const user = data?.user || {};
   const userName = user?.name || "Pioneer";
 
-  // 2. Gestion de la déconnexion réelle
   const handleLogout = async () => {
     try {
-      // Optionnel: Appeler une route API de logout si tu gères les sessions côté serveur
-      // await fetch('/api/auth/logout', { method: 'POST' });
-      
       toast.loading("Fermeture de la session sécurisée...");
       setTimeout(() => {
-        // Nettoyage local (LocalStorage, Cookies si géré côté client)
         document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
         router.push("/auth/login");
         toast.dismiss();
@@ -58,28 +65,71 @@ export default function SettingsPage() {
     }
   };
 
+  // Fonction pour basculer le thème avec sauvegarde
+  const toggleTheme = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    
+    // Appliquer au document pour affecter toute l'app si tu utilises Tailwind 'dark' mode
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("pimpay-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("pimpay-theme", "light");
+    }
+    
+    toast.success(`Mode ${newMode ? 'Sombre' : 'Clair'} activé`);
+  };
+
   const menuItems = [
     {
       title: "Compte & Sécurité",
       items: [
         { icon: <User size={18} />, label: "Profil Utilisateur", desc: user?.email || "Gérer vos informations", color: "text-blue-400", path: "/profile" },
-        { 
-          icon: <ShieldCheck size={18} />, 
-          label: "Vérification KYC", 
-          desc: `Statut: ${user?.kycStatus || 'NON VÉRIFIÉ'}`, 
-          badge: user?.kycStatus === 'VERIFIED' ? "OK" : "REQUIS", 
+        {
+          icon: <ShieldCheck size={18} />,
+          label: "Vérification KYC",
+          desc: `Statut: ${user?.kycStatus || 'NON VÉRIFIÉ'}`,
+          badge: user?.kycStatus === 'VERIFIED' ? "OK" : "REQUIS",
           color: user?.kycStatus === 'VERIFIED' ? "text-emerald-400" : "text-amber-400",
-          path: "/settings/kyc" 
+          path: "/settings/kyc"
         },
-        { icon: <Fingerprint size={18} />, label: "Biométrie / PIN", desc: "Sécurité renforcée", color: "text-purple-400", path: "/settings/security" },
+        {
+          icon: <Fingerprint size={18} />,
+          label: "Biométrie / FaceID",
+          desc: "Activer l'accès rapide",
+          color: "text-purple-400",
+          path: "/settings/security/biometrics",
+        },
+        {
+          icon: <History size={18} />,
+          label: "Historique de Connexion",
+          desc: "Vérifier les activités récentes",
+          color: "text-rose-400",
+          path: "/dashboard/settings/sessions"
+        },
       ]
     },
     {
-      title: "Préférences",
+      title: "Préférences Système",
       items: [
-        { icon: <Bell size={18} />, label: "Notifications", desc: "Alertes de transaction", color: "text-orange-400", path: "/settings/notifications" },
+        {
+          icon: isDarkMode ? <Moon size={18} /> : <Sun size={18} />,
+          label: "Apparence",
+          desc: isDarkMode ? "Mode Sombre activé" : "Mode Clair activé",
+          color: "text-yellow-400",
+          onClick: toggleTheme
+        },
+        { icon: <Palette size={18} />, label: "Thème Personnalisé", desc: "Couleurs d'accentuation", color: "text-indigo-400", path: "/settings/theme" },
         { icon: <Globe size={18} />, label: "Langue & Région", desc: "Français (FR) • USD", color: "text-cyan-400", path: "/settings/language" },
+      ]
+    },
+    {
+      title: "Services Pimpay",
+      items: [
         { icon: <CreditCard size={18} />, label: "Mes Cartes PIMPAY", desc: "Gérer vos cartes virtuelles", color: "text-pink-400", path: "/cards" },
+        { icon: <Bell size={18} />, label: "Notifications", desc: "Alertes de transaction", color: "text-orange-400", path: "/settings/notifications" },
       ]
     },
     {
@@ -93,25 +143,25 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} flex items-center justify-center`}>
         <Loader2 className="animate-spin text-blue-500" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
-      {/* Header avec bouton retour */}
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} text-white pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
+      {/* Header */}
       <div className="px-6 pt-8 flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-transform">
-          <ArrowLeft size={20} />
+        <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-sm'} rounded-2xl border active:scale-90 transition-transform`}>
+          <ArrowLeft size={20} className={isDarkMode ? 'text-white' : 'text-slate-900'} />
         </button>
-        <h1 className="text-xl font-black uppercase tracking-tighter">Paramètres</h1>
+        <h1 className={`text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Paramètres</h1>
       </div>
 
       <header className="p-8 pb-4 text-center">
-        <div className="relative inline-block">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[32px] mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border border-white/10 uppercase">
+        <div className="relative inline-block group">
+          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[32px] mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border border-white/10 uppercase group-hover:scale-105 transition-transform duration-300">
             {userName.charAt(0)}
           </div>
           {user?.kycStatus === 'VERIFIED' && (
@@ -120,7 +170,7 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-        <h2 className="mt-4 text-xl font-black uppercase tracking-tighter">{userName}</h2>
+        <h2 className={`mt-4 text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{userName}</h2>
         <p className="text-[10px] font-bold text-blue-500 tracking-widest uppercase mt-1">
           {user?.role || 'PIONEER'} MEMBER • ID: {user?.id?.substring(0, 8).toUpperCase()}
         </p>
@@ -132,19 +182,19 @@ export default function SettingsPage() {
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">
               {section.title}
             </h3>
-            <div className="bg-slate-900/40 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-sm">
+            <div className={`${isDarkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border rounded-[32px] overflow-hidden backdrop-blur-sm`}>
               {section.items.map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => router.push(item.path)}
-                  className="w-full flex items-center justify-between p-5 hover:bg-white/5 active:bg-white/10 transition-all border-b border-white/5 last:border-0 group"
+                  onClick={() => item.onClick ? item.onClick() : router.push(item.path || "#")}
+                  className={`w-full flex items-center justify-between p-5 hover:bg-white/5 active:bg-white/10 transition-all border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'} last:border-0 group`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`${item.color} bg-white/5 p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
+                    <div className={`${item.color} ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
                       {item.icon}
                     </div>
                     <div className="text-left">
-                      <p className="text-xs font-black uppercase tracking-tight text-white">{item.label}</p>
+                      <p className={`text-xs font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.label}</p>
                       <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">{item.desc}</p>
                     </div>
                   </div>

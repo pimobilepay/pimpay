@@ -217,7 +217,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-10 flex flex-col items-center space-y-4">
-          <Link href="/forgot-password" core-component="true" className="text-slate-400 hover:text-blue-400 text-xs font-semibold">
+          <Link href="/auth/forgot-password" core-component="true" className="text-slate-400 hover:text-blue-400 text-xs font-semibold">
             Identifiants oubliés ?
           </Link>
           <div className="h-px w-24 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
