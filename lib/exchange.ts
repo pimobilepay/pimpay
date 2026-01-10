@@ -13,7 +13,7 @@ export const FIAT_RATES: Record<string, number> = {
   NGN: 1450.00,
   CNY: 7.24,
   VND: 25450.00,
-  CDF: 2850.00,
+  CDF: 2309.00,
 };
 
 export const CURRENCIES = {

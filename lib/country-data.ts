@@ -47,7 +47,7 @@ export const countries: Country[] = [
     name: "Congo (DRC)",
     code: "CD",
     currency: "CDF",
-    piToLocalRate: 2850,
+    piToLocalRate: 2309,
     dialCode: "+243",
     continent: "AFRICA",
     isoStandard: "ISO20022",

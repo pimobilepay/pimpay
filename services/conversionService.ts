@@ -1,4 +1,4 @@
-import { countries } from "@/data/country-data";
+import { countries } from "@/lib/country-data";
 
 export interface ConversionResult {
   piAmount: number;

@@ -1,32 +1,39 @@
 import { prisma } from "@/lib/prisma";
-import { 
-  ShieldCheck, 
-  Monitor, 
-  Smartphone, 
-  Globe, 
-  MapPin, 
-  Clock, 
-  ChevronRight 
+import {
+  ShieldCheck,
+  Monitor,
+  Smartphone,
+  Globe,
+  MapPin,
+  Clock,
+  ChevronRight
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
+import RevokeSessionButton from "@/components/sessions/RevokeSessionButton"; // Import du nouveau bouton
 import { cookies } from "next/headers";
 import * as jose from "jose";
 
 /**
- * Fonction helper locale pour récupérer l'utilisateur spécifique à Pimpay
- * en utilisant la logique de ton fichier lib/auth.ts (jose + cookies)
+ * Fonction pour transformer un code pays (ex: "CD") en emoji drapeau
  */
+const getFlagEmoji = (countryCode: string) => {
+  if (!countryCode || countryCode.length !== 2) return "🇨🇬"; // Congo par défaut si vide
+  const codePoints = countryCode
+    .toUpperCase()
+    .split("")
+    .map((char) => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+};
+
 async function getAuthenticatedUser() {
   const token = cookies().get("token")?.value;
   if (!token) return null;
-
   try {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
-
     return await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
       select: { id: true, username: true, role: true }
@@ -37,7 +44,6 @@ async function getAuthenticatedUser() {
 }
 
 export default async function SessionsPage() {
-  // Remplacement de getCurrentUser() par notre helper compatible
   const user = await getAuthenticatedUser();
   const currentToken = cookies().get("token")?.value;
 
@@ -60,11 +66,11 @@ export default async function SessionsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      {/* Header avec bouton de déconnexion globale */}
+      {/* Header avec la couleur de titre Pimpay corrigée */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ShieldCheck className="text-[#6C5CE7]" />
+          <h1 className="text-2xl font-bold text-[#2563eb] flex items-center gap-2">
+            <ShieldCheck className="text-[#2563eb]" />
             Sécurité et Sessions
           </h1>
           <p className="text-gray-500 text-sm">
@@ -75,7 +81,7 @@ export default async function SessionsPage() {
         <LogoutOthersButton />
       </div>
 
-      {/* Liste des sessions */}
+      {/* Liste des sessions - Design original conservé */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="divide-y divide-gray-100">
           {sessions.length === 0 ? (
@@ -86,7 +92,6 @@ export default async function SessionsPage() {
             sessions.map((session) => {
               const isCurrent = session.token === currentToken;
 
-              // Détection d'icône plus précise
               const isMobile = session.userAgent?.toLowerCase().includes("android") ||
                                session.userAgent?.toLowerCase().includes("iphone") ||
                                session.userAgent?.toLowerCase().includes("mobile");
@@ -99,7 +104,6 @@ export default async function SessionsPage() {
                   }`}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Icône Appareil */}
                     <div className={`p-3 rounded-2xl ${
                       isCurrent
                         ? 'bg-blue-100 text-blue-600'
@@ -133,6 +137,10 @@ export default async function SessionsPage() {
                         <span className="flex items-center gap-1.5">
                           <MapPin size={14} className="text-gray-400" />
                           {session.city ? `${session.city}, ${session.country}` : "Oyo, Congo"}
+                          <span className="ml-1">
+                            {/* Drapeau dynamique basé sur countryCode ou Congo par défaut */}
+                            {getFlagEmoji(session.countryCode || "CG")}
+                          </span>
                         </span>
                         <span className="flex items-center gap-1.5">
                           <Clock size={14} className="text-gray-400" />
@@ -145,13 +153,13 @@ export default async function SessionsPage() {
                     </div>
                   </div>
 
-                  {/* Indicateur visuel pour la session actuelle */}
+                  {/* Action : Pulse si actuel, bouton de révocation sinon */}
                   {isCurrent ? (
-                    <div className="hidden md:block">
+                    <div className="hidden md:block mr-2">
                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
                     </div>
                   ) : (
-                    <ChevronRight size={18} className="text-gray-300" />
+                    <RevokeSessionButton sessionId={session.id} />
                   )}
                 </div>
               );
@@ -169,7 +177,7 @@ export default async function SessionsPage() {
           <h4 className="text-sm font-bold text-gray-900">Conseil de sécurité</h4>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
             Si vous remarquez une activité suspecte ou un appareil que vous ne reconnaissez pas,
-            utilisez le bouton <strong>Déconnexion de toutes les autres sessions </strong> et changez immédiatement votre code PIN.
+            utilisez le bouton <strong>Déconnexion globale</strong> et changez immédiatement votre code PIN.
           </p>
         </div>
       </div>

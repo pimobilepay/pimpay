@@ -82,7 +82,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       items: [
         { label: "Mpay", icon: <Smartphone size={20} className="text-blue-500" />, path: "/mpay" },
         { label: "Swap", icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
-        { label: "Carte virtuelle", icon: <CreditCard size={20} className="text-pink-400" />, path: "/cards" },
+        { label: "Carte virtuelle", icon: <CreditCard size={20} className="text-pink-400" />, path: "/dashboard/card" },
         { label: "Recharge Mobile", icon: <Smartphone size={20} className="text-orange-400" />, path: "/recharge" },
       ]
     },

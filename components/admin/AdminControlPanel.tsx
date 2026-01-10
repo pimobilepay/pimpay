@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  ShieldAlert, Users, Settings, Zap, 
-  Ban, CheckCircle, Wallet, CreditCard, 
-  Hammer, TrendingUp, AlertTriangle, RefreshCw
+import {
+  ShieldAlert, Users, Settings, Zap,
+  Ban, CheckCircle, Wallet, CreditCard,
+  Hammer, TrendingUp, AlertTriangle, RefreshCw,
+  UserCheck
 } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner"; // Changé react-hot-toast par sonner pour cohérence avec ton projet
 
 interface AdminControlProps {
   userId?: string;
@@ -18,22 +19,28 @@ interface AdminControlProps {
 export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: AdminControlProps) => {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
-  const runAction = async (action: string, extraData?: any) => {
+  const runAction = async (action: string, payload: any = {}) => {
     setLoadingAction(action);
     try {
-      const res = await fetch("/api/admin/users/action", {
+      const res = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, action, ...extraData }),
+        body: JSON.stringify({ 
+          userId, 
+          action, 
+          ...payload 
+        }),
       });
+      
       const data = await res.json();
-      if (data.success) {
-        toast.success(data.message);
+      
+      if (res.ok) {
+        toast.success(data.message || "Action effectuée avec succès");
       } else {
-        toast.error(data.error);
+        toast.error(data.error || "L'action a échoué");
       }
     } catch (err) {
-      toast.error("Erreur de connexion au noyau");
+      toast.error("Erreur de connexion au noyau PimPay");
     } finally {
       setLoadingAction(null);
     }
@@ -42,58 +49,58 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 p-4">
       {/* HEADER SECTION */}
-      <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center justify-between">
+      <div className="bg-blue-600/10 border border-blue-500/20 p-6 rounded-[2.5rem] flex items-center justify-between backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-red-500 rounded-2xl text-white">
+          <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-500/20">
             <ShieldAlert size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tight">Zone d'Administration</h2>
-            <p className="text-xs text-red-400 font-bold uppercase tracking-widest">Contrôle du noyau PimPay</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight italic">PIMPAY<span className="text-blue-500">CORE</span></h2>
+            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-[3px]">Security & Control Unit</p>
           </div>
         </div>
         {userId && (
           <div className="text-right hidden md:block">
-            <p className="text-sm font-black text-white">{userName || "Utilisateur"}</p>
-            <p className="text-[10px] text-slate-500">{userEmail}</p>
+            <p className="text-sm font-black text-white uppercase">{userName || "Utilisateur"}</p>
+            <p className="text-[9px] text-blue-500 font-mono font-bold tracking-widest">{userId.substring(0, 12)}...</p>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
+
         {/* SECTION 1: GESTION UTILISATEUR */}
         {userId && (
-          <div className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] space-y-4">
+          <div className="bg-slate-900/60 border border-white/5 p-6 rounded-[2.5rem] space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Users size={18} className="text-blue-500" />
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Actions Utilisateur</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Privilèges & Accès</h3>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <AdminButton 
-                label="Bannir / Débannir" 
-                icon={<Ban size={16}/>} 
+              <AdminButton
+                label="Bannir / Débannir"
+                icon={<Ban size={16}/>}
                 onClick={() => runAction("BAN")}
                 loading={loadingAction === "BAN"}
                 variant="danger"
               />
-              <AdminButton 
-                label="Vérifier KYC" 
-                icon={<CheckCircle size={16}/>} 
-                onClick={() => runAction("VERIFY_KYC")}
-                loading={loadingAction === "VERIFY_KYC"}
+              <AdminButton
+                label="Vérifier KYC"
+                icon={<UserCheck size={16}/>}
+                onClick={() => runAction("APPROVE_KYC")}
+                loading={loadingAction === "APPROVE_KYC"}
                 variant="success"
               />
-              <AdminButton 
-                label="Geler Compte" 
-                icon={<AlertTriangle size={16}/>} 
+              <AdminButton
+                label="Geler Compte"
+                icon={<AlertTriangle size={16}/>}
                 onClick={() => runAction("FREEZE")}
                 loading={loadingAction === "FREEZE"}
                 variant="warning"
               />
-              <AdminButton 
-                label="Changer Rôle" 
-                icon={<RefreshCw size={16}/>} 
+              <AdminButton
+                label="Changer Rôle"
+                icon={<RefreshCw size={16}/>}
                 onClick={() => runAction("TOGGLE_ROLE")}
                 loading={loadingAction === "TOGGLE_ROLE"}
               />
@@ -103,77 +110,85 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
 
         {/* SECTION 2: FINANCE & CARTE */}
         {userId && (
-          <div className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] space-y-4">
+          <div className="bg-slate-900/60 border border-white/5 p-6 rounded-[2.5rem] space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet size={18} className="text-emerald-500" />
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Finance & Visa</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Solde & Assets</h3>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <AdminButton 
-                label="+10 Pi (Airdrop)" 
-                icon={<Zap size={16}/>} 
-                onClick={() => runAction("UPDATE_BALANCE", { amount: 10 })}
-                loading={loadingAction === "UPDATE_BALANCE"}
+              <AdminButton
+                label="+10 Pi (Airdrop)"
+                icon={<Zap size={16}/>}
+                onClick={() => runAction("AIRDROP", { amount: 10 })}
+                loading={loadingAction === "AIRDROP"}
                 variant="primary"
               />
-              <AdminButton 
-                label="Bloquer Carte" 
-                icon={<CreditCard size={16}/>} 
-                onClick={() => runAction("TOGGLE_CARD_LOCK")}
-                loading={loadingAction === "TOGGLE_CARD_LOCK"}
-              />
-              <AdminButton 
-                label="Reset PIN" 
-                icon={<RefreshCw size={16}/>} 
+              <AdminButton
+                label="Reset Solde"
+                icon={<RefreshCw size={16}/>}
                 onClick={() => {
-                   const pin = prompt("Nouveau PIN (4 chiffres) :");
-                   if(pin) runAction("RESET_PIN", { extraData: pin });
+                  const amt = prompt("Définir le solde exact :");
+                  if(amt) runAction("UPDATE_BALANCE", { amount: parseFloat(amt) });
                 }}
               />
-              <AdminButton 
-                label="Approuver Retrait" 
-                icon={<CheckCircle size={16}/>} 
-                onClick={() => runAction("APPROVE_WITHDRAW")}
-                variant="success"
+              <AdminButton
+                label="Reset PIN"
+                icon={<CreditCard size={16}/>}
+                onClick={() => {
+                   const pin = prompt("Nouveau PIN (4 ou 6 chiffres) :");
+                   if(pin) runAction("RESET_PIN", { extraData: pin });
+                }}
+                loading={loadingAction === "RESET_PIN"}
+              />
+              <AdminButton
+                label="Maintenance Indiv."
+                icon={<Hammer size={16}/>}
+                onClick={() => runAction("USER_SPECIFIC_MAINTENANCE")}
+                variant="warning"
               />
             </div>
           </div>
         )}
 
         {/* SECTION 3: SYSTÈME GLOBAL */}
-        <div className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] space-y-4 md:col-span-2">
+        <div className="bg-slate-900/60 border border-white/5 p-6 rounded-[2.5rem] space-y-4 md:col-span-2">
           <div className="flex items-center gap-2 mb-2">
             <Settings size={18} className="text-purple-500" />
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Contrôle Global du Système</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Contrôle Global du Réseau</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <AdminButton 
-              label="Mode Maintenance" 
-              icon={<Hammer size={16}/>} 
+            <AdminButton
+              label="Maintenance"
+              icon={<Hammer size={16}/>}
               onClick={() => runAction("TOGGLE_MAINTENANCE")}
               variant="danger"
+              loading={loadingAction === "TOGGLE_MAINTENANCE"}
             />
-            <AdminButton 
-              label="Prix GCV Pi" 
-              icon={<TrendingUp size={16}/>} 
+            <AdminButton
+              label="Prix GCV"
+              icon={<TrendingUp size={16}/>}
               onClick={() => {
-                const price = prompt("Nouveau prix GCV ($) :");
-                if(price) runAction("SET_CONSENSUS_PRICE", { amount: parseFloat(price) });
+                const price = prompt("Nouveau prix Consensus ($) :");
+                if(price) runAction("UPDATE_CONFIG", { amount: parseFloat(price) }); // Assure-toi d'avoir UPDATE_CONFIG dans l'API
               }}
             />
-            <AdminButton 
-              label="Global Airdrop" 
-              icon={<Zap size={16}/>} 
+            <AdminButton
+              label="Airdrop Global"
+              icon={<Zap size={16}/>}
               onClick={() => {
-                const amt = prompt("Montant à envoyer à TOUT LE MONDE :");
-                if(amt) runAction("GLOBAL_AIRDROP", { amount: parseFloat(amt) });
+                const amt = prompt("Montant pour TOUS les utilisateurs :");
+                if(amt) runAction("AIRDROP_ALL", { amount: parseFloat(amt) });
               }}
               variant="primary"
+              loading={loadingAction === "AIRDROP_ALL"}
             />
-            <AdminButton 
-                label="Récupérer Logs" 
-                icon={<RefreshCw size={16}/>} 
-                onClick={() => toast.success("Logs exportés")}
+            <AdminButton
+                label="Annonce"
+                icon={<RefreshCw size={16}/>}
+                onClick={() => {
+                  const msg = prompt("Message de l'annonce :");
+                  if(msg) runAction("SEND_NETWORK_ANNOUNCEMENT", { extraData: msg });
+                }}
             />
           </div>
         </div>
@@ -193,12 +208,12 @@ const AdminButton = ({ label, icon, onClick, loading, variant = "default" }: any
   };
 
   return (
-    <button 
+    <button
       onClick={onClick}
       disabled={loading}
-      className={`h-12 px-4 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50 text-[10px] font-black uppercase tracking-widest ${variants[variant]}`}
+      className={`h-12 px-4 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50 text-[9px] font-black uppercase tracking-tighter ${variants[variant]}`}
     >
-      {loading ? <RefreshCw className="animate-spin" size={16} /> : icon}
+      {loading ? <RefreshCw className="animate-spin" size={14} /> : icon}
       <span className="truncate">{label}</span>
     </button>
   );

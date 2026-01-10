@@ -9,15 +9,20 @@ export async function GET(req: NextRequest) {
   try {
     // 1. DOUBLE VÉRIFICATION DE SÉCURITÉ (ADMIN OU CRON)
     const authHeader = req.headers.get('authorization');
-    const isCron = 
-      authHeader === `Bearer ${process.env.CRON_SECRET}` || 
+    const isCron =
+      authHeader === `Bearer ${process.env.CRON_SECRET}` ||
       authHeader === `Bearer ${process.env.VERCEL_CRON_JWT}`;
 
-    let adminPayload = null;
+    let adminPayload: { id: string; role: string } | null = null;
+    
     if (!isCron) {
-      adminPayload = verifyAuth(req) as { id: string; role: string } | null;
+      // FIX: Ajout du await indispensable car verifyAuth est asynchrone
+      // et ajout d'un casting de type sécurisé
+      const decoded = await verifyAuth(req);
+      adminPayload = decoded as { id: string; role: string } | null;
     }
 
+    // Vérification stricte
     if (!isCron && (!adminPayload || adminPayload.role !== "ADMIN")) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     const backupString = JSON.stringify(backupData, null, 2);
 
-    // 3. MISE À JOUR DE L'HISTORIQUE POUR LE GRAPHIQUE (Seulement si Cron)
+    // 3. MISE À JOUR DE L'HISTORIQUE (Seulement si Cron)
     if (isCron) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -67,10 +72,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4. ENVOI DE L'EMAIL AVEC RAPPORT HTML
+    // 4. ENVOI DE L'EMAIL
     const shouldSendEmail = isCron || req.nextUrl.searchParams.get("sendEmail") === "true";
 
-    if (shouldSendEmail && process.env.RESEND_API_KEY) {
+    if (shouldSendEmail && process.env.RESEND_API_KEY && process.env.ADMIN_EMAIL) {
       await resend.emails.send({
         from: "PimPay Security <onboarding@resend.dev>",
         to: process.env.ADMIN_EMAIL as string,
@@ -98,16 +103,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 5. LOG DE L'ACTION
+    // 5. LOG DE L'ACTION (Correction du targetId pour éviter P2003)
+    // On met targetId à null car "SYSTEM" n'est pas un ID utilisateur valide
     await prisma.auditLog.create({
       data: {
-        adminId: isCron ? "SYSTEM_CRON" : (adminPayload?.id || "UNKNOWN"),
-        adminName: isCron ? "Auto-Protect" : "System Admin",
+        adminId: isCron ? null : (adminPayload?.id || null), 
+        adminName: isCron ? "Auto-Protect" : (adminPayload?.id ? "System Admin" : "Unknown"),
         action: "DATABASE_BACKUP",
-        details: isCron 
-          ? "Cron Job : Backup + Stats Graphique + Email." 
+        details: isCron
+          ? "Cron Job : Backup + Stats Graphique + Email."
           : `Manuel ${shouldSendEmail ? '+ Email' : ''}.`,
-        targetId: "SYSTEM",
+        targetId: null, // Évite la violation de clé étrangère vers la table User
       }
     });
 
@@ -123,6 +129,6 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     console.error("BACKUP_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Échec procédure" }, { status: 500 });
+    return NextResponse.json({ error: "Échec procédure", details: error.message }, { status: 500 });
   }
 }

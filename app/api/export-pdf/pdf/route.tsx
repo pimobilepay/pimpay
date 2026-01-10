@@ -1,10 +1,9 @@
 export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from "next/server";
-import PDFDocument from "pdfkit";
 
-// Note: Dans Node.js 18+ (Vercel), 'fetch' est natif. 
-// Pas besoin d'importer 'node-fetch' sauf si vous avez des besoins spécifiques.
+import { NextRequest, NextResponse } from "next/server";
+// @ts-ignore - On ignore les types si le paquet @types/pdfkit n'est pas détecté
+import PDFDocument from "pdfkit";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,29 +17,25 @@ export async function GET(req: NextRequest) {
     // 1. Récupération de l'image
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error("Failed to fetch image");
-    const imageBuffer = await response.arrayBuffer();
+    const arrayBuffer = await response.arrayBuffer();
 
-    // 2. Création du PDF via une Promise pour gérer l'asynchronisme de PDFKit
+    // 2. Création du PDF via une Promise
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ 
+      const doc = new PDFDocument({
         size: "A4",
-        margin: 50 
+        margin: 50
       });
-      
+
       const chunks: Buffer[] = [];
 
-      // Collecte des morceaux de données
-      doc.on("data", (chunk) => chunks.push(chunk));
-      
-      // Une fois terminé, on concatène tout en un seul Buffer
+      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
-      
-      // En cas d'erreur lors de la génération
-      doc.on("error", (err) => reject(err));
+      doc.on("error", (err: Error) => reject(err));
 
       // Ajout de l'image au PDF
       try {
-        doc.image(Buffer.from(imageBuffer), {
+        // On convertit l'ArrayBuffer en Buffer pour PDFKit
+        doc.image(Buffer.from(arrayBuffer), {
           fit: [500, 700],
           align: "center",
           valign: "center",
@@ -52,7 +47,8 @@ export async function GET(req: NextRequest) {
     });
 
     // 3. Retour de la réponse PDF
-    return new NextResponse(pdfBuffer, {
+    // CORRECTION : On convertit le Buffer en Uint8Array pour NextResponse
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename=pimpay-receipt.pdf",

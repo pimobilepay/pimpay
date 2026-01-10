@@ -1,25 +1,32 @@
-// Fonction à intégrer dans ton hook usePiAuth ou ta page de paiement
-const onIncompletePaymentFound = async (payment: any) => {
-  console.log("Paiement incomplet détecté :", payment);
-  
-  // 1. Envoyer l'ID au serveur pour vérification
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: Request) {
   try {
-    const response = await fetch("/api/payments/incomplete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        paymentId: payment.identifier, 
-        txid: payment.transaction.txid 
-      }),
+    const { paymentId, txid } = await req.json();
+
+    if (!paymentId || !txid) {
+      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+    }
+
+    // Ici, tu peux ajouter une logique pour vérifier le txid sur la blockchain Pi
+    // Ou simplement marquer la transaction comme "SUCCESS" si elle existait en PENDING
+    const updatedTransaction = await prisma.transaction.updateMany({
+      where: { 
+        // On cherche une transaction qui correspondrait à ce paiement
+        // Adapté selon comment tu stockes le paymentId Pi
+        metadata: { path: ["paymentId"], equals: paymentId },
+        status: "PENDING" 
+      },
+      data: { 
+        status: "SUCCESS",
+        blockchainTx: txid 
+      }
     });
 
-    if (response.ok) {
-      // 2. Si le serveur confirme, on dit au SDK de "compléter" le flux côté client
-      // @ts-ignore
-      await window.Pi.completePayment(payment.identifier);
-      console.log("Paiement incomplet régularisé !");
-    }
+    return NextResponse.json({ success: true, updated: updatedTransaction.count });
   } catch (error) {
-    console.error("Échec de la récupération du paiement :", error);
+    console.error("INCOMPLETE_PAYMENT_ERROR:", error);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
-};
+}

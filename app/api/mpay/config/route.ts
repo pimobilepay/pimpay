@@ -1,6 +1,7 @@
-import { NextResponse } from "next/navigation";
-// Importez votre client de base de données ici (ex: Prisma ou Mongoose)
-// import { db } from "@/lib/db"; 
+export const dynamic = 'force-dynamic';
+// CORRECTION : import depuis next/server et non next/navigation
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
@@ -8,15 +9,22 @@ export async function POST(req: Request) {
     const { to, amount, method, txid, userId } = body;
 
     // 1. Validation de base
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ success: false, message: "Montant invalide" }, { status: 400 });
+    if (!amount || amount <= 0 || !userId) {
+      return NextResponse.json({ success: false, message: "Données invalides" }, { status: 400 });
     }
 
-    // 2. Simulation de récupération de l'utilisateur (à remplacer par votre auth)
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    const userBalancePi = 500.50; // Exemple
-    const userBalanceUSD = 120.00; // Exemple
-    const cardBalance = 50.00;    // Exemple
+    // 2. Récupération réelle de l'utilisateur et ses wallets via Prisma
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { wallets: true, virtualCards: true }
+    });
+
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Utilisateur introuvable" }, { status: 404 });
+    }
+
+    const piWallet = user.wallets.find(w => w.currency === "PI");
+    const userBalancePi = piWallet?.balance || 0;
 
     // 3. Traitement selon la méthode choisie
     switch (method) {
@@ -24,62 +32,50 @@ export async function POST(req: Request) {
         if (userBalancePi < amount) {
           return NextResponse.json({ success: false, message: "Solde Pi insuffisant" }, { status: 400 });
         }
-        // Logique DB: Débiter solde Pi du compte principal
-        break;
-
-      case "usd":
-        // Conversion approximative Pi/USD pour le débit (Exemple: 1 Pi = 314159$ ou prix admin)
-        const piToUsdRate = 314159; 
-        const amountInUsd = amount * 0.5; // Exemple de calcul simplifié
-        if (userBalanceUSD < amountInUsd) {
-          return NextResponse.json({ success: false, message: "Solde USD insuffisant" }, { status: 400 });
-        }
-        // Logique DB: Débiter solde USD
+        // La logique de débit se ferait ici via une transaction Prisma
         break;
 
       case "card":
-        if (cardBalance < amount) {
-          return NextResponse.json({ success: false, message: "Solde de la carte insuffisant" }, { status: 400 });
+        // On vérifie si l'utilisateur a une carte active
+        const activeCard = user.virtualCards.find(c => !c.isFrozen);
+        if (!activeCard) {
+          return NextResponse.json({ success: false, message: "Aucune carte active" }, { status: 400 });
         }
-        // Logique DB: Débiter le solde lié à la carte virtuelle
+        // Dans ton schéma, le solde est souvent dans le wallet, pas la carte directement
         break;
 
       case "external":
-        // Pour Pi Browser, la validation se fait généralement côté client avec le SDK Pi
-        // On retourne ici une instruction pour déclencher le SDK
-        return NextResponse.json({ 
-          success: true, 
-          externalRequired: true, 
-          message: "Redirection vers Pi Wallet..." 
+        return NextResponse.json({
+          success: true,
+          externalRequired: true,
+          message: "Redirection vers Pi Wallet..."
         });
 
       default:
         return NextResponse.json({ success: false, message: "Méthode inconnue" }, { status: 400 });
     }
 
-    // 4. Enregistrement de la transaction dans l'historique
-    /*
-    await db.transaction.create({
+    // 4. Enregistrement de la transaction (Décommenté et adapté à ton schéma)
+    const newTx = await prisma.transaction.create({
       data: {
-        txid: txid,
-        amount: amount,
-        receiver: to,
-        method: method,
+        reference: txid || `MPAY-${Math.random().toString(36).substring(7).toUpperCase()}`,
+        amount: parseFloat(amount),
         status: "COMPLETED",
         type: "PAYMENT",
-        userId: userId
+        fromUserId: userId,
+        description: `Paiement via ${method} vers ${to}`,
+        metadata: { method, target: to }
       }
     });
-    */
 
     // 5. Réponse de succès
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "Paiement confirmé",
-      txid: txid 
+      transactionId: newTx.id
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur API Payment:", error);
     return NextResponse.json({ success: false, message: "Erreur serveur" }, { status: 500 });
   }

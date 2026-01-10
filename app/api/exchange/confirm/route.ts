@@ -1,56 +1,61 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma"; // Utilise ton instance prisma globale plutôt qu'en recréer une
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    // On extrait toutes les possibilités d'identification
+
+    // On extrait les identifiants possibles
     const { transactionId, id, paymentId, reference } = body;
     const identifier = transactionId || id || paymentId || reference;
 
     if (!identifier) {
       return NextResponse.json(
-        { error: "Identification manquant (id ou transactionId requis)" },
+        { error: "Identifiant manquant (id ou référence requis)" },
         { status: 400 }
       );
     }
 
-    // On cherche la transaction par ID ou par Référence/PaymentID
-    const transaction = await prisma.transaction.update({
-      where: {
-        // On utilise 'id' si c'est un format UUID, sinon on cherche par 'reference'
-        id: identifier, 
-      },
-      data: {
-        status: "COMPLETED",
-        updatedAt: new Date(),
-      },
-    });
-
-    return NextResponse.json({ success: true, data: transaction });
-
-  } catch (error: any) {
-    console.error("Erreur de confirmation:", error);
-    
-    // Si l'ID n'est pas trouvé dans la colonne 'id', on tente par la colonne 'reference'
-    if (error.code === 'P2025') {
-       try {
-         const body = await request.json();
-         const identifier = body.transactionId || body.id || body.paymentId || body.reference;
-         
-         const txByRef = await prisma.transaction.update({
-           where: { reference: identifier },
-           data: { status: "COMPLETED" }
-         });
-         return NextResponse.json({ success: true, data: txByRef });
-       } catch (innerError) {
-         return NextResponse.json({ error: "Transaction introuvable avec cet ID ou Référence" }, { status: 404 });
-       }
+    // Tentative de mise à jour par ID (CUID) ou par Référence unique
+    // On retire updatedAt car il est géré par @updatedAt dans ton schéma
+    try {
+      // 1. On essaie d'abord par l'ID primaire (CUID)
+      const transaction = await prisma.transaction.update({
+        where: { id: identifier },
+        data: {
+          status: "COMPLETED",
+          // updatedAt est géré automatiquement par Prisma ici
+        },
+      });
+      return NextResponse.json({ success: true, data: transaction });
+    } catch (error: any) {
+      // P2025 = Record not found (si l'ID n'est pas un CUID mais une référence)
+      if (error.code === 'P2025') {
+        const txByRef = await prisma.transaction.update({
+          where: { reference: identifier },
+          data: { 
+            status: "COMPLETED" 
+          }
+        });
+        return NextResponse.json({ success: true, data: txByRef });
+      }
+      throw error; // On renvoie l'erreur au catch global si c'est autre chose
     }
 
-    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Erreur de confirmation Pimpay:", error);
+    
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "Transaction introuvable avec cet identifiant" }, 
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Erreur serveur interne lors de la validation" }, 
+      { status: 500 }
+    );
   }
 }

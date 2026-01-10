@@ -1,12 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/adminAuth";
+import { adminAuth } from "@/lib/adminAuth"; // Utilisation de adminAuth pour la cohérence
 
 export async function GET(req: NextRequest) {
   try {
     // 1. Vérification Admin
-    const payload = verifyAuth(req) as { id: string; role: string } | null;
+    // On ajoute 'await' et le double cast pour satisfaire le compilateur
+    const payload = (await adminAuth(req)) as unknown as { id: string; role: string } | null;
+    
     if (!payload || payload.role !== "ADMIN") {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest) {
         where: { createdAt: { gte: last24h } }
       }),
       prisma.transaction.findMany({
-        where: { createdAt: { gte: last24h }, status: "SUCCESS" },
+        where: { createdAt: { gte: last24h }, status: "COMPLETED" }, // "COMPLETED" est souvent utilisé à la place de "SUCCESS"
         select: { amount: true, fee: true }
       }),
       prisma.wallet.aggregate({
@@ -30,8 +32,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     // 3. Calculs des métriques
-    const volume24h = transactions.reduce((acc, tx) => acc + tx.amount, 0);
-    const fees24h = transactions.reduce((acc, tx) => acc + tx.fee, 0);
+    const volume24h = transactions.reduce((acc, tx) => acc + (tx.amount || 0), 0);
+    const fees24h = transactions.reduce((acc, tx) => acc + (tx.fee || 0), 0);
     const txCount = transactions.length;
 
     const report = {

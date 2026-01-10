@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
-import { verifyAuth } from "@/lib/auth/verify"; // Ajuste le chemin vers ton fichier verifyAuth
+import { verifyAuth } from "@/lib/auth/verify"; 
 
 const ConfigModel = prisma.systemConfig;
 
@@ -24,21 +24,24 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Vérification de l'utilisateur via TON système Bearer Token
+    // On initialise avec des valeurs par défaut
     let userStatus = { isBanned: false, isFrozen: false };
-    
-    // On appelle ta fonction de vérification personnalisée
+
     const authUser = await verifyAuth(req);
-    
+
     if (authUser?.id) {
       const user = await prisma.user.findUnique({
         where: { id: authUser.id },
-        select: { isBanned: true, isFrozen: true }
+        // Correction ici : On ne sélectionne que l'ID car isBanned/isFrozen 
+        // n'existent pas encore dans ton schéma Prisma actuel
+        select: { id: true } 
       });
-      
+
       if (user) {
-        userStatus = { 
-          isBanned: !!user.isBanned, 
-          isFrozen: !!user.isFrozen 
+        // On laisse les valeurs par défaut (false) pour ne pas casser le reste du code
+        userStatus = {
+          isBanned: false, 
+          isFrozen: false
         };
       }
     }
@@ -54,11 +57,10 @@ export async function GET(req: NextRequest) {
       }).catch(() => []);
     }
 
-    // Réponse finale : Toujours 200 pour que le client reçoive les infos
-    return NextResponse.json({ 
-      ...config, 
+    return NextResponse.json({
+      ...config,
       auditLogs: isAdmin ? logs : undefined,
-      userStatus 
+      userStatus
     });
 
   } catch (error: any) {

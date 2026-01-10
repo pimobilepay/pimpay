@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -9,9 +8,9 @@ import { toast } from "sonner";
 import {
   LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,
   Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
-  Flame, Globe, Activity, ShieldCheck, Database, History,
+  Flame, Globe, Activity, ShieldCheck, Database, History, X,
   Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
-  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift
+  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
@@ -19,13 +18,23 @@ import { ResponsiveContainer, AreaChart, Area } from "recharts";
 type LedgerUser = {
   id: string;
   name: string | null;
+  username: string | null;
   email: string | null;
   status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'FROZEN' | 'SUSPENDED';
   role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT';
   autoApprove: boolean;
   wallets: { balance: number; currency: string }[];
-  kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'APPROVED';
   lastLoginIp?: string | null;
+  createdAt: string;
+};
+
+type Transaction = {
+  id: string;
+  amount: number;
+  status: string;
+  type: string;
+  fromUser: { username: string; email: string };
   createdAt: string;
 };
 
@@ -67,7 +76,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
 
   return (
@@ -76,21 +85,24 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <div className="flex items-center gap-4">
           <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelect(); }}>
              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border uppercase ${isSelected ? 'bg-blue-600 border-white text-white' : 'bg-slate-800 border-white/5 text-slate-400'}`}>
-                {isSelected ? <CheckCircle2 size={20} /> : (user.name?.[0] || '?')}
+                {isSelected ? <CheckCircle2 size={20} /> : (user.username?.[0] || user.name?.[0] || '?')}
              </div>
              {user.status === 'ACTIVE' && <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-[#020617]" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-black text-white tracking-tight uppercase">{user.name || "Sans nom"}</p>
-              <ShieldCheck size={10} className={user.kycStatus === 'VERIFIED' ? "text-emerald-500" : "text-slate-600"} />
+              <p className="text-sm font-black text-white tracking-tight uppercase">{user.username || user.name || "Sans nom"}</p>
+              <ShieldCheck size={10} className={user.kycStatus === 'APPROVED' || user.kycStatus === 'VERIFIED' ? "text-emerald-500" : "text-slate-600"} />
             </div>
             <p className="text-[10px] text-blue-400 font-mono font-bold uppercase tracking-widest">
                 {user.role} • π {piBalance.toLocaleString()}
             </p>
           </div>
         </div>
-        <button onClick={onBan} className={`text-[7px] font-black px-2 py-1 rounded-full border uppercase tracking-widest transition-colors ${user.status === 'BANNED' ? 'bg-red-500 border-red-500 text-white' : 'border-white/10 text-slate-500 hover:border-red-500 hover:text-red-500'}`}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onBan(); }}
+          className={`text-[7px] font-black px-2 py-1 rounded-full border uppercase tracking-widest transition-colors ${user.status === 'BANNED' ? 'bg-red-500 border-red-500 text-white' : 'border-white/10 text-slate-500 hover:border-red-500 hover:text-red-500'}`}
+        >
             {user.status === 'BANNED' ? 'Débannir' : 'Bannir'}
         </button>
       </div>
@@ -101,6 +113,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <button onClick={onResetPassword} title="Password" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Key size={14} /></button>
         <button onClick={onToggleRole} title="Rôle" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><UserCog size={14} /></button>
         <button onClick={onFreeze} title="Geler" className={`p-2 rounded-xl shrink-0 ${user.status === 'FROZEN' ? 'bg-cyan-500 text-white' : 'bg-white/5 text-slate-500'}`}><Snowflake size={14} /></button>
+        <button onClick={onSendMessage} title="Message" className="p-2 bg-blue-500/10 text-blue-500 rounded-xl shrink-0"><Send size={14} /></button>
         <button onClick={onSupport} title="Support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Headphones size={14} /></button>
         <button onClick={onToggleAutoApprove} title="Auto" className={`p-2 rounded-xl shrink-0 ${user.autoApprove ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-700'}`}><Shield size={14} /></button>
         <button onClick={() => onIndividualMaintenance(user)} title="Maint." className="p-2 bg-orange-500/10 text-orange-500 rounded-xl shrink-0"><Clock size={14} /></button>
@@ -117,22 +130,29 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
 // --- DASHBOARD CONTENT ---
 
 function DashboardContent() {
+  const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // States
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [maintenanceEnd, setMaintenanceEnd] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [users, setUsers] = useState<LedgerUser[]>([]);
+  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [serverStats, setServerStats] = useState<ServerStats>({
     cpuUsage: "12%", ramUsage: "45%", storage: "28%", uptime: "14j 6h", latency: "14ms", activeSessions: 0
   });
 
-  // Countdown Logic
+  useEffect(() => {
+    setIsMounted(true);
+    fetchData();
+  }, []);
+
   useEffect(() => {
     if (!maintenanceEnd || !isMaintenanceMode) return;
     const timer = setInterval(() => {
@@ -151,11 +171,12 @@ function DashboardContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [u, c, l] = await Promise.all([
-        fetch("/api/admin/users"), fetch("/api/admin/config"), fetch("/api/admin/logs")
+      const [u, c, l, t] = await Promise.all([
+        fetch("/api/admin/users"), fetch("/api/admin/config"), fetch("/api/admin/logs"), fetch("/api/admin/transactions?status=PENDING")
       ]);
       if (u.ok) setUsers(await u.json());
       if (l.ok) setLogs(await l.json());
+      if (t.ok) setPendingTransactions(await t.json());
       if (c.ok) {
         const config = await c.json();
         setIsMaintenanceMode(config.maintenanceMode);
@@ -165,23 +186,29 @@ function DashboardContent() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[]) => {
+  const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[], transactionId?: string) => {
     try {
       const res = await fetch(`/api/admin`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, action, amount, extraData, userIds })
+        body: JSON.stringify({ userId, action, amount, extraData, userIds, transactionId })
       });
-      if (res.ok) { toast.success("Succès"); setSelectedUserIds([]); fetchData(); }
-      else { toast.error("Erreur action"); }
-    } catch (e) { toast.error("Erreur Serveur"); }
+      if (res.ok) {
+        toast.success("Action effectuée");
+        setSelectedUserIds([]);
+        fetchData();
+      }
+      else { toast.error("L'action a échoué"); }
+    } catch (e) { toast.error("Erreur de connexion serveur"); }
   };
 
   const filteredUsers = useMemo(() =>
-    users.filter(u => u.name?.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery, users]);
+    users.filter(u =>
+      (u.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.username?.toLowerCase().includes(searchQuery.toLowerCase()))
+    ), [searchQuery, users]);
 
-  // ANCIEN CHARGEMENT RÉTABLI
+  if (!isMounted) return null;
+
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
       <div className="w-12 h-12 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin mb-6" />
@@ -191,8 +218,24 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 notranslate" translate="no">
+      
+      {/* SIDEMENU OVERLAY */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="absolute right-0 top-0 h-full w-4/5 max-w-xs bg-slate-900 border-l border-white/10 p-8 shadow-2xl animate-in slide-in-from-right duration-300">
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-xl font-black text-white italic">ADMIN<span className="text-blue-500">MENU</span></h2>
+              <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-white/5 rounded-full text-white"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+               <Button onClick={() => { setIsMenuOpen(false); fetchData(); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><RefreshCw size={18}/> Actualiser Ledger</Button>
+               <Button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-full justify-start gap-4 h-14 rounded-2xl text-[10px] font-black uppercase ${isMaintenanceMode ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-400'}`}><Shield size={18}/> {isMaintenanceMode ? 'Arrêter Maintenance' : 'Activer Maintenance'}</Button>
+               <Button onClick={() => window.location.href = '/'} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-red-400"><LogOut size={18}/> Quitter Admin</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Barre flottante Batch Actions */}
       {selectedUserIds.length > 0 && (
         <div className="fixed bottom-24 left-6 right-6 z-[100] animate-in slide-in-from-bottom-10">
           <div className="bg-blue-600 rounded-[2.5rem] p-4 flex items-center justify-between shadow-2xl border border-white/20">
@@ -208,7 +251,6 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Header */}
       <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex justify-between items-start mb-8">
           <div>
@@ -222,12 +264,11 @@ function DashboardContent() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <StatCard label="Volume Ledger" value={`π ${users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0).toLocaleString()}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
-          <StatCard label="Live Sessions" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
+          <StatCard label="Live Users" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
         </div>
       </div>
 
       <div className="px-6 space-y-8">
-        {/* Nav Tabs */}
         <div className="flex gap-1 p-1 bg-slate-900/80 border border-white/5 rounded-3xl sticky top-4 z-50 backdrop-blur-xl">
           {[
             { id: "overview", icon: <LayoutGrid size={18}/>, label: "Vue" },
@@ -242,14 +283,14 @@ function DashboardContent() {
           ))}
         </div>
 
-        <div key={activeTab} className="animate-in fade-in duration-500">
+        <div className="animate-in fade-in duration-500">
             {activeTab === "overview" && (
                 <div className="space-y-6">
                     {isMaintenanceMode && (
                         <Card className="bg-orange-500/10 border border-orange-500/20 rounded-[2rem] p-5 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-orange-500 rounded-2xl text-white animate-pulse"><Timer size={20} /></div>
-                                <div><p className="text-[10px] font-black text-orange-500 uppercase">Maintenance</p><p className="text-xl font-black text-white font-mono">{timeLeft}</p></div>
+                                <div><p className="text-[10px] font-black text-orange-500 uppercase">Maintenance Globale</p><p className="text-xl font-black text-white font-mono">{timeLeft}</p></div>
                             </div>
                             <Button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} variant="ghost" className="text-orange-500 text-[10px] font-black uppercase">Arrêter</Button>
                         </Card>
@@ -260,7 +301,7 @@ function DashboardContent() {
                         </ResponsiveContainer>
                     </Card>
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-                        <p className="text-[10px] font-black uppercase text-blue-500 mb-4 tracking-widest">Logs Audit (Temps Réel)</p>
+                        <p className="text-[10px] font-black uppercase text-blue-500 mb-4 tracking-widest">Logs Audit (Dernières Actions)</p>
                         <div className="space-y-3">
                             {logs.slice(0, 5).map(log => (
                                 <div key={log.id} className="flex justify-between items-center text-[9px] border-b border-white/5 pb-2">
@@ -277,7 +318,7 @@ function DashboardContent() {
                 <div className="space-y-4">
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl px-6 text-xs font-bold text-white outline-none focus:border-blue-500/50" placeholder="RECHERCHER UN UTILISATEUR..." />
                     {filteredUsers.map(user => (
-                        <UserRow key={user.id} user={user} 
+                        <UserRow key={`user-${user.id}`} user={user}
                             isSelected={selectedUserIds.includes(user.id)}
                             onSelect={() => setSelectedUserIds(prev => prev.includes(user.id) ? prev.filter(i => i !== user.id) : [...prev, user.id])}
                             onUpdateBalance={(a:number) => handleAction(user.id, 'UPDATE_BALANCE', a)}
@@ -286,11 +327,14 @@ function DashboardContent() {
                             onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, p); }}
                             onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, p); }}
                             onIndividualMaintenance={() => { const d = prompt("Date fin (YYYY-MM-DD):"); const t = prompt("Heure (HH:MM):"); if(d && t) handleAction(user.id, "USER_SPECIFIC_MAINTENANCE", 0, `${d}T${t}:00.000Z`); }}
-                            onViewSessions={() => toast.info(`Dernière IP: ${user.lastLoginIp || "N/A"}`)}
+                            onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handleAction(user.id, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }}
+                            onViewSessions={() => {
+                                alert(`DÉTAILS SESSION :\n\n👤 Utilisateur: ${user.username || user.name}\n 🌐 IP: ${user.lastLoginIp || "Non détectée"}\n🛡️ Rôle: ${user.role}\n⚡ Statut: ${user.status}`);
+                            }}
                             onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
-                            onFreeze={() => handleAction(user.id, 'FREEZE')}
+                            onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
                             onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
-                            onSupport={() => toast.success(`Support ouvert pour ${user.name}`)}
+                            onSupport={() => toast.success(`Support ouvert pour ${user.username || user.name}`)}
                         />
                     ))}
                 </div>
@@ -302,6 +346,28 @@ function DashboardContent() {
                         <div className="flex items-center gap-4"><Flame size={20} /> Exécuter Airdrop Global</div>
                         <ArrowUpRight size={18} />
                     </Button>
+
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Transactions en attente</p>
+                      {pendingTransactions.length === 0 ? (
+                        <div className="p-10 border border-white/5 rounded-[2rem] text-center text-[10px] text-slate-500 font-bold uppercase">Aucune transaction en attente</div>
+                      ) : (
+                        pendingTransactions.map(tx => (
+                          <Card key={`tx-${tx.id}`} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-5 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-black text-white uppercase">{tx.fromUser?.username || 'Anonyme'}</p>
+                              <p className="text-[10px] text-emerald-500 font-bold">π {tx.amount.toLocaleString()}</p>
+                            </div>
+                            <Button 
+                              onClick={() => handleAction(null, "VALIDATE_DEPOSIT", tx.amount, "", [], tx.id)}
+                              className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
+                            >
+                              <Check size={14} /> Confirmer
+                            </Button>
+                          </Card>
+                        ))
+                      )}
+                    </div>
                 </div>
             )}
 
@@ -330,7 +396,7 @@ function DashboardContent() {
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3"><Settings size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase">Maintenance Système</p></div>
-                            <button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-12 h-6 rounded-full relative ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
+                            <button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
                             </button>
                         </div>
@@ -340,7 +406,8 @@ function DashboardContent() {
             )}
         </div>
       </div>
-      <BottomNav />
+
+      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>
   );
 }

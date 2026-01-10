@@ -1,40 +1,50 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { prisma } from "@/lib/prisma";                
+import { adminAuth } from "@/lib/adminAuth"; // Utilisation de ton système admin habituel
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest) {          
   try {
-    const { transactionId, finalAmount } = await req.json();
+    const { transactionId, finalAmount } = await req.json();                                                
+    
+    // 1. VÉRIFICATION ADMIN (Crucial pour le build et la sécurité)
+    const payload = (await adminAuth(req)) as unknown as { id: string; role: string } | null;
+    if (!payload || payload.role !== "ADMIN") {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
 
-    // -- VÉRIFICATION ADMIN (Simplifiée pour l'instant) --
-    // Idéalement, vérifie le rôle de l'user dans ton JWT
-    if (!transactionId || !finalAmount) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+    if (!transactionId || !finalAmount) {
+      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+    }
 
-    // 1. Récupérer la transaction
+    // 2. Récupérer la transaction
     const transaction = await prisma.transaction.findUnique({
       where: { id: transactionId },
       include: { fromUser: true }
     });
 
-    if (!transaction || transaction.status !== "PENDING") {
-      return NextResponse.json({ error: "Transaction invalide ou déjà traitée" }, { status: 400 });
+    // Sécurité : On vérifie que la transaction existe ET qu'elle a un utilisateur associé
+    if (!transaction || transaction.status !== "PENDING" || !transaction.fromUserId) {
+      return NextResponse.json({ error: "Transaction invalide ou utilisateur manquant" }, { status: 400 });
     }
 
-    // 2. Utiliser une TRANSACTION Prisma pour être sûr que tout se passe bien
+    // 3. Utiliser une TRANSACTION Prisma pour l'intégrité de Pimpay
     const result = await prisma.$transaction(async (tx) => {
       // A. Mettre à jour la transaction
       const updatedTx = await tx.transaction.update({
         where: { id: transactionId },
-        data: { 
+        data: {
           status: "SUCCESS",
-          amount: parseFloat(finalAmount) // On enregistre le montant final vérifié sur la blockchain
+          amount: parseFloat(finalAmount)
         }
       });
 
       // B. Créditer le Wallet de l'utilisateur
-      const wallet = await tx.wallet.updateMany({
-        where: { userId: transaction.fromUserId, currency: "PI" },
+      // On force le type string ici car on a vérifié la nullité plus haut
+      const userId: string = transaction.fromUserId as string;
+
+      await tx.wallet.updateMany({
+        where: { userId: userId, currency: "PI" },
         data: {
           balance: { increment: parseFloat(finalAmount) }
         }
@@ -43,7 +53,7 @@ export async function POST(req: NextRequest) {
       // C. Créer une notification de succès
       await tx.notification.create({
         data: {
-          userId: transaction.fromUserId,
+          userId: userId,
           title: "Dépôt validé !",
           message: `Votre dépôt de ${finalAmount} π a été crédité sur votre compte.`,
           type: "SUCCESS"
@@ -56,6 +66,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: result });
 
   } catch (error: any) {
+    console.error("VALIDATE_DEPOSIT_ERROR:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

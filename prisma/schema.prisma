@@ -16,7 +16,8 @@ datasource db {
 // -----------------------------------------------------------------------------
 model User {
   id             String    @id @default(cuid())
-  phone          String    @unique
+  // CORRECTION : phone devient optionnel (?) pour permettre l'authentification Pi
+  phone          String?   @unique
   email          String?   @unique
   username       String?   @unique
   password       String?
@@ -222,6 +223,7 @@ model Transaction {
   netAmount    Float?
   currency     String            @default("PI")
   destCurrency String?
+  type         TransactionType   @default(TRANSFER)
 
   wholesaleFxRate Float?
   retailRate      Float?
@@ -403,7 +405,6 @@ model Message {
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-// MODIFIÉ : Ajout du champ metadata pour supporter les infos de session
 model Notification {
   id        String   @id @default(cuid())
   userId    String
@@ -411,7 +412,7 @@ model Notification {
   message   String
   type      String   @default("info")
   read      Boolean  @default(false)
-  metadata  Json?    // <--- C'était ici le problème
+  metadata  Json?    
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -450,6 +451,7 @@ enum KycStatus {
   PENDING
   VERIFIED
   REJECTED
+  APPROVED  // CORRECTION : Ajouté pour supporter tes scripts de retrait
 }
 
 enum WalletType {
@@ -482,4 +484,3 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
-

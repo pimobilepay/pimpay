@@ -16,21 +16,29 @@ export async function authenticatePiUser(piData: { uid: string; username: string
           piUserId: piData.uid,
           username: piData.username,
           status: "ACTIVE",
+          // phone est optionnel dans ton nouveau schéma, mais on peut laisser "" 
+          // ou l'enlever. Gardons "" pour la cohérence.
+          phone: null, 
           wallets: {
             create: {
               currency: "PI",
               balance: 0,
-              type: "PI"
+              // CORRECTION : Utilisation d'une valeur valide de l'enum WalletType
+              type: "PI" 
             }
           }
         }
       });
     }
 
-    // Ici, tu peux gérer ta session (JWT ou Auth.js)
-    return { success: true, userId: user.id };
-  } catch (error) {
-    console.error("Erreur Auth Pi:", error);
-    return { success: false };
+    // Retour pour gérer la session
+    return { 
+      success: true, 
+      userId: user.id, 
+      username: user.username 
+    };
+  } catch (error: any) {
+    console.error("Erreur Auth Pi (Pimpay):", error.message);
+    return { success: false, error: error.message };
   }
 }
