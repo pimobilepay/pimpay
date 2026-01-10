@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    // 1. Récupérer la session utilisateur (Correction de la structure Pimpay)
+    // 1. Authentification
     const session = await auth() as any;
     if (!session?.id) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -15,8 +15,9 @@ export async function POST(req: Request) {
     const { recipientId, amount, description } = body;
     const senderId = session.id;
 
-    // 2. Validation de base
-    if (!recipientId || !amount || parseFloat(amount) <= 0) {
+    // 2. Validation
+    const amountNum = parseFloat(amount);
+    if (!recipientId || isNaN(amountNum) || amountNum <= 0) {
       return NextResponse.json({ error: "Données invalides" }, { status: 400 });
     }
 
@@ -24,47 +25,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Envoi à soi-même impossible" }, { status: 400 });
     }
 
-    // 3. Récupération des frais depuis la config système
+    // 3. Récupération rapide de la config (Hors transaction pour gagner du temps)
     const config = await prisma.systemConfig.findUnique({
       where: { id: "GLOBAL_CONFIG" }
     });
     const fee = config?.transactionFee || 0.01;
-    const amountNum = parseFloat(amount);
     const totalDeduction = amountNum + fee;
 
-    // 4. TRANSACTION ATOMIQUE PRISMA (Sécurité maximale pour pimpay)
+    // 4. TRANSACTION ATOMIQUE AVEC TIMEOUT AUGMENTÉ
     const result = await prisma.$transaction(async (tx) => {
-      // Vérifier le Wallet de l'envoyeur
-      const senderWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: senderId, currency: "PI" } }
-      });
+      // Lecture simultanée des deux wallets pour plus de rapidité
+      const [senderWallet, recipientWallet] = await Promise.all([
+        tx.wallet.findUnique({
+          where: { userId_currency: { userId: senderId, currency: "PI" } }
+        }),
+        tx.wallet.findUnique({
+          where: { userId_currency: { userId: recipientId, currency: "PI" } }
+        })
+      ]);
 
       if (!senderWallet || senderWallet.balance < totalDeduction) {
-        throw new Error("Solde insuffisant pour le transfert et les frais");
+        throw new Error("Solde insuffisant (incluant les frais)");
       }
-
-      // Vérifier le Wallet du destinataire
-      const recipientWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: recipientId, currency: "PI" } }
-      });
 
       if (!recipientWallet) {
-        throw new Error("Le destinataire n'a pas de compte Pi actif");
+        throw new Error("Le destinataire n'a pas de wallet Pi actif");
       }
 
-      // A. Débiter l'envoyeur
+      // Mise à jour des balances
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: totalDeduction } },
       });
 
-      // B. Créditer le destinataire
       await tx.wallet.update({
         where: { id: recipientWallet.id },
         data: { balance: { increment: amountNum } },
       });
 
-      // C. Créer l'enregistrement dans la table Transaction
+      // Création du log de transaction
       const transactionRecord = await tx.transaction.create({
         data: {
           reference: `TX-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -82,7 +81,7 @@ export async function POST(req: Request) {
         },
       });
 
-      // D. Mettre à jour les stats globales
+      // Mise à jour des stats globales
       await tx.systemConfig.update({
         where: { id: "GLOBAL_CONFIG" },
         data: {
@@ -92,6 +91,9 @@ export async function POST(req: Request) {
       });
 
       return transactionRecord;
+    }, {
+      maxWait: 5000, // 5s pour obtenir une connexion
+      timeout: 15000  // 15s pour l'exécution (règle ton erreur de timeout)
     });
 
     return NextResponse.json({ success: true, data: result });

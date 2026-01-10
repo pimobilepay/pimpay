@@ -1,5 +1,3 @@
-"use client";
-
 import { prisma } from "@/lib/prisma";
 import {
   ShieldCheck,
@@ -13,16 +11,15 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
-import RevokeSessionButton from "@/components/sessions/RevokeSessionButton";
+import RevokeSessionButton from "@/components/sessions/RevokeSessionButton"; // Import du nouveau bouton
 import { cookies } from "next/headers";
 import * as jose from "jose";
 
 /**
  * Fonction pour transformer un code pays (ex: "CD") en emoji drapeau
  */
-const getFlagEmoji = (countryCode: string | null | undefined) => {
-  // Gestion sécurisée pour éviter les erreurs de type
-  if (!countryCode || countryCode.length !== 2) return "🇨🇬"; 
+const getFlagEmoji = (countryCode: string) => {
+  if (!countryCode || countryCode.length !== 2) return "🇨🇬"; // Congo par défaut si vide
   const codePoints = countryCode
     .toUpperCase()
     .split("")
@@ -118,10 +115,10 @@ export default async function SessionsPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-gray-900">
-                          {session.deviceName || "Appareil inconnu"}
+                          {session.os || "Appareil inconnu"}
                           <span className="text-gray-400 font-normal mx-1">•</span>
                           <span className="text-gray-600 font-medium text-sm">
-                            Navigateur
+                            {session.browser || "Navigateur"}
                           </span>
                         </span>
 
@@ -141,8 +138,8 @@ export default async function SessionsPage() {
                           <MapPin size={14} className="text-gray-400" />
                           {session.city ? `${session.city}, ${session.country}` : "Oyo, Congo"}
                           <span className="ml-1">
-                            {/* CORRECTION : On utilise session.country car countryCode n'existe pas dans le schéma */}
-                            {getFlagEmoji(session.country || "CG")}
+                            {/* Drapeau dynamique basé sur countryCode ou Congo par défaut */}
+                            {getFlagEmoji(session.countryCode || "CG")}
                           </span>
                         </span>
                         <span className="flex items-center gap-1.5">

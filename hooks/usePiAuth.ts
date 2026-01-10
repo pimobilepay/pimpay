@@ -1,83 +1,108 @@
-"use client"
+"use client";
 
 import { useState } from 'react';
 import { toast } from "sonner";
+
+// Définition des types pour le SDK Pi Network
+declare global {
+  interface Window {
+    Pi: any;
+  }
+}
 
 export const usePiAuth = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   /**
-   * Gère les paiements qui ont été interrompus (Checklist 10)
+   * Gère les paiements qui ont été interrompus (Checklist 10 du Mainnet)
+   * Référence schéma : TransactionStatus.PENDING -> TransactionStatus.SUCCESS
    */
   const handleIncompletePayment = async (payment: any) => {
-    console.log("⚠️ Paiement incomplet détecté par le SDK :", payment);
-    
+    console.warn("⚠️ PimPay - Récupération d'un paiement incomplet :", payment.identifier);
+
     try {
       const response = await fetch("/api/payments/incomplete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          paymentId: payment.identifier, 
-          txid: payment.transaction.txid 
+        body: JSON.stringify({
+          paymentId: payment.identifier,
+          txid: payment.transaction?.txid // Utilise l'ID de transaction blockchain
         }),
       });
 
       if (response.ok) {
-        // @ts-ignore
+        // Validation finale côté SDK pour débloquer le flux Pi
         await window.Pi.completePayment(payment.identifier);
-        toast.success("Transaction interrompue récupérée et validée !");
+        toast.success("Votre transaction a été récupérée et validée avec succès !");
       }
     } catch (error) {
-      console.error("Erreur lors de la résolution du paiement incomplet :", error);
+      console.error("Erreur protocole Checklist 10 :", error);
     }
   };
 
   /**
-   * Authentification principale via Pi Browser
+   * Authentification principale synchronisée avec Prisma
    */
   const loginWithPi = async () => {
+    if (typeof window === "undefined" || !window.Pi) {
+      toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // @ts-ignore
       const Pi = window.Pi;
 
-      if (!Pi) {
-        throw new Error("Le SDK Pi n'est pas disponible. Utilisez le Pi Browser.");
-      }
-
-      // 1. Demander l'authentification avec gestion des paiements incomplets
+      // 1. Demande l'authentification (username pour le profil, payments pour le wallet)
       const auth = await Pi.authenticate(
-        ['username', 'payments'], 
-        handleIncompletePayment // Passé comme callback de secours
+        ['username', 'payments'],
+        handleIncompletePayment
       );
 
-      // 2. Stocker les infos utilisateur
-      setUser(auth.user);
-      toast.success(`Bienvenue, ${auth.user.username} !`);
+      /**
+       * 2. Synchronisation Backend Prisma
+       * On envoie le piUserId et l'accessToken au serveur
+       */
+      const response = await fetch("/api/auth/pi-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: auth.accessToken,
+          piUserId: auth.user.uid,      // Correspond à User.piUserId dans ton schéma
+          username: auth.user.username,  // Correspond à User.username
+        }),
+      });
 
-      // 3. Logique de session (facultatif : stocker le token en cookie ou localStorage)
-      console.log("Pi Access Token récupéré");
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur de synchronisation PimPay");
+      }
+
+      // 3. Mise à jour de l'état local
+      setUser(auth.user);
+      toast.success(`Heureux de vous revoir sur PimPay, ${auth.user.username} !`);
 
       return auth;
     } catch (error: any) {
       console.error("Erreur d'authentification Pi:", error);
-      
-      // Message plus clair pour l'utilisateur
-      const errorMsg = error.message?.includes("User cancelled") 
-        ? "Connexion annulée" 
-        : "Échec de la connexion Pi Network";
-        
+
+      const errorMsg = error.message?.includes("User cancelled")
+        ? "Connexion annulée"
+        : "Échec de la connexion sécurisée Pi Network";
+
       toast.error(errorMsg);
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  return { 
-    loginWithPi, 
-    user, 
+  return {
+    loginWithPi,
+    user,
     loading,
-    handleIncompletePayment // On l'expose au cas où on en aurait besoin ailleurs
+    handleIncompletePayment
   };
 };

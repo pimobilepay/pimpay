@@ -1,7 +1,7 @@
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 // Utilisation de l'alias global pour éviter les erreurs de dossier
-import "@/app/globals.css";
+import "@/app/globals.css"; 
 import { Toaster } from "sonner";
 import Script from "next/script";
 import ClientLayout from "@/components/ClientLayout";
@@ -29,22 +29,11 @@ export default function DashboardLayout({
         <meta name="google" content="notranslate" />
       </head>
       <body className="bg-[#02040a] text-white antialiased overflow-x-hidden notranslate selection:bg-blue-500/30">
-        
-        {/* 1. Chargement du SDK Pi Network */}
+        {/* SDK Pi Network pour pimpay */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
-
-        {/* 2. Initialisation automatique du SDK Pi pour Pimpay */}
-        <Script id="pi-init" strategy="afterInteractive">
-          {`
-            if (window.Pi) {
-              window.Pi.init({ version: "2.0" });
-              console.log("PimPay Core: SDK Pi Network opérationnel");
-            }
-          `}
-        </Script>
 
         <div id="portal-root">
           <GlobalAlert />
@@ -52,7 +41,7 @@ export default function DashboardLayout({
 
         <GlobalAnnouncement />
 
-        {/* ClientLayout centralise le SideMenu pour que les pages de retrait
+        {/* ClientLayout centralise le SideMenu pour que les pages de retrait 
             et de portefeuille s'affichent correctement côte à côte */}
         <ClientLayout>
           {children}
@@ -77,3 +66,4 @@ export default function DashboardLayout({
     </html>
   );
 }
+

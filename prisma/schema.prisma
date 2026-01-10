@@ -16,7 +16,6 @@ datasource db {
 // -----------------------------------------------------------------------------
 model User {
   id             String    @id @default(cuid())
-  // CORRECTION : phone devient optionnel (?) pour permettre l'authentification Pi
   phone          String?   @unique
   email          String?   @unique
   username       String?   @unique
@@ -111,6 +110,9 @@ model Wallet {
   frozenBalance Float      @default(0)
   currency      String     @default("PI")
   type          WalletType @default(PI)
+  
+  // AJOUT : Pour le watcher de dépôt blockchain
+  depositMemo   String?    @unique 
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -121,6 +123,7 @@ model Wallet {
 
   @@unique([userId, currency])
   @@index([userId])
+  @@index([depositMemo])
 }
 
 model SwapQuote {
@@ -412,7 +415,7 @@ model Notification {
   message   String
   type      String   @default("info")
   read      Boolean  @default(false)
-  metadata  Json?    
+  metadata  Json?
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -451,7 +454,7 @@ enum KycStatus {
   PENDING
   VERIFIED
   REJECTED
-  APPROVED  // CORRECTION : Ajouté pour supporter tes scripts de retrait
+  APPROVED
 }
 
 enum WalletType {

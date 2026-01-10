@@ -1,83 +1,81 @@
 import { prisma } from "@/lib/prisma";
 
-// Configuration de l'API Horizon de Pi
-// Testnet: https://api.testnet.minepi.com | Mainnet: https://api.mainnet.minepi.com
-const PI_HORIZON_URL = "https://api.mainnet.minepi.com"; 
+const PI_HORIZON_URL = "https://api.mainnet.minepi.com";
 
 export async function watchDeposit(paymentId: string) {
   try {
-    // 1. Appeler l'API Pi pour vérifier le statut du paiement
+    // 1. Vérification blockchain
     const response = await fetch(`${PI_HORIZON_URL}/payments/${paymentId}`);
-    
-    if (!response.ok) {
-        return { success: false, message: "Impossible de vérifier le paiement sur la blockchain" };
-    }
+    if (!response.ok) return { success: false, message: "Paiement introuvable sur Horizon" };
 
     const paymentData = await response.json();
 
-    // 2. Vérifications de sécurité critiques
-    // On vérifie que le paiement est bien marqué comme COMPLETED sur la blockchain
+    // 2. Sécurité : Status et Destinataire
     if (paymentData.status !== "COMPLETED") {
-        return { success: false, message: "Paiement non complété sur la blockchain" };
+        return { success: false, message: "Paiement non finalisé sur la blockchain" };
     }
 
-    // Vérifier que le destinataire est bien TON Master Wallet (configuré dans ton .env)
     if (paymentData.recipient !== process.env.PI_MASTER_WALLET_ADDRESS) {
-      return { success: false, message: "Destinataire invalide : ce paiement n'était pas pour PiMPay" };
+      return { success: false, message: "Ce paiement n'est pas destiné au Master Wallet Pimpay" };
     }
 
-    // 3. Récupérer le wallet de l'utilisateur grâce au Mémo (Identifiant unique)
+    // 3. Recherche du Wallet (Possibilité 1: par Memo | Possibilité 2: par userId si le memo est l'UID)
     const memo = paymentData.memo;
-    const wallet = await prisma.wallet.findUnique({
-      where: { depositMemo: memo },
+    const wallet = await prisma.wallet.findFirst({
+      where: {
+        OR: [
+          { depositMemo: memo },
+          { user: { piUserId: memo } } // Si l'UID est utilisé comme mémo
+        ]
+      },
+      include: { user: true }
     });
 
     if (!wallet) {
-        return { success: false, message: "Mémo inconnu : impossible d'attribuer ce dépôt" };
+        return { success: false, message: "Référence de dépôt (memo) inconnue" };
     }
 
-    // 4. TRANSACTION ATOMIQUE : Sécurité maximale
-    // On groupe les 3 opérations : Mise à jour solde + Historique + Notification
+    // 4. TRANSACTION ATOMIQUE (Adaptée à ton schéma)
     await prisma.$transaction([
-      // A. Créditer les Pi sur le solde custodial
+      // A. Créditer le compte
       prisma.wallet.update({
         where: { id: wallet.id },
-        data: { 
-            balance: { increment: parseFloat(paymentData.amount) } 
-        }
+        data: { balance: { increment: parseFloat(paymentData.amount) } }
       }),
-      
-      // B. Créer l'entrée dans l'historique des transactions
+
+      // B. Créer la transaction Ledger
       prisma.transaction.create({
         data: {
-          walletId: wallet.id,
-          type: "DEPOSIT",
+          reference: paymentId,
           amount: parseFloat(paymentData.amount),
-          status: "COMPLETED",
-          reference: paymentId // L'ID de transaction unique pour éviter les doubles dépôts
+          currency: "PI",
+          type: "DEPOSIT",
+          status: "SUCCESS", // Selon ton Enum TransactionStatus
+          toUserId: wallet.userId,
+          toWalletId: wallet.id,
+          description: `Dépôt Blockchain Pi - Memo: ${memo}`,
         }
       }),
 
-      // C. Créer la notification pour l'utilisateur
+      // C. Notification système
       prisma.notification.create({
         data: {
           userId: wallet.userId,
           title: "Dépôt Confirmé ! 🚀",
-          message: `Votre compte PiMPay a été crédité de ${paymentData.amount} π.`,
-          type: "DEPOSIT",
-          read: false
+          message: `Votre compte Pimpay a été crédité de ${paymentData.amount} π.`,
+          type: "info", // Valeur par défaut de ton schéma
         }
       })
     ]);
 
-    return { 
-        success: true, 
+    return {
+        success: true,
         amount: paymentData.amount,
-        message: "Solde mis à jour et notification envoyée" 
+        username: wallet.user?.username
     };
 
   } catch (error) {
-    console.error("Erreur critique dans le Watcher Pi:", error);
-    return { success: false, message: "Erreur serveur lors de la validation" };
+    console.error("CRITICAL WATCHER ERROR:", error);
+    return { success: false, message: "Erreur interne de validation" };
   }
 }
