@@ -134,7 +134,7 @@ export default function SettingsPage() {
     {
       title: "Légal & Support",
       items: [
-        { icon: <MessageSquare size={18} />, label: "Contact", desc: "Discuter avec le support", color: "text-emerald-400", path: "/contact" },
+        { icon: <MessageSquare size={18} />, label: "Contact", desc: "Discuter avec le support", color: "text-emerald-400", path: "/contacts" },
         { icon: <HelpCircle size={18} />, label: "Centre d'aide", desc: "Support technique 24/7", color: "text-slate-400", path: "/support" },
         { icon: <Lock size={18} />, label: "Confidentialité", desc: "RGPD & Sécurité des données", color: "text-slate-400", path: "/legal/privacy" },
         { icon: <ShieldCheck size={18} />, label: "Conditions d'utilisation", desc: "Contrat d'utilisateur final", color: "text-slate-400", path: "/legal/terms" },

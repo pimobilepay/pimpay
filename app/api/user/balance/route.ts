@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'; // Indispensable pour éviter l'erreur de build avec request.headers
+export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -6,56 +6,54 @@ import { verifyAuth } from '@/lib/auth';
 
 /**
  * GET /api/user/balance
- * Récupère le solde de l'utilisateur authentifié depuis la base de données Pimpay
+ * Récupère le solde de l'utilisateur authentifié depuis le Wallet Pimpay
  */
 export async function GET(req: NextRequest) {
   try {
-    // 1. Vérification de la session via le token Pi (Bearer Token)
-    // verifyAuth va extraire le UID de l'utilisateur depuis les headers
-    const user = await verifyAuth(req);
+    // 1. Vérification de la session
+    const authUser = await verifyAuth(req) as any;
 
-    if (!user || !user.uid) {
+    // CORRECTION : On vérifie .id (structure standard Pimpay)
+    if (!authUser || !authUser.id) {
       return NextResponse.json(
-        { error: "Authentification requise" }, 
+        { error: "Authentification requise" },
         { status: 401 }
       );
     }
 
-    // 2. Récupération des données en base de données via Prisma
-    const userData = await prisma.user.findUnique({
-      where: { 
-        piId: user.uid 
-      },
-      select: {
-        balance: true,
-        username: true,
-        // On ne sélectionne que ce qui est nécessaire pour la performance
+    // 2. Récupération du Wallet PI (Schéma : un User a plusieurs Wallets)
+    // On utilise l'identifiant unique composé [userId, currency]
+    const wallet = await prisma.wallet.findUnique({
+      where: {
+        userId_currency: {
+          userId: authUser.id,
+          currency: "PI"
+        }
       }
     });
 
-    // 3. Cas où l'utilisateur n'existe pas encore dans notre DB locale
-    if (!userData) {
-      return NextResponse.json({ 
-        balance: 0, 
-        currency: "Pi",
-        message: "Compte non encore initialisé en base" 
+    // 3. Cas où le wallet n'existe pas encore
+    if (!wallet) {
+      return NextResponse.json({
+        balance: 0,
+        frozenBalance: 0,
+        currency: "PI",
+        message: "Portefeuille non initialisé"
       });
     }
 
-    // 4. Réponse avec le solde réel
+    // 4. Réponse avec les données du schéma Wallet
     return NextResponse.json({
-      balance: userData.balance,
-      username: userData.username,
-      currency: "Pi",
+      balance: wallet.balance,
+      frozenBalance: wallet.frozenBalance,
+      currency: wallet.currency,
       timestamp: new Date().toISOString()
     });
 
-  } catch (error) {
-    // Logging de l'erreur pour le débogage serveur
-    console.error("Critical API Balance Error:", error);
-    
+  } catch (error: any) {
+    console.error("Critical API Balance Error:", error.message);
     return NextResponse.json(
-      { error: "Une erreur interne est survenue" }, 
+      { error: "Une erreur interne est survenue" },
       { status: 500 }
     );
   }

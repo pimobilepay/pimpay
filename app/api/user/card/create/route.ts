@@ -1,9 +1,11 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-// Fonction utilitaire pour générer un numéro de carte (type Mastercard)
+// Fonction utilitaire pour générer un numéro de carte
 const generateCardNumber = () => {
   let num = "5412"; // Préfixe Mastercard
   for (let i = 0; i < 12; i++) {
@@ -17,7 +19,9 @@ export async function POST(request: Request) {
     const cookieStore = cookies();
     const token = cookieStore.get("token")?.value;
 
-    if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
     const { payload } = await jwtVerify(token, secret);
@@ -35,17 +39,20 @@ export async function POST(request: Request) {
     // 2. Récupérer les infos utilisateur pour le nom sur la carte
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    // 3. CRÉATION DE LA CARTE DANS LA BDD
+    // 3. CRÉATION DE LA CARTE DANS LA BDD (Respect du schéma Pimpay)
     const newCard = await prisma.virtualCard.create({
       data: {
         userId: userId,
         number: generateCardNumber(),
-        exp: "12/28", // Date d'expiration fixe ou calculée
+        exp: "12/28",
         cvv: Math.floor(100 + Math.random() * 900).toString(),
-        holder: user?.name || user?.username || "PIMPAY USER",
+        holder: (user?.name || user?.username || "PIMPAY USER").toUpperCase(),
         brand: "MASTERCARD",
-        status: "ACTIVE",
-        // Optionnel : lier à un wallet spécifique si besoin
+        // CORRECTION : On utilise isFrozen (false = Active) au lieu de status
+        isFrozen: false, 
+        type: "CLASSIC", // Valeur de l'enum CardType
+        dailyLimit: 1000,
+        allowedCurrencies: ["USD", "PI"]
       }
     });
 
@@ -53,6 +60,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("ERREUR_CREATION_CARTE:", error.message);
-    return NextResponse.json({ error: "Erreur lors de la création" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de la création de la carte" }, { status: 500 });
   }
 }

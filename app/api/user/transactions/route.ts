@@ -1,12 +1,14 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth"; // Ton système d'auth (Clerk, Auth.js, etc.)
+import { auth } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // 1. Récupérer la session de l'utilisateur
-    const session = await auth();
-    const userId = session?.user?.id;
+    // 1. Récupérer la session (Correction de l'accès à l'ID)
+    const session = await auth() as any;
+    const userId = session?.id; // Dans ton projet, l'ID est à la racine
 
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -21,33 +23,25 @@ export async function GET() {
         ]
       },
       orderBy: { createdAt: 'desc' },
-      take: 20, // On en prend un peu plus pour l'historique complet
-      select: {
-        id: true,
-        type: true,
-        amount: true,
-        createdAt: true,
-        status: true,
-        description: true,
-        reference: true,
-        fromUserId: true,
-        toUserId: true,
-      }
+      take: 50, // On en prend suffisamment pour le graphique et la liste
     });
 
-    // 3. Formater les données pour le frontend
+    // 3. Formater les données pour le frontend (WalletPage)
     const formattedHistory = transactions.map(tx => {
-      // Déterminer si l'argent entre ou sort pour l'utilisateur actuel
+      // Déterminer la direction par rapport à l'utilisateur connecté
       let displayDirection = "OUT";
       
-      if (tx.type === "DEPOSIT") displayDirection = "IN";
-      if (tx.type === "TRANSFER" && tx.toUserId === userId) displayDirection = "IN";
-      if (tx.type === "SWAP") displayDirection = "SWAP"; // Cas particulier pour les échanges
+      // Si c'est un dépôt ou si l'utilisateur est le destinataire d'un transfert
+      if (tx.type === "DEPOSIT" || (tx.type === "TRANSFER" && tx.toUserId === userId)) {
+        displayDirection = "IN";
+      } else if (tx.type === "EXCHANGE") {
+        displayDirection = "SWAP";
+      }
 
       return {
         id: tx.id,
-        type: tx.type, // Type brut Prisma (DEPOSIT, SWAP, etc.)
-        direction: displayDirection, // Pour le style CSS (Vert/Blanc)
+        type: tx.type,
+        direction: displayDirection,
         label: tx.description || tx.type.replace('_', ' '),
         reference: tx.reference,
         amount: tx.amount,
@@ -61,40 +55,39 @@ export async function GET() {
       };
     });
 
-    // 4. Calculer dynamiquement les données du graphique (7 derniers jours)
+    // 4. Calculer les données du graphique (7 derniers jours)
     const last7Days = Array.from({ length: 7 }).map((_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - i);
       return {
         name: d.toLocaleDateString('fr-FR', { weekday: 'short' }),
         dateStr: d.toISOString().split('T')[0],
-        amount: 0
+        total: 0
       };
     }).reverse();
 
-    // Remplir le graphique avec les montants réels (somme par jour)
+    // Remplir le graphique
     transactions.forEach(tx => {
       const txDate = new Date(tx.createdAt).toISOString().split('T')[0];
       const dayData = last7Days.find(d => d.dateStr === txDate);
       if (dayData) {
-        dayData.amount += Number(tx.amount);
+        // On n'ajoute au graphique que ce qui "entre" ou le volume total selon ton choix
+        // Ici, on affiche le volume d'activité (somme absolue)
+        dayData.total += tx.amount;
       }
     });
-
-    // Nettoyer les données pour Recharts
-    const chart = last7Days.map(d => ({ name: d.name, amount: d.amount }));
 
     return NextResponse.json({
       success: true,
       history: formattedHistory,
-      chart
+      chart: last7Days.map(d => ({ name: d.name, amount: d.total }))
     });
 
-  } catch (error) {
-    console.error("API_TRANSACTIONS_ERROR:", error);
-    return NextResponse.json({ 
+  } catch (error: any) {
+    console.error("API_TRANSACTIONS_ERROR:", error.message);
+    return NextResponse.json({
       error: "Erreur serveur",
-      success: false 
+      success: false
     }, { status: 500 });
   }
 }

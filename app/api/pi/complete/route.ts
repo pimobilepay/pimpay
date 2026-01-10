@@ -1,58 +1,69 @@
-import { NextResponse } from "next/navigation";
+export const dynamic = "force-dynamic";
+
+// CORRECTION : On importe depuis 'next/server'
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
     const { paymentId, txid } = await req.json();
-    const piApiKey = process.env.PI_API_KEY;
 
-    // 1. On informe le serveur Pi que nous avons bien reçu la preuve du paiement
-    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${piApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ txid })
+    if (!paymentId || !txid) {
+      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+    }
+
+    // 1. On cherche la transaction correspondante dans Pimpay
+    const transaction = await prisma.transaction.findUnique({
+      where: { reference: paymentId },
+      include: { fromUser: true }
     });
 
-    const paymentData = await response.json();
+    if (!transaction || !transaction.fromUserId) {
+      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
+    }
 
-    if (response.ok) {
-      // 2. TRANSACTION PRISMA : On met à jour le solde de l'utilisateur
-      await prisma.$transaction(async (tx) => {
-        // Trouver l'utilisateur (via son pseudo Pi ou ID stocké lors de l'auth)
-        const user = await tx.user.findFirst({
-          where: { piUserId: paymentData.user_id }
-        });
-
-        if (user) {
-          // Mettre à jour le Wallet Pi
-          await tx.wallet.update({
-            where: { userId_currency: { userId: user.id, currency: "PI" } },
-            data: { balance: { increment: parseFloat(paymentData.amount) } }
-          });
-
-          // Créer le log de transaction
-          await tx.transaction.create({
-            data: {
-              reference: paymentId,
-              blockchainTx: txid,
-              amount: parseFloat(paymentData.amount),
-              type: "DEPOSIT",
-              status: "COMPLETED",
-              toUserId: user.id,
-              description: "Dépôt Pi Network Mainnet"
-            }
-          });
+    // 2. TRANSACTION ATOMIQUE : On finalise tout d'un coup
+    const result = await prisma.$transaction(async (tx) => {
+      // a. Mettre à jour la transaction
+      const updatedTx = await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: "COMPLETED",
+          blockchainTx: txid,
+          metadata: {
+            ...(transaction.metadata as object),
+            completedAt: new Date().toISOString(),
+            txid: txid
+          }
         }
       });
 
-      return NextResponse.json({ success: true });
-    }
+      // b. Mettre à jour le Wallet de l'utilisateur (on débite s'il s'agit d'un paiement vers l'app)
+      // Note : Adapte 'decrement' ou 'increment' selon si c'est un achat ou un dépôt
+      const wallet = await tx.wallet.update({
+        where: {
+          userId_currency: {
+            userId: transaction.fromUserId!,
+            currency: "PI"
+          }
+        },
+        data: {
+          balance: {
+            decrement: transaction.amount // On retire le montant payé
+          }
+        }
+      });
 
-    throw new Error("Erreur de complétion");
+      return { updatedTx, wallet };
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      balance: result.wallet.balance 
+    });
+
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("PI_COMPLETE_CRITICAL_ERROR:", error);
+    return NextResponse.json({ error: "Erreur lors de la finalisation" }, { status: 500 });
   }
 }

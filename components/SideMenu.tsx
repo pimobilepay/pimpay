@@ -97,7 +97,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     {
       title: "Support & Aide",
       items: [
-        { label: "Contact", icon: <HelpCircle size={20} className="text-teal-400" />, path: "/contact" },
+        { label: "Contact", icon: <HelpCircle size={20} className="text-teal-400" />, path: "/contacts" },
       ]
     },
     {
