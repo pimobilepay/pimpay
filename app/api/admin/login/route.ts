@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma"; // Assure-toi que c'est l'import par défaut ou { prisma } selon ton lib
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error("JWT_SECRET is not defined");
+// 1. On force le mode dynamique pour éviter la pré-compilation statique
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    // 2. On récupère le secret à l'INTÉRIEUR de la fonction
+    const JWT_SECRET = process.env.JWT_SECRET;
+
+    if (!JWT_SECRET) {
+      console.error("JWT_SECRET is not defined in environment variables");
+      return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
+    }
+
     const { email, password } = await req.json();
 
     const admin = await prisma.user.findUnique({
@@ -28,9 +36,9 @@ export async function POST(req: Request) {
       { expiresIn: "7d" }
     );
 
-    return NextResponse.json({ 
-      token, 
-      admin: { id: admin.id, email: admin.email, name: admin.name } 
+    return NextResponse.json({
+      token,
+      admin: { id: admin.id, email: admin.email, name: admin.name }
     });
   } catch (err: any) {
     console.error(err);
