@@ -1,122 +1,107 @@
+export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET;
+import { SignJWT } from "jose";
 
 export async function POST(req: Request) {
   try {
-    if (!JWT_SECRET) {
-      console.error("ERREUR: JWT_SECRET manquant");
-      return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
-    }
+    const SECRET = process.env.JWT_SECRET;
+    if (!SECRET) return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
-    // Sécurisation du parsing JSON pour éviter "Unexpected end of JSON input"
-    let body;
-    try {
-      body = await req.json();
-    } catch (e) {
-      return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
-    }
-
+    const body = await req.json().catch(() => ({}));
     const { email: identifier, password } = body;
-
-    if (!identifier || !password) {
-      return NextResponse.json({ error: "Identifiants manquants" }, { status: 400 });
-    }
-
-    const cleanIdentifier = identifier.toLowerCase().trim();
 
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: cleanIdentifier },
-          { username: cleanIdentifier }
+          { email: identifier?.toLowerCase().trim() },
+          { username: identifier?.toLowerCase().trim() }
         ]
       },
     });
 
-    if (!user || !user.password) {
+    if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
-      return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
-    }
+    // 1. GÉNÉRATION DU TOKEN
+    const secretKey = new TextEncoder().encode(SECRET);
+    const token = await new SignJWT({
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        username: user.username
+      })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(secretKey);
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    const userAgent = req.headers.get("user-agent") || "";
+    // 2. RÉCUPÉRATION DES INFOS (IP & GÉO)
+    const userAgent = req.headers.get("user-agent") || "Appareil";
     const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    const country = req.headers.get("x-vercel-ip-country") || "Congo";
+    const city = req.headers.get("x-vercel-ip-city") || "Brazzaville";
+    
+    // Détection de l'appareil pour l'icône
+    const deviceType = userAgent.includes("iPhone") || userAgent.includes("Android") ? "Mobile" : "Desktop";
+    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Windows/Mac";
 
+    // 3. CRÉATION DE LA NOTIFICATION (FORMAT STYLE ANCIEN)
     try {
-      // 5. PERSISTANCE DE LA SESSION
       await prisma.session.create({
-        data: {
-          userId: user.id,
-          token: token,
-          isActive: true,
-          userAgent: userAgent,
-          ip: ip,
-        },
+        data: { userId: user.id, token, isActive: true, userAgent, ip }
       });
-
-      // --- CRÉATION DE LA NOTIFICATION DE SESSION ---
-      const os = userAgent.includes("iPhone") ? "iPhone" :
-                 userAgent.includes("Android") ? "Android" :
-                 userAgent.includes("Windows") ? "Windows PC" : "Appareil";
 
       await prisma.notification.create({
         data: {
           userId: user.id,
-          type: "LOGIN",
-          title: "Nouvelle connexion",
-          message: `Connexion établie depuis un ${os} (${ip})`,
+          type: "info",
+          title: `Nouvelle connexion depuis un ${os}`,
+          // Le message reste simple, les icônes sont gérées par les metadata
+          message: `Nouvelle connexion détectée à ${city}, ${country}`,
           metadata: {
-            device: os,
             ip: ip,
-            location: "Oyo, Congo",
-            browser: userAgent.includes("Chrome") ? "Chrome" : "Navigateur"
+            location: `${city}, ${country}`,
+            device: os,
+            browser: userAgent.includes("Chrome") ? "Chrome" : "Navigateur",
+            icon: deviceType.toLowerCase(), // Utilisé par le front pour l'icône
+            showDetails: true
           }
         }
       });
-    } catch (sessionError) {
-      console.error("SESSION_OR_NOTIFICATION_ERROR:", sessionError);
-      // On ne bloque pas le login si seule la notification échoue
+    } catch (e) {
+      console.error("Notif Error:", e);
     }
 
+    // 4. RÉPONSE ET REDIRECTION
     const redirectUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
 
     const response = NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-      },
-      redirectTo: redirectUrl
+      user: { id: user.id, username: user.username, role: user.role },
+      redirectTo: redirectUrl,
+      token: token
     });
 
-    response.cookies.set("token", token, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
-    });
+    };
+
+    // On force les deux cookies pour éviter les pages blanches/déconnexions
+    response.cookies.set("pimpay_token", token, cookieOptions);
+    response.cookies.set("token", token, cookieOptions);
 
     return response;
 
-  } catch (error: any) {
-    console.error("LOGIN_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Une erreur est survenue" }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

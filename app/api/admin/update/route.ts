@@ -1,12 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { jwtVerify } from "jose"; // Utilisation de jose à la place de jsonwebtoken
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error("JWT_SECRET is not defined");
+// Empêche l'analyse statique qui fait planter le build
+export const dynamic = 'force-dynamic';
 
 export async function PUT(req: Request) {
   try {
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      return NextResponse.json({ error: "Configuration error" }, { status: 500 });
+    }
+
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,9 +22,12 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Décoder le token pour récupérer l'ID utilisateur
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; role: string };
-    const userId = decoded.id;
+    // --- VÉRIFICATION ASYNCHRONE AVEC JOSE ---
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    
+    // On récupère l'ID depuis le payload de jose
+    const userId = payload.id as string;
 
     const body = await req.json();
     const { firstName, lastName, username, name, email, phone, country, birthDate } = body;
@@ -52,8 +60,12 @@ export async function PUT(req: Request) {
     });
 
     return NextResponse.json({ user });
-  } catch (err) {
-    console.error(err);
+  } catch (err: any) {
+    console.error("PUT_USER_ERROR:", err);
+    // Gestion spécifique pour jose (token expiré ou invalide)
+    if (err.code === 'ERR_JWT_EXPIRED' || err.code === 'ERR_JWS_INVALID') {
+      return NextResponse.json({ error: "Session expired or invalid" }, { status: 401 });
+    }
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 // Correction : Import nommé avec accolades pour correspondre à ton instance lib/prisma
 import { prisma } from "@/lib/prisma"; 
