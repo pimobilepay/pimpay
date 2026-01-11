@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Assure-toi que c'est l'import par défaut ou { prisma } selon ton lib
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { SignJWT } from "jose"; // On utilise jose ici
 
-// 1. On force le mode dynamique pour éviter la pré-compilation statique
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    // 2. On récupère le secret à l'INTÉRIEUR de la fonction
     const JWT_SECRET = process.env.JWT_SECRET;
 
     if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not defined in environment variables");
+      console.error("JWT_SECRET is not defined");
       return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
     }
 
@@ -30,11 +28,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mot de passe invalide" }, { status: 401 });
     }
 
-    const token = jwt.sign(
-      { id: admin.id, role: admin.role },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    // --- Config avec JOSE ---
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const token = await new SignJWT({ id: admin.id, role: admin.role })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("7d")
+      .sign(secret);
+    // ------------------------
 
     return NextResponse.json({
       token,
