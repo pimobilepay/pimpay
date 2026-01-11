@@ -1,62 +1,86 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import * as jose from "jose" // Importation nécessaire pour lire le token
+import * as jose from "jose"
+import { cookies } from 'next/headers'
 
-// Fonction interne pour valider le secret
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
-  return secret ? new TextEncoder().encode(secret) : null;
+  if (!secret) {
+    console.error("JWT_SECRET is not defined in environment variables");
+    return null;
+  }
+  return new TextEncoder().encode(secret);
 };
 
+// 1. Pour le Middleware
 export async function verifyAuth(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization')
-    // On regarde aussi les cookies car ton middleware fonctionne avec eux
-    const cookieToken = req.cookies.get('token')?.value
-
+    const authHeader = req.headers.get('authorization');
+    const cookieToken = req.cookies.get('token')?.value;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
 
     if (!token) return null;
 
-    // --- LE SEUL CHANGEMENT ESSENTIEL ---
-    // On décode le token pour avoir l'ID de l'utilisateur réel
     const secret = getJwtSecret();
     if (!secret) return null;
 
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
-    // ------------------------------------
 
-    const user = await prisma.user.findUnique({ // findUnique au lieu de findFirst pour la précision
-      where: {
-        id: userId, // On cherche l'utilisateur du token !
-        status: "ACTIVE"
-      },
-      select: {
-        id: true,
-        username: true,
-        role: true 
+    const user = await prisma.user.findUnique({
+      where: { id: userId, status: "ACTIVE" },
+      select: { 
+        id: true, 
+        username: true, 
+        role: true,
+        piUserId: true // Utile pour les transactions Pi Network
       }
-    })
+    });
 
-    if (!user) return null
-
-    return {
-      id: user.id,
-      username: user.username || "pi_user",
-      role: user.role
-    }
+    return user;
   } catch (error) {
-    // Si le token est invalide, on ne plante pas, on renvoie null
-    return null
+    return null;
   }
 }
 
+// 2. Pour tes pages et Server Actions
 export const auth = async () => {
-  // Cette fonction reste simple pour tes actions card-purchase etc.
-  // Elle renvoie le profil type si besoin de validation de base
-  return await prisma.user.findFirst({
-    where: { status: "ACTIVE" },
-    select: { id: true, username: true, role: true }
-  });
+  try {
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
+
+    if (!token) return null;
+
+    const secret = getJwtSecret();
+    if (!secret) return null;
+
+    const { payload } = await jose.jwtVerify(token, secret);
+    const userId = payload.id as string;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId, status: "ACTIVE" },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        piUserId: true,
+        // Pour récupérer le solde, on passe par la relation 'wallets'
+        wallets: {
+          where: { currency: "PI" },
+          select: { balance: true }
+        }
+      }
+    });
+
+    if (!user) return null;
+
+    // On transforme un peu l'objet pour qu'il soit plus facile à utiliser
+    return {
+      ...user,
+      balance: user.wallets[0]?.balance || 0 // On aplatit la balance ici
+    };
+  } catch (error) {
+    console.error("Auth error:", error);
+    return null;
+  }
 }
