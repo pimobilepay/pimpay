@@ -1,5 +1,3 @@
-"use client";
-
 import { prisma } from "@/lib/prisma";
 import {
   ShieldCheck,
@@ -21,8 +19,7 @@ import * as jose from "jose";
  * Fonction pour transformer un code pays (ex: "CD") en emoji drapeau
  */
 const getFlagEmoji = (countryCode: string | null | undefined) => {
-  // Gestion sécurisée pour éviter les erreurs de type
-  if (!countryCode || countryCode.length !== 2) return "🇨🇬"; 
+  if (!countryCode || countryCode.length !== 2) return "🇨🇬";
   const codePoints = countryCode
     .toUpperCase()
     .split("")
@@ -69,7 +66,6 @@ export default async function SessionsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      {/* Header avec la couleur de titre Pimpay corrigée */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[#2563eb] flex items-center gap-2">
@@ -84,7 +80,6 @@ export default async function SessionsPage() {
         <LogoutOthersButton />
       </div>
 
-      {/* Liste des sessions - Design original conservé */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="divide-y divide-gray-100">
           {sessions.length === 0 ? (
@@ -141,7 +136,6 @@ export default async function SessionsPage() {
                           <MapPin size={14} className="text-gray-400" />
                           {session.city ? `${session.city}, ${session.country}` : "Oyo, Congo"}
                           <span className="ml-1">
-                            {/* CORRECTION : On utilise session.country car countryCode n'existe pas dans le schéma */}
                             {getFlagEmoji(session.country || "CG")}
                           </span>
                         </span>
@@ -156,7 +150,6 @@ export default async function SessionsPage() {
                     </div>
                   </div>
 
-                  {/* Action : Pulse si actuel, bouton de révocation sinon */}
                   {isCurrent ? (
                     <div className="hidden md:block mr-2">
                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
@@ -171,7 +164,6 @@ export default async function SessionsPage() {
         </div>
       </div>
 
-      {/* Note de sécurité */}
       <div className="mt-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex gap-4 items-start">
         <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm text-amber-500">
           <ShieldCheck size={20} />

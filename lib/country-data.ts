@@ -21,7 +21,9 @@ export interface MobileOperator {
 export interface Country {
   name: string;
   code: string;
+  flag: string;
   currency: string;
+  currencySymbol: string; // Ajouté pour lib/currency-utils.ts
   piToLocalRate: number;
   dialCode: string;
   continent: "AFRICA" | "EUROPE" | "AMERICA" | "ASIA";
@@ -35,7 +37,7 @@ const LOGOS = {
   mtn: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg",
   airtel: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Airtel_logo-01.png",
   moov: "https://upload.wikimedia.org/wikipedia/fr/1/1d/Moov_Africa_logo.png",
-  wave: "https://en.wikipedia.org/wiki/Wave_Financial#/media/File%3AWave_logo_RGB.png",
+  wave: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Wave_Logo_RGB.png/512px-Wave_Logo_RGB.png",
   mpesa: "https://upload.wikimedia.org/wikipedia/commons/0/03/M-pesa-logo.png",
   telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg"
@@ -46,7 +48,9 @@ export const countries: Country[] = [
   {
     name: "Congo (DRC)",
     code: "CD",
+    flag: "🇨🇩",
     currency: "CDF",
+    currencySymbol: "FC",
     piToLocalRate: 2309,
     dialCode: "+243",
     continent: "AFRICA",
@@ -67,6 +71,7 @@ export const countries: Country[] = [
     code: "CG",
     flag: "🇨🇬",
     currency: "XAF",
+    currencySymbol: "FCFA",
     piToLocalRate: 610,
     dialCode: "+242",
     continent: "AFRICA",
@@ -80,7 +85,9 @@ export const countries: Country[] = [
   {
     name: "Cameroon",
     code: "CM",
+    flag: "🇨🇲",
     currency: "XAF",
+    currencySymbol: "FCFA",
     piToLocalRate: 610,
     dialCode: "+237",
     continent: "AFRICA",
@@ -97,7 +104,9 @@ export const countries: Country[] = [
   {
     name: "Gabon",
     code: "GA",
+    flag: "🇬🇦",
     currency: "XAF",
+    currencySymbol: "FCFA",
     piToLocalRate: 610,
     dialCode: "+241",
     continent: "AFRICA",
@@ -113,7 +122,9 @@ export const countries: Country[] = [
   {
     name: "Côte d'Ivoire",
     code: "CI",
+    flag: "🇨🇮",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+225",
     continent: "AFRICA",
@@ -132,7 +143,9 @@ export const countries: Country[] = [
   {
     name: "Sénégal",
     code: "SN",
+    flag: "🇸🇳",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+221",
     continent: "AFRICA",
@@ -147,7 +160,9 @@ export const countries: Country[] = [
   {
     name: "Bénin",
     code: "BJ",
+    flag: "🇧🇯",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+229",
     continent: "AFRICA",
@@ -161,7 +176,9 @@ export const countries: Country[] = [
   {
     name: "Burkina Faso",
     code: "BF",
+    flag: "🇧🇫",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+226",
     continent: "AFRICA",
@@ -175,7 +192,9 @@ export const countries: Country[] = [
   {
     name: "Mali",
     code: "ML",
+    flag: "🇲🇱",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+223",
     continent: "AFRICA",
@@ -189,7 +208,9 @@ export const countries: Country[] = [
   {
     name: "Togo",
     code: "TG",
+    flag: "🇹🇬",
     currency: "XOF",
+    currencySymbol: "FCFA",
     piToLocalRate: 615,
     dialCode: "+228",
     continent: "AFRICA",
@@ -205,7 +226,9 @@ export const countries: Country[] = [
   {
     name: "Kenya",
     code: "KE",
+    flag: "🇰🇪",
     currency: "KES",
+    currencySymbol: "KSh",
     piToLocalRate: 130,
     dialCode: "+254",
     continent: "AFRICA",
@@ -219,7 +242,9 @@ export const countries: Country[] = [
   {
     name: "Rwanda",
     code: "RW",
+    flag: "🇷🇼",
     currency: "RWF",
+    currencySymbol: "RF",
     piToLocalRate: 1250,
     dialCode: "+250",
     continent: "AFRICA",
@@ -235,7 +260,9 @@ export const countries: Country[] = [
   {
     name: "Afrique du Sud",
     code: "ZA",
+    flag: "🇿🇦",
     currency: "ZAR",
+    currencySymbol: "R",
     piToLocalRate: 18.5,
     dialCode: "+27",
     continent: "AFRICA",
@@ -251,7 +278,9 @@ export const countries: Country[] = [
   {
     name: "Maroc",
     code: "MA",
+    flag: "🇲🇦",
     currency: "MAD",
+    currencySymbol: "DH",
     piToLocalRate: 10,
     dialCode: "+212",
     continent: "AFRICA",
@@ -267,7 +296,9 @@ export const countries: Country[] = [
   {
     name: "France",
     code: "FR",
+    flag: "🇫🇷",
     currency: "EUR",
+    currencySymbol: "€",
     piToLocalRate: 0.93,
     dialCode: "+33",
     continent: "EUROPE",

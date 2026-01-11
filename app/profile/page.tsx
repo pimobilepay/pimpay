@@ -24,6 +24,21 @@ interface UserData {
   role: string;
 }
 
+// Ajout d'une interface pour sécuriser les items de liste
+interface ProfileItem {
+  label: string;
+  icon: React.ReactNode;
+  value?: string;
+  path?: string;
+  toggle?: boolean;
+  active?: boolean;
+}
+
+interface ProfileSection {
+  title: string;
+  items: ProfileItem[];
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
@@ -34,20 +49,19 @@ export default function ProfilePage() {
       try {
         const res = await fetch("/api/auth/me");
         const data = await res.json();
-        
+
         if (res.ok && data.user) {
-          // Fusion du nom si le champ 'name' est vide dans la DB
-          const fullName = data.user.name || 
-            (data.user.firstName && data.user.lastName 
-              ? `${data.user.firstName} ${data.user.lastName}` 
+          const fullName = data.user.name ||
+            (data.user.firstName && data.user.lastName
+              ? `${data.user.firstName} ${data.user.lastName}`
               : data.user.username || "Pioneer");
 
           setUser({
             ...data.user,
             name: fullName,
-            joinedAt: new Date(data.user.createdAt || Date.now()).toLocaleDateString('fr-FR', { 
-              month: 'long', 
-              year: 'numeric' 
+            joinedAt: new Date(data.user.createdAt || Date.now()).toLocaleDateString('fr-FR', {
+              month: 'long',
+              year: 'numeric'
             }),
             isVerified: data.user.kycStatus === "VERIFIED"
           });
@@ -64,7 +78,7 @@ export default function ProfilePage() {
     fetchProfile();
   }, [router]);
 
-  const profileSections = [
+  const profileSections: ProfileSection[] = [
     {
       title: "Informations Personnelles",
       items: [
@@ -153,7 +167,12 @@ export default function ProfilePage() {
               {section.items.map((item, iIdx) => (
                 <button
                   key={iIdx}
-                  onClick={() => item.path && router.push(item.path)}
+                  onClick={() => {
+                    // Correction TypeScript : Vérification explicite du path
+                    if (item.path) {
+                      router.push(item.path);
+                    }
+                  }}
                   className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
                 >
                   <div className="flex items-center gap-4">

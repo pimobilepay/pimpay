@@ -12,6 +12,22 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 
+// Interfaces pour corriger les erreurs de type sans toucher au design
+interface SettingItem {
+  icon: React.ReactNode;
+  label: string;
+  desc: string;
+  color: string;
+  path?: string;
+  badge?: string;
+  onClick?: () => void;
+}
+
+interface SettingSection {
+  title: string;
+  items: SettingItem[];
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -34,7 +50,6 @@ export default function SettingsPage() {
         if (response.ok) {
           const result = await response.json();
           setData(result);
-          // Mise à jour du storage pour synchroniser le SideMenu
           if (result.user) {
             localStorage.setItem("pimpay_user", JSON.stringify(result.user));
           }
@@ -81,7 +96,7 @@ export default function SettingsPage() {
     toast.success(`Mode ${newMode ? 'Sombre' : 'Clair'} activé`);
   };
 
-  const menuItems = [
+  const menuItems: SettingSection[] = [
     {
       title: "Compte & Sécurité",
       items: [
@@ -152,7 +167,6 @@ export default function SettingsPage() {
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} text-white pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
-      {/* Header */}
       <div className="px-6 pt-8 flex items-center gap-4">
         <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-sm'} rounded-2xl border active:scale-90 transition-transform`}>
           <ArrowLeft size={20} className={isDarkMode ? 'text-white' : 'text-slate-900'} />
@@ -187,7 +201,13 @@ export default function SettingsPage() {
               {section.items.map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => item.onClick ? item.onClick() : router.push(item.path || "#")}
+                  onClick={() => {
+                    if (item.onClick) {
+                      item.onClick();
+                    } else if (item.path) {
+                      router.push(item.path);
+                    }
+                  }}
                   className={`w-full flex items-center justify-between p-5 hover:bg-white/5 active:bg-white/10 transition-all border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'} last:border-0 group`}
                 >
                   <div className="flex items-center gap-4">
@@ -213,7 +233,6 @@ export default function SettingsPage() {
           </div>
         ))}
 
-        {/* Réseaux Sociaux */}
         <div className="space-y-3">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Suivez-nous</h3>
             <div className="flex items-center justify-center gap-4 p-6">
@@ -247,7 +266,8 @@ export default function SettingsPage() {
         </div>
       </main>
 
-      <BottomNav />
+      {/* CORRECTION : Ajout de onOpenMenu pour satisfaire les props obligatoires du composant */}
+      <BottomNav onOpenMenu={() => {}} />
     </div>
   );
 }

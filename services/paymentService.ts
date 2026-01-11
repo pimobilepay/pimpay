@@ -1,4 +1,4 @@
-import { Country, MobileOperator, Bank } from "@/data/country-data";
+import { Country, MobileOperator, Bank } from "@/lib/country-data"; // Corrigé : @/lib au lieu de @/data
 
 export type PaymentStatus = "PENDING" | "SUCCESS" | "FAILED";
 
