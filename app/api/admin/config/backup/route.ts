@@ -4,38 +4,38 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function GET(req: NextRequest) {
   try {
+    // --- SÉCURITÉ BUILD (RESEND) ---
+    // On n'initialise Resend qu'à l'intérieur de la fonction pour éviter le crash au build
+    const apiKey = process.env.RESEND_API_KEY;
+    const resend = apiKey ? new Resend(apiKey) : null;
+
     // 1. DOUBLE VÉRIFICATION DE SÉCURITÉ (ADMIN OU CRON)
     const authHeader = req.headers.get('authorization');
-    const isCron =
-      authHeader === `Bearer ${process.env.CRON_SECRET}` ||
-      authHeader === `Bearer ${process.env.VERCEL_CRON_JWT}`;
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+                   authHeader === `Bearer ${process.env.VERCEL_CRON_JWT}`;
 
     let adminPayload: { id: string; role: string } | null = null;
-    
+
     if (!isCron) {
-      // FIX: Ajout du await indispensable car verifyAuth est asynchrone
-      // et ajout d'un casting de type sécurisé
+      // On attend la vérification asynchrone
       const decoded = await verifyAuth(req);
       adminPayload = decoded as { id: string; role: string } | null;
     }
 
-    // Vérification stricte
+    // Vérification stricte des droits
     if (!isCron && (!adminPayload || adminPayload.role !== "ADMIN")) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. EXTRACTION DES DONNÉES
+    // 2. EXTRACTION DES DONNÉES (PimPay Core)
     const [users, config, logs] = await Promise.all([
       prisma.user.findMany({ take: 5000 }),
       prisma.systemConfig.findFirst(),
       prisma.auditLog.findMany({ take: 100, orderBy: { createdAt: 'desc' } })
     ]);
 
-    // Calcul des statistiques
     const totalUsers = users.length;
     const maintenanceStatus = config?.maintenanceMode ? "ACTIF 🔴" : "INACTIF 🟢";
     const gcvPrice = config?.consensusPrice || 0;
@@ -73,10 +73,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4. ENVOI DE L'EMAIL
+    // 4. ENVOI DE L'EMAIL (Sécurisé)
     const shouldSendEmail = isCron || req.nextUrl.searchParams.get("sendEmail") === "true";
 
-    if (shouldSendEmail && process.env.RESEND_API_KEY && process.env.ADMIN_EMAIL) {
+    if (shouldSendEmail && resend && process.env.ADMIN_EMAIL) {
       await resend.emails.send({
         from: "PimPay Security <onboarding@resend.dev>",
         to: process.env.ADMIN_EMAIL as string,
@@ -104,17 +104,16 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 5. LOG DE L'ACTION (Correction du targetId pour éviter P2003)
-    // On met targetId à null car "SYSTEM" n'est pas un ID utilisateur valide
+    // 5. LOG DE L'ACTION
     await prisma.auditLog.create({
       data: {
-        adminId: isCron ? null : (adminPayload?.id || null), 
+        adminId: isCron ? null : (adminPayload?.id || null),
         adminName: isCron ? "Auto-Protect" : (adminPayload?.id ? "System Admin" : "Unknown"),
         action: "DATABASE_BACKUP",
         details: isCron
           ? "Cron Job : Backup + Stats Graphique + Email."
           : `Manuel ${shouldSendEmail ? '+ Email' : ''}.`,
-        targetId: null, // Évite la violation de clé étrangère vers la table User
+        targetId: null, 
       }
     });
 
