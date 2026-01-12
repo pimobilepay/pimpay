@@ -1,16 +1,11 @@
 "use client";
 import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { BottomNav } from "@/components/bottom-nav";
-import { toast } from "sonner";
-import {
-  LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,
-  Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
-  Flame, Globe, Activity, ShieldCheck, Database, History, X,
-  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
-  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check
+import { Card } from "@/components/ui/card";          import { Button } from "@/components/ui/button";
+import { BottomNav } from "@/components/bottom-nav";  import { toast } from "sonner";
+import {                                                LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,                               Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
+  Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
+  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
@@ -34,7 +29,7 @@ type Transaction = {
   amount: number;
   status: string;
   type: string;
-  fromUser: { username: string; email: string };
+  fromUser: { username: string; email: string; name: string }; // Ajout de name
   createdAt: string;
 };
 
@@ -53,6 +48,9 @@ type ServerStats = {
   uptime: string;
   latency: string;
   activeSessions: number;
+  os: string;
+  platform: string;
+  version: string;
 };
 
 const chartData = [
@@ -136,6 +134,7 @@ function DashboardContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const router = useRouter();
 
   // States
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
@@ -145,7 +144,8 @@ function DashboardContent() {
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [serverStats, setServerStats] = useState<ServerStats>({
-    cpuUsage: "12%", ramUsage: "45%", storage: "28%", uptime: "14j 6h", latency: "14ms", activeSessions: 0
+    cpuUsage: "12%", ramUsage: "45%", storage: "28%", uptime: "14j 6h", latency: "14ms", activeSessions: 42,
+    os: "Linux v6.1", platform: "Node.js 20", version: "PimPay Engine 4.0"
   });
 
   useEffect(() => {
@@ -186,14 +186,15 @@ function DashboardContent() {
     finally { setLoading(false); }
   };
 
-  const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[], transactionId?: string) => {
+  const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[], transactionId?: string, newSecret?: string) => {
     try {
       const res = await fetch(`/api/admin`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, action, amount, extraData, userIds, transactionId })
+        body: JSON.stringify({ userId, action, amount, extraData, userIds, transactionId, newSecret })
       });
       if (res.ok) {
         toast.success("Action effectuée");
+        if(action === "TOGGLE_MAINTENANCE") setIsMaintenanceMode(!isMaintenanceMode);
         setSelectedUserIds([]);
         fetchData();
       }
@@ -204,7 +205,8 @@ function DashboardContent() {
   const filteredUsers = useMemo(() =>
     users.filter(u =>
       (u.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (u.username?.toLowerCase().includes(searchQuery.toLowerCase()))
+      (u.username?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
     ), [searchQuery, users]);
 
   if (!isMounted) return null;
@@ -218,18 +220,19 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 notranslate" translate="no">
-      
+
       {/* SIDEMENU OVERLAY */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="absolute right-0 top-0 h-full w-4/5 max-w-xs bg-slate-900 border-l border-white/10 p-8 shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="flex justify-between items-center mb-10">
-              <h2 className="text-xl font-black text-white italic">ADMIN<span className="text-blue-500">MENU</span></h2>
+              <h2 className="text-xl font-black text-white">ADMIN<span className="text-blue-500">MENU</span></h2>
               <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-white/5 rounded-full text-white"><X size={20}/></button>
             </div>
             <div className="space-y-4">
                <Button onClick={() => { setIsMenuOpen(false); fetchData(); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><RefreshCw size={18}/> Actualiser Ledger</Button>
-               <Button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-full justify-start gap-4 h-14 rounded-2xl text-[10px] font-black uppercase ${isMaintenanceMode ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-400'}`}><Shield size={18}/> {isMaintenanceMode ? 'Arrêter Maintenance' : 'Activer Maintenance'}</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/settings'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Settings size={18}/> Paramètres Système</Button>
+               <Button onClick={() => { setIsMenuOpen(false); handleAction(null, "TOGGLE_MAINTENANCE"); }} className={`w-full justify-start gap-4 h-14 rounded-2xl text-[10px] font-black uppercase ${isMaintenanceMode ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-400'}`}><Shield size={18}/> {isMaintenanceMode ? 'Arrêter Maintenance' : 'Activer Maintenance'}</Button>
                <Button onClick={() => window.location.href = '/'} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-red-400"><LogOut size={18}/> Quitter Admin</Button>
             </div>
           </div>
@@ -258,7 +261,7 @@ function DashboardContent() {
               <CircleDot size={12} className="text-blue-500 animate-pulse" />
               <span className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">PIMPAY ADMIN v4.0</span>
             </div>
-            <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">PIMPAY<span className="text-blue-500">CORE</span></h1>
+            <h1 className="text-xl font-black text-white italic uppercase tracking-tighter">PIMPAY<span className="text-blue-500">CORE</span></h1>
           </div>
           <button onClick={fetchData} className="p-3 bg-white/5 border border-white/10 rounded-2xl"><RefreshCw size={20}/></button>
         </div>
@@ -314,7 +317,7 @@ function DashboardContent() {
                 </div>
             )}
 
-            {activeTab === "users" && (
+           {activeTab === "users" && (
                 <div className="space-y-4">
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl px-6 text-xs font-bold text-white outline-none focus:border-blue-500/50" placeholder="RECHERCHER UN UTILISATEUR..." />
                     {filteredUsers.map(user => (
@@ -324,12 +327,12 @@ function DashboardContent() {
                             onUpdateBalance={(a:number) => handleAction(user.id, 'UPDATE_BALANCE', a)}
                             onAirdrop={() => { const a = prompt("Airdrop (π):"); if(a) handleAction(user.id, 'AIRDROP', parseFloat(a)); }}
                             onBan={() => handleAction(user.id, user.status === 'BANNED' ? 'UNBAN' : 'BAN')}
-                            onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, p); }}
-                            onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, p); }}
+                            onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, "", [], "", p); }}
+                            onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, "", [], "", p); }}
                             onIndividualMaintenance={() => { const d = prompt("Date fin (YYYY-MM-DD):"); const t = prompt("Heure (HH:MM):"); if(d && t) handleAction(user.id, "USER_SPECIFIC_MAINTENANCE", 0, `${d}T${t}:00.000Z`); }}
                             onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handleAction(user.id, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }}
                             onViewSessions={() => {
-                                alert(`DÉTAILS SESSION :\n\n👤 Utilisateur: ${user.username || user.name}\n 🌐 IP: ${user.lastLoginIp || "Non détectée"}\n🛡️ Rôle: ${user.role}\n⚡ Statut: ${user.status}`);
+                                alert(`DÉTAILS SESSION :\n\n👤 Utilisateur: ${user.username || user.name}\n📧 Email: ${user.email}\n🌐 IP: ${user.lastLoginIp || "Aucune IP enregistrée"}\n🛡️ Rôle: ${user.role}\n⚡ Statut: ${user.status}`);
                             }}
                             onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
@@ -355,10 +358,10 @@ function DashboardContent() {
                         pendingTransactions.map(tx => (
                           <Card key={`tx-${tx.id}`} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-5 flex items-center justify-between">
                             <div>
-                              <p className="text-xs font-black text-white uppercase">{tx.fromUser?.username || 'Anonyme'}</p>
+                              <p className="text-xs font-black text-white uppercase">{tx.fromUser?.username || tx.fromUser?.name || 'Utilisateur Inconnu'}</p>
                               <p className="text-[10px] text-emerald-500 font-bold">π {tx.amount.toLocaleString()}</p>
                             </div>
-                            <Button 
+                            <Button
                               onClick={() => handleAction(null, "VALIDATE_DEPOSIT", tx.amount, "", [], tx.id)}
                               className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
                             >
@@ -385,6 +388,36 @@ function DashboardContent() {
                             <p className="text-xl font-black">{serverStats.latency}</p>
                         </Card>
                     </div>
+
+                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 text-white space-y-4">
+                        <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                           <Server size={18} className="text-blue-400" />
+                           <p className="text-[10px] font-black uppercase tracking-widest">Infos Serveur PimPay</p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4">
+                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
+                              <span className="text-[9px] font-black text-slate-500 uppercase">Système / OS</span>
+                              <span className="text-[10px] font-bold text-white uppercase">{serverStats.os}</span>
+                           </div>
+                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
+                              <span className="text-[9px] font-black text-slate-500 uppercase">Platforme</span>
+                              <span className="text-[10px] font-bold text-white uppercase">{serverStats.platform}</span>
+                           </div>
+                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
+                              <span className="text-[9px] font-black text-slate-500 uppercase">Ram Alloc.</span>
+                              <span className="text-[10px] font-bold text-emerald-500">{serverStats.ramUsage}</span>
+                           </div>
+                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
+                              <span className="text-[9px] font-black text-slate-500 uppercase">Stockage</span>
+                              <span className="text-[10px] font-bold text-blue-400">{serverStats.storage}</span>
+                           </div>
+                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
+                              <span className="text-[9px] font-black text-slate-500 uppercase">Version Engine</span>
+                              <span className="text-[10px] font-bold text-white">{serverStats.version}</span>
+                           </div>
+                        </div>
+                    </Card>
+
                     <Button onClick={() => { const msg = prompt("Message annonce réseau :"); if(msg) handleAction(null, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }} className="w-full h-14 bg-blue-600 rounded-2xl font-black text-[9px] uppercase flex items-center justify-center gap-2">
                         <Radio size={16} className="animate-pulse" /> Envoyer Annonce Network
                     </Button>
@@ -396,11 +429,22 @@ function DashboardContent() {
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2rem] p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3"><Settings size={18} className="text-blue-500" /><p className="text-[10px] font-black text-white uppercase">Maintenance Système</p></div>
-                            <button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500' : 'bg-slate-700'}`}>
+                            <button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} className={`w-12 h-6 rounded-full relative transition-colors ${isMaintenanceMode ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-700'}`}>
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
                             </button>
                         </div>
                         <Button onClick={() => { const d = prompt("Date (YYYY-MM-DD):"); const t = prompt("Heure (HH:MM):"); if(d && t) handleAction(null, "PLAN_MAINTENANCE", 0, `${d}T${t}:00.000Z`); }} variant="outline" className="w-full h-12 border-white/10 bg-white/5 rounded-xl font-black text-[10px] uppercase gap-2"><CalendarClock size={14} /> Planifier Maintenance Globale</Button>
+                    </Card>
+
+                    <Card onClick={() => router.push('/admin/settings')} className="bg-blue-600/10 border border-blue-500/20 rounded-[2rem] p-6 cursor-pointer hover:bg-blue-600/20 transition-all flex items-center justify-between group">
+                        <div className="flex items-center gap-4">
+                           <div className="p-3 bg-blue-600 rounded-2xl text-white"><Settings size={20} /></div>
+                           <div>
+                              <p className="text-[10px] font-black text-white uppercase">Paramètres Avancés</p>
+                              <p className="text-[8px] font-bold text-blue-400 uppercase">Consensus, Fees & Kernels</p>
+                           </div>
+                        </div>
+                        <ChevronRight size={20} className="text-blue-500 group-hover:translate-x-1 transition-transform" />
                     </Card>
                 </div>
             )}

@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 
-// Interfaces pour corriger les erreurs de type sans toucher au design
+// Interfaces pour la structure des menus
 interface SettingItem {
   icon: React.ReactNode;
   label: string;
@@ -30,11 +30,12 @@ interface SettingSection {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
+    // 1. Gestion du thème au montage
     const savedTheme = localStorage.getItem("pimpay-theme");
     if (savedTheme === "light") {
       setIsDarkMode(false);
@@ -44,20 +45,25 @@ export default function SettingsPage() {
       document.documentElement.classList.add("dark");
     }
 
+    // 2. Récupération des données utilisateur via l'API interne
     async function fetchUserData() {
       try {
-        const response = await fetch("/api/user/profile", { cache: 'no-store' });
+        const response = await fetch("/api/user/profile", { 
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
         if (response.ok) {
           const result = await response.json();
-          setData(result);
-          if (result.user) {
-            localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-          }
+          // On s'adapte à la structure de ta réponse API
+          const userData = result.user || result;
+          setUser(userData);
+          localStorage.setItem("pimpay_user", JSON.stringify(userData));
         } else if (response.status === 401) {
           router.push("/auth/login");
         }
       } catch (err) {
-        toast.error("Erreur de synchronisation des paramètres");
+        console.error("Erreur de synchronisation des paramètres", err);
       } finally {
         setIsLoading(false);
       }
@@ -65,19 +71,24 @@ export default function SettingsPage() {
     fetchUserData();
   }, [router]);
 
-  const user = data?.user || {};
+  // Variables calculées pour l'affichage
   const userName = user?.name || user?.firstName || "Pioneer";
+  const userEmail = user?.email || "Chargement...";
+  const userKyc = user?.kycStatus || 'NON VÉRIFIÉ';
+  const userRole = user?.role || 'PIONEER';
+  const userId = user?.id?.substring(0, 8).toUpperCase() || "ID-WAIT";
 
   const handleLogout = async () => {
     try {
       toast.loading("Fermeture de la session sécurisée...");
+      // Simulation d'une déconnexion propre pour pimpay
       setTimeout(() => {
         document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
         localStorage.removeItem("pimpay_user");
         router.push("/auth/login");
         toast.dismiss();
         toast.success("Déconnecté avec succès");
-      }, 1500);
+      }, 1000);
     } catch (error) {
       toast.error("Erreur lors de la déconnexion");
     }
@@ -100,13 +111,13 @@ export default function SettingsPage() {
     {
       title: "Compte & Sécurité",
       items: [
-        { icon: <User size={18} />, label: "Profil Utilisateur", desc: user?.email || "Gérer vos informations", color: "text-blue-400", path: "/profile" },
+        { icon: <User size={18} />, label: "Profil Utilisateur", desc: userEmail, color: "text-blue-400", path: "/profile" },
         {
           icon: <ShieldCheck size={18} />,
           label: "Vérification KYC",
-          desc: `Statut: ${user?.kycStatus || 'NON VÉRIFIÉ'}`,
-          badge: user?.kycStatus === 'VERIFIED' ? "OK" : "REQUIS",
-          color: user?.kycStatus === 'VERIFIED' ? "text-emerald-400" : "text-amber-400",
+          desc: `Statut: ${userKyc}`,
+          badge: userKyc === 'VERIFIED' ? "OK" : "REQUIS",
+          color: userKyc === 'VERIFIED' ? "text-emerald-400" : "text-amber-400",
           path: "/settings/kyc"
         },
         {
@@ -176,10 +187,14 @@ export default function SettingsPage() {
 
       <header className="p-8 pb-4 text-center">
         <div className="relative inline-block group">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[32px] mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border border-white/10 uppercase group-hover:scale-105 transition-transform duration-300">
-            {userName.charAt(0)}
+          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[32px] mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border border-white/10 uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+            {user?.image ? (
+                <img src={user.image} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+                userName.charAt(0)
+            )}
           </div>
-          {user?.kycStatus === 'VERIFIED' && (
+          {userKyc === 'VERIFIED' && (
             <div className="absolute -bottom-2 -right-2 bg-emerald-500 p-2 rounded-full border-4 border-[#020617] shadow-lg">
                <ShieldCheck size={16} className="text-white" />
             </div>
@@ -187,7 +202,7 @@ export default function SettingsPage() {
         </div>
         <h2 className={`mt-4 text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{userName}</h2>
         <p className="text-[10px] font-bold text-blue-500 tracking-widest uppercase mt-1">
-          {user?.role || 'PIONEER'} MEMBER • ID: {user?.id?.substring(0, 8).toUpperCase() || "..."}
+          {userRole} MEMBER • ID: {userId}
         </p>
       </header>
 
@@ -266,7 +281,6 @@ export default function SettingsPage() {
         </div>
       </main>
 
-      {/* CORRECTION : Ajout de onOpenMenu pour satisfaire les props obligatoires du composant */}
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );
