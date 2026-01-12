@@ -18,10 +18,10 @@ export async function POST(req: Request) {
     // 2. Vérification de la session
     const dbSession = await prisma.session.findUnique({
       where: { token: token },
-      include: { 
+      include: {
         user: {
-          include: { wallets: true } // On récupère les portefeuilles pour vérifier le solde
-        } 
+          include: { wallets: true }
+        }
       },
     });
 
@@ -30,28 +30,31 @@ export async function POST(req: Request) {
     }
 
     const user = dbSession.user;
-    const { amount, targetCurrency } = await req.json(); // targetCurrency ex: "XAF", "USD"
+    // Récupération de sourceCurrency (ex: "PI" ou "USD") et targetCurrency
+    const { amount, sourceCurrency, targetCurrency } = await req.json(); 
     const parsedAmount = parseFloat(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // 3. Vérification du solde PI
-    const piWallet = user.wallets.find(w => w.currency === "PI");
-    if (!piWallet || piWallet.balance < parsedAmount) {
-      return NextResponse.json({ error: "Solde Pi insuffisant" }, { status: 400 });
+    // 3. Vérification du solde selon la monnaie SOURCE
+    const sellingCurrency = sourceCurrency || "PI";
+    const sourceWallet = user.wallets.find(w => w.currency === sellingCurrency);
+
+    if (!sourceWallet || sourceWallet.balance < parsedAmount) {
+      return NextResponse.json({ 
+        error: `Solde ${sellingCurrency} insuffisant` 
+      }, { status: 400 });
     }
 
     // 4. Logique de conversion dynamique
-    // On récupère le prix consensus depuis la config système
     const config = await prisma.systemConfig.findUnique({
       where: { id: "GLOBAL_CONFIG" }
     });
 
-    const baseRate = config?.consensusPrice || 31.4159;
-    
-    // Multiplicateurs de devises (à ajuster selon le marché réel ou tes besoins)
+    const baseRate = config?.consensusPrice || 31.4159; // 1 PI = 31.41 USD (exemple)
+
     const currencyMultipliers: Record<string, number> = {
       "USD": 1,
       "EUR": 0.92,
@@ -60,28 +63,40 @@ export async function POST(req: Request) {
       "CDF": 2800
     };
 
-    const multiplier = currencyMultipliers[targetCurrency] || 1;
-    const currentRate = baseRate * multiplier;
-    const convertedAmount = parsedAmount * currentRate;
+    let finalRate = 0;
+    let convertedAmount = 0;
 
-    // 5. Création du devis en base (Maintenant que SwapQuote existe dans ton schéma)
+    if (sellingCurrency === "PI") {
+      // Cas : PI -> FIAT
+      const multiplier = currencyMultipliers[targetCurrency] || 1;
+      finalRate = baseRate * multiplier;
+      convertedAmount = parsedAmount * finalRate;
+    } else {
+      // Cas : FIAT -> PI
+      const multiplier = currencyMultipliers[sellingCurrency] || 1;
+      const fiatToPiRate = 1 / (baseRate * multiplier);
+      finalRate = fiatToPiRate;
+      convertedAmount = parsedAmount * finalRate;
+    }
+
+    // 5. Création du devis en base
     const quote = await prisma.swapQuote.create({
       data: {
         userId: user.id,
         fromAmount: parsedAmount,
         toAmount: convertedAmount,
-        rate: currentRate,
-        targetCurrency: targetCurrency || "USD",
-        expiresAt: new Date(Date.now() + 30 * 1000), // Valable 30 secondes
+        rate: finalRate,
+        targetCurrency: targetCurrency || "PI",
+        expiresAt: new Date(Date.now() + 30 * 1000), 
       }
     });
 
     return NextResponse.json({
       success: true,
       quoteId: quote.id,
-      fromCurrency: "PI",
+      fromCurrency: sellingCurrency,
       targetCurrency: targetCurrency,
-      rate: currentRate,
+      rate: finalRate,
       convertedAmount,
       expiresIn: 30
     });

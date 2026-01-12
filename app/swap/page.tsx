@@ -10,7 +10,7 @@ import { PI_CONSENSUS_USD } from "@/lib/exchange";
 
 export default function SwapPage() {
   const router = useRouter();
-  
+
   // Interface pour typer les données utilisateur
   const [user, setUser] = useState<{ balance: number; kycStatus: string } | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -21,20 +21,29 @@ export default function SwapPage() {
   const [toAmount, setToAmount] = useState(0);
   const [selectedFiat, setSelectedFiat] = useState("USD");
 
+  // Nouveau : Gestion du sens du swap (Pi -> Fiat ou Fiat -> Pi)
+  const [isPiToFiat, setIsPiToFiat] = useState(true);
+
   // États pour le système de Quote (Verrouillage)
   const [quote, setQuote] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState(0);
 
-  const fiatRates: Record<string, number> = { USD: 1, XAF: 600, CDF: 2800 };
+  // Ajout des devises EUR et XOF
+  const fiatRates: Record<string, number> = {
+    USD: 1,
+    EUR: 0.92,
+    XAF: 600,
+    XOF: 600,
+    CDF: 2800
+  };
 
-  // 1. Récupération réelle du solde depuis ton API PimPay
+  // 1. Récupération réelle du solde
   useEffect(() => {
     async function fetchUserData() {
       try {
         const res = await fetch("/api/user/wallet-info");
         if (res.ok) {
           const data = await res.json();
-          // On s'assure de mapper correctement les données venant de ton API
           setUser({
             balance: data.userData?.balance || 0,
             kycStatus: data.userData?.kycStatus || "PENDING"
@@ -62,17 +71,29 @@ export default function SwapPage() {
     }
   }, [timeLeft, quote]);
 
-  // 3. Calcul de l'estimation visuelle (instantané)
+  // 3. Calcul de l'estimation visuelle
   useEffect(() => {
     const amount = parseFloat(fromAmount);
     if (!isNaN(amount) && amount > 0) {
-      const result = amount * PI_CONSENSUS_USD * (fiatRates[selectedFiat] || 1);
-      setToAmount(result);
+      const rate = PI_CONSENSUS_USD * (fiatRates[selectedFiat] || 1);
+      if (isPiToFiat) {
+        setToAmount(amount * rate);
+      } else {
+        setToAmount(amount / rate);
+      }
     } else {
       setToAmount(0);
     }
-    if (quote) setQuote(null); 
-  }, [fromAmount, selectedFiat]);
+    if (quote) setQuote(null);
+  }, [fromAmount, selectedFiat, isPiToFiat]);
+
+  // Fonction pour basculer le sens du swap
+  const toggleDirection = () => {
+    setIsPiToFiat(!isPiToFiat);
+    setFromAmount("");
+    setToAmount(0);
+    setQuote(null);
+  };
 
   // 4. Demander un devis (Quote)
   const getQuote = async () => {
@@ -80,17 +101,22 @@ export default function SwapPage() {
     const balance = user?.balance || 0;
 
     if (!amount || amount <= 0) return toast.error("Entrez un montant valide");
-    if (amount > balance) return toast.error("Solde Pi insuffisant");
+
+    if (isPiToFiat && amount > balance) return toast.error("Solde Pi insuffisant");
 
     setIsSwapping(true);
     try {
       const res = await fetch("/api/transaction/swap/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, targetCurrency: selectedFiat })
+        body: JSON.stringify({
+          amount,
+          targetCurrency: isPiToFiat ? selectedFiat : "PI",
+          sourceCurrency: isPiToFiat ? "PI" : selectedFiat
+        })
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setQuote(data);
         setTimeLeft(30);
@@ -120,8 +146,8 @@ export default function SwapPage() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Swap Pi/Fiat réussi !");
-        router.push("/wallet"); // Redirection vers la page WalletPage
+        toast.success("Swap réussi !");
+        window.location.href = "/swap";
       } else {
         toast.error(data.error || "Le swap a échoué");
       }
@@ -141,6 +167,18 @@ export default function SwapPage() {
     );
   }
 
+  // LOGIQUE DE CONVERSION DU SOLDE AFFICHÉ
+  const displayBalance = () => {
+    if (!user) return "0.00";
+    if (isPiToFiat) {
+      return user.balance.toFixed(4);
+    } else {
+      // Conversion du solde Pi en devise Fiat sélectionnée pour l'affichage "Disponible"
+      const converted = user.balance * PI_CONSENSUS_USD * (fiatRates[selectedFiat] || 1);
+      return converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-20 p-6 font-sans">
       {/* Header */}
@@ -154,12 +192,12 @@ export default function SwapPage() {
         </div>
       </div>
 
-      {/* Affichage du Solde Réel */}
+      {/* Affichage du Solde Dynamique */}
       <div className="mb-6 p-5 bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-[2.5rem] flex justify-between items-center backdrop-blur-sm">
         <div>
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Disponible</p>
           <p className="text-xl font-black text-white">
-            {user?.balance?.toFixed(4) || "0.0000"} <span className="text-blue-500 italic">π</span>
+            {displayBalance()} <span className="text-blue-500 italic">{isPiToFiat ? "π" : selectedFiat}</span>
           </p>
         </div>
         <div className="text-right">
@@ -170,19 +208,21 @@ export default function SwapPage() {
       </div>
 
       <div className="space-y-2 relative">
-        {/* FROM (PI) */}
+        {/* FROM */}
         <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-6 transition-all focus-within:border-blue-500/30">
           <div className="flex justify-between mb-4">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendre</span>
-            <button 
-              onClick={() => {
-                const max = (user?.balance || 0) - 0.01;
-                setFromAmount(max > 0 ? max.toFixed(4) : "0");
-              }} 
-              className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full"
-            >
-              MAX
-            </button>
+            {isPiToFiat && (
+              <button
+                onClick={() => {
+                  const max = (user?.balance || 0) - 0.01;
+                  setFromAmount(max > 0 ? max.toFixed(4) : "0");
+                }}
+                className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full"
+              >
+                MAX
+              </button>
+            )}
           </div>
           <div className="flex justify-between items-center">
             <input
@@ -193,27 +233,41 @@ export default function SwapPage() {
               onChange={(e) => setFromAmount(e.target.value)}
             />
             <div className="flex items-center gap-2 bg-slate-800 p-2 pr-4 rounded-2xl font-bold">
-              <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-xs">π</div>
-              PI
+              {isPiToFiat ? (
+                <>
+                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-xs">π</div>
+                  PI
+                </>
+              ) : (
+                <>
+                  <div className="w-8 h-8 bg-emerald-500/20 text-emerald-500 rounded-xl flex items-center justify-center">
+                    <Globe size={16} />
+                  </div>
+                  {selectedFiat}
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* INTERCHANGE ICON */}
         <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="bg-[#020617] p-2 rounded-3xl border-8 border-[#020617]">
+          <button
+            onClick={toggleDirection}
+            className="bg-[#020617] p-2 rounded-3xl border-8 border-[#020617] active:scale-90 transition-transform"
+          >
             <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]">
-              <ArrowDown size={20} />
+              <ArrowDown size={20} className={isPiToFiat ? "" : "rotate-180 transition-transform"} />
             </div>
-          </div>
+          </button>
         </div>
 
-        {/* TO (FIAT) */}
+        {/* TO */}
         <div className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-6 pt-12">
           <div className="flex justify-between mb-4">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recevoir</span>
-            <div className="flex gap-1.5">
-              {["USD", "XAF", "CDF"].map((fiat) => (
+            <div className="flex gap-1.5 flex-wrap justify-end">
+              {["USD", "EUR", "XOF", "XAF", "CDF"].map((fiat) => (
                 <button
                   key={fiat}
                   onClick={() => setSelectedFiat(fiat)}
@@ -226,13 +280,22 @@ export default function SwapPage() {
           </div>
           <div className="flex justify-between items-center">
             <div className={`text-4xl font-black ${toAmount > 0 ? 'text-white' : 'text-slate-800'}`}>
-              {toAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {toAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: isPiToFiat ? 2 : 4 })}
             </div>
             <div className="flex items-center gap-2 bg-slate-800 p-2 pr-4 rounded-2xl font-bold">
-              <div className="w-8 h-8 bg-emerald-500/20 text-emerald-500 rounded-xl flex items-center justify-center">
-                <Globe size={16} />
-              </div>
-              {selectedFiat}
+              {!isPiToFiat ? (
+                <>
+                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-xs">π</div>
+                  PI
+                </>
+              ) : (
+                <>
+                  <div className="w-8 h-8 bg-emerald-500/20 text-emerald-500 rounded-xl flex items-center justify-center">
+                    <Globe size={16} />
+                  </div>
+                  {selectedFiat}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -242,7 +305,7 @@ export default function SwapPage() {
       <div className="mt-8 p-6 bg-white/[0.02] rounded-[2.5rem] border border-white/5 space-y-4">
         <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
           <span className="text-slate-500">Taux de change</span>
-          <span className="text-slate-300">1 π ≈ {PI_CONSENSUS_USD.toLocaleString()} USD</span>
+          <span className="text-slate-300">1 π ≈ {(PI_CONSENSUS_USD * (fiatRates[selectedFiat] || 1)).toLocaleString()} {selectedFiat}</span>
         </div>
         <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
           <span className="text-slate-500">Frais de réseau</span>
