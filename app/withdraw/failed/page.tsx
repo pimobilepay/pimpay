@@ -11,7 +11,7 @@ export default function FailedPage() {
         <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
           <XCircle size={48} className="text-red-500" />
         </div>
-        <h2 className="text-3xl font-black text-white uppercase italic">Échec du retrait</h2>
+        <h2 className="text-1xl font-black text-white uppercase italic">Échec du retrait</h2>
         <p className="text-slate-400 text-sm max-w-xs mx-auto">
           Une erreur est survenue lors du traitement. Veuillez vérifier votre solde ou réessayer.
         </p>

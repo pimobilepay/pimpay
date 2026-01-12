@@ -49,9 +49,9 @@ function SuccessContent() {
         </div>
       </div>
 
-      <h1 className="text-4xl font-black uppercase tracking-tighter mb-2 italic">
+      <h2 className="text-1xl font-black uppercase tracking-tighter mb-2 italic">
         Transfert Réussi
-      </h1>
+      </h2>
       <div className="flex items-center justify-center gap-2 mb-8 opacity-60">
         <ShieldCheck size={14} className="text-emerald-500" />
         <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Authentifié par PimPay Protocol</p>

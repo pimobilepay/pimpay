@@ -19,9 +19,9 @@ function FailedContent() {
         </div>
       </div>
 
-      <h1 className="text-3xl font-black uppercase tracking-tighter mb-4 text-red-500 italic">
+      <h2 className="text-1xl font-black uppercase tracking-tighter mb-4 text-red-500 italic">
         Transaction Échouée
-      </h1>
+      </h2>
 
       {/* Boîte d'erreur stylisée */}
       <div className="w-full max-w-sm p-6 bg-red-500/5 border border-red-500/10 rounded-[32px] mb-12">

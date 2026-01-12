@@ -56,7 +56,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
               </div>
             </Link>
             <div>
-              <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Statements</h1>
+              <h1 className="text-1xl font-black tracking-tighter text-white uppercase">Statements</h1>
               <div className="flex items-center gap-2 mt-1">
                 <CircleDot size={10} className="text-blue-500 animate-pulse" />
                 <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Real-time Ledger</span>

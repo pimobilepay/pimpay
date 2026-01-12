@@ -124,7 +124,7 @@ export default function SendPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter">Envoyer</h1>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter">Envoyer</h1>
             <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Protocole de transfert sécurisé</p>
           </div>
         </div>
@@ -211,14 +211,14 @@ export default function SendPage() {
           </div>
 
           {/* MONTANT */}
-          <div className="space-y-3 pt-4">
+          <div className="space-y-3 pt-2">
             <div className="relative">
               <input
                 type="number"
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-transparent p-4 text-6xl font-black outline-none text-center text-white placeholder:text-white/5"
+                className="w-full bg-transparent p-2 text-3xl font-black outline-none text-center text-white placeholder:text-white/5"
               />
               <span className="block text-center text-blue-500 font-black italic text-sm uppercase tracking-[0.3em] mt-2">
                 {selectedCurrency}

@@ -49,7 +49,7 @@ export default function SummaryPage() {
           <ArrowLeft size={16} /> Retour
         </Link>
 
-        <h1 className="text-3xl font-black text-white italic uppercase mb-2">Résumé</h1>
+        <h2 className="text-1xl font-black text-white italic uppercase mb-2">Résumé</h2>
         <p className="text-blue-500 text-[10px] font-black uppercase tracking-[3px] mb-8">Vérification finale</p>
 
         <Card className="bg-slate-900/60 border-white/10 rounded-[2.5rem] p-8 space-y-6 backdrop-blur-md">
@@ -60,7 +60,7 @@ export default function SummaryPage() {
             </div>
             <div className="flex justify-between border-b border-white/5 pb-4">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Conversion</span>
-              <span className="text-xl font-black text-blue-400 italic">{data.fiatAmount.toLocaleString()} {data.currency}</span>
+              <span className="text-xl font-black text-blue-400">{data.fiatAmount.toLocaleString()} {data.currency}</span>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-4">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Méthode</span>

@@ -68,10 +68,10 @@ export default function WalletPage() {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-black uppercase italic tracking-tighter">
+            <h1 className="text-xl font-black uppercase italic tracking-tighter">
               PimPay<span className="text-blue-500">Wallet</span>
             </h1>
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
+            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">
               Multi-Asset Node • GCV
             </p>
           </div>

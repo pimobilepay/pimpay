@@ -216,7 +216,7 @@ export default function EditProfilePage() {
               <Check size={16} className="text-blue-500 opacity-50" />
             </Link>
 
-            <button type="submit" disabled={loading} className="w-full bg-blue-600 h-16 rounded-[24px] font-black uppercase italic tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 h-16 rounded-[17px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
               {loading ? <Loader2 className="animate-spin" /> : <>Mettre à jour le profil</>}
             </button>
           </div>
