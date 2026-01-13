@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono';
 import "@/app/globals.css";
 import { Toaster } from "sonner";
 import Script from "next/script";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
@@ -73,6 +74,8 @@ export default function DashboardLayout({
             },
           }}
         />
+
+        <SpeedInsights />
       </body>
     </html>
   );
