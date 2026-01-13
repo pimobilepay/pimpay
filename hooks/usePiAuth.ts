@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { toast } from "sonner";
 
-// Définition des types pour le SDK Pi Network
 declare global {
   interface Window {
     Pi: any;
@@ -15,26 +14,23 @@ export const usePiAuth = () => {
   const [user, setUser] = useState<any>(null);
 
   /**
-   * Gère les paiements qui ont été interrompus (Checklist 10 du Mainnet)
-   * Référence schéma : TransactionStatus.PENDING -> TransactionStatus.SUCCESS
+   * Checklist 10 du Mainnet : Récupération des transactions bloquées
    */
   const handleIncompletePayment = async (payment: any) => {
     console.warn("⚠️ PimPay - Récupération d'un paiement incomplet :", payment.identifier);
-
     try {
       const response = await fetch("/api/payments/incomplete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentId: payment.identifier,
-          txid: payment.transaction?.txid // Utilise l'ID de transaction blockchain
+          txid: payment.transaction?.txid 
         }),
       });
 
       if (response.ok) {
-        // Validation finale côté SDK pour débloquer le flux Pi
         await window.Pi.completePayment(payment.identifier);
-        toast.success("Votre transaction a été récupérée et validée avec succès !");
+        toast.success("Transaction récupérée et validée !");
       }
     } catch (error) {
       console.error("Erreur protocole Checklist 10 :", error);
@@ -42,55 +38,64 @@ export const usePiAuth = () => {
   };
 
   /**
-   * Authentification principale synchronisée avec Prisma
+   * Authentification Pi Network synchronisée avec Prisma
    */
   const loginWithPi = async () => {
+    // 1. Vérification de l'environnement Pi Browser
     if (typeof window === "undefined" || !window.Pi) {
       toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
-      return;
+      return null;
     }
 
     setLoading(true);
+
     try {
       const Pi = window.Pi;
 
-      // 1. Demande l'authentification (username pour le profil, payments pour le wallet)
+      // 2. Authentification avec Scopes
+      // L'utilisateur doit valider la fenêtre d'autorisation Pi ici
       const auth = await Pi.authenticate(
         ['username', 'payments'],
         handleIncompletePayment
       );
 
+      if (!auth || !auth.user) {
+        throw new Error("Autorisation refusée par l'utilisateur.");
+      }
+
       /**
-       * 2. Synchronisation Backend Prisma
-       * On envoie le piUserId et l'accessToken au serveur
+       * 3. Synchronisation Backend Prisma
        */
       const response = await fetch("/api/auth/pi-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accessToken: auth.accessToken,
-          piUserId: auth.user.uid,      // Correspond à User.piUserId dans ton schéma
-          username: auth.user.username,  // Correspond à User.username
+          piUserId: auth.user.uid,
+          username: auth.user.username,
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Erreur de synchronisation PimPay");
+        throw new Error(result.error || "Échec de synchronisation PimPay");
       }
 
-      // 3. Mise à jour de l'état local
+      // 4. Succès
       setUser(auth.user);
-      toast.success(`Heureux de vous revoir sur PimPay, ${auth.user.username} !`);
+      
+      // Stockage pour la session Elara
+      localStorage.setItem("pimpay_user", JSON.stringify(result.user));
 
-      return auth;
+      return result; // On retourne le résultat de l'API (qui contient le rôle, etc.)
+      
     } catch (error: any) {
       console.error("Erreur d'authentification Pi:", error);
 
-      const errorMsg = error.message?.includes("User cancelled")
-        ? "Connexion annulée"
-        : "Échec de la connexion sécurisée Pi Network";
+      let errorMsg = "Échec de la connexion sécurisée";
+      if (error.message?.includes("User cancelled")) errorMsg = "Connexion annulée";
+      if (error.message?.includes("timed out")) errorMsg = "Le SDK Pi ne répond pas (Timeout)";
 
       toast.error(errorMsg);
       return null;

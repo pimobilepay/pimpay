@@ -3,8 +3,8 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
@@ -14,43 +14,66 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { email: identifier, password } = body;
 
+    if (!identifier || !password) {
+      return NextResponse.json({ error: "Identifiants requis" }, { status: 400 });
+    }
+
+    // 1. RECHERCHE DE L'UTILISATEUR
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: identifier?.toLowerCase().trim() },
-          { username: identifier?.toLowerCase().trim() }
+          { email: identifier.toLowerCase().trim() },
+          { username: identifier.toLowerCase().trim() }
         ]
       },
     });
 
+    // 2. VÉRIFICATION MOT DE PASSE
     if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    // 1. GÉNÉRATION DU TOKEN
+    // 3. VÉRIFICATION SI UN PIN EST CONFIGURÉ
+    // Si l'utilisateur a un PIN, on ne le connecte pas encore.
+    // On demande au front d'afficher le Modal PIN.
+    if (user.pin) {
+      // On crée un petit token temporaire (expire dans 5 min) juste pour l'ID
+      const secretKey = new TextEncoder().encode(SECRET);
+      const tempToken = await new SignJWT({ userId: user.id, purpose: "pin_verification" })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(secretKey);
+
+      return NextResponse.json({
+        success: true,
+        requirePin: true,
+        tempToken: tempToken,
+        userId: user.id
+      });
+    }
+
+    // 4. SI PAS DE PIN (Cas rare ou nouveau compte), CONNEXION DIRECTE
+    // Note: Pour Pimpay, il est conseillé de forcer la création d'un PIN après.
     const secretKey = new TextEncoder().encode(SECRET);
     const token = await new SignJWT({
-        id: user.id,
-        role: user.role,
-        email: user.email,
-        username: user.username
-      })
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      username: user.username
+    })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('7d')
       .sign(secretKey);
 
-    // 2. RÉCUPÉRATION DES INFOS (IP & GÉO)
+    // LOGS ET INFOS (IP & GÉO)
     const userAgent = req.headers.get("user-agent") || "Appareil";
     const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
-    const country = req.headers.get("x-vercel-ip-country") || "Congo";
-    const city = req.headers.get("x-vercel-ip-city") || "Brazzaville";
-    
-    // Détection de l'appareil pour l'icône
-    const deviceType = userAgent.includes("iPhone") || userAgent.includes("Android") ? "Mobile" : "Desktop";
-    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Windows/Mac";
+    const country = req.headers.get("x-vercel-ip-country") || "RDC";
+    const city = req.headers.get("x-vercel-ip-city") || "Kinshasa";
+    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
 
-    // 3. CRÉATION DE LA NOTIFICATION (FORMAT STYLE ANCIEN)
     try {
       await prisma.session.create({
         data: { userId: user.id, token, isActive: true, userAgent, ip }
@@ -60,30 +83,17 @@ export async function POST(req: Request) {
         data: {
           userId: user.id,
           type: "info",
-          title: `Nouvelle connexion depuis un ${os}`,
-          // Le message reste simple, les icônes sont gérées par les metadata
-          message: `Nouvelle connexion détectée à ${city}, ${country}`,
-          metadata: {
-            ip: ip,
-            location: `${city}, ${country}`,
-            device: os,
-            browser: userAgent.includes("Chrome") ? "Chrome" : "Navigateur",
-            icon: deviceType.toLowerCase(), // Utilisé par le front pour l'icône
-            showDetails: true
-          }
+          title: `Connexion directe (Sans PIN)`,
+          message: `Connecté depuis ${city}, ${country}`,
+          metadata: { ip, location: `${city}, ${country}`, device: os }
         }
       });
-    } catch (e) {
-      console.error("Notif Error:", e);
-    }
-
-    // 4. RÉPONSE ET REDIRECTION
-    const redirectUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+    } catch (e) { console.error("Notif Error:", e); }
 
     const response = NextResponse.json({
       success: true,
       user: { id: user.id, username: user.username, role: user.role },
-      redirectTo: redirectUrl,
+      redirectTo: user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard",
       token: token
     });
 
@@ -95,13 +105,13 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 24 * 7,
     };
 
-    // On force les deux cookies pour éviter les pages blanches/déconnexions
     response.cookies.set("pimpay_token", token, cookieOptions);
     response.cookies.set("token", token, cookieOptions);
 
     return response;
 
   } catch (error) {
+    console.error("LOGIN_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

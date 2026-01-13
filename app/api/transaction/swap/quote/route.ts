@@ -1,108 +1,55 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { jwtVerify } from "jose";
 
 export async function POST(req: Request) {
   try {
-    // 1. Extraction du token
-    const cookieHeader = req.headers.get("cookie");
-    const token = cookieHeader
-      ?.split("; ")
-      .find((row) => row.startsWith("token="))
-      ?.split("=")[1];
+    const cookieHeader = req.headers.get("cookie") || "";
+    const cookies = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
+    const token = cookies['token'];
 
-    if (!token) {
-      return NextResponse.json({ error: "Session manquante" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-    // 2. Vérification de la session
-    const dbSession = await prisma.session.findUnique({
-      where: { token: token },
-      include: {
-        user: {
-          include: { wallets: true }
-        }
-      },
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    const { payload } = await jwtVerify(token, secret);
+    const userId = payload.id as string;
+
+    const { amount, sourceCurrency, targetCurrency } = await req.json();
+    const parsedAmount = parseFloat(amount);
+    const sellingCurrency = (sourceCurrency || "PI").toUpperCase();
+
+    // Récupération du solde dans le modèle Wallet (comme vu dans ton profil)
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: sellingCurrency } }
     });
 
-    if (!dbSession || !dbSession.isActive) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
-    }
-
-    const user = dbSession.user;
-    // Récupération de sourceCurrency (ex: "PI" ou "USD") et targetCurrency
-    const { amount, sourceCurrency, targetCurrency } = await req.json(); 
-    const parsedAmount = parseFloat(amount);
-
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-    }
-
-    // 3. Vérification du solde selon la monnaie SOURCE
-    const sellingCurrency = sourceCurrency || "PI";
-    const sourceWallet = user.wallets.find(w => w.currency === sellingCurrency);
-
-    if (!sourceWallet || sourceWallet.balance < parsedAmount) {
+    if (!wallet || wallet.balance < parsedAmount) {
       return NextResponse.json({ 
-        error: `Solde ${sellingCurrency} insuffisant` 
+        error: `Solde ${sellingCurrency} insuffisant (Dispo: ${wallet?.balance || 0})` 
       }, { status: 400 });
     }
 
-    // 4. Logique de conversion dynamique
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" }
-    });
+    // Calcul GCV
+    const PI_CONSENSUS_USD = 314159;
+    const rates: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 600, XOF: 600, CDF: 2800 };
+    const rate = sellingCurrency === "PI" 
+      ? PI_CONSENSUS_USD * (rates[targetCurrency] || 1)
+      : 1 / (PI_CONSENSUS_USD * (rates[sellingCurrency] || 1));
 
-    const baseRate = config?.consensusPrice || 31.4159; // 1 PI = 31.41 USD (exemple)
-
-    const currencyMultipliers: Record<string, number> = {
-      "USD": 1,
-      "EUR": 0.92,
-      "XAF": 600,
-      "XOF": 600,
-      "CDF": 2800
-    };
-
-    let finalRate = 0;
-    let convertedAmount = 0;
-
-    if (sellingCurrency === "PI") {
-      // Cas : PI -> FIAT
-      const multiplier = currencyMultipliers[targetCurrency] || 1;
-      finalRate = baseRate * multiplier;
-      convertedAmount = parsedAmount * finalRate;
-    } else {
-      // Cas : FIAT -> PI
-      const multiplier = currencyMultipliers[sellingCurrency] || 1;
-      const fiatToPiRate = 1 / (baseRate * multiplier);
-      finalRate = fiatToPiRate;
-      convertedAmount = parsedAmount * finalRate;
-    }
-
-    // 5. Création du devis en base
     const quote = await prisma.swapQuote.create({
       data: {
-        userId: user.id,
+        userId,
         fromAmount: parsedAmount,
-        toAmount: convertedAmount,
-        rate: finalRate,
-        targetCurrency: targetCurrency || "PI",
-        expiresAt: new Date(Date.now() + 30 * 1000), 
+        toAmount: parsedAmount * rate,
+        rate,
+        targetCurrency, // Champ unique dans ton schéma
+        expiresAt: new Date(Date.now() + 30000),
       }
     });
 
-    return NextResponse.json({
-      success: true,
-      quoteId: quote.id,
-      fromCurrency: sellingCurrency,
-      targetCurrency: targetCurrency,
-      rate: finalRate,
-      convertedAmount,
-      expiresIn: 30
-    });
-
+    return NextResponse.json({ success: true, quoteId: quote.id, convertedAmount: quote.toAmount, rate, expiresIn: 30 });
   } catch (error: any) {
-    console.error("SWAP_QUOTE_ERROR:", error.message);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur quote" }, { status: 500 });
   }
 }

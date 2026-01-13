@@ -11,15 +11,13 @@ const getJwtSecret = () => {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("token")?.value;
-
-  // 1. RÉCUPÉRATION DES ÉTATS (Cookies)
+  
+  // 1. ÉTATS DE MAINTENANCE
   const maintenanceCookie = req.cookies.get("maintenance_mode")?.value;
   const maintenanceUntil = req.cookies.get("maintenance_until")?.value;
-  const comingSoonCookie = req.cookies.get("coming_soon_mode")?.value; // Ajout Coming Soon
   const hasBypassCookie = req.cookies.has("admin_bypass");
 
   let isMaintenanceModeActive = maintenanceCookie === "true";
-  const isComingSoonModeActive = comingSoonCookie === "true"; // État Coming Soon
 
   // Vérification expiration maintenance
   if (isMaintenanceModeActive && maintenanceUntil) {
@@ -30,15 +28,14 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Définition des routes spéciales
+  // Routes types
   const isAuthPage = pathname.startsWith("/auth");
   const isMaintenancePage = pathname === "/maintenance";
-  const isComingSoonPage = pathname === "/coming-soon"; // Route Coming Soon
   const isAdminPath = pathname.startsWith("/admin");
   const isUnlockPath = pathname.startsWith("/api/unlock");
   const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico)$/);
 
-  // 2. VÉRIFICATION DU TOKEN ET DU RÔLE
+  // 2. VÉRIFICATION DU TOKEN
   let userPayload: any = null;
   if (token) {
     try {
@@ -48,8 +45,8 @@ export async function middleware(req: NextRequest) {
         userPayload = payload;
       }
     } catch (e) {
-      // Token invalide : redirection propre si on n'est pas sur une page autorisée
-      if (!isAuthPage && !isMaintenancePage && !isComingSoonPage && !isPublicAsset) {
+      // Token invalide : Suppression et redirection login
+      if (!isAuthPage && !isMaintenancePage && !isPublicAsset) {
         const response = NextResponse.redirect(new URL("/auth/login", req.url));
         response.cookies.delete("token");
         return response;
@@ -59,26 +56,17 @@ export async function middleware(req: NextRequest) {
 
   const isAdmin = userPayload?.role === "ADMIN";
 
-  // 3. LOGIQUE DE PROTECTION (MAINTENANCE & COMING SOON)
-  // On laisse passer si : Admin, Bypass, ou si on est déjà sur la page de destination
-  
-  // Priorité 1 : Maintenance
+  // 3. LOGIQUE MAINTENANCE (Priorité maximale)
   if (isMaintenanceModeActive && !isMaintenancePage && !isUnlockPath && !isPublicAsset) {
+    // Si pas Admin et pas de Bypass -> Direction Maintenance
     if (!isAdmin && !hasBypassCookie) {
       return NextResponse.redirect(new URL("/maintenance", req.url));
     }
   }
 
-  // Priorité 2 : Coming Soon
-  if (isComingSoonModeActive && !isComingSoonPage && !isMaintenancePage && !isUnlockPath && !isPublicAsset) {
-    if (!isAdmin && !hasBypassCookie) {
-      return NextResponse.redirect(new URL("/coming-soon", req.url));
-    }
-  }
-
   // 4. LOGIQUE POUR UTILISATEURS CONNECTÉS
   if (userPayload) {
-    // Rediriger loin des pages Auth
+    // Rediriger loin des pages Auth vers le Dashboard
     if (isAuthPage) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
@@ -86,22 +74,15 @@ export async function middleware(req: NextRequest) {
     if (isAdminPath && !isAdmin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
-    // Sortir des pages de restriction si elles ne sont plus actives
+    // Sortir de la page maintenance si elle n'est plus active
     if (!isMaintenanceModeActive && isMaintenancePage) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-    if (!isComingSoonModeActive && isComingSoonPage) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
 
   // 5. LOGIQUE POUR UTILISATEURS NON CONNECTÉS
-  if (!userPayload && !isAuthPage && !isMaintenancePage && !isComingSoonPage && !isUnlockPath && !isPublicAsset) {
-    // Si restriction active, envoyer vers la page correspondante, sinon Login
-    let dest = "/auth/login";
-    if (isMaintenanceModeActive && !hasBypassCookie) dest = "/maintenance";
-    else if (isComingSoonModeActive && !hasBypassCookie) dest = "/coming-soon";
-    
+  if (!userPayload && !isAuthPage && !isMaintenancePage && !isUnlockPath && !isPublicAsset) {
+    const dest = isMaintenanceModeActive && !hasBypassCookie ? "/maintenance" : "/auth/login";
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
@@ -117,6 +98,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for:
+     * - api routes (handled internally)
+     * - _next/static, _next/image
+     * - common public files
+     */
     "/((?!api|_next/static|_next/image|favicon.ico|logo.png|images|assets).*)",
   ],
 };

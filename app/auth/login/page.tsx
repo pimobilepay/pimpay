@@ -8,37 +8,39 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { usePiAuth } from "@/hooks/usePiAuth"; // Import de ton hook
+import { usePiAuth } from "@/hooks/usePiAuth";
+import PinCodeModal from "@/components/modals/PinCodeModal";
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);      
-  
-  // Utilisation du hook Pi
+  const [loading, setLoading] = useState(false);
+
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [tempUserId, setTempUserId] = useState<string | null>(null);
+
   const { loginWithPi, loading: piLoading } = usePiAuth();
 
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStep, setTransitionStep] = useState("init");
-  const [dynamicMessage, setDynamicMessage] = useState("Initialisation en cours");
+  const [dynamicMessage, setDynamicMessage] = useState("Initialisation");
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fonction pour gérer la transition visuelle après succès
   const triggerSuccessTransition = (targetPath: string) => {
     setShowTransition(true);
-    setTimeout(() => setDynamicMessage("Sécurisation"), 2500);
-    setTimeout(() => setDynamicMessage("Synchronisation"), 5000);
+    setTimeout(() => setDynamicMessage("Sécurisation"), 1500);
+    setTimeout(() => setDynamicMessage("Synchronisation"), 3000);
     setTimeout(() => {
       setTransitionStep("success");
       setTimeout(() => {
         window.location.replace(targetPath);
-      }, 7500);
-    }, 7500);
+      }, 1500);
+    }, 4500);
   };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,10 +62,13 @@ export default function LoginPage() {
         return;
       }
 
-      if (data?.user) {
+      if (data.requirePin) {
+        setTempUserId(data.userId);
+        setShowPinModal(true); // Ouvre le modal PIN avec le design compact
+        setLoading(false);
+      } else if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
-        const targetPath = data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-        triggerSuccessTransition(targetPath);
+        triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
       }
     } catch (error) {
       toast.error("Le serveur ne répond pas");
@@ -72,136 +77,115 @@ export default function LoginPage() {
   };
 
   const handlePiBrowserLogin = async () => {
-    const auth = await loginWithPi();
-    if (auth) {
-      // Une fois authentifié par Pi, on lance la transition vers le dashboard
+    const result = await loginWithPi();
+    if (result && result.success) {
       triggerSuccessTransition("/dashboard");
     }
   };
 
-  if (!mounted) {
-    return <div className="min-h-screen bg-[#020617]" />;
-  }
+  if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden">
-      
-      {/* ÉCRAN DE TRANSITION DYNAMIQUE */}
+    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden font-sans">
+
+      <PinCodeModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={() => triggerSuccessTransition("/dashboard")}
+        userId={tempUserId}
+      />
+
+      {/* TRANSITION OVERLAY */}
       {showTransition && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020617]">
-          <div className="relative">
-            <div className={`absolute inset-0 rounded-full bg-blue-500/20 animate-ping scale-150 transition-colors duration-1000 ${transitionStep === "success" ? "bg-green-500/20" : ""}`} />
-            <div className={`relative flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 shadow-2xl ${
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">
+            <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 ${
               transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-500 to-blue-700 shadow-blue-500/50"
             }`}>
               {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
             </div>
-          </div>
-          <div className="mt-8 flex flex-col items-center">
-            <h2 className="text-white text-xl font-bold tracking-tighter uppercase">PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span></h2>
-            <div className="flex items-center gap-2 mt-2 text-slate-400 h-10">
-              {transitionStep === "init" ? (
-                <div className="flex items-center gap-2 animate-in fade-in duration-500">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                  <span className="text-xs font-medium uppercase tracking-[0.2em]">{dynamicMessage}...</span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-1 text-center">
-                  <span className="text-xs font-bold text-green-500 uppercase tracking-[0.2em]">Connecté avec succès</span>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-widest animate-pulse">Chargement de votre espace sécurisé...</span>
-                </div>
-              )}
-            </div>
-          </div>
+            <h2 className="mt-6 text-white text-xl font-bold uppercase tracking-tighter">
+                PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
+            </h2>
+            <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
         </div>
       )}
 
-      {/* Background glows */}
-      <div className="pointer-events-none absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px]" />
-
-      <Card className="relative z-10 w-full max-w-[420px] p-6 sm:p-10 bg-slate-900/50 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[32px]">
-        {/* Header */}
+      <Card className="relative z-10 w-full max-w-[420px] p-6 sm:p-10 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[32px]">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-500 to-blue-700 mb-6 shadow-lg shadow-blue-500/30">
-            <ShieldCheck className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-6">
+            <ShieldCheck className="w-10 h-10 text-blue-500" />
           </div>
-          <h1 className="text-4xl font-black text-white italic tracking-tighter mb-2 uppercase">
-            PIMPAY<span className="text-blue-500 not-italic">.</span>
-          </h1>
-          <p className="text-slate-400 font-medium text-sm">Sécurisez vos actifs Pi Network</p>
+          <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1">PIMPAY<span className="text-blue-500 not-italic">.</span></h1>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Protocol Sécurisé Elara</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-slate-300 ml-1 text-[10px] font-bold uppercase tracking-[0.2em]">Email</Label>
+            <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Identifiant</Label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-              <Input
-                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="nom@exemple.com"
-                className="h-14 pl-12 bg-slate-950/50 border-white/10 text-white rounded-2xl outline-none"
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
+              <input
+                type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email ou Username"
+                className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300 ml-1 text-[10px] font-bold uppercase tracking-[0.2em]">Mot de passe</Label>
+            <div className="flex justify-between items-center">
+               <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
+               {/* CORRECTION : Suppression de size="sm" qui causait l'erreur de build */}
+               <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
+                  Oublié ?
+               </Link>
+            </div>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-              <Input
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
+              <input
                 type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="h-14 pl-12 pr-12 bg-slate-950/50 border-white/10 text-white rounded-2xl outline-none"
+                className="w-full h-14 pl-12 pr-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none"
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white">
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
           </div>
 
-          <Button type="submit" disabled={loading || piLoading} className="w-full h-14 text-base font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl transition-all">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Accéder au compte"}
+          <Button type="submit" disabled={loading || piLoading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all">
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONNEXION"}
           </Button>
         </form>
 
-        {/* --- SÉPARATEUR --- */}
         <div className="flex items-center gap-4 my-6">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">OU</span>
-          <div className="h-px flex-1 bg-white/10" />
+          <div className="h-px flex-1 bg-white/5" />
+          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">OU</span>
+          <div className="h-px flex-1 bg-white/5" />
         </div>
 
-        {/* --- BOUTON PI BROWSER --- */}
         <Button
           onClick={handlePiBrowserLogin}
           disabled={loading || piLoading}
           type="button"
-          className="w-full h-14 bg-[#ffa500]/10 hover:bg-[#ffa500]/20 border border-[#ffa500]/30 text-[#ffa500] rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+          className="w-full h-14 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
         >
-          {piLoading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
+          {piLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
             <>
-              {/* Petit logo Pi (Cercle avec symbole) */}
-              <div className="w-6 h-6 rounded-full bg-[#ffa500] flex items-center justify-center shrink-0">
+              <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
                  <span className="text-white font-bold text-xs">π</span>
               </div>
-              <span className="font-bold uppercase tracking-tight text-sm">Se connecter avec Pi Browser</span>
+              <span className="text-sm uppercase tracking-tight">Pi Browser Login</span>
             </>
           )}
         </Button>
 
-        {/* Footer */}
-        <div className="mt-8 flex flex-col items-center space-y-4">
-          <Link href="/auth/forgot-password" className="text-slate-400 hover:text-blue-400 text-xs font-semibold">
-            Identifiants oubliés ?
-          </Link>
-          <div className="h-px w-24 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <p className="text-xs text-slate-500 font-medium">
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <p className="text-[11px] text-slate-500 font-medium">
             Pas encore de compte ?
-            <Link href="/auth/signup" className="ml-1 text-blue-500 hover:text-blue-400 font-bold">Rejoindre PimPay</Link>
+            <Link href="/auth/signup" className="ml-2 text-blue-500 hover:text-blue-400 font-bold uppercase tracking-widest transition-colors">
+              Rejoindre PimPay
+            </Link>
           </p>
         </div>
       </Card>

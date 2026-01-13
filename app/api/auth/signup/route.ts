@@ -2,69 +2,82 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose"; // ✅ Migration vers Jose (Standard PimPay)
+import { SignJWT } from "jose";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
   try {
-    // 1. SÉCURITÉ CONFIGURATION
+    // 1. VÉRIFICATION CONFIGURATION
     const SECRET = process.env.JWT_SECRET;
     if (!SECRET) {
-      return NextResponse.json({ error: "Erreur de configuration serveur" }, { status: 500 });
+      console.error("ERREUR: JWT_SECRET manquant");
+      return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
     }
 
-    // 2. EXTRACTION ET VALIDATION DES DONNÉES
+    // 2. RÉCUPÉRATION DES DONNÉES
     const body = await req.json().catch(() => ({}));
-    const { fullName, email, phone, password, confirmPassword } = body;
+    const { 
+      fullName, 
+      username, 
+      email, 
+      phone, 
+      country, // Nouveau champ requis
+      password, 
+      confirmPassword 
+    } = body;
 
-    if (!fullName || !email || !phone || !password || !confirmPassword) {
-      return NextResponse.json({ error: "Tous les champs sont requis" }, { status: 400 });
+    // Validation stricte
+    if (!fullName || !username || !email || !phone || !country || !password) {
+      return NextResponse.json({ error: "Veuillez remplir tous les champs obligatoires" }, { status: 400 });
     }
 
     if (password !== confirmPassword) {
       return NextResponse.json({ error: "Les mots de passe ne correspondent pas" }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Le mot de passe doit faire au moins 6 caractères" }, { status: 400 });
-    }
-
-    // 3. VÉRIFICATION D'EXISTENCE (Optimisée)
-    const userExists = await prisma.user.findFirst({
+    // 3. VÉRIFICATION D'EXISTENCE UNIQUE
+    const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { email: email.toLowerCase() },
+          { username: username.toLowerCase() },
           { phone: phone }
         ]
-      },
+      }
     });
 
-    if (userExists) {
-      return NextResponse.json({ error: "Cet email ou ce numéro de téléphone est déjà utilisé" }, { status: 400 });
+    if (existingUser) {
+      let conflict = "utilisateur";
+      if (existingUser.email === email.toLowerCase()) conflict = "email";
+      if (existingUser.username === username.toLowerCase()) conflict = "username";
+      if (existingUser.phone === phone) conflict = "numéro de téléphone";
+      
+      return NextResponse.json({ error: `Ce ${conflict} est déjà utilisé.` }, { status: 400 });
     }
 
-    // 4. PRÉPARATION SÉCURITÉ (Hashage)
+    // 4. SÉCURISATION
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // PIN par défaut : 0000 (Hashé pour la sécurité)
-    const defaultPin = "0000";
-    const hashedPin = await bcrypt.hash(defaultPin, salt);
+    // PIN par défaut 0000 hashé selon ton exigence
+    const hashedPin = await bcrypt.hash("0000", salt);
 
-    // 5. TRANSACTION ATOMIQUE PRISMA (Robuste)
-    // On crée l'utilisateur et son Wallet PI simultanément
-    const newUser = await prisma.$transaction(async (tx) => {
-      return await tx.user.create({
+    // 5. CRÉATION ATOMIQUE (User + Wallet + Session)
+    const result = await prisma.$transaction(async (tx) => {
+      // Création de l'utilisateur
+      const user = await tx.user.create({
         data: {
           name: fullName,
+          username: username.toLowerCase(),
           email: email.toLowerCase(),
           phone: phone,
+          country: country, // Enregistré dans le champ country du schéma
           password: hashedPassword,
           pin: hashedPin,
           status: "ACTIVE",
           role: "USER",
           kycStatus: "NONE",
-          // Création du Wallet PI lié (Respecte ton schéma @@unique([userId, currency]))
+          // Initialisation du Wallet PI
           wallets: {
             create: {
               balance: 0,
@@ -72,43 +85,60 @@ export async function POST(req: Request) {
               type: "PI",
             }
           }
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true
         }
       });
+
+      // Génération du Token JWT
+      const secretKey = new TextEncoder().encode(SECRET);
+      const token = await new SignJWT({ id: user.id, role: user.role, username: user.username })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('30d')
+        .sign(secretKey);
+
+      // Création de la session dans la DB
+      const session = await tx.session.create({
+        data: {
+          userId: user.id,
+          token: token,
+          ip: req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1",
+          userAgent: req.headers.get("user-agent") || "Unknown",
+          isActive: true,
+        }
+      });
+
+      return { user, token };
     });
 
-    // 6. GÉNÉRATION DU TOKEN AVEC JOSE (Asynchrone & Future-proof)
-    const secretKey = new TextEncoder().encode(SECRET);
-    const token = await new SignJWT({ id: newUser.id, role: newUser.role })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('7d')
-      .sign(secretKey);
-
-    // 7. RÉPONSE FINALE
-    return NextResponse.json(
+    // 6. CONFIGURATION DU COOKIE DE SESSION
+    const response = NextResponse.json(
       {
-        message: "Compte PimPay créé avec succès.",
-        instruction: "Votre code PIN par défaut est 0000. Veuillez le changer dans les paramètres.",
-        user: newUser,
-        token,
+        message: "Bienvenue sur PimPay !",
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          email: result.user.email,
+          role: result.user.role
+        }
       },
       { status: 201 }
     );
 
-  } catch (error: any) {
-    console.error("CRITICAL_SIGNUP_ERROR:", error);
-    
-    // Gestion des erreurs de base de données (ex: violation d'unicité non captée avant)
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: "Email, téléphone ou username déjà utilisé" }, { status: 400 });
-    }
+    response.cookies.set("token", result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 jours
+      path: "/",
+    });
 
-    return NextResponse.json({ error: "Erreur lors de la création du compte" }, { status: 500 });
+    return response;
+
+  } catch (error: any) {
+    console.error("SIGNUP_CRITICAL_ERROR:", error);
+    return NextResponse.json(
+      { error: "Le protocole Elara n'a pas pu finaliser l'inscription" },
+      { status: 500 }
+    );
   }
 }

@@ -13,7 +13,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ID Pi manquant" }, { status: 400 });
     }
 
-    // 1. Authentification/Création de l'utilisateur (Synchronisé avec ton schéma Prisma)
+    // 1. Authentification/Création de l'utilisateur
+    // Utilisation de upsert pour gérer la création ou mise à jour en une seule requête
     const user = await prisma.user.upsert({
       where: { piUserId: piUserId },
       update: {
@@ -23,12 +24,12 @@ export async function POST(request: Request) {
       create: {
         piUserId: piUserId,
         username: username,
-        // On utilise l'ID Pi pour garantir l'unicité du téléphone si non fourni
-        phone: `pi_${piUserId}`, 
+        // On évite les erreurs d'unicité sur le téléphone en cas de reconnexion
+        phone: `pi_${piUserId}`,
         status: "ACTIVE",
         role: "USER",
         kycStatus: "NONE",
-        // Initialisation du portefeuille PI dès la création
+        // Initialisation automatique du portefeuille PI
         wallets: {
           create: {
             currency: "PI",
@@ -38,25 +39,29 @@ export async function POST(request: Request) {
         }
       },
       include: {
-        wallets: true // On récupère les wallets pour la session
+        wallets: true 
       }
     });
 
-    // 2. Génération du Token JWT pour Pimpay
-    // On utilise jose pour signer un token compatible avec ton middleware
+    // 2. Génération du Token JWT
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET non défini dans les variables d'environnement");
+    }
+
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const token = await new jose.SignJWT({ 
-      id: user.id, 
+    const token = await new jose.SignJWT({
+      id: user.id,
       piUserId: user.piUserId,
-      role: user.role 
+      role: user.role
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("30d") // Session de 30 jours
+      .setExpirationTime("30d") 
       .sign(secret);
 
-    // 3. Stockage du token dans les Cookies (Sécurisé)
-    cookies().set("token", token, {
+    // 3. Stockage du token dans les Cookies
+    const cookieStore = cookies();
+    cookieStore.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -64,31 +69,37 @@ export async function POST(request: Request) {
       path: "/",
     });
 
-    // 4. Création d'une session dans la table Session de Prisma (pour ta page /sessions)
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token: token,
-        ip: request.headers.get("x-forwarded-for") || "127.0.0.1",
-        userAgent: request.headers.get("user-agent"),
-        isActive: true,
-        lastActiveAt: new Date(),
-      }
-    });
+    // 4. Enregistrement de la session (Traçabilité Elara)
+    try {
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: token,
+          ip: request.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1",
+          userAgent: request.headers.get("user-agent") || "PiBrowser",
+          isActive: true,
+          lastActiveAt: new Date(),
+        }
+      });
+    } catch (sessionError) {
+      // On ne bloque pas le login si la création de session échoue
+      console.error("Session creation error:", sessionError);
+    }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       user: {
         id: user.id,
         username: user.username,
+        role: user.role,
         piUserId: user.piUserId
-      } 
+      }
     });
 
   } catch (error: any) {
     console.error("Pimpay Login Error:", error);
     return NextResponse.json(
-      { error: "Erreur serveur lors de l'authentification" },
+      { error: "Le protocole de sécurité Elara a rencontré une erreur" },
       { status: 500 }
     );
   }

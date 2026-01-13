@@ -4,21 +4,23 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { verifyAuth } from "@/lib/auth/verify";
-import bcrypt from "bcryptjs"; // Pour la réinitialisation sécurisée
+import bcrypt from "bcryptjs";
 
 const ConfigModel = prisma.systemConfig;
 
-// --- GET : RÉCUPÉRATION DE LA CONFIGURATION ---
+// --- GET : RÉCUPÉRATION DE LA CONFIGURATION ET DES STATS ---
 export async function GET(req: NextRequest) {
   try {
     let config = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
 
+    // Initialisation si inexistant
     if (!config) {
       config = await ConfigModel.create({
         data: {
           id: "GLOBAL_CONFIG",
           appVersion: "2.4.0-STABLE",
           maintenanceMode: false,
+          comingSoonMode: false, // Initialisé par défaut
           consensusPrice: 314159.0,
           stakingAPY: 12.0,
           transactionFee: 0.5,
@@ -29,20 +31,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    let userStatus = { isBanned: false, isFrozen: false };
-    try {
-      const authUser = await verifyAuth(req);
-      if (authUser?.id) {
-        const user = await prisma.user.findUnique({
-          where: { id: authUser.id },
-          select: { id: true }
-        });
-        if (user) userStatus = { isBanned: false, isFrozen: false };
-      }
-    } catch (e) { console.warn("Public fetch"); }
+    // Récupération des statistiques réelles pour l'admin
+    const [totalUsers, activeSessions] = await Promise.all([
+      prisma.user.count(),
+      prisma.session.count({ where: { isActive: true } })
+    ]);
 
     let logs: any[] = [];
     let isAdmin = false;
+
     try {
       const adminSession = await adminAuth(req);
       if (adminSession) {
@@ -54,9 +51,19 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) { isAdmin = false; }
 
-    return NextResponse.json({ ...config, auditLogs: logs, userStatus, isAdmin });
+    return NextResponse.json({ 
+      ...config, 
+      auditLogs: logs, 
+      isAdmin,
+      stats: {
+        totalUsers,
+        activeSessions,
+        piVolume24h: 314.15 // Tu pourras lier cela à une agrégation de transactions plus tard
+      }
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: "Erreur noyau", maintenanceMode: true }, { status: 500 });
+    console.error("GET_CONFIG_ERROR:", error);
+    return NextResponse.json({ error: "Erreur noyau Elara" }, { status: 500 });
   }
 }
 
@@ -65,20 +72,21 @@ export async function POST(req: NextRequest) {
   try {
     const adminSession = await adminAuth(req);
     if (!adminSession) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+      return NextResponse.json({ error: "Accès refusé - Protocole Elara" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { action, userId, newSecret } = body;
+    const { action } = body;
 
-    // 1. ACTION : RÉINITIALISATION MOT DE PASSE OU PIN
+    // 1. ACTION : RÉINITIALISATION (Password/Pin)
     if (action === "RESET_PASSWORD" || action === "RESET_PIN") {
+      const { userId, newSecret } = body;
       if (!userId || !newSecret) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
-      
+
       const hashedSecret = await bcrypt.hash(newSecret, 10);
-      const updateData = action === "RESET_PASSWORD" 
-        ? { password: hashedSecret } 
-        : { pinCode: hashedSecret };
+      const updateData = action === "RESET_PASSWORD"
+        ? { password: hashedSecret }
+        : { pin: hashedSecret }; // Corrigé selon ton schéma 'pin'
 
       await prisma.user.update({
         where: { id: userId },
@@ -89,37 +97,31 @@ export async function POST(req: NextRequest) {
         data: {
           adminName: adminSession.email || "Admin",
           action: action,
-          details: `Réinitialisation effectuée pour l'utilisateur ${userId}`
+          details: `Réinitialisation de sécurité pour l'utilisateur ${userId}`
         }
       });
 
       return NextResponse.json({ message: "Réinitialisation réussie" });
     }
 
-    // 2. ACTION : MAINTENANCE INSTANTANÉE (MODIFICATION IMMÉDIATE)
-    if (action === "TOGGLE_MAINTENANCE") {
+    // 2. ACTION : TOGGLE SPECIFIQUE (Maintenance ou Coming Soon)
+    if (action === "TOGGLE_MODE") {
+      const { modeType } = body; // 'maintenanceMode' ou 'comingSoonMode'
       const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+      
       const updated = await ConfigModel.update({
         where: { id: "GLOBAL_CONFIG" },
-        data: { maintenanceMode: !current?.maintenanceMode }
-      });
-
-      await prisma.auditLog.create({
-        data: {
-          adminName: adminSession.email || "Admin",
-          action: "MAINTENANCE_TOGGLE",
-          details: `Maintenance passée à : ${updated.maintenanceMode}`
-        }
+        data: { [modeType]: !current?.[modeType as keyof typeof current] }
       });
 
       return NextResponse.json(updated);
     }
 
-    // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise à jour globale)
-    const { 
-      appVersion, globalAnnouncement, transactionFee, 
-      maintenanceMode, minWithdrawal, consensusPrice, 
-      stakingAPY, forceUpdate 
+    // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise à jour globale depuis ton formulaire)
+    const {
+      appVersion, globalAnnouncement, transactionFee,
+      maintenanceMode, comingSoonMode, minWithdrawal, 
+      consensusPrice, stakingAPY, forceUpdate
     } = body;
 
     const updatedConfig = await ConfigModel.update({
@@ -128,7 +130,8 @@ export async function POST(req: NextRequest) {
         appVersion,
         globalAnnouncement,
         transactionFee: Number(transactionFee),
-        maintenanceMode: Boolean(maintenanceMode), // Force le mode instantané ici
+        maintenanceMode: Boolean(maintenanceMode),
+        comingSoonMode: Boolean(comingSoonMode), // Support du nouveau mode
         minWithdrawal: Number(minWithdrawal),
         consensusPrice: Number(consensusPrice),
         stakingAPY: Number(stakingAPY),
@@ -140,7 +143,7 @@ export async function POST(req: NextRequest) {
       data: {
         adminName: adminSession.email || "Admin",
         action: "UPDATE_SYSTEM_CONFIG",
-        details: `Mise à jour noyau v${appVersion}`
+        details: `Synchronisation noyau v${appVersion} effectuée.`
       }
     });
 
@@ -148,6 +151,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("ADMIN_POST_ERROR:", error);
-    return NextResponse.json({ error: "Erreur d'exécution de l'action" }, { status: 500 });
+    return NextResponse.json({ error: "Échec de l'opération noyau" }, { status: 500 });
   }
 }

@@ -1,16 +1,15 @@
-"use client";                               
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, ArrowDownLeft, RefreshCcw,
   Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
   Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,
-  LogOut, LayoutGrid, Receipt, Smartphone, Share2,
-  History
-} from "lucide-react";                      
-import { PI_CONSENSUS_USD } from "@/lib/exchange";                                      
-import { BottomNav } from "@/components/bottom-nav";                                    
-import { Sidebar } from "@/components/sidebar";                                         
+  LogOut, Smartphone, History
+} from "lucide-react";
+import { PI_CONSENSUS_USD } from "@/lib/exchange";
+import { BottomNav } from "@/components/bottom-nav";
+import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
 
 const RATES = {
@@ -58,17 +57,19 @@ export default function UserDashboard() {
     router.push("/auth/login");
   };
 
-  // --- LOGIQUE DE RENDU HISTORIQUE (Style Home) ---
+  // --- LOGIQUE DE RENDU HISTORIQUE CORRIGÉE ---
   const getTransactionUI = (tx: any, currentUserId: string) => {
+    // Une transaction est reçue si le type est DEPOSIT ou si le destinataire est moi
     const isReceived = tx.type === 'DEPOSIT' || tx.toUserId === currentUserId;
     
-    if (tx.type === 'SWAP') {
+    // Détection des Swaps (EXCHANGE ou SWAP)
+    if (tx.type === 'SWAP' || tx.type === 'EXCHANGE') {
       return {
         icon: <RefreshCcw size={22} />,
         bgColor: "bg-orange-500/10 text-orange-500",
-        sign: "",
+        sign: "", // On laisse vide car le swap est un échange interne
         amountColor: "text-orange-400",
-        label: "Swap"
+        label: "Swap GCV"
       };
     }
 
@@ -78,7 +79,7 @@ export default function UserDashboard() {
         bgColor: "bg-blue-500/10 text-blue-400",
         sign: "-",
         amountColor: "text-slate-300",
-        label: "Top-up"
+        label: "Recharge"
       };
     }
 
@@ -100,9 +101,11 @@ export default function UserDashboard() {
     );
   }
 
+  // Correction de l'extraction du solde PI
   const piWallet = data?.wallets?.find((w: any) => w.currency === "PI");
   const balance = piWallet ? piWallet.balance : (data?.balance || 0);
-  const userName = data?.name || "Pioneer";
+  
+  const userName = data?.name || data?.username || "Pioneer";
   const transactions = data?.transactions || [];
   const convertedValue = (balance * PI_CONSENSUS_USD) * RATES[currency];
 
@@ -119,7 +122,7 @@ export default function UserDashboard() {
 
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white">
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">
             P
           </div>
           <div className="flex flex-col">
@@ -205,7 +208,7 @@ export default function UserDashboard() {
             ))}
         </div>
 
-        {/* SECTION HISTORIQUE - DESIGN PAGE ACCUEIL INTEGRÉ */}
+        {/* SECTION HISTORIQUE */}
         <section className="mb-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
@@ -216,7 +219,7 @@ export default function UserDashboard() {
             {transactions.length > 0 ? transactions.map((tx: any) => {
               const ui = getTransactionUI(tx, data.id);
               const status = tx.status || "SUCCESS";
-              
+
               return (
                 <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800/60 transition-colors">
                   <div className="flex items-center gap-4">
@@ -228,7 +231,11 @@ export default function UserDashboard() {
                         {tx.description || ui.label}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        <p className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${
+                          status === 'SUCCESS' || status === 'COMPLETED' 
+                          ? 'bg-emerald-500/20 text-emerald-400' 
+                          : 'bg-amber-500/20 text-amber-400'
+                        }`}>
                           {status}
                         </p>
                         <span className="text-[9px] text-slate-600 font-medium">
