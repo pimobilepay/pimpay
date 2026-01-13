@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, ArrowDownLeft, RefreshCcw,
@@ -33,7 +33,7 @@ export default function UserDashboard() {
   useEffect(() => {
     setHasMounted(true);
     fetchDashboardData();
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
@@ -60,15 +60,43 @@ export default function UserDashboard() {
     router.push("/auth/login");
   };
 
-  // Logique d'icône dynamique pour l'historique
+  // --- LOGIQUE CALCUL STATS RÉELLES ---
+  const statsData = useMemo(() => {
+    if (!data?.transactions) return [
+      { name: "Envois", value: 0 },
+      { name: "Reçus", value: 0 },
+      { name: "Swaps", value: 0 },
+      { name: "Recharges", value: 0 }
+    ];
+
+    const stats = { Envois: 0, Reçus: 0, Swaps: 0, Recharges: 0 };
+    
+    data.transactions.forEach((tx: any) => {
+      const type = (tx.type || "").toUpperCase();
+      const isReceived = tx.toUserId === data.id || type === 'DEPOSIT';
+      
+      if (type.includes('SWAP') || type.includes('EXCHANGE')) stats.Swaps += tx.amount;
+      else if (type.includes('MOBILE') || type.includes('TOPUP')) stats.Recharges += tx.amount;
+      else if (isReceived) stats.Reçus += tx.amount;
+      else stats.Envois += tx.amount;
+    });
+
+    return Object.entries(stats).map(([name, value]) => ({ name, value }));
+  }, [data]);
+
+  // --- LOGIQUE ICÔNES DYNAMIQUES ---
   const getTxIcon = (tx: any) => {
-    const type = tx.type?.toUpperCase();
+    const type = (tx.type || "").toUpperCase();
     const isReceived = tx.toUserId === data?.id || type === 'DEPOSIT';
 
-    if (type === 'SWAP' || type === 'EXCHANGE') return { icon: <RefreshCcw size={20} />, color: "bg-orange-500/10 text-orange-500" };
-    if (type === 'MOBILE_RECHARGE' || type === 'TOPUP') return { icon: <Smartphone size={20} />, color: "bg-indigo-500/10 text-indigo-500" };
-    if (isReceived) return { icon: <ArrowDownCircle size={20} />, color: "bg-emerald-500/10 text-emerald-500" };
-    return { icon: <ArrowUpCircle size={20} />, color: "bg-blue-500/10 text-blue-500" };
+    if (type.includes('SWAP') || type.includes('EXCHANGE')) 
+      return { icon: <RefreshCcw size={20} />, color: "bg-orange-500/10 text-orange-500", label: "Swap GCV" };
+    if (type.includes('MOBILE') || type.includes('TOPUP')) 
+      return { icon: <Smartphone size={20} />, color: "bg-indigo-500/10 text-indigo-500", label: "Recharge" };
+    if (isReceived) 
+      return { icon: <ArrowDownCircle size={20} />, color: "bg-emerald-500/10 text-emerald-500", label: "Reçu" };
+    
+    return { icon: <ArrowUpCircle size={20} />, color: "bg-blue-500/10 text-blue-500", label: "Envoyé" };
   };
 
   if (!hasMounted || isLoading) {
@@ -86,18 +114,10 @@ export default function UserDashboard() {
   const transactions = data?.transactions || [];
   const convertedValue = (balance * PI_CONSENSUS_USD) * RATES[currency];
 
-  const statsData = [
-    { name: "Envois", value: 400 },
-    { name: "Swaps", value: 300 },
-    { name: "Recharges", value: 200 },
-    { name: "Retraits", value: 100 },
-  ];
-
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      {/* HEADER AVEC PERMUTATION DES BOUTONS */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
@@ -108,37 +128,25 @@ export default function UserDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* BOUTON NOTIFICATIONS (Maintenant à gauche du profil) */}
           <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
             <Bell size={20} />
             <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
           </button>
 
-          {/* BOUTON PROFIL (Maintenant à l'extrémité droite) */}
           <div className="relative" ref={menuRef}>
-            <button 
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:bg-white/10 transition-all active:scale-90 border border-transparent hover:border-white/10"
-            >
+            <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:bg-white/10 transition-all active:scale-90">
               <User size={20} />
             </button>
-            
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110] animate-in fade-in zoom-in duration-200">
                 <div className="p-4 border-b border-white/5 mb-2">
                   <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Compte PimPay</p>
                   <p className="text-sm font-bold truncate">{userName}</p>
                 </div>
-                <button 
-                  onClick={() => router.push("/profile")}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase tracking-tight"
-                >
+                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase tracking-tight">
                   <Settings size={16} /> Mon Profil
                 </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase tracking-tight"
-                >
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase tracking-tight">
                   <LogOut size={16} /> Déconnexion
                 </button>
               </div>
@@ -167,12 +175,12 @@ export default function UserDashboard() {
               </h2>
               <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">{userName}</p>
             </div>
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end text-right">
                 <button onClick={() => setShowCurrencyPicker(!showCurrencyPicker)} className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
                   <Globe size={12} className="text-blue-400" />
                   <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${(convertedValue).toLocaleString()} ${currency}` : "Locked"}</p>
                 </button>
-                <div className="text-right">
+                <div>
                   <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Network</p>
                   <p className="text-[10px] font-bold text-white uppercase italic">Pi Mainnet</p>
                 </div>
@@ -197,10 +205,10 @@ export default function UserDashboard() {
             ))}
         </div>
 
-        {/* SECTION STATISTIQUES */}
+        {/* SECTION STATISTIQUES RÉELLES */}
         <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10 shadow-inner">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Répartition Activité</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Répartition réelle</h3>
             <LayoutGrid size={16} className="text-slate-600" />
           </div>
           <div className="flex items-center gap-6">
@@ -214,7 +222,7 @@ export default function UserDashboard() {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">88%</div>
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">ACTIF</div>
             </div>
             <div className="flex-1 grid grid-cols-1 gap-2">
               {statsData.map((item, i) => (
@@ -223,22 +231,23 @@ export default function UserDashboard() {
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
                     <span className="text-[9px] font-bold text-slate-400 uppercase">{item.name}</span>
                   </div>
-                  <span className="text-[10px] font-black">{item.value}</span>
+                  <span className="text-[10px] font-black">π {item.value.toFixed(1)}</span>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* HISTORIQUE AVEC ICÔNES DYNAMIQUES */}
+        {/* HISTORIQUE RÉEL AVEC SIGNES +/- */}
         <section className="mb-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
             <History size={16} className="text-slate-600" />
           </div>
           <div className="space-y-4">
-            {transactions.length > 0 ? transactions.slice(0, 5).map((tx: any) => {
-              const { icon, color } = getTxIcon(tx);
+            {transactions.length > 0 ? transactions.slice(0, 10).map((tx: any) => {
+              const { icon, color, label } = getTxIcon(tx);
+              const isReceived = tx.toUserId === data?.id || tx.type?.toUpperCase() === 'DEPOSIT';
               return (
                 <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors">
                   <div className="flex items-center gap-4">
@@ -246,14 +255,14 @@ export default function UserDashboard() {
                       {icon}
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-tight text-white">{tx.description || "Paiement PimPay"}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-tight text-white">{tx.description || label}</p>
                       <p className="text-[8px] text-slate-500 font-black uppercase mt-1">
                         {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                       </p>
                     </div>
                   </div>
-                  <p className={`text-sm font-black ${tx.toUserId === data?.id ? 'text-emerald-400' : 'text-blue-400'}`}>
-                    {tx.toUserId === data?.id ? '+' : '-'}π {tx.amount.toLocaleString()}
+                  <p className={`text-sm font-black ${isReceived ? 'text-emerald-400' : 'text-blue-400'}`}>
+                    {isReceived ? '+' : '-'}π {tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               );
@@ -263,7 +272,6 @@ export default function UserDashboard() {
           </div>
         </section>
       </main>
-
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
     </div>
   );
