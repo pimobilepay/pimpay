@@ -1,67 +1,88 @@
-export const dynamic = "force-dynamic";
-
-// CORRECTION : Import depuis 'next/server'
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { cookies } from "next/headers";
+import * as jose from "jose";
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
+  const timestamp = new Date().toLocaleTimeString();
+  console.log(`[${timestamp}] 🚀 [PI-APPROVE] Début de l'approbation du paiement...`);
+
   try {
-    // 1. Vérification de la session
-    const session = await auth() as any; 
-    if (!session || !session.user) {
+    const body = await request.json();
+    const { paymentId, amount } = body;
+
+    // 1. Récupération de la session utilisateur via le token JWT
+    const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
+
+    if (!token) {
+      console.error(`[${timestamp}] ❌ [AUTH] Aucun token trouvé dans les cookies.`);
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { paymentId, amount } = body;
+    // Décodage du token pour avoir l'ID de l'utilisateur
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jose.jwtVerify(token, secret);
+    const userId = payload.id as string;
 
-    if (!paymentId) {
-      return NextResponse.json({ error: "PaymentId manquant" }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
-    // 2. Approbation via l'API Pi Network
-    const piApiKey = process.env.PI_API_KEY;
-    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${piApiKey}`,
-        "Content-Type": "application/json"
-      }
-    });
+    console.log(`[${timestamp}] 📥 [LOG] Paiement ${paymentId} pour l'utilisateur ${userId}`);
 
-    if (!response.ok) {
-      const errorDetail = await response.json();
-      console.error("PI_API_ERROR:", errorDetail);
-      throw new Error("Échec de l'approbation côté Pi Network");
-    }
-
-    // 3. Enregistrement dans la base de données Pimpay
-    // On utilise 'upsert' pour éviter les erreurs de doublons sur la 'reference'
-    await prisma.transaction.upsert({
-      where: { reference: paymentId },
-      update: {
-        status: "PENDING", // Devient PENDING après approbation, sera COMPLETED après le txid
+    // 2. Vérification de l'existence du Wallet Pi de l'utilisateur
+    const userWallet = await prisma.wallet.findUnique({
+      where: {
+        userId_currency: {
+          userId: userId,
+          currency: "PI",
+        },
       },
-      create: {
-        reference: paymentId,
-        amount: parseFloat(amount) || 0,
-        type: "PAYMENT",
-        status: "PENDING",
-        fromUserId: session.user.id,
-        description: "Paiement Pi Network (Approuvé)",
-        currency: "PI",
-        metadata: {
-          platform: "pi-browser",
-          approvedAt: new Date().toISOString()
-        }
-      }
     });
 
-    return NextResponse.json({ success: true });
+    if (!userWallet) {
+      console.error(`[${timestamp}] ❌ [WALLET] Wallet PI introuvable pour cet utilisateur.`);
+      return NextResponse.json({ error: "Portefeuille PI introuvable" }, { status: 404 });
+    }
+
+    // 3. Création de la transaction dans la base de données Pimpay
+    // On utilise 'toUserId' et 'toWalletId' car c'est un dépôt (l'argent arrive)
+    console.log(`[${timestamp}] 🔄 [DB] Création de la transaction PENDING...`);
+    
+    const transaction = await prisma.transaction.create({
+      data: {
+        reference: `DEP-PI-${paymentId.slice(-8)}-${Math.random().toString(36).substring(7)}`,
+        externalId: paymentId, // On stocke le paymentId de Pi ici pour le retrouver plus tard
+        amount: parseFloat(amount),
+        type: "DEPOSIT",
+        status: "PENDING",
+        currency: "PI",
+        toUserId: userId,
+        toWalletId: userWallet.id,
+        description: "Dépôt via Pi Network SDK",
+        metadata: {
+          paymentId: paymentId,
+          source: "PiBrowser",
+          initiatedAt: new Date().toISOString()
+        }
+      },
+    });
+
+    console.log(`[${timestamp}] ✅ [SUCCESS] Transaction ${transaction.reference} créée. Prêt pour approbation Pi.`);
+
+    // 4. Réponse au Pi SDK pour qu'il continue le processus
+    return NextResponse.json({
+      success: true,
+      message: "Payment approved on Pimpay server",
+      transactionId: transaction.id
+    });
 
   } catch (error: any) {
-    console.error("PI_APPROVE_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error(`[${timestamp}] 💥 [CRITICAL] Erreur Approve:`, error.message);
+    return NextResponse.json(
+      { error: "Erreur lors de l'approbation", details: error.message },
+      { status: 500 }
+    );
   }
 }

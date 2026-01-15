@@ -1,24 +1,25 @@
 "use client";
 
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ArrowRight, Receipt, Wallet, Sparkles } from "lucide-react";
+import { CheckCircle2, ArrowRight, Receipt, Wallet, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function DepositSuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams();
   const ref = searchParams.get("ref");
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-between py-20 px-8 text-center font-sans overflow-hidden">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-between py-20 px-8 text-center font-sans overflow-hidden relative">
       
       {/* Background Glow Effect */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
-
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />   
+      
       <div className="flex flex-col items-center w-full animate-in fade-in zoom-in duration-700">
         {/* Animated Badge */}
         <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-12">
-          <Sparkles size={12} className="text-emerald-500" />
+          <Sparkles size={12} className="text-emerald-500 animate-pulse" />
           <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Transaction Approuvée</span>
         </div>
 
@@ -29,7 +30,7 @@ export default function DepositSuccessPage() {
             <CheckCircle2 className="text-white" size={48} strokeWidth={3} />
           </div>
         </div>
-                                      
+
         <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter mb-2">
           Succès !
         </h1>
@@ -39,36 +40,54 @@ export default function DepositSuccessPage() {
 
         {/* Mini Receipt Preview */}
         <div className="mt-10 w-full max-w-[260px] p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-           <div className="flex justify-between items-center opacity-50">
-              <span className="text-[8px] font-black uppercase text-slate-400">Réf. Transaction</span>
-              <span className="text-[9px] font-mono text-white">{ref?.slice(0, 10) || "TX-PIM-99"}...</span>
+           <div className="flex justify-between items-center opacity-60">
+              <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Réf. PimPay</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">{ref?.slice(0, 12).toUpperCase() || "PIMPAY-TX-88"}</span>
            </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="w-full space-y-4 relative z-10">
+      <div className="w-full space-y-4 relative z-10 max-w-sm">
         <Link href={`/deposit/details?ref=${ref}`} className="block">
-          <Button className="w-full h-20 bg-white text-black hover:bg-slate-100 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-between px-8 shadow-xl shadow-white/5 group">
+          <Button className="w-full h-20 bg-white text-black hover:bg-slate-100 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-between px-8 shadow-xl shadow-white/5 group transition-all active:scale-[0.98]">
             <div className="flex items-center gap-3">
-               <Receipt size={20} className="text-blue-600" />
+               <div className="p-2 bg-blue-600/10 rounded-xl">
+                  <Receipt size={20} className="text-blue-600" />
+               </div>
                <span className="text-sm">Voir le reçu</span>
             </div>
             <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
           </Button>
         </Link>
 
-        <Link href="/" className="block">
-          <Button className="w-full h-16 bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3">
+        <Link href="/dashboard" className="block">
+          <Button className="w-full h-16 bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all">
             <Wallet size={18} />
-            Mon Portefeuille
+            Tableau de bord
           </Button>
         </Link>
 
-        <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em] mt-4">
-          Protocole de sécurité PimPay v4.0
-        </p>
+        <div className="flex flex-col items-center gap-1 mt-4">
+          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">
+            Protocole de sécurité PimPay v4.0
+          </p>
+          <div className="w-12 h-1 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent rounded-full" />
+        </div>
       </div>
     </div>
+  );
+}
+
+// ✅ Export avec Suspense pour éviter les erreurs de build
+export default function DepositSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={40} />
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   );
 }

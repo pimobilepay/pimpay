@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-// CORRECTION : On importe depuis 'next/server'
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -12,34 +11,49 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. On cherche la transaction correspondante dans Pimpay
+    // 1. OBLIGATOIRE : Validation auprès des serveurs Pi Network
+    const piApiKey = process.env.PI_API_KEY;
+    const piResponse = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${piApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ txid }) // On leur envoie le hash de la blockchain
+    });
+
+    if (!piResponse.ok) {
+      const errorDetail = await piResponse.json();
+      console.error("PI_COMPLETE_REMOTE_ERROR:", errorDetail);
+      return NextResponse.json({ error: "Pi Network n'a pas validé la transaction" }, { status: 402 });
+    }
+
+    // 2. Vérification locale de la transaction
     const transaction = await prisma.transaction.findUnique({
-      where: { reference: paymentId },
-      include: { fromUser: true }
+      where: { reference: paymentId }
     });
 
     if (!transaction || !transaction.fromUserId) {
-      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
+      return NextResponse.json({ error: "Transaction introuvable dans PimPay" }, { status: 404 });
     }
 
-    // 2. TRANSACTION ATOMIQUE : On finalise tout d'un coup
+    // 3. TRANSACTION ATOMIQUE : Mise à jour du solde et du statut
     const result = await prisma.$transaction(async (tx) => {
-      // a. Mettre à jour la transaction
+      // a. Finaliser la transaction
       const updatedTx = await tx.transaction.update({
         where: { id: transaction.id },
         data: {
           status: "COMPLETED",
           blockchainTx: txid,
           metadata: {
-            ...(transaction.metadata as object),
+            ...(transaction.metadata as any),
             completedAt: new Date().toISOString(),
-            txid: txid
+            confirmedByPi: true
           }
         }
       });
 
-      // b. Mettre à jour le Wallet de l'utilisateur (on débite s'il s'agit d'un paiement vers l'app)
-      // Note : Adapte 'decrement' ou 'increment' selon si c'est un achat ou un dépôt
+      // b. Mise à jour du Wallet (RECHARGE : on utilise INCREMENT)
       const wallet = await tx.wallet.update({
         where: {
           userId_currency: {
@@ -49,7 +63,7 @@ export async function POST(req: Request) {
         },
         data: {
           balance: {
-            decrement: transaction.amount // On retire le montant payé
+            increment: transaction.amount // L'utilisateur a payé en Pi, on augmente son solde PimPay
           }
         }
       });
@@ -57,13 +71,14 @@ export async function POST(req: Request) {
       return { updatedTx, wallet };
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      balance: result.wallet.balance 
+    return NextResponse.json({
+      success: true,
+      balance: result.wallet.balance,
+      transactionId: result.updatedTx.id
     });
 
   } catch (error: any) {
     console.error("PI_COMPLETE_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Erreur lors de la finalisation" }, { status: 500 });
+    return NextResponse.json({ error: "Échec du protocole de finalisation" }, { status: 500 });
   }
 }

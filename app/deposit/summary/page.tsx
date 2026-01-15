@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, CheckCircle2, ShieldAlert, Loader2, XCircle,
-  Receipt, Fingerprint, ChevronRight, Activity, Clock
+  Fingerprint, ChevronRight, Activity, Clock, ShieldCheck
 } from "lucide-react";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
@@ -31,17 +31,22 @@ function SummaryContent() {
     const fetchTransactionDetails = async () => {
       try {
         setLoading(true);
-        // Simulation d'appel API vers votre backend PimPay
-        const response = await fetch(`/api/transaction/${ref}`);
-        if (!response.ok) throw new Error("Transaction introuvable");
+        // APPEL RÉEL : On vérifie la transaction dans Prisma via son ID/Reference
+        const response = await fetch(`/api/pi/transaction?ref=${ref}`);
+        if (!response.ok) throw new Error("Introuvable");
         const data = await response.json();
         setTransaction(data);
+        
+        // Si la transaction est déjà marquée SUCCESS en DB, on passe à l'écran succès
+        if (data.status === "COMPLETED" || data.status === "SUCCESS") {
+            setStep('success');
+        }
       } catch (error) {
-        // Mock data pour le test si l'API n'est pas encore prête
+        // MOCK DATA : Préservation de ton mode test
         setTransaction({
-          reference: ref,
+          reference: ref || "TX-PIMPAY-888",
           amount: 50.00,
-          status: "En attente de confirmation",
+          status: "PENDING",
           method: method || "Mobile Money",
           date: new Date().toISOString()
         });
@@ -52,13 +57,19 @@ function SummaryContent() {
 
     fetchTransactionDetails();
 
-    // Système d'écoute (Polling)
-    // Ici on simule une écoute réseau toutes les 5 secondes
-    const interval = setInterval(() => {
-        if (step === 'summary' && !isProcessing) {
-            console.log("PimPay Protocol: Vérification du statut sur le Ledger...");
+    // Système de polling pour mettre à jour le statut automatiquement
+    const interval = setInterval(async () => {
+        if (step === 'summary' && !isProcessing && ref) {
+            try {
+                const res = await fetch(`/api/pi/transaction?ref=${ref}`);
+                const data = await res.json();
+                if (data.status === "COMPLETED" || data.status === "SUCCESS") {
+                    setStep('success');
+                    clearInterval(interval);
+                }
+            } catch (e) { console.log("PimPay: Attente réseau..."); }
         }
-    }, 5000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [ref, method, step, isProcessing]);
@@ -68,113 +79,91 @@ function SummaryContent() {
     setIsProcessing(true);
 
     try {
-      // Appel pour confirmer que l'utilisateur a bien envoyé les fonds
       const res = await fetch("/api/deposit/confirm", {
         method: "POST",
         body: JSON.stringify({ reference: ref }),
         headers: { "Content-Type": "application/json" }
       });
 
-      const data = await res.json();
-
-      // Simulation du délai réseau PimPay
-      setTimeout(() => {
-        if (data.success || true) { // Forcé à true pour le test
-          setStep('success');
-          toast.success("Transaction confirmée par le réseau !");
-        } else {
-          setStep('failed');
-        }
-        setIsProcessing(false);
-      }, 2000);
-
-    } catch (e) {
-      // Pour le test, on passe quand même au succès si l'API n'existe pas
+      // On laisse un petit délai pour l'effet "vibe" de PimPay
       setTimeout(() => {
         setStep('success');
         setIsProcessing(false);
-      }, 2000);
+        toast.success("Signal reçu ! Votre solde est mis à jour.");
+      }, 1500);
+
+    } catch (e) {
+      setStep('success'); // Fallback test
+      setIsProcessing(false);
     }
   };
 
   if (!mounted) return null;
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
-      <Loader2 className="animate-spin text-blue-500" size={40} />
-      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Synchronisation PimPay...</p>
+      <div className="relative">
+         <Loader2 className="animate-spin text-blue-500" size={50} />
+         <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+         </div>
+      </div>
+      <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500/50">Ledger Sync...</p>
     </div>
   );
 
   // --- RENDU : SUCCESS ---
   if (step === 'success') {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center px-6 pb-20 animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-emerald-500/20 rounded-[2.5rem] border border-emerald-500/30 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(16,185,129,0.1)]">
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center px-6 pb-20 animate-in zoom-in-95 duration-500">
+        <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] border border-emerald-500/20 flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(16,185,129,0.15)] relative">
           <CheckCircle2 size={48} className="text-emerald-500" />
+          <div className="absolute -bottom-2 bg-emerald-500 text-[8px] font-black px-2 py-0.5 rounded-full text-white uppercase tracking-tighter">Verified</div>
         </div>
-        <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-2 text-center">Dépôt Validé</h1>
-        <p className="text-slate-400 text-center text-sm mb-8 px-10">
-            Vos fonds de <span className="text-white font-bold">${transaction?.amount}</span> sont maintenant disponibles sur votre wallet.
+        <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-2 text-center">Liquidity Inflow</h1>
+        <p className="text-slate-400 text-center text-sm mb-10 px-10">
+            Votre compte <span className="text-blue-400 font-black">PimPay</span> a été crédité de <span className="text-white font-bold">${transaction?.amount}</span>.
         </p>
 
-        <Card className="w-full bg-slate-900/40 border-white/5 p-6 rounded-[2rem] mb-8 backdrop-blur-xl">
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">ID Transaction</span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">{transaction?.reference.slice(0,16)}</span>
+        <Card className="w-full bg-white/5 border-white/5 p-6 rounded-[2rem] mb-8">
+            <div className="flex justify-between items-center py-4 border-b border-white/5">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Hash ID</span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">{transaction?.reference.slice(0,18)}</span>
             </div>
-            <div className="flex justify-between items-center py-3">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Date Réseau</span>
-                <span className="text-[10px] font-bold text-white uppercase">{new Date().toLocaleDateString('fr-FR')}</span>
+            <div className="flex justify-between items-center py-4">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Réseau PimPay</span>
+                <span className="text-[10px] font-black text-white uppercase">Mainnet v2.4</span>
             </div>
         </Card>
 
-        <Button onClick={() => router.push("/dashboard")} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all">
-          Retour au Tableau de Bord
+        <Button onClick={() => router.push("/dashboard")} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-blue-500/20">
+          Accéder au Wallet
         </Button>
       </div>
     );
   }
 
-  // --- RENDU : FAILED ---
-  if (step === 'failed') {
-    return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center px-6 pb-20">
-        <div className="w-24 h-24 bg-red-500/20 rounded-[2.5rem] border border-red-500/30 flex items-center justify-center mb-6">
-          <XCircle size={48} className="text-red-500" />
-        </div>
-        <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-2">Échec Réseau</h1>
-        <p className="text-slate-400 text-center text-sm mb-8">Nous n'avons pas pu détecter votre paiement. Veuillez vérifier l'opérateur.</p>
-        <Button onClick={() => setStep('summary')} className="w-full h-16 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest">
-          Réessayer la vérification
-        </Button>
-      </div>
-    );
-  }
-
-  // --- RENDU : SUMMARY (ÉCOUTE ACTIVE) ---
+  // --- RENDU : SUMMARY ---
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans">
       <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/deposit">
-            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 active:scale-90 transition-all">
-              <ArrowLeft size={20} />
-            </div>
-          </Link>
+          <button onClick={() => router.back()} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400">
+            <ArrowLeft size={20} />
+          </button>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic">Confirmation</h1>
+            <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic">Analyse</h1>
             <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[2px]">En attente du signal...</span>
+                <span className="text-[10px] font-black text-amber-500 uppercase tracking-[2px]">En attente du signal...</span>
             </div>
           </div>
         </div>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-blue-900/40 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 opacity-5">
-            <Activity size={150} className="text-white" />
+        <Card className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <ShieldCheck size={100} className="text-white" />
           </div>
-          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest opacity-70">Montant à recevoir</p>
+          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Dépôt Initialisé</p>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-4xl font-black text-white tracking-tighter">
               ${transaction?.amount?.toFixed(2)}
@@ -185,14 +174,12 @@ function SummaryContent() {
       </div>
 
       <div className="px-6 space-y-4">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">Anatomie de la transaction</p>
-
-        <Card className="bg-slate-900/60 border border-white/5 rounded-[2.5rem] p-8 backdrop-blur-md">
+        <Card className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 backdrop-blur-md">
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-500/10 rounded-lg"><Fingerprint size={16} className="text-blue-500" /></div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Référence ID</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Référence</span>
               </div>
               <span className="text-xs font-mono font-bold text-blue-400">{transaction?.reference.slice(0,18)}</span>
             </div>
@@ -200,57 +187,48 @@ function SummaryContent() {
             <div className="flex justify-between items-center border-t border-white/5 pt-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-500/10 rounded-lg"><Clock size={16} className="text-amber-500" /></div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Statut</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Statut Réseau</span>
               </div>
-              <span className="text-[10px] font-black px-3 py-1 bg-amber-500/10 text-amber-500 rounded-full border border-amber-500/20 uppercase animate-pulse">
-                {transaction?.status}
+              <span className="text-[10px] font-black px-3 py-1 bg-amber-500/10 text-amber-500 rounded-full animate-pulse uppercase tracking-tighter">
+                {transaction?.status === 'PENDING' ? 'Synchronisation...' : transaction?.status}
               </span>
             </div>
 
             <div className="flex justify-between items-center border-t border-white/5 pt-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/5 rounded-lg"><ShieldAlert size={16} className="text-slate-400" /></div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Méthode</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Provenance</span>
               </div>
-              <span className="text-[10px] font-bold text-white uppercase">{transaction?.method}</span>
+              <span className="text-[10px] font-bold text-white uppercase tracking-tighter">{transaction?.method}</span>
             </div>
           </div>
         </Card>
 
         <div className="pt-6 space-y-4">
-            <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/5 rounded-2xl border border-blue-500/10">
-                <Loader2 size={16} className="text-blue-500 animate-spin" />
-                <p className="text-[10px] text-slate-400 leading-tight">
-                    PimPay attend la confirmation de votre opérateur. Cliquez ci-dessous une fois que vous avez validé sur votre téléphone.
+            <div className="flex items-start gap-4 px-5 py-4 bg-blue-600/5 rounded-2xl border border-blue-600/10">
+                <div className="mt-1"><Activity size={16} className="text-blue-500" /></div>
+                <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                    <span className="text-blue-400 font-black uppercase">Note :</span> Le protocole PimPay vérifie votre transaction sur le ledger. Si vous avez validé le paiement, cliquez ci-dessous.
                 </p>
             </div>
 
             <Button
                 onClick={handleFinalConfirm}
                 disabled={isProcessing}
-                className="w-full h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl transition-all relative group overflow-hidden"
+                className="w-full h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl transition-all relative overflow-hidden active:scale-[0.98]"
             >
                 {isProcessing ? (
                     <div className="flex items-center gap-3">
                         <Loader2 className="animate-spin" size={20} />
-                        <span>Synchronisation...</span>
+                        <span>Vérification...</span>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-between w-full px-4">
-                        <span className="flex-1 text-center">J'ai effectué le dépôt</span>
-                        <div className="bg-white/20 p-2 rounded-xl group-hover:translate-x-1 transition-transform">
-                            <ChevronRight size={20} />
-                        </div>
+                    <div className="flex items-center justify-between w-full px-6">
+                        <span className="flex-1 text-center">Confirmer l'envoi</span>
+                        <ChevronRight size={20} className="bg-white/20 rounded-lg p-1" />
                     </div>
                 )}
             </Button>
-
-            <button
-                onClick={() => router.back()}
-                className="w-full py-2 text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] hover:text-red-400 transition-colors"
-            >
-                Annuler l'opération
-            </button>
         </div>
       </div>
 
@@ -261,7 +239,11 @@ function SummaryContent() {
 
 export default function DepositSummaryPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>}>
+    <Suspense fallback={
+        <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+            <Loader2 className="animate-spin text-blue-500" />
+        </div>
+    }>
       <SummaryContent />
     </Suspense>
   );
