@@ -3,26 +3,28 @@
 import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
-  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter                                   } from "lucide-react";
+  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter
+} from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";          
+import { useEffect, useState } from "react";
 
-interface UserData {                                    
+interface UserData {
   name: string;
   email: string;
   kycStatus?: string;
 }
 
-export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {                 
+export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
-  const pathname = usePathname();                       
+  const pathname = usePathname();
   const [user, setUser] = useState<UserData | null>(null);
   const [mounted, setMounted] = useState(false);
 
   // 1. Chargement optimisé : Immédiat via localStorage + Refresh via API
   useEffect(() => {
     setMounted(true);
-
+    
+    // Récupération instantanée pour éviter la latence
     const savedUser = localStorage.getItem("pimpay_user");
     if (savedUser) {
       setUser(JSON.parse(savedUser));
@@ -123,16 +125,9 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   if (!mounted) return null;
 
   return (
-    /* J'ai mis z-[9999] ici pour que le menu passe devant TOUT le dashboard */
-    <div className={`fixed inset-0 z-[9999] transition-all duration-300 ${open ? "visible" : "invisible"}`}>
-      
-      {/* Overlay - Fond sombre */}
-      <div 
-        onClick={onClose} 
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} 
-      />
+    <div className={`fixed inset-0 z-[100] transition-all duration-300 ${open ? "visible" : "invisible"}`}>
+      <div onClick={onClose} className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} />
 
-      {/* Menu Latéral */}
       <div className={`absolute top-0 left-0 h-full w-[280px] bg-[#020617] border-r border-white/10 shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex flex-col h-full">
 
