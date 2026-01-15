@@ -1,121 +1,48 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import * as jose from "jose";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    console.error("❌ [MIDDLEWARE] JWT_SECRET manquant !");
-    return null;
-  };
-  return new TextEncoder().encode(secret);
-};
+/**
+ * Routes qui nécessitent absolument une connexion Pi
+ * Ajout de /dashboard ici pour qu'il soit protégé mais accessible si connecté
+ */
+const PROTECTED_ROUTES = ['/dashboard', '/wallet', '/profile', '/api/payments'];
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  const token = req.cookies.get("token")?.value;
+/**
+ * Routes toujours accessibles
+ */
+const PUBLIC_ROUTES = ['/auth/login', '/', '/api/auth/pi-login'];
 
-  // 1. RÉCUPÉRATION DES ÉTATS (Cookies)
-  const maintenanceCookie = req.cookies.get("maintenance_mode")?.value;
-  const maintenanceUntil = req.cookies.get("maintenance_until")?.value;
-  const comingSoonCookie = req.cookies.get("coming_soon_mode")?.value;
-  const hasBypassCookie = req.cookies.has("admin_bypass");
-  
-  let isMaintenanceModeActive = maintenanceCookie === "true";
-  const isComingSoonModeActive = comingSoonCookie === "true";
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  if (isMaintenanceModeActive && maintenanceUntil) {
-    const now = new Date().getTime();
-    const expiry = new Date(maintenanceUntil).getTime();
-    if (now > expiry) isMaintenanceModeActive = false;
+  // 1. On récupère le token de session
+  const sessionToken = request.cookies.get('pi_session_token')?.value;
+
+  const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+
+  // CAS A : Accès à une zone protégée SANS session
+  if (isProtectedRoute && !sessionToken) {
+    // Si on n'est pas connecté, on redirige vers l'accueil (ou login)
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Définition des routes spéciales
-  const isAuthPage = pathname.startsWith("/auth") || pathname === "/login" || pathname === "/";
-  const isMaintenancePage = pathname === "/maintenance";
-  const isComingSoonPage = pathname === "/coming-soon";
-  const isAdminPath = pathname.startsWith("/admin");
-  const isUnlockPath = pathname.startsWith("/api/unlock");
-  const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico)$/);
-
-  // 2. VÉRIFICATION DU TOKEN
-  let userPayload: any = null;
-  if (token) {
-    try {
-      const secret = getJwtSecret();
-      if (secret) {
-        const { payload } = await jose.jwtVerify(token, secret);
-        userPayload = payload;
-      }
-    } catch (e) {
-      if (!isAuthPage && !isMaintenancePage && !isComingSoonPage && !isPublicAsset) {
-        const response = NextResponse.redirect(new URL("/", req.url));
-        response.cookies.delete("token");
-        return response;
-      }
-    }
+  // CAS B : Déjà connecté et essaie d'aller sur login -> Go Dashboard
+  if (pathname === '/login' && sessionToken) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  const isAdmin = userPayload?.role === "ADMIN";
-
-  // 3. LOGIQUE DE PROTECTION (MAINTENANCE & COMING SOON)
-  if (isMaintenanceModeActive && !isMaintenancePage && !isUnlockPath && !isPublicAsset) {
-    if (!isAdmin && !hasBypassCookie) {
-      return NextResponse.redirect(new URL("/maintenance", req.url));
-    }
-  }
-
-  if (isComingSoonModeActive && !isComingSoonPage && !isMaintenancePage && !isUnlockPath && !isPublicAsset) {
-    if (!isAdmin && !hasBypassCookie) {
-      return NextResponse.redirect(new URL("/coming-soon", req.url));
-    }
-  }
-
-  // 4. LOGIQUE POUR UTILISATEURS CONNECTÉS (CORRIGÉE POUR ADMIN)
-  if (userPayload) {
-    // Définition de la destination par défaut selon le rôle
-    const userHome = isAdmin ? "/admin/dashboard" : "/dashboard";
-
-    // Si l'utilisateur est sur une page de login/accueil alors qu'il est déjà connecté
-    if (isAuthPage) {
-      return NextResponse.redirect(new URL(userHome, req.url));
-    }
-
-    // Protection des routes Admin : si un simple USER tente d'entrer sur /admin
-    if (isAdminPath && !isAdmin) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-
-    // Rediriger hors des pages de restriction si elles sont terminées
-    if (!isMaintenanceModeActive && isMaintenancePage) {
-      return NextResponse.redirect(new URL(userHome, req.url));
-    }
-    if (!isComingSoonModeActive && isComingSoonPage) {
-      return NextResponse.redirect(new URL(userHome, req.url));
-    }
-  }
-
-  // 5. LOGIQUE POUR UTILISATEURS NON CONNECTÉS
-  if (!userPayload && !isAuthPage && !isMaintenancePage && !isComingSoonPage && !isUnlockPath && !isPublicAsset) {
-    let dest = "/";
-    if (isMaintenanceModeActive && !hasBypassCookie) dest = "/maintenance";
-    else if (isComingSoonModeActive && !hasBypassCookie) dest = "/coming-soon";
-
-    return NextResponse.redirect(new URL(dest, req.url));
-  }
-
-  // 6. FINALISATION
-  const res = NextResponse.next();
-  if (maintenanceCookie === "true" && !isMaintenanceModeActive) {
-    res.cookies.delete("maintenance_mode");
-    res.cookies.delete("maintenance_until");
-  }
-
-  return res;
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|logo.png|images|assets).*)",
+    /*
+     * On exclut les fichiers statiques et les routes d'auth pour éviter les boucles
+     */
+    '/((?!api/auth/pi-login|_next/static|_next/image|favicon.ico|images|public).*)',
   ],
 };
+

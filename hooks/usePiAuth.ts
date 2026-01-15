@@ -24,7 +24,7 @@ export const usePiAuth = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentId: payment.identifier,
-          txid: payment.transaction?.txid 
+          txid: payment.transaction?.txid
         }),
       });
 
@@ -41,7 +41,6 @@ export const usePiAuth = () => {
    * Authentification Pi Network synchronisée avec Prisma
    */
   const loginWithPi = async () => {
-    // 1. Vérification de l'environnement Pi Browser
     if (typeof window === "undefined" || !window.Pi) {
       toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
       return null;
@@ -52,8 +51,6 @@ export const usePiAuth = () => {
     try {
       const Pi = window.Pi;
 
-      // 2. Authentification avec Scopes
-      // L'utilisateur doit valider la fenêtre d'autorisation Pi ici
       const auth = await Pi.authenticate(
         ['username', 'payments'],
         handleIncompletePayment
@@ -82,14 +79,21 @@ export const usePiAuth = () => {
         throw new Error(result.error || "Échec de synchronisation PimPay");
       }
 
+      // --- AJOUT CRUCIAL POUR LE MIDDLEWARE ---
+      // On crée le cookie de session ici. 
+      // result.user.id provient de ta base de données Prisma
+      const sessionValue = result.user?.id || auth.user.uid;
+      document.cookie = `pi_session_token=${sessionValue}; path=/; max-age=86400; SameSite=Lax`;
+      // ----------------------------------------
+
       // 4. Succès
       setUser(auth.user);
-      
-      // Stockage pour la session Elara
+
+      // Stockage local pour l'UI
       localStorage.setItem("pimpay_user", JSON.stringify(result.user));
 
-      return result; // On retourne le résultat de l'API (qui contient le rôle, etc.)
-      
+      return { success: true, user: result.user }; 
+
     } catch (error: any) {
       console.error("Erreur d'authentification Pi:", error);
 
@@ -98,7 +102,7 @@ export const usePiAuth = () => {
       if (error.message?.includes("timed out")) errorMsg = "Le SDK Pi ne répond pas (Timeout)";
 
       toast.error(errorMsg);
-      return null;
+      return { success: false, error: errorMsg };
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -42,7 +43,6 @@ export default function LoginPage() {
     }, 4500);
   };
 
-  // Login Classique (Email/Password)
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (loading) return;
@@ -64,12 +64,9 @@ export default function LoginPage() {
 
       if (data.requirePin) {
         setTempUserId(data.userId);
-        setShowPinModal(true);
+        setShowPinModal(true); // Ouvre le modal PIN avec le design compact
         setLoading(false);
       } else if (data?.user) {
-        // AJOUT DU COOKIE POUR LE MIDDLEWARE
-        document.cookie = `pi_session_token=${data.user.id}; path=/; max-age=86400; SameSite=Lax`;
-
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
         triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
       }
@@ -79,23 +76,10 @@ export default function LoginPage() {
     }
   };
 
-  // Login via Pi Browser
   const handlePiBrowserLogin = async () => {
-    try {
-      const result = await loginWithPi();
-
-      if (result && result.success) {
-        // AJOUT DU COOKIE POUR LE MIDDLEWARE
-        const token = result.user?.uid || "pi_connected";
-        document.cookie = `pi_session_token=${token}; path=/; max-age=86400; SameSite=Lax`;
-
-        triggerSuccessTransition("/dashboard");
-      } else {
-        toast.error("Échec de la connexion Pi Network");
-      }
-    } catch (error) {
-      console.error("Erreur Pi Login:", error);
-      toast.error("Erreur de communication avec le Pi Browser");
+    const result = await loginWithPi();
+    if (result && result.success) {
+      triggerSuccessTransition("/dashboard");
     }
   };
 
@@ -107,13 +91,11 @@ export default function LoginPage() {
       <PinCodeModal
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
-        onSuccess={() => {
-          document.cookie = `pi_session_token=verified; path=/; max-age=86400; SameSite=Lax`;
-          triggerSuccessTransition("/dashboard");
-        }}
+        onSuccess={() => triggerSuccessTransition("/dashboard")}
         userId={tempUserId}
       />
 
+      {/* TRANSITION OVERLAY */}
       {showTransition && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">
             <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 ${
@@ -153,7 +135,7 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
                <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
-               {/* FIX: Removed 'size' prop which caused the build error */}
+               {/* CORRECTION : Suppression de size="sm" qui causait l'erreur de build */}
                <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
                   Oublié ?
                </Link>

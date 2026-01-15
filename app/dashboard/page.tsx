@@ -1,13 +1,23 @@
-"use client";                                                                                               import { useEffect, useState, useCallback } from "react";                                                                                                         // Définition du type pour le Pi Browser SDK          declare global {
-  interface Window {                                      Pi: any;
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+
+// Définition du type pour le Pi Browser SDK
+declare global {
+  interface Window {
+    Pi: any;
   }
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [loading, setLoading] = useState(true);       
-  // 1. Récupération des données du Dashboard Pimpay    const fetchDashboardData = useCallback(async () => {    try {                                                   const response = await fetch('/api/dashboard');
+  const [loading, setLoading] = useState(true);
+
+  // 1. Récupération des données du Dashboard Pimpay
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const response = await fetch('/api/dashboard');
       if (response.ok) {
         const result = await response.json();
         setData(result);
@@ -23,7 +33,7 @@ export default function DashboardPage() {
     // Initialisation au chargement
     fetchDashboardData();
 
-    // Rafraîchissement automatique (optionnel, toutes le 10s pour économiser les ressources)
+    // Rafraîchissement automatique toutes les 10s
     const interval = setInterval(fetchDashboardData, 10000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
@@ -51,7 +61,6 @@ export default function DashboardPage() {
       const callbacks = {
         onReadyForServerApproval: async (paymentId: string) => {
           console.log("Approbation du paiement côté serveur...");
-          // Appelle ta route /api/pi/approve que nous avons corrigée
           await fetch('/api/pi/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -60,7 +69,6 @@ export default function DashboardPage() {
         },
         onReadyForServerCompletion: async (paymentId: string, txid: string) => {
           console.log("Finalisation du paiement...");
-          // Appelle ta route /api/pi/complete que nous avons corrigée
           await fetch('/api/pi/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -93,7 +101,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-8 max-w-lg mx-auto bg-slate-900 text-white rounded-xl shadow-2xl mt-10 border border-slate-800">
+    <div className="p-8 max-w-lg mx-auto bg-slate-900 text-white rounded-xl shadow-2xl mt-10 border border-slate-800 font-sans">
       <h1 className="text-2xl font-black text-purple-400 mb-6 uppercase tracking-tighter">
         Pimpay Dashboard
       </h1>
@@ -112,7 +120,9 @@ export default function DashboardPage() {
 
           <div className="bg-gradient-to-br from-purple-900/40 to-slate-800 p-6 rounded-xl border border-purple-500/30">
             <p className="text-purple-300 text-sm mb-1 uppercase tracking-widest font-bold">Solde Actuel</p>
-            <p className="text-4xl font-black">{data?.wallet?.balance || 0} <span className="text-lg text-purple-400">π</span></p>
+            <p className="text-4xl font-black">
+              {data?.wallet?.balance || 0} <span className="text-lg text-purple-400">π</span>
+            </p>
           </div>
 
           <button
