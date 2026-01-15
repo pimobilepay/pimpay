@@ -15,10 +15,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
+  const [loading, setLoading] = useState(false);      
   const [showPinModal, setShowPinModal] = useState(false);
   const [tempUserId, setTempUserId] = useState<string | null>(null);
+  const [tempRole, setTempRole] = useState<string | null>(null); // AJOUTÉ : État pour le rôle
 
   const { loginWithPi, loading: piLoading } = usePiAuth();
 
@@ -64,11 +64,13 @@ export default function LoginPage() {
 
       if (data.requirePin) {
         setTempUserId(data.userId);
+        setTempRole(data.role); // MODIFIÉ : On stocke le rôle
         setShowPinModal(true);
         setLoading(false);
       } else if (data?.user) {
-        // AJOUT DU COOKIE POUR LE MIDDLEWARE
-        document.cookie = `pi_session_token=${data.user.id}; path=/; max-age=86400; SameSite=Lax`;
+        // AJOUT DU COOKIE POUR LE MIDDLEWARE (Utilisation du token au lieu de l'ID)
+        const sessionToken = data.token || data.user.id;
+        document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
 
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
         triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
@@ -85,10 +87,10 @@ export default function LoginPage() {
       const result = await loginWithPi();
 
       if (result && result.success) {
-        // AJOUT DU COOKIE POUR LE MIDDLEWARE
         const token = result.user?.uid || "pi_connected";
         document.cookie = `pi_session_token=${token}; path=/; max-age=86400; SameSite=Lax`;
 
+        // Note: Pour Pi Browser, redirection dashboard par défaut (souvent user simple)
         triggerSuccessTransition("/dashboard");
       } else {
         toast.error("Échec de la connexion Pi Network");
@@ -109,7 +111,9 @@ export default function LoginPage() {
         onClose={() => setShowPinModal(false)}
         onSuccess={() => {
           document.cookie = `pi_session_token=verified; path=/; max-age=86400; SameSite=Lax`;
-          triggerSuccessTransition("/dashboard");
+          // MODIFIÉ : Redirection dynamique après le PIN
+          const destination = tempRole === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+          triggerSuccessTransition(destination);
         }}
         userId={tempUserId}
       />
@@ -153,7 +157,6 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
                <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
-               {/* FIX: Removed 'size' prop which caused the build error */}
                <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
                   Oublié ?
                </Link>

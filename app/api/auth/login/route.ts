@@ -13,7 +13,6 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const { email: identifier, password } = body;
-
     if (!identifier || !password) {
       return NextResponse.json({ error: "Identifiants requis" }, { status: 400 });
     }
@@ -34,12 +33,14 @@ export async function POST(req: Request) {
     }
 
     // 3. VÉRIFICATION SI UN PIN EST CONFIGURÉ
-    // Si l'utilisateur a un PIN, on ne le connecte pas encore.
-    // On demande au front d'afficher le Modal PIN.
+    // Modifié pour inclure le rôle afin de préparer la redirection Admin
     if (user.pin) {
-      // On crée un petit token temporaire (expire dans 5 min) juste pour l'ID
       const secretKey = new TextEncoder().encode(SECRET);
-      const tempToken = await new SignJWT({ userId: user.id, purpose: "pin_verification" })
+      const tempToken = await new SignJWT({ 
+        userId: user.id, 
+        role: user.role, // Inclus pour le middleware et le front
+        purpose: "pin_verification" 
+      })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('5m')
@@ -49,12 +50,12 @@ export async function POST(req: Request) {
         success: true,
         requirePin: true,
         tempToken: tempToken,
-        userId: user.id
+        userId: user.id,
+        role: user.role // Permet au front de savoir s'il va vers /admin après
       });
     }
 
     // 4. SI PAS DE PIN (Cas rare ou nouveau compte), CONNEXION DIRECTE
-    // Note: Pour Pimpay, il est conseillé de forcer la création d'un PIN après.
     const secretKey = new TextEncoder().encode(SECRET);
     const token = await new SignJWT({
       id: user.id,
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 24 * 7,
     };
 
+    // On définit les deux noms de cookies pour être compatible avec tous tes composants
     response.cookies.set("pimpay_token", token, cookieOptions);
     response.cookies.set("token", token, cookieOptions);
 

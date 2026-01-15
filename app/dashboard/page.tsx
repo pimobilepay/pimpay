@@ -1,150 +1,270 @@
 "use client";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowUpRight, ArrowDownLeft, RefreshCcw,
+  Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
+  Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,
+  LogOut, Smartphone, History, User, Settings, LayoutGrid
+} from "lucide-react";
+import { PI_CONSENSUS_USD } from "@/lib/exchange";
+import { BottomNav } from "@/components/bottom-nav";
+import { Sidebar } from "@/components/sidebar";
+import { toast } from "sonner";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
-import { useEffect, useState, useCallback } from "react";
+const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
+type CurrencyKey = keyof typeof RATES;
 
-// Définition du type pour le Pi Browser SDK
-declare global {
-  interface Window {
-    Pi: any;
-  }
-}
+const PIE_COLORS = ["#3b82f6", "#10b981", "#6366f1", "#f59e0b"];
 
-export default function DashboardPage() {
+export default function UserDashboard() {
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
-  const [isPaying, setIsPaying] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showBalance, setShowBalance] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyKey>("USD");
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // 1. Récupération des données du Dashboard Pimpay
-  const fetchDashboardData = useCallback(async () => {
+  useEffect(() => {
+    setHasMounted(true);
+    fetchDashboardData();
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  async function fetchDashboardData() {
     try {
-      const response = await fetch('/api/dashboard');
+      const response = await fetch("/api/user/profile", { cache: 'no-store' });
       if (response.ok) {
         const result = await response.json();
         setData(result);
+      } else if (response.status === 401) {
+        router.push("/auth/login");
       }
-    } catch (error) {
-      console.error("Erreur de rafraîchissement Pimpay:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    } catch (err) { console.error(err); } finally { setIsLoading(false); }
+  }
 
-  useEffect(() => {
-    // Initialisation au chargement
-    fetchDashboardData();
-
-    // Rafraîchissement automatique toutes les 10s
-    const interval = setInterval(fetchDashboardData, 10000);
-    return () => clearInterval(interval);
-  }, [fetchDashboardData]);
-
-  // 2. Fonction de Paiement (Déclenchée par le bouton)
-  const handleReceivePi = async () => {
-    if (typeof window === "undefined" || !window.Pi) {
-      alert("Veuillez ouvrir cette application dans le Pi Browser.");
-      return;
-    }
-
-    setIsPaying(true);
-
-    try {
-      // Configuration du paiement pour le SDK Pi
-      const paymentData = {
-        amount: 1.0,
-        memo: "Dépôt sur mon compte Pimpay",
-        metadata: {
-          userId: data?.user?.id,
-          type: "deposit_pi"
-        }
-      };
-
-      const callbacks = {
-        onReadyForServerApproval: async (paymentId: string) => {
-          console.log("Approbation du paiement côté serveur...");
-          await fetch('/api/pi/approve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId, amount: 1.0 })
-          });
-        },
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          console.log("Finalisation du paiement...");
-          await fetch('/api/pi/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId, txid })
-          });
-
-          // Succès ! On rafraîchit les données du solde
-          fetchDashboardData();
-          setIsPaying(false);
-          alert("Dépôt réussi ! Votre solde a été mis à jour.");
-        },
-        onCancel: (paymentId: string) => {
-          console.log("Paiement annulé.");
-          setIsPaying(false);
-        },
-        onError: (error: Error, payment?: any) => {
-          console.error("Erreur SDK Pi:", error);
-          setIsPaying(false);
-          alert("Erreur lors du paiement Pi.");
-        },
-      };
-
-      // Déclenchement effectif de la fenêtre Pi
-      await window.Pi.createPayment(paymentData, callbacks);
-
-    } catch (err) {
-      console.error("Erreur lors de la création du paiement:", err);
-      setIsPaying(false);
-    }
+  const handleLogout = () => {
+    toast.success("Déconnexion réussie");
+    router.push("/auth/login");
   };
 
+  // Logique d'icône dynamique pour l'historique
+  const getTxIcon = (tx: any) => {
+    const type = tx.type?.toUpperCase();
+    const isReceived = tx.toUserId === data?.id || type === 'DEPOSIT';
+
+    if (type === 'SWAP' || type === 'EXCHANGE') return { icon: <RefreshCcw size={20} />, color: "bg-orange-500/10 text-orange-500" };
+    if (type === 'MOBILE_RECHARGE' || type === 'TOPUP') return { icon: <Smartphone size={20} />, color: "bg-indigo-500/10 text-indigo-500" };
+    if (isReceived) return { icon: <ArrowDownCircle size={20} />, color: "bg-emerald-500/10 text-emerald-500" };
+    return { icon: <ArrowUpCircle size={20} />, color: "bg-blue-500/10 text-blue-500" };
+  };
+
+  if (!hasMounted || isLoading) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p>
+      </div>
+    );
+  }
+
+  const piWallet = data?.wallets?.find((w: any) => w.currency === "PI");
+  const balance = piWallet ? piWallet.balance : (data?.balance || 0);
+  const userName = data?.name || data?.username || "Pioneer";
+  const transactions = data?.transactions || [];
+  const convertedValue = (balance * PI_CONSENSUS_USD) * RATES[currency];
+
+  const statsData = [
+    { name: "Envois", value: 400 },
+    { name: "Swaps", value: 300 },
+    { name: "Recharges", value: 200 },
+    { name: "Retraits", value: 100 },
+  ];
+
   return (
-    <div className="p-8 max-w-lg mx-auto bg-slate-900 text-white rounded-xl shadow-2xl mt-10 border border-slate-800 font-sans">
-      <h1 className="text-2xl font-black text-purple-400 mb-6 uppercase tracking-tighter">
-        Pimpay Dashboard
-      </h1>
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      {loading ? (
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-400">Synchronisation Elara...</p>
+      {/* HEADER AVEC PERMUTATION DES BOUTONS */}
+      <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
+          <div>
+            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1>
+            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Pi Mobile Pay</p>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <p className="text-slate-400 text-sm">Utilisateur connecté</p>
-            <p className="text-xl font-bold">@{data?.user?.username || "Pionnier"}</p>
-          </div>
 
-          <div className="bg-gradient-to-br from-purple-900/40 to-slate-800 p-6 rounded-xl border border-purple-500/30">
-            <p className="text-purple-300 text-sm mb-1 uppercase tracking-widest font-bold">Solde Actuel</p>
-            <p className="text-4xl font-black">
-              {data?.wallet?.balance || 0} <span className="text-lg text-purple-400">π</span>
-            </p>
-          </div>
-
-          <button
-            onClick={handleReceivePi}
-            disabled={isPaying}
-            className="w-full bg-purple-600 hover:bg-purple-500 active:scale-95 transition-all text-white font-bold py-4 rounded-xl shadow-lg shadow-purple-900/20 disabled:bg-slate-700 disabled:text-slate-500"
-          >
-            {isPaying ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Transaction sécurisée...
-              </span>
-            ) : (
-              "DÉPOSER 1 PI SUR PIMPAY"
-            )}
+        <div className="flex items-center gap-2">
+          {/* BOUTON NOTIFICATIONS (Maintenant à gauche du profil) */}
+          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
+            <Bell size={20} />
+            <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
           </button>
 
-          <p className="text-[10px] text-center text-slate-500 italic">
-            Protocole sécurisé par Elara • Pi Network Mainnet
-          </p>
+          {/* BOUTON PROFIL (Maintenant à l'extrémité droite) */}
+          <div className="relative" ref={menuRef}>
+            <button 
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:bg-white/10 transition-all active:scale-90 border border-transparent hover:border-white/10"
+            >
+              <User size={20} />
+            </button>
+            
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-3 w-56 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110] animate-in fade-in zoom-in duration-200">
+                <div className="p-4 border-b border-white/5 mb-2">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Compte PimPay</p>
+                  <p className="text-sm font-bold truncate">{userName}</p>
+                </div>
+                <button 
+                  onClick={() => router.push("/profile")}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase tracking-tight"
+                >
+                  <Settings size={16} /> Mon Profil
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase tracking-tight"
+                >
+                  <LogOut size={16} /> Déconnexion
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </header>
+
+      <main className="px-6">
+        {/* CARTE VIRTUELLE */}
+        <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
+          <div className="relative z-10 h-full flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-wider">Active Card</span>
+              </div>
+              <button onClick={() => setShowBalance(!showBalance)} className="text-white/40 p-2">
+                {showBalance ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <div>
+              <h2 className="text-4xl font-black tracking-tighter mt-1 flex items-center gap-2">
+                <span className="text-blue-200">π</span>
+                {showBalance ? balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : "••••••"}
+              </h2>
+              <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">{userName}</p>
+            </div>
+            <div className="flex justify-between items-end">
+                <button onClick={() => setShowCurrencyPicker(!showCurrencyPicker)} className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+                  <Globe size={12} className="text-blue-400" />
+                  <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${(convertedValue).toLocaleString()} ${currency}` : "Locked"}</p>
+                </button>
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Network</p>
+                  <p className="text-[10px] font-bold text-white uppercase italic">Pi Mainnet</p>
+                </div>
+            </div>
+          </div>
+          <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
+        </div>
+
+        {/* ACTIONS RAPIDES */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
+            {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
+              { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
+              { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
+              { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
+            ].map((action, i) => (
+              <button key={i} onClick={() => router.push(action.link || "#")} className="flex flex-col items-center gap-2">
+                <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform`}>
+                  {action.icon}
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span>
+              </button>
+            ))}
+        </div>
+
+        {/* SECTION STATISTIQUES */}
+        <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10 shadow-inner">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Répartition Activité</h3>
+            <LayoutGrid size={16} className="text-slate-600" />
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="w-32 h-32 relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statsData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                    {statsData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">88%</div>
+            </div>
+            <div className="flex-1 grid grid-cols-1 gap-2">
+              {statsData.map((item, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{item.name}</span>
+                  </div>
+                  <span className="text-[10px] font-black">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* HISTORIQUE AVEC ICÔNES DYNAMIQUES */}
+        <section className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
+            <History size={16} className="text-slate-600" />
+          </div>
+          <div className="space-y-4">
+            {transactions.length > 0 ? transactions.slice(0, 5).map((tx: any) => {
+              const { icon, color } = getTxIcon(tx);
+              return (
+                <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>
+                      {icon}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-tight text-white">{tx.description || "Paiement PimPay"}</p>
+                      <p className="text-[8px] text-slate-500 font-black uppercase mt-1">
+                        {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                  <p className={`text-sm font-black ${tx.toUserId === data?.id ? 'text-emerald-400' : 'text-blue-400'}`}>
+                    {tx.toUserId === data?.id ? '+' : '-'}π {tx.amount.toLocaleString()}
+                  </p>
+                </div>
+              );
+            }) : (
+              <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">Aucune transaction</div>
+            )}
+          </div>
+        </section>
+      </main>
+
+      <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
     </div>
   );
 }

@@ -9,10 +9,18 @@ interface PinCodeModalProps {
   onClose: () => void;
   onSuccess: () => void;
   userId: string | null;
+  tempToken?: string | null; // AJOUTÉ : Pour valider la session
   title?: string;
 }
 
-export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title = "Code PIN de Connexion" }: PinCodeModalProps) {
+export default function PinCodeModal({ 
+  isOpen, 
+  onClose, 
+  onSuccess, 
+  userId, 
+  tempToken, // Récupéré depuis LoginPage
+  title = "Code PIN de Connexion" 
+}: PinCodeModalProps) {
   const [pin, setPin] = useState("");
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,28 +30,40 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login/verify-pin-login", {
+      // CORRECTION : Vérifie que cette URL est la bonne
+      const res = await fetch("/api/auth/verify-pin", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, pin: finalPin }),
+        body: JSON.stringify({ 
+            userId, 
+            pin: finalPin,
+            tempToken // ENVOYÉ : Pour que l'API génère le cookie final
+        }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Optionnel : On pourrait passer data.redirectTo à onSuccess 
+        // mais on va laisser la LoginPage gérer avec son état tempRole
         onSuccess();
         onClose();
+        setPin(""); // Reset pour la prochaine fois
       } else {
         setShake(true);
         setTimeout(() => setShake(false), 500);
-        setPin(""); 
+        setPin("");
       }
     } catch (err) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
+      setPin("");
     } finally {
       setLoading(false);
     }
-  }, [userId, onSuccess, onClose]);
+  }, [userId, tempToken, onSuccess, onClose]);
 
+  // ... le reste du code (useEffect, handleNumberPress, render) reste identique
   useEffect(() => {
     if (pin.length === 4 && !loading) {
       handleVerify(pin);
@@ -67,15 +87,12 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#020617]/90 backdrop-blur-sm p-4">
-        
-        {/* Container réduit et centré */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           className="w-full max-w-[400px] bg-slate-900 border border-white/10 rounded-[40px] shadow-2xl overflow-hidden"
         >
-          {/* Header réduit */}
           <div className="px-6 pt-8 text-center">
             <div className="inline-flex p-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-3">
               <ShieldCheck className="text-blue-500" size={24} />
@@ -85,7 +102,6 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
           </div>
 
           <div className={`px-8 py-6 ${shake ? "animate-shake" : ""}`}>
-            {/* Pin Dots */}
             <div className="flex justify-center gap-3 mb-8">
               {[0, 1, 2, 3].map((i) => (
                 <div
@@ -99,7 +115,6 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
               ))}
             </div>
 
-            {/* Numpad compact */}
             <div className="grid grid-cols-3 gap-y-4 gap-x-6 max-w-[280px] mx-auto text-center">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
@@ -111,7 +126,8 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
                   {num}
                 </button>
               ))}
-              <button 
+              <button
+                type="button"
                 onClick={onClose}
                 className="flex items-center justify-center text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-rose-500 transition-colors"
               >
@@ -134,7 +150,6 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, userId, title
             </div>
           </div>
 
-          {/* Zone de chargement intégrée en bas */}
           <div className="bg-slate-950/50 py-4 border-t border-white/5">
             {loading ? (
               <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
