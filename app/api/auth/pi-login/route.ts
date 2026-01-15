@@ -4,24 +4,28 @@ import { prisma } from "@/lib/prisma";
 import * as jose from "jose";
 import { cookies } from "next/headers";
 
+// ✅ REMPLACE PAR TON UID PI RÉEL (trouve-le dans tes logs console : piUserId=...)
+const ADMIN_UIDS = ["ton-id-pi-unique-ici"]; 
+
 export async function POST(request: Request) {
   const timestamp = new Date().toLocaleTimeString();
-  console.log(`[${timestamp}] 🚀 [PIMPAY-AUTH] Début de la tentative de connexion...`);
+  console.log(`[${timestamp}] 🚀 [PIMPAY-AUTH] Tentative de connexion...`);
 
   try {
     const body = await request.json();
-    const { piUserId, username, accessToken } = body;
-
-    // Log des données d'entrée
-    console.log(`[${timestamp}] 📥 [LOG] Données reçues: piUserId=${piUserId}, username=${username}`);
+    const { piUserId, username, accessToken } = body; 
 
     if (!piUserId) {
-      console.error(`[${timestamp}] ❌ [AUTH] Erreur: piUserId manquant dans la requête.`);
       return NextResponse.json({ error: "ID Pi manquant" }, { status: 400 });
     }
 
-    // --- ÉTAPE 1: PRISMA UPSERT ---
-    console.log(`[${timestamp}] 🔄 [DB] Synchronisation utilisateur (Prisma Upsert)...`);
+    // --- ÉTAPE 1: LOGIQUE DE RÔLE ---
+    // On vérifie si l'utilisateur qui se connecte doit être ADMIN
+    const isAdmin = ADMIN_UIDS.includes(piUserId);
+    const assignedRole = isAdmin ? "ADMIN" : "USER";
+
+    console.log(`[${timestamp}] 🔄 [DB] Synchronisation utilisateur: ${username} (Rôle assigné: ${assignedRole})`);
+
     let user;
     try {
       user = await prisma.user.upsert({
@@ -29,13 +33,14 @@ export async function POST(request: Request) {
         update: {
           username: username,
           lastLoginAt: new Date(),
+          role: assignedRole, // ✅ On met à jour le rôle à chaque connexion
         },
         create: {
           piUserId: piUserId,
           username: username,
           phone: `pi_${piUserId}`,
           status: "ACTIVE",
-          role: "USER",
+          role: assignedRole, // ✅ Création avec le bon rôle
           kycStatus: "NONE",
           wallets: {
             create: {
@@ -47,49 +52,41 @@ export async function POST(request: Request) {
         },
         include: { wallets: true }
       });
-      console.log(`[${timestamp}] ✅ [DB] Utilisateur ID: ${user.id} prêt.`);
+      console.log(`[${timestamp}] ✅ [DB] Utilisateur ID: ${user.id} prêt avec rôle: ${user.role}`);
     } catch (dbError: any) {
       console.error(`[${timestamp}] ❌ [DB-ERROR] Erreur Prisma:`, dbError.message);
       throw new Error(`Base de données inaccessible: ${dbError.message}`);
     }
 
-    // --- ÉTAPE 2: JWT ---
-    console.log(`[${timestamp}] 🔑 [JWT] Signature du jeton de sécurité...`);
+    // --- ÉTAPE 2: GÉNÉRATION DU TOKEN JWT ---
     if (!process.env.JWT_SECRET) {
-      console.error(`[${timestamp}] ❌ [CONFIG] JWT_SECRET est manquant dans le fichier .env`);
-      throw new Error("Configuration JWT manquante sur le serveur");
+      throw new Error("Configuration JWT manquante (JWT_SECRET)");
     }
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    
+    // ✅ On inclut bien user.role pour que le middleware sache où rediriger
     const token = await new jose.SignJWT({
       id: user.id,
       piUserId: user.piUserId,
-      role: user.role
+      role: user.role 
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("30d")
       .sign(secret);
-    console.log(`[${timestamp}] ✅ [JWT] Jeton généré avec succès.`);
 
     // --- ÉTAPE 3: COOKIES ---
-    console.log(`[${timestamp}] 🍪 [COOKIES] Injection du cookie de session...`);
-    try {
-      const cookieStore = cookies();
-      cookieStore.set("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30, // 30 jours
-        path: "/",
-      });
-      console.log(`[${timestamp}] ✅ [COOKIES] Cookie 'token' défini.`);
-    } catch (cookieError: any) {
-      console.error(`[${timestamp}] ❌ [COOKIE-ERROR] Impossible de définir le cookie:`, cookieError.message);
-    }
+    const cookieStore = cookies();
+    cookieStore.set("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+      path: "/",
+    });
 
-    // --- ÉTAPE 4: SESSION ---
-    console.log(`[${timestamp}] 📑 [SESSION] Enregistrement de la trace de connexion...`);
+    // --- ÉTAPE 4: ENREGISTREMENT SESSION ---
     try {
       await prisma.session.create({
         data: {
@@ -101,13 +98,10 @@ export async function POST(request: Request) {
           lastActiveAt: new Date(),
         }
       });
-      console.log(`[${timestamp}] ✅ [SESSION] Session enregistrée en base.`);
-    } catch (sessionError: any) {
-      console.warn(`[${timestamp}] ⚠️ [SESSION-WARNING] Erreur mineure session:`, sessionError.message);
+    } catch (e) {
+      console.warn(`[${timestamp}] ⚠️ Erreur session ignorée`);
     }
 
-    console.log(`[${timestamp}] ✨ [SUCCESS] Connexion Elara validée pour @${username}`);
-    
     return NextResponse.json({
       success: true,
       user: {
@@ -119,12 +113,9 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error(`[${timestamp}] 💥 [CRITICAL] Erreur lors du processus de connexion:`, error.message);
+    console.error(`[${timestamp}] 💥 [CRITICAL]`, error.message);
     return NextResponse.json(
-      { 
-        error: "Le protocole de sécurité Elara a rencontré une erreur",
-        details: error.message // Détails renvoyés pour le debug local
-      },
+      { error: "Erreur Elara", details: error.message },
       { status: 500 }
     );
   }
