@@ -1,23 +1,13 @@
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
-
-// Définition du type pour le Pi Browser SDK
-declare global {
-  interface Window {
-    Pi: any;
+"use client";                                                                                               import { useEffect, useState, useCallback } from "react";                                                                                                         // Définition du type pour le Pi Browser SDK          declare global {
+  interface Window {                                      Pi: any;
   }
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  // 1. Récupération des données du Dashboard Pimpay
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const response = await fetch('/api/dashboard'); 
+  const [loading, setLoading] = useState(true);       
+  // 1. Récupération des données du Dashboard Pimpay    const fetchDashboardData = useCallback(async () => {    try {                                                   const response = await fetch('/api/dashboard');
       if (response.ok) {
         const result = await response.json();
         setData(result);
@@ -52,9 +42,9 @@ export default function DashboardPage() {
       const paymentData = {
         amount: 1.0,
         memo: "Dépôt sur mon compte Pimpay",
-        metadata: { 
+        metadata: {
           userId: data?.user?.id,
-          type: "deposit_pi" 
+          type: "deposit_pi"
         }
       };
 
@@ -76,7 +66,7 @@ export default function DashboardPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ paymentId, txid })
           });
-          
+
           // Succès ! On rafraîchit les données du solde
           fetchDashboardData();
           setIsPaying(false);
@@ -139,7 +129,7 @@ export default function DashboardPage() {
               "DÉPOSER 1 PI SUR PIMPAY"
             )}
           </button>
-          
+
           <p className="text-[10px] text-center text-slate-500 italic">
             Protocole sécurisé par Elara • Pi Network Mainnet
           </p>
