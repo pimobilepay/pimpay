@@ -1,322 +1,331 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
+import SideMenu from "@/components/SideMenu";
+import { PiButton } from "@/components/PiButton";
+import "flag-icons/css/flag-icons.min.css";
 import {
-  ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
-  Clock, ShieldCheck, CircleDot, Loader2, CheckCircle2,
-  Landmark
+  ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin,
+  ShieldCheck, Coins, Zap, Loader2, Lock, RefreshCcw, Globe
 } from "lucide-react";
-import Link from "next/link";
+
 import { countries, type Country } from "@/lib/country-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { processDeposit } from "@/app/actions/deposit";
 
-export default function WithdrawPage() {
+const PI_GCV_PRICE = 314159;
+
+export default function DepositPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [piAmount, setPiAmount] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+
+  // On utilise tous les pays pour la sélection
+  const allCountries = countries;
+
   const [selectedCountry, setSelectedCountry] = useState<Country>(
-    countries.find((c) => c.code === "CD") || countries[0],
+    countries.find((c) => c.code === "CG") || countries.find((c) => c.code === "CD") || countries[0]
   );
   const [selectedOperator, setSelectedOperator] = useState("");
-  const [balance, setBalance] = useState<number>(0);
-  const [loadingBalance, setLoadingBalance] = useState(true);
-  const [issubmitting, setIsSubmitting] = useState(false);
-  const [transactions, setTransactions] = useState<any[]>([]);
-
-  const [bankInfo, setBankInfo] = useState({
-    bankName: "",
-    iban: "",
-    swift: "",
-    accountName: ""
-  });
+  const [cardInfo, setCardInfo] = useState({ number: "", expiry: "", cvc: "" });
 
   useEffect(() => {
-    setMounted(true);
-    fetchData();
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
   }, []);
 
-  async function fetchData() {
-    try {
-      const profileRes = await fetch("/api/user/profile");
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        setBalance(data.balance || 0);
-      }
-      const txRes = await fetch("/api/user/transactions?type=WITHDRAWAL");
-      if (txRes.ok) {
-        const data = await txRes.json();
-        setTransactions(data.transactions || []);
-      }
-    } catch (err) {
-      console.error("Erreur chargement:", err);
-    } finally {
-      setLoadingBalance(false);
-    }
-  }
-
-  const formatValue = (val: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(val);
-  };
-
-  // LOGIQUE MISE À JOUR : Redirection vers Summary
-  const handleWithdraw = async (method: "mobile" | "bank") => {
-    const amount = parseFloat(piAmount);
-    if (!amount || amount <= 0) return toast.error("Montant invalide");
-    if (amount > balance) return toast.error("Solde insuffisant");
-
-    let details = {};
-    if (method === "mobile") {
-      if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
-      if (!phoneNumber) return toast.error("Numéro de téléphone requis");
-      details = { 
-        phone: `${selectedCountry.dialCode}${phoneNumber}`, 
-        provider: selectedOperator,
-        country: selectedCountry.name 
-      };
+  useEffect(() => {
+    if (selectedCountry?.operators?.length > 0) {
+      setSelectedOperator(selectedCountry.operators[0].id);
     } else {
-      if (!bankInfo.iban || !bankInfo.bankName) return toast.error("Infos bancaires incomplètes");
-      details = bankInfo;
+      setSelectedOperator("");
     }
+  }, [selectedCountry]);
 
-    // Calcul final pour le résumé
-    const conversion = calculateExchangeWithFee(amount, selectedCountry.currency);
+  const refreshData = useCallback(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.info("Données synchronisées");
+    }, 800);
+  }, []);
 
-    const summaryData = {
-      amount: amount,
-      method: method,
-      currency: selectedCountry.currency,
-      fiatAmount: conversion.total,
-      details: details
-    };
-
-    // Encodage pour l'URL
-    const encodedData = btoa(JSON.stringify(summaryData));
-    router.push(`/withdraw/summary?data=${encodedData}`);
+  const calculatePiToReceive = () => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) return "0.000000";
+    return (val / PI_GCV_PRICE).toFixed(8);
   };
 
-  if (!mounted) return null;
+  const handleStartDeposit = async (method: "mobile" | "card") => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Veuillez entrer un montant valide");
+      return;
+    }
 
-  const conversion = piAmount ? calculateExchangeWithFee(parseFloat(piAmount), selectedCountry.currency) : { total: 0 };
+    setIsLoading(true);
+    try {
+      const payload = {
+        userId: "user_test_pimpay",
+        amount: parseFloat(amount),
+        method: method === "mobile" ? selectedOperator : method,
+        phone: method === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : "VIRTUAL_CARD",
+        currency: selectedCountry.code,
+        cardInfo: method === "card" ? cardInfo : null,
+      };
+
+      const response = await processDeposit(payload);
+
+      if (response.success) {
+        toast.success(`Dépôt ${method} initialisé !`);
+        router.push(`/deposit/summary?ref=${response.reference}&method=${method}`);
+      }
+    } catch (error) {
+        toast.error("Erreur de connexion au protocole PimPay");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans">
-      {/* Ton Design de Header reste identique */}
-      <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard">
-            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 transition-colors">
+    <div className={`min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+
+      <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+
+      {/* HEADER */}
+      <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push('/dashboard')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white/60 active:scale-90 transition-all">
               <ArrowLeft size={20} />
-            </div>
-          </Link>
-          <div>
-            <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">Retrait</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY OUTFLOW</span>
+            </button>
+            <div>
+              <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">Dépôt</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <CircleDot size={10} className="text-blue-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY INFLOW</span>
+              </div>
             </div>
           </div>
+
+          <button onClick={refreshData} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all">
+            <RefreshCcw size={18} className={`${isRefreshing ? "animate-spin text-blue-500" : "text-white/60"}`} />
+          </button>
         </div>
 
-        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl backdrop-blur-md">
-          <div className="absolute -right-4 -top-4 opacity-10 text-blue-500">
-            <ArrowUpFromLine size={120} />
+        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 relative overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="absolute top-0 right-0 p-6 opacity-10">
+            <Zap size={80} className="text-blue-500" />
           </div>
-          <div className="relative z-10">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Solde Pi disponible</p>
-            <div className="text-4xl font-black text-white tracking-tighter">
-              {loadingBalance ? <Loader2 className="animate-spin text-blue-500" size={24} /> : `π ${formatValue(balance)}`}
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-inner">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none italic">PimPay Protocol</p>
+              <p className="text-[10px] text-white/40 mt-2 leading-relaxed font-medium italic">
+                Approvisionnement sécurisé via Pi SDK & Mobile Money.
+              </p>
             </div>
           </div>
         </Card>
       </div>
 
-      <div className="px-6 -mt-10 space-y-8">
+      <div className="px-6 space-y-8">
+        {/* SÉLECTION DU PAYS */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2 flex items-center gap-2 italic">
+            <Globe size={12} className="text-blue-500" /> Région de paiement
+          </label>
+          <Select
+            value={selectedCountry.code}
+            onValueChange={(code) => {
+              const country = countries.find(c => c.code === code);
+              if(country) setSelectedCountry(country);
+            }}
+          >
+            <SelectTrigger className="w-full h-16 bg-slate-900/80 border-white/10 rounded-2xl px-6 text-white shadow-2xl">
+              <SelectValue>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{selectedCountry.flag}</span>
+                  <span className="font-bold tracking-tight">{selectedCountry.name}</span>
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl max-h-80">
+              {allCountries.map((c) => (
+                <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 focus:text-white py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{c.flag}</span>
+                    <span className="font-black uppercase text-[11px] tracking-wider">{c.name}</span>
+                    {!c.isActive && <span className="text-[8px] bg-white/10 px-2 py-0.5 rounded text-white/40 italic">Bientôt</span>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Tabs defaultValue="mobile" className="w-full">
+          {/* ✅ CORRECTION COULEURS ONGLETS */}
           <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/80 border border-white/10 rounded-2xl p-1 shadow-inner">
-            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="mobile" 
+              className="rounded-xl font-black text-[10px] uppercase text-white/60 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all"
+            >
               <Smartphone size={14} className="mr-2" /> Mobile
             </TabsTrigger>
-            <TabsTrigger value="bank" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Building2 size={14} className="mr-2" /> Banque
+            <TabsTrigger 
+              value="card" 
+              className="rounded-xl font-black text-[10px] uppercase text-white/60 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all"
+            >
+              <CreditCard size={14} className="mr-2" /> Carte
             </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Clock size={14} className="mr-2" /> Logs
+            <TabsTrigger 
+              value="crypto" 
+              className="rounded-xl font-black text-[10px] uppercase text-white/60 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all"
+            >
+              <Bitcoin size={14} className="mr-2" /> Crypto
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mobile" className="mt-8 space-y-6">
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
+          {/* MOBILE MONEY */}
+          <TabsContent value="mobile" className="space-y-6 mt-8">
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl backdrop-blur-md">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Pays de destination</label>
-                <Select value={selectedCountry.code} onValueChange={(code) => {
-                    const country = countries.find(c => c.code === code);
-                    if (country) { setSelectedCountry(country); setSelectedOperator(""); }
-                  }}>
-                  <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-white outline-none focus:ring-0">
-                    <SelectValue placeholder="Choisir pays" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                    {countries.map((c) => (
-                      <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 py-3 cursor-pointer">
-                        <span className="font-bold text-xs uppercase">{c.name}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-2 italic">Montant (USD)</label>
+                <div className="relative">
+                  <Coins className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
+                  <Input 
+                    type="number" 
+                    placeholder="0.00" 
+                    value={amount} 
+                    onChange={(e) => setAmount(e.target.value)} 
+                    className="h-16 bg-white/5 border-white/10 rounded-2xl pl-12 text-white font-black text-xl outline-none placeholder:text-white/10" 
+                  />
+                </div>
+                <p className="text-[10px] text-blue-400 font-bold italic ml-2">
+                  Soit environ { (Number(amount) * (selectedCountry.piToLocalRate || 0)).toLocaleString() } {selectedCountry.currency}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Opérateur Mobile Money</label>
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-2">Réseau Opérateur</label>
                 <Select value={selectedOperator} onValueChange={setSelectedOperator}>
                   <SelectTrigger className="w-full h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-white outline-none">
-                    <SelectValue placeholder="Sélectionnez un réseau" />
+                    <SelectValue placeholder="Choisir un réseau" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                    {selectedCountry.operators?.map((op) => (
-                      <SelectItem key={op.id} value={op.name} className="focus:bg-blue-600 py-4 cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <img src={op.icon} alt="" className="w-6 h-6 rounded-md object-contain bg-white p-0.5" />
-                          <span className="uppercase font-black text-xs">{op.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {selectedCountry.operators?.length > 0 ? (
+                      selectedCountry.operators.map((op) => (
+                        <SelectItem key={op.id} value={op.id} className="font-black text-[11px] uppercase py-4 focus:bg-blue-600">
+                          <div className="flex items-center gap-3">
+                            <img src={op.icon} alt={op.name} className="w-6 h-6 rounded-full object-cover bg-white p-0.5" />
+                            {op.name}
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-[10px] text-white/40 uppercase font-black italic">Indisponible ici</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Numéro bénéficiaire</label>
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-2">Numéro Mobile</label>
                 <div className="flex gap-2">
-                  <div className="h-16 w-20 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-sm font-black text-blue-500">
-                    {selectedCountry.dialCode}
-                  </div>
-                  <Input type="tel" placeholder="Ex: 812345678" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1 h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-lg font-black text-white outline-none" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Montant à retirer (π)</label>
-                <div className="relative">
-                  <Input type="number" placeholder="0.00" value={piAmount} onChange={(e) => setPiAmount(e.target.value)}
-                    className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-2xl font-black text-white outline-none" />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black text-white">PI</div>
-                </div>
-              </div>
-
-              {piAmount && (
-                <div className="p-6 bg-blue-600/5 border border-blue-500/10 rounded-[2rem] space-y-4">
-                  <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
-                    <span>Valeur Marché ($)</span>
-                    <span className="text-white">$ {formatValue(Number(piAmount) * PI_CONSENSUS_USD)}</span>
-                  </div>
-                  <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter italic">Cashout estimé</span>
-                      <span className="text-2xl font-black text-blue-400">{formatValue(conversion.total)}</span>
+                    <div className="h-16 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-4 min-w-[80px]">
+                        <span className="text-blue-500 font-black text-sm">{selectedCountry.dialCode}</span>
                     </div>
-                    <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
-                  </div>
+                    <Input 
+                        type="tel" 
+                        placeholder="Ex: 812345678" 
+                        value={phoneNumber} 
+                        onChange={(e) => setPhoneNumber(e.target.value)} 
+                        className="h-16 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-black text-lg flex-1 outline-none placeholder:text-white/10" 
+                    />
                 </div>
-              )}
+              </div>
 
-              <Button onClick={() => handleWithdraw("mobile")} disabled={issubmitting || !piAmount || !phoneNumber || !selectedOperator}
-                className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
-                {issubmitting ? <Loader2 className="animate-spin" /> : "Vérifier le Cashout"}
+              <Button onClick={() => handleStartDeposit("mobile")} disabled={!selectedOperator || !amount || isLoading} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/10 active:scale-95 transition-all">
+                {isLoading ? <Loader2 className="animate-spin" /> : "Initier le Dépôt"}
               </Button>
             </div>
           </TabsContent>
 
-          <TabsContent value="bank" className="mt-8 space-y-6">
-             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6">
-                <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                    <Landmark className="text-amber-500" size={20} />
-                    <p className="text-[10px] font-bold text-amber-500 uppercase">Transfert Bancaire Sécurisé</p>
+          {/* CARTE */}
+          <TabsContent value="card" className="mt-8">
+             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-6 space-y-4 shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-2 mb-4 text-emerald-500">
+                    <Lock size={14} /> <span className="text-[10px] font-black uppercase tracking-widest italic">Paiement Sécurisé SSL v3</span>
                 </div>
-                <div className="space-y-4">
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-white/60 uppercase ml-2">Sélectionner la banque</label>
-                      <Select onValueChange={(val) => setBankInfo({...bankInfo, bankName: val})}>
-                        <SelectTrigger className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-bold italic outline-none">
-                          <SelectValue placeholder="Banques partenaires" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                          {selectedCountry.banks?.map(bank => (
-                            <SelectItem key={bank.bic} value={bank.name} className="py-3 uppercase font-bold text-xs cursor-pointer">
-                              {bank.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-white/60 uppercase ml-2">Numéro de compte / IBAN</label>
-                      <Input placeholder="Coordonnées bancaires" className="h-14 bg-white/5 border-white/10 rounded-2xl px-6 text-white font-mono outline-none"
-                        value={bankInfo.iban} onChange={(e) => setBankInfo({...bankInfo, iban: e.target.value})} />
-                   </div>
-                   <Button onClick={() => handleWithdraw("bank")} disabled={issubmitting || !piAmount || !bankInfo.iban}
-                    className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all">
-                    {issubmitting ? <Loader2 className="animate-spin" /> : "Vérifier le Virement"}
-                  </Button>
+                <Input placeholder="Numéro de Carte" value={cardInfo.number} onChange={(e) => setCardInfo({...cardInfo, number: e.target.value})} className="h-16 bg-white/5 border-white/10 rounded-2xl text-white outline-none px-6 font-mono" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input placeholder="MM/YY" className="h-16 bg-white/5 border-white/10 rounded-2xl text-white px-6" />
+                  <Input placeholder="CVC" className="h-16 bg-white/5 border-white/10 rounded-2xl text-white px-6" />
                 </div>
+                <Button onClick={() => handleStartDeposit("card")} className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-600/10">Valider le Paiement</Button>
              </div>
           </TabsContent>
 
-          <TabsContent value="history" className="mt-8 space-y-4">
-             {/* Ton design de l'historique reste identique */}
-            {transactions.length > 0 ? (
-              transactions.map((tx) => (
-                <Card key={tx.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex justify-between items-center backdrop-blur-sm">
-                  <div className="flex gap-3 items-center">
-                    <div className={`p-3 rounded-xl ${tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                      {tx.status === 'SUCCESS' ? <CheckCircle2 size={16} /> : <Clock size={16} />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-white uppercase italic">{tx.metadata?.method || 'Cashout'}</p>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase">{new Date(tx.createdAt).toLocaleDateString()}</p>
-                    </div>
+          {/* CRYPTO */}
+          <TabsContent value="crypto" className="mt-8">
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-xl text-center backdrop-blur-md">
+                <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20">
+                  <Bitcoin size={40} className="text-blue-500" />
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">Pi Network Gateway</h3>
+                  <p className="text-[10px] text-white/40 mt-1 font-bold uppercase tracking-widest">Protocol Direct Settlement</p>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <div className="flex justify-between items-center bg-black/40 p-5 rounded-[1.5rem] border border-white/5">
+                    <span className="text-[10px] font-black text-white/30 uppercase italic">Estimation</span>
+                    <span className="text-sm font-black text-blue-400 italic">≈ {calculatePiToReceive()} PI</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-white">-{tx.amount} π</p>
-                    <p className={`text-[8px] font-black uppercase ${tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-amber-500'}`}>{tx.status}</p>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[3rem]">
-                <Clock size={40} className="mx-auto text-slate-800 mb-4" />
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Aucune activité</p>
-              </div>
-            )}
+
+                  <PiButton
+                    amountUsd={amount || "0"}
+                    piAmount={calculatePiToReceive()}
+                    onSuccess={() => router.push('/dashboard')}
+                  />
+
+                  <p className="text-[9px] text-white/30 font-medium leading-relaxed italic px-4">
+                    Les fonds sont crédités après validation sur la Mainnet Pi.
+                  </p>
+                </div>
+            </div>
           </TabsContent>
         </Tabs>
-
-        {/* Footer Design identique */}
-        <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-[2.5rem] flex items-start gap-4 backdrop-blur-sm">
-          <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 shadow-inner">
-            <ShieldCheck size={20} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">PimPay Protection</p>
-            <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-              Fonds protégés. Traitement : 15 min (Mobile) à 48h (Banque). Projet PimPay {new Date().getFullYear()}.
-            </p>
-          </div>
-        </div>
       </div>
-      <BottomNav onOpenMenu={() => {}} />
+
+      {/* FOOTER STATS */}
+      <div className="px-6 mt-8 grid grid-cols-2 gap-4 italic">
+          <div className="bg-white/5 p-5 rounded-[2.2rem] border border-white/5 text-center backdrop-blur-sm">
+              <p className="text-[9px] text-white/20 font-black uppercase tracking-tighter">Vitesse Moyenne</p>
+              <p className="text-lg font-black text-white mt-1 tracking-tighter">~3-5 Min</p>
+          </div>
+          <div className="bg-white/5 p-5 rounded-[2.2rem] border border-white/5 text-center backdrop-blur-sm">
+              <p className="text-[9px] text-white/20 font-black uppercase tracking-tighter">Frais de Dépôt</p>
+              <p className="text-lg font-black text-emerald-400 mt-1 tracking-tighter">0.00%</p>
+          </div>
+      </div>
+
+      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>
   );
 }

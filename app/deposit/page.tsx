@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
-import { PiButton } from "@/components/PiButton"; // ✅ Importation du nouveau bouton
+import { PiButton } from "@/components/PiButton";
+// Import du CSS flag-icons présent dans ton package.json
+import "flag-icons/css/flag-icons.min.css"; 
 
 import {
   ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin,
-  ShieldCheck, Coins, Zap, Loader2, Lock
+  ShieldCheck, Coins, Zap, Loader2, Lock, RefreshCcw, Globe
 } from "lucide-react";
 
 import { countries, type Country } from "@/lib/country-data";
@@ -24,14 +26,17 @@ const PI_GCV_PRICE = 314159;
 
 export default function DepositPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // État pour l'ouverture du menu
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  
+  // Filtrer uniquement les pays actifs pour le dépôt
+  const activeCountries = countries.filter(c => c.isActive !== false);
+
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     countries.find((c) => c.code === "CG") || countries.find((c) => c.code === "CD") || countries[0]
   );
@@ -39,7 +44,25 @@ export default function DepositPage() {
   const [cardInfo, setCardInfo] = useState({ number: "", expiry: "", cvc: "" });
 
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Mettre à jour l'opérateur par défaut quand le pays change
+  useEffect(() => {
+    if (selectedCountry?.operators?.length > 0) {
+      setSelectedOperator(selectedCountry.operators[0].id);
+    } else {
+      setSelectedOperator("");
+    }
+  }, [selectedCountry]);
+
+  const refreshData = useCallback(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.info("Données synchronisées");
+    }, 800);
   }, []);
 
   const calculatePiToReceive = () => {
@@ -57,7 +80,7 @@ export default function DepositPage() {
     setIsLoading(true);
     try {
       const payload = {
-        userId: "user_test_pimpay", // À remplacer par session.user.id
+        userId: "user_test_pimpay",
         amount: parseFloat(amount),
         method: method === "mobile" ? selectedOperator : method,
         phone: method === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : "VIRTUAL_CARD",
@@ -78,27 +101,30 @@ export default function DepositPage() {
     }
   };
 
-  if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
-
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans">
-
-      {/* ✅ CORRECTION BUILD : open au lieu de isOpen */}
+    <div className={`min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       {/* HEADER */}
       <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => router.push('/dashboard')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">Dépôt</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <CircleDot size={10} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY INFLOW</span>
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push('/dashboard')} className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 active:scale-90 transition-all">
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">Dépôt</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <CircleDot size={10} className="text-blue-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">LIQUIDITY INFLOW</span>
+              </div>
             </div>
           </div>
+          
+          <button onClick={refreshData} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all">
+            <RefreshCcw size={18} className={`${isRefreshing ? "animate-spin text-blue-500" : "text-slate-400"}`} />
+          </button>
         </div>
 
         <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 relative overflow-hidden shadow-2xl backdrop-blur-md">
@@ -120,20 +146,53 @@ export default function DepositPage() {
       </div>
 
       <div className="px-6 space-y-8">
+        {/* SÉLECTION DU PAYS */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2 flex items-center gap-2">
+            <Globe size={12} className="text-blue-500" /> Pays de résidence
+          </label>
+          <Select 
+            value={selectedCountry.code} 
+            onValueChange={(code) => {
+              const country = countries.find(c => c.code === code);
+              if(country) setSelectedCountry(country);
+            }}
+          >
+            <SelectTrigger className="w-full h-16 bg-slate-900/80 border-white/10 rounded-2xl px-6 text-white shadow-inner">
+              <SelectValue>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{selectedCountry.flag}</span>
+                  <span className="font-bold">{selectedCountry.name}</span>
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
+              {activeCountries.map((c) => (
+                <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 focus:text-white py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{c.flag}</span>
+                    <span className="font-bold uppercase text-xs tracking-wider">{c.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Tabs defaultValue="mobile" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/80 border border-white/10 rounded-2xl p-1 shadow-inner">
-            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
               <Smartphone size={14} className="mr-2" /> Mobile
             </TabsTrigger>
-            <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
               <CreditCard size={14} className="mr-2" /> Carte
             </TabsTrigger>
-            <TabsTrigger value="crypto" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <TabsTrigger value="crypto" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
               <Bitcoin size={14} className="mr-2" /> Crypto
             </TabsTrigger>
           </TabsList>
 
-          {/* CONTENU MOBILE MONEY */}
+          {/* MOBILE MONEY */}
           <TabsContent value="mobile" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
               <div className="space-y-2">
@@ -142,6 +201,9 @@ export default function DepositPage() {
                   <Coins className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
                   <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-16 bg-white/5 border-white/10 rounded-2xl pl-12 text-white font-black text-xl outline-none" />
                 </div>
+                <p className="text-[10px] text-slate-500 italic ml-2">
+                  Soit environ { (Number(amount) * selectedCountry.piToLocalRate).toLocaleString() } {selectedCountry.currency}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -151,9 +213,18 @@ export default function DepositPage() {
                     <SelectValue placeholder="Choisir un opérateur" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                    {selectedCountry.operators.map((op) => (
-                      <SelectItem key={op.id} value={op.id} className="font-bold text-xs uppercase">{op.name}</SelectItem>
-                    ))}
+                    {selectedCountry.operators.length > 0 ? (
+                      selectedCountry.operators.map((op) => (
+                        <SelectItem key={op.id} value={op.id} className="font-bold text-xs uppercase py-3">
+                          <div className="flex items-center gap-3">
+                            <img src={op.icon} alt={op.name} className="w-6 h-6 rounded-full object-cover" />
+                            {op.name}
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-xs text-slate-500 italic">Aucun opérateur disponible pour ce pays</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -168,30 +239,34 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              <Button onClick={() => handleStartDeposit("mobile")} disabled={!selectedOperator || !amount || isLoading} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest">
+              <Button onClick={() => handleStartDeposit("mobile")} disabled={!selectedOperator || !amount || isLoading} className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-600/20">
                 {isLoading ? <Loader2 className="animate-spin" /> : "Initier le Dépôt"}
               </Button>
             </div>
           </TabsContent>
 
-          {/* CONTENU CARTE */}
+          {/* CARTE */}
           <TabsContent value="card" className="mt-8">
-             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-4">
+             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-4 shadow-xl">
                 <div className="flex items-center gap-2 mb-4 text-emerald-500">
-                    <Lock size={14} /> <span className="text-[10px] font-black uppercase">Paiement Sécurisé SSL</span>
+                    <Lock size={14} /> <span className="text-[10px] font-black uppercase tracking-widest">Paiement Sécurisé SSL</span>
                 </div>
-                <Input placeholder="Numéro de Carte" value={cardInfo.number} onChange={(e) => setCardInfo({...cardInfo, number: e.target.value})} className="h-14 bg-white/5 border-white/10 rounded-xl text-white" />
-                <Button onClick={() => handleStartDeposit("card")} className="w-full h-14 bg-emerald-600 font-black uppercase">Valider la Carte</Button>
+                <Input placeholder="Numéro de Carte" value={cardInfo.number} onChange={(e) => setCardInfo({...cardInfo, number: e.target.value})} className="h-14 bg-white/5 border-white/10 rounded-xl text-white outline-none" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input placeholder="MM/YY" className="h-14 bg-white/5 border-white/10 rounded-xl text-white" />
+                  <Input placeholder="CVC" className="h-14 bg-white/5 border-white/10 rounded-xl text-white" />
+                </div>
+                <Button onClick={() => handleStartDeposit("card")} className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 font-black uppercase tracking-widest rounded-xl transition-all">Valider la Carte</Button>
              </div>
           </TabsContent>
 
-          {/* ✅ CONTENU CRYPTO : INTÉGRATION PI BUTTON */}
+          {/* CRYPTO */}
           <TabsContent value="crypto" className="mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-xl text-center">
                 <div className="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto border border-blue-500/30">
                   <Bitcoin size={40} className="text-blue-500" />
                 </div>
-                
+
                 <div>
                   <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">Pi Network Gateway</h3>
                   <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase tracking-widest">PimPay Secure Protocol</p>
@@ -203,13 +278,12 @@ export default function DepositPage() {
                     <span className="text-sm font-black text-blue-400 italic">≈ {calculatePiToReceive()} PI</span>
                   </div>
 
-                  {/* ✅ APPEL DU COMPOSANT DÉDIÉ */}
-                  <PiButton 
-                    amountUsd={amount || "0"} 
-                    piAmount={calculatePiToReceive()} 
+                  <PiButton
+                    amountUsd={amount || "0"}
+                    piAmount={calculatePiToReceive()}
                     onSuccess={() => router.push('/dashboard')}
                   />
-                  
+
                   <p className="text-[9px] text-slate-500 font-medium leading-relaxed italic">
                     Les fonds seront crédités instantanément sur votre compte PimPay après confirmation blockchain.
                   </p>

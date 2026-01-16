@@ -1,44 +1,40 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
-  ShieldCheck,
-  RefreshCcw, 
-  ArrowUpRight, 
-  ArrowLeftRight, 
-  History, 
-  Plus, 
+  RefreshCcw,
+  ArrowUpRight,
+  ArrowLeftRight,
+  History,
+  Plus,
   Coins
 } from "lucide-react";
-import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
+import SideMenu from "@/components/SideMenu"; // Import nécessaire pour le fonctionnement du bouton menu
 import { useRouter } from "next/navigation";
 
 const PiLogo = () => <span className="text-purple-400 font-black text-lg">π</span>;
 const BtcLogo = () => <span className="text-orange-500 font-black text-lg">₿</span>;
 const UsdtLogo = () => <span className="text-emerald-500 font-black text-lg">$</span>;
-const SdaLogo = () => <span className="text-emerald-400 font-black text-lg">S</span>;
 
 export default function WalletPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
-  const [totalUSD, setTotalUSD] = useState<number>(0);
+
+  // États pour les données et le menu
+  const [loading, setLoading] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Ajout pour le SideMenu
+  const [data, setData] = useState({ name: "Pioneer", balance: "0.0000" });
+  const [totalUSD, setTotalUSD] = useState(0);
 
   const PI_CONSENSUS_USD = 314159;
 
-  useEffect(() => {
-    setMounted(true);
-    loadWalletData();
-  }, []);
-
-  const loadWalletData = async () => {
+  const loadWalletData = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await fetch('/api/user/profile', { 
+      const res = await fetch('/api/user/profile', {
         method: 'GET',
-        cache: 'no-store' 
+        headers: { 'Cache-Control': 'no-cache' }
       });
 
       if (res.status === 401) {
@@ -48,21 +44,32 @@ export default function WalletPage() {
 
       if (res.ok) {
         const result = await res.json();
-        setData(result);
+        setData({
+          name: result.name || "Pioneer",
+          balance: result.balance || "0.0000"
+        });
         const piBalance = parseFloat(result.balance || "0");
         setTotalUSD(piBalance * PI_CONSENSUS_USD);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Erreur Wallet:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, loading]);
 
-  if (!mounted) return null;
+  useEffect(() => {
+    loadWalletData();
+    const interval = setInterval(loadWalletData, 30000);
+    return () => clearInterval(interval);
+  }, [loadWalletData]);
 
   return (
-    <div className="w-full pb-32 bg-[#020617] min-h-screen text-white font-sans">
+    <div className="min-h-screen w-full pb-32 bg-[#0a0a0a] text-white font-sans selection:bg-blue-500/30">
+      
+      {/* Intégration du SideMenu pour éviter les erreurs de référence */}
+      <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+
       <div className="px-6 pt-12 max-w-md mx-auto">
 
         {/* HEADER */}
@@ -75,38 +82,40 @@ export default function WalletPage() {
               Multi-Asset Node • GCV
             </p>
           </div>
-          <button 
-            onClick={() => loadWalletData()} 
-            disabled={loading} 
-            className="p-3 bg-white/5 rounded-2xl border border-white/10 active:rotate-180 transition-all"
+          <button
+            onClick={() => loadWalletData()}
+            disabled={loading}
+            className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all hover:bg-white/10"
           >
-            <RefreshCcw size={18} className={loading ? "animate-spin text-blue-500" : "text-slate-400"} />
+            <RefreshCcw size={18} className={`${loading ? "animate-spin text-blue-500" : "text-slate-400"}`} />
           </button>
         </div>
 
-        {/* CARTE VIRTUELLE ÉPURÉE */}
+        {/* CARTE GCV */}
         <div className="relative w-full aspect-[1.58/1] mb-8">
           <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-950 rounded-[32px] p-8 border border-white/20 shadow-2xl relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl" />
-            
+
             <div className="flex flex-col h-full justify-between relative z-10">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-black tracking-widest text-blue-100/50 uppercase">Valeur Totale du Portefeuille</span>
+                  <span className="text-[10px] font-black tracking-widest text-blue-100/50 uppercase">Valeur Totale Est.</span>
                   <p className="text-3xl font-black text-white tracking-tighter mt-1">
-                    {loading ? "..." : `$${totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="h-8 px-3 bg-white/10 rounded-lg flex items-center justify-center font-black text-[10px] text-white border border-white/10">GCV</div>
               </div>
 
               <div className="flex justify-between items-end border-t border-white/10 pt-6">
-                <div>
-                  <p className="text-[8px] text-blue-200/50 uppercase font-black tracking-widest mb-1">Propriétaire du Compte</p>
-                  <p className="text-sm font-black uppercase tracking-widest text-white">{data?.name || "Pioneer User"}</p>
+                <div className="max-w-[140px]">
+                  <p className="text-[8px] text-blue-200/50 uppercase font-black tracking-widest mb-1">Propriétaire</p>
+                  <p className="text-sm font-black uppercase tracking-widest text-white truncate">
+                    {data.name}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[8px] text-blue-200/50 uppercase font-black tracking-widest mb-1">Réseau</p>
+                  <p className="text-[8px] text-blue-200/50 uppercase font-black tracking-widest mb-1">Status</p>
                   <p className="text-xs font-bold text-emerald-400 uppercase italic">Mainnet Live</p>
                 </div>
               </div>
@@ -123,7 +132,7 @@ export default function WalletPage() {
             { icon: <History />, label: "Logs", color: "bg-slate-700", path: "/transactions" },
           ].map((item, i) => (
             <button key={i} onClick={() => router.push(item.path)} className="flex flex-col items-center gap-2">
-              <div className={`w-14 h-14 ${item.color} rounded-[22px] flex items-center justify-center text-white shadow-lg active:scale-90 transition-all`}>
+              <div className={`w-14 h-14 ${item.color} rounded-[22px] flex items-center justify-center text-white shadow-lg active:scale-95 transition-all`}>
                 {React.cloneElement(item.icon as React.ReactElement, { size: 22 })}
               </div>
               <span className="text-[9px] font-black uppercase text-slate-500">{item.label}</span>
@@ -131,18 +140,17 @@ export default function WalletPage() {
           ))}
         </div>
 
-        {/* LISTE DES ACTIFS MULTI-CRYPTO */}
+        {/* LISTE ACTIFS */}
         <div className="mb-10">
           <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Actifs Disponibles</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Actifs GCV</h3>
             <Coins size={14} className="text-slate-600" />
           </div>
 
           <div className="space-y-3">
-            {/* PI NETWORK */}
             <div className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-purple-500/20 shadow-inner">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-purple-500/20">
                   <PiLogo />
                 </div>
                 <div>
@@ -152,67 +160,41 @@ export default function WalletPage() {
               </div>
               <div className="text-right">
                 <p className="text-sm font-black text-white">
-                  {loading ? "..." : parseFloat(data?.balance || "0").toLocaleString(undefined, { minimumFractionDigits: 4 })}
+                  {parseFloat(data.balance).toLocaleString(undefined, { minimumFractionDigits: 4 })}
                 </p>
                 <p className="text-[8px] font-bold uppercase italic text-purple-400">PI</p>
               </div>
             </div>
 
-            {/* USDT */}
-            <div className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between opacity-80">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-500/20 text-emerald-400">
-                  <UsdtLogo />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase text-white">Tether USDT</p>
-                  <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">ERC-20</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-black text-white">0.00</p>
-                <p className="text-[8px] font-bold uppercase italic text-emerald-400">USDT</p>
-              </div>
-            </div>
-
-            {/* BITCOIN */}
-            <div className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between opacity-80">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-orange-500/20 text-orange-500">
-                  <BtcLogo />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase text-white">Bitcoin</p>
-                  <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">BTC Network</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-black text-white">0.0000</p>
-                <p className="text-[8px] font-bold uppercase italic text-orange-500">BTC</p>
-              </div>
-            </div>
-
-            {/* SIDRA */}
-            <div className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between opacity-80">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400">
-                  <SdaLogo />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase text-white">Sidra SDA</p>
-                  <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Sidra Chain</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-black text-white">0.00</p>
-                <p className="text-[8px] font-bold uppercase italic text-emerald-400">SDA</p>
-              </div>
-            </div>
+            <AssetRow logo={<UsdtLogo />} name="Tether USDT" network="ERC-20" color="bg-emerald-500/20" symbol="USDT" />
+            <AssetRow logo={<BtcLogo />} name="Bitcoin" network="Mainnet" color="bg-orange-500/20" symbol="BTC" />
           </div>
         </div>
 
       </div>
-      <BottomNav onOpenMenu={() => {}} />
+
+      {/* ✅ Correction de l'erreur TypeScript en passant onOpenMenu */}
+      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
+    </div>
+  );
+}
+
+function AssetRow({ logo, name, network, color, symbol }: any) {
+  return (
+    <div className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between opacity-60">
+      <div className="flex items-center gap-4">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
+          {logo}
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase text-white">{name}</p>
+          <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">{network}</p>
+        </div>
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-black text-white">0.00</p>
+        <p className="text-[8px] font-bold uppercase text-slate-400">{symbol}</p>
+      </div>
     </div>
   );
 }

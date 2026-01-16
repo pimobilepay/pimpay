@@ -1,13 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';                
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'dark' | 'light';                 
+type Theme = 'dark' | 'light';
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
-}                                              
+}
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -15,10 +15,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
+    // On synchronise uniquement l'état interne avec le localStorage
     const savedTheme = localStorage.getItem('pimpay-theme') as Theme;
     if (savedTheme) {
       setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
     }
   }, []);
 
@@ -38,6 +38,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error("useTheme must be used within ThemeProvider");
+  if (!context) return { theme: 'dark' as Theme, toggleTheme: () => {} };
   return context;
 };

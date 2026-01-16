@@ -12,26 +12,28 @@ export interface MobileOperator {
   name: string;
   icon: string;
   features: {
-    cashIn: boolean;    // Dépôt vers Pimpay
-    cashOut: boolean;   // Retrait vers Mobile Money
-    airtime: boolean;   // Recharge de crédit téléphonique
+    cashIn: boolean;
+    cashOut: boolean;
+    airtime: boolean;
   };
 }
 
 export interface Country {
   name: string;
-  code: string;
+  code: string; // ISO 3166-1 alpha-2
   flag: string;
-  currency: string;
-  currencySymbol: string; // Ajouté pour lib/currency-utils.ts
-  piToLocalRate: number;
+  currency: string; // ISO 4217
+  currencySymbol: string;
+  piToLocalRate: number; // taux indicatif
   dialCode: string;
-  continent: "AFRICA" | "EUROPE" | "AMERICA" | "ASIA";
+  continent: "AFRICA" | "EUROPE" | "AMERICA" | "ASIA" | "OCEANIA";
   banks: Bank[];
   operators: MobileOperator[];
-  isoStandard: "ISO20022"; // Standard par défaut pour Pimpay
+  isoStandard: "ISO20022";
+  isActive?: boolean;
 }
 
+// Logos génériques
 const LOGOS = {
   orange: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
   mtn: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg",
@@ -40,11 +42,11 @@ const LOGOS = {
   wave: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Wave_Logo_RGB.png/512px-Wave_Logo_RGB.png",
   mpesa: "https://upload.wikimedia.org/wikipedia/commons/0/03/M-pesa-logo.png",
   telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
-  vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg"
+  vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
 };
 
-export const countries: Country[] = [
-  // --- AFRIQUE CENTRALE ---
+// --- PAYS CORE (actifs par défaut) ---
+export const coreCountries: Country[] = [
   {
     name: "Congo (DRC)",
     code: "CD",
@@ -55,174 +57,18 @@ export const countries: Country[] = [
     dialCode: "+243",
     continent: "AFRICA",
     isoStandard: "ISO20022",
+    isActive: true,
     banks: [
       { name: "Rawbank", bic: "RAWBCDCX", swift: "RAWBCDCX" },
       { name: "Trust Merchant Bank", bic: "TMBRCDNX", swift: "TMBRCDNX" },
-      { name: "Equity BCDC", bic: "EBCDCXAA", swift: "EBCDCX" }
+      { name: "Equity BCDC", bic: "EBCDCXAA", swift: "EBCDCX" },
     ],
     operators: [
       { id: "vodacom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Congo (Brazzaville)",
-    code: "CG",
-    flag: "🇨🇬",
-    currency: "XAF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 610,
-    dialCode: "+242",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "BGFIBank Congo", bic: "BGFI CG BZ", swift: "BGFICGBZ" }],
-    operators: [
-      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Cameroon",
-    code: "CM",
-    flag: "🇨🇲",
-    currency: "XAF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 610,
-    dialCode: "+237",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [
-      { name: "Afriland First Bank", bic: "AFIBCMCM", swift: "AFIBCMCM" },
-      { name: "SCB Cameroon", bic: "SCBCCMCM", swift: "SCBCCMCM" }
-    ],
-    operators: [
-      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Gabon",
-    code: "GA",
-    flag: "🇬🇦",
-    currency: "XAF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 610,
-    dialCode: "+241",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "BGFIBank Gabon", bic: "BGFIGAGA", swift: "BGFIGAGA" }],
-    operators: [
       { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-
-  // --- AFRIQUE DE L'OUEST ---
-  {
-    name: "Côte d'Ivoire",
-    code: "CI",
-    flag: "🇨🇮",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+225",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [
-      { name: "NSIA Banque", bic: "NSIACICI", swift: "NSIACI" },
-      { name: "SGCI", bic: "SGCIABID", swift: "SGCI" }
     ],
-    operators: [
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
   },
-  {
-    name: "Sénégal",
-    code: "SN",
-    flag: "🇸🇳",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+221",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "CBAO", bic: "CBAOSNSN", swift: "CBAOSNSN" }],
-    operators: [
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "wave", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } },
-      { id: "free", name: "Free Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Bénin",
-    code: "BJ",
-    flag: "🇧🇯",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+229",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "BOA Bénin", bic: "BOABBJBB", swift: "BOABBJBB" }],
-    operators: [
-      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Burkina Faso",
-    code: "BF",
-    flag: "🇧🇫",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+226",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "Coris Bank", bic: "CORIBFBF", swift: "CORIBFBF" }],
-    operators: [
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Mali",
-    code: "ML",
-    flag: "🇲🇱",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+223",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "BDM-SA", bic: "BDMAMLML", swift: "BDMAMLML" }],
-    operators: [
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-  {
-    name: "Togo",
-    code: "TG",
-    flag: "🇹🇬",
-    currency: "XOF",
-    currencySymbol: "FCFA",
-    piToLocalRate: 615,
-    dialCode: "+228",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "Ecobank Togo", bic: "ECOBTGTG", swift: "ECOBTGTG" }],
-    operators: [
-      { id: "tmoney", name: "T-Money", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "moov", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-
-  // --- AFRIQUE DE L'EST ---
   {
     name: "Kenya",
     code: "KE",
@@ -233,66 +79,13 @@ export const countries: Country[] = [
     dialCode: "+254",
     continent: "AFRICA",
     isoStandard: "ISO20022",
+    isActive: true,
     banks: [{ name: "KCB Bank", bic: "KCBKKENX", swift: "KCBKKENX" }],
     operators: [
       { id: "safaricom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
+      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+    ],
   },
-  {
-    name: "Rwanda",
-    code: "RW",
-    flag: "🇷🇼",
-    currency: "RWF",
-    currencySymbol: "RF",
-    piToLocalRate: 1250,
-    dialCode: "+250",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "Bank of Kigali", bic: "BKIGRWKK", swift: "BKIGRWKK" }],
-    operators: [
-      { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "airtel", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-
-  // --- AFRIQUE AUSTRALE ---
-  {
-    name: "Afrique du Sud",
-    code: "ZA",
-    flag: "🇿🇦",
-    currency: "ZAR",
-    currencySymbol: "R",
-    piToLocalRate: 18.5,
-    dialCode: "+27",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "Standard Bank", bic: "SBZA ZAJJ", swift: "SBZAZAJJ" }],
-    operators: [
-        { id: "mtn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
-        { id: "vodacom", name: "Vodapay", icon: LOGOS.vodacom, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-
-  // --- MAGHREB ---
-  {
-    name: "Maroc",
-    code: "MA",
-    flag: "🇲🇦",
-    currency: "MAD",
-    currencySymbol: "DH",
-    piToLocalRate: 10,
-    dialCode: "+212",
-    continent: "AFRICA",
-    isoStandard: "ISO20022",
-    banks: [{ name: "Attijariwafa Bank", bic: "BCMAPMCA", swift: "BCMAPMCA" }],
-    operators: [
-      { id: "inwi", name: "inwi money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "orange", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } }
-    ]
-  },
-
-  // --- EUROPE ---
   {
     name: "France",
     code: "FR",
@@ -303,13 +96,33 @@ export const countries: Country[] = [
     dialCode: "+33",
     continent: "EUROPE",
     isoStandard: "ISO20022",
+    isActive: true,
     banks: [
-      { name: "BNP Paribas", bic: "BNPAFRPP", swift: "BNPAFRPP", ibanStructure: "FR76" },
-      { name: "Revolut", bic: "REVOUM22", swift: "REVOUM22", ibanStructure: "FR76" }
+      { name: "BNP Paribas", bic: "BNPAFRPP", swift: "BNPAFRPP", ibanStructure: "FR" },
+      { name: "Revolut", bic: "REVOUM22", swift: "REVOUM22", ibanStructure: "FR" },
     ],
-    operators: []
-  }
+    operators: [],
+  },
 ];
 
-export const getCountriesByContinent = (continent: string) =>
+// --- AUTRES PAYS DU MONDE (inactifs par défaut) ---
+export const worldCountries: Country[] = [
+  { name: "United States", code: "US", flag: "🇺🇸", currency: "USD", currencySymbol: "$", piToLocalRate: 1, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Canada", code: "CA", flag: "🇨🇦", currency: "CAD", currencySymbol: "$", piToLocalRate: 1.36, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Brazil", code: "BR", flag: "🇧🇷", currency: "BRL", currencySymbol: "R$", piToLocalRate: 5, dialCode: "+55", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "United Kingdom", code: "GB", flag: "🇬🇧", currency: "GBP", currencySymbol: "£", piToLocalRate: 0.79, dialCode: "+44", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Germany", code: "DE", flag: "🇩🇪", currency: "EUR", currencySymbol: "€", piToLocalRate: 0.93, dialCode: "+49", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "China", code: "CN", flag: "🇨🇳", currency: "CNY", currencySymbol: "¥", piToLocalRate: 7.1, dialCode: "+86", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Japan", code: "JP", flag: "🇯🇵", currency: "JPY", currencySymbol: "¥", piToLocalRate: 150, dialCode: "+81", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "India", code: "IN", flag: "🇮🇳", currency: "INR", currencySymbol: "₹", piToLocalRate: 83, dialCode: "+91", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Australia", code: "AU", flag: "🇦🇺", currency: "AUD", currencySymbol: "$", piToLocalRate: 1.5, dialCode: "+61", continent: "OCEANIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+];
+
+// --- EXPORT GLOBAL ---
+export const countries: Country[] = [...coreCountries, ...worldCountries];
+
+// --- SELECTORS ---
+export const getActiveCountries = () => countries.filter(c => c.isActive);
+
+export const getCountriesByContinent = (continent: Country["continent"]) =>
   countries.filter(c => c.continent === continent);
