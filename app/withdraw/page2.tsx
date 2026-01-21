@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
-import SideMenu from "@/components/SideMenu"; // Import ajouté
 import {
   ArrowLeft, ArrowUpFromLine, Smartphone, Building2,
   Clock, ShieldCheck, CircleDot, Loader2, CheckCircle2,
@@ -22,11 +21,10 @@ import { useRouter } from "next/navigation";
 export default function WithdrawPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // État menu ajouté
   const [piAmount, setPiAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country>(
-    countries.find((c) => c.code === "CG") || countries.find((c) => c.code === "CD") || countries[0],
+    countries.find((c) => c.code === "CD") || countries[0],
   );
   const [selectedOperator, setSelectedOperator] = useState("");
   const [balance, setBalance] = useState<number>(0);
@@ -68,10 +66,11 @@ export default function WithdrawPage() {
   const formatValue = (val: number) => {
     return new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 6,
+      maximumFractionDigits: 2,
     }).format(val);
   };
 
+  // LOGIQUE MISE À JOUR : Redirection vers Summary
   const handleWithdraw = async (method: "mobile" | "bank") => {
     const amount = parseFloat(piAmount);
     if (!amount || amount <= 0) return toast.error("Montant invalide");
@@ -81,16 +80,17 @@ export default function WithdrawPage() {
     if (method === "mobile") {
       if (!selectedOperator) return toast.error("Sélectionnez un opérateur");
       if (!phoneNumber) return toast.error("Numéro de téléphone requis");
-      details = {
-        phone: `${selectedCountry.dialCode}${phoneNumber}`,
+      details = { 
+        phone: `${selectedCountry.dialCode}${phoneNumber}`, 
         provider: selectedOperator,
-        country: selectedCountry.name
+        country: selectedCountry.name 
       };
     } else {
       if (!bankInfo.iban || !bankInfo.bankName) return toast.error("Infos bancaires incomplètes");
       details = bankInfo;
     }
 
+    // Calcul final pour le résumé
     const conversion = calculateExchangeWithFee(amount, selectedCountry.currency);
 
     const summaryData = {
@@ -101,6 +101,7 @@ export default function WithdrawPage() {
       details: details
     };
 
+    // Encodage pour l'URL
     const encodedData = btoa(JSON.stringify(summaryData));
     router.push(`/withdraw/summary?data=${encodedData}`);
   };
@@ -111,10 +112,7 @@ export default function WithdrawPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans">
-      
-      {/* SideMenu connecté */}
-      <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-
+      {/* Ton Design de Header reste identique */}
       <div className="px-6 pt-12 pb-16 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/dashboard">
@@ -131,7 +129,7 @@ export default function WithdrawPage() {
           </div>
         </div>
 
-        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl backdrop-blur-md text-white border-none">
+        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden shadow-2xl backdrop-blur-md">
           <div className="absolute -right-4 -top-4 opacity-10 text-blue-500">
             <ArrowUpFromLine size={120} />
           </div>
@@ -159,7 +157,7 @@ export default function WithdrawPage() {
           </TabsList>
 
           <TabsContent value="mobile" className="mt-8 space-y-6">
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl text-white">
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2">Pays de destination</label>
                 <Select value={selectedCountry.code} onValueChange={(code) => {
@@ -171,7 +169,7 @@ export default function WithdrawPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
                     {countries.map((c) => (
-                      <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 py-3 cursor-pointer text-white">
+                      <SelectItem key={c.code} value={c.code} className="focus:bg-blue-600 py-3 cursor-pointer">
                         <span className="font-bold text-xs uppercase">{c.name}</span>
                       </SelectItem>
                     ))}
@@ -187,7 +185,7 @@ export default function WithdrawPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
                     {selectedCountry.operators?.map((op) => (
-                      <SelectItem key={op.id} value={op.name} className="focus:bg-blue-600 py-4 cursor-pointer text-white">
+                      <SelectItem key={op.id} value={op.name} className="focus:bg-blue-600 py-4 cursor-pointer">
                         <div className="flex items-center gap-3">
                           <img src={op.icon} alt="" className="w-6 h-6 rounded-md object-contain bg-white p-0.5" />
                           <span className="uppercase font-black text-xs">{op.name}</span>
@@ -224,7 +222,7 @@ export default function WithdrawPage() {
                     <span>Valeur Marché ($)</span>
                     <span className="text-white">$ {formatValue(Number(piAmount) * PI_CONSENSUS_USD)}</span>
                   </div>
-                  <div className="pt-4 border-t border-white/5 flex justify-between items-center text-white">
+                  <div className="pt-4 border-t border-white/5 flex justify-between items-center">
                     <div className="flex flex-col">
                       <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter italic">Cashout estimé</span>
                       <span className="text-2xl font-black text-blue-400">{formatValue(conversion.total)}</span>
@@ -242,7 +240,7 @@ export default function WithdrawPage() {
           </TabsContent>
 
           <TabsContent value="bank" className="mt-8 space-y-6">
-             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 text-white">
+             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6">
                 <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
                     <Landmark className="text-amber-500" size={20} />
                     <p className="text-[10px] font-bold text-amber-500 uppercase">Transfert Bancaire Sécurisé</p>
@@ -256,7 +254,7 @@ export default function WithdrawPage() {
                         </SelectTrigger>
                         <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
                           {selectedCountry.banks?.map(bank => (
-                            <SelectItem key={bank.bic} value={bank.name} className="py-3 uppercase font-bold text-xs cursor-pointer text-white">
+                            <SelectItem key={bank.bic} value={bank.name} className="py-3 uppercase font-bold text-xs cursor-pointer">
                               {bank.name}
                             </SelectItem>
                           ))}
@@ -277,9 +275,10 @@ export default function WithdrawPage() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-8 space-y-4">
+             {/* Ton design de l'historique reste identique */}
             {transactions.length > 0 ? (
               transactions.map((tx) => (
-                <Card key={tx.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex justify-between items-center backdrop-blur-sm border-none text-white">
+                <Card key={tx.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex justify-between items-center backdrop-blur-sm">
                   <div className="flex gap-3 items-center">
                     <div className={`p-3 rounded-xl ${tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
                       {tx.status === 'SUCCESS' ? <CheckCircle2 size={16} /> : <Clock size={16} />}
@@ -304,6 +303,7 @@ export default function WithdrawPage() {
           </TabsContent>
         </Tabs>
 
+        {/* Footer Design identique */}
         <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-[2.5rem] flex items-start gap-4 backdrop-blur-sm">
           <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 shadow-inner">
             <ShieldCheck size={20} />
@@ -316,9 +316,7 @@ export default function WithdrawPage() {
           </div>
         </div>
       </div>
-      
-      {/* BottomNav connecté à l'ouverture du menu */}
-      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
+      <BottomNav onOpenMenu={() => {}} />
     </div>
   );
 }

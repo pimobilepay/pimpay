@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { PiButton } from "@/components/PiButton";
-// Import du CSS flag-icons présent dans ton package.json
-import "flag-icons/css/flag-icons.min.css"; 
-
+import "flag-icons/css/flag-icons.min.css";
 import {
   ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin,
   ShieldCheck, Coins, Zap, Loader2, Lock, RefreshCcw, Globe
@@ -28,13 +26,12 @@ export default function DepositPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // État utilisé pour le SideMenu
   const [isVisible, setIsVisible] = useState(false);
 
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  
-  // Filtrer uniquement les pays actifs pour le dépôt
+
   const activeCountries = countries.filter(c => c.isActive !== false);
 
   const [selectedCountry, setSelectedCountry] = useState<Country>(
@@ -48,7 +45,6 @@ export default function DepositPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Mettre à jour l'opérateur par défaut quand le pays change
   useEffect(() => {
     if (selectedCountry?.operators?.length > 0) {
       setSelectedOperator(selectedCountry.operators[0].id);
@@ -103,7 +99,8 @@ export default function DepositPage() {
 
   return (
     <div className={`min-h-screen bg-[#020617] text-slate-200 pb-40 font-sans transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      
+
+      {/* CORRECTION ICI : Ajout de open={isMenuOpen} */}
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       {/* HEADER */}
@@ -121,7 +118,7 @@ export default function DepositPage() {
               </div>
             </div>
           </div>
-          
+
           <button onClick={refreshData} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all">
             <RefreshCcw size={18} className={`${isRefreshing ? "animate-spin text-blue-500" : "text-slate-400"}`} />
           </button>
@@ -131,12 +128,12 @@ export default function DepositPage() {
           <div className="absolute top-0 right-0 p-6 opacity-10">
             <Zap size={80} className="text-blue-500" />
           </div>
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 text-white">
             <div className="p-3 rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-inner">
               <ShieldCheck size={24} />
             </div>
             <div>
-              <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none">PimPay Protocol</p>
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none">PimPay Protocol</p>
               <p className="text-[10px] text-slate-400 mt-2 leading-relaxed font-medium italic">
                 Approvisionnement sécurisé via Pi SDK & Mobile Money.
               </p>
@@ -151,8 +148,8 @@ export default function DepositPage() {
           <label className="text-[10px] font-black text-white/60 uppercase tracking-widest ml-2 flex items-center gap-2">
             <Globe size={12} className="text-blue-500" /> Pays de résidence
           </label>
-          <Select 
-            value={selectedCountry.code} 
+          <Select
+            value={selectedCountry.code}
             onValueChange={(code) => {
               const country = countries.find(c => c.code === code);
               if(country) setSelectedCountry(country);
@@ -181,18 +178,17 @@ export default function DepositPage() {
 
         <Tabs defaultValue="mobile" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-14 bg-slate-900/80 border border-white/10 rounded-2xl p-1 shadow-inner">
-            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
+            <TabsTrigger value="mobile" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <Smartphone size={14} className="mr-2" /> Mobile
             </TabsTrigger>
-            <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
+            <TabsTrigger value="card" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <CreditCard size={14} className="mr-2" /> Carte
             </TabsTrigger>
-            <TabsTrigger value="crypto" className="rounded-xl font-bold text-[10px] uppercase data-[state=active]:bg-blue-600">
+            <TabsTrigger value="crypto" className="rounded-xl font-bold text-[10px] uppercase text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <Bitcoin size={14} className="mr-2" /> Crypto
             </TabsTrigger>
           </TabsList>
 
-          {/* MOBILE MONEY */}
           <TabsContent value="mobile" className="space-y-6 mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-6 shadow-xl">
               <div className="space-y-2">
@@ -202,7 +198,7 @@ export default function DepositPage() {
                   <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-16 bg-white/5 border-white/10 rounded-2xl pl-12 text-white font-black text-xl outline-none" />
                 </div>
                 <p className="text-[10px] text-slate-500 italic ml-2">
-                  Soit environ { (Number(amount) * selectedCountry.piToLocalRate).toLocaleString() } {selectedCountry.currency}
+                  Soit environ { (Number(amount) * (selectedCountry.piToLocalRate || 0)).toLocaleString() } {selectedCountry.currency}
                 </p>
               </div>
 
@@ -213,9 +209,9 @@ export default function DepositPage() {
                     <SelectValue placeholder="Choisir un opérateur" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-white/10 text-white rounded-2xl">
-                    {selectedCountry.operators.length > 0 ? (
+                    {selectedCountry.operators?.length > 0 ? (
                       selectedCountry.operators.map((op) => (
-                        <SelectItem key={op.id} value={op.id} className="font-bold text-xs uppercase py-3">
+                        <SelectItem key={op.id} value={op.id} className="font-bold text-xs uppercase py-3 text-white focus:bg-blue-600">
                           <div className="flex items-center gap-3">
                             <img src={op.icon} alt={op.name} className="w-6 h-6 rounded-full object-cover" />
                             {op.name}
@@ -223,7 +219,7 @@ export default function DepositPage() {
                         </SelectItem>
                       ))
                     ) : (
-                      <div className="p-4 text-center text-xs text-slate-500 italic">Aucun opérateur disponible pour ce pays</div>
+                      <div className="p-4 text-center text-xs text-slate-500 italic">Aucun opérateur disponible</div>
                     )}
                   </SelectContent>
                 </Select>
@@ -245,7 +241,6 @@ export default function DepositPage() {
             </div>
           </TabsContent>
 
-          {/* CARTE */}
           <TabsContent value="card" className="mt-8">
              <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 space-y-4 shadow-xl">
                 <div className="flex items-center gap-2 mb-4 text-emerald-500">
@@ -253,37 +248,28 @@ export default function DepositPage() {
                 </div>
                 <Input placeholder="Numéro de Carte" value={cardInfo.number} onChange={(e) => setCardInfo({...cardInfo, number: e.target.value})} className="h-14 bg-white/5 border-white/10 rounded-xl text-white outline-none" />
                 <div className="grid grid-cols-2 gap-4">
-                  <Input placeholder="MM/YY" className="h-14 bg-white/5 border-white/10 rounded-xl text-white" />
-                  <Input placeholder="CVC" className="h-14 bg-white/5 border-white/10 rounded-xl text-white" />
+                  <Input placeholder="MM/YY" className="h-14 bg-white/5 border-white/10 rounded-xl text-white outline-none" />
+                  <Input placeholder="CVC" className="h-14 bg-white/5 border-white/10 rounded-xl text-white outline-none" />
                 </div>
-                <Button onClick={() => handleStartDeposit("card")} className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 font-black uppercase tracking-widest rounded-xl transition-all">Valider la Carte</Button>
+                <Button onClick={() => handleStartDeposit("card")} className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest rounded-xl transition-all">Valider la Carte</Button>
              </div>
           </TabsContent>
 
-          {/* CRYPTO */}
           <TabsContent value="crypto" className="mt-8">
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-6 shadow-xl text-center">
                 <div className="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto border border-blue-500/30">
                   <Bitcoin size={40} className="text-blue-500" />
                 </div>
-
                 <div>
                   <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">Pi Network Gateway</h3>
                   <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase tracking-widest">PimPay Secure Protocol</p>
                 </div>
-
                 <div className="space-y-4 pt-4">
                   <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-white/5">
                     <span className="text-[10px] font-bold text-slate-500 uppercase">Conversion GCV</span>
                     <span className="text-sm font-black text-blue-400 italic">≈ {calculatePiToReceive()} PI</span>
                   </div>
-
-                  <PiButton
-                    amountUsd={amount || "0"}
-                    piAmount={calculatePiToReceive()}
-                    onSuccess={() => router.push('/dashboard')}
-                  />
-
+                  <PiButton amountUsd={amount || "0"} piAmount={calculatePiToReceive()} onSuccess={() => router.push('/dashboard')} />
                   <p className="text-[9px] text-slate-500 font-medium leading-relaxed italic">
                     Les fonds seront crédités instantanément sur votre compte PimPay après confirmation blockchain.
                   </p>
@@ -293,7 +279,6 @@ export default function DepositPage() {
         </Tabs>
       </div>
 
-      {/* FOOTER STATS */}
       <div className="px-6 mt-8 grid grid-cols-2 gap-4">
           <div className="bg-white/5 p-5 rounded-[2rem] border border-white/5 text-center">
               <p className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">Temps Estimé</p>
