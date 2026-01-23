@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react"; // Ajout de useEffect
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Zap, Globe, ChevronRight, CheckCircle2, 
-  Wallet2, X, Search, Loader2 
+  ArrowLeft, Zap, Globe, ChevronRight, CheckCircle2,
+  Wallet2, X, Search, Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { countries, type Country } from "@/lib/country-data";
@@ -13,7 +13,6 @@ import { toast } from "sonner";
 export default function RechargePage() {
   const router = useRouter();
   
-  // 1. Empêcher les erreurs de désynchronisation DOM (Hydration)
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
@@ -42,25 +41,39 @@ export default function RechargePage() {
     ? (Number.parseFloat(amount) * selectedCountry.piToLocalRate).toFixed(2)
     : "0.00";
 
+  // MODIFICATION ICI : Redirection vers la page Summary
   const handleRecharge = async () => {
     if (!phoneNumber || !amount || !selectedOperator) {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
+    
     setLoading(true);
+    
+    // On simule une petite préparation du protocole PimPay
     setTimeout(() => {
-      toast.success("Transaction transmise");
       setLoading(false);
-      router.push("/dashboard");
-    }, 2000);
+      
+      // On passe les données via l'URL pour la page de résumé
+      const params = new URLSearchParams({
+        type: "airtime",
+        phone: `${selectedCountry.dialCode}${phoneNumber}`,
+        operator: selectedOperator,
+        usd: amount,
+        pi: piAmount,
+        local: localAmount,
+        currency: selectedCountry.currency
+      });
+
+      router.push(`/airtime/summary?${params.toString()}`);
+    }, 1500);
   };
 
-  // Si le composant n'est pas monté, on rend un conteneur vide pour éviter les erreurs de Node
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
-      
+
       {/* HEADER */}
       <header className="px-6 pt-10 pb-5 sticky top-0 z-40 bg-[#020617]/80 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center justify-between">
@@ -98,13 +111,13 @@ export default function RechargePage() {
           </button>
         </section>
 
-        {/* SECTION OPÉRATEURS - Ajout de key et vérification safe */}
+        {/* SECTION OPÉRATEURS */}
         <section className="space-y-3">
           <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[2px] ml-2">Réseau Mobile</h3>
           <div className="grid grid-cols-1 gap-2">
             {(selectedCountry?.operators || []).map((op) => (
               <button
-                key={`op-${op.id}`} // Key unique pour éviter l'erreur removeChild
+                key={`op-${op.id}`}
                 onClick={() => setSelectedOperator(op.name)}
                 className={`w-full flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${
                   op.name === selectedOperator ? 'bg-blue-600 border-blue-400' : 'bg-white/5 border-white/5'
@@ -134,6 +147,7 @@ export default function RechargePage() {
                 </div>
                 <input
                   type="tel"
+                  placeholder="812345678"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="flex-1 h-12 px-4 bg-slate-900 rounded-xl border border-white/5 outline-none font-black text-sm text-white"
@@ -145,6 +159,7 @@ export default function RechargePage() {
               <div className="relative">
                 <input
                   type="number"
+                  placeholder="1.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full h-12 pl-10 pr-4 bg-slate-900 rounded-xl border border-white/5 outline-none font-black text-lg text-white"
@@ -155,7 +170,6 @@ export default function RechargePage() {
           </div>
         </section>
 
-        {/* RÉCAPITULATIF - Utilisation de AnimatePresence avec mode wait */}
         <AnimatePresence mode="wait">
           {amount && (
             <motion.div
@@ -179,14 +193,14 @@ export default function RechargePage() {
 
         <button
           onClick={handleRecharge}
-          disabled={loading || !amount}
-          className="w-full h-14 rounded-[1.5rem] bg-blue-600 flex items-center justify-center gap-3 font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-500/20"
+          disabled={loading || !amount || !phoneNumber || !selectedOperator}
+          className="w-full h-14 rounded-[1.5rem] bg-blue-600 flex items-center justify-center gap-3 font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-transform"
         >
           {loading ? <Loader2 className="animate-spin" size={18} /> : <><Wallet2 size={18} /> Confirmer</>}
         </button>
       </main>
 
-      {/* MODAL - Sortie de l'arbre DOM principal si nécessaire */}
+      {/* MODAL PAYS */}
       <AnimatePresence>
         {isCountryModalOpen && (
           <motion.div
@@ -198,8 +212,8 @@ export default function RechargePage() {
           >
             <div className="p-6 pt-10 border-b border-white/5 flex items-center gap-3">
               <button onClick={() => setIsCountryModalOpen(false)} className="p-2.5 bg-white/5 rounded-xl"><X size={18} /></button>
-              <input 
-                placeholder="RECHERCHER..." 
+              <input
+                placeholder="RECHERCHER..."
                 className="flex-1 h-11 bg-white/5 border border-white/10 rounded-xl px-4 text-[11px] font-bold outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
