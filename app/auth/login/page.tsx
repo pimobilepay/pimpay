@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { usePiAuth } from "@/hooks/usePiAuth";
+import { usePiAuth } from "@/context/pi-auth-context";
 import PinCodeModal from "@/components/modals/PinCodeModal";
 
 export default function LoginPage() {
@@ -15,12 +15,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);      
+  const [loading, setLoading] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [tempUserId, setTempUserId] = useState<string | null>(null);
-  const [tempRole, setTempRole] = useState<string | null>(null); // AJOUTÉ : État pour le rôle
+  const [tempRole, setTempRole] = useState<string | null>(null);
 
-  const { loginWithPi, loading: piLoading } = usePiAuth();
+  // Utilisation sécurisée du contexte
+  const auth = usePiAuth(); 
+  // On extrait les valeurs seulement si le contexte existe
+  const { reinitialize, isAuthenticated, userData, hasError, authMessage } = auth || {};
 
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStep, setTransitionStep] = useState("init");
@@ -29,6 +32,16 @@ export default function LoginPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Surveiller l'authentification Pi réussie
+  useEffect(() => {
+    if (isAuthenticated && userData) {
+      const sessionToken = userData.id;
+      document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
+      localStorage.setItem("pimpay_user", JSON.stringify(userData));
+      triggerSuccessTransition("/dashboard");
+    }
+  }, [isAuthenticated, userData]);
 
   const triggerSuccessTransition = (targetPath: string) => {
     setShowTransition(true);
@@ -42,7 +55,6 @@ export default function LoginPage() {
     }, 4500);
   };
 
-  // Login Classique (Email/Password)
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (loading) return;
@@ -64,14 +76,12 @@ export default function LoginPage() {
 
       if (data.requirePin) {
         setTempUserId(data.userId);
-        setTempRole(data.role); // MODIFIÉ : On stocke le rôle
+        setTempRole(data.role);
         setShowPinModal(true);
         setLoading(false);
       } else if (data?.user) {
-        // AJOUT DU COOKIE POUR LE MIDDLEWARE (Utilisation du token au lieu de l'ID)
         const sessionToken = data.token || data.user.id;
         document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
-
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
         triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
       }
@@ -81,19 +91,15 @@ export default function LoginPage() {
     }
   };
 
-  // Login via Pi Browser
   const handlePiBrowserLogin = async () => {
+    if (!reinitialize) {
+        toast.error("Le service d'authentification Pi n'est pas prêt");
+        return;
+    }
     try {
-      const result = await loginWithPi();
-
-      if (result && result.success) {
-        const token = result.user?.uid || "pi_connected";
-        document.cookie = `pi_session_token=${token}; path=/; max-age=86400; SameSite=Lax`;
-
-        // Note: Pour Pi Browser, redirection dashboard par défaut (souvent user simple)
-        triggerSuccessTransition("/dashboard");
-      } else {
-        toast.error("Échec de la connexion Pi Network");
+      await reinitialize();
+      if (hasError) {
+        toast.error(authMessage || "Échec de la connexion Pi Network");
       }
     } catch (error) {
       console.error("Erreur Pi Login:", error);
@@ -105,13 +111,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden font-sans">
-
       <PinCodeModal
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
         onSuccess={() => {
           document.cookie = `pi_session_token=verified; path=/; max-age=86400; SameSite=Lax`;
-          // MODIFIÉ : Redirection dynamique après le PIN
           const destination = tempRole === "ADMIN" ? "/admin/dashboard" : "/dashboard";
           triggerSuccessTransition(destination);
         }}
@@ -148,7 +152,7 @@ export default function LoginPage() {
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
               <input
                 type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email ou Username"
+                placeholder="email ou username"
                 className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none"
               />
             </div>
@@ -174,7 +178,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={loading || piLoading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all">
+          <Button type="submit" disabled={loading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all">
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONNEXION"}
           </Button>
         </form>
@@ -187,18 +191,14 @@ export default function LoginPage() {
 
         <Button
           onClick={handlePiBrowserLogin}
-          disabled={loading || piLoading}
+          disabled={loading}
           type="button"
           className="w-full h-14 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
         >
-          {piLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-            <>
-              <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
-                 <span className="text-white font-bold text-xs">π</span>
-              </div>
-              <span className="text-sm uppercase tracking-tight">Pi Browser Login</span>
-            </>
-          )}
+          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
+              <span className="text-white font-bold text-xs">π</span>
+          </div>
+          <span className="text-sm uppercase tracking-tight">Pi Browser Login</span>
         </Button>
 
         <div className="mt-8 flex flex-col items-center gap-4">

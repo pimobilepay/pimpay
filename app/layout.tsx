@@ -10,6 +10,8 @@ import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
+// IMPORTÉ : Le context PiAuth
+import { PiAuthProvider } from "@/context/pi-auth-context";
 
 export const metadata: Metadata = {
   title: "PimPay - Core Ledger",
@@ -32,7 +34,6 @@ export default function DashboardLayout({
       <head>
         <meta name="google" content="notranslate" />
 
-        {/* Style critique immédiat (anti flash blanc) */}
         <style>{`
           html.dark { background-color: #02040a !important; }
           body.dark {
@@ -41,7 +42,6 @@ export default function DashboardLayout({
           }
         `}</style>
 
-        {/* Pré-init thème AVANT hydration */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -61,41 +61,42 @@ export default function DashboardLayout({
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
         <ThemeProvider>
-          {/* Pi SDK */}
-          <Script
-            src="https://sdk.minepi.com/pi-sdk.js"
-            strategy="beforeInteractive"
-          />
+          {/* AJOUTÉ : PiAuthProvider doit envelopper les composants qui utilisent usePiAuth */}
+          <PiAuthProvider>
+            <Script
+              src="https://sdk.minepi.com/pi-sdk.js"
+              strategy="beforeInteractive"
+            />
 
-          <Script id="pi-init" strategy="afterInteractive">
-            {`
-              if (window.Pi) {
-                window.Pi.init({ version: "2.0" });
-              }
-            `}
-          </Script>
+            <Script id="pi-init" strategy="afterInteractive">
+              {`
+                if (window.Pi) {
+                  window.Pi.init({ version: "2.0" });
+                }
+              `}
+            </Script>
 
-          {/* Portail global */}
-          <div id="portal-root">
-            <GlobalAlert />
-          </div>
+            <div id="portal-root">
+              <GlobalAlert />
+            </div>
 
-          <GlobalAnnouncement />
+            <GlobalAnnouncement />
 
-          <ClientLayout>{children}</ClientLayout>
+            <ClientLayout>{children}</ClientLayout>
 
-          <Toaster
-            position="top-center"
-            richColors
-            closeButton
-            theme="dark"
-            toastOptions={{
-              style: {
-                borderRadius: "1rem",
-                backdropFilter: "blur(12px)",
-              },
-            }}
-          />
+            <Toaster
+              position="top-center"
+              richColors
+              closeButton
+              theme="dark"
+              toastOptions={{
+                style: {
+                  borderRadius: "1rem",
+                  backdropFilter: "blur(12px)",
+                },
+              }}
+            />
+          </PiAuthProvider>
         </ThemeProvider>
       </body>
     </html>
