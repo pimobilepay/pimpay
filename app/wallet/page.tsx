@@ -16,23 +16,28 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { useRouter } from "next/navigation";
 
-// Design des icônes style "Sidra Card"
+// Design des icônes utilisant tes fichiers PNG dans /public
 const PiLogo = () => (
-  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-800 flex items-center justify-center shadow-lg border border-white/20 relative overflow-hidden">
-    <div className="absolute inset-0 bg-white/10 animate-pulse" />
-    <span className="relative text-white font-black text-2xl italic">π</span>
+  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-800 flex items-center justify-center shadow-lg border border-white/20 relative overflow-hidden p-2">
+    <img src="/pi-coin.png" alt="Pi" className="w-full h-full object-contain" />
   </div>
 );
 
 const SdaLogo = () => (
-  <div className="w-12 h-12 rounded-2xl bg-[#d97706]/20 flex items-center justify-center shadow-lg border border-[#d97706]/30">
-    <span className="text-[#d97706] font-black text-2xl italic tracking-tighter">S</span>
+  <div className="w-12 h-12 rounded-2xl bg-[#d97706]/20 flex items-center justify-center shadow-lg border border-[#d97706]/30 p-2">
+    <img src="/sidrachain.png" alt="SDA" className="w-full h-full object-contain" />
   </div>
 );
 
 const UsdtLogo = () => (
-  <div className="w-12 h-12 rounded-2xl bg-[#0d9488]/20 flex items-center justify-center shadow-lg border border-[#0d9488]/30">
-    <span className="text-[#0d9488] font-black text-xl">₮</span>
+  <div className="w-12 h-12 rounded-2xl bg-[#0d9488]/20 flex items-center justify-center shadow-lg border border-[#0d9488]/30 p-2">
+    <img src="/tether-usdt.png" alt="USDT" className="w-full h-full object-contain" />
+  </div>
+);
+
+const BtcLogo = () => (
+  <div className="w-12 h-12 rounded-2xl bg-[#f7931a]/20 flex items-center justify-center shadow-lg border border-[#f7931a]/30 p-2">
+    <img src="/bitcoin.png" alt="BTC" className="w-full h-full object-contain" />
   </div>
 );
 
@@ -86,7 +91,7 @@ export default function WalletPage() {
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       <div className="px-6 pt-10 max-w-md mx-auto">
-        
+
         {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -111,7 +116,7 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* CARTE GCV (DESIGN REVISITÉ) */}
+        {/* CARTE GCV */}
         <div className="relative w-full aspect-[1.58/1] mb-8">
           <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-950 rounded-[32px] p-8 border border-white/20 shadow-2xl relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl" />
@@ -166,33 +171,43 @@ export default function WalletPage() {
 
           <div className="space-y-3">
             {/* PI NETWORK */}
-            <AssetCard 
-                logo={<PiLogo />} 
-                name="Pi Network" 
-                subName="Pi Mainnet Node" 
-                balance={parseFloat(data.balance).toLocaleString(undefined, { minimumFractionDigits: 4 })} 
-                symbol="PI" 
+            <AssetCard
+                logo={<PiLogo />}
+                name="Pi Network"
+                subName="Pi Mainnet Node"
+                balance={parseFloat(data.balance).toLocaleString(undefined, { minimumFractionDigits: 4 })}
+                symbol="PI"
                 usdValue={totalUSD.toLocaleString()}
-                isMain 
+                isMain
+            />
+
+            {/* BITCOIN */}
+            <AssetCard
+                logo={<BtcLogo />}
+                name="Bitcoin"
+                subName="BTC Mainnet"
+                balance="0.0000"
+                symbol="BTC"
+                usdValue="0.00"
             />
 
             {/* SDA */}
-            <AssetCard 
-                logo={<SdaLogo />} 
-                name="Sidra Digital" 
-                subName="SDA Native" 
-                balance="1,250.00" 
-                symbol="SDA" 
+            <AssetCard
+                logo={<SdaLogo />}
+                name="Sidra Digital"
+                subName="SDA Native"
+                balance="1,250.00"
+                symbol="SDA"
                 usdValue="1,312.50"
             />
 
             {/* USDT */}
-            <AssetCard 
-                logo={<UsdtLogo />} 
-                name="Tether USD" 
-                subName="ERC-20 Token" 
-                balance="0.00" 
-                symbol="USDT" 
+            <AssetCard
+                logo={<UsdtLogo />}
+                name="Tether USD"
+                subName="ERC-20 Token"
+                balance="0.00"
+                symbol="USDT"
                 usdValue="0.00"
             />
           </div>
