@@ -32,29 +32,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    // --- RÉCUPÉRATION DES INFOS DE CONNEXION ---
-    const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";
-    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
-    const country = req.headers.get("x-vercel-ip-country") || "CG";
-    const city = req.headers.get("x-vercel-ip-city") || "Oyo";
-    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
-
-    // --- CORRECTION : MISE À JOUR DU LAST LOGIN DÈS MAINTENANT ---
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-        lastLoginIp: ip,
-      }
-    });
-
     // 3. VÉRIFICATION SI UN PIN EST CONFIGURÉ
+    // Modifié pour inclure le rôle afin de préparer la redirection Admin
     if (user.pin) {
       const secretKey = new TextEncoder().encode(SECRET);
-      const tempToken = await new SignJWT({
-        userId: user.id,
-        role: user.role,
-        purpose: "pin_verification"
+      const tempToken = await new SignJWT({ 
+        userId: user.id, 
+        role: user.role, // Inclus pour le middleware et le front
+        purpose: "pin_verification" 
       })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
@@ -66,11 +51,11 @@ export async function POST(req: Request) {
         requirePin: true,
         tempToken: tempToken,
         userId: user.id,
-        role: user.role
+        role: user.role // Permet au front de savoir s'il va vers /admin après
       });
     }
 
-    // 4. SI PAS DE PIN (CONNEXION DIRECTE)
+    // 4. SI PAS DE PIN (Cas rare ou nouveau compte), CONNEXION DIRECTE
     const secretKey = new TextEncoder().encode(SECRET);
     const token = await new SignJWT({
       id: user.id,
@@ -83,36 +68,28 @@ export async function POST(req: Request) {
       .setExpirationTime('7d')
       .sign(secretKey);
 
-    // CRÉATION DE LA SESSION DANS LA DB
+    // LOGS ET INFOS (IP & GÉO)
+    const userAgent = req.headers.get("user-agent") || "Appareil";
+    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    const country = req.headers.get("x-vercel-ip-country") || "RDC";
+    const city = req.headers.get("x-vercel-ip-city") || "Kinshasa";
+    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
+
     try {
       await prisma.session.create({
-        data: { 
-          userId: user.id, 
-          token, 
-          isActive: true, 
-          userAgent, 
-          ip,
-          deviceName: os,
-          city: city,
-          country: country,
-          // Extraction sommaire du navigateur
-          browser: userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur",
-          os: os
-        }
+        data: { userId: user.id, token, isActive: true, userAgent, ip }
       });
 
       await prisma.notification.create({
         data: {
           userId: user.id,
-          type: "LOGIN", // Changé en LOGIN pour ton filtre de page notif
-          title: `Nouvelle connexion`,
-          message: `Connecté depuis ${city}, ${country} (${os})`,
+          type: "info",
+          title: `Connexion directe (Sans PIN)`,
+          message: `Connecté depuis ${city}, ${country}`,
           metadata: { ip, location: `${city}, ${country}`, device: os }
         }
       });
-    } catch (e) { 
-      console.error("Session/Notif Error:", e); 
-    }
+    } catch (e) { console.error("Notif Error:", e); }
 
     const response = NextResponse.json({
       success: true,
@@ -129,6 +106,7 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 24 * 7,
     };
 
+    // On définit les deux noms de cookies pour être compatible avec tous tes composants
     response.cookies.set("pimpay_token", token, cookieOptions);
     response.cookies.set("token", token, cookieOptions);
 

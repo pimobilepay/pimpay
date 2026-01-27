@@ -11,24 +11,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { pin, userId: bodyUserId } = body;
 
-    // 1. RÉCUPÉRATION DE L'ID UTILISATEUR
-    // On regarde d'abord dans le cookie, sinon dans le corps de la requête (cas du Login)
     const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-    
     let userId = bodyUserId;
-
-    // Si on a un token (utilisateur déjà connecté qui veut changer son PIN)
-    if (token && !userId) {
-       // On pourrait décoder le token ici pour avoir l'ID, 
-       // mais si le front envoie le userId c'est plus simple.
-    }
 
     if (!userId || !pin) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 2. RECHERCHE USER
+    // 1. RECHERCHE USER
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -37,13 +27,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Utilisateur ou PIN non configuré" }, { status: 401 });
     }
 
-    // 3. VÉRIFICATION
+    // 2. VÉRIFICATION DU PIN
     const isPinValid = await bcrypt.compare(pin, user.pin);
     if (!isPinValid) {
       return NextResponse.json({ error: "Code PIN incorrect" }, { status: 401 });
     }
 
-    // 4. GÉNÉRATION DU TOKEN (Pour le login)
+    // 3. GÉNÉRATION DU TOKEN FINAL
     const secretKey = new TextEncoder().encode(SECRET);
     const newToken = await new SignJWT({
         id: user.id,
@@ -56,6 +46,56 @@ export async function POST(req: NextRequest) {
       .setExpirationTime("24h")
       .sign(secretKey);
 
+    // --- DEBUT DES CORRECTIONS SESSIONS & LOGS ---
+    const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";
+    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    const country = req.headers.get("x-vercel-ip-country") || "CG";
+    const city = req.headers.get("x-vercel-ip-city") || "Oyo";
+    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
+    const browser = userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur";
+
+    try {
+      // MISE À JOUR DE L'UTILISATEUR
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginIp: ip,
+        }
+      });
+
+      // CRÉATION DE LA SESSION (Pour que SessionsPage fonctionne)
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: newToken, // On stocke le token final
+          isActive: true,
+          userAgent,
+          ip,
+          deviceName: os,
+          os: os,
+          browser: browser,
+          city: city,
+          country: country
+        }
+      });
+
+      // NOTIFICATION DE CONNEXION RÉUSSIE
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: "LOGIN",
+          title: "Connexion sécurisée",
+          message: `Nouvelle session établie depuis ${city}, ${country}`,
+          metadata: { ip, device: os, location: `${city}, ${country}` }
+        }
+      });
+    } catch (dbError) {
+      console.error("LOGGING_ERROR:", dbError);
+      // On ne bloque pas la connexion si les logs échouent
+    }
+    // --- FIN DES CORRECTIONS ---
+
     const response = NextResponse.json({
       success: true,
       message: "PIN validé",
@@ -63,7 +103,6 @@ export async function POST(req: NextRequest) {
       redirectTo: user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard"
     });
 
-    // 5. MISE À JOUR DES COOKIES
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

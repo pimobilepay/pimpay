@@ -79,8 +79,15 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  walletAddress  String? @unique
+  // --- WALLETS MULTI-CHAIN ---
+  walletAddress  String? @unique // Bitcoin / Pi
   piUserId       String? @unique
+  
+  usdtAddress    String? @unique // USDT TRC20
+  usdtPrivateKey String?
+  
+  sidraAddress   String? @unique // AJOUT : Sidra Chain Address
+  sidraPrivateKey String?        // AJOUT : Sidra Chain Private Key
 
   wallets          Wallet[]
   vaults           Vault[]
@@ -143,20 +150,17 @@ model SystemConfig {
   appVersion         String    @default("2.4.0")
   forceUpdate        Boolean   @default(false)
   globalAnnouncement String?   @db.Text
-  
-  // MODES DE RESTRICTION
+
   maintenanceMode    Boolean   @default(false)
-  comingSoonMode     Boolean   @default(false) // AJOUTÉ
+  comingSoonMode     Boolean   @default(false)
   maintenanceUntil   DateTime?
 
-  // LOGIQUE FINANCIÈRE
   transactionFee     Float     @default(0.01)
   minWithdrawal      Float     @default(1.0)
   maxWithdrawal      Float     @default(5000.0)
   consensusPrice     Float     @default(314159.0)
   stakingAPY         Float     @default(15.0)
 
-  // STATS GLOBALES
   totalVolumePi      Float     @default(0.0)
   totalUsers         Int       @default(0)
   totalProfit        Float     @default(0.0)
@@ -183,7 +187,7 @@ model Vault {
   targetAmount Float?
   interestRate Float     @default(0)
   lockUntil    DateTime?
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime  @default(now()) // CORRIGÉ : @default(now()) au lieu de @now()
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -430,7 +434,7 @@ model Notification {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMS (REPRIS EXACTEMENT)
+// ENUMS
 // -----------------------------------------------------------------------------
 enum CardType {
   CLASSIC
@@ -466,6 +470,7 @@ enum WalletType {
   PI
   FIAT
   CRYPTO
+  SIDRA // AJOUT : Wallet Type pour Sidra
 }
 
 enum TransactionType {

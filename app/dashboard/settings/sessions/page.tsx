@@ -16,7 +16,7 @@ import { cookies } from "next/headers";
 import * as jose from "jose";
 
 /**
- * Fonction pour transformer un code pays (ex: "CD") en emoji drapeau
+ * Flag Emoji Helper
  */
 const getFlagEmoji = (countryCode: string | null | undefined) => {
   if (!countryCode || countryCode.length !== 2) return "🇨🇬";
@@ -34,8 +34,10 @@ async function getAuthenticatedUser() {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
+    
+    // On récupère l'utilisateur en s'assurant qu'il existe
     return await prisma.user.findUnique({
-      where: { id: userId, status: "ACTIVE" },
+      where: { id: userId },
       select: { id: true, username: true, role: true }
     });
   } catch (error) {
@@ -49,131 +51,128 @@ export default async function SessionsPage() {
 
   if (!user) {
     return (
-      <div className="p-12 text-center">
-        <div className="inline-flex p-4 bg-red-50 text-red-600 rounded-full mb-4">
-          <ShieldCheck size={32} />
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-center">
+        <div className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/10 max-w-xs w-full">
+          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldCheck size={32} />
+          </div>
+          <h2 className="text-xl font-black text-white uppercase italic">Accès Refusé</h2>
+          <p className="text-slate-500 text-xs mt-2 font-bold uppercase tracking-tighter">Session expirée ou invalide.</p>
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Accès refusé</h2>
-        <p className="text-gray-500 mt-2">Veuillez vous reconnecter à votre compte pimpay.</p>
       </div>
     );
   }
 
+  // Correction : On s'assure de ne récupérer que les sessions actives
   const sessions = await prisma.session.findMany({
-    where: { userId: user.id },
+    where: { 
+        userId: user.id,
+        isActive: true // Filtrer uniquement les sessions valides
+    },
     orderBy: { lastActiveAt: 'desc' },
   });
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-[#2563eb] flex items-center gap-2">
-            <ShieldCheck className="text-[#2563eb]" />
-            Sécurité et Sessions
-          </h1>
-          <p className="text-gray-500 text-sm">
-            Gérer les sessions actives.
-          </p>
+    <div className="min-h-screen bg-[#020617] text-white p-6 pb-32 font-sans">
+      <div className="max-w-md mx-auto">
+        
+        {/* HEADER STYLE PIMPAY */}
+        <div className="flex justify-between items-center mb-8 pt-6">
+          <div>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2">
+              PimPay<span className="text-blue-500">Security</span>
+            </h1>
+            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-1">
+                {sessions.length} Appareil{sessions.length > 1 ? 's' : ''} connecté{sessions.length > 1 ? 's' : ''}
+            </p>
+          </div>
+          <LogoutOthersButton />
         </div>
 
-        <LogoutOthersButton />
-      </div>
-
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="divide-y divide-gray-100">
+        <div className="space-y-4">
           {sessions.length === 0 ? (
-            <div className="p-10 text-center text-gray-400">
-              Aucune session active trouvée.
+            <div className="p-10 text-center bg-white/5 rounded-[2rem] border border-dashed border-white/10 text-slate-500">
+              Aucune session active.
             </div>
           ) : (
             sessions.map((session) => {
               const isCurrent = session.token === currentToken;
-
-              const isMobile = session.userAgent?.toLowerCase().includes("android") ||
-                               session.userAgent?.toLowerCase().includes("iphone") ||
+              const isMobile = session.deviceName?.toLowerCase().includes("android") ||
+                               session.deviceName?.toLowerCase().includes("iphone") ||
                                session.userAgent?.toLowerCase().includes("mobile");
 
               return (
                 <div
                   key={session.id}
-                  className={`p-6 flex items-center justify-between transition-colors ${
-                    isCurrent ? 'bg-blue-50/40' : 'hover:bg-gray-50/50'
+                  className={`p-5 rounded-[2rem] border transition-all ${
+                    isCurrent 
+                    ? 'bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20' 
+                    : 'bg-white/5 border-white/5'
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${
-                      isCurrent
-                        ? 'bg-blue-100 text-blue-600'
-                        : 'bg-gray-100 text-gray-400'
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                      isCurrent ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500'
                     }`}>
                       {isMobile ? <Smartphone size={24} /> : <Monitor size={24} />}
                     </div>
 
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900">
-                          {session.deviceName || "Appareil inconnu"}
-                          <span className="text-gray-400 font-normal mx-1">•</span>
-                          <span className="text-gray-600 font-medium text-sm">
-                            Navigateur
-                          </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-black text-sm truncate uppercase tracking-tight">
+                          {session.deviceName || "Appareil Inconnu"}
                         </span>
-
                         {isCurrent && (
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
-                            Active maintenant
+                          <span className="px-2 py-0.5 bg-emerald-500 text-black text-[8px] font-black uppercase rounded-md animate-pulse">
+                            Actuel
                           </span>
                         )}
                       </div>
 
-                      <div className="text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                        <span className="flex items-center gap-1.5">
-                          <Globe size={14} className="text-gray-400" />
-                          {session.ip}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <MapPin size={14} className="text-gray-400" />
-                          {session.city ? `${session.city}, ${session.country}` : "Oyo, Congo"}
-                          <span className="ml-1">
-                            {getFlagEmoji(session.country || "CG")}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Clock size={14} className="text-gray-400" />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                          <Globe size={12} className="text-blue-500" />
+                          {session.ip} • {session.browser || "Navigateur"}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                          <MapPin size={12} className="text-rose-500" />
+                          {session.city || "Oyo"}, {session.country || "Congo"} {getFlagEmoji(session.country)}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                          <Clock size={12} />
                           {formatDistanceToNow(new Date(session.lastActiveAt), {
                             addSuffix: true,
                             locale: fr
                           })}
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {isCurrent ? (
-                    <div className="hidden md:block mr-2">
-                       <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
-                    </div>
-                  ) : (
-                    <RevokeSessionButton sessionId={session.id} />
-                  )}
+                    {!isCurrent && (
+                      <div className="self-center">
+                        <RevokeSessionButton sessionId={session.id} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })
           )}
         </div>
-      </div>
 
-      <div className="mt-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex gap-4 items-start">
-        <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm text-amber-500">
-          <ShieldCheck size={20} />
-        </div>
-        <div>
-          <h4 className="text-sm font-bold text-gray-900">Conseil de sécurité</h4>
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Si vous remarquez une activité suspecte ou un appareil que vous ne reconnaissez pas,
-            utilisez le bouton <strong>Déconnexion globale</strong> et changez immédiatement votre code PIN.
-          </p>
+        {/* SECURITY NOTE */}
+        <div className="mt-8 p-5 bg-blue-600/5 rounded-[2rem] border border-blue-500/10 flex gap-4 items-start">
+          <div className="p-2 bg-blue-600/20 rounded-xl text-blue-500">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h4 className="text-[11px] font-black text-white uppercase tracking-widest">Contrôle d'accès</h4>
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed font-bold uppercase">
+              Si un appareil vous semble suspect, révoquez-le immédiatement et changez vos accès PimPay.
+            </p>
+          </div>
         </div>
       </div>
     </div>

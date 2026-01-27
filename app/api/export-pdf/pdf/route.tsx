@@ -2,8 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-// @ts-ignore - On ignore les types si le paquet @types/pdfkit n'est pas détecté
-import PDFDocument from "pdfkit";
+import { jsPDF } from "jspdf";
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,38 +16,25 @@ export async function GET(req: NextRequest) {
     // 1. Récupération de l'image
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error("Failed to fetch image");
+    
+    // Pour jsPDF, on utilise le format Uint8Array directement
     const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
 
-    // 2. Création du PDF via une Promise
-    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({
-        size: "A4",
-        margin: 50
-      });
+    // 2. Création du PDF avec jsPDF
+    // 'p' = portrait, 'mm' = millimètres, 'a4' = format
+    const doc = new jsPDF('p', 'mm', 'a4');
 
-      const chunks: Buffer[] = [];
+    // Ajout de l'image
+    // jsPDF détecte automatiquement le format (PNG, JPEG, etc.)
+    // Paramètres : image, format, x, y, largeur, hauteur
+    doc.addImage(uint8Array, "JPEG", 10, 10, 190, 0); 
 
-      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-      doc.on("end", () => resolve(Buffer.concat(chunks)));
-      doc.on("error", (err: Error) => reject(err));
+    // 3. Génération du buffer de sortie
+    const pdfOutput = doc.output("arraybuffer");
 
-      // Ajout de l'image au PDF
-      try {
-        // On convertit l'ArrayBuffer en Buffer pour PDFKit
-        doc.image(Buffer.from(arrayBuffer), {
-          fit: [500, 700],
-          align: "center",
-          valign: "center",
-        });
-        doc.end();
-      } catch (err) {
-        reject(err);
-      }
-    });
-
-    // 3. Retour de la réponse PDF
-    // CORRECTION : On convertit le Buffer en Uint8Array pour NextResponse
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    // Retour de la réponse PDF
+    return new NextResponse(new Uint8Array(pdfOutput), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename=pimpay-receipt.pdf",

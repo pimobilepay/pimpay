@@ -13,12 +13,12 @@ import {
   Hash,
   ShieldCheck,
   Zap,
-  Smartphone // Ajouté ici pour corriger l'erreur ReferenceError
+  Smartphone
 } from "lucide-react";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image"; // Changement ici
 import jsPDF from "jspdf";
 
 export default function TransactionDetailsPage() {
@@ -30,14 +30,14 @@ export default function TransactionDetailsPage() {
     reference: "TX-PIMPAY-992834",
     amount: 50.00,
     fee: 0.00,
-    status: "SUCCESS", // Enum TransactionStatus
-    type: "DEPOSIT",  // Enum TransactionType
+    status: "SUCCESS", 
+    type: "DEPOSIT",  
     createdAt: new Date().toLocaleString('fr-FR'),
     method: "Airtel Money",
     phone: "+243 812 345 678"
   };
 
-  // Fonction de génération PDF
+  // Fonction de génération PDF corrigée pour html-to-image
   const handleDownloadPDF = async () => {
     if (!receiptRef.current) return;
 
@@ -45,21 +45,20 @@ export default function TransactionDetailsPage() {
       setIsExporting(true);
       toast.info("Préparation du reçu...");
 
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2, // Haute résolution
-        backgroundColor: "#020617", // Fond sombre identique au design
-        logging: false,
-        useCORS: true
+      // Utilisation de toPng (plus rapide et sécurisé)
+      const dataUrl = await toPng(receiptRef.current, {
+        cacheBust: true,
+        backgroundColor: "#020617",
+        pixelRatio: 2, // Equivalent de scale: 2
       });
 
-      const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
-        format: [canvas.width / 2, canvas.height / 2]
+        format: [receiptRef.current.clientWidth, receiptRef.current.clientHeight]
       });
 
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.addImage(dataUrl, "PNG", 0, 0, receiptRef.current.clientWidth, receiptRef.current.clientHeight);
       pdf.save(`PimPay_Receipt_${tx.reference}.pdf`);
 
       toast.success("Reçu téléchargé !");
@@ -85,9 +84,8 @@ export default function TransactionDetailsPage() {
         </Link>
 
         {/* ZONE CAPTURÉE PAR LE PDF */}
-        <div ref={receiptRef} className="p-1"> {/* Padding léger pour éviter les bords coupés */}
+        <div ref={receiptRef} className="p-1"> 
           <Card className="bg-slate-900/60 border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
-            {/* Filigrane décoratif pour le PDF */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] pointer-events-none">
                 <Zap size={300} fill="currentColor" />
             </div>
@@ -148,14 +146,12 @@ export default function TransactionDetailsPage() {
               </div>
             </div>
 
-            {/* Pied du reçu */}
             <div className="bg-blue-600 py-3 text-center">
                 <p className="text-[8px] font-black text-white uppercase tracking-[0.4em]">Fintech Beyond Frontiers</p>
             </div>
           </Card>
         </div>
 
-        {/* BOUTONS D'ACTION (Hors zone PDF) */}
         <div className="mt-8 flex gap-4">
           <Button
             onClick={handleDownloadPDF}

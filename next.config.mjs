@@ -24,6 +24,24 @@ const nextConfig = {
     // Optimise le chargement des packages lourds
     optimizePackageImports: ["lucide-react", "sonner"],
   },
+
+  // AJOUT : Support pour les bibliothèques Bitcoin (tiny-secp256k1 / WASM)
+  webpack: (config) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    // Optionnel : Aide Webpack à ignorer les problèmes de fichiers binaires côté client
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+    };
+
+    return config;
+  },
 }
 
 export default nextConfig

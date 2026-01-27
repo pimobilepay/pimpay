@@ -3,4 +3,11 @@ ignoredBuiltDependencies:
 
 onlyBuiltDependencies:
   - '@firebase/util'
+  - '@prisma/client'
+  - '@prisma/engines'
   - '@swc/core'
+  - core-js
+  - eccrypto
+  - prisma
+  - protobufjs
+  - secp256k1

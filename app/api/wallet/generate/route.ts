@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-// Assure-toi d'avoir installé @types/qrcode comme discuté
-import QRCode from "qrcode"; 
+// Suppression de l'import qrcode pour éliminer la dépendance
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
-    // 1. Récupérer l'utilisateur via la session (plus sécurisé que de le passer dans le body)
+    // 1. Récupérer l'utilisateur via la session
     const session = await auth() as any;
     const userId = session?.id;
 
@@ -18,18 +17,17 @@ export async function POST(request: Request) {
 
     // 2. Générer un identifiant unique de dépôt (Mémo)
     const depositMemo = `PIMPAY-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-    
+
     // 3. Adresse du Master Wallet (depuis les variables d'environnement)
     const masterWalletAddress = process.env.PI_MASTER_WALLET_ADDRESS || "ADRESSE_PAR_DEFAUT";
 
     // 4. Créer le lien de paiement standard Pi
     const paymentUrl = `pi://payment?recipient=${masterWalletAddress}&amount=0&memo=${depositMemo}`;
 
-    // 5. Générer le QR Code
-    const qrCodeDataUrl = await QRCode.toDataURL(paymentUrl);
+    // NOTE : On ne génère plus le QR Code ici (DataURL) pour alléger l'API.
+    // Le frontend utilisera <QRCodeSVG value={paymentUrl} />
 
-    // 6. Sauvegarder (Correction de l'erreur de build Prisma)
-    // On utilise l'index unique composé userId_currency pour cibler le wallet PI
+    // 5. Sauvegarder dans la base de données
     await prisma.wallet.update({
       where: {
         userId_currency: {
@@ -38,19 +36,14 @@ export async function POST(request: Request) {
         }
       },
       data: {
-        // CORRECTION : Si 'depositMemo' n'est pas encore dans ton schéma, 
-        // on utilise un champ existant ou on ne met à jour que le timestamp
-        // updatedAt: new Date(), 
-        
-        // DECOMMENTER UNIQUEMENT SI TU AS AJOUTÉ LE CHAMP DANS PRISMA :
+        // Optionnel : tu peux stocker le mémo ici si ton schéma Prisma le permet
         // depositMemo: depositMemo 
       }
     });
 
-    return NextResponse.json({ 
-      qrCodeDataUrl, 
+    return NextResponse.json({
       depositMemo,
-      paymentUrl 
+      paymentUrl // C'est cette URL que tu passeras à ton composant QRCodeSVG au front-end
     });
 
   } catch (error: any) {

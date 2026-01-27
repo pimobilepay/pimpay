@@ -11,7 +11,6 @@ export async function GET(request: Request) {
     const tokenCookie = cookieStore.get("token")?.value;
     const authHeader = request.headers.get("authorization");
     const tokenHeader = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
-
     const token = tokenCookie || (tokenHeader !== "undefined" && tokenHeader !== "null" ? tokenHeader : null);
 
     if (!token) {
@@ -30,7 +29,7 @@ export async function GET(request: Request) {
 
     const userId = (payload.id || payload.userId || payload.sub) as string;
 
-    // 3. Récupération complète des données (incluant TOUS les wallets et la carte)
+    // 3. Récupération complète des données (INCLUANT LES ADRESSES BLOCKCHAIN)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -42,17 +41,18 @@ export async function GET(request: Request) {
         status: true,
         kycStatus: true,
         avatar: true,
-        walletAddress: true,
+        walletAddress: true, // Pi Network
+        usdtAddress: true,   // USDT TRC20
+        sidraAddress: true,  // Sidra Chain
         createdAt: true,
-        // CORRECTION : On récupère TOUS les wallets pour avoir les soldes Fiat (USD, XAF, etc.)
         wallets: {
-          select: { 
-            id: true, 
-            balance: true, 
-            currency: true 
+          select: {
+            id: true,
+            balance: true,
+            currency: true,
+            type: true
           }
         },
-        // AJOUT : Récupération de la carte virtuelle réelle
         virtualCards: {
           take: 1,
           orderBy: { createdAt: 'desc' },
@@ -113,14 +113,13 @@ export async function GET(request: Request) {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10);
 
-    // Récupération du solde principal (PI) pour compatibilité
+    // Récupération du solde principal (PI)
     const piWallet = user.wallets.find(w => w.currency === "PI");
     const piBalance = piWallet?.balance ?? 0;
 
     // 5. Réponse structurée pour PimPay
     return NextResponse.json({
       success: true,
-      // Infos utilisateur
       id: user.id,
       email: user.email,
       username: user.username,
@@ -130,14 +129,19 @@ export async function GET(request: Request) {
       kycStatus: user.kycStatus,
       joinedAt: user.createdAt,
       avatar: user.avatar,
-      
+
+      // Adresses pour le front
+      walletAddress: user.walletAddress, // Pi
+      usdtAddress: user.usdtAddress,     // Tron
+      sidraAddress: user.sidraAddress,   // Sidra
+
       // Données financières
-      balance: piBalance, // Solde PI par défaut
+      balance: piBalance,
       currency: "PI",
-      wallets: user.wallets, // Liste complète des soldes Fiat (utilisée par ta page CardPage)
-      virtualCards: user.virtualCards, // Données réelles de la carte
+      wallets: user.wallets,
+      virtualCards: user.virtualCards,
       transactions: mergedTransactions,
-      
+
       stats: {
         totalTransactions: user._count.transactionsFrom + user._count.transactionsTo,
       }
