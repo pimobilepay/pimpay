@@ -3,152 +3,104 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { Wallet as EthersWallet } from "ethers";
+import crypto from "crypto";
+
+// Fonction pour générer des paires (Clé Privée / Adresse)
+const generateBlockchainIdentities = () => {
+  // 1. Sidra Chain (EVM Compatible)
+  const sidraWallet = EthersWallet.createRandom();
+
+  // 2. USDT TRC20 (Format similaire à EVM pour la clé, mais adresse commence par T)
+  // Note: Pour un vrai réseau Tron, on utiliserait tronweb, 
+  // ici on simule le format pour PimPay
+  const usdtPrivKey = crypto.randomBytes(32).toString('hex');
+  const usdtAddr = `T${crypto.randomBytes(20).toString('hex').substring(0, 33)}`;
+
+  // 3. Pi / BTC (Format simplifié pour PimPay)
+  const piPrivKey = crypto.randomBytes(32).toString('hex');
+  const piAddr = `P${crypto.randomBytes(20).toString('hex').toUpperCase()}`;
+
+  return {
+    sidra: { address: sidraWallet.address, privateKey: sidraWallet.privateKey },
+    usdt: { address: usdtAddr, privateKey: usdtPrivKey },
+    pi: { address: piAddr, privateKey: piPrivKey }
+  };
+};
 
 export async function GET(request: Request) {
   try {
-    // 1. Extraction du token
     const cookieStore = cookies();
-    const tokenCookie = cookieStore.get("token")?.value;
-    const authHeader = request.headers.get("authorization");
-    const tokenHeader = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
-    const token = tokenCookie || (tokenHeader !== "undefined" && tokenHeader !== "null" ? tokenHeader : null);
+    const token = cookieStore.get("token")?.value;
 
-    if (!token) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-    // 2. Vérification JWT
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    let payload;
-    try {
-      const { payload: verified } = await jwtVerify(token, secret);
-      payload = verified;
-    } catch (e) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
-    }
+    const { payload } = await jwtVerify(token, secret);
+    const userId = (payload.id || payload.userId) as string;
 
-    const userId = (payload.id || payload.userId || payload.sub) as string;
-
-    // 3. Récupération complète des données (INCLUANT LES ADRESSES BLOCKCHAIN)
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        name: true,
-        role: true,
-        status: true,
-        kycStatus: true,
-        avatar: true,
-        walletAddress: true, // Pi Network
-        usdtAddress: true,   // USDT TRC20
-        sidraAddress: true,  // Sidra Chain
-        createdAt: true,
-        wallets: {
-          select: {
-            id: true,
-            balance: true,
-            currency: true,
-            type: true
-          }
-        },
-        virtualCards: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            number: true,
-            exp: true,
-            cvv: true,
-            holder: true,
-            brand: true,
-            type: true
-          }
-        },
-        transactionsFrom: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            status: true,
-            description: true,
-            createdAt: true,
-            reference: true
-          }
-        },
-        transactionsTo: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            status: true,
-            description: true,
-            createdAt: true,
-            reference: true
-          }
-        },
-        _count: {
-          select: {
-            transactionsFrom: true,
-            transactionsTo: true
-          }
-        }
-      }
+      include: { wallets: true, virtualCards: true, _count: true }
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+    if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+
+    // --- LOGIQUE DE GÉNÉRATION SÉCURISÉE ---
+    // On vérifie si l'utilisateur manque d'adresses OU de clés privées
+    if (!user.sidraAddress || !user.sidraPrivateKey || !user.usdtAddress) {
+      const identities = generateBlockchainIdentities();
+
+      user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          // Sidra : On ne remplace que si c'est vide
+          sidraAddress: user.sidraAddress || identities.sidra.address,
+          sidraPrivateKey: user.sidraPrivateKey || identities.sidra.privateKey,
+
+          // USDT : On ne remplace que si c'est vide
+          usdtAddress: user.usdtAddress || identities.usdt.address,
+          usdtPrivateKey: user.usdtPrivateKey || identities.usdt.privateKey,
+
+          // Pi / BTC
+          walletAddress: user.walletAddress || identities.pi.address,
+
+          // Initialisation des Wallets (Soldes)
+          wallets: {
+            connectOrCreate: [
+              { where: { userId_currency: { userId, currency: "PI" } }, create: { currency: "PI", balance: 0, type: "PI" } },
+              { where: { userId_currency: { userId, currency: "SDA" } }, create: { currency: "SDA", balance: 0, type: "SIDRA" } },
+              { where: { userId_currency: { userId, currency: "USDT" } }, create: { currency: "USDT", balance: 0, type: "CRYPTO" } }
+            ]
+          }
+        },
+        include: { wallets: true, virtualCards: true, _count: true }
+      });
     }
 
-    // 4. Préparation des transactions fusionnées
-    const mergedTransactions = [
-      ...user.transactionsFrom.map(tx => ({ ...tx, flow: 'OUT' })),
-      ...user.transactionsTo.map(tx => ({ ...tx, flow: 'IN' }))
-    ]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10);
+    // Extraction du solde PI pour le Dashboard
+    const piBalance = user.wallets.find(w => w.currency === "PI")?.balance ?? 0;
 
-    // Récupération du solde principal (PI)
-    const piWallet = user.wallets.find(w => w.currency === "PI");
-    const piBalance = piWallet?.balance ?? 0;
-
-    // 5. Réponse structurée pour PimPay
     return NextResponse.json({
       success: true,
       id: user.id,
-      email: user.email,
       username: user.username,
-      name: user.name || user.username || "Pioneer",
-      role: user.role,
-      status: user.status,
-      kycStatus: user.kycStatus,
-      joinedAt: user.createdAt,
+      name: user.name || user.username,
       avatar: user.avatar,
+      kycStatus: user.kycStatus,
+      
+      // Adresses (On ne renvoie JAMAIS les clés privées au frontend pour la sécurité)
+      walletAddress: user.walletAddress,
+      usdtAddress: user.usdtAddress,
+      sidraAddress: user.sidraAddress,
 
-      // Adresses pour le front
-      walletAddress: user.walletAddress, // Pi
-      usdtAddress: user.usdtAddress,     // Tron
-      sidraAddress: user.sidraAddress,   // Sidra
-
-      // Données financières
       balance: piBalance,
-      currency: "PI",
       wallets: user.wallets,
       virtualCards: user.virtualCards,
-      transactions: mergedTransactions,
-
-      stats: {
-        totalTransactions: user._count.transactionsFrom + user._count.transactionsTo,
-      }
     });
 
   } catch (error: any) {
-    console.error("ERREUR_CRITIQUE_PROFILE:", error.message);
-    return NextResponse.json({ error: "Erreur interne", details: error.message }, { status: 500 });
+    console.error("PROFILE_ERROR:", error.message);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

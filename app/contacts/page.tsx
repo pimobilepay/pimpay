@@ -1,9 +1,6 @@
-"use client";
-
-import { useState } from "react";
-import {
-  ArrowLeft, Mail, Phone, MessageCircle,
-  Send, ShieldCheck, Headphones, ExternalLink
+"use client";                                         
+import { useState } from "react";                     import {
+  ArrowLeft, Mail, Phone, MessageCircle,                Send, ShieldCheck, Headphones, ExternalLink
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
@@ -11,10 +8,8 @@ import { toast } from "sonner";
 
 export default function ContactsPage() {
   const router = useRouter();
-  
-  // Correction TypeScript : satisfait l'exigence du BottomNav de ton projet pimpay
+
   const handleOpenMenu = () => {
-    // Cette fonction est requise par ton composant BottomNav
     console.log("Pimpay Protocol: Menu Request");
   };
 
@@ -26,21 +21,29 @@ export default function ContactsPage() {
   });
   const [isSending, setIsSending] = useState(false);
 
+  // MODIFICATION : Connexion réelle à l'API PimPay Support
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSending(true);
 
     try {
-      // Simulation d'une latence réseau pour le réalisme Web3
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast.success("Message transmis au protocole de support", {
-        description: "Un agent traitera votre ticket sous 24h.",
+      const response = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
       });
-      
+
+      if (!response.ok) throw new Error("Server Unreachable");
+
+      toast.success("Ticket PimPay transmis", {
+        description: "Votre requête est en cours d'analyse par le protocole.",
+      });
+
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
-      toast.error("Erreur lors de la transmission");
+      toast.error("Échec de transmission", {
+        description: "Vérifiez votre connexion au réseau Pi.",
+      });
     } finally {
       setIsSending(false);
     }
@@ -212,7 +215,6 @@ export default function ContactsPage() {
 
       </main>
 
-      {/* Correction appliquée : on passe la fonction handleOpenMenu */}
       <BottomNav onOpenMenu={handleOpenMenu} />
     </div>
   );

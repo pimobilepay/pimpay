@@ -1,16 +1,11 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import {
-  ArrowUpRight, ArrowDownLeft, RefreshCcw,
-  Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
-  Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,
-  LogOut, Smartphone, History, User, Settings, LayoutGrid
+import { useState, useEffect, useRef } from "react";  import { useRouter } from "next/navigation";          import {
+  ArrowUpRight, ArrowDownLeft, RefreshCcw,              Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
+  Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown,     LogOut, Smartphone, History, User, Settings, LayoutGrid,
+  Facebook, Twitter, Youtube, ExternalLink
 } from "lucide-react";
-import { PI_CONSENSUS_USD } from "@/lib/exchange";
-import { BottomNav } from "@/components/bottom-nav";
-import { Sidebar } from "@/components/sidebar";
-import { toast } from "sonner";
+import { PI_CONSENSUS_USD } from "@/lib/exchange";    import { BottomNav } from "@/components/bottom-nav";
+import { Sidebar } from "@/components/sidebar";       import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
@@ -33,7 +28,7 @@ export default function UserDashboard() {
   useEffect(() => {
     setHasMounted(true);
     fetchDashboardData();
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
@@ -45,30 +40,66 @@ export default function UserDashboard() {
 
   async function fetchDashboardData() {
     try {
-      const response = await fetch("/api/user/profile", { cache: 'no-store' });
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-      } else if (response.status === 401) {
+      const [profileRes, historyRes] = await Promise.all([
+        fetch("/api/user/profile", { cache: 'no-store' }),
+        fetch("/api/wallet/history", { cache: 'no-store' })
+      ]);
+
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        const historyData = historyRes.ok ? await historyRes.json() : { transactions: [] };
+
+        setData({
+          ...profileData,
+          transactions: historyData.transactions || profileData.transactions || []
+        });
+      } else if (profileRes.status === 401) {
         router.push("/auth/login");
       }
-    } catch (err) { console.error(err); } finally { setIsLoading(false); }
+    } catch (err) {
+      console.error("Erreur PimPay Sync:", err);
+      toast.error("Erreur de synchronisation");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  const handleLogout = () => {
-    toast.success("Déconnexion réussie");
-    router.push("/auth/login");
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        toast.success("Déconnexion réussie");
+        router.push("/auth/login");
+      }
+    } catch (err) {
+      router.push("/auth/login");
+    }
   };
 
-  // Logique d'icône dynamique pour l'historique
+  const openBlockchainDetail = (tx: any) => {
+    const hash = tx.hash || tx.transactionHash;
+    if (!hash) {
+      toast.info("Transaction interne PimPay");
+      return;
+    }
+    let url = tx.currency === "PI" 
+      ? `https://minepi.com/blockexplorer/tx/${hash}` 
+      : `https://stellar.expert/explorer/public/tx/${hash}`;
+    window.open(url, "_blank");
+  };
+
+  const formatAddr = (addr: string) => {
+    if (!addr) return "PimPay System";
+    return `${addr.substring(0, 4)}...${addr.substring(addr.length - 4)}`;
+  };
+
   const getTxIcon = (tx: any) => {
     const type = tx.type?.toUpperCase();
-    const isReceived = tx.toUserId === data?.id || type === 'DEPOSIT';
-
-    if (type === 'SWAP' || type === 'EXCHANGE') return { icon: <RefreshCcw size={20} />, color: "bg-orange-500/10 text-orange-500" };
-    if (type === 'MOBILE_RECHARGE' || type === 'TOPUP') return { icon: <Smartphone size={20} />, color: "bg-indigo-500/10 text-indigo-500" };
-    if (isReceived) return { icon: <ArrowDownCircle size={20} />, color: "bg-emerald-500/10 text-emerald-500" };
-    return { icon: <ArrowUpCircle size={20} />, color: "bg-blue-500/10 text-blue-500" };
+    const isReceived = tx.toUserId === data?.id || type === 'DEPOSIT' || type === 'AIRDROP';
+    if (type === 'SWAP' || type === 'EXCHANGE') return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
+    if (type === 'MOBILE_RECHARGE' || type === 'TOPUP') return { icon: <Smartphone size={18} />, color: "bg-indigo-500/10 text-indigo-500" };
+    if (isReceived) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
+    return { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" };
   };
 
   if (!hasMounted || isLoading) {
@@ -97,7 +128,6 @@ export default function UserDashboard() {
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      {/* HEADER AVEC PERMUTATION DES BOUTONS */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
@@ -108,37 +138,27 @@ export default function UserDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* BOUTON NOTIFICATIONS (Maintenant à gauche du profil) */}
+          <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all">
+             <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
+          </button>
           <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
             <Bell size={20} />
             <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
           </button>
-
-          {/* BOUTON PROFIL (Maintenant à l'extrémité droite) */}
           <div className="relative" ref={menuRef}>
-            <button 
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:bg-white/10 transition-all active:scale-90 border border-transparent hover:border-white/10"
-            >
+            <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:bg-white/10 transition-all active:scale-90 border border-transparent hover:border-white/10">
               <User size={20} />
             </button>
-            
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110] animate-in fade-in zoom-in duration-200">
                 <div className="p-4 border-b border-white/5 mb-2">
                   <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Compte PimPay</p>
                   <p className="text-sm font-bold truncate">{userName}</p>
                 </div>
-                <button 
-                  onClick={() => router.push("/profile")}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase tracking-tight"
-                >
+                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase tracking-tight">
                   <Settings size={16} /> Mon Profil
                 </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase tracking-tight"
-                >
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase tracking-tight">
                   <LogOut size={16} /> Déconnexion
                 </button>
               </div>
@@ -168,10 +188,10 @@ export default function UserDashboard() {
               <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">{userName}</p>
             </div>
             <div className="flex justify-between items-end">
-                <button onClick={() => setShowCurrencyPicker(!showCurrencyPicker)} className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+                <div className="bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
                   <Globe size={12} className="text-blue-400" />
                   <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${(convertedValue).toLocaleString()} ${currency}` : "Locked"}</p>
-                </button>
+                </div>
                 <div className="text-right">
                   <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Network</p>
                   <p className="text-[10px] font-bold text-white uppercase italic">Pi Mainnet</p>
@@ -197,7 +217,7 @@ export default function UserDashboard() {
             ))}
         </div>
 
-        {/* SECTION STATISTIQUES */}
+        {/* SECTION RÉCAPITULATION (STATISTIQUES) */}
         <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10 shadow-inner">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Répartition Activité</h3>
@@ -230,31 +250,45 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        {/* HISTORIQUE AVEC ICÔNES DYNAMIQUES */}
-        <section className="mb-8">
+        {/* HISTORIQUE (7 DERNIÈRES AVEC ADRESSES) */}
+        <section className="mb-12">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions (7)</h3>
             <History size={16} className="text-slate-600" />
           </div>
           <div className="space-y-4">
-            {transactions.length > 0 ? transactions.slice(0, 5).map((tx: any) => {
+            {transactions.length > 0 ? transactions.slice(0, 7).map((tx: any) => {
               const { icon, color } = getTxIcon(tx);
+              const isReceived = tx.toUserId === data?.id || tx.type?.toUpperCase() === 'DEPOSIT' || tx.type?.toUpperCase() === 'AIRDROP';
+
               return (
-                <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors">
+                <div 
+                  key={tx.id} 
+                  onClick={() => openBlockchainDetail(tx)}
+                  className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer group"
+                >
                   <div className="flex items-center gap-4">
                     <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>
                       {icon}
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-tight text-white">{tx.description || "Paiement PimPay"}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[11px] font-bold uppercase tracking-tight text-white">{tx.description || "Paiement PimPay"}</p>
+                        {tx.hash && <ExternalLink size={10} className="text-slate-600" />}
+                      </div>
                       <p className="text-[8px] text-slate-500 font-black uppercase mt-1">
-                        {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        {isReceived ? `De: ${formatAddr(tx.fromAddress)}` : `À: ${formatAddr(tx.toAddress)}`}
                       </p>
                     </div>
                   </div>
-                  <p className={`text-sm font-black ${tx.toUserId === data?.id ? 'text-emerald-400' : 'text-blue-400'}`}>
-                    {tx.toUserId === data?.id ? '+' : '-'}π {tx.amount.toLocaleString()}
-                  </p>
+                  <div className="text-right">
+                    <p className={`text-sm font-black ${isReceived ? 'text-emerald-400' : 'text-blue-400'}`}>
+                      {isReceived ? '+' : '-'}{tx.currency || 'π'} {tx.amount.toLocaleString()}
+                    </p>
+                    <p className="text-[8px] text-slate-500 font-black mt-1">
+                      {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                    </p>
+                  </div>
                 </div>
               );
             }) : (
@@ -262,6 +296,19 @@ export default function UserDashboard() {
             )}
           </div>
         </section>
+
+        {/* FOOTER */}
+        <footer className="mt-12 mb-8 pt-8 border-t border-white/5 flex flex-col items-center gap-6">
+          <div className="flex items-center gap-6">
+            <a href="https://www.facebook.com/profile.php?id=61586522422346" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
+            <a href="https://x.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all"><Twitter size={20} /></a>
+            <a href="https://youtube.com/@pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all"><Youtube size={20} /></a>
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p>
+           <p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">
+              Pi Mobile Payment Solution
+            </p>
+        </footer>
       </main>
 
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />

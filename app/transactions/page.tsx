@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 import { useRouter } from "next/navigation";
 
-// INTERFACE CORRIGÉE : Ajout de reference pour éviter l'erreur de build
+// INTERFACE : Conservée à l'identique avec reference
 interface TransactionData {
   id: string;
-  reference?: string; 
+  reference?: string;
   type: string;
   status: string;
   currency: string;
@@ -83,7 +83,12 @@ export default function TransactionsPage() {
         prefix: "+"
       };
     }
-    if (tx.toUserId === userId || tx.type === 'DEPOSIT') {
+
+    // LOGIQUE CORRIGÉE : On vérifie si l'utilisateur est le destinataire 
+    // ou si c'est un dépôt système pour SDA/PI/USDT
+    const isReceived = tx.toUserId === userId || tx.type === 'DEPOSIT' || tx.type === 'AIRDROP';
+
+    if (isReceived) {
       return {
         icon: <ArrowDownLeft size={18} className="text-emerald-500" />,
         label: `REÇU ${tx.currency}`,
@@ -91,6 +96,7 @@ export default function TransactionsPage() {
         prefix: "+"
       };
     }
+
     return {
       icon: <ArrowUpRight size={18} className="text-red-500" />,
       label: `ENVOYÉ ${tx.currency}`,
@@ -118,11 +124,11 @@ export default function TransactionsPage() {
     if (url) window.open(url, '_blank');
   };
 
-  // FILTRAGE CORRIGÉ : Utilisation sécurisée de reference
+  // FILTRAGE : Conservé tel quel
   const filteredTransactions = transactions.filter(tx => {
     const matchesTab = activeTab === 'All' || tx.currency === activeTab;
     const searchLower = search.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       (tx.reference?.toLowerCase().includes(searchLower) || false) ||
       (tx.type?.toLowerCase().includes(searchLower) || false);
     return matchesTab && matchesSearch;
@@ -130,7 +136,7 @@ export default function TransactionsPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans pb-32">
-      {/* HEADER */}
+      {/* HEADER : Design intouché */}
       <div className="px-6 pt-12 pb-6 sticky top-0 bg-[#020617]/80 backdrop-blur-xl z-50 border-b border-white/5">
         <div className="flex justify-between items-center mb-8">
           <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all">
@@ -172,7 +178,7 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* LISTE DES TRANSACTIONS */}
+      {/* LISTE : Design intouché */}
       <div className="px-6 mt-8 space-y-4">
         {loading ? (
           <div className="text-center py-20 opacity-20 animate-pulse font-black uppercase text-xs">Chargement PimPay Node...</div>
