@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 
 // 1. Ta clé Primary Key (Collections)
-const SUBSCRIPTION_KEY = 'be348175da3041539aa325294a43cdf6'; 
+const SUBSCRIPTION_KEY = '07c9a004fdba4670ae8d3f966b36e8f9'; 
 
 // 2. Génération d'un ID unique pour ton utilisateur API
 const REFERENCE_ID = uuidv4(); 

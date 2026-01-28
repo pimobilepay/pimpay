@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ArrowLeft, Camera, User, Mail, Phone, Lock,
   Check, Loader2, Home, Wallet, ArrowDownToLine,
@@ -38,11 +38,14 @@ function BottomNav() {
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
+    id: "",
     firstName: "",
     lastName: "",
     username: "",
@@ -54,6 +57,7 @@ export default function EditProfilePage() {
     city: "",
     address: "",
     walletAddress: "",
+    avatar: "",
   });
 
   useEffect(() => {
@@ -64,6 +68,7 @@ export default function EditProfilePage() {
         const data = await res.json();
         if (res.ok && data.user) {
           setFormData({
+            id: data.user.id || "",
             firstName: data.user.firstName || "",
             lastName: data.user.lastName || "",
             username: data.user.username || "",
@@ -75,6 +80,7 @@ export default function EditProfilePage() {
             city: data.user.city || "",
             address: data.user.address || "",
             walletAddress: data.user.walletAddress || "",
+            avatar: data.user.avatar || "",
           });
         }
       } catch (err) {
@@ -85,6 +91,32 @@ export default function EditProfilePage() {
     };
     fetchUserData();
   }, []);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const uploadData = new FormData();
+    uploadData.append("avatar", file);
+    uploadData.append("userId", formData.id);
+
+    try {
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        body: uploadData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur upload");
+
+      setFormData(prev => ({ ...prev, avatar: data.avatar }));
+      toast.success("Avatar mis à jour !");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,13 +156,36 @@ export default function EditProfilePage() {
       </header>
 
       <main className="px-6">
-        {/* AVATAR HEADER */}
+        {/* AVATAR HEADER - MODIFIÉ EN CERCLE */}
         <div className="flex flex-col items-center mb-10">
           <div className="relative group">
-            <div className="w-28 h-28 rounded-[32px] bg-gradient-to-tr from-blue-600 to-indigo-900 flex items-center justify-center text-4xl font-black italic border-4 border-slate-900 shadow-2xl uppercase">
-              {formData.username?.[0] || "P"}
+            {/* Remplacement de rounded-[32px] par rounded-full */}
+            <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-900 flex items-center justify-center text-4xl font-black italic border-4 border-slate-900 shadow-2xl uppercase overflow-hidden">
+              {formData.avatar ? (
+                <img src={formData.avatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                formData.username?.[0] || "P"
+              )}
+              {uploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <Loader2 className="animate-spin text-white" size={24} />
+                </div>
+              )}
             </div>
-            <button className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center border-4 border-slate-900 shadow-lg">
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleAvatarChange}
+            />
+            {/* Adaptation du bouton pour suivre la forme circulaire */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-lg active:scale-90 transition-transform"
+            >
               <Camera size={18} />
             </button>
           </div>
@@ -138,11 +193,9 @@ export default function EditProfilePage() {
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
-          
-          {/* SECTION : IDENTITÉ */}
           <div className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Identité Personnelle</h3>
-            
+
             <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50 transition-all">
               <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Fingerprint size={12} /> Nom d'utilisateur (Public)</label>
               <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm text-blue-400" placeholder="pi_master" />
@@ -171,25 +224,20 @@ export default function EditProfilePage() {
             </div>
           </div>
 
-          {/* SECTION : CONTACT & WEB3 */}
           <div className="space-y-4 pt-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Contact & Web3</h3>
-            
             <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl">
               <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Mail size={12} /> Email de secours</label>
               <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
             </div>
-
             <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
               <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><Landmark size={12} /> Pi Wallet Address</label>
               <input type="text" value={formData.walletAddress} onChange={(e) => setFormData({...formData, walletAddress: e.target.value})} className="w-full bg-transparent outline-none font-mono text-[11px] text-amber-500 overflow-ellipsis" placeholder="GD3A..." />
             </div>
           </div>
 
-          {/* SECTION : LOCALISATION */}
           <div className="space-y-4 pt-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Localisation</h3>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
                 <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Pays</label>
@@ -200,7 +248,6 @@ export default function EditProfilePage() {
                 <input type="text" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" />
               </div>
             </div>
-            
             <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50">
               <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2"><MapPin size={12} /> Adresse de résidence</label>
               <input type="text" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-transparent outline-none font-bold text-sm" placeholder="Rue, Quartier, Porte" />

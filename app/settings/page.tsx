@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 
-// Interfaces pour la structure des menus
 interface SettingItem {
   icon: React.ReactNode;
   label: string;
@@ -35,7 +34,6 @@ export default function SettingsPage() {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // 1. Gestion du thème au montage
     const savedTheme = localStorage.getItem("pimpay-theme");
     if (savedTheme === "light") {
       setIsDarkMode(false);
@@ -45,17 +43,15 @@ export default function SettingsPage() {
       document.documentElement.classList.add("dark");
     }
 
-    // 2. Récupération des données utilisateur via l'API interne
     async function fetchUserData() {
       try {
-        const response = await fetch("/api/user/profile", { 
+        const response = await fetch("/api/user/profile", {
           cache: 'no-store',
           headers: { 'Content-Type': 'application/json' }
         });
-        
+
         if (response.ok) {
           const result = await response.json();
-          // On s'adapte à la structure de ta réponse API
           const userData = result.user || result;
           setUser(userData);
           localStorage.setItem("pimpay_user", JSON.stringify(userData));
@@ -71,7 +67,6 @@ export default function SettingsPage() {
     fetchUserData();
   }, [router]);
 
-  // Variables calculées pour l'affichage
   const userName = user?.name || user?.firstName || "Pioneer";
   const userEmail = user?.email || "Chargement...";
   const userKyc = user?.kycStatus || 'NON VÉRIFIÉ';
@@ -81,7 +76,6 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       toast.loading("Fermeture de la session sécurisée...");
-      // Simulation d'une déconnexion propre pour pimpay
       setTimeout(() => {
         document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
         localStorage.removeItem("pimpay_user");
@@ -187,16 +181,16 @@ export default function SettingsPage() {
 
       <header className="p-8 pb-4 text-center">
         <div className="relative inline-block group">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[32px] mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border border-white/10 uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
-            {user?.image ? (
-                <img src={user.image} alt="Avatar" className="w-full h-full object-cover" />
+          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border-4 border-[#020617] uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+            {user?.avatar ? (
+                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
                 userName.charAt(0)
             )}
           </div>
           {userKyc === 'VERIFIED' && (
-            <div className="absolute -bottom-2 -right-2 bg-emerald-500 p-2 rounded-full border-4 border-[#020617] shadow-lg">
-               <ShieldCheck size={16} className="text-white" />
+            <div className="absolute bottom-0 right-0 bg-emerald-500 p-1.5 rounded-full border-4 border-[#020617] shadow-lg">
+               <ShieldCheck size={14} className="text-white" />
             </div>
           )}
         </div>
@@ -251,13 +245,13 @@ export default function SettingsPage() {
         <div className="space-y-3">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Suivez-nous</h3>
             <div className="flex items-center justify-center gap-4 p-6">
-                <a href="https://www.facebook.com/profile.php?id=61586522422346" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors`}>
+                <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors shadow-lg active:scale-90`}>
                     <Facebook size={24} />
                 </a>
-                <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-white transition-colors`}>
+                <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-white transition-colors shadow-lg active:scale-90`}>
                     <Twitter size={24} />
                 </a>
-                <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-red-500 transition-colors`}>
+                <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-red-500 transition-colors shadow-lg active:scale-90`}>
                     <Youtube size={24} />
                 </a>
             </div>
@@ -281,6 +275,7 @@ export default function SettingsPage() {
         </div>
       </main>
 
+      {/* AJOUT DE LA PROP onOpenMenu POUR FIXER LE BUILD */}
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );

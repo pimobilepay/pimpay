@@ -82,12 +82,12 @@ model User {
   // --- WALLETS MULTI-CHAIN ---
   walletAddress  String? @unique // Bitcoin / Pi
   piUserId       String? @unique
-  
+
   usdtAddress    String? @unique // USDT TRC20
   usdtPrivateKey String?
-  
-  sidraAddress   String? @unique // AJOUT : Sidra Chain Address
-  sidraPrivateKey String?        // AJOUT : Sidra Chain Private Key
+
+  sidraAddress   String? @unique 
+  sidraPrivateKey String?        
 
   wallets          Wallet[]
   vaults           Vault[]
@@ -108,15 +108,17 @@ model User {
 }
 
 // -----------------------------------------------------------------------------
-// FINANCE & ÉPARGNE
+// FINANCE & ÉPARGNE (Modifié pour Multi-Devises)
 // -----------------------------------------------------------------------------
 model Wallet {
   id            String     @id @default(cuid())
   userId        String
   balance       Float      @default(0)
   frozenBalance Float      @default(0)
-  currency      String     @default("PI")
-  type          WalletType @default(PI)
+  
+  // Défini sur XAF par défaut pour PimPay, mais peut être EUR, CDF, PI, etc.
+  currency      String     @default("XAF") 
+  type          WalletType @default(FIAT)
 
   depositMemo   String?    @unique
 
@@ -127,6 +129,7 @@ model Wallet {
   transactionsFrom Transaction[] @relation("tx_from_wallet")
   transactionsTo   Transaction[] @relation("tx_to_wallet")
 
+  // AJOUT CRUCIAL : Un utilisateur peut avoir un wallet par devise (XAF, EUR, PI...)
   @@unique([userId, currency])
   @@index([userId])
   @@index([depositMemo])
@@ -187,7 +190,7 @@ model Vault {
   targetAmount Float?
   interestRate Float     @default(0)
   lockUntil    DateTime?
-  createdAt    DateTime  @default(now()) // CORRIGÉ : @default(now()) au lieu de @now()
+  createdAt    DateTime  @default(now()) 
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -233,7 +236,7 @@ model Transaction {
   amount       Float
   fee          Float             @default(0)
   netAmount    Float?
-  currency     String            @default("PI")
+  currency     String            @default("XAF") // Modifié PI -> XAF par défaut pour la banque
   destCurrency String?
   type         TransactionType   @default(TRANSFER)
 
@@ -313,7 +316,7 @@ model VirtualCard {
 
   dailyLimit        Float    @default(1000)
   totalSpent        Float    @default(0)
-  allowedCurrencies String[] @default(["USD", "PI"])
+  allowedCurrencies String[] @default(["USD", "XAF"])
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @default(now()) @updatedAt
@@ -325,7 +328,7 @@ model QRPayment {
   id        String   @id @default(cuid())
   userId    String
   amount    Float?
-  currency  String   @default("PI")
+  currency  String   @default("XAF")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -470,7 +473,7 @@ enum WalletType {
   PI
   FIAT
   CRYPTO
-  SIDRA // AJOUT : Wallet Type pour Sidra
+  SIDRA 
 }
 
 enum TransactionType {
@@ -497,3 +500,4 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
+

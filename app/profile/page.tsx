@@ -1,30 +1,31 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import {
   User, Mail, Shield, Bell, Smartphone, ChevronRight, LogOut, Camera, CheckCircle2,
-  Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen
+  Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";      
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "sonner";                   
 
-interface UserData {
+interface UserData {                                
   id: string;
   name: string;
   username: string;
   email: string;
   phone: string;
-  joinedAt: string;
+  joinedAt: string;                                 
   isVerified: boolean;
-  kycStatus: string;
+  kycStatus: string;                                
   country: string;
-  city: string;
-  walletAddress: string;
+  city: string;                                     
+  walletAddress: string;                            
   birthDate?: string;
   role: string;
+  avatar?: string;
 }
 
-// Ajout d'une interface pour sécuriser les items de liste
 interface ProfileItem {
   label: string;
   icon: React.ReactNode;
@@ -63,7 +64,7 @@ export default function ProfilePage() {
               month: 'long',
               year: 'numeric'
             }),
-            isVerified: data.user.kycStatus === "VERIFIED"
+            isVerified: data.user.kycStatus === "VERIFIED" || data.user.kycStatus === "APPROVED"
           });
         } else {
           toast.error("Session expirée");
@@ -107,56 +108,64 @@ export default function ProfilePage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <Loader2 className="text-blue-500 animate-spin" size={32} />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-32">
-      {/* HEADER */}
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
         <div className="flex flex-col items-center">
           <div className="relative">
-            <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-500 to-purple-600 p-1 shadow-2xl">
-              <div className="w-full h-full rounded-[22px] bg-[#020617] flex items-center justify-center text-3xl font-black italic">
-                {user?.name?.[0]?.toUpperCase() || "P"}
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-1 shadow-2xl">
+              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center text-3xl font-black italic overflow-hidden">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  user?.name?.[0]?.toUpperCase() || "P"
+                )}
               </div>
             </div>
-            <button className="absolute -bottom-2 -right-2 p-2 bg-blue-600 rounded-xl border-4 border-[#020617]">
-              <Camera size={16} />
-            </button>
+            <Link href="/profile/edit" className="absolute -bottom-1 -right-1 p-2 bg-blue-600 rounded-full border-4 border-[#020617] shadow-lg active:scale-90 transition-transform">
+              <Camera size={14} className="text-white" />
+            </Link>
           </div>
 
           <h1 className="mt-4 text-2xl font-bold flex items-center gap-2">
             {user?.name}
-            {user?.isVerified && <CheckCircle2 size={20} className="text-blue-400" />}
+            {/* CORRECTION DU DOUBLE CLASSNAME ICI */}
+            {user?.isVerified && (
+              <CheckCircle2 
+                size={20} 
+                fill="#60a5fa" 
+                className="text-[#020617] bg-white rounded-full border-none" 
+              />
+            )}
           </h1>
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
             {user?.role === 'ADMIN' ? 'Administrator' : `Pioneer depuis ${user?.joinedAt}`}
           </p>
 
-          <Link href="/profile/edit" className="mt-4 flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">
+          <Link href="/profile/edit" className="mt-4 flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95">
             <UserPen size={14} className="text-blue-400" />
             Modifier mes informations
           </Link>
         </div>
       </div>
 
-      {/* STATS FINTECH */}
       <div className="grid grid-cols-2 gap-4 px-6 mb-8">
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Status KYC</p>
           <p className={`text-sm font-bold ${user?.isVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {user?.kycStatus || 'NON VÉRIFIÉ'}
+            {user?.isVerified ? 'VÉRIFIÉ' : (user?.kycStatus || 'NON VÉRIFIÉ')}
           </p>
         </div>
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Réseau</p>
-          <p className="text-sm font-bold text-white">Pi Mainnet</p>
+          <p className="text-sm font-bold text-white uppercase tracking-tighter">Pi Mainnet</p>
         </div>
       </div>
 
-      {/* SECTIONS */}
       <div className="px-6 space-y-8">
         {profileSections.map((section, idx) => (
           <div key={idx}>
@@ -168,10 +177,7 @@ export default function ProfilePage() {
                 <button
                   key={iIdx}
                   onClick={() => {
-                    // Correction TypeScript : Vérification explicite du path
-                    if (item.path) {
-                      router.push(item.path);
-                    }
+                    if (item.path) router.push(item.path);
                   }}
                   className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
                 >
@@ -202,14 +208,14 @@ export default function ProfilePage() {
              await fetch("/api/auth/logout", { method: "POST" });
              router.replace("/auth/login");
           }}
-          className="w-full flex items-center justify-center gap-3 p-5 rounded-[32px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8"
+          className="w-full flex items-center justify-center gap-3 p-5 rounded-[32px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8 active:scale-95"
         >
           <LogOut size={20} />
           Déconnexion Sécurisée
         </button>
 
         <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-          Version 2.0.1 - Pi Network Protocol
+          PimPay Version 2.4.0 - Pi Protocol
         </p>
       </div>
     </div>
