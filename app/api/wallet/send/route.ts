@@ -1,112 +1,157 @@
-import { NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { ethers } from "ethers";
-import { TransactionStatus, TransactionType } from "@prisma/client";
-import { isValidTronAddress } from "@/lib/tron-utils"; // Import de ton nouvel utilitaire
+import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 const SIDRA_RPC = "https://rpc.sidrachain.com";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { to, amount, currency = "SDA" } = await req.json();
-    const token = cookies().get("pimpay_token")?.value;
+    const SECRET = process.env.JWT_SECRET;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("pimpay_token")?.value;
 
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-    const secretKey = new TextEncoder().encode(process.env.JWT_SECRET);
+    const secretKey = new TextEncoder().encode(SECRET);
     const { payload } = await jwtVerify(token, secretKey);
-    const userId = payload.id as string;
+    const senderId = payload.id as string;
 
-    // 1. Récupérer l'utilisateur avec ses wallets
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const body = await req.json();
+
+    // 1. FLEXIBILITÉ MAXIMALE (Son ajout pour éviter l'erreur 400)
+    let recipientIdentifier = body.recipientIdentifier || body.address || body.to || body.recipientId;
+    if (!recipientIdentifier) throw new Error("L'adresse de destination est vide.");
+
+    const idStr = String(recipientIdentifier).trim();
+    const cleanIdentifier = idStr.startsWith('@') ? idStr.substring(1) : idStr;
+
+    const transferAmount = parseFloat(body.amount);
+    const transferCurrency = (body.currency || "SDA").toUpperCase();
+
+    // 2. RÉCUPÉRATION DE L'EXPÉDITEUR
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
       include: { wallets: true }
     });
+    if (!sender) throw new Error("Expéditeur introuvable.");
 
-    if (!user) return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
-
-    // Trouver le wallet correspondant à la devise
-    const selectedWallet = user.wallets.find(w => w.currency === currency.toUpperCase());
-    const reference = `TX-${currency.toUpperCase()}-${Date.now()}`;
-
-    // 2. Création de la transaction initiale en base (PENDING)
-    const dbTransaction = await prisma.transaction.create({
-      data: {
-        reference,
-        amount: parseFloat(amount),
-        currency: currency.toUpperCase(),
-        type: TransactionType.TRANSFER,
-        status: TransactionStatus.PENDING,
-        fromUserId: userId,
-        description: `Envoi ${currency} vers ${to}`,
-        fromWalletId: selectedWallet?.id // Peut être undefined si le wallet n'existe pas encore
-      }
-    });
-
-    try {
-      let txHash = "";
-
-      // --- LOGIQUE MULTI-BLOCKCHAIN (STRUCTURE PIMPAY) ---
-
-      if (currency.toUpperCase() === "SDA") {
-        if (!user.sidraPrivateKey) throw new Error("Clé privée Sidra manquante");
-        
-        const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
-        const wallet = new ethers.Wallet(user.sidraPrivateKey, provider);
-        const amountInWei = ethers.parseEther(amount.toString());
-
-        const tx = await wallet.sendTransaction({ to, value: amountInWei });
-        const receipt = await tx.wait();
-        txHash = receipt?.hash || "";
-
-      } else if (currency.toUpperCase() === "USDT") {
-        // --- STRUCTURE TRON (TRC-20) ---
-        // Utilisation de l'utilitaire bb !
-        if (!isValidTronAddress(to)) {
-          throw new Error("L'adresse de destination TRON est invalide (Structure Base58Check)");
+    // --- TRANSACTION ATOMIQUE ---
+    const result = await prisma.$transaction(async (tx) => {
+      
+      // Recherche du destinataire interne PimPay
+      const recipient = await tx.user.findFirst({
+        where: {
+          OR: [
+            { username: { equals: cleanIdentifier, mode: 'insensitive' } },
+            { email: { equals: cleanIdentifier, mode: 'insensitive' } },
+            { sidraAddress: cleanIdentifier }
+          ]
         }
-        
-        // Simulation pour le moment, en attendant l'intégration de TronWeb
-        txHash = `TRX_SIM_${Date.now()}`; 
+      });
 
-      } else if (currency.toUpperCase() === "PI") {
-        // --- STRUCTURE PI NETWORK ---
-        txHash = `PI_SIM_${Date.now()}`;
+      const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
+      const senderWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: senderId, currency: transferCurrency } }
+      });
+
+      if (!senderWallet || senderWallet.balance < transferAmount) {
+        throw new Error(`Solde ${transferCurrency} insuffisant.`);
+      }
+
+      let txHash = null;
+      let toUserId = null;
+      let toWalletId = null;
+
+      // A. CAS EXTERNE : BLOCKCHAIN (SDA)
+      if (isExternalSDA && transferCurrency === "SDA") {
+        if (!sender.sidraPrivateKey) throw new Error("Clé privée Sidra non configurée.");
+        try {
+          const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
+          const wallet = new ethers.Wallet(sender.sidraPrivateKey, provider);
+          
+          const blockchainTx = await wallet.sendTransaction({
+            to: cleanIdentifier,
+            value: ethers.parseEther(transferAmount.toString())
+          });
+          txHash = blockchainTx.hash;
+        } catch (err: any) {
+          throw new Error(`Blockchain Refusée : ${err.message}`);
+        }
+      } 
+      
+      // B. CAS INTERNE : TRANSFERT PIMPAY
+      else if (recipient) {
+        if (recipient.id === senderId) throw new Error("Auto-transfert interdit.");
+        toUserId = recipient.id;
+        const recipientWallet = await tx.wallet.upsert({
+          where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
+          update: { balance: { increment: transferAmount } },
+          create: {
+            userId: recipient.id,
+            currency: transferCurrency,
+            balance: transferAmount,
+            type: transferCurrency === "SDA" ? WalletType.SIDRA : WalletType.FIAT
+          }
+        });
+        toWalletId = recipientWallet.id;
+
+        // --- NOTIFICATION DESTINATAIRE (Mon ajout crucial) ---
+        await tx.notification.create({
+          data: {
+            userId: recipient.id,
+            title: "Argent reçu ! 📥",
+            message: `Vous avez reçu ${transferAmount} ${transferCurrency} de @${sender.username}.`,
+            type: "PAYMENT_RECEIVED"
+          }
+        });
       } else {
-        throw new Error(`Le réseau ${currency} n'est pas encore supporté par PimPay`);
+        throw new Error("Destinataire introuvable sur PimPay.");
       }
 
-      // 3. Mise à jour finale en cas de SUCCÈS
-      await prisma.transaction.update({
-        where: { id: dbTransaction.id },
+      // C. DÉBIT ET LOG TRANSACTION
+      await tx.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: { decrement: transferAmount } }
+      });
+
+      const transaction = await tx.transaction.create({
         data: {
+          reference: `TX-${Date.now()}`,
+          amount: transferAmount,
+          currency: transferCurrency,
+          type: TransactionType.TRANSFER,
           status: TransactionStatus.SUCCESS,
+          fromUserId: senderId,
+          fromWalletId: senderWallet.id,
+          toUserId: toUserId,
+          toWalletId: toWalletId,
           blockchainTx: txHash,
+          description: body.description || (txHash ? `Retrait SDA externe` : `Transfert vers @${recipient?.username}`)
         }
       });
 
-      return NextResponse.json({
-        success: true,
-        hash: txHash,
-        message: `Transfert ${currency} réussi`
-      });
-
-    } catch (blockchainError: any) {
-      // 4. Gestion de l'échec Blockchain (Marquage en DB pour la banque)
-      await prisma.transaction.update({
-        where: { id: dbTransaction.id },
-        data: { 
-          status: TransactionStatus.FAILED, 
-          note: blockchainError.message 
+      // --- NOTIFICATION EXPÉDITEUR ---
+      await tx.notification.create({
+        data: {
+          userId: senderId,
+          title: "Succès ! 🚀",
+          message: txHash ? "Envoi blockchain réussi." : "Transfert interne validé.",
+          type: "PAYMENT_SENT"
         }
       });
-      return NextResponse.json({ error: blockchainError.message }, { status: 400 });
-    }
+
+      return transaction;
+
+    }, { timeout: 35000 });
+
+    return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("SEND_ERROR:", error.message);
-    return NextResponse.json({ error: "Erreur serveur PimPay", details: error.message }, { status: 500 });
+    console.error("PimPay API Error:", error.message);
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

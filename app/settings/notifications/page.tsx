@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | string;
 
 interface Notification {
   id: string;
@@ -47,10 +47,17 @@ export default function NotificationsPage() {
         router.push("/auth/login");
         return;
       }
+      
       const data = await res.json();
+      
       if (res.ok && isMounted.current) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        // CORRECTION : Ton API renvoie directement le tableau de notifications
+        const notifsArray = Array.isArray(data) ? data : (data.notifications || []);
+        setNotifications(notifsArray);
+        
+        // Calcul manuel du compteur pour être sûr de l'exactitude
+        const unread = notifsArray.filter((n: Notification) => !n.read).length;
+        setUnreadCount(unread);
       }
     } catch (err) {
       console.error("Erreur Notifications:", err);
@@ -74,10 +81,9 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
+      // CORRECTION : Utilisation de PUT comme défini dans ton API pour "Tout marquer"
       const res = await fetch("/api/notifications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }),
+        method: "PUT",
       });
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -85,7 +91,7 @@ export default function NotificationsPage() {
         toast.success("Tout est lu");
       }
     } catch (e) {
-      toast.error("Erreur");
+      toast.error("Erreur de synchronisation");
     }
   };
 
@@ -104,7 +110,8 @@ export default function NotificationsPage() {
   const getIcon = (type: NotificationType) => {
     switch (type) {
       case "SECURITY": return <ShieldCheck className="text-rose-500" size={18} />;
-      case "PAYMENT_RECEIVED": return <ArrowDownLeft className="text-emerald-400" size={18} />;
+      case "PAYMENT_RECEIVED": 
+      case "SUCCESS": return <ArrowDownLeft className="text-emerald-400" size={18} />;
       case "PAYMENT_SENT": return <ArrowUpRight className="text-blue-400" size={18} />;
       case "SWAP": return <Repeat className="text-indigo-400" size={18} />;
       case "MERCHANT": return <Store className="text-amber-400" size={18} />;
@@ -114,10 +121,9 @@ export default function NotificationsPage() {
     }
   };
 
-  // Nouveaux filtres basés sur tes types de transactions/sécurité
   const tabs = [
     { id: "ALL", label: "Tout" },
-    { id: "PAYMENT_RECEIVED", label: "Reçus" },
+    { id: "SUCCESS", label: "Reçus" },
     { id: "SWAP", label: "Swaps" },
     { id: "LOGIN", label: "Sessions" },
     { id: "SECURITY", label: "Sécurité" },
@@ -125,7 +131,10 @@ export default function NotificationsPage() {
 
   const filteredNotifications = activeTab === "ALL"
     ? notifications
-    : notifications.filter(n => n.type === activeTab);
+    : notifications.filter(n => {
+        if (activeTab === "SUCCESS") return n.type === "SUCCESS" || n.type === "PAYMENT_RECEIVED";
+        return n.type === activeTab;
+      });
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">

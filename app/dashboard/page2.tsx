@@ -1,14 +1,14 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import {
-  ArrowUpRight, ArrowDownLeft, RefreshCcw, Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
-  Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown, LogOut, Smartphone, History, User,
-  Settings, LayoutGrid, Facebook, Twitter, Youtube, ExternalLink
-} from "lucide-react";
-import { PI_CONSENSUS_USD } from "@/lib/exchange";
+import { useState, useEffect, useRef } from "react";  
+import { useRouter } from "next/navigation";          
+import { 
+  ArrowUpRight, ArrowDownLeft, RefreshCcw, Bell, Loader2, ArrowUpCircle, ArrowDownCircle, 
+  Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown, LogOut, Smartphone, History, User, 
+  Settings, LayoutGrid, Facebook, Twitter, Youtube, ExternalLink 
+} from "lucide-react";                      
+import { PI_CONSENSUS_USD } from "@/lib/exchange";    
 import { BottomNav } from "@/components/bottom-nav";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar } from "@/components/sidebar";       
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
@@ -64,17 +64,18 @@ export default function UserDashboard() {
     }
   }
 
+  // --- LOGIQUE CASH FLOW (Corrigée pour inclure les Swaps) ---
   const getStats = () => {
     const txs = data?.transactions || [];
-    const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
-    const received = txs.filter((t: any) => t.toUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
+    const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'SWAP').length;
+    const received = txs.filter((t: any) => t.toUserId === data?.id && t.type !== 'SWAP').length;
     const swaps = txs.filter((t: any) => t.type === 'SWAP' || t.type === 'EXCHANGE').length;
-
+    
     return [
       { name: "Envois", value: sent || 0 },
       { name: "Reçus", value: received || 0 },
       { name: "Swaps", value: swaps || 0 },
-      { name: "Autres", value: 1 },
+      { name: "Autres", value: 1 }, // Pour garder le cercle visible
     ];
   };
 
@@ -93,7 +94,7 @@ export default function UserDashboard() {
       toast.info("Transaction interne PimPay");
       return;
     }
-    let url = tx.currency === "SDA"
+    let url = tx.currency === "SDA" 
       ? `https://ledger.sidrachain.com/tx/${hash}`
       : `https://minepi.com/blockexplorer/tx/${hash}`;
     window.open(url, "_blank");
@@ -104,12 +105,9 @@ export default function UserDashboard() {
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
-  // LOGIQUE DES ICÔNES CORRIGÉE ICI
   const getTxIcon = (tx: any) => {
-    const isSwap = tx.type === 'SWAP' || tx.type === 'EXCHANGE';
     const isReceived = tx.toUserId === data?.id;
-    
-    if (isSwap) return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
+    if (tx.type === 'SWAP') return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
     if (isReceived) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
     return { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" };
   };
@@ -123,11 +121,15 @@ export default function UserDashboard() {
     );
   }
 
+  // --- PRIORITÉ AU WALLET PI (Solde Principal) ---
   const piWallet = data?.wallets?.find((w: any) => w.currency === "PI");
   const mainWallet = piWallet || data?.wallets?.[0];
   const balance = mainWallet ? mainWallet.balance : 0;
+  
   const userName = data?.username || "Pioneer";
   const transactions = data?.transactions || [];
+  
+  // Conversion basée sur le prix consensus Pi
   const convertedValue = balance * PI_CONSENSUS_USD * RATES[currency];
   const statsData = getStats();
 
@@ -148,7 +150,7 @@ export default function UserDashboard() {
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all">
              <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
           </button>
-
+          
           <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
             <Bell size={20} />
             <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
@@ -177,6 +179,7 @@ export default function UserDashboard() {
       </header>
 
       <main className="px-6">
+        {/* CARTE VIRTUELLE (Corrigée pour afficher PI) */}
         <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
@@ -206,6 +209,7 @@ export default function UserDashboard() {
           <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
         </div>
 
+        {/* ACTIONS RAPIDES */}
         <div className="grid grid-cols-4 gap-4 mb-8">
             {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
               { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
@@ -221,6 +225,7 @@ export default function UserDashboard() {
             ))}
         </div>
 
+        {/* SECTION STATISTIQUES (Données Réelles incluant Swaps) */}
         <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3>
@@ -253,6 +258,7 @@ export default function UserDashboard() {
           </div>
         </section>
 
+        {/* HISTORIQUE */}
         <section className="mb-12">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>

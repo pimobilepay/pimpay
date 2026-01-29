@@ -6,17 +6,20 @@ import { auth } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // 1. Correction de l'accès à la session (session.id au lieu de session.user.id)
     const session = await auth() as any;
-    if (!session?.id) {
+    
+    // Utilisation de session.user?.id ou session.id selon ton provider
+    const userId = session?.user?.id || session?.id;
+
+    if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. Récupération des notifications liées à l'utilisateur Pimpay
+    // Récupération avec plus de détails
     const notifications = await prisma.notification.findMany({
-      where: { userId: session.id },
+      where: { userId: userId },
       orderBy: { createdAt: 'desc' },
-      take: 20
+      take: 50 // Augmenté pour ne rien rater
     });
 
     return NextResponse.json(notifications);
@@ -27,33 +30,21 @@ export async function GET() {
   }
 }
 
-// Route pour marquer une notification comme lue
-export async function PATCH(req: Request) {
+// Route pour TOUT marquer comme lu (très utile pour ton bouton "Tout marquer comme lu")
+export async function PUT() {
   try {
     const session = await auth() as any;
-    if (!session?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const userId = session?.user?.id || session?.id;
 
-    const { id } = await req.json();
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-    if (!id) {
-      return NextResponse.json({ error: "ID de notification manquant" }, { status: 400 });
-    }
-
-    // Mise à jour sécurisée : on vérifie que la notification appartient bien à l'utilisateur
-    await prisma.notification.update({
-      where: { 
-        id: id,
-        userId: session.id // Sécurité supplémentaire
-      },
+    await prisma.notification.updateMany({
+      where: { userId: userId, read: false },
       data: { read: true }
     });
 
     return NextResponse.json({ success: true });
-
   } catch (error: any) {
-    console.error("PATCH_NOTIFICATION_ERROR:", error.message);
-    return NextResponse.json({ error: "Erreur lors de la mise à jour" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

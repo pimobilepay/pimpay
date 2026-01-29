@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cookies } from "next/headers";     
+import { cookies } from "next/headers";               
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
@@ -29,19 +29,18 @@ export async function POST(request: Request) {
 
     const { amount, fromCurrency, toCurrency } = await request.json();
     const swapAmount = parseFloat(amount);
-
+    
     if (isNaN(swapAmount) || swapAmount <= 0) return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
 
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
     const btcPrice = await getLiveBTCPrice();
 
-    // AJUSTEMENT DES PRIX : SDA à 1.2 USD
     const PRICES: Record<string, number> = {
-      "SDA": 1.2, // Correction effectuée ici
+      "SDA": 15,
       "USDT": 1,
       "BTC": btcPrice,
-      "PI": 314159 
+      "PI": 314159 // Selon ton schéma SystemConfig
     };
 
     if (!PRICES[from] || !PRICES[to]) return NextResponse.json({ error: "Actif non supporté" }, { status: 400 });
@@ -52,7 +51,7 @@ export async function POST(request: Request) {
       : Number((swapAmount * rate).toFixed(4));
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Récupérer le wallet source
+      // 1. Récupérer les deux wallets
       const sourceWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: from } }
       });
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
         throw new Error(`Solde ${from} insuffisant.`);
       }
 
-      // 2. Déterminer le WalletType
+      // 2. Déterminer le WalletType correct selon l'Enum du schéma
       const getWalletType = (curr: string): WalletType => {
         if (curr === "SDA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
@@ -78,16 +77,16 @@ export async function POST(request: Request) {
       const updatedTarget = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: to } },
         update: { balance: { increment: targetAmount } },
-        create: {
-          userId,
-          currency: to,
-          balance: targetAmount,
-          type: getWalletType(to)
+        create: { 
+          userId, 
+          currency: to, 
+          balance: targetAmount, 
+          type: getWalletType(to) 
         }
       });
 
-      // 4. Création de la transaction
-      const transactionLog = await tx.transaction.create({
+      // 4. Création de la transaction détaillée (Tx)
+      const log = await tx.transaction.create({
         data: {
           reference: `SWAP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: swapAmount,
@@ -104,23 +103,12 @@ export async function POST(request: Request) {
         }
       });
 
-      // 5. ENVOI DE LA NOTIFICATION (Ajouté)
-      await tx.notification.create({
-        data: {
-          userId,
-          title: "Swap réussi ! 🔄",
-          message: `Vous avez échangé ${swapAmount} ${from} contre ${targetAmount} ${to}.`,
-          type: "TRANSACTION", // Assure-toi que ce type existe dans ton Enum NotificationType
-        }
-      });
-
-      return { from, to, received: targetAmount, reference: transactionLog.reference };
+      return { from, to, received: targetAmount, reference: log.reference };
     });
 
     return NextResponse.json({ success: true, details: result });
 
   } catch (error: any) {
-    console.error("Swap Error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
