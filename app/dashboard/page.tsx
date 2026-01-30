@@ -69,7 +69,6 @@ export default function UserDashboard() {
     const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
     const received = txs.filter((t: any) => t.toUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
     const swaps = txs.filter((t: any) => t.type === 'SWAP' || t.type === 'EXCHANGE').length;
-
     return [
       { name: "Envois", value: sent || 0 },
       { name: "Reçus", value: received || 0 },
@@ -104,11 +103,10 @@ export default function UserDashboard() {
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
-  // LOGIQUE DES ICÔNES CORRIGÉE ICI
   const getTxIcon = (tx: any) => {
     const isSwap = tx.type === 'SWAP' || tx.type === 'EXCHANGE';
     const isReceived = tx.toUserId === data?.id;
-    
+
     if (isSwap) return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
     if (isReceived) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
     return { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" };
@@ -132,7 +130,8 @@ export default function UserDashboard() {
   const statsData = getStats();
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans overflow-x-hidden">
+    // FIX: Ajout de flex et min-h-screen pour forcer le footer en bas
+    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
@@ -143,17 +142,14 @@ export default function UserDashboard() {
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p>
           </div>
         </div>
-
         <div className="flex items-center gap-2">
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all">
-             <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
+            <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
           </button>
-
           <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
             <Bell size={20} />
             <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
           </button>
-
           <div className="relative" ref={menuRef}>
             <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400">
               <User size={20} />
@@ -176,7 +172,8 @@ export default function UserDashboard() {
         </div>
       </header>
 
-      <main className="px-6">
+      {/* FIX: flex-grow permet au main de prendre tout l'espace et pousser le footer */}
+      <main className="px-6 flex-grow pb-10">
         <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
@@ -196,29 +193,29 @@ export default function UserDashboard() {
               <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">@{userName}</p>
             </div>
             <div className="flex justify-between items-end">
-                <div className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
-                  <Globe size={12} className="text-blue-400" />
-                  <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${convertedValue.toLocaleString()} ${currency}` : "Locked"}</p>
-                </div>
-                <p className="text-[10px] font-bold text-white uppercase italic">Pi Network</p>
+              <div className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+                <Globe size={12} className="text-blue-400" />
+                <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${convertedValue.toLocaleString()} ${currency}` : "Locked"}</p>
+              </div>
+              <p className="text-[10px] font-bold text-white uppercase italic">Pi Network</p>
             </div>
           </div>
           <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
         </div>
 
         <div className="grid grid-cols-4 gap-4 mb-8">
-            {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
-              { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
-              { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-              { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
-            ].map((action, i) => (
-              <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
-                <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>
-                  {action.icon}
-                </div>
-                <span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span>
-              </button>
-            ))}
+          {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
+          { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
+          { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
+          { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
+          ].map((action, i) => (
+            <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
+              <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>
+                {action.icon}
+              </div>
+              <span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span>
+            </button>
+          ))}
         </div>
 
         <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
@@ -299,6 +296,21 @@ export default function UserDashboard() {
           </div>
         </section>
       </main>
+
+      {/* FOOTER: Maintenant poussé vers le bas et avec un padding bottom suffisant pour ne pas être caché par BottomNav */}
+      <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
+        <div className="flex items-center gap-6">
+          <a href="https://www.facebook.com/profile.php?id=61583243122633" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
+          <a href="https://x.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all"><Twitter size={20} /></a>
+          <a href="https://youtube.com/@pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all"><Youtube size={20} /></a>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">
+            Pi Mobile Payment Solution
+          </p>
+        </div>
+      </footer>
 
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
     </div>
