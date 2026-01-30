@@ -4,7 +4,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  ShieldCheck,
   ArrowRight,
   Loader2,
   AlertCircle,
@@ -16,8 +15,7 @@ import { toast } from "sonner";
 function SummaryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // Correction cruciale : État de montage pour éviter l'erreur removeChild
+
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -26,7 +24,6 @@ function SummaryContent() {
     setMounted(true);
   }, []);
 
-  // RÉCUPÉRATION DES DONNÉES
   const data = {
     recipientId: searchParams.get("recipient"),
     name: searchParams.get("recipientName") || "Utilisateur",
@@ -59,12 +56,16 @@ function SummaryContent() {
   }, [data.currency, mounted]);
 
   const handleConfirm = async () => {
+    // SÉCURITÉ ANTI-DOUBLE CLIC : Si déjà en cours, on stoppe tout de suite
+    if (isLoading) return;
+
     if (walletBalance !== null && walletBalance < totalRequired) {
       toast.error(`Solde insuffisant.`);
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Le bouton passe en 'disabled' ici
+    
     try {
       const response = await fetch("/api/user/transfer", {
         method: "POST",
@@ -81,16 +82,18 @@ function SummaryContent() {
         router.push(`/transfer/success?amount=${data.amount}&currency=${data.currency}&name=${encodeURIComponent(data.name)}`);
       } else {
         const result = await response.json();
+        // On libère le bouton seulement si l'erreur n'est pas critique ou pour permettre de réessayer
+        setIsLoading(false); 
         router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Échec")}`);
       }
     } catch (err) {
-      router.push("/transfer/failed?error=Erreur serveur");
-    } finally {
       setIsLoading(false);
+      router.push("/transfer/failed?error=Erreur serveur");
     }
+    // Note : On ne met pas forcément setIsLoading(false) dans le 'finally' 
+    // car si la redirection vers 'success' prend du temps, on veut que le bouton reste bloqué.
   };
 
-  // Si pas encore monté côté client, on affiche un loader propre pour éviter le conflit DOM
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
@@ -117,11 +120,7 @@ function SummaryContent() {
         <div className="relative mb-4">
           {data.avatar ? (
             <div className="w-20 h-20 rounded-full border-2 border-blue-500 p-1">
-              <img 
-                src={data.avatar} 
-                alt="Avatar" 
-                className="w-full h-full rounded-full object-cover" 
-              />
+              <img src={data.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
             </div>
           ) : (
             <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-900 rounded-full flex items-center justify-center text-2xl font-black border-2 border-white/10">
@@ -183,16 +182,22 @@ function SummaryContent() {
         </div>
       )}
 
+      {/* BOUTON SÉCURISÉ : Il devient gris et inutilisable dès le premier clic */}
       <button
         onClick={handleConfirm}
         disabled={isLoading || isInsufficient}
-        className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${
-          isInsufficient
-          ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-          : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20"
+        className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all shadow-xl ${
+          isLoading || isInsufficient
+          ? "bg-slate-800 text-slate-500 cursor-not-allowed scale-100"
+          : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20 active:scale-95"
         }`}
       >
-        {isLoading ? <Loader2 className="animate-spin" /> : (
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <Loader2 className="animate-spin" size={20} />
+            <span className="font-black uppercase tracking-widest text-sm">Traitement...</span>
+          </div>
+        ) : (
           <>
             <span className="font-black uppercase tracking-widest text-sm">
               {isInsufficient ? "Solde insuffisant" : "Confirmer l'envoi"}

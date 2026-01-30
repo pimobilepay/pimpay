@@ -88,7 +88,27 @@ export const coreCountries: Country[] = [
     { id: "vodafone_gh", name: "Vodafone Cash", icon: LOGOS.vodacom, features: { cashIn: true, cashOut: true, airtime: true } },
     { id: "airtel_gh", name: "AirtelTigo Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
   ],
-},
+ },
+ {
+  name: "Guinea",
+  code: "GN",
+  flag: "🇬🇳",
+  currency: "GNF",
+  currencySymbol: "FG",
+  piToLocalRate: 8600,
+  dialCode: "+224",
+  continent: "AFRICA",
+  isoStandard: "ISO20022",
+  isActive: false,
+  banks: [
+    { name: "Banque Centrale de la République de Guinée", bic: "BCRGGNGN", swift: "BCRGGNGN" },
+    { name: "Ecobank Guinea", bic: "ECOCGNGN", swift: "ECOCGNGN" },
+  ],
+  operators: [
+    { id: "orange_gn", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
+    { id: "mtn_gn", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
+  ],
+  },
   {
   name: "Gabon",
   code: "GA",
