@@ -41,6 +41,9 @@ export default function UserDashboard() {
 
   async function fetchDashboardData() {
     try {
+      // Synchro Sidra en arrière-plan
+      fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+
       const [profileRes, historyRes] = await Promise.all([
         fetch("/api/user/profile", { cache: 'no-store' }),
         fetch("/api/wallet/history", { cache: 'no-store' })
@@ -49,6 +52,7 @@ export default function UserDashboard() {
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         const historyData = historyRes.ok ? await historyRes.json() : { transactions: [] };
+        
         setData({
           ...profileData,
           transactions: historyData.transactions || []
@@ -66,14 +70,16 @@ export default function UserDashboard() {
 
   const getStats = () => {
     const txs = data?.transactions || [];
-    const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
-    const received = txs.filter((t: any) => t.toUserId === data?.id && t.type !== 'SWAP' && t.type !== 'EXCHANGE').length;
-    const swaps = txs.filter((t: any) => t.type === 'SWAP' || t.type === 'EXCHANGE').length;
+    // Calcul précis basé sur l'ID utilisateur pour identifier entrant/sortant
+    const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'EXCHANGE').length;
+    const received = txs.filter((t: any) => (t.toUserId === data?.id || t.type === 'DEPOSIT') && t.type !== 'EXCHANGE').length;
+    const swaps = txs.filter((t: any) => t.type === 'EXCHANGE' || t.type === 'SWAP').length;
+    
     return [
       { name: "Envois", value: sent || 0 },
       { name: "Reçus", value: received || 0 },
       { name: "Swaps", value: swaps || 0 },
-      { name: "Autres", value: 1 },
+      { name: "Autres", value: 1 }, // Valeur fixe 1 pour l'harmonie visuelle
     ];
   };
 
@@ -87,25 +93,29 @@ export default function UserDashboard() {
   };
 
   const openBlockchainDetail = (tx: any) => {
-    const hash = tx.blockchainTx || tx.hash;
+    const hash = tx.blockchainTx || tx.externalId || tx.hash;
     if (!hash) {
       toast.info("Transaction interne PimPay");
       return;
     }
-    let url = tx.currency === "SDA"
-      ? `https://ledger.sidrachain.com/tx/${hash}`
-      : `https://minepi.com/blockexplorer/tx/${hash}`;
+    let url = "";
+    if (tx.currency === "SDA") url = `https://ledger.sidrachain.com/tx/${hash}`;
+    else if (tx.currency === "BTC") url = `https://www.blockchain.com/btc/tx/${hash}`;
+    else url = `https://minepi.com/blockexplorer/tx/${hash}`;
+    
     window.open(url, "_blank");
   };
 
   const formatAddr = (addr: string | null) => {
     if (!addr) return "Système PimPay";
+    if (addr.length < 10) return addr;
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
   const getTxIcon = (tx: any) => {
-    const isSwap = tx.type === 'SWAP' || tx.type === 'EXCHANGE';
-    const isReceived = tx.toUserId === data?.id;
+    const isSwap = tx.type === 'EXCHANGE' || tx.type === 'SWAP';
+    // Une transaction est reçue si le destinataire est l'user actuel OU si c'est un dépôt direct
+    const isReceived = tx.toUserId === data?.id || tx.type === 'DEPOSIT';
 
     if (isSwap) return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
     if (isReceived) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
@@ -121,16 +131,21 @@ export default function UserDashboard() {
     );
   }
 
-  const piWallet = data?.wallets?.find((w: any) => w.currency === "PI");
-  const mainWallet = piWallet || data?.wallets?.[0];
+  const wallets = data?.wallets || [];
+  const piWallet = wallets.find((w: any) => w.currency === "PI");
+  const sdaWallet = wallets.find((w: any) => w.currency === "SDA");
+  const mainWallet = piWallet || sdaWallet || wallets[0];
+  
   const balance = mainWallet ? mainWallet.balance : 0;
+  const currentCurrency = mainWallet ? mainWallet.currency : "PI";
   const userName = data?.username || "Pioneer";
   const transactions = data?.transactions || [];
-  const convertedValue = balance * PI_CONSENSUS_USD * RATES[currency];
+  
+  const rateToUse = currentCurrency === "PI" ? PI_CONSENSUS_USD : 1;
+  const convertedValue = balance * rateToUse * RATES[currency];
   const statsData = getStats();
 
   return (
-    // FIX: Ajout de flex et min-h-screen pour forcer le footer en bas
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
@@ -172,7 +187,6 @@ export default function UserDashboard() {
         </div>
       </header>
 
-      {/* FIX: flex-grow permet au main de prendre tout l'espace et pousser le footer */}
       <main className="px-6 flex-grow pb-10">
         <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
           <div className="relative z-10 h-full flex flex-col justify-between">
@@ -187,7 +201,7 @@ export default function UserDashboard() {
             </div>
             <div>
               <h2 className="text-4xl font-black tracking-tighter flex items-center gap-2">
-                <span className="text-blue-200">π</span>
+                <span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency}</span>
                 {showBalance ? balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : "••••••"}
               </h2>
               <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">@{userName}</p>
@@ -197,7 +211,7 @@ export default function UserDashboard() {
                 <Globe size={12} className="text-blue-400" />
                 <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${convertedValue.toLocaleString()} ${currency}` : "Locked"}</p>
               </div>
-              <p className="text-[10px] font-bold text-white uppercase italic">Pi Network</p>
+              <p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency === "PI" ? "Pi Network" : "Sidra Chain"}</p>
             </div>
           </div>
           <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
@@ -256,9 +270,10 @@ export default function UserDashboard() {
             <History size={16} className="text-slate-600" />
           </div>
           <div className="space-y-4">
-            {transactions.length > 0 ? transactions.slice(0, 7).map((tx: any) => {
+            {transactions.length > 0 ? transactions.slice(0, 10).map((tx: any) => {
               const { icon, color } = getTxIcon(tx);
-              const isReceived = tx.toUserId === data?.id;
+              // Correction de la logique Entrant/Sortant
+              const isReceived = tx.toUserId === data?.id || tx.type === 'DEPOSIT';
 
               return (
                 <div
@@ -273,10 +288,10 @@ export default function UserDashboard() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-[11px] font-bold uppercase text-white">{tx.description || "Transfert"}</p>
-                        {(tx.blockchainTx || tx.hash) && <ExternalLink size={10} className="text-slate-600" />}
+                        {(tx.blockchainTx || tx.externalId || tx.hash) && <ExternalLink size={10} className="text-slate-600" />}
                       </div>
                       <p className="text-[8px] text-slate-500 font-black uppercase mt-1">
-                        {isReceived ? `Origine: ${formatAddr(tx.fromUserId)}` : `Dest: ${formatAddr(tx.toUserId)}`}
+                        {isReceived ? `Origine: ${formatAddr(tx.fromUserId || tx.blockchainTx)}` : `Dest: ${formatAddr(tx.toUserId || tx.accountNumber)}`}
                       </p>
                     </div>
                   </div>
@@ -297,7 +312,6 @@ export default function UserDashboard() {
         </section>
       </main>
 
-      {/* FOOTER: Maintenant poussé vers le bas et avec un padding bottom suffisant pour ne pas être caché par BottomNav */}
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
         <div className="flex items-center gap-6">
           <a href="https://www.facebook.com/profile.php?id=61583243122633" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
