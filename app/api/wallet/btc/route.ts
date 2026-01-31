@@ -2,100 +2,66 @@ import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as bitcoin from 'bitcoinjs-lib';
-import { ECPairFactory, ECPairAPI } from 'ecpair';
-import * as tinysecp from 'tiny-secp256k1';
+import * as ecc from '@noble/secp256k1';
 import crypto from 'node:crypto';
+import bs58 from 'bs58'; // Utilise le package bs58 que tu as déjà
 
 export const dynamic = 'force-dynamic';
 
-// Initialisation globale
-const ECPair: ECPairAPI = ECPairFactory(tinysecp);
-const network = bitcoin.networks.bitcoin;
-
-const getEncryptionKey = () => {
-  const key = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
-  return Buffer.from(key.padEnd(32).slice(0, 32));
-};
-
-function encrypt(text: string) {
-  const iv = crypto.randomBytes(12);
-  const key = getEncryptionKey();
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag().toString('hex');
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+// Fonction manuelle pour créer le WIF sans bs58check
+function bytesToWif(privKey: Buffer): string {
+  // 1. Préfixe 0x80 pour le Mainnet + Clé privée + 0x01 pour compressé
+  const payload = Buffer.concat([Buffer.from([0x80]), privKey, Buffer.from([0x01])]);
+  
+  // 2. Double SHA256 pour le Checksum
+  const hash1 = crypto.createHash('sha256').update(payload).digest();
+  const hash2 = crypto.createHash('sha256').update(hash1).digest();
+  const checksum = hash2.slice(0, 4);
+  
+  // 3. Concaténer et encoder en Base58
+  return bs58.encode(Buffer.concat([payload, checksum]));
 }
+
+const encrypt = (text: string) => {
+  const iv = crypto.randomBytes(12);
+  const key = Buffer.from((process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars").padEnd(32).slice(0, 32));
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+};
 
 export async function POST(req: Request) {
   try {
-    // 1. Récupération de la session
     const userSession = await auth();
-
-    // Vérification basée sur ton type réel (id direct)
-    if (!userSession || !userSession.id) {
-      console.error("❌ [BTC_GEN]: Session non trouvée");
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    if (!userSession?.id) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     const userId = userSession.id;
 
-    // 2. Vérifier si un Wallet BTC existe déjà
-    const existingWallet = await prisma.wallet.findUnique({
-      where: {
-        userId_currency: {
-          userId: userId,
-          currency: "BTC"
-        }
-      }
+    const existing = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: "BTC" } }
     });
+    if (existing?.depositMemo) return NextResponse.json({ address: existing.depositMemo, symbol: "BTC" });
 
-    if (existingWallet?.depositMemo) {
-      return NextResponse.json({
-        address: existingWallet.depositMemo,
-        symbol: "BTC"
-      });
-    }
-
-    // 3. GÉNÉRATION CORRIGÉE (Fix final pour le type RNG et build Vercel)
-    const keyPair = ECPair.makeRandom({ 
-      network: network,
-      compressed: true,
-      rng: (size?: number) => {
-        // Correction : accepte size optionnel pour satisfaire TypeScript
-        const buf = crypto.randomBytes(size || 32);
-        return new Uint8Array(buf);
-      }
-    });
+    // GÉNÉRATION
+    const privKeyBytes = crypto.randomBytes(32);
+    const pubKey = Buffer.from(ecc.getPublicKey(privKeyBytes, true));
 
     const { address } = bitcoin.payments.p2wpkh({
-      pubkey: keyPair.publicKey,
-      network: network,
+      pubkey: pubKey,
+      network: bitcoin.networks.bitcoin,
     });
 
-    if (!address) {
-      throw new Error("L'adresse BTC n'a pas pu être générée");
-    }
+    if (!address) throw new Error("Erreur adresse");
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const encryptedKey = encrypt(keyPair.toWIF());
+    const wif = bytesToWif(privKeyBytes);
+    const encryptedKey = encrypt(wif);
 
-    // 4. Transaction Atomique Prisma
+    // SAUVEGARDE
     const result = await prisma.$transaction(async (tx) => {
-      // Création ou Update du Wallet BTC
       const wallet = await tx.wallet.upsert({
-        where: {
-          userId_currency: {
-            userId: userId,
-            currency: "BTC"
-          }
-        },
-        update: {
-            depositMemo: address,
-            type: "CRYPTO"
-        },
+        where: { userId_currency: { userId, currency: "BTC" } },
+        update: { depositMemo: address, type: "CRYPTO" },
         create: {
-          userId: userId,
+          userId,
           currency: "BTC",
           type: "CRYPTO",
           balance: 0,
@@ -103,37 +69,22 @@ export async function POST(req: Request) {
         }
       });
 
-      // Stockage dans le Vault
       await tx.vault.create({
-        data: {
-          userId: userId,
-          name: `BTC_PRIV_KEY_${address}`,
-          amount: 0, 
-        }
+        data: { userId, name: `BTC_PRIV_${address}`, amount: 0 }
       });
 
-      // Mise à jour du profil utilisateur
       await tx.user.update({
         where: { id: userId },
         data: { walletAddress: address }
       });
 
       return wallet;
-    }, {
-        maxWait: 5000,
-        timeout: 10000
     });
 
-    return NextResponse.json({
-      address: result.depositMemo,
-      symbol: "BTC"
-    });
+    return NextResponse.json({ address: result.depositMemo, symbol: "BTC" });
 
   } catch (error: any) {
     console.error("❌ [BTC_GEN_ERROR]:", error);
-    return NextResponse.json({
-      error: "Erreur lors de la génération du wallet BTC",
-      details: error.message
-    }, { status: 500 });
+    return NextResponse.json({ error: "Échec", details: error.message }, { status: 500 });
   }
 }
