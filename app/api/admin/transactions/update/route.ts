@@ -10,10 +10,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. Récupérer la transaction avec verrouillage de sécurité
+    // 1. Récupération de la transaction avec les infos utilisateur
     const tx = await prisma.transaction.findUnique({
       where: { id: transactionId },
-      include: { fromUser: true }
     });
 
     if (!tx) {
@@ -29,28 +28,26 @@ export async function POST(req: Request) {
     const newStatus = isApprove ? 'SUCCESS' : 'FAILED';
 
     const result = await prisma.$transaction(async (p) => {
-      // 2. Mise à jour du statut de la transaction
+      // 2. Mise à jour de la transaction
       const updated = await p.transaction.update({
         where: { id: transactionId },
         data: {
           status: newStatus,
-          note: `Action effectuée par l'admin le ${new Date().toLocaleString()}`
+          note: `Admin Action: ${action} à ${new Date().toISOString()}`
         },
       });
 
-      // 3. Si APPROUVÉ : On met à jour les stats globales de PimPay
+      // 3. Logique de solde (Wallet) et Stats
       if (isApprove) {
+        // Mise à jour des stats globales PimPay
         await p.systemConfig.update({
           where: { id: "GLOBAL_CONFIG" },
           data: {
             totalVolumePi: tx.currency === "PI" ? { increment: tx.amount } : undefined,
-            // Si c'est du XAF, on pourrait ajouter un champ totalVolumeFiat plus tard
           }
         });
-      }
-
-      // 4. Si REJETÉ : On recrédite le wallet de l'utilisateur
-      if (!isApprove && tx.fromUserId) {
+      } else if (tx.fromUserId) {
+        // En cas de rejet : on recrédite le montant + les frais prélevés à l'origine
         await p.wallet.update({
           where: {
             userId_currency: {
@@ -66,22 +63,32 @@ export async function POST(req: Request) {
         });
       }
 
-      // 5. Notification & Audit
-      await p.notification.create({
-        data: {
-          userId: tx.fromUserId!,
-          title: isApprove ? "Retrait Validé ✅" : "Retrait Refusé ❌",
-          message: isApprove
-            ? `Votre retrait de ${tx.amount} ${tx.currency} a été approuvé.`
-            : `Votre retrait de ${tx.amount} ${tx.currency} a été rejeté et votre solde a été rétabli.`,
-          type: isApprove ? "success" : "error",
-        },
-      });
+      // 4. SYSTÈME DE NOTIFICATION DYNAMIQUE
+      if (tx.fromUserId) {
+        await p.notification.create({
+          data: {
+            userId: tx.fromUserId,
+            title: isApprove ? "Transaction Réussie ✅" : "Transaction Refusée ❌",
+            message: isApprove
+              ? `Votre retrait de ${tx.amount.toLocaleString()} ${tx.currency} a été validé par le système.`
+              : `Votre retrait de ${tx.amount.toLocaleString()} ${tx.currency} a été rejeté. Les fonds ont été restitués.`,
+            type: isApprove ? "success" : "error",
+            // On stocke l'ID de la transaction dans les metadata pour le futur (clic sur notif)
+            metadata: {
+              transactionId: tx.id,
+              amount: tx.amount,
+              currency: tx.currency,
+              timestamp: new Date().toISOString()
+            }
+          },
+        });
+      }
 
+      // 5. Audit Log (Sécurité Banque)
       await p.auditLog.create({
         data: {
           action: isApprove ? "APPROVE_WITHDRAWAL" : "REJECT_WITHDRAWAL",
-          details: `TX: ${transactionId} | Montant: ${tx.amount} ${tx.currency}`,
+          details: `Statut: ${newStatus} | TX: ${transactionId}`,
           targetId: tx.fromUserId,
         }
       });
@@ -89,10 +96,13 @@ export async function POST(req: Request) {
       return updated;
     });
 
-    return NextResponse.json({ success: true, status: result.status });
+    return NextResponse.json({ 
+      success: true, 
+      status: result.status 
+    });
 
   } catch (error) {
-    console.error("Erreur Update Admin Pimpay:", error);
-    return NextResponse.json({ error: "Erreur interne de traitement" }, { status: 500 });
+    console.error("CRITICAL_ERROR_UPDATE_PIMPAY:", error);
+    return NextResponse.json({ error: "Échec du traitement sécurisé" }, { status: 500 });
   }
 }

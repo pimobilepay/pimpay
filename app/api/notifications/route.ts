@@ -23,22 +23,28 @@ export async function GET(req: NextRequest) {
       take: 50
     });
 
-    // Formatage sécurisé du JSON metadata
-    const formattedNotifications = notifications.map(n => ({
-      ...n,
-      metadata: typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {})
-    }));
+    // Formatage sécurisé : On s'assure que metadata est toujours un objet propre
+    const formattedNotifications = notifications.map(n => {
+      let meta = {};
+      try {
+        meta = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {});
+      } catch (e) {
+        meta = {}; // Fallback si le JSON est mal formé
+      }
+      return { ...n, metadata: meta };
+    });
 
     const unreadCount = await prisma.notification.count({
       where: { userId: user.id, read: false }
     });
 
+    // On renvoie un objet structuré que le frontend attend
     return NextResponse.json({
       notifications: formattedNotifications,
       unreadCount
     });
   } catch (error) {
-    console.error("Erreur GET Notifications:", error);
+    console.error("Erreur GET Notifications PimPay:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -50,18 +56,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (body.all === true || body.action === "MARK_ALL_READ") {
+    // Cas 1 : Marquer tout comme lu
+    if (body.all === true || body.action === "MARK_ALL_READ" || !body.id) {
       await prisma.notification.updateMany({
         where: { userId: user.id, read: false },
         data: { read: true }
       });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, message: "Toutes les notifications lues" });
     }
 
-    // Optionnel : Marquer une seule notification comme lue
+    // Cas 2 : Marquer une seule notification précise
     if (body.id) {
       await prisma.notification.update({
-        where: { id: body.id, userId: user.id },
+        where: { 
+          id: body.id, 
+          userId: user.id // Sécurité : l'utilisateur ne peut modifier que la sienne
+        },
         data: { read: true }
       });
       return NextResponse.json({ success: true });
@@ -69,7 +79,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Action non reconnue" }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: "Erreur action" }, { status: 500 });
+    console.error("Erreur POST Notifications:", error);
+    return NextResponse.json({ error: "Erreur lors de la mise à jour" }, { status: 500 });
   }
 }
 
@@ -83,12 +94,21 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: "ID manquant" }, { status: 400 });
 
-    await prisma.notification.delete({
-      where: { id: id, userId: user.id }
+    // On s'assure qu'il ne supprime que SES notifications
+    const result = await prisma.notification.deleteMany({
+      where: { 
+        id: id, 
+        userId: user.id 
+      }
     });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Notification non trouvée ou non autorisée" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Erreur DELETE Notification:", error);
     return NextResponse.json({ error: "Erreur suppression" }, { status: 500 });
   }
 }

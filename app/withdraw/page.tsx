@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, Smartphone, Building2, Clock, 
+import {
+  ArrowLeft, Smartphone, Building2, Clock,
   ShieldCheck, CircleDot, ChevronDown, Landmark, CheckCircle2, TrendingUp
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ export default function WithdrawPage() {
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("mobile");
-  
+
   const [piAmount, setPiAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country>(

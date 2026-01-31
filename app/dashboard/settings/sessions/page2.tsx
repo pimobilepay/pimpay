@@ -6,6 +6,7 @@ import {
   Globe,
   MapPin,
   Clock,
+  ChevronRight
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -33,7 +34,8 @@ async function getAuthenticatedUser() {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
-
+    
+    // On récupère l'utilisateur en s'assurant qu'il existe
     return await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, username: true, role: true }
@@ -61,10 +63,11 @@ export default async function SessionsPage() {
     );
   }
 
+  // Correction : On s'assure de ne récupérer que les sessions actives
   const sessions = await prisma.session.findMany({
-    where: {
+    where: { 
         userId: user.id,
-        isActive: true 
+        isActive: true // Filtrer uniquement les sessions valides
     },
     orderBy: { lastActiveAt: 'desc' },
   });
@@ -72,19 +75,17 @@ export default async function SessionsPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-32 font-sans">
       <div className="max-w-md mx-auto">
-
+        
         {/* HEADER STYLE PIMPAY */}
-        <div className="flex flex-col items-center text-center mb-8 pt-6">
-          <h1 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2">
-            PimPay<span className="text-blue-500">Security</span>
-          </h1>
-          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-1">
-              {sessions.length} Appareil{sessions.length > 1 ? 's' : ''} connecté{sessions.length > 1 ? 's' : ''}
-          </p>
-        </div>
-
-        {/* BOUTON DE DÉCONNEXION GLOBALE - CENTRÉ ET AJUSTÉ */}
-        <div className="flex justify-center mb-10">
+        <div className="flex justify-between items-center mb-8 pt-6">
+          <div>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2">
+              PimPay<span className="text-blue-500">Security</span>
+            </h1>
+            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-1">
+                {sessions.length} Appareil{sessions.length > 1 ? 's' : ''} connecté{sessions.length > 1 ? 's' : ''}
+            </p>
+          </div>
           <LogoutOthersButton />
         </div>
 
@@ -104,8 +105,8 @@ export default async function SessionsPage() {
                 <div
                   key={session.id}
                   className={`p-5 rounded-[2rem] border transition-all ${
-                    isCurrent
-                    ? 'bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20'
+                    isCurrent 
+                    ? 'bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20' 
                     : 'bg-white/5 border-white/5'
                   }`}
                 >
@@ -133,7 +134,7 @@ export default async function SessionsPage() {
                           <Globe size={12} className="text-blue-500" />
                           {session.ip} • {session.browser || "Navigateur"}
                         </div>
-
+                        
                         <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
                           <MapPin size={12} className="text-rose-500" />
                           {session.city || "Oyo"}, {session.country || "Congo"} {getFlagEmoji(session.country)}
