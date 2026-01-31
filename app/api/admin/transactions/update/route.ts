@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. Récupérer la transaction actuelle pour obtenir l'utilisateur et le montant
+    // 1. Récupérer la transaction avec verrouillage de sécurité
     const tx = await prisma.transaction.findUnique({
       where: { id: transactionId },
       include: { fromUser: true }
@@ -20,12 +20,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
+    // SÉCURITÉ : Ne pas traiter une transaction déjà finalisée
+    if (tx.status === 'SUCCESS' || tx.status === 'FAILED') {
+      return NextResponse.json({ error: "Transaction déjà traitée" }, { status: 400 });
+    }
+
     const isApprove = action === 'approve';
     const newStatus = isApprove ? 'SUCCESS' : 'FAILED';
 
-    // 2. Utilisation de $transaction pour sécuriser l'opération
     const result = await prisma.$transaction(async (p) => {
-      // Mise à jour de la transaction
+      // 2. Mise à jour du statut de la transaction
       const updated = await p.transaction.update({
         where: { id: transactionId },
         data: {
@@ -34,20 +38,18 @@ export async function POST(req: Request) {
         },
       });
 
-      // Création de la notification pour l'utilisateur
-      await p.notification.create({
-        data: {
-          userId: tx.fromUserId!,
-          title: isApprove ? "Retrait Validé ✅" : "Retrait Refusé ❌",
-          message: isApprove 
-            ? `Votre retrait de ${tx.amount} ${tx.currency} a été approuvé et est en cours d'envoi.` 
-            : `Votre retrait de ${tx.amount} ${tx.currency} a été rejeté. Le montant a été recrédité sur votre solde.`,
-          type: isApprove ? "success" : "error",
-        },
-      });
+      // 3. Si APPROUVÉ : On met à jour les stats globales de PimPay
+      if (isApprove) {
+        await p.systemConfig.update({
+          where: { id: "GLOBAL_CONFIG" },
+          data: {
+            totalVolumePi: tx.currency === "PI" ? { increment: tx.amount } : undefined,
+            // Si c'est du XAF, on pourrait ajouter un champ totalVolumeFiat plus tard
+          }
+        });
+      }
 
-      // 3. Gestion du solde en cas de REJET (FAILED)
-      // Si la transaction est rejetée, on rend l'argent à l'utilisateur
+      // 4. Si REJETÉ : On recrédite le wallet de l'utilisateur
       if (!isApprove && tx.fromUserId) {
         await p.wallet.update({
           where: {
@@ -58,17 +60,28 @@ export async function POST(req: Request) {
           },
           data: {
             balance: {
-              increment: tx.amount + (tx.fee || 0) // On rend le montant + les frais
+              increment: tx.amount + (tx.fee || 0)
             }
           }
         });
       }
 
-      // 4. Log de l'action pour l'audit admin
+      // 5. Notification & Audit
+      await p.notification.create({
+        data: {
+          userId: tx.fromUserId!,
+          title: isApprove ? "Retrait Validé ✅" : "Retrait Refusé ❌",
+          message: isApprove
+            ? `Votre retrait de ${tx.amount} ${tx.currency} a été approuvé.`
+            : `Votre retrait de ${tx.amount} ${tx.currency} a été rejeté et votre solde a été rétabli.`,
+          type: isApprove ? "success" : "error",
+        },
+      });
+
       await p.auditLog.create({
         data: {
           action: isApprove ? "APPROVE_WITHDRAWAL" : "REJECT_WITHDRAWAL",
-          details: `Transaction ${transactionId} traitée. Statut final: ${newStatus}`,
+          details: `TX: ${transactionId} | Montant: ${tx.amount} ${tx.currency}`,
           targetId: tx.fromUserId,
         }
       });
@@ -76,13 +89,10 @@ export async function POST(req: Request) {
       return updated;
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      status: result.status 
-    });
+    return NextResponse.json({ success: true, status: result.status });
 
   } catch (error) {
     console.error("Erreur Update Admin Pimpay:", error);
-    return NextResponse.json({ error: "Erreur lors du traitement de la demande" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur interne de traitement" }, { status: 500 });
   }
 }

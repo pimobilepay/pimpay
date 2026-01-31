@@ -1,33 +1,49 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { v2 as cloudinary } from 'cloudinary';
+import { PrismaClient } from '@prisma/client';
+
 export const dynamic = 'force-dynamic';
-import { put } from "@vercel/blob";
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose"; // Ou ta méthode de vérification de token
 
-export async function POST(request: Request): Promise<NextResponse> {
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME, // Vérifie bien ces noms dans ton .env
+  api_key: process.env.CLOUDINARY_KEY,
+  api_secret: process.env.CLOUDINARY_SECRET,
+});
+
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const filename = searchParams.get("filename");
-    const type = searchParams.get("type"); // front, back, ou selfie
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const userId = formData.get('userId') as string | null;
+    const type = formData.get('type') as string | null; // ex: kycFrontUrl
 
-    // 1. Vérification du Token
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    if (!file || !userId || !type) {
+      return NextResponse.json({ error: "Données manquantes (file, userId ou type)" }, { status: 400 });
     }
 
-    // 2. Upload vers Vercel Blob
-    if (!request.body || !filename) {
-      return NextResponse.json({ error: "Fichier manquant" }, { status: 400 });
-    }
+    // 1. Conversion en base64 pour la stabilité
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Image = `data:${file.type};base64,${buffer.toString('base64')}`;
 
-    const blob = await put(filename, request.body, {
-      access: "public", // Les URLs seront privées via la logique métier
+    // 2. Upload vers Cloudinary (Dossier structuré par utilisateur)
+    const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+      folder: `pimpay/kyc/${userId}`,
+      public_id: `${type}_${Date.now()}`,
+      tags: ['kyc_document', userId]
     });
 
-    return NextResponse.json(blob);
-  } catch (error) {
-    console.error("UPLOAD_ERROR:", error);
-    return NextResponse.json({ error: "Échec de l'upload" }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      url: uploadResponse.secure_url
+    });
+
+  } catch (error: any) {
+    console.error("Erreur API KYC Upload:", error);
+    return NextResponse.json({ error: error.message || "Échec de l'upload" }, { status: 500 });
   }
 }
