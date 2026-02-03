@@ -1,14 +1,14 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { TransactionStatus } from "@prisma/client";
+import { TransactionStatus, TransactionType } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 
 const MTN_CONFIG = {
   baseUrl: "https://sandbox.momodeveloper.mtn.com",
-  subscriptionKey: "be348175da3041539aa325294a43cdf6", 
-  apiUser: "f80ff15f-a76c-42af-8f5b-ff6c5ca4c9bc",      
-  apiKey: "d050f8202cce434aa9d120c89719fea4", // Remplace par ta clé API générée
+  subscriptionKey: "be348175da3041539aa325294a43cdf6",
+  apiUser: "f80ff15f-a76c-42af-8f5b-ff6c5ca4c9bc",    
+  apiKey: "d050f8202cce434aa9d120c89719fea4", 
   targetEnv: "sandbox",
 };
 
@@ -19,19 +19,35 @@ export async function processDeposit(formData: {
   method: string;
   phone: string;
   currency: string;
-  isSandbox?: boolean;
+  userId: string; // Ajout de l'ID utilisateur pour la précision
 }) {
   const mtnReferenceId = uuidv4();
-  const pimpayReference = `TX-PIM-${Math.random().toString(36).toUpperCase().substring(2, 10)}`;
+  const pimpayReference = `PIM-DEP-${Math.random().toString(36).toUpperCase().substring(2, 10)}`;
 
   try {
-    const user = await prisma.user.findFirst();
+    // 1. Récupérer l'utilisateur et son Wallet USD
+    const user = await prisma.user.findUnique({
+      where: { id: formData.userId },
+      include: { wallets: { where: { currency: "USD" } } }
+    });
+
     if (!user) return { success: false, error: "Utilisateur introuvable." };
+
+    // Vérifier si le wallet USD existe, sinon le créer (Sécurité PimPay)
+    let wallet = user.wallets[0];
+    if (!wallet) {
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: user.id,
+          currency: "USD",
+          balance: 0,
+        }
+      });
+    }
 
     // --- LOGIQUE MTN ---
     if (formData.method.toLowerCase().includes("mtn")) {
       try {
-        // A. Token
         const authHeader = Buffer.from(`${MTN_CONFIG.apiUser}:${MTN_CONFIG.apiKey}`).toString('base64');
         const tokenRes = await fetch(`${MTN_CONFIG.baseUrl}/collection/token/`, {
           method: 'POST',
@@ -45,7 +61,6 @@ export async function processDeposit(formData: {
         if (!tokenRes.ok) throw new Error("Échec Auth MTN");
         const { access_token } = await tokenRes.json();
 
-        // B. Request To Pay en USD
         const mtnRes = await fetch(`${MTN_CONFIG.baseUrl}/collection/v1_0/requesttopay`, {
           method: 'POST',
           headers: {
@@ -57,57 +72,68 @@ export async function processDeposit(formData: {
           },
           body: JSON.stringify({
             amount: formData.amount.toString(),
-            currency: "USD", // Forcé en USD pour PimPay
+            currency: "USD", 
             externalId: pimpayReference,
             payer: {
               partyIdType: "MSISDN",
               partyId: formData.phone.replace('+', '').trim()
             },
             payerMessage: `PimPay Deposit: ${formData.amount} USD`,
-            payeeNote: "PimPay Protocol"
+            payeeNote: "PimPay Core Protocol"
           })
         });
 
         if (mtnRes.status !== 202) throw new Error("Transaction refusée par le gateway");
-
-        // Attente de propagation Sandbox
-        await sleep(2500);
+        await sleep(2000);
 
       } catch (mtnError: any) {
-        console.error("❌ Erreur MTN Gateway:", mtnError.message);
-        return { success: false, error: "Erreur de communication avec l'opérateur." };
+        console.error("❌ MTN Gateway Error:", mtnError.message);
+        return { success: false, error: "L'opérateur n'a pas pu initier le paiement." };
       }
     }
 
-    // --- ENREGISTREMENT PRISMA (Toujours en USD) ---
-    const result = await prisma.transaction.create({
-      data: {
-        reference: pimpayReference,
-        amount: formData.amount,
-        purpose: "DEPOSIT",
-        status: TransactionStatus.PENDING,
-        fromUserId: user.id,
-        toUserId: user.id,
-        operatorId: formData.method,
-        countryCode: "USD", 
-        description: `Dépôt PimPay via ${formData.method}`,
-        metadata: {
-          phone: formData.phone,
-          mtnReference: mtnReferenceId,
+    // --- ENREGISTREMENT TRANSACTION & NOTIFICATION ---
+    const result = await prisma.$transaction(async (tx) => {
+      // A. Créer la transaction
+      const txn = await tx.transaction.create({
+        data: {
+          reference: pimpayReference,
+          externalId: mtnReferenceId,
+          amount: formData.amount,
           currency: "USD",
-          isSandbox: true
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.PENDING,
+          toUserId: user.id,
+          toWalletId: wallet.id,
+          description: `Dépôt via ${formData.method}`,
+          metadata: {
+            phone: formData.phone,
+            gateway: "MTN_MOMO_SANDBOX"
+          }
         }
-      }
+      });
+
+      // B. Créer la notification système (In-App)
+      await tx.notification.create({
+        data: {
+          userId: user.id,
+          title: "Dépôt initié ⏳",
+          message: `Votre dépôt de ${formData.amount} USD est en attente de confirmation.`,
+          type: "INFO"
+        }
+      });
+
+      return txn;
     });
 
-    return { 
-      success: true, 
-      reference: result.reference, 
-      mtnId: mtnReferenceId 
+    return {
+      success: true,
+      reference: result.reference,
+      status: "PENDING"
     };
 
   } catch (error) {
-    console.error("❌ Erreur PimPay:", error);
-    return { success: false, error: "Erreur lors du traitement PimPay." };
+    console.error("❌ Erreur Interne PimPay:", error);
+    return { success: false, error: "Le protocole de dépôt a rencontré une erreur." };
   }
 }

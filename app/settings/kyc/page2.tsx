@@ -5,7 +5,7 @@ import {
   ArrowLeft, ShieldCheck, Camera, FileText,
   User, CheckCircle2, Loader2,
   Upload, Smartphone, ChevronDown, Calendar,
-  MapPin, Hash, Globe, Fingerprint, X, CreditCard, ArrowRight, Briefcase
+  MapPin, Hash, Globe, Fingerprint, X, CreditCard, ArrowRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,22 +15,17 @@ import countries from "world-countries";
 export default function KYCPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  
-  // États pour la capture automatique
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [blinkCount, setBlinkCount] = useState(0);
 
   const [formData, setFormData] = useState({
     idType: "", idCountry: "", idNumber: "", idExpiryDate: "",
     firstName: "", lastName: "", birthDate: "", gender: "",
-    nationality: "", occupation: "", phone: "", address: "", city: "",
+    nationality: "", phone: "", address: "", city: "",
     provinceState: "", kycFrontUrl: "", kycBackUrl: "", kycSelfieUrl: ""
   });
 
@@ -39,6 +34,7 @@ export default function KYCPage() {
     fetchUserSession();
   }, []);
 
+  // LOGIQUE DE SESSION IDENTIQUE AU DASHBOARD (Correction du bug)
   async function fetchUserSession() {
     try {
       const res = await fetch("/api/user/profile", { cache: 'no-store' });
@@ -64,58 +60,26 @@ export default function KYCPage() {
     flag: c.flag
   })).sort((a, b) => a.name.localeCompare(b.name));
 
-  // Logique de caméra et Capture Automatique
   useEffect(() => {
     if (step === 5 && mounted && videoRef.current) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-        .then(stream => { 
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            // Lancement de la simulation de détection de clignement
-            startAutoCaptureLogic();
-          } 
-        })
+        .then(stream => { if (videoRef.current) videoRef.current.srcObject = stream; })
         .catch(() => toast.error("Caméra introuvable"));
     }
-    return () => {
-      const stream = videoRef.current?.srcObject as MediaStream;
-      stream?.getTracks().forEach(track => track.stop());
-    };
   }, [step, mounted]);
 
-  const startAutoCaptureLogic = () => {
-    setIsCapturing(true);
-    // Simulation : l'utilisateur doit "cligner" (attente de 3s)
-    setTimeout(() => {
-      setBlinkCount(1);
-      takeSelfie();
-    }, 3500);
-  };
-
-  const takeSelfie = async () => {
-    if (!videoRef.current || !userId) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(videoRef.current, 0, 0);
-      
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-      if (blob) {
-        const file = new File([blob], "selfie.jpg", { type: "image/jpeg" });
-        await handleUploadDirect(file, "kycSelfieUrl");
-      }
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0];
+    if (!userId) {
+        toast.error("Session expirée, reconnectez-vous");
+        return;
     }
-  };
+    if (!file) return;
 
-  const handleUploadDirect = async (file: File, field: string) => {
+    const toastId = toast.loading("Upload du document...");
     const data = new FormData();
     data.append("file", file);
-    data.append("userId", userId!);
+    data.append("userId", userId);
     data.append("type", field);
 
     try {
@@ -123,25 +87,13 @@ export default function KYCPage() {
       const result = await res.json();
       if (result.url) {
         updateField(field, result.url);
-        toast.success("Selfie capturé et enregistré !");
-        setIsCapturing(false);
+        toast.success("Image validée", { id: toastId });
       }
-    } catch (error) {
-      toast.error("Erreur lors de l'enregistrement du selfie");
-    }
-  };
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-    const file = e.target.files?.[0];
-    if (!userId) { toast.error("Session expirée"); return; }
-    if (!file) return;
-    handleUploadDirect(file, field);
+    } catch (error) { toast.error("Erreur d'envoi", { id: toastId }); }
   };
 
   const finishKYC = async () => {
     if (!userId) return;
-    if (!formData.kycSelfieUrl) { toast.error("Attendez la capture du selfie"); return; }
-    
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/kyc/submit", {
@@ -153,13 +105,11 @@ export default function KYCPage() {
         toast.success("Dossier PimPay en cours de révision !");
         router.push("/dashboard");
       }
-    } catch (e) {
-      toast.error("Erreur de soumission");
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (e) { toast.error("Erreur de soumission"); }
+    finally { setIsSubmitting(false); }
   };
 
+  // On attend que la session soit vérifiée pour éviter le bug useSession
   if (!mounted || isLoadingSession) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
@@ -172,7 +122,7 @@ export default function KYCPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-20 font-sans overflow-x-hidden">
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-      
+
       <header className="px-6 pt-10 pb-4 sticky top-0 bg-[#020617]/90 backdrop-blur-md z-30 border-b border-white/5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -207,7 +157,7 @@ export default function KYCPage() {
         <div className="space-y-6">
           {step === 1 && (
             <div className="space-y-5 animate-in fade-in">
-              <CustomSelect label="Type de document" icon={<CreditCard size={18}/>} options={["Carte d'identité", "Passeport", "Carte d'Électeur", "Permis de conduire"]} value={formData.idType} onChange={(v) => updateField("idType", v)} />
+              <CustomSelect label="Type de document" icon={<CreditCard size={18}/>} options={["Carte d'identité", "Passeport", "Carte d'Électeur"]} value={formData.idType} onChange={(v) => updateField("idType", v)} />
               <CustomSelect label="Pays du document" icon={<Globe size={18}/>} options={countryList.map(c => `${c.flag} ${c.name}`)} value={formData.idCountry} onChange={(v) => updateField("idCountry", v)} />
               <InputField icon={<Fingerprint size={18}/>} label="Numéro du document" placeholder="N° du titre" value={formData.idNumber} onChange={(v) => updateField("idNumber", v)} />
               <InputField icon={<Calendar size={18}/>} label="Date d'expiration" type="date" value={formData.idExpiryDate} onChange={(v) => updateField("idExpiryDate", v)} />
@@ -221,8 +171,6 @@ export default function KYCPage() {
                 <InputField icon={<User size={18}/>} label="Nom" value={formData.lastName} onChange={(v) => updateField("lastName", v)} />
               </div>
               <InputField icon={<Calendar size={18}/>} label="Date de naissance" type="date" value={formData.birthDate} onChange={(v) => updateField("birthDate", v)} />
-              <CustomSelect label="Nationalité" icon={<Globe size={18}/>} options={countryList.map(c => c.name)} value={formData.nationality} onChange={(v) => updateField("nationality", v)} />
-              <InputField icon={<Briefcase size={18}/>} label="Occupation" placeholder="Ex: Développeur, Commerçant" value={formData.occupation} onChange={(v) => updateField("occupation", v)} />
               <CustomSelect label="Genre" icon={<User size={18}/>} options={["Masculin", "Féminin"]} value={formData.gender} onChange={(v) => updateField("gender", v)} />
             </div>
           )}
@@ -243,7 +191,7 @@ export default function KYCPage() {
               <div className="space-y-4 text-center">
                 <p className="text-[10px] font-black uppercase text-blue-500 italic">Modèle Recto</p>
                 <div className="w-full max-w-[280px] mx-auto aspect-[1.6/1] bg-white/5 rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-                  <img src="/sample_recto.png" alt="Recto" className="w-full h-full object-contain opacity-80" />
+                    <img src="/sample_recto.png" alt="Recto" className="w-full h-full object-contain opacity-80" />
                 </div>
                 <label className={`flex items-center justify-center gap-3 h-16 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${formData.kycFrontUrl ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' : 'bg-blue-600/5 border-blue-600/30 text-blue-500'}`}>
                    <Upload size={20} />
@@ -267,42 +215,19 @@ export default function KYCPage() {
           )}
 
           {step === 5 && (
-            <div className="fixed inset-0 z-50 bg-[#020617]/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in">
-              <div className="relative w-72 h-72">
-                {/* Overlay de détection de visage avec transparence */}
-                <div className={`absolute inset-0 rounded-full border-4 transition-all duration-700 ${blinkCount > 0 ? 'border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)]' : 'border-blue-600/30 animate-pulse'}`} />
-                <div className="absolute inset-3 rounded-full overflow-hidden bg-slate-900/50 border border-white/10">
+            <div className="fixed inset-0 z-50 bg-[#020617] flex flex-col items-center justify-center p-6 animate-in fade-in">
+              <div className="relative w-64 h-64">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-600/20" />
+                <div className="absolute inset-2 rounded-full overflow-hidden bg-slate-900 border border-white/10">
                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                   
-                   {/* Grille de scan faciale (Wireframe) */}
-                   <div className="absolute inset-0 opacity-30 pointer-events-none flex items-center justify-center">
-                      <div className="w-full h-full border-[0.5px] border-white/20 rounded-full flex items-center justify-center">
-                        <div className="w-3/4 h-3/4 border-[0.5px] border-white/20 rounded-full" />
-                      </div>
-                   </div>
                 </div>
               </div>
-
-              <div className="mt-10 text-center space-y-6 max-w-xs">
-                <div className="flex flex-col items-center gap-2">
-                   <div className="bg-blue-600/10 px-4 py-1 rounded-full border border-blue-600/20">
-                      <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
-                        {blinkCount > 0 ? "Vérification réussie" : "Clignez des yeux (0/1)"}
-                      </p>
-                   </div>
-                   <h3 className="text-xl font-black italic uppercase tracking-tighter">
-                     {isCapturing ? "Analyse en cours..." : "Identité confirmée"}
-                   </h3>
-                </div>
-
-                <div className="flex gap-4 w-full">
-                   <button onClick={() => setStep(4)} className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase">Retour</button>
-                   <button 
-                     disabled={isCapturing || !formData.kycSelfieUrl} 
-                     onClick={finishKYC} 
-                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${formData.kycSelfieUrl ? 'bg-blue-600 shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-500'}`}
-                   >
-                      {isSubmitting ? <Loader2 className="animate-spin mx-auto" size={16}/> : "Terminer"}
+              <div className="mt-8 text-center space-y-6">
+                <h3 className="text-xl font-black italic uppercase tracking-tighter">Scan Facial</h3>
+                <div className="flex gap-4">
+                   <button onClick={() => setStep(4)} className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black uppercase">Retour</button>
+                   <button onClick={finishKYC} className="px-8 py-3 bg-blue-600 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-600/30">
+                      {isSubmitting ? <Loader2 className="animate-spin" size={16}/> : "Confirmer"}
                    </button>
                 </div>
               </div>
@@ -314,14 +239,14 @@ export default function KYCPage() {
               {step > 1 && (
                 <button onClick={() => setStep(step - 1)} className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all"><ArrowLeft size={24} /></button>
               )}
-              <button
+              <button 
                 onClick={() => {
                    if (step === 4 && (!formData.kycFrontUrl || !formData.kycBackUrl)) {
                      toast.error("Veuillez envoyer les deux faces");
                      return;
                    }
                    setStep(step + 1);
-                }}
+                }} 
                 className="flex-1 h-16 bg-blue-600 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-blue-600/20 active:scale-[0.98] transition-all"
               >
                 Suivant <ArrowRight size={20} />
@@ -334,17 +259,17 @@ export default function KYCPage() {
   );
 }
 
-// COMPOSANTS INPUT RE-UTILISABLES
+// COMPOSANTS INPUT ORIGINAUX
 function InputField({ label, placeholder, icon, type = "text", value, onChange }: any) {
   return (
     <div className="space-y-1.5 text-left">
       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</label>
       <div className="relative">
         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600">{icon}</div>
-        <input
+        <input 
           type={type} value={value} onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full h-14 bg-white/5 rounded-2xl border border-white/5 pl-14 pr-5 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all"
+          placeholder={placeholder} 
+          className="w-full h-14 bg-white/5 rounded-2xl border border-white/5 pl-14 pr-5 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all" 
         />
       </div>
     </div>
@@ -357,7 +282,7 @@ function CustomSelect({ label, icon, options, value, onChange }: any) {
       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</label>
       <div className="relative">
         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500/50">{icon}</div>
-        <select
+        <select 
           value={value} onChange={(e) => onChange(e.target.value)}
           className="w-full h-14 bg-white/5 rounded-2xl border border-white/5 pl-14 pr-12 text-sm font-bold outline-none appearance-none text-slate-200"
         >

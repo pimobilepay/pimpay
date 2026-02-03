@@ -61,10 +61,17 @@ export default function DashboardLayout({
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
         <ThemeProvider>
-          {/* AJOUTÉ : PiAuthProvider doit envelopper les composants qui utilisent usePiAuth */}
+          {/* PiAuthProvider enveloppe les composants qui utilisent usePiAuth */}
           <PiAuthProvider>
+            {/* SDK PI NETWORK */}
             <Script
               src="https://sdk.minepi.com/pi-sdk.js"
+              strategy="beforeInteractive"
+            />
+
+            {/* AJOUTÉ : SDK CINETPAY (Chargement prioritaire pour intégration interne) */}
+            <Script
+              src="https://cdn.cinetpay.com/seamless/main.js"
               strategy="beforeInteractive"
             />
 
