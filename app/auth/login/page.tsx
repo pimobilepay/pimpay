@@ -20,10 +20,8 @@ export default function LoginPage() {
   const [tempUserId, setTempUserId] = useState<string | null>(null);
   const [tempRole, setTempRole] = useState<string | null>(null);
 
-  // Utilisation sécurisée du contexte
-  const auth = usePiAuth(); 
-  // On extrait les valeurs seulement si le contexte existe
-  const { reinitialize, isAuthenticated, userData, hasError, authMessage } = auth || {};
+  const auth = usePiAuth();
+  const { manualLogin, isAuthenticated, userData, hasError, authMessage, isLoading: piLoading } = auth || {};
 
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStep, setTransitionStep] = useState("init");
@@ -33,7 +31,6 @@ export default function LoginPage() {
     setMounted(true);
   }, []);
 
-  // Surveiller l'authentification Pi réussie
   useEffect(() => {
     if (isAuthenticated && userData) {
       const sessionToken = userData.id;
@@ -92,18 +89,18 @@ export default function LoginPage() {
   };
 
   const handlePiBrowserLogin = async () => {
-    if (!reinitialize) {
-        toast.error("Le service d'authentification Pi n'est pas prêt");
-        return;
+    if (!manualLogin) {
+      toast.error("Le service d'authentification Pi n'est pas prêt");
+      return;
     }
+    
     try {
-      await reinitialize();
-      if (hasError) {
-        toast.error(authMessage || "Échec de la connexion Pi Network");
-      }
-    } catch (error) {
+      setLoading(true);
+      await manualLogin();
+    } catch (error: any) {
       console.error("Erreur Pi Login:", error);
-      toast.error("Erreur de communication avec le Pi Browser");
+      toast.error(error.message || "Erreur de communication avec le Pi Browser");
+      setLoading(false);
     }
   };
 
@@ -124,15 +121,15 @@ export default function LoginPage() {
 
       {showTransition && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">
-            <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 ${
-              transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-500 to-blue-700 shadow-blue-500/50"
-            }`}>
-              {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
-            </div>
-            <h2 className="mt-6 text-white text-xl font-bold uppercase tracking-tighter">
-                PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
-            </h2>
-            <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
+          <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 ${
+            transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-500 to-blue-700 shadow-blue-500/50"
+          }`}>
+            {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
+          </div>
+          <h2 className="mt-6 text-white text-xl font-bold uppercase tracking-tighter">
+            PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
+          </h2>
+          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
         </div>
       )}
 
@@ -160,10 +157,10 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-               <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
-               <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
-                  Oublié ?
-               </Link>
+              <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
+              <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
+                Oublié ?
+              </Link>
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
@@ -191,14 +188,20 @@ export default function LoginPage() {
 
         <Button
           onClick={handlePiBrowserLogin}
-          disabled={loading}
+          disabled={loading || piLoading}
           type="button"
           className="w-full h-14 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
         >
-          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
-              <span className="text-white font-bold text-xs">π</span>
-          </div>
-          <span className="text-sm uppercase tracking-tight">Pi Browser Login</span>
+          {(loading || piLoading) ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
+                <span className="text-white font-bold text-xs">π</span>
+              </div>
+              <span className="text-sm uppercase tracking-tight">Pi Browser Login</span>
+            </>
+          )}
         </Button>
 
         <div className="mt-8 flex flex-col items-center gap-4">

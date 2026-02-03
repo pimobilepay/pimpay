@@ -1,119 +1,85 @@
-export const dynamic = "force-dynamic";
-
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { auth } from "@/lib/auth";
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    // 1. SÉCURITÉ CONFIGURATION
-    const JWT_SECRET = process.env.JWT_SECRET;
-    const PI_API_KEY = process.env.PI_API_KEY;
-
-    if (!JWT_SECRET || !PI_API_KEY) {
-      return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
+    const user = await auth();
+    if (!user) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    // 2. AUTHENTIFICATION (Standard PimPay)
-    const token = cookies().get("pimpay_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-    }
-
-    const secretKey = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const userId = payload.id as string;
-
-    // 3. VALIDATION INPUT
-    const body = await req.json().catch(() => ({}));
+    const body = await request.json();
     const { paymentId, txid } = body;
 
     if (!paymentId || !txid) {
-      return NextResponse.json({ error: "Données de transaction manquantes" }, { status: 400 });
+      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 4. PROTECTION ANTI-REJEU (Idempotence)
-    const existingTx = await prisma.transaction.findUnique({
-      where: { reference: paymentId }
+    console.log(`[COMPLETE-PAYMENT] Completing payment ${paymentId} with txid ${txid}`);
+
+    // Trouver la transaction
+    const transaction = await prisma.transaction.findFirst({
+      where: { externalId: paymentId }
     });
-    if (existingTx) {
-      return NextResponse.json({ success: true, message: "Déjà traité" }, { status: 200 });
+
+    if (!transaction) {
+      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // 5. NOTIFIER PI NETWORK (Server-to-Server)
-    const piCompleteResponse = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${PI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ txid }),
-    });
-
-    if (!piCompleteResponse.ok) {
-      return NextResponse.json({ error: "Validation Pi Network échouée" }, { status: 400 });
+    if (transaction.status === "COMPLETED" || transaction.status === "SUCCESS") {
+      return NextResponse.json({ error: "Transaction déjà complétée" }, { status: 400 });
     }
 
-    // 6. VÉRIFICATION DU MONTANT (Source de vérité Pi)
-    const paymentDetailsResponse = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-      method: "GET",
-      headers: { "Authorization": `Key ${PI_API_KEY}` }
-    });
-
-    if (!paymentDetailsResponse.ok) throw new Error("Vérification Pi impossible");
-    const paymentData = await paymentDetailsResponse.json();
-    const amount = Number(paymentData.amount);
-
-    // 7. TRANSACTION ATOMIQUE PRISMA (Respect du schéma Finance)
-    const result = await prisma.$transaction(async (tx) => {
-      // Upsert du Wallet (Essentiel pour PimPay)
-      const wallet = await tx.wallet.upsert({
-        where: {
-          userId_currency: { userId, currency: "PI" }
-        },
-        update: {
-          balance: { increment: amount }
-        },
-        create: {
-          userId,
-          currency: "PI",
-          balance: amount,
-          type: "PI"
+    // Mettre à jour la transaction
+    const updatedTransaction = await prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: "SUCCESS",
+        blockchainTx: txid,
+        metadata: {
+          ...(transaction.metadata as any || {}),
+          completedAt: new Date().toISOString(),
+          txid
         }
-      });
+      }
+    });
 
-      // Création du log de transaction (avec les IDs de wallet pour ton schéma)
-      await tx.transaction.create({
+    // Mettre à jour le solde du wallet
+    const wallet = await prisma.wallet.findFirst({
+      where: {
+        userId: user.id,
+        currency: "PI"
+      }
+    });
+
+    if (wallet) {
+      await prisma.wallet.update({
+        where: { id: wallet.id },
         data: {
-          reference: paymentId,
-          amount: amount,
-          type: "DEPOSIT",
-          status: "COMPLETED",
-          toUserId: userId,      // On remplit toUserId pour un dépôt
-          toWalletId: wallet.id, // Lien direct avec le wallet crédité
-          currency: "PI",
-          description: `Dépôt via Pi Network (TX: ${txid.substring(0, 8)}...)`,
-          metadata: { txid, paymentId, method: "PI_SDK" }
+          balance: {
+            increment: transaction.amount
+          }
         }
       });
+    }
 
-      // Optionnel : Mise à jour des stats globales PimPay
-      await tx.systemConfig.update({
-        where: { id: "GLOBAL_CONFIG" },
-        data: { totalVolumePi: { increment: amount } }
-      });
-
-      return wallet;
-    });
+    console.log(`[COMPLETE-PAYMENT] Payment completed successfully: ${transaction.amount} π added to user ${user.username}`);
 
     return NextResponse.json({
       success: true,
-      newBalance: result.balance
+      transactionId: updatedTransaction.id,
+      amount: updatedTransaction.amount,
+      txid,
+      message: "Paiement complété avec succès"
     });
 
   } catch (error: any) {
-    console.error("PAYMENT_COMPLETE_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Erreur lors de la validation finale" }, { status: 500 });
+    console.error("[COMPLETE-PAYMENT] Error:", error);
+    return NextResponse.json(
+      { error: "Erreur serveur", details: error.message },
+      { status: 500 }
+    );
   }
 }

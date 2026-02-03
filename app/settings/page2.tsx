@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   User, ShieldCheck, Bell,
   Lock, Globe, HelpCircle, LogOut,
@@ -32,60 +32,40 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [mounted, setMounted] = useState(false); // Pour éviter les erreurs d'hydratation (écran blanc)
 
-  // Initialisation du thème et montage
   useEffect(() => {
-    setMounted(true);
     const savedTheme = localStorage.getItem("pimpay-theme");
-    const isDark = savedTheme !== "light";
-    setIsDarkMode(isDark);
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
+    if (savedTheme === "light") {
+      setIsDarkMode(false);
       document.documentElement.classList.remove("dark");
+    } else {
+      setIsDarkMode(true);
+      document.documentElement.classList.add("dark");
     }
-  }, []);
 
-  const fetchUserData = useCallback(async () => {
-    try {
-      // Tentative de récupération locale immédiate pour éviter l'écran blanc
-      const localUser = localStorage.getItem("pimpay_user");
-      if (localUser) {
-        setUser(JSON.parse(localUser));
-        // On ne coupe pas isLoading ici pour permettre la synchro fraîche
+    async function fetchUserData() {
+      try {
+        const response = await fetch("/api/user/profile", {
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const userData = result.user || result;
+          setUser(userData);
+          localStorage.setItem("pimpay_user", JSON.stringify(userData));
+        } else if (response.status === 401) {
+          router.push("/auth/login");
+        }
+      } catch (err) {
+        console.error("Erreur de synchronisation des paramètres", err);
+      } finally {
+        setIsLoading(false);
       }
-
-      const response = await fetch("/api/user/profile", {
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        const userData = result.user || result;
-        setUser(userData);
-        localStorage.setItem("pimpay_user", JSON.stringify(userData));
-      } else if (response.status === 401) {
-        router.push("/auth/login");
-      }
-    } catch (err) {
-      console.error("Erreur de synchronisation Pimpay:", err);
-    } finally {
-      setIsLoading(false);
     }
+    fetchUserData();
   }, [router]);
-
-  useEffect(() => {
-    if (mounted) {
-      fetchUserData();
-    }
-  }, [mounted, fetchUserData]);
-
-  // Si pas encore monté côté client, on affiche un fond neutre pour éviter le flash
-  if (!mounted) {
-    return <div className="min-h-screen bg-[#020617]" />;
-  }
 
   const userName = user?.name || user?.firstName || "Pioneer";
   const userEmail = user?.email || "Chargement...";
@@ -95,16 +75,14 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     try {
-      const loadingToast = toast.loading("Fermeture de la session sécurisée...");
-      // Suppression propre des données
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      localStorage.removeItem("pimpay_user");
-      
+      toast.loading("Fermeture de la session sécurisée...");
       setTimeout(() => {
-        toast.dismiss(loadingToast);
+        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+        localStorage.removeItem("pimpay_user");
         router.push("/auth/login");
+        toast.dismiss();
         toast.success("Déconnecté avec succès");
-      }, 800);
+      }, 1000);
     } catch (error) {
       toast.error("Erreur lors de la déconnexion");
     }
@@ -184,7 +162,7 @@ export default function SettingsPage() {
     }
   ];
 
-  if (isLoading && !user) {
+  if (isLoading) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} flex items-center justify-center`}>
         <Loader2 className="animate-spin text-blue-500" size={32} />
@@ -193,17 +171,17 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} ${isDarkMode ? 'text-white' : 'text-slate-900'} pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} text-white pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
       <div className="px-6 pt-8 flex items-center gap-4">
-        <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 shadow-sm text-slate-900'} rounded-2xl border active:scale-90 transition-transform`}>
-          <ArrowLeft size={20} />
+        <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-sm'} rounded-2xl border active:scale-90 transition-transform`}>
+          <ArrowLeft size={20} className={isDarkMode ? 'text-white' : 'text-slate-900'} />
         </button>
-        <h1 className={`text-xl font-black uppercase tracking-tighter`}>Paramètres</h1>
+        <h1 className={`text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Paramètres</h1>
       </div>
 
       <header className="p-8 pb-4 text-center">
         <div className="relative inline-block group">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border-4 border-current uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border-4 border-[#020617] uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
             {user?.avatar ? (
                 <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
@@ -216,7 +194,7 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-        <h2 className="mt-4 text-xl font-black uppercase tracking-tighter">{userName}</h2>
+        <h2 className={`mt-4 text-xl font-black uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{userName}</h2>
         <p className="text-[10px] font-bold text-blue-500 tracking-widest uppercase mt-1">
           {userRole} MEMBER • ID: {userId}
         </p>
@@ -246,7 +224,7 @@ export default function SettingsPage() {
                       {item.icon}
                     </div>
                     <div className="text-left">
-                      <p className={`text-xs font-black uppercase tracking-tight`}>{item.label}</p>
+                      <p className={`text-xs font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.label}</p>
                       <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">{item.desc}</p>
                     </div>
                   </div>
@@ -267,7 +245,7 @@ export default function SettingsPage() {
         <div className="space-y-3">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Suivez-nous</h3>
             <div className="flex items-center justify-center gap-4 p-6">
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors shadow-lg active:scale-90`}>
+                <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors shadow-lg active:scale-90`}>
                     <Facebook size={24} />
                 </a>
                 <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-white transition-colors shadow-lg active:scale-90`}>
@@ -297,6 +275,7 @@ export default function SettingsPage() {
         </div>
       </main>
 
+      {/* AJOUT DE LA PROP onOpenMenu POUR FIXER LE BUILD */}
       <BottomNav onOpenMenu={() => {}} />
     </div>
   );

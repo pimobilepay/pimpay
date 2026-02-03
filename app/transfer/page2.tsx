@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
@@ -23,7 +23,6 @@ export default function SendPage() {
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const isMountedRef = useRef(true);
 
   // États du formulaire
   const [recipientId, setRecipientId] = useState("");
@@ -33,7 +32,7 @@ export default function SendPage() {
   const [selectedCurrency, setSelectedCurrency] = useState("XAF");
   const [showWalletPicker, setShowWalletPicker] = useState(false);
 
-  // États visuels
+  // États visuels et redirection
   const [isSearching, setIsSearching] = useState(false);
   const [recipientData, setRecipientData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,45 +41,40 @@ export default function SendPage() {
 
   useEffect(() => {
     setMounted(true);
-    isMountedRef.current = true;
-    
     const fetchUserData = async () => {
       try {
         const res = await fetch('/api/user/profile');
-        if (res.ok && isMountedRef.current) {
+        if (res.ok) {
           const data = await res.json();
           setWallets(data.wallets || []);
         } else if (res.status === 401) {
           router.push("/auth/login");
         }
       } catch (err) {
-        console.error("Erreur profil:", err);
+        console.error("Erreur chargement profil:", err);
       }
     };
     fetchUserData();
 
+    // Lecture de l'adresse depuis l'URL (via QR ou lien externe)
     const addr = searchParams.get("address");
     if (addr) setRecipientId(addr);
-
-    return () => { isMountedRef.current = false; };
   }, [searchParams, router]);
 
   const currentWallet = wallets.find(w => w.currency === selectedCurrency) || { balance: 0 };
 
-  // Logique de recherche sécurisée
+  // Logique de recherche utilisateur / adresse
   useEffect(() => {
-    const abortController = new AbortController();
     const searchUser = async () => {
       if (recipientId.length >= 3) {
         setIsSearching(true);
         try {
-          const res = await fetch(`/api/user/search?query=${encodeURIComponent(recipientId)}`, {
-            signal: abortController.signal
-          });
-          if (res.ok && isMountedRef.current) {
+          const res = await fetch(`/api/user/search?query=${encodeURIComponent(recipientId)}`);
+          if (res.ok) {
             const data = await res.json();
             setRecipientData(data);
-          } else if (isMountedRef.current) {
+          } else {
+            // Détection adresse crypto externe si non trouvé en base
             if (recipientId.startsWith("0x") || recipientId.length > 25) {
               setRecipientData({
                 username: recipientId.slice(0, 6) + "..." + recipientId.slice(-4),
@@ -93,46 +87,24 @@ export default function SendPage() {
               setRecipientData(null);
             }
           }
-        } catch (err: any) {
-          if (err.name !== 'AbortError' && isMountedRef.current) setRecipientData(null);
+        } catch (err) {
+          setRecipientData(null);
         } finally {
-          if (isMountedRef.current) setIsSearching(false);
+          setIsSearching(false);
         }
       } else {
         setRecipientData(null);
       }
     };
     const timer = setTimeout(searchUser, 500);
-    return () => { clearTimeout(timer); abortController.abort(); };
+    return () => clearTimeout(timer);
   }, [recipientId]);
 
-  // FONCTION SCAN AVEC AUTORISATION CAMÉRA
-  const handleScanClick = async () => {
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast.error("Caméra non supportée par ce navigateur.");
-        return;
-      }
-
-      toast.info("Demande d'accès à la caméra...");
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } 
-      });
-
-      // Si l'autorisation est accordée, on stoppe le flux de test et on prévient l'utilisateur
-      stream.getTracks().forEach(track => track.stop());
-      toast.success("Caméra autorisée ! Ouverture du scanner...");
-
-      // Ici tu pourras rediriger vers ta page de scan réelle ou ouvrir ton modal
-      // router.push("/transfer/scan");
-
-    } catch (err: any) {
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("Veuillez autoriser la caméra dans les paramètres de votre téléphone.");
-      } else {
-        toast.error("Impossible d'accéder à la caméra.");
-      }
-    }
+  // Fonction pour déclencher le scan (Ouvre la caméra sur mobile si configuré)
+  const handleScanClick = () => {
+    toast.info("Initialisation du scanner PimPay...");
+    // Ici, tu pourrais utiliser une lib comme html5-qrcode
+    // Pour l'instant on simule l'action
   };
 
   const handleGoToSummary = async () => {
@@ -140,25 +112,27 @@ export default function SendPage() {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
+
     const numericAmount = parseFloat(amount);
     if (numericAmount <= 0 || (numericAmount + networkFee) > currentWallet.balance) {
-      toast.error("Solde insuffisant");
+      toast.error("Solde insuffisant pour ce transfert");
       return;
     }
-    setIsSubmitting(true);
+
+    setIsSubmitting(true); // Désactive le bouton
+
+    // Petite attente pour l'effet "Calcul des protocoles de sécurité"
     setTimeout(() => {
-      if (isMountedRef.current) {
-        const params = new URLSearchParams({
-          recipient: recipientData?.sidraAddress || recipientId,
-          recipientName: recipientData?.firstName ? `${recipientData.firstName} ${recipientData.lastName}` : recipientId,
-          recipientAvatar: recipientData?.avatar || "",
-          amount: amount,
-          currency: selectedCurrency,
-          fee: networkFee.toString(),
-          description: description || `Transfert PimPay`
-        });
-        router.push(`/transfer/summary?${params.toString()}`);
-      }
+      const params = new URLSearchParams({
+        recipient: recipientData?.sidraAddress || recipientId,
+        recipientName: recipientData?.firstName ? `${recipientData.firstName} ${recipientData.lastName}` : recipientId,
+        recipientAvatar: recipientData?.avatar || "",
+        amount: amount,
+        currency: selectedCurrency,
+        fee: networkFee.toString(),
+        description: description || `Transfert PimPay`
+      });
+      router.push(`/transfer/summary?${params.toString()}`);
     }, 1500);
   };
 
@@ -169,7 +143,10 @@ export default function SendPage() {
       <div className="max-w-md mx-auto px-6 pt-12 pb-32">
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
-          <button onClick={() => router.back()} className="p-3 bg-slate-900 border border-white/5 rounded-full hover:bg-slate-800 transition-all">
+          <button
+            onClick={() => router.back()}
+            className="p-3 bg-slate-900 border border-white/5 rounded-full hover:bg-slate-800 transition-all"
+          >
             <ArrowLeft size={20} />
           </button>
           <div>
@@ -233,10 +210,10 @@ export default function SendPage() {
                 placeholder="Pseudo ou adresse crypto..."
                 value={recipientId}
                 onChange={(e) => setRecipientId(e.target.value)}
-                className="w-full bg-slate-900/50 border border-white/10 rounded-[22px] p-5 pl-14 text-sm text-white focus:border-blue-500 outline-none transition-all"
+                className="w-full bg-slate-900/50 border border-white/10 rounded-[22px] p-5 pl-14 text-sm text-white focus:border-blue-500 outline-none transition-all disabled:opacity-50"
               />
               <Search className="absolute left-5 top-5 text-slate-500" size={20} />
-              <button
+              <button 
                 onClick={handleScanClick}
                 className="absolute right-4 top-3.5 p-2.5 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20"
               >
@@ -246,14 +223,18 @@ export default function SendPage() {
 
             {isSearching && (
               <div className="text-[10px] text-blue-400 font-bold uppercase px-4 flex gap-2 items-center">
-                <Loader2 className="animate-spin" size={12}/> Cryptage du canal...
+                <Loader2 className="animate-spin" size={12}/> Cryptage du canal de transfert...
               </div>
             )}
 
             {recipientData && (
-              <div className={`mx-2 flex items-center gap-4 p-4 border rounded-[24px] bg-blue-600/10 border-blue-600/20 animate-in fade-in slide-in-from-top-2`}>
+              <div className={`mx-2 flex items-center gap-4 p-4 border rounded-[24px] animate-in fade-in slide-in-from-top-2 ${recipientData.isExternal ? 'bg-slate-800/40 border-slate-700' : 'bg-blue-600/10 border-blue-600/20'}`}>
                 <div className="relative w-12 h-12 flex-shrink-0">
-                  <img src={recipientData.avatar} alt="Avatar" className="w-full h-full rounded-full border-2 border-blue-500/30 object-cover" />
+                  <img
+                    src={recipientData.avatar}
+                    alt="Avatar"
+                    className="w-full h-full rounded-full border-2 border-blue-500/30 object-cover"
+                  />
                   {!recipientData.isExternal && (
                     <div className="absolute -bottom-1 -right-1 bg-[#020617] p-0.5 rounded-full">
                       <ShieldCheck className="text-blue-500" size={14} fill="currentColor" />
@@ -262,7 +243,9 @@ export default function SendPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-black uppercase tracking-tight">{recipientData.firstName} {recipientData.lastName}</p>
-                  <p className="text-[9px] text-blue-400 uppercase font-black">@{recipientData.username || 'user'}</p>
+                  <p className="text-[9px] text-blue-400 uppercase font-black tracking-widest">
+                    @{recipientData.username || 'user'} • {recipientData.isExternal ? 'Réseau Externe' : 'Compte Certifié'}
+                  </p>
                 </div>
               </div>
             )}
@@ -292,21 +275,24 @@ export default function SendPage() {
                 placeholder="Motif (ex: Paiement facture)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-slate-900/40 border border-white/5 rounded-[20px] p-5 text-sm text-white outline-none focus:border-blue-500/50 transition-all"
+                className="w-full bg-slate-900/40 border border-white/5 rounded-[20px] p-5 text-sm text-white outline-none focus:border-blue-500/50 transition-all disabled:opacity-50"
               />
             </div>
 
+            {/* BOUTON D'ACTION AVEC ANIMATION */}
             <button
               disabled={isSubmitting || !amount || !recipientId}
               onClick={handleGoToSummary}
               className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all shadow-2xl ${
-                isSubmitting ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
+                isSubmitting 
+                ? 'bg-slate-800 cursor-not-allowed text-slate-500' 
+                : 'bg-blue-600 hover:bg-blue-500 active:scale-95 shadow-blue-600/20'
               }`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="animate-spin" size={20} />
-                  <span className="font-black uppercase tracking-widest text-xs italic">Sécurisation PimPay...</span>
+                  <span className="font-black uppercase tracking-widest text-xs italic">Sécurisation du flux PimPay...</span>
                 </>
               ) : (
                 <>

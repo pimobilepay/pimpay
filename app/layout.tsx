@@ -10,7 +10,6 @@ import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
-// IMPORTÉ : Le context PiAuth
 import { PiAuthProvider } from "@/context/pi-auth-context";
 
 export const metadata: Metadata = {
@@ -61,27 +60,12 @@ export default function DashboardLayout({
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
         <ThemeProvider>
-          {/* PiAuthProvider enveloppe les composants qui utilisent usePiAuth */}
           <PiAuthProvider>
-            {/* SDK PI NETWORK */}
-            <Script
-              src="https://sdk.minepi.com/pi-sdk.js"
-              strategy="beforeInteractive"
-            />
-
-            {/* AJOUTÉ : SDK CINETPAY (Chargement prioritaire pour intégration interne) */}
+            {/* SDK CINETPAY */}
             <Script
               src="https://cdn.cinetpay.com/seamless/main.js"
               strategy="beforeInteractive"
             />
-
-            <Script id="pi-init" strategy="afterInteractive">
-              {`
-                if (window.Pi) {
-                  window.Pi.init({ version: "2.0" });
-                }
-              `}
-            </Script>
 
             <div id="portal-root">
               <GlobalAlert />

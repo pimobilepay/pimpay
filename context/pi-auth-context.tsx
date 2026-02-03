@@ -1,4 +1,4 @@
-"use client";                                                   
+"use client";
 import React, {
   createContext,
   useContext,
@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { PI_NETWORK_CONFIG, BACKEND_URLS } from "@/lib/system-config";
 import { api, setApiAuthToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export type LoginDTO = {
   id: string;
@@ -15,10 +16,11 @@ export type LoginDTO = {
   piUserId: string;
   kycStatus: "NONE" | "PENDING" | "VERIFIED" | "REJECTED" | "APPROVED";
   walletAddress?: string;
+  role?: string;
   wallets?: Array<{
     balance: number;
     currency: string;
-  }>;                                                           
+  }>;
 };
 
 interface PiAuthResult {
@@ -29,7 +31,6 @@ interface PiAuthResult {
   };
 }
 
-// CORRECTION : Utilisation de 'any' pour éviter l'erreur de "Subsequent property declarations"
 declare global {
   interface Window {
     Pi: any;
@@ -63,6 +64,7 @@ interface PiAuthContextType {
   userData: LoginDTO | null;
   error: string | null;
   reinitialize: () => Promise<void>;
+  manualLogin: () => Promise<void>;
 }
 
 const PiAuthContext = createContext<PiAuthContextType | undefined>(undefined);
@@ -103,18 +105,21 @@ function requestParentCredentials(): Promise<{ accessToken: string; appId: strin
 }
 
 export function PiAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authMessage, setAuthMessage] = useState("Initializing Pi Network...");
+  const [isLoading, setIsLoading] = useState(false);
+  const [authMessage, setAuthMessage] = useState("Ready");
   const [hasError, setHasError] = useState(false);
   const [piAccessToken, setPiAccessToken] = useState<string | null>(null);
   const [userData, setUserData] = useState<LoginDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const authenticateAndLogin = async (accessToken: string, appId: string | null): Promise<void> => {
     setAuthMessage("Connecting to Pimpay...");
     const endpoint = appId ? BACKEND_URLS.LOGIN_PREVIEW : BACKEND_URLS.LOGIN;
     const payload = appId ? { pi_auth_token: accessToken, app_id: appId } : { pi_auth_token: accessToken };
+    
     try {
       const loginRes = await api.post<LoginDTO>(endpoint, payload);
       setPiAccessToken(accessToken);
@@ -122,15 +127,31 @@ export function PiAuthProvider({ children }: { children: ReactNode }) {
       setUserData(loginRes.data);
       setIsAuthenticated(true);
       setHasError(false);
+      
+      // Créer le cookie de session
+      const sessionToken = loginRes.data.id;
+      document.cookie = `token=${sessionToken}; path=/; max-age=2592000; SameSite=Lax`;
+      document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=2592000; SameSite=Lax`;
+      localStorage.setItem("pimpay_user", JSON.stringify(loginRes.data));
+      
+      // Redirection basée sur le rôle
+      const destination = loginRes.data.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+      setTimeout(() => {
+        window.location.href = destination;
+      }, 500);
     } catch (err: any) {
       throw new Error(`Login failed: ${err.message || "Backend unreachable"}`);
     }
   };
 
   const initializePiAndAuthenticate = async () => {
+    if (hasInitialized) return;
+    
     setError(null);
     setHasError(false);
     setIsLoading(true);
+    setHasInitialized(true);
+    
     try {
       const parentCredentials = await requestParentCredentials();
       if (parentCredentials) {
@@ -140,14 +161,7 @@ export function PiAuthProvider({ children }: { children: ReactNode }) {
         if (typeof window.Pi === "undefined") {
           await loadPiSDK();
         }
-        setAuthMessage("Authenticating...");
-        await window.Pi.init({
-          version: "2.0",
-          sandbox: PI_NETWORK_CONFIG.SANDBOX,
-        });
-        const piAuthResult = await window.Pi.authenticate(["username", "payments"]);
-        if (!piAuthResult.accessToken) throw new Error(DEFAULT_ERROR_MESSAGE);
-        await authenticateAndLogin(piAuthResult.accessToken, null);
+        setAuthMessage("Ready for Pi Browser login");
       }
     } catch (err: any) {
       console.error("❌ Pi Auth Error:", err);
@@ -155,6 +169,39 @@ export function PiAuthProvider({ children }: { children: ReactNode }) {
       const msg = err.message || "An unexpected error occurred";
       setAuthMessage(msg.includes("SDK") ? "SDK Load Failed" : msg);
       setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const manualLogin = async () => {
+    setError(null);
+    setHasError(false);
+    setIsLoading(true);
+    
+    try {
+      if (typeof window.Pi === "undefined") {
+        await loadPiSDK();
+        // Attendre que le SDK soit prêt
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      setAuthMessage("Authenticating...");
+      await window.Pi.init({
+        version: "2.0",
+        sandbox: PI_NETWORK_CONFIG.SANDBOX,
+      });
+      
+      const piAuthResult = await window.Pi.authenticate(["username", "payments"]);
+      if (!piAuthResult.accessToken) throw new Error(DEFAULT_ERROR_MESSAGE);
+      await authenticateAndLogin(piAuthResult.accessToken, null);
+    } catch (err: any) {
+      console.error("❌ Manual Pi Login Error:", err);
+      setHasError(true);
+      const msg = err.message || "An unexpected error occurred";
+      setAuthMessage(msg);
+      setError(msg);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +219,8 @@ export function PiAuthProvider({ children }: { children: ReactNode }) {
     piAccessToken,
     userData,
     error,
-    reinitialize: initializePiAndAuthenticate,
+    reinitialize: manualLogin,
+    manualLogin,
   };
 
   return <PiAuthContext.Provider value={value}>{children}</PiAuthContext.Provider>;

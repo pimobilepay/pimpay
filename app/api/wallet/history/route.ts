@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const { payload } = await jwtVerify(token, secretKey);
     const userId = payload.id as string;
 
-    // Récupérer les 10 dernières transactions
+    // Récupérer les 20 dernières transactions pour avoir de la marge
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
@@ -21,11 +21,21 @@ export async function GET(req: Request) {
         ]
       },
       orderBy: { createdAt: 'desc' },
-      take: 10
+      take: 20 // On en prend un peu plus pour filtrer
     });
 
-    return NextResponse.json({ transactions });
+    // OPTIONNEL : Filtrage par "Hash" ou "Reference" si tu as ces champs
+    // Cela évite d'afficher deux fois la même opération si le système a buggé
+    const uniqueTransactions = transactions.filter((v, i, a) => 
+      a.findIndex(t => t.id === v.id) === i
+    );
+
+    return NextResponse.json({ 
+      transactions: uniqueTransactions.slice(0, 10) 
+    });
+
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Erreur API Transactions:", error.message);
+    return NextResponse.json({ error: "Erreur lors de la récupération des transactions" }, { status: 500 });
   }
 }

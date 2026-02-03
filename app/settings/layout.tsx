@@ -10,6 +10,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#020617",
 };
 
 export default function SettingsLayout({
@@ -17,9 +18,7 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <main className="min-h-screen bg-[#020617] antialiased">
-      {children}
-    </main>
-  )
+  // On rend simplement les enfants. 
+  // Le RootLayout et le ClientLayout s'occupent déjà du reste.
+  return <>{children}</>;
 }
