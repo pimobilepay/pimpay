@@ -5,7 +5,7 @@ import * as jose from "jose";
 import { cookies } from "next/headers";
 
 // ✅ REMPLACE PAR TON UID PI RÉEL (trouve-le dans tes logs console : piUserId=...)
-const ADMIN_UIDS = ["ton-id-pi-unique-ici"]; 
+const ADMIN_UIDS = ["292ecc29-718f-437b-b4c9-ea8404539254"]; 
 
 export async function POST(request: Request) {
   const timestamp = new Date().toLocaleTimeString();
