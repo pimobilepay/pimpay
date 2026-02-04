@@ -1,5 +1,4 @@
-"use client";
-
+"use client";                                  
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { usePiAuth } from "@/context/pi-auth-context";
+// ✅ CORRECTION : On utilise le HOOK direct (comme le 15 Janvier)
+import { usePiAuth } from "@/hooks/usePiAuth"; 
 import PinCodeModal from "@/components/modals/PinCodeModal";
 
 export default function LoginPage() {
@@ -20,8 +20,8 @@ export default function LoginPage() {
   const [tempUserId, setTempUserId] = useState<string | null>(null);
   const [tempRole, setTempRole] = useState<string | null>(null);
 
-  const auth = usePiAuth();
-  const { manualLogin, isAuthenticated, userData, hasError, authMessage, isLoading: piLoading } = auth || {};
+  // ✅ Utilisation du Hook Direct
+  const { loginWithPi, loading: piLoading } = usePiAuth();
 
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStep, setTransitionStep] = useState("init");
@@ -31,27 +31,19 @@ export default function LoginPage() {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isAuthenticated && userData) {
-      const sessionToken = userData.id;
-      document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
-      localStorage.setItem("pimpay_user", JSON.stringify(userData));
-      triggerSuccessTransition("/dashboard");
-    }
-  }, [isAuthenticated, userData]);
-
   const triggerSuccessTransition = (targetPath: string) => {
     setShowTransition(true);
-    setTimeout(() => setDynamicMessage("Sécurisation"), 1500);
-    setTimeout(() => setDynamicMessage("Synchronisation"), 3000);
+    setTimeout(() => setDynamicMessage("Sécurisation"), 1000);
+    setTimeout(() => setDynamicMessage("Synchronisation"), 2000);
     setTimeout(() => {
       setTransitionStep("success");
       setTimeout(() => {
         window.location.replace(targetPath);
-      }, 1500);
-    }, 4500);
+      }, 1000);
+    }, 3000);
   };
 
+  // Login Classique (Email/Password)
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (loading) return;
@@ -77,8 +69,6 @@ export default function LoginPage() {
         setShowPinModal(true);
         setLoading(false);
       } else if (data?.user) {
-        const sessionToken = data.token || data.user.id;
-        document.cookie = `pi_session_token=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
         triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
       }
@@ -88,19 +78,19 @@ export default function LoginPage() {
     }
   };
 
+  // ✅ CORRECTION : Login Pi Browser utilisant le Hook stable
   const handlePiBrowserLogin = async () => {
-    if (!manualLogin) {
-      toast.error("Le service d'authentification Pi n'est pas prêt");
-      return;
-    }
-    
     try {
-      setLoading(true);
-      await manualLogin();
+      const result = await loginWithPi();
+      
+      if (result && result.success) {
+        // Le cookie 'pi_session_token' est déjà posé par le hook !
+        localStorage.setItem("pimpay_user", JSON.stringify(result.user));
+        triggerSuccessTransition(result.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+      }
     } catch (error: any) {
       console.error("Erreur Pi Login:", error);
-      toast.error(error.message || "Erreur de communication avec le Pi Browser");
-      setLoading(false);
+      toast.error("Erreur de communication avec le Pi Browser");
     }
   };
 
@@ -108,11 +98,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden font-sans">
+      
       <PinCodeModal
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
         onSuccess={() => {
-          document.cookie = `pi_session_token=verified; path=/; max-age=86400; SameSite=Lax`;
           const destination = tempRole === "ADMIN" ? "/admin/dashboard" : "/dashboard";
           triggerSuccessTransition(destination);
         }}
@@ -121,12 +111,12 @@ export default function LoginPage() {
 
       {showTransition && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">
-          <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-1000 ${
-            transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-500 to-blue-700 shadow-blue-500/50"
+          <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-700 ${
+            transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-600 to-blue-800 shadow-blue-500/50"
           }`}>
             {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
           </div>
-          <h2 className="mt-6 text-white text-xl font-bold uppercase tracking-tighter">
+          <h2 className="mt-6 text-white text-xl font-bold tracking-tighter uppercase">
             PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
           </h2>
           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
@@ -149,8 +139,8 @@ export default function LoginPage() {
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
               <input
                 type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="email ou username"
-                className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none"
+                placeholder="Email ou Username"
+                className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none text-sm"
               />
             </div>
           </div>
@@ -158,9 +148,7 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
-              <Link href="/auth/forgot-password" className="text-blue-500 hover:text-blue-400 text-[9px] font-bold uppercase tracking-widest transition-colors">
-                Oublié ?
-              </Link>
+              <Link href="/auth/forgot-password" size="sm" className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">Oublié ?</Link>
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
@@ -175,7 +163,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all">
+          <Button type="submit" disabled={loading || piLoading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold active:scale-[0.98] transition-all">
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONNEXION"}
           </Button>
         </form>
@@ -190,9 +178,9 @@ export default function LoginPage() {
           onClick={handlePiBrowserLogin}
           disabled={loading || piLoading}
           type="button"
-          className="w-full h-14 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+          className="w-full h-14 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl font-bold transition-all flex items-center justify-center gap-3"
         >
-          {(loading || piLoading) ? (
+          {piLoading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
@@ -204,10 +192,10 @@ export default function LoginPage() {
           )}
         </Button>
 
-        <div className="mt-8 flex flex-col items-center gap-4">
+        <div className="mt-8 text-center">
           <p className="text-[11px] text-slate-500 font-medium">
             Pas encore de compte ?
-            <Link href="/auth/signup" className="ml-2 text-blue-500 hover:text-blue-400 font-bold uppercase tracking-widest transition-colors">
+            <Link href="/auth/signup" className="ml-2 text-blue-500 font-bold uppercase tracking-widest hover:underline">
               Rejoindre PimPay
             </Link>
           </p>

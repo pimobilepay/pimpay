@@ -4,12 +4,11 @@ import * as jose from "jose";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  
+  // 1. Récupération du token (On utilise "token" comme nom universel)
+  const token = req.cookies.get("token")?.value;
 
-  // 1. Récupération des deux types de tokens
-  const token = req.cookies.get("token")?.value; // Connexion normale (JWT)
-  const piToken = req.cookies.get("pi_session_token")?.value; // Connexion Pi Browser (ID)
-
-  // 2. EXCLUSIONS
+  // 2. EXCLUSIONS : On ne bloque JAMAIS ces routes
   const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico)$/);
   const isAuthApi = pathname.startsWith("/api/auth");
   const isLoginPage = pathname === "/login" || pathname === "/";
@@ -18,40 +17,31 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. VÉRIFICATION
+  // 3. VÉRIFICATION DU JWT
   let userPayload: any = null;
-
-  // Priorité au JWT (Connexion normale)
   if (token) {
     try {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
       const { payload } = await jose.jwtVerify(token, secret);
       userPayload = payload;
     } catch (e) {
-      // On ne supprime que si piToken n'existe pas non plus
-      if (!piToken) {
-        const res = NextResponse.redirect(new URL("/", req.url));
-        res.cookies.delete("token");
-        return res;
-      }
+      // Token invalide ou expiré -> on nettoie et on redirige vers l'accueil
+      const res = NextResponse.redirect(new URL("/", req.url));
+      res.cookies.delete("token");
+      return res;
     }
-  }
-
-  // Secours : Si pas de JWT mais un piToken existe (Cas du 15 Janvier)
-  if (!userPayload && piToken) {
-    // On simule un payload minimal pour laisser passer l'utilisateur
-    userPayload = { id: piToken, role: "USER" }; 
-    // Note: Pour Pi, le rôle est souvent USER par défaut ici
   }
 
   // 4. LOGIQUE DE REDIRECTION
   const isAdmin = userPayload?.role === "ADMIN";
 
+  // Si connecté et sur login -> redirection vers dashboard
   if (userPayload && isLoginPage) {
     const dest = isAdmin ? "/admin/dashboard" : "/dashboard";
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
+  // Si NON connecté et tente d'aller sur dashboard -> retour accueil
   if (!userPayload && (pathname.startsWith("/dashboard") || pathname.startsWith("/admin"))) {
     return NextResponse.redirect(new URL("/", req.url));
   }

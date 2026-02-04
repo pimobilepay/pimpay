@@ -30,32 +30,31 @@ interface SettingSection {
 export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [mounted, setMounted] = useState(false); // Pour éviter les erreurs d'hydratation (écran blanc)
 
-  // Initialisation du thème et montage
+  // Chargement immédiat des données locales pour éviter l'écran blanc
   useEffect(() => {
-    setMounted(true);
     const savedTheme = localStorage.getItem("pimpay-theme");
     const isDark = savedTheme !== "light";
     setIsDarkMode(isDark);
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
+    
+    // Chargement immédiat du cache utilisateur
+    const localUser = localStorage.getItem("pimpay_user");
+    if (localUser) {
+      try {
+        setUser(JSON.parse(localUser));
+      } catch (e) {
+        console.error("Erreur parsing user:", e);
+      }
     }
   }, []);
 
   const fetchUserData = useCallback(async () => {
+    if (isLoading) return; // Éviter les appels multiples
+    setIsLoading(true);
+    
     try {
-      // Tentative de récupération locale immédiate pour éviter l'écran blanc
-      const localUser = localStorage.getItem("pimpay_user");
-      if (localUser) {
-        setUser(JSON.parse(localUser));
-        // On ne coupe pas isLoading ici pour permettre la synchro fraîche
-      }
-
       const response = await fetch("/api/user/profile", {
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' }
@@ -74,18 +73,12 @@ export default function SettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, isLoading]);
 
   useEffect(() => {
-    if (mounted) {
-      fetchUserData();
-    }
-  }, [mounted, fetchUserData]);
-
-  // Si pas encore monté côté client, on affiche un fond neutre pour éviter le flash
-  if (!mounted) {
-    return <div className="min-h-screen bg-[#020617]" />;
-  }
+    // Synchronisation en arrière-plan uniquement
+    fetchUserData();
+  }, []);
 
   const userName = user?.name || user?.firstName || "Pioneer";
   const userEmail = user?.email || "Chargement...";
@@ -96,8 +89,8 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       const loadingToast = toast.loading("Fermeture de la session sécurisée...");
-      // Suppression propre des données
       document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       localStorage.removeItem("pimpay_user");
       
       setTimeout(() => {
@@ -184,14 +177,7 @@ export default function SettingsPage() {
     }
   ];
 
-  if (isLoading && !user) {
-    return (
-      <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} flex items-center justify-center`}>
-        <Loader2 className="animate-spin text-blue-500" size={32} />
-      </div>
-    );
-  }
-
+  // Affichage immédiat avec les données en cache
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} ${isDarkMode ? 'text-white' : 'text-slate-900'} pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
       <div className="px-6 pt-8 flex items-center gap-4">

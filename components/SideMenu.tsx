@@ -19,13 +19,17 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const router = useRouter();
   const pathname = usePathname();              
   const [user, setUser] = useState<UserData | null>(null);
-  const [mounted, setMounted] = useState(false);
 
-  // Sécurité pour éviter les erreurs d'hydratation
+  // Chargement immédiat des données locales
   useEffect(() => {
-    setMounted(true);
     const savedUser = localStorage.getItem("pimpay_user");
-    if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
+    }
   }, []);
 
   const fetchUserData = useCallback(async () => {
@@ -48,33 +52,35 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   }, []);
 
   useEffect(() => {
-    if (open && mounted) fetchUserData();
-  }, [open, mounted, fetchUserData]);
+    if (open) fetchUserData();
+  }, [open, fetchUserData]);
 
-  // FERMETURE PROPRE LORS DU CHANGEMENT DE PAGE
+  // FERMETURE AUTOMATIQUE lors du changement de page
   useEffect(() => {
     if (open) {
       onClose();
-      // On s'assure que le scroll est débloqué après la navigation
-      document.body.style.overflow = "unset";
     }
   }, [pathname]); 
 
-  // GESTION DU SCROLL CORRIGÉE
+  // GESTION DU SCROLL
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
     }
-    return () => { document.body.style.overflow = "unset"; };
+    return () => { 
+      document.body.style.overflow = "unset"; 
+    };
   }, [open]);
 
   const handleNavigation = (path: string) => {
-    onClose(); // On ferme d'abord
-    setTimeout(() => {
-      router.push(path); // On navigue après un micro-délai pour laisser le DOM respirer
-    }, 10);
+    // Fermer immédiatement le menu
+    onClose();
+    // Débloquer le scroll
+    document.body.style.overflow = "unset";
+    // Navigation
+    router.push(path);
   };
 
   const menuGroups = [
@@ -121,6 +127,8 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const logout = async () => {
     try {
       localStorage.removeItem("pimpay_user");
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       onClose();
       await fetch("/api/auth/logout", { method: "POST" });
       router.replace("/auth/login");
@@ -129,11 +137,9 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     }
   };
 
-  if (!mounted) return null;
-
   return (
     <>
-      {/* OVERLAY SÉCURISÉ */}
+      {/* OVERLAY */}
       <div 
         onClick={onClose} 
         className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} 
