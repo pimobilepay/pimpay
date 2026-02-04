@@ -7,32 +7,34 @@ export async function POST(request: Request) {
 
     if (!piUserId) return NextResponse.json({ error: "UID manquant" }, { status: 400 });
 
-    // On récupère ou crée l'utilisateur
     const user = await prisma.user.upsert({
       where: { piUserId },
       update: { username, lastLoginAt: new Date() },
       create: {
         piUserId,
         username,
-        role: "USER", // Par défaut
+        role: "USER",
         status: "ACTIVE",
         wallets: { create: { currency: "PI", balance: 0, type: "PI" } }
       }
     });
 
-    // REPRODUCTION DU SUCCÈS DU 15 JANVIER
     const response = NextResponse.json({ success: true, user });
 
-    // On pose aussi le cookie côté serveur pour doubler la sécurité du Hook
-    response.cookies.set("pi_session_token", user.id, {
+    // CONFIGURATION SPÉCIFIQUE POUR LE HTTPS DU PI BROWSER
+    response.cookies.set("pi_session_token", String(user.id), {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 jours
-      sameSite: "lax",
-      secure: true,
+      
+      // LA CLÉ DU PROBLÈME HTTPS :
+      sameSite: "none", // Indispensable pour le Cross-Site en HTTPS
+      secure: true,     // Obligatoire quand sameSite est à "none"
+      httpOnly: true,
     });
 
     return response;
   } catch (error: any) {
+    console.error("Erreur de soumission Elara:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
