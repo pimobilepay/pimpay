@@ -1,104 +1,87 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import React, { useState } from 'react';
+import { toast } from 'sonner';
+import { Loader2, Coins } from 'lucide-react';
 
 interface PiButtonProps {
-  amountUsd: string;
-  piAmount: string;
+  amount: string;
+  memo: string;
   onSuccess?: () => void;
 }
 
-export function PiButton({ amountUsd, piAmount, onSuccess }: PiButtonProps) {
+export const PiButton = ({ amount, memo, onSuccess }: PiButtonProps) => {
   const [loading, setLoading] = useState(false);
 
   const handlePayment = async () => {
-    // 1. Vérifier si on est dans le Pi Browser
-    if (!(window as any).Pi) {
-      toast.error("Veuillez ouvrir PimPay dans le Pi Browser.");
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Veuillez entrer un montant valide");
       return;
     }
 
-    const Pi = (window as any).Pi;
-
-    if (!piAmount || parseFloat(piAmount) <= 0) {
-      toast.error("Veuillez entrer un montant valide.");
+    if (!window.Pi) {
+      toast.error("Ouvrez PimPay dans le Pi Browser");
       return;
     }
 
     setLoading(true);
 
     try {
-      // 2. AUTHENTIFICATION OBLIGATOIRE
-      // On demande l'autorisation avant de créer le paiement
-      const auth = await Pi.authenticate(['payments', 'username'], (payment: any) => {
-        // Callback optionnel pour les paiements incomplets
-        console.log("Paiement incomplet détecté", payment);
+      // 1. Authentification de sécurité
+      await window.Pi.authenticate(['payments', 'wallet_address', 'username'], (incomplete) => {
+        console.log("Paiement incomplet trouvé", incomplete);
       });
 
-      console.log("Auth réussie pour :", auth.user.username);
-
-      // 3. CRÉATION DU PAIEMENT
-      await Pi.createPayment({
-        amount: parseFloat(piAmount),
-        memo: `Dépôt PimPay - ${amountUsd} USD`,
-        metadata: { type: "wallet_deposit", usd_val: amountUsd },
+      // 2. Création du paiement via le SDK
+      await window.Pi.createPayment({
+        amount: parseFloat(amount),
+        memo: memo || "Transaction PimPay",
+        metadata: { type: "user_payment" },
       }, {
-        onReadyForServerApproval: async (paymentId: string) => {
-          console.log("Approbation serveur pour:", paymentId);
-          const res = await fetch("/api/pi/approve", {
+        onReadyForServerApproval: async (paymentId) => {
+          // Appel à ton API vaccinée
+          const res = await fetch("/api/payments/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId, amount: piAmount }),
+            body: JSON.stringify({ paymentId, amount: parseFloat(amount) }),
           });
-          if (!res.ok) throw new Error("Approbation échouée");
           return res.json();
         },
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          console.log("Complétion transaction:", txid);
-          const res = await fetch("/api/pi/complete", {
+        onReadyForServerCompletion: async (paymentId, txid) => {
+          // Finalisation en base de données
+          const res = await fetch("/api/payments/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ paymentId, txid }),
           });
+          
           if (res.ok) {
-            toast.success("Transaction réussie sur la Blockchain !");
+            toast.success("Paiement réussi !");
             if (onSuccess) onSuccess();
           }
+          setLoading(false);
           return res.json();
         },
-        onCancel: (paymentId: string) => {
+        onCancel: () => setLoading(false),
+        onError: (error) => {
+          console.error("Erreur SDK:", error);
+          toast.error("Erreur de paiement Pi");
           setLoading(false);
-          toast.info("Paiement annulé.");
-        },
-        onError: (error: Error, payment?: any) => {
-          setLoading(false);
-          console.error("Erreur SDK Pi:", error);
-          toast.error("Le protocole Pi a rejeté la transaction.");
         },
       });
     } catch (error) {
-      setLoading(false);
       console.error("Erreur globale:", error);
-      toast.error("Erreur d'initialisation du paiement.");
+      setLoading(false);
     }
   };
 
   return (
     <button
       onClick={handlePayment}
-      disabled={loading || !piAmount || parseFloat(piAmount) <= 0}
-      className="w-full h-16 bg-gradient-to-r from-[#5c2d91] to-[#ffa500] hover:opacity-90 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+      disabled={loading}
+      className="w-full h-14 bg-blue-600 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"
     >
-      {loading ? (
-        <Loader2 className="animate-spin" />
-      ) : (
-        <>
-          <span className="text-xl font-bold italic">π</span>
-          <span>Payer {piAmount} PI</span>
-        </>
-      )}
+      {loading ? <Loader2 className="animate-spin" /> : <><Coins size={18}/> Payer avec Pi</>}
     </button>
   );
-}
+};

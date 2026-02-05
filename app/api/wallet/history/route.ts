@@ -7,15 +7,15 @@ import { jwtVerify } from "jose";
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
-    
-    // --- RÉCUPÉRATION HYBRIDE (Le Vaccin) ---
+
+    // --- LE VACCIN HYBRIDE (PimPay Standard) ---
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
+
     let userId: string | null = null;
 
     if (piToken) {
-      userId = piToken; // Session Pi Browser directe
+      userId = piToken;
     } else if (classicToken) {
       try {
         const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
@@ -30,8 +30,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // --- RÉCUPÉRATION DES TRANSACTIONS ---
-    // On utilise ton schéma : transactionsFrom et transactionsTo
+    // --- RÉCUPÉRATION AVANCÉE DES TRANSACTIONS ---
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
@@ -39,27 +38,36 @@ export async function GET(req: Request) {
           { toUserId: userId }
         ]
       },
-      select: {
-        id: true,
-        reference: true,
-        amount: true,
-        currency: true,
-        type: true,
-        status: true,
-        description: true,
-        createdAt: true,
-        fromUserId: true,
-        toUserId: true,
+      include: {
+        // On récupère les pseudos pour afficher "De @Jean" ou "À @Marie"
+        fromUser: { select: { username: true, firstName: true } },
+        toUser: { select: { username: true, firstName: true } }
       },
       orderBy: { createdAt: 'desc' },
-      take: 15
+      take: 20 // On en prend un peu plus pour le confort
     });
 
-    // Formater pour que le Dashboard sache si c'est un débit (-) ou crédit (+)
-    const formattedTransactions = transactions.map(tx => ({
-      ...tx,
-      isDebit: tx.fromUserId === userId
-    }));
+    // --- FORMATAGE INTELLIGENT POUR LE DASHBOARD ---
+    const formattedTransactions = transactions.map(tx => {
+      const isDebit = tx.fromUserId === userId;
+      
+      // On définit qui est "l'autre" personne dans la transaction
+      const peer = isDebit ? tx.toUser : tx.fromUser;
+      const peerName = peer?.username || peer?.firstName || "Utilisateur externe";
+
+      return {
+        id: tx.id,
+        reference: tx.reference,
+        amount: tx.amount,
+        currency: tx.currency,
+        type: tx.type,
+        status: tx.status,
+        description: tx.description,
+        createdAt: tx.createdAt,
+        isDebit, // Très important pour mettre en rouge (-) ou vert (+)
+        peerName // Pour afficher dynamiquement dans la liste
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -67,7 +75,7 @@ export async function GET(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("TRANSACTIONS_ERROR:", error.message);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    console.error("❌ [TRANSACTIONS_FETCH_ERROR]:", error.message);
+    return NextResponse.json({ error: "Impossible de charger l'historique" }, { status: 500 });
   }
 }

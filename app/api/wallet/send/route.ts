@@ -10,39 +10,49 @@ const SIDRA_RPC = "https://rpc.sidrachain.com";
 
 export async function POST(req: NextRequest) {
   try {
-    const SECRET = process.env.JWT_SECRET;
     const cookieStore = await cookies();
-    const token = cookieStore.get("pimpay_token")?.value;
 
-    if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    // --- LE VACCIN HYBRIDE ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const senderId = payload.id as string;
+    let senderId: string | null = null;
+
+    if (piToken) {
+      senderId = piToken;
+    } else if (classicToken) {
+      try {
+        const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jwtVerify(classicToken, secretKey);
+        senderId = payload.id as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
+
+    if (!senderId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const body = await req.json();
 
-    // 1. FLEXIBILITÉ MAXIMALE (Son ajout pour éviter l'erreur 400)
-    let recipientIdentifier = body.recipientIdentifier || body.address || body.to || body.recipientId;
-    if (!recipientIdentifier) throw new Error("L'adresse de destination est vide.");
+    // 1. EXTRACTION DES DONNÉES
+    let recipientIdentifier = body.recipientIdentifier || body.address || body.to;
+    if (!recipientIdentifier) throw new Error("Où voulez-vous envoyer l'argent ?");
 
     const idStr = String(recipientIdentifier).trim();
     const cleanIdentifier = idStr.startsWith('@') ? idStr.substring(1) : idStr;
-
     const transferAmount = parseFloat(body.amount);
     const transferCurrency = (body.currency || "SDA").toUpperCase();
 
     // 2. RÉCUPÉRATION DE L'EXPÉDITEUR
     const sender = await prisma.user.findUnique({
-      where: { id: senderId },
-      include: { wallets: true }
+      where: { id: senderId }
     });
     if (!sender) throw new Error("Expéditeur introuvable.");
 
-    // --- TRANSACTION ATOMIQUE ---
+    // --- TRANSACTION ATOMIQUE (SÉCURITÉ MAXIMALE) ---
     const result = await prisma.$transaction(async (tx) => {
-      
-      // Recherche du destinataire interne PimPay
+
+      // On cherche si c'est un utilisateur PimPay (par pseudo, email ou adresse Sidra)
       const recipient = await tx.user.findFirst({
         where: {
           OR: [
@@ -54,38 +64,40 @@ export async function POST(req: NextRequest) {
       });
 
       const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
+      
       const senderWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: senderId, currency: transferCurrency } }
       });
 
       if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error(`Solde ${transferCurrency} insuffisant.`);
+        throw new Error(`Solde ${transferCurrency} insuffisant pour cette opération.`);
       }
 
       let txHash = null;
       let toUserId = null;
       let toWalletId = null;
 
-      // A. CAS EXTERNE : BLOCKCHAIN (SDA)
-      if (isExternalSDA && transferCurrency === "SDA") {
-        if (!sender.sidraPrivateKey) throw new Error("Clé privée Sidra non configurée.");
+      // A. CAS EXTERNE : ENVOI SUR LA BLOCKCHAIN SIDRA
+      if (isExternalSDA && !recipient) {
+        if (!sender.sidraPrivateKey) throw new Error("Votre clé privée Sidra n'est pas configurée.");
         try {
           const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
           const wallet = new ethers.Wallet(sender.sidraPrivateKey, provider);
-          
+
           const blockchainTx = await wallet.sendTransaction({
             to: cleanIdentifier,
             value: ethers.parseEther(transferAmount.toString())
           });
           txHash = blockchainTx.hash;
         } catch (err: any) {
-          throw new Error(`Blockchain Refusée : ${err.message}`);
+          throw new Error(`Erreur Blockchain : ${err.message}`);
         }
-      } 
-      
-      // B. CAS INTERNE : TRANSFERT PIMPAY
+      }
+
+      // B. CAS INTERNE : TRANSFERT ENTRE MEMBRES PIMPAY
       else if (recipient) {
-        if (recipient.id === senderId) throw new Error("Auto-transfert interdit.");
+        if (recipient.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer d'argent à vous-même.");
+        
         toUserId = recipient.id;
         const recipientWallet = await tx.wallet.upsert({
           where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
@@ -99,20 +111,20 @@ export async function POST(req: NextRequest) {
         });
         toWalletId = recipientWallet.id;
 
-        // --- NOTIFICATION DESTINATAIRE (Mon ajout crucial) ---
+        // Notification pour le destinataire
         await tx.notification.create({
           data: {
             userId: recipient.id,
             title: "Argent reçu ! 📥",
-            message: `Vous avez reçu ${transferAmount} ${transferCurrency} de @${sender.username}.`,
-            type: "PAYMENT_RECEIVED"
+            message: `Vous avez reçu ${transferAmount} ${transferCurrency} de @${sender.username || 'un utilisateur'}.`,
+            type: "INFO"
           }
         });
       } else {
-        throw new Error("Destinataire introuvable sur PimPay.");
+        throw new Error("Destinataire introuvable sur PimPay ou adresse invalide.");
       }
 
-      // C. DÉBIT ET LOG TRANSACTION
+      // C. DÉBIT ET CRÉATION DU REÇU
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
@@ -120,7 +132,7 @@ export async function POST(req: NextRequest) {
 
       const transaction = await tx.transaction.create({
         data: {
-          reference: `TX-${Date.now()}`,
+          reference: `TX-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: transferAmount,
           currency: transferCurrency,
           type: TransactionType.TRANSFER,
@@ -130,28 +142,27 @@ export async function POST(req: NextRequest) {
           toUserId: toUserId,
           toWalletId: toWalletId,
           blockchainTx: txHash,
-          description: body.description || (txHash ? `Retrait SDA externe` : `Transfert vers @${recipient?.username}`)
+          description: body.description || (txHash ? `Retrait Sidra Chain` : `Vers @${recipient?.username}`)
         }
       });
 
-      // --- NOTIFICATION EXPÉDITEUR ---
+      // Notification pour l'expéditeur
       await tx.notification.create({
         data: {
           userId: senderId,
-          title: "Succès ! 🚀",
-          message: txHash ? "Envoi blockchain réussi." : "Transfert interne validé.",
-          type: "PAYMENT_SENT"
+          title: "Transfert envoyé ! 🚀",
+          message: `Vos ${transferAmount} ${transferCurrency} ont été envoyés avec succès.`,
+          type: "INFO"
         }
       });
 
       return transaction;
-
-    }, { timeout: 35000 });
+    }, { timeout: 40000 }); // Temps étendu pour la blockchain
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("PimPay API Error:", error.message);
+    console.error("❌ [TRANSFER_ERROR]:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

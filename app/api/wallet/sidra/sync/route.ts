@@ -8,90 +8,77 @@ import { v4 as uuidv4 } from 'uuid';
 export async function POST() {
   try {
     const cookieStore = await cookies();
-    
-    // --- LE VACCIN HYBRIDE ---
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
-    let userId: string | null = null;
 
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken) {
+    let userId: string | null = null;
+    if (piToken) userId = piToken;
+    else if (classicToken) {
       try {
         const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
         const { payload } = await jwtVerify(classicToken, secretKey);
         userId = payload.id as string;
-      } catch (e) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
+      } catch (e) { return NextResponse.json({ error: "Session expirée" }, { status: 401 }); }
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-    // 1. Récupérer le Wallet SIDRA de l'utilisateur
+    // 1. Récupérer le Wallet SIDRA
     const walletSDA = await prisma.wallet.findUnique({
-      where: {
-        userId_currency: {
-          userId: userId,
-          currency: "SDA"
-        }
-      }
+      where: { userId_currency: { userId, currency: "SDA" } }
     });
 
-    if (!walletSDA) {
-      return NextResponse.json({ error: "Wallet Sidra non trouvé" }, { status: 404 });
-    }
+    if (!walletSDA) return NextResponse.json({ error: "Wallet Sidra non trouvé" }, { status: 404 });
 
-    // 2. Simulation de la balance blockchain (On garde tes 1.06 SDA pour le test)
-    // Plus tard, on pourra injecter ici le résultat d'un fetch vers le RPC Sidra
-    const blockchainBalance = 1.06;
+    // --- LA LOGIQUE DE SÉCURITÉ ---
+    // Au lieu de mettre 1.06 en dur, on pourrait imaginer un fetch réel ici
+    const blockchainBalance = 1.06; // Ta valeur de test
     const difference = blockchainBalance - walletSDA.balance;
 
-    // 3. Si un nouveau dépôt est détecté (différence > 0)
-    if (difference > 0) {
-      await prisma.$transaction(async (tx) => {
+    // On ne synchronise QUE si la différence est positive et significative (évite les bugs de micro-décimales)
+    if (difference > 0.000001) {
+      const result = await prisma.$transaction(async (tx) => {
         // Mise à jour du solde
-        await tx.wallet.update({
+        const updatedWallet = await tx.wallet.update({
           where: { id: walletSDA.id },
-          data: {
-            balance: blockchainBalance,
-            type: "SIDRA"
-          }
+          data: { balance: blockchainBalance }
         });
 
-        // Création de la Transaction pour l'historique de PimPay
-        await tx.transaction.create({
-          data: {
-            reference: `SDA-${uuidv4().slice(0, 8).toUpperCase()}`,
-            amount: difference,
-            currency: "SDA",
-            type: "DEPOSIT",
-            status: "SUCCESS", // Aligné avec ton Enum TransactionStatus
-            description: "Synchronisation dépôt Sidra Chain",
-            toUserId: userId,
+        // On vérifie si une transaction avec cette "méthode" n'a pas déjà été créée aujourd'hui
+        // pour éviter de polluer l'historique à chaque rafraîchissement
+        const alreadySynced = await tx.transaction.findFirst({
+          where: {
             toWalletId: walletSDA.id,
-            metadata: {
-              method: "auto_sync",
-              syncedAt: new Date().toISOString()
-            }
+            metadata: { path: ["method"], equals: "auto_sync" },
+            createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } // Depuis minuit
           }
         });
+
+        if (!alreadySynced) {
+          await tx.transaction.create({
+            data: {
+              reference: `SDA-SYNC-${uuidv4().slice(0, 8).toUpperCase()}`,
+              amount: difference,
+              currency: "SDA",
+              type: "DEPOSIT",
+              status: "SUCCESS",
+              description: "Synchro Sidra Chain",
+              toUserId: userId,
+              toWalletId: walletSDA.id,
+              metadata: { method: "auto_sync", syncedAt: new Date().toISOString() }
+            }
+          });
+        }
+        return updatedWallet;
       });
 
-      return NextResponse.json({
-        success: true,
-        message: "Historique mis à jour",
-        added: difference
-      });
+      return NextResponse.json({ success: true, added: difference });
     }
 
-    return NextResponse.json({ success: true, message: "Déjà synchronisé" });
+    return NextResponse.json({ success: true, message: "Solde à jour" });
 
   } catch (error: any) {
     console.error("❌ [SIDRA_SYNC_ERROR]:", error.message);
-    return NextResponse.json({ error: "Erreur lors de la synchro" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur synchro" }, { status: 500 });
   }
 }

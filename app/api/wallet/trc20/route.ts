@@ -1,46 +1,54 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import * as jose from "jose";
 
-// Singleton Prisma
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
-
-// Importation TronWeb
+// Importation TronWeb sécurisée
 const TronWebModule = require('tronweb');
 const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 
-export const dynamic = "force-dynamic";
-
 export async function POST(req: Request) {
   try {
-    // 1. Récupération du token
-    const token = req.headers.get("cookie")
-      ?.split("; ")
-      .find(row => row.startsWith("token="))
-      ?.split("=")[1];
+    const cookieStore = await cookies();
 
-    if (!token) {
+    // --- LE VACCIN HYBRIDE (Indispensable pour Pi Browser) ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+
+    let userId: string | null = null;
+
+    if (piToken) {
+      userId = piToken;
+    } else if (classicToken) {
+      try {
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jose.jwtVerify(classicToken, secret);
+        userId = payload.id as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    // 2. Vérification JWT
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
-
-    // 3. Vérification si l'adresse existe déjà
+    // 1. VERIFICATION : On ne génère pas si l'adresse existe déjà
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { usdtAddress: true }
     });
 
     if (user?.usdtAddress) {
-      return NextResponse.json({ address: user.usdtAddress });
+      return NextResponse.json({ 
+        success: true,
+        address: user.usdtAddress,
+        message: "Adresse existante récupérée" 
+      });
     }
 
-    // 4. Instanciation TRC20 et génération du compte
+    // 2. GENERATION : Utilisation de TronWeb pour créer un compte TRC20
     const tronWeb = new TronWeb({
       fullHost: 'https://api.trongrid.io'
     });
@@ -48,34 +56,29 @@ export async function POST(req: Request) {
     const account = await tronWeb.createAccount();
 
     if (!account || !account.address) {
-      throw new Error("Échec de la création du compte Tron");
+      throw new Error("Échec de la création du compte sur le réseau Tron");
     }
 
-    // 5. Sauvegarde Prisma (Transaction pour lier User et Wallet)
-    // On utilise $transaction pour s'assurer que les deux opérations réussissent ensemble
+    // 3. TRANSACTION ATOMIQUE : Mise à jour User + Wallet
     const result = await prisma.$transaction(async (tx) => {
-      // Mise à jour des identifiants blockchain sur l'utilisateur
+      // Sauvegarde des clés sur le profil (TRC20 utilise Base58 pour l'adresse)
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           usdtAddress: account.address.base58,
           usdtPrivateKey: account.privateKey
-        }
+        },
+        select: { usdtAddress: true }
       });
 
-      // Création automatique de la ligne dans la table Wallet pour le solde
+      // Création du Wallet USDT pour l'affichage du solde
       await tx.wallet.upsert({
-        where: {
-          userId_currency: {
-            userId: userId,
-            currency: "USDT",
-          },
-        },
-        update: {}, // Si le wallet existe déjà, on ne change rien
+        where: { userId_currency: { userId, currency: "USDT" } },
+        update: { type: "CRYPTO" },
         create: {
           userId: userId,
           currency: "USDT",
-          type: "CRYPTO", // Définit le type selon ton Enum WalletType
+          type: "CRYPTO",
           balance: 0,
         },
       });
@@ -83,15 +86,18 @@ export async function POST(req: Request) {
       return updatedUser;
     });
 
+    console.log(`[PIMPAY] Nouveau Wallet USDT (TRC20) pour ${userId}: ${result.usdtAddress}`);
+
     return NextResponse.json({
+      success: true,
       address: result.usdtAddress,
-      message: "Adresse USDT et Wallet générés avec succès"
+      message: "Adresse USDT (TRC20) générée avec succès"
     });
 
   } catch (error: any) {
-    console.error("Erreur USDT API:", error.message);
+    console.error("❌ [USDT_GEN_ERROR]:", error.message);
     return NextResponse.json(
-      { error: "Erreur lors de la génération: " + error.message },
+      { error: "Échec technique de génération USDT", details: error.message },
       { status: 500 }
     );
   }

@@ -1,58 +1,80 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { cookies } from "next/headers";     
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 
-export const dynamic = 'force-dynamic';
-
 async function getLiveBTCPrice() {
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { next: { revalidate: 60 } });
+    // Timeout court pour ne pas bloquer l'utilisateur si CoinGecko est lent
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { 
+        next: { revalidate: 60 },
+        signal: AbortSignal.timeout(3000) 
+    });
     const data = await res.json();
     return data.bitcoin.usd;
   } catch (e) {
-    return 95000;
+    return 95000; // Prix de secours
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const SECRET = process.env.JWT_SECRET;
-    const token = cookies().get("pimpay_token")?.value;
+    const cookieStore = await cookies();
 
-    if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    // --- LE VACCIN HYBRIDE : ÉTAPE CRUCIALE ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const userId = payload.id as string;
+    let userId: string | null = null;
 
-    const { amount, fromCurrency, toCurrency } = await request.json();
+    if (piToken) {
+      userId = piToken;
+    } else if (classicToken) {
+      try {
+        const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jwtVerify(classicToken, secretKey);
+        userId = payload.id as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
+
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+    const body = await request.json();
+    const { amount, fromCurrency, toCurrency } = body;
     const swapAmount = parseFloat(amount);
 
-    if (isNaN(swapAmount) || swapAmount <= 0) return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    if (isNaN(swapAmount) || swapAmount <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
 
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
     const btcPrice = await getLiveBTCPrice();
 
-    // AJUSTEMENT DES PRIX : SDA à 1.2 USD
+    // AJUSTEMENT DES PRIX (Inclusion du prix consensus Pi et Sidra)
     const PRICES: Record<string, number> = {
-      "SDA": 1.2, // Correction effectuée ici
+      "SDA": 1.2,
       "USDT": 1,
       "BTC": btcPrice,
-      "PI": 314159 
+      "PI": 314159 // Le fameux prix consensus
     };
 
-    if (!PRICES[from] || !PRICES[to]) return NextResponse.json({ error: "Actif non supporté" }, { status: 400 });
+    if (!PRICES[from] || !PRICES[to]) {
+      return NextResponse.json({ error: "Actif non supporté" }, { status: 400 });
+    }
 
     const rate = PRICES[from] / PRICES[to];
     const targetAmount = (to === "BTC")
       ? Number((swapAmount * rate).toFixed(8))
       : Number((swapAmount * rate).toFixed(4));
 
+    // TRANSACTION ATOMIQUE : Sécurité maximale pour le swap
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Récupérer le wallet source
+      // 1. Vérifier le wallet source
       const sourceWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: from } }
       });
@@ -61,15 +83,14 @@ export async function POST(request: Request) {
         throw new Error(`Solde ${from} insuffisant.`);
       }
 
-      // 2. Déterminer le WalletType
+      // 2. Déterminer le type de Wallet automatiquement
       const getWalletType = (curr: string): WalletType => {
         if (curr === "SDA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
-        if (curr === "USDT" || curr === "BTC") return WalletType.CRYPTO;
-        return WalletType.FIAT;
+        return WalletType.CRYPTO;
       };
 
-      // 3. Mise à jour des balances
+      // 3. Soustraire du source et ajouter à la cible
       const updatedSource = await tx.wallet.update({
         where: { id: sourceWallet.id },
         data: { balance: { decrement: swapAmount } }
@@ -86,7 +107,7 @@ export async function POST(request: Request) {
         }
       });
 
-      // 4. Création de la transaction
+      // 4. Créer l'historique (Transaction Log)
       const transactionLog = await tx.transaction.create({
         data: {
           reference: `SWAP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -95,22 +116,22 @@ export async function POST(request: Request) {
           currency: from,
           destCurrency: to,
           type: TransactionType.EXCHANGE,
-          status: TransactionStatus.COMPLETED,
+          status: TransactionStatus.SUCCESS, // Aligné avec ton Enum
           fromUserId: userId,
           toUserId: userId,
           fromWalletId: updatedSource.id,
           toWalletId: updatedTarget.id,
-          description: `Swap PimPay: ${swapAmount} ${from} ➔ ${targetAmount} ${to}`
+          description: `Swap: ${swapAmount} ${from} ➔ ${targetAmount} ${to}`
         }
       });
 
-      // 5. ENVOI DE LA NOTIFICATION (Ajouté)
+      // 5. Créer la notification pour l'utilisateur
       await tx.notification.create({
         data: {
           userId,
           title: "Swap réussi ! 🔄",
           message: `Vous avez échangé ${swapAmount} ${from} contre ${targetAmount} ${to}.`,
-          type: "TRANSACTION", // Assure-toi que ce type existe dans ton Enum NotificationType
+          type: "INFO" // Assure-toi que "INFO" ou "TRANSACTION" existe dans ton enum
         }
       });
 
@@ -120,7 +141,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, details: result });
 
   } catch (error: any) {
-    console.error("Swap Error:", error.message);
+    console.error("❌ [SWAP_ERROR]:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

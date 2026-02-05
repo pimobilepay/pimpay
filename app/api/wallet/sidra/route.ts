@@ -1,59 +1,71 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import * as jose from "jose";
 import { Wallet } from "ethers";
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const token = req.headers.get("cookie")
-      ?.split("; ")
-      .find(row => row.startsWith("token="))
-      ?.split("=")[1];
+    const cookieStore = await cookies();
 
-    if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    // --- LE VACCIN HYBRIDE (Indispensable pour Pi Browser) ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
+    let userId: string | null = null;
 
-    // 1. VERIFICATION STRICTE : On ne génère JAMAIS si une adresse existe
+    if (piToken) {
+      userId = piToken;
+    } else if (classicToken) {
+      try {
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jose.jwtVerify(classicToken, secret);
+        userId = payload.id as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
+    // 1. VERIFICATION : On récupère l'utilisateur et son wallet existant
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { sidraAddress: true }
     });
 
+    // Si l'adresse existe déjà, on la renvoie simplement
     if (user?.sidraAddress) {
       return NextResponse.json({
         address: user.sidraAddress,
-        message: "Adresse existante"
+        message: "Adresse existante récupérée"
       });
     }
 
-    // 2. Génération unique
+    // 2. GÉNÉRATION : Création d'un wallet Sidra (compatible EVM/Ethereum)
     const wallet = Wallet.createRandom();
 
-    // 3. Transaction atomique
+    // 3. TRANSACTION ATOMIQUE : Sécurité bancaire PimPay
     const result = await prisma.$transaction(async (tx) => {
-      // Sauvegarde des clés sur l'utilisateur
+      // Mise à jour des clés sur le profil utilisateur
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           sidraAddress: wallet.address,
-          sidraPrivateKey: wallet.privateKey
+          // Attention: En production, il vaudrait mieux chiffrer la clé privée
+          sidraPrivateKey: wallet.privateKey 
         },
         select: { sidraAddress: true }
       });
 
-      // Création forcée du Wallet SDA pour l'affichage
+      // Création ou mise à jour du Wallet SDA dans la table Wallet
       await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "SDA" } },
-        update: {},
+        update: { type: "SIDRA" }, // On s'assure que le type est correct
         create: {
           userId: userId,
           currency: "SDA",
@@ -65,13 +77,19 @@ export async function POST(req: Request) {
       return updatedUser;
     });
 
+    console.log(`[PIMPAY] Nouveau Wallet Sidra généré pour ${userId}: ${result.sidraAddress}`);
+
     return NextResponse.json({
+      success: true,
       address: result.sidraAddress,
-      message: "Nouvelle adresse générée"
+      message: "Nouvelle adresse Sidra générée avec succès"
     });
 
   } catch (error: any) {
-    console.error("[SIDRA_GEN_ERROR]:", error.message);
-    return NextResponse.json({ error: "Erreur lors de la création du wallet Sidra" }, { status: 500 });
+    console.error("❌ [SIDRA_GEN_ERROR]:", error.message);
+    return NextResponse.json(
+      { error: "Erreur lors de la création du wallet Sidra", details: error.message },
+      { status: 500 }
+    );
   }
 }
