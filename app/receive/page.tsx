@@ -21,7 +21,6 @@ export default function ReceivePage() {
       try {
         const res = await fetch('/api/user/profile');
         const data = await res.json();
-        // On utilise l'adresse du wallet ou l'ID si vide
         setPiAddress(data.user?.walletAddress || data.user?.id || "Non disponible");
       } catch (e) {
         setPiAddress("Erreur de chargement");
@@ -42,7 +41,7 @@ export default function ReceivePage() {
 
   const handlePiPayment = async () => {
     const floatAmount = parseFloat(amount);
-    
+
     if (!amount || floatAmount <= 0) {
       toast.error("Veuillez saisir un montant valide");
       return;
@@ -54,16 +53,23 @@ export default function ReceivePage() {
     }
 
     setIsProcessing(true);
-    
+    const loadingToast = toast.loading("Connexion au réseau Pi...");
+
     try {
-      // Déclenchement du paiement réel sur le Mainnet
-      const payment = await window.Pi.createPayment({
+      // ÉTAPE CRUCIALE POUR LE MAINNET : Ré-authentification légère pour réveiller le SDK
+      const scopes = ['payments', 'wallet_address'];
+      await window.Pi.authenticate(scopes, (onIncompletePayment) => {
+        console.log("Paiement incomplet trouvé:", onIncompletePayment);
+      });
+
+      // Lancement du paiement
+      await window.Pi.createPayment({
         amount: floatAmount,
         memo: memo || "Dépôt PimPay",
         metadata: { type: "deposit", platform: "pimpay" },
       }, {
         onReadyForServerApproval: async (paymentId) => {
-          console.log("Approbation serveur pour ID:", paymentId);
+          console.log("Approbation serveur reçue, ID:", paymentId);
           const res = await fetch("/api/payments/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -72,39 +78,39 @@ export default function ReceivePage() {
           return res.json();
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
-          console.log("Transaction Blockchain détectée:", txid);
+          console.log("TXID Blockchain:", txid);
           const res = await fetch("/api/payments/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              paymentId, 
-              txid, 
-              amount: floatAmount 
-            }),
+            body: JSON.stringify({ paymentId, txid, amount: floatAmount }),
           });
-          
+
+          toast.dismiss(loadingToast);
           if (res.ok) {
-            toast.success("Dépôt de " + floatAmount + " π réussi !");
+            toast.success("Dépôt de " + floatAmount + " π validé !");
             setAmount("");
             setMemo("");
           } else {
-            toast.error("Erreur lors de la validation finale");
+            toast.error("Erreur de synchronisation solde");
           }
           setIsProcessing(false);
         },
-        onCancel: (paymentId) => {
-          toast.dismiss();
+        onCancel: () => {
+          toast.dismiss(loadingToast);
           setIsProcessing(false);
         },
-        onError: (error, payment) => {
-          console.error("Erreur SDK Pi:", error);
-          toast.error("Le paiement a échoué");
+        onError: (error: any) => {
+          toast.dismiss(loadingToast);
+          console.error("SDK Error Details:", error);
+          toast.error(`Erreur Pi: ${error.message || "Paiement refusé"}`);
           setIsProcessing(false);
         },
       });
-    } catch (err) {
-      console.error("Erreur critique:", err);
-      toast.error("Impossible de lancer le paiement");
+    } catch (err: any) {
+      toast.dismiss(loadingToast);
+      console.error("Catch Error:", err);
+      // Si l'erreur contient "not_authenticated", c'est un problème de session Pi Browser
+      toast.error("Échec de l'initialisation. Vérifiez votre connexion Pi.");
       setIsProcessing(false);
     }
   };
@@ -120,88 +126,77 @@ export default function ReceivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 pb-24">
+    <div className="min-h-screen bg-[#020617] text-white p-6 pb-24 font-sans">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/wallet" className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-95 transition-all">
+        <Link href="/wallet" className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-95">
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-xl font-black italic uppercase tracking-tight">Recevoir<span className="text-blue-500">.π</span></h1>
-          <p className="text-[9px] font-bold text-slate-500 uppercase">Mainnet Live</p>
+          <h1 className="text-xl font-black italic uppercase italic">Recevoir<span className="text-blue-500">.π</span></h1>
+          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Mainnet Secure Process</p>
         </div>
       </div>
 
       <div className="max-w-md mx-auto space-y-6">
-        {/* Card QR Code */}
-        <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <ShieldCheck size={80} />
+        {/* QR Section */}
+        <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center relative shadow-2xl">
+          <div className="bg-white p-3 rounded-[1.5rem] mb-6 shadow-xl shadow-white/5">
+            {piAddress && <QRCodeSVG value={piAddress} size={180} level="H" />}
           </div>
           
-          <div className="bg-white p-3 rounded-[1.5rem] mb-6 shadow-xl">
-            {piAddress && <QRCodeSVG value={piAddress} size={180} />}
-          </div>
-          
-          <div className="w-full space-y-2 text-center">
-            <p className="text-[10px] font-bold text-slate-500 uppercase">Votre Identifiant de réception</p>
-            <div className="flex items-center justify-center gap-2">
-               <p className="text-[11px] font-mono text-slate-300 break-all bg-black/30 p-3 rounded-xl border border-white/5 w-full">
+          <div className="w-full space-y-2">
+            <p className="text-[10px] font-bold text-slate-500 uppercase text-center">Adresse de réception</p>
+            <div className="flex items-center gap-2 bg-black/40 p-1 pl-4 rounded-2xl border border-white/5">
+               <p className="text-[10px] font-mono text-slate-300 break-all flex-1 py-2">
                 {piAddress}
               </p>
-              <button 
-                onClick={handleCopy}
-                className="p-3 bg-blue-600 rounded-xl active:scale-90 transition-all"
-              >
-                {copied ? <Check size={18} /> : <Copy size={18} />}
+              <button onClick={handleCopy} className="p-3 bg-blue-600 rounded-xl active:scale-90 transition-all">
+                {copied ? <Check size={16} /> : <Copy size={16} />}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Formulaire de paiement */}
-        <div className="p-6 bg-gradient-to-b from-blue-900/20 to-transparent border border-white/5 rounded-[2.5rem] space-y-4">
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Montant du dépôt</label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00 π"
-              className="w-full h-16 px-6 bg-black/40 border border-white/10 rounded-2xl outline-none focus:border-blue-500/50 text-xl font-bold transition-all"
-            />
+        {/* Form */}
+        <div className="p-6 bg-slate-900/50 border border-white/5 rounded-[2.5rem] space-y-4">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase ml-2">Montant à déposer</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00 π"
+                className="w-full h-16 px-6 bg-black/60 border border-white/10 rounded-2xl outline-none focus:border-blue-500/50 text-2xl font-black transition-all"
+              />
+            </div>
             <input
               type="text"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
               placeholder="Note (ex: Recharge PimPay)"
-              className="w-full h-14 px-6 bg-black/40 border border-white/10 rounded-2xl outline-none focus:border-blue-500/50 text-sm transition-all"
+              className="w-full h-14 px-6 bg-black/40 border border-white/10 rounded-2xl outline-none text-sm"
             />
           </div>
 
           <button
             onClick={handlePiPayment}
             disabled={isProcessing}
-            className={`w-full h-16 rounded-2xl font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-              isProcessing ? "bg-slate-700 cursor-not-allowed" : "bg-blue-600 active:scale-95 shadow-lg shadow-blue-500/20"
+            className={`w-full h-16 rounded-2xl font-black uppercase tracking-wider transition-all shadow-lg ${
+              isProcessing 
+                ? "bg-slate-800 text-slate-500" 
+                : "bg-blue-600 shadow-blue-500/20 active:scale-95"
             }`}
           >
-            {isProcessing ? (
-              <>
-                <Loader2 size={20} className="animate-spin" />
-                Traitement...
-              </>
-            ) : (
-              `Confirmer le dépôt`
-            )}
+            {isProcessing ? "Lancement du SDK..." : "Confirmer le dépôt"}
           </button>
         </div>
 
-        {/* Information de sécurité */}
-        <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex gap-3">
-          <Info size={16} className="text-amber-500 shrink-0" />
-          <p className="text-[10px] text-slate-400 italic">
-            Les fonds seront crédités sur votre compte PimPay dès que la transaction sera confirmée sur la blockchain Pi.
+        <div className="p-5 bg-blue-500/5 border border-blue-500/10 rounded-3xl flex gap-3">
+          <Info size={16} className="text-blue-500 shrink-0" />
+          <p className="text-[10px] text-slate-400 leading-tight">
+            Le paiement s'ouvrira dans une fenêtre sécurisée de Pi Network. Ne fermez pas l'application pendant le processus.
           </p>
         </div>
       </div>
