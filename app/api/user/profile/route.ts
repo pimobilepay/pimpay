@@ -6,18 +6,11 @@ import { cookies } from "next/headers";
 import { Wallet as EthersWallet } from "ethers";
 import crypto from "crypto";
 
-// Fonction pour générer des paires (Clé Privée / Adresse)
+// Génération sécurisée des adresses pour les agrégateurs
 const generateBlockchainIdentities = () => {
-  // 1. Sidra Chain (EVM Compatible)
   const sidraWallet = EthersWallet.createRandom();
-
-  // 2. USDT TRC20 (Format similaire à EVM pour la clé, mais adresse commence par T)
-  // Note: Pour un vrai réseau Tron, on utiliserait tronweb, 
-  // ici on simule le format pour PimPay
   const usdtPrivKey = crypto.randomBytes(32).toString('hex');
   const usdtAddr = `T${crypto.randomBytes(20).toString('hex').substring(0, 33)}`;
-
-  // 3. Pi / BTC (Format simplifié pour PimPay)
   const piPrivKey = crypto.randomBytes(32).toString('hex');
   const piAddr = `P${crypto.randomBytes(20).toString('hex').toUpperCase()}`;
 
@@ -30,42 +23,48 @@ const generateBlockchainIdentities = () => {
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get("token")?.value;
+    const cookieStore = await cookies();
+    
+    // --- LE VACCIN : RÉCUPÉRATION HYBRIDE DU TOKEN ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value;
+    let userId: string | null = null;
 
-    if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    if (piToken) {
+      userId = piToken; // Session Pi Browser
+    } else if (classicToken) {
+      try {
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jwtVerify(classicToken, secret);
+        userId = (payload.id || payload.userId) as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = (payload.id || payload.userId) as string;
+    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
+    // --- RÉCUPÉRATION DU PROFIL ---
     let user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { wallets: true, virtualCards: true, _count: true }
+      include: { wallets: true, virtualCards: true }
     });
 
     if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // --- LOGIQUE DE GÉNÉRATION SÉCURISÉE ---
-    // On vérifie si l'utilisateur manque d'adresses OU de clés privées
-    if (!user.sidraAddress || !user.sidraPrivateKey || !user.usdtAddress) {
-      const identities = generateBlockchainIdentities();
-
+    // --- GÉNÉRATION AUTOMATIQUE DES WALLETS (AGRÉGATEURS) ---
+    if (!user.sidraAddress || !user.usdtAddress || !user.walletAddress) {
+      const ids = generateBlockchainIdentities();
+      
       user = await prisma.user.update({
         where: { id: userId },
         data: {
-          // Sidra : On ne remplace que si c'est vide
-          sidraAddress: user.sidraAddress || identities.sidra.address,
-          sidraPrivateKey: user.sidraPrivateKey || identities.sidra.privateKey,
-
-          // USDT : On ne remplace que si c'est vide
-          usdtAddress: user.usdtAddress || identities.usdt.address,
-          usdtPrivateKey: user.usdtPrivateKey || identities.usdt.privateKey,
-
-          // Pi / BTC
-          walletAddress: user.walletAddress || identities.pi.address,
-
-          // Initialisation des Wallets (Soldes)
+          sidraAddress: user.sidraAddress || ids.sidra.address,
+          sidraPrivateKey: user.sidraPrivateKey || ids.sidra.privateKey,
+          usdtAddress: user.usdtAddress || ids.usdt.address,
+          usdtPrivateKey: user.usdtPrivateKey || ids.usdt.privateKey,
+          walletAddress: user.walletAddress || ids.pi.address,
+          
           wallets: {
             connectOrCreate: [
               { where: { userId_currency: { userId, currency: "PI" } }, create: { currency: "PI", balance: 0, type: "PI" } },
@@ -74,33 +73,31 @@ export async function GET(request: Request) {
             ]
           }
         },
-        include: { wallets: true, virtualCards: true, _count: true }
+        include: { wallets: true, virtualCards: true }
       });
     }
 
-    // Extraction du solde PI pour le Dashboard
+    // Extraction du solde pour le Dashboard
     const piBalance = user.wallets.find(w => w.currency === "PI")?.balance ?? 0;
 
     return NextResponse.json({
       success: true,
-      id: user.id,
-      username: user.username,
-      name: user.name || user.username,
-      avatar: user.avatar,
-      kycStatus: user.kycStatus,
-      
-      // Adresses (On ne renvoie JAMAIS les clés privées au frontend pour la sécurité)
-      walletAddress: user.walletAddress,
-      usdtAddress: user.usdtAddress,
-      sidraAddress: user.sidraAddress,
-
-      balance: piBalance,
-      wallets: user.wallets,
-      virtualCards: user.virtualCards,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name || user.username,
+        kycStatus: user.kycStatus,
+        walletAddress: user.walletAddress,
+        usdtAddress: user.usdtAddress,
+        sidraAddress: user.sidraAddress,
+        balance: piBalance,
+        wallets: user.wallets,
+        virtualCards: user.virtualCards,
+      }
     });
 
   } catch (error: any) {
-    console.error("PROFILE_ERROR:", error.message);
+    console.error("PROFILE_VACCINE_ERROR:", error.message);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
