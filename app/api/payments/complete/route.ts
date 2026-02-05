@@ -1,12 +1,32 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
 
 export async function POST(request: Request) {
   try {
-    const user = await auth();
-    if (!user) {
+    const cookieStore = await cookies();
+    
+    // --- LE VACCIN : RÉCUPÉRATION DU USERID ---
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    
+    let userId: string | null = null;
+
+    if (piToken) {
+      userId = piToken;
+    } else if (classicToken) {
+      try {
+        const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const { payload } = await jwtVerify(classicToken, secretKey);
+        userId = payload.id as string;
+      } catch (e) {
+        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
@@ -17,9 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    console.log(`[COMPLETE-PAYMENT] Completing payment ${paymentId} with txid ${txid}`);
-
-    // Trouver la transaction
+    // 1. Trouver la transaction créée lors de l'étape "approve"
     const transaction = await prisma.transaction.findFirst({
       where: { externalId: paymentId }
     });
@@ -28,55 +46,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
+    // Sécurité contre le double-paiement
     if (transaction.status === "COMPLETED" || transaction.status === "SUCCESS") {
-      return NextResponse.json({ error: "Transaction déjà complétée" }, { status: 400 });
+      return NextResponse.json({ message: "Transaction déjà traitée" });
     }
 
-    // Mettre à jour la transaction
-    const updatedTransaction = await prisma.transaction.update({
-      where: { id: transaction.id },
-      data: {
-        status: "SUCCESS",
-        blockchainTx: txid,
-        metadata: {
-          ...(transaction.metadata as any || {}),
-          completedAt: new Date().toISOString(),
-          txid
-        }
-      }
-    });
+    // 2. TRANSACTION ATOMIQUE : On met à jour la transaction ET le solde du Wallet
+    const result = await prisma.$transaction(async (tx) => {
+      // Trouver le wallet PI
+      const wallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId, currency: "PI" } }
+      });
 
-    // Mettre à jour le solde du wallet
-    const wallet = await prisma.wallet.findFirst({
-      where: {
-        userId: user.id,
-        currency: "PI"
-      }
-    });
+      if (!wallet) throw new Error("Wallet PI non trouvé");
 
-    if (wallet) {
-      await prisma.wallet.update({
-        where: { id: wallet.id },
+      // Mettre à jour la transaction (Status: SUCCESS selon ton Enum)
+      const updatedTx = await tx.transaction.update({
+        where: { id: transaction.id },
         data: {
-          balance: {
-            increment: transaction.amount
+          status: "SUCCESS",
+          blockchainTx: txid,
+          metadata: {
+            ...(transaction.metadata as any || {}),
+            completedAt: new Date().toISOString(),
+            txid
           }
         }
       });
-    }
 
-    console.log(`[COMPLETE-PAYMENT] Payment completed successfully: ${transaction.amount} π added to user ${user.username}`);
+      // Mettre à jour le solde du wallet
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { increment: transaction.amount }
+        }
+      });
+
+      return updatedTx;
+    });
+
+    console.log(`[PIMPAY] Paiement finalisé: ${transaction.amount} π pour ${userId}`);
 
     return NextResponse.json({
       success: true,
-      transactionId: updatedTransaction.id,
-      amount: updatedTransaction.amount,
+      transactionId: result.id,
       txid,
-      message: "Paiement complété avec succès"
+      message: "Paiement complété et solde mis à jour"
     });
 
   } catch (error: any) {
-    console.error("[COMPLETE-PAYMENT] Error:", error);
+    console.error("[COMPLETE-PAYMENT] Error:", error.message);
     return NextResponse.json(
       { error: "Erreur serveur", details: error.message },
       { status: 500 }
