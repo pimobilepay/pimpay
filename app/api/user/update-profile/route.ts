@@ -1,96 +1,59 @@
-// app/api/user/update-profile/route.ts
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; 
-import { verifyAuth } from "@/lib/adminAuth";
-import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Vérification de l'authentification
-    // @ts-ignore
-    const payload = await verifyAuth(req);  
-    if (!payload || !payload.id) {
-      console.error("AUTH_FAILED: Payload vide ou invalide");
-      return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    const cookieStore = await cookies();
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    
+    let userId: string | null = null;
+
+    // Récupération sécurisée de l'ID utilisateur
+    if (piToken) userId = piToken;
+    else if (classicToken) {
+      const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
+      const { payload } = await jwtVerify(classicToken, secretKey);
+      userId = payload.id as string;
     }
 
-    // 2. Extraction sécurisée du body
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
     const body = await req.json();
 
-    if (!prisma) {
-      throw new Error("Prisma client is not initialized");
-    }
+    // --- LOGIQUE DE NETTOYAGE DES ADRESSES ---
+    const updateData: any = {
+      firstName: body.firstName ?? undefined,
+      lastName: body.lastName ?? undefined,
+      username: body.username ?? undefined,
+      email: body.email ?? undefined,
+      country: body.country ?? undefined,
+      // On n'accepte l'adresse que si elle ressemble à une vraie adresse Pi (commence par G)
+      walletAddress: body.walletAddress?.startsWith('G') ? body.walletAddress.trim() : undefined,
+      sidraAddress: body.sidraAddress ?? undefined,
+      usdtAddress: body.usdtAddress ?? undefined,
+    };
 
-    // 3. Vérification d'unicité pour walletAddress
-    // Si une adresse est fournie, on vérifie qu'elle n'appartient pas déjà à quelqu'un d'autre
-    if (body.walletAddress) {
-      const existingWallet = await prisma.user.findFirst({
-        where: {
-          walletAddress: body.walletAddress.trim(),
-          NOT: {
-            id: payload.id,
-          },
-        },
-      });
-
-      if (existingWallet) {
-        return NextResponse.json(
-          { error: "Cette adresse de portefeuille est déjà utilisée par un autre compte." },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 4. Mise à jour du profil
+    // Mise à jour dans la base de données
     const updatedUser = await prisma.user.update({
-      where: { id: payload.id },
-      data: {
-        firstName: body.firstName ?? undefined,
-        lastName: body.lastName ?? undefined,
-        username: body.username ?? undefined,
-        email: body.email ?? undefined,
-        country: body.country ?? undefined,
-        city: body.city ?? undefined,
-        address: body.address ?? undefined,
-        nationality: body.nationality ?? undefined,
-        walletAddress: body.walletAddress ? body.walletAddress.trim() : undefined,
-        // Conversion de la date
-        birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
-      },
+      where: { id: userId },
+      data: updateData,
     });
-
-    // Suppression du mot de passe pour la réponse sécurisée
-    const { password: _, ...userResponse } = updatedUser as any;
 
     return NextResponse.json({
       success: true,
-      message: "Profil mis à jour avec succès",
-      user: userResponse
+      message: "Profil mis à jour",
+      user: {
+        id: updatedUser.id,
+        walletAddress: updatedUser.walletAddress,
+        sidraAddress: updatedUser.sidraAddress
+      }
     });
 
   } catch (error: any) {
-    console.error("UPDATE_PROFILE_ERROR_FULL:", error);
-
-    // Gestion des erreurs connues de Prisma
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      // P2002: Erreur de contrainte d'unicité (doublon)
-      if (error.code === 'P2002') {
-        const target = (error.meta?.target as string[]) || [];
-        return NextResponse.json(
-          { error: `Cette valeur est déjà utilisée : ${target.join(", ")}` },
-          { status: 400 }
-        );
-      }
-      // P2025: Record introuvable
-      if (error.code === 'P2025') {
-        return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
-      }
-    }
-
-    return NextResponse.json(
-      { error: "Erreur lors de la mise à jour", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
