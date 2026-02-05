@@ -10,31 +10,35 @@ declare global {
 
 export function PiInitializer() {
   useEffect(() => {
-    // On attend que l'objet Pi soit disponible sur l'objet window
+    // Fonction d'initialisation propre
     const initPi = () => {
       if (window.Pi) {
         try {
-          window.Pi.init({ 
-            version: "2.0", 
-            sandbox: process.env.NEXT_PUBLIC_PI_SANDBOX === "true" 
+          // MODIFICATION CRUCIALE : sandbox à false pour le VRAI PI
+          window.Pi.init({
+            version: "2.0",
+            sandbox: false 
           });
-          console.log("Pimpay Core: SDK Pi Initialisé");
+          console.log("PimPay Core: SDK Pi Initialisé sur le MAINNET 🚀");
         } catch (error) {
-          console.error("Erreur initialisation Pi:", error);
+          console.error("Erreur critique initialisation Pi:", error);
         }
       }
     };
 
-    // Petite sécurité si le script met du temps à charger
+    // Vérification immédiate
     if (window.Pi) {
       initPi();
     } else {
+      // Système de surveillance si le script sdk-pi.js est lent au démarrage
       const interval = setInterval(() => {
         if (window.Pi) {
           initPi();
           clearInterval(interval);
         }
       }, 500);
+
+      // Nettoyage si le composant est démonté avant l'initialisation
       return () => clearInterval(interval);
     }
   }, []);

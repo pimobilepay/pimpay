@@ -1,5 +1,4 @@
 import "@/app/globals.css";
-
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import type { Metadata } from "next";
@@ -10,6 +9,8 @@ import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
+// 1. IMPORTATION DE TON INITIALISEUR INTELLIGENT
+import { PiInitializer } from "@/components/PiInitializer"; 
 
 export const metadata: Metadata = {
   title: "PimPay - Core Ledger",
@@ -32,21 +33,13 @@ export default function DashboardLayout({
       <head>
         <meta name="google" content="notranslate" />
 
-        {/* --- SDK PI NETWORK (CRUCIAL POUR L'ÉTAPE 10) --- */}
+        {/* --- SDK PI NETWORK --- */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
 
-        {/* INITIALISATION AUTOMATIQUE (Comme ton layout du 15 Janvier) */}
-        <Script id="pi-init" strategy="afterInteractive">
-          {`
-            if (window.Pi) {
-              window.Pi.init({ version: "2.0" });
-              console.log("PimPay Core: SDK Pi Network opérationnel");
-            }
-          `}
-        </Script>
+        {/* ✅ ON A ENLEVÉ LE SCRIPT "pi-init" ICI CAR ON UTILISE PI_INITIALIZER PLUS BAS */}
 
         <style>{`
           html.dark { background-color: #02040a !important; }
@@ -75,9 +68,9 @@ export default function DashboardLayout({
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
         <ThemeProvider>
-          {/* ✅ ON A ENLEVÉ PI_AUTH_PROVIDER ICI */}
-          
-          {/* SDK CINETPAY */}
+          {/* 2. ON ACTIVE L'INITIALISEUR ICI (DANS LE BODY) */}
+          <PiInitializer />
+
           <Script
             src="https://cdn.cinetpay.com/seamless/main.js"
             strategy="lazyOnload"
