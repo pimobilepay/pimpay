@@ -15,7 +15,6 @@ import { toast } from "sonner";
 function SummaryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -36,40 +35,54 @@ function SummaryContent() {
 
   const totalRequired = data.amount + data.fee;
 
+  // --- RÉCUPÉRATION DU SOLDE RÉEL (VACCINÉ) ---
   useEffect(() => {
     if (!mounted) return;
 
     const fetchBalance = async () => {
       try {
-        const res = await fetch('/api/user/profile');
+        const res = await fetch('/api/user/profile', {
+          cache: 'no-store', // Vaccin anti-cache
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         if (res.ok) {
           const d = await res.json();
-          const targetWallet = d.wallets?.find((w: any) => w.currency === data.currency);
-          const balanceValue = targetWallet ? parseFloat(targetWallet.balance) : 0;
-          setWalletBalance(balanceValue);
+          // Accès correct selon ton schéma : d.user.wallets
+          const userWallets = d.user?.wallets || d.wallets || [];
+          const targetWallet = userWallets.find((w: any) => w.currency === data.currency);
+          
+          if (targetWallet) {
+            setWalletBalance(parseFloat(targetWallet.balance));
+          } else {
+            setWalletBalance(0);
+          }
         }
       } catch (err) {
         console.error("Erreur solde:", err);
+        setWalletBalance(0);
       }
     };
     fetchBalance();
   }, [data.currency, mounted]);
 
   const handleConfirm = async () => {
-    // SÉCURITÉ ANTI-DOUBLE CLIC : Si déjà en cours, on stoppe tout de suite
     if (isLoading) return;
 
+    // Vérification de sécurité ultime
     if (walletBalance !== null && walletBalance < totalRequired) {
-      toast.error(`Solde insuffisant.`);
+      toast.error(`Solde ${data.currency} insuffisant.`);
       return;
     }
 
-    setIsLoading(true); // Le bouton passe en 'disabled' ici
+    setIsLoading(true);
     
     try {
       const response = await fetch("/api/user/transfer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache" 
+        },
         body: JSON.stringify({
           recipientIdentifier: data.recipientId,
           amount: data.amount,
@@ -78,20 +91,20 @@ function SummaryContent() {
         }),
       });
 
+      const result = await response.json();
+
       if (response.ok) {
+        toast.success("Transfert réussi !");
         router.push(`/transfer/success?amount=${data.amount}&currency=${data.currency}&name=${encodeURIComponent(data.name)}`);
       } else {
-        const result = await response.json();
-        // On libère le bouton seulement si l'erreur n'est pas critique ou pour permettre de réessayer
-        setIsLoading(false); 
-        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Échec")}`);
+        setIsLoading(false);
+        // Redirection vers la page d'échec avec le message d'erreur réel
+        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Transaction refusée")}`);
       }
     } catch (err) {
       setIsLoading(false);
-      router.push("/transfer/failed?error=Erreur serveur");
+      router.push("/transfer/failed?error=Erreur de connexion au serveur");
     }
-    // Note : On ne met pas forcément setIsLoading(false) dans le 'finally' 
-    // car si la redirection vers 'success' prend du temps, on veut que le bouton reste bloqué.
   };
 
   if (!mounted) {
@@ -168,7 +181,7 @@ function SummaryContent() {
         </div>
         <div className="text-right">
           <span className="text-sm font-black text-white">
-            {walletBalance !== null ? `${walletBalance.toLocaleString()} ${data.currency}` : "..."}
+            {walletBalance !== null ? `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${data.currency}` : "Chargement..."}
           </span>
         </div>
       </div>
@@ -182,7 +195,6 @@ function SummaryContent() {
         </div>
       )}
 
-      {/* BOUTON SÉCURISÉ : Il devient gris et inutilisable dès le premier clic */}
       <button
         onClick={handleConfirm}
         disabled={isLoading || isInsufficient}
@@ -195,7 +207,7 @@ function SummaryContent() {
         {isLoading ? (
           <div className="flex items-center gap-2">
             <Loader2 className="animate-spin" size={20} />
-            <span className="font-black uppercase tracking-widest text-sm">Traitement...</span>
+            <span className="font-black uppercase tracking-widest text-sm">Transfert en cours...</span>
           </div>
         ) : (
           <>

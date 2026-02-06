@@ -7,66 +7,83 @@ import { cookies } from "next/headers";
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    
-    // 1. On récupère les deux types de tokens possibles
+
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value;
 
-    let userId: string | null = null;
+    let user = null;
 
-    // 2. Logique de vérification hybride
+    // 1. Logique de récupération selon le type de session
     if (piToken) {
-      // Cas Pi Browser : Le token est l'ID utilisateur direct
-      userId = piToken;
+      // Cas Pi Browser : On cherche l'utilisateur via piUserId défini dans le schéma
+      user = await prisma.user.findUnique({
+        where: { piUserId: piToken },
+        select: {
+          id: true,
+          username: true,
+          role: true,
+          status: true,
+          kycStatus: true,
+          name: true,
+          avatar: true, // Récupération de l'avatar
+          walletAddress: true,
+          wallets: {
+            where: { currency: "PI" },
+            select: { balance: true }
+          }
+        }
+      });
     } else if (classicToken) {
-      // Cas Classique : Vérification du JWT
+      // Cas Classique : Vérification du JWT et recherche par ID interne
       try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
         const { payload } = await jose.jwtVerify(classicToken, secret);
-        userId = payload.id as string;
+        const userId = payload.id as string;
+
+        user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            status: true,
+            kycStatus: true,
+            name: true,
+            avatar: true,
+            walletAddress: true,
+            wallets: {
+              where: { currency: "PI" },
+              select: { balance: true }
+            }
+          }
+        });
       } catch (e) {
         return NextResponse.json({ user: null }, { status: 401 });
       }
     }
 
-    if (!userId) {
-      return NextResponse.json({ user: null }, { status: 401 });
-    }
-
-    // 3. Recherche dans la base selon ton schéma Prisma
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        status: true,
-        kycStatus: true,
-        name: true,
-        // On récupère le wallet PI spécifiquement comme demandé
-        wallets: {
-          where: { currency: "PI" },
-          select: { balance: true }
-        }
-      }
-    });
-
-    // 4. Validation du statut
+    // 2. Validation de l'existence et du statut
     if (!user || user.status !== "ACTIVE") {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    // 5. Réponse formatée pour ton Dashboard
+    // 3. Réponse formatée
     return NextResponse.json({
       user: {
-        ...user,
-        // On extrait la balance du premier wallet PI trouvé (ou 0)
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status,
+        kycStatus: user.kycStatus,
+        name: user.name,
+        avatar: user.avatar,
+        walletAddress: user.walletAddress,
         balance: user.wallets[0]?.balance || 0
       }
     });
 
   } catch (error) {
-    console.error("Erreur API Auth Me:", error);
-    return NextResponse.json({ user: null }, { status: 401 });
+    console.error("Erreur API Auth Me (PimPay):", error);
+    return NextResponse.json({ user: null }, { status: 500 });
   }
 }

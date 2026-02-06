@@ -6,6 +6,7 @@ import { jwtVerify } from "jose";
 import { ethers } from "ethers";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
+// Utilisation d'un nœud plus stable ou gestion du timeout
 const SIDRA_RPC = "https://rpc.sidrachain.com";
 
 export async function POST(req: NextRequest) {
@@ -26,19 +27,42 @@ export async function POST(req: NextRequest) {
     const cleanIdentifier = recipientIdentifier.startsWith('@') ? recipientIdentifier.substring(1) : recipientIdentifier;
     const transferAmount = parseFloat(amount);
     const transferCurrency = (currency || "XAF").toUpperCase();
+    const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
 
-    // 1. Récupérer l'expéditeur (Nécessaire avant la transaction pour la clé privée)
-    const sender = await prisma.user.findUnique({
-      where: { id: senderId },
-      include: { wallets: true }
-    });
+    if (isNaN(transferAmount) || transferAmount <= 0) throw new Error("Montant invalide.");
 
-    if (!sender) throw new Error("Utilisateur introuvable.");
+    // --- VACCIN 1 : PRÉ-VÉRIFICATION DU RÉSEAU (Évite les logs infinis) ---
+    if (isExternalSDA && transferCurrency === "SDA") {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 sec max
+        const probe = await fetch(SIDRA_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (!probe.ok) throw new Error();
+      } catch (e) {
+        throw new Error("Le réseau Sidra est actuellement indisponible (Erreur 502/Timeout). Réessayez dans quelques instants.");
+      }
+    }
 
-    // --- DÉBUT DE LA TRANSACTION ---
+    // --- TRANSACTION ATOMIQUE PIMPAY ---
     const result = await prisma.$transaction(async (tx) => {
       
-      // 2. Chercher si c'est un utilisateur interne (Maintenant à l'intérieur du bloc 'tx')
+      const senderWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: senderId, currency: transferCurrency } }
+      });
+
+      if (!senderWallet || senderWallet.balance < transferAmount) {
+        throw new Error("Solde insuffisant dans votre wallet PimPay.");
+      }
+
+      const sender = await tx.user.findUnique({ where: { id: senderId } });
+      if (!sender) throw new Error("Compte expéditeur introuvable.");
+
       const recipient = await tx.user.findFirst({
         where: {
           OR: [
@@ -49,43 +73,37 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
-
-      const senderWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: senderId, currency: transferCurrency } }
-      });
-
-      if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error("Solde insuffisant dans votre wallet PimPay.");
-      }
-
       let txHash = null;
       let toUserId = null;
       let toWalletId = null;
 
-      // CAS A : RETRAIT VERS BLOCKCHAIN EXTERNE (SDA)
+      // Débit immédiat pour sécurité
+      await tx.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: { decrement: transferAmount } }
+      });
+
+      // CAS A : RETRAIT VERS BLOCKCHAIN EXTERNE
       if (isExternalSDA && transferCurrency === "SDA") {
-        if (!sender.sidraPrivateKey) throw new Error("Votre clé privée Sidra n'est pas configurée.");
-
+        if (!sender.sidraPrivateKey) throw new Error("Clé privée Sidra manquante.");
+        
         try {
-          const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
-          const wallet = new ethers.Wallet(sender.sidraPrivateKey, provider);
-          const val = ethers.parseEther(amount.toString());
-
-          // On émet la transaction avant de valider le débit en DB
-          const blockchainTx = await wallet.sendTransaction({
-            to: cleanIdentifier,
-            value: val
+          // VACCIN 2 : staticNetwork empêche ethers de boucler sur la détection du réseau
+          const provider = new ethers.JsonRpcProvider(SIDRA_RPC, undefined, {
+            staticNetwork: new ethers.Network("Sidra Chain", 121314) // Remplace par le bon ChainID si nécessaire
           });
           
+          const wallet = new ethers.Wallet(sender.sidraPrivateKey, provider);
+          const val = ethers.parseEther(amount.toString());
+          
+          const blockchainTx = await wallet.sendTransaction({ to: cleanIdentifier, value: val });
           txHash = blockchainTx.hash;
         } catch (err: any) {
-          // Si la blockchain refuse (ex: pas assez de Gas), on stoppe tout ici
-          throw new Error(`Échec Blockchain (Vérifiez votre GAS) : ${err.message}`);
+          // Si la blockchain échoue, l'erreur remontera et Prisma annulera le débit (Rollback)
+          throw new Error(`Réseau Sidra saturé : ${err.message}`);
         }
       } 
-      
-      // CAS B : TRANSFERT INTERNE PIMPAY
+      // CAS B : TRANSFERT INTERNE
       else if (recipient) {
         toUserId = recipient.id;
         const recipientWallet = await tx.wallet.upsert({
@@ -109,19 +127,12 @@ export async function POST(req: NextRequest) {
           }
         });
       } else {
-        throw new Error("Destinataire introuvable ou adresse invalide.");
+        throw new Error("Cible introuvable.");
       }
 
-      // 3. DÉBIT DE L'EXPÉDITEUR
-      await tx.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: transferAmount } }
-      });
-
-      // 4. ENREGISTREMENT DE LA TRANSACTION
-      const newTx = await tx.transaction.create({
+      return await tx.transaction.create({
         data: {
-          reference: `TX-${Date.now()}`,
+          reference: `PIM-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
           amount: transferAmount,
           currency: transferCurrency,
           type: TransactionType.TRANSFER,
@@ -131,29 +142,16 @@ export async function POST(req: NextRequest) {
           toUserId: toUserId,
           toWalletId: toWalletId,
           blockchainTx: txHash,
-          description: description || (txHash ? `Retrait SDA externe` : `Transfert vers @${recipient?.username}`)
+          description: description || (txHash ? `Retrait Blockchain` : `Vers @${recipient?.username}`)
         }
       });
-
-      // 5. NOTIFICATION EXPÉDITEUR
-      await tx.notification.create({
-        data: {
-          userId: senderId,
-          title: "Transaction réussie 🚀",
-          message: txHash 
-            ? `Retrait de ${transferAmount} SDA envoyé sur la blockchain.`
-            : `Transfert de ${transferAmount} ${transferCurrency} effectué.`,
-          type: "PAYMENT_SENT"
-        }
-      });
-
-      return newTx;
-    }, { timeout: 30000 });
+    }, { timeout: 30000 }); // Timeout ajusté
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("Erreur Transfert PimPay:", error.message);
+    console.error("Erreur Transfert:", error.message);
+    // On renvoie un message propre à l'utilisateur
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
