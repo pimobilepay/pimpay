@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, ArrowDownLeft, RefreshCcw, Bell, Loader2, ArrowUpCircle, ArrowDownCircle,
   Eye, EyeOff, Globe, Zap, CreditCard, ChevronDown, LogOut, Smartphone, History, User,
-  Settings, LayoutGrid, Facebook, Twitter, Youtube, ExternalLink
+  Settings, LayoutGrid, Facebook, Twitter, Youtube, ExternalLink, Wallet as WalletIcon
 } from "lucide-react";
 import { PI_CONSENSUS_USD } from "@/lib/exchange";
 import { BottomNav } from "@/components/bottom-nav";
@@ -25,7 +25,11 @@ export default function UserDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyKey>("USD");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const walletRef = useRef<HTMLDivElement>(null);
+
+  const [activeWalletIndex, setActiveWalletIndex] = useState(0);
 
   useEffect(() => {
     setHasMounted(true);
@@ -34,6 +38,9 @@ export default function UserDashboard() {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
       }
+      if (walletRef.current && !walletRef.current.contains(event.target as Node)) {
+        setShowWalletSelector(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -41,7 +48,6 @@ export default function UserDashboard() {
 
   async function fetchDashboardData() {
     try {
-      // Synchro Sidra en arrière-plan
       fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
 
       const [profileRes, historyRes] = await Promise.all([
@@ -50,13 +56,19 @@ export default function UserDashboard() {
       ]);
 
       if (profileRes.ok) {
-        const profileData = await profileRes.json();
+        const profileJson = await profileRes.json();
+        const profileData = profileJson.user; 
         const historyData = historyRes.ok ? await historyRes.json() : { transactions: [] };
-        
+
         setData({
           ...profileData,
           transactions: historyData.transactions || []
         });
+        
+        // Mettre PI par défaut si disponible
+        const piIdx = profileData.wallets?.findIndex((w: any) => w.currency === "PI");
+        if (piIdx !== -1) setActiveWalletIndex(piIdx);
+
       } else if (profileRes.status === 401) {
         router.push("/auth/login");
       }
@@ -70,16 +82,15 @@ export default function UserDashboard() {
 
   const getStats = () => {
     const txs = data?.transactions || [];
-    // Calcul précis basé sur l'ID utilisateur pour identifier entrant/sortant
-    const sent = txs.filter((t: any) => t.fromUserId === data?.id && t.type !== 'EXCHANGE').length;
-    const received = txs.filter((t: any) => (t.toUserId === data?.id || t.type === 'DEPOSIT') && t.type !== 'EXCHANGE').length;
-    const swaps = txs.filter((t: any) => t.type === 'EXCHANGE' || t.type === 'SWAP').length;
-    
+    const sent = txs.filter((t: any) => t.isDebit && t.type !== 'EXCHANGE').length;
+    const received = txs.filter((t: any) => !t.isDebit && t.type !== 'EXCHANGE').length;
+    const swaps = txs.filter((t: any) => t.type === 'EXCHANGE').length;
+
     return [
       { name: "Envois", value: sent || 0 },
       { name: "Reçus", value: received || 0 },
       { name: "Swaps", value: swaps || 0 },
-      { name: "Autres", value: 1 }, // Valeur fixe 1 pour l'harmonie visuelle
+      { name: "Autres", value: 1 },
     ];
   };
 
@@ -92,33 +103,9 @@ export default function UserDashboard() {
     }
   };
 
-  const openBlockchainDetail = (tx: any) => {
-    const hash = tx.blockchainTx || tx.externalId || tx.hash;
-    if (!hash) {
-      toast.info("Transaction interne PimPay");
-      return;
-    }
-    let url = "";
-    if (tx.currency === "SDA") url = `https://ledger.sidrachain.com/tx/${hash}`;
-    else if (tx.currency === "BTC") url = `https://www.blockchain.com/btc/tx/${hash}`;
-    else url = `https://minepi.com/blockexplorer/tx/${hash}`;
-    
-    window.open(url, "_blank");
-  };
-
-  const formatAddr = (addr: string | null) => {
-    if (!addr) return "Système PimPay";
-    if (addr.length < 10) return addr;
-    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
-  };
-
   const getTxIcon = (tx: any) => {
-    const isSwap = tx.type === 'EXCHANGE' || tx.type === 'SWAP';
-    // Une transaction est reçue si le destinataire est l'user actuel OU si c'est un dépôt direct
-    const isReceived = tx.toUserId === data?.id || tx.type === 'DEPOSIT';
-
-    if (isSwap) return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
-    if (isReceived) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
+    if (tx.type === 'EXCHANGE') return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
+    if (!tx.isDebit) return { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
     return { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" };
   };
 
@@ -132,18 +119,13 @@ export default function UserDashboard() {
   }
 
   const wallets = data?.wallets || [];
-  const piWallet = wallets.find((w: any) => w.currency === "PI");
-  const sdaWallet = wallets.find((w: any) => w.currency === "SDA");
-  const mainWallet = piWallet || sdaWallet || wallets[0];
-  
-  const balance = mainWallet ? mainWallet.balance : 0;
-  const currentCurrency = mainWallet ? mainWallet.currency : "PI";
-  const userName = data?.username || "Pioneer";
-  const transactions = data?.transactions || [];
-  
+  const currentWallet = wallets[activeWalletIndex] || { balance: 0, currency: "PI" };
+  const balance = currentWallet.balance;
+  const currentCurrency = currentWallet.currency;
+  const displayName = data?.name || "PIONEER";
+
   const rateToUse = currentCurrency === "PI" ? PI_CONSENSUS_USD : 1;
   const convertedValue = balance * rateToUse * RATES[currency];
-  const statsData = getStats();
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
@@ -161,24 +143,27 @@ export default function UserDashboard() {
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all">
             <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
           </button>
-          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 relative active:scale-90 transition-all">
+          
+          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative">
             <Bell size={20} />
-            <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
+            {/* Petit point de notification comme sur l'image */}
+            <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>
           </button>
+          
           <div className="relative" ref={menuRef}>
             <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400">
               <User size={20} />
             </button>
             {showProfileMenu && (
-              <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110] animate-in fade-in zoom-in duration-200">
+              <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
                 <div className="p-4 border-b border-white/5 mb-2">
                   <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Compte PimPay</p>
-                  <p className="text-sm font-bold truncate">@{userName}</p>
+                  <p className="text-sm font-bold truncate">@{data?.username}</p>
                 </div>
-                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-slate-300 transition-colors text-xs font-bold uppercase">
-                  <Settings size={16} /> Mon Profil
+                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
+                  <Settings size={16} /> Profil
                 </button>
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-500/10 text-rose-500 transition-colors text-xs font-bold uppercase">
+                <button onClick={() => handleLogout()} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left">
                   <LogOut size={16} /> Déconnexion
                 </button>
               </div>
@@ -188,51 +173,84 @@ export default function UserDashboard() {
       </header>
 
       <main className="px-6 flex-grow pb-10">
-        <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-8 mt-4 overflow-hidden">
+        <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-6 mt-4 overflow-hidden">
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-[9px] font-black uppercase tracking-wider">PimPay Card</span>
+                <span className="text-[9px] font-black uppercase tracking-wider">PIMPAY CARD</span>
               </div>
-              <button onClick={() => setShowBalance(!showBalance)} className="text-white/40">
-                {showBalance ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+              
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowBalance(!showBalance)} className="text-white/40 p-1">
+                  {showBalance ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                
+                {/* SÉLECTEUR DE WALLET DANS LA CARTE */}
+                <div className="relative" ref={walletRef}>
+                  <button 
+                    onClick={() => setShowWalletSelector(!showWalletSelector)}
+                    className="bg-white/10 hover:bg-white/20 p-2 rounded-xl border border-white/10 transition-all flex items-center gap-2"
+                  >
+                    <WalletIcon size={16} />
+                    <ChevronDown size={14} className={`transition-transform ${showWalletSelector ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showWalletSelector && (
+                    <div className="absolute right-0 mt-2 w-40 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-1 z-[120]">
+                      {wallets.map((w: any, idx: number) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setActiveWalletIndex(idx);
+                            setShowWalletSelector(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeWalletIndex === idx ? 'bg-blue-600 text-white' : 'hover:bg-white/5 text-slate-400'}`}
+                        >
+                          {w.currency}
+                          <span className="opacity-60 text-[8px]">{showBalance ? w.balance.toFixed(2) : "••"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
+
             <div>
               <h2 className="text-4xl font-black tracking-tighter flex items-center gap-2">
-                <span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency}</span>
+                <span className="text-blue-200">{currentCurrency === "PI" ? "π" : ""}</span>
                 {showBalance ? balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : "••••••"}
               </h2>
-              <p className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">@{userName}</p>
+              <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p>
             </div>
             <div className="flex justify-between items-end">
               <div className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
                 <Globe size={12} className="text-blue-400" />
                 <p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${convertedValue.toLocaleString()} ${currency}` : "Locked"}</p>
               </div>
-              <p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency === "PI" ? "Pi Network" : "Sidra Chain"}</p>
+              <p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency}</p>
             </div>
           </div>
           <Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
         </div>
 
+        {/* ACTIONS RAPIDES */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
-          { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
-          { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-          { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
+            { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
+            { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
+            { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
           ].map((action, i) => (
             <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
-              <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>
-                {action.icon}
-              </div>
+              <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>{action.icon}</div>
               <span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span>
             </button>
           ))}
         </div>
 
-        <section className="mb-10 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
+        {/* FLUX DE TRÉSORERIE */}
+        <section className="mb-8 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3>
             <LayoutGrid size={16} className="text-slate-600" />
@@ -241,17 +259,15 @@ export default function UserDashboard() {
             <div className="w-32 h-32 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={statsData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value">
-                    {statsData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
-                    ))}
+                  <Pie data={getStats()} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value">
+                    {getStats().map((_, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />)}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase text-blue-400">Live</div>
             </div>
             <div className="flex-1 grid grid-cols-1 gap-2">
-              {statsData.map((item, i) => (
+              {getStats().map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
@@ -264,44 +280,36 @@ export default function UserDashboard() {
           </div>
         </section>
 
-        <section className="mb-12">
+        {/* FLUX DE TRANSACTIONS AVEC SCROLL INTERNE CORRIGÉ */}
+        <section className="mb-12 relative">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3>
+            <div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none select-none italic">
+              7
+            </div>
             <History size={16} className="text-slate-600" />
           </div>
-          <div className="space-y-4">
-            {transactions.length > 0 ? transactions.slice(0, 10).map((tx: any) => {
+          
+          {/* Scrollable container pour éviter que la page ne devienne trop longue */}
+          <div className="space-y-4 relative z-10 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
+            {data?.transactions?.length > 0 ? data.transactions.map((tx: any) => {
               const { icon, color } = getTxIcon(tx);
-              // Correction de la logique Entrant/Sortant
-              const isReceived = tx.toUserId === data?.id || tx.type === 'DEPOSIT';
-
               return (
-                <div
-                  key={tx.id}
-                  onClick={() => openBlockchainDetail(tx)}
-                  className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer group"
-                >
+                <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer">
                   <div className="flex items-center gap-4">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>
-                      {icon}
-                    </div>
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>{icon}</div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[11px] font-bold uppercase text-white">{tx.description || "Transfert"}</p>
-                        {(tx.blockchainTx || tx.externalId || tx.hash) && <ExternalLink size={10} className="text-slate-600" />}
-                      </div>
+                      <p className="text-[11px] font-bold uppercase text-white">{tx.description || tx.type}</p>
                       <p className="text-[8px] text-slate-500 font-black uppercase mt-1">
-                        {isReceived ? `Origine: ${formatAddr(tx.fromUserId || tx.blockchainTx)}` : `Dest: ${formatAddr(tx.toUserId || tx.accountNumber)}`}
+                        {tx.isDebit ? `À: ${tx.peerName || 'SYSTÈME PIMPAY'}` : `DE: ${tx.peerName || 'SYSTÈME PIMPAY'}`}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-black ${isReceived ? 'text-emerald-400' : 'text-blue-400'}`}>
-                      {isReceived ? '+' : '-'}{tx.amount.toLocaleString()} {tx.currency}
+                    <p className={`text-sm font-black ${!tx.isDebit ? 'text-emerald-400' : 'text-blue-400'}`}>
+                      {tx.isDebit ? '-' : '+'}{tx.amount.toLocaleString()} {tx.currency}
                     </p>
-                    <p className="text-[8px] text-slate-500 font-black mt-1">
-                      {new Date(tx.createdAt).toLocaleDateString('fr-FR')}
-                    </p>
+                    <p className="text-[8px] text-slate-500 font-black mt-1">{new Date(tx.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               );
@@ -312,6 +320,7 @@ export default function UserDashboard() {
         </section>
       </main>
 
+      
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
         <div className="flex items-center gap-6">
           <a href="https://www.facebook.com/profile.php?id=61583243122633" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
