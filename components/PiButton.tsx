@@ -3,52 +3,51 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-export default function ReceivePiButton({ amount }: { amount: number }) {
+// On le nomme PiButton pour correspondre à l'import dans app/deposit/page.tsx
+export const PiButton = ({ amount }: { amount: number }) => {
   const [loading, setLoading] = useState(false);
 
   const handlePayment = async () => {
+    // @ts-ignore
     if (!window.Pi) {
-      toast.error("Le SDK Pi n'est pas encore chargé. Réessayez dans 2 secondes.");
+      toast.error("Le SDK Pi n'est pas encore chargé. Réessayez dans un instant.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const payment = await window.Pi.createPayment({
-        // 1. Le montant en Pi réel
+      // @ts-ignore
+      await window.Pi.createPayment({
         amount: amount,
-        // 2. L'explication pour l'utilisateur
         memo: `Dépôt de ${amount} Pi sur votre compte PimPay`,
-        // 3. Les métadonnées pour ton serveur
-        metadata: { 
+        metadata: {
           type: "deposit",
-          wallet_id: "pimpay_core_ledger" 
+          wallet_id: "pimpay_core_ledger"
         },
       }, {
-        // CALLBACKS OBLIGATOIRES POUR LE SDK
         onReadyForServerApproval: (paymentId: string) => {
-          console.log("Paiement approuvé par l'utilisateur, ID:", paymentId);
-          // Ici, on enverra l'ID au backend pour approbation finale
+          console.log("Approbation, ID:", paymentId);
           return fetch("/api/payments/approve", {
             method: "POST",
             body: JSON.stringify({ paymentId }),
           });
         },
         onReadyForServerCompletion: (paymentId: string, txid: string) => {
-          console.log("Paiement complété sur la blockchain, TXID:", txid);
-          toast.success("Transaction réussie ! Votre solde PimPay sera mis à jour.");
+          console.log("Complété, TXID:", txid);
+          toast.success("Transaction réussie ! Solde mis à jour.");
+          setLoading(false);
           return fetch("/api/payments/complete", {
             method: "POST",
             body: JSON.stringify({ paymentId, txid }),
           });
         },
         onCancel: (paymentId: string) => {
-          console.log("Paiement annulé par l'utilisateur");
+          console.log("Annulé");
           setLoading(false);
         },
         onError: (error: Error, payment?: any) => {
-          console.error("Erreur de paiement Pi:", error);
+          console.error("Erreur:", error);
           toast.error("Le paiement a échoué.");
           setLoading(false);
         },
@@ -63,11 +62,23 @@ export default function ReceivePiButton({ amount }: { amount: number }) {
     <button
       onClick={handlePayment}
       disabled={loading || amount <= 0}
-      className={`w-full py-4 rounded-2xl font-bold transition-all ${
-        loading ? "bg-gray-600" : "bg-gradient-to-r from-orange-500 to-yellow-500"
+      className={`w-full h-16 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl transition-all active:scale-[0.98] ${
+        loading || amount <= 0 
+        ? "bg-slate-800 text-slate-500 cursor-not-allowed" 
+        : "bg-gradient-to-r from-orange-500 to-yellow-600 text-white shadow-orange-500/20"
       }`}
     >
-      {loading ? "Traitement en cours..." : `Confirmer le dépôt de ${amount} Pi`}
+      {loading ? (
+        <span className="flex items-center justify-center gap-2">
+          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          Traitement...
+        </span>
+      ) : (
+        `Confirmer le dépôt de ${amount} Pi`
+      )}
     </button>
   );
-}
+};
+
+// On garde l'export default par sécurité si tu l'utilises ailleurs
+export default PiButton;

@@ -11,71 +11,62 @@ export async function GET() {
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value;
 
-    let user = null;
+    let userId: string | null = null;
 
-    // 1. Logique de récupération selon le type de session
+    // 1. Extraction de l'ID selon le type de session (Identique à ton API profile)
     if (piToken) {
-      // Cas Pi Browser : On cherche l'utilisateur via piUserId défini dans le schéma
-      user = await prisma.user.findUnique({
-        where: { piUserId: piToken },
-        select: {
-          id: true,
-          username: true,
-          role: true,
-          status: true,
-          kycStatus: true,
-          name: true,
-          avatar: true, // Récupération de l'avatar
-          walletAddress: true,
-          wallets: {
-            where: { currency: "PI" },
-            select: { balance: true }
-          }
-        }
-      });
+      userId = piToken;
     } else if (classicToken) {
-      // Cas Classique : Vérification du JWT et recherche par ID interne
       try {
         const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
         const { payload } = await jose.jwtVerify(classicToken, secret);
-        const userId = payload.id as string;
-
-        user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            username: true,
-            role: true,
-            status: true,
-            kycStatus: true,
-            name: true,
-            avatar: true,
-            walletAddress: true,
-            wallets: {
-              where: { currency: "PI" },
-              select: { balance: true }
-            }
-          }
-        });
+        // On vérifie les deux payloads possibles comme dans ton profile
+        userId = (payload.id || payload.userId) as string;
       } catch (e) {
-        return NextResponse.json({ user: null }, { status: 401 });
+        return NextResponse.json({ user: null, error: "Session expirée" }, { status: 401 });
       }
     }
 
-    // 2. Validation de l'existence et du statut
-    if (!user || user.status !== "ACTIVE") {
-      return NextResponse.json({ user: null }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ user: null, error: "Non authentifié" }, { status: 401 });
     }
 
-    // 3. Réponse formatée
+    // 2. Recherche de l'utilisateur (Recherche par ID unique comme dans profile)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        status: true,
+        kycStatus: true,
+        name: true,
+        firstName: true, // Ajouté pour le fallback du nom
+        lastName: true,  // Ajouté pour le fallback du nom
+        avatar: true,
+        walletAddress: true,
+        wallets: {
+          where: { currency: "PI" },
+          select: { balance: true }
+        }
+      }
+    });
+
+    // 3. Validation de l'existence et du statut
+    if (!user || user.status !== "ACTIVE") {
+      return NextResponse.json({ user: null, error: "Utilisateur introuvable ou inactif" }, { status: 401 });
+    }
+
+    // 4. Réponse formatée (Cohérente avec SideMenu et Profile)
     return NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
+        // Logique de nom identique au profile pour la cohérence visuelle
+        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || "PIONEER",
         role: user.role,
         status: user.status,
         kycStatus: user.kycStatus,
-        name: user.name,
         avatar: user.avatar,
         walletAddress: user.walletAddress,
         balance: user.wallets[0]?.balance || 0

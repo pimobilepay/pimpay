@@ -2,17 +2,38 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/auth";
+import { jwtVerify } from "jose";
+import { cookies } from "next/headers";
+
+// Fonction utilitaire interne pour récupérer le userId comme dans l'API profile
+async function getAuthenticatedUserId() {
+  const cookieStore = await cookies();
+  const piToken = cookieStore.get("pi_session_token")?.value;
+  const classicToken = cookieStore.get("token")?.value;
+
+  if (piToken) return piToken;
+
+  if (classicToken) {
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+      const { payload } = await jwtVerify(classicToken, secret);
+      return (payload.id || payload.userId) as string;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
 
 export async function GET(req: NextRequest) {
-  const user = await verifyAuth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
 
-    const whereClause: any = { userId: user.id };
+    const whereClause: any = { userId: userId };
     if (type && type !== "ALL") {
       whereClause.type = type;
     }
@@ -23,22 +44,20 @@ export async function GET(req: NextRequest) {
       take: 50
     });
 
-    // Formatage sécurisé : On s'assure que metadata est toujours un objet propre
     const formattedNotifications = notifications.map(n => {
       let meta = {};
       try {
         meta = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {});
       } catch (e) {
-        meta = {}; // Fallback si le JSON est mal formé
+        meta = {};
       }
       return { ...n, metadata: meta };
     });
 
     const unreadCount = await prisma.notification.count({
-      where: { userId: user.id, read: false }
+      where: { userId: userId, read: false }
     });
 
-    // On renvoie un objet structuré que le frontend attend
     return NextResponse.json({
       notifications: formattedNotifications,
       unreadCount
@@ -50,27 +69,25 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await verifyAuth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await req.json();
 
-    // Cas 1 : Marquer tout comme lu
     if (body.all === true || body.action === "MARK_ALL_READ" || !body.id) {
       await prisma.notification.updateMany({
-        where: { userId: user.id, read: false },
+        where: { userId: userId, read: false },
         data: { read: true }
       });
       return NextResponse.json({ success: true, message: "Toutes les notifications lues" });
     }
 
-    // Cas 2 : Marquer une seule notification précise
     if (body.id) {
       await prisma.notification.update({
-        where: { 
-          id: body.id, 
-          userId: user.id // Sécurité : l'utilisateur ne peut modifier que la sienne
+        where: {
+          id: body.id,
+          userId: userId 
         },
         data: { read: true }
       });
@@ -85,8 +102,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const user = await verifyAuth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -94,16 +111,15 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: "ID manquant" }, { status: 400 });
 
-    // On s'assure qu'il ne supprime que SES notifications
     const result = await prisma.notification.deleteMany({
-      where: { 
-        id: id, 
-        userId: user.id 
+      where: {
+        id: id,
+        userId: userId
       }
     });
 
     if (result.count === 0) {
-      return NextResponse.json({ error: "Notification non trouvée ou non autorisée" }, { status: 404 });
+      return NextResponse.json({ error: "Notification non trouvée" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });

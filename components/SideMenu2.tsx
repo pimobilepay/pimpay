@@ -3,26 +3,24 @@
 import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
-  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter,
-  Users2 // Nouvelle icône pour Contact/Communauté
+  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";   
 
-interface UserData {
+interface UserData {                           
   name: string;
-  username: string;
   email: string;
   kycStatus?: string;
   avatar?: string;
 }
 
-export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) { 
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname();              
   const [user, setUser] = useState<UserData | null>(null);
 
-  // Chargement immédiat des données locales pour éviter le flash blanc
+  // Chargement immédiat des données locales
   useEffect(() => {
     const savedUser = localStorage.getItem("pimpay_user");
     if (savedUser) {
@@ -36,14 +34,11 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
   const fetchUserData = useCallback(async () => {
     try {
-      // On utilise l'API auth/me qui est plus légère pour le SideMenu
       const res = await fetch("/api/auth/me", { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const userData = {
-          // Priorité : Nom > Username > Pioneer
-          name: data.user?.name || data.user?.username || "Pioneer",
-          username: data.user?.username || "",
+          name: data.user?.name || `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || "Pioneer",
           email: data.user?.email || "",
           kycStatus: data.user?.kycStatus || "NON VÉRIFIÉ",
           avatar: data.user?.avatar
@@ -60,26 +55,31 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     if (open) fetchUserData();
   }, [open, fetchUserData]);
 
+  // FERMETURE AUTOMATIQUE lors du changement de page
   useEffect(() => {
     if (open) {
       onClose();
     }
-  }, [pathname]);
+  }, [pathname]); 
 
+  // GESTION DU SCROLL
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
     }
-    return () => {
-      document.body.style.overflow = "unset";
+    return () => { 
+      document.body.style.overflow = "unset"; 
     };
   }, [open]);
 
   const handleNavigation = (path: string) => {
+    // Fermer immédiatement le menu
     onClose();
+    // Débloquer le scroll
     document.body.style.overflow = "unset";
+    // Navigation
     router.push(path);
   };
 
@@ -112,8 +112,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     {
       title: "Support & Aide",
       items: [
-        // Remplacement de l'icône HelpCircle par Users2 pour le contact (style Pi Network)
-        { label: "Contact", icon: <Users2 size={20} className="text-teal-400" />, path: "/contacts" },
+        { label: "Contact", icon: <HelpCircle size={20} className="text-teal-400" />, path: "/contacts" },
       ]
     },
     {
@@ -140,9 +139,10 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
   return (
     <>
-      <div
-        onClick={onClose}
-        className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      {/* OVERLAY */}
+      <div 
+        onClick={onClose} 
+        className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} 
       />
 
       <div className={`fixed top-0 left-0 h-full w-[280px] z-[9999] bg-[#020617] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-x-0" : "-translate-x-full"}`}>
@@ -160,9 +160,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                     {user?.avatar ? (
                       <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-2xl font-black italic text-white">
-                        {user?.username ? user.username[0].toUpperCase() : (user?.name?.[0] || "P")}
-                      </span>
+                      <span className="text-2xl font-black italic text-white">{user?.name?.[0] || "P"}</span>
                     )}
                   </div>
                 </div>
@@ -173,12 +171,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                 <h2 className="text-lg font-black text-white truncate tracking-tight">
                   {user?.name || "Pioneer"}
                 </h2>
-                {user?.username && (
-                  <p className="text-[10px] font-bold text-blue-400 lowercase opacity-70 truncate -mt-1">
-                    @{user.username}
-                  </p>
-                )}
-                <div className="flex items-center gap-1.5 mt-1.5">
+                <div className="flex items-center gap-1.5 mt-0.5">
                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${user?.kycStatus === 'VERIFIED' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
                     <ShieldCheck size={10} />
                     {user?.kycStatus === 'VERIFIED' ? 'Compte Vérifié' : 'Vérification...'}
