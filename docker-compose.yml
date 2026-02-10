@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  pi-node:
+    image: pinetwork/pi-node-docker:organization_mainnet-v1.3-p19.6
+    container_name: pimpay-core-node
+    command: ["--mainnet", "--enable-auto-migrations"] # La clé du succès
+    ports:
+      - "31401:8000"
+      - "31402:31402"
+      - "31403:1570"
+    volumes:
+      - pi_data:/root/.pi-node # Pour le mode persistent obligatoire
+    restart: always
+
+volumes:
+  pi_data:
+

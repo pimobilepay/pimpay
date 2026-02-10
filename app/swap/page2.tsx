@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  ArrowDown, Settings2, RefreshCw, Zap, AlertCircle, Loader2, ArrowLeft, Globe, Clock, Bitcoin, Coins, CheckCircle2, ArrowRight
+  ArrowDown, Settings2, RefreshCw, Zap, AlertCircle, Loader2, ArrowLeft, Globe, Clock, Bitcoin, Coins
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -31,11 +31,10 @@ export default function SwapPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSwapping, setIsSwapping] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // État pour l'écran de succès
-
+  
   const [marketRates, setMarketRates] = useState<Record<string, number>>({ USD: 1 });
-  const [fromAsset, setFromAsset] = useState<any>(ASSETS.CRYPTO[1]); 
-  const [toAsset, setToAsset] = useState<any>(ASSETS.FIAT[1]);     
+  const [fromAsset, setFromAsset] = useState<any>(ASSETS.CRYPTO[1]); // USDT par défaut pour test
+  const [toAsset, setToAsset] = useState<any>(ASSETS.FIAT[1]);     // XAF par défaut pour test
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState(0);
 
@@ -66,7 +65,7 @@ export default function SwapPage() {
     try {
       const fiatRes = await fetch("https://open.er-api.com/v6/latest/USD");
       const fiatData = await fiatRes.json();
-
+      
       const cryptoRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether&vs_currencies=usd");
       const cryptoData = await cryptoRes.json();
 
@@ -74,8 +73,8 @@ export default function SwapPage() {
         ...fiatData.rates,
         BTC: cryptoData.bitcoin.usd,
         USDT: cryptoData.tether.usd,
-        PI: PI_CONSENSUS_USD,
-        SDA: 0.85,
+        PI: PI_CONSENSUS_USD, 
+        SDA: 0.85, 
       });
     } catch (err) {
       setMarketRates(prev => ({ ...prev, XAF: 615, XOF: 615, EUR: 0.92, CDF: 2800, PI: 314159, BTC: 65000, USDT: 1 }));
@@ -97,6 +96,7 @@ export default function SwapPage() {
     }
   }, [timeLeft, quote]);
 
+  // LOGIQUE DE CALCUL CORRIGÉE
   useEffect(() => {
     const amount = parseFloat(fromAmount);
     if (!isNaN(amount) && amount > 0 && marketRates[fromAsset.id] && marketRates[toAsset.id]) {
@@ -104,13 +104,15 @@ export default function SwapPage() {
       const isFromCrypto = ["BTC", "USDT", "PI", "SDA"].includes(fromAsset.id);
       const isToCrypto = ["BTC", "USDT", "PI", "SDA"].includes(toAsset.id);
 
-      const valueInUSD = isFromCrypto
-        ? amount * marketRates[fromAsset.id]  
-        : amount / marketRates[fromAsset.id]; 
+      // Étape 1 : Convertir le montant "FROM" en USD
+      const valueInUSD = isFromCrypto 
+        ? amount * marketRates[fromAsset.id]  // Crypto vers USD (Ex: 1 BTC * 65000)
+        : amount / marketRates[fromAsset.id]; // Fiat vers USD (Ex: 615 XAF / 615)
 
+      // Étape 2 : Convertir l'USD vers le montant "TO"
       result = isToCrypto
-        ? valueInUSD / marketRates[toAsset.id] 
-        : valueInUSD * marketRates[toAsset.id]; 
+        ? valueInUSD / marketRates[toAsset.id] // USD vers Crypto (Ex: 1 / 65000)
+        : valueInUSD * marketRates[toAsset.id]; // USD vers Fiat (Ex: 1 * 615)
 
       setToAmount(result);
     } else {
@@ -169,9 +171,8 @@ export default function SwapPage() {
         body: JSON.stringify({ quoteId: quote.quoteId })
       });
       if (response.ok) {
-        // Déclenchement du succès au lieu de la redirection directe
-        toast.success("Échange effectué avec succès !");
-        setIsSuccess(true);
+        toast.success("Swap PimPay réussi !");
+        router.push("/dashboard");
       } else {
         const err = await response.json();
         toast.error(err.error || "Échec");
@@ -187,46 +188,6 @@ export default function SwapPage() {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
         <Loader2 className="animate-spin text-blue-500" size={32} />
-      </div>
-    );
-  }
-
-  // --- VUE DE SUCCÈS ---
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="relative mb-8">
-            <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full"></div>
-            <div className="relative bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[3rem]">
-                <CheckCircle2 size={80} className="text-emerald-500 animate-bounce" />
-            </div>
-        </div>
-        
-        <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Swap Réussi !</h2>
-        <p className="text-slate-400 text-sm mb-8 font-medium px-10">
-            Vos fonds ont été convertis avec succès au taux GCV de PimPay.
-        </p>
-
-        <div className="w-full bg-white/5 border border-white/5 rounded-[2.5rem] p-6 mb-10 space-y-4">
-            <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-slate-500 uppercase">Montant Vendu</span>
-                <span className="font-bold">{fromAmount} {fromAsset.id}</span>
-            </div>
-            <div className="flex justify-center py-2 opacity-20">
-                <ArrowDown size={16} />
-            </div>
-            <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-slate-500 uppercase">Montant Reçu</span>
-                <span className="font-bold text-emerald-400">{toAmount.toLocaleString()} {toAsset.id}</span>
-            </div>
-        </div>
-
-        <button 
-          onClick={() => router.push("/dashboard")}
-          className="w-full p-6 bg-white text-black rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all"
-        >
-          Retour au Dashboard <ArrowRight size={18} />
-        </button>
       </div>
     );
   }
@@ -262,7 +223,7 @@ export default function SwapPage() {
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendre</span>
             <div className="flex gap-2">
                {ASSETS.CRYPTO.map(crypto => (
-                 <button key={crypto.id} onClick={() => setFromAsset(crypto)} className={`text-[8px] font-black px-2 py-1 rounded-lg border ${fromAsset.id === crypto.id ? 'bg-blue-600 border-blue-600' : 'border-white/10 opacity-50'}`}>{crypto.id}</button>
+                 <button key={crypto.id} onClick={() => setFromAsset(crypto)} className={`text-[8px] px-2 py-1 rounded-lg border ${fromAsset.id === crypto.id ? 'bg-blue-600 border-blue-600' : 'border-white/10 opacity-50'}`}>{crypto.id}</button>
                ))}
             </div>
           </div>
