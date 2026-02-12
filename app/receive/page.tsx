@@ -47,38 +47,45 @@ export default function ReceivePage() {
       return;
     }
 
+    // Vérification du SDK Pi
     if (typeof window === "undefined" || !window.Pi) {
       toast.error("Veuillez ouvrir PimPay dans le Pi Browser");
       return;
     }
 
     setIsProcessing(true);
-    const loadingToast = toast.loading("Connexion au réseau Pi...");
+    const loadingToast = toast.loading("Initialisation du paiement Pi...");
 
     try {
-      // ÉTAPE CRUCIALE POUR LE MAINNET : Ré-authentification légère pour réveiller le SDK
+      // 1. Authentification pour s'assurer que la session est active
       const scopes = ['payments', 'wallet_address'];
       await window.Pi.authenticate(scopes, (onIncompletePayment) => {
         console.log("Paiement incomplet trouvé:", onIncompletePayment);
       });
 
-      // Lancement du paiement
+      // 2. Création du paiement via le SDK
       await window.Pi.createPayment({
         amount: floatAmount,
         memo: memo || "Dépôt PimPay",
-        metadata: { type: "deposit", platform: "pimpay" },
+        metadata: { 
+          type: "deposit", 
+          platform: "pimpay",
+          userId: piAddress // Pour aider ton backend à identifier le compte
+        },
       }, {
         onReadyForServerApproval: async (paymentId) => {
-          console.log("Approbation serveur reçue, ID:", paymentId);
+          // Étape cruciale : Ton serveur doit valider ce paymentId auprès de Pi Network
           const res = await fetch("/api/payments/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ paymentId }),
           });
+          
+          if (!res.ok) throw new Error("Approbation serveur échouée");
           return res.json();
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
-          console.log("TXID Blockchain:", txid);
+          // Étape finale : Enregistrement de la transaction en base de données
           const res = await fetch("/api/payments/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -87,21 +94,22 @@ export default function ReceivePage() {
 
           toast.dismiss(loadingToast);
           if (res.ok) {
-            toast.success("Dépôt de " + floatAmount + " π validé !");
+            toast.success(`Dépôt de ${floatAmount} π validé !`, { duration: 5000 });
             setAmount("");
             setMemo("");
           } else {
-            toast.error("Erreur de synchronisation solde");
+            toast.error("Erreur de synchronisation du solde");
           }
           setIsProcessing(false);
         },
-        onCancel: () => {
+        onCancel: (paymentId) => {
           toast.dismiss(loadingToast);
+          console.log("Paiement annulé:", paymentId);
           setIsProcessing(false);
         },
-        onError: (error: any) => {
+        onError: (error: any, paymentId?: string) => {
           toast.dismiss(loadingToast);
-          console.error("SDK Error Details:", error);
+          console.error("SDK Error:", error, paymentId);
           toast.error(`Erreur Pi: ${error.message || "Paiement refusé"}`);
           setIsProcessing(false);
         },
@@ -109,8 +117,7 @@ export default function ReceivePage() {
     } catch (err: any) {
       toast.dismiss(loadingToast);
       console.error("Catch Error:", err);
-      // Si l'erreur contient "not_authenticated", c'est un problème de session Pi Browser
-      toast.error("Échec de l'initialisation. Vérifiez votre connexion Pi.");
+      toast.error("Vérifiez votre connexion au Pi Browser");
       setIsProcessing(false);
     }
   };
@@ -133,7 +140,7 @@ export default function ReceivePage() {
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-xl font-black italic uppercase italic">Recevoir<span className="text-blue-500">.π</span></h1>
+          <h1 className="text-xl font-black italic uppercase">Recevoir<span className="text-blue-500">.π</span></h1>
           <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Mainnet Secure Process</p>
         </div>
       </div>
@@ -144,7 +151,7 @@ export default function ReceivePage() {
           <div className="bg-white p-3 rounded-[1.5rem] mb-6 shadow-xl shadow-white/5">
             {piAddress && <QRCodeSVG value={piAddress} size={180} level="H" />}
           </div>
-          
+
           <div className="w-full space-y-2">
             <p className="text-[10px] font-bold text-slate-500 uppercase text-center">Adresse de réception</p>
             <div className="flex items-center gap-2 bg-black/40 p-1 pl-4 rounded-2xl border border-white/5">
@@ -184,8 +191,8 @@ export default function ReceivePage() {
             onClick={handlePiPayment}
             disabled={isProcessing}
             className={`w-full h-16 rounded-2xl font-black uppercase tracking-wider transition-all shadow-lg ${
-              isProcessing 
-                ? "bg-slate-800 text-slate-500" 
+              isProcessing
+                ? "bg-slate-800 text-slate-500"
                 : "bg-blue-600 shadow-blue-500/20 active:scale-95"
             }`}
           >

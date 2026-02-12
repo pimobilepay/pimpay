@@ -7,11 +7,12 @@ import { jwtVerify } from "jose";
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
-    
-    // --- LE VACCIN : RÉCUPÉRATION DU USERID ---
+    const PI_API_KEY = process.env.PI_API_KEY;
+
+    // --- 1. LE VACCIN : RÉCUPÉRATION DU USERID ---
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
+
     let userId: string | null = null;
 
     if (piToken) {
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. Trouver la transaction créée lors de l'étape "approve"
+    // --- 2. VÉRIFICATION INTERNE ---
     const transaction = await prisma.transaction.findFirst({
       where: { externalId: paymentId }
     });
@@ -46,21 +47,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // Sécurité contre le double-paiement
-    if (transaction.status === "COMPLETED" || transaction.status === "SUCCESS") {
-      return NextResponse.json({ message: "Transaction déjà traitée" });
+    if (transaction.status === "SUCCESS") {
+      return NextResponse.json({ message: "Transaction déjà traitée", success: true });
     }
 
-    // 2. TRANSACTION ATOMIQUE : On met à jour la transaction ET le solde du Wallet
+    // --- 3. SYNCHRONISATION OBLIGATOIRE AVEC PI NETWORK (S2S COMPLETE) ---
+    // On informe les serveurs de Pi que nous avons bien pris en compte le paiement
+    const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${PI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ txid }),
+    });
+
+    if (!piRes.ok) {
+      const errorData = await piRes.json();
+      console.error("❌ Pi Network Complete Error:", errorData);
+      // On n'arrête pas forcément ici si la txid est valide, mais c'est un signal d'alerte
+    }
+
+    // --- 4. TRANSACTION ATOMIQUE PRISMA (Wallet + Status) ---
     const result = await prisma.$transaction(async (tx) => {
-      // Trouver le wallet PI
+      // Trouver le wallet PI de l'utilisateur
       const wallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: "PI" } }
       });
 
-      if (!wallet) throw new Error("Wallet PI non trouvé");
+      if (!wallet) throw new Error("Wallet PI non trouvé. Créez un wallet d'abord.");
 
-      // Mettre à jour la transaction (Status: SUCCESS selon ton Enum)
+      // Mise à jour de la transaction
       const updatedTx = await tx.transaction.update({
         where: { id: transaction.id },
         data: {
@@ -69,12 +86,13 @@ export async function POST(request: Request) {
           metadata: {
             ...(transaction.metadata as any || {}),
             completedAt: new Date().toISOString(),
-            txid
+            txid,
+            piServerNotified: piRes.ok
           }
         }
       });
 
-      // Mettre à jour le solde du wallet
+      // Incrémentation du solde
       await tx.wallet.update({
         where: { id: wallet.id },
         data: {
@@ -85,19 +103,19 @@ export async function POST(request: Request) {
       return updatedTx;
     });
 
-    console.log(`[PIMPAY] Paiement finalisé: ${transaction.amount} π pour ${userId}`);
+    console.log(`[PIMPAY] ✅ Succès : ${transaction.amount} π ajoutés au compte ${userId}`);
 
     return NextResponse.json({
       success: true,
       transactionId: result.id,
-      txid,
-      message: "Paiement complété et solde mis à jour"
+      balanceAdded: transaction.amount,
+      message: "Félicitations ! Votre solde PimPay a été mis à jour."
     });
 
   } catch (error: any) {
-    console.error("[COMPLETE-PAYMENT] Error:", error.message);
+    console.error("❌ [COMPLETE-PAYMENT ERROR]:", error.message);
     return NextResponse.json(
-      { error: "Erreur serveur", details: error.message },
+      { error: "Erreur lors de la finalisation", details: error.message },
       { status: 500 }
     );
   }
