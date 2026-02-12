@@ -4,7 +4,10 @@ import * as jose from "jose";
 import HistoryClient from "./HistoryClient";
 
 async function getStatementsData() {
-  const token = cookies().get("token")?.value;
+  // 🛡️ CORRECT : On attend la Promise cookies() pour Next.js 16
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  
   if (!token) return null;
 
   try {
@@ -24,27 +27,21 @@ async function getStatementsData() {
       take: 50
     });
 
-    // Calcul enrichi des statistiques (Incluant les frais récupérés)
+    // Calcul enrichi des statistiques
     const stats = transactions.reduce((acc, tx) => {
-      // Si l'utilisateur est le destinataire -> Entrée
       if (tx.toUserId === userId) {
         acc.income += tx.amount;
-      } 
-      // Si l'utilisateur est l'expéditeur -> Sortie
+      }
       else if (tx.fromUserId === userId) {
         acc.outcome += tx.amount;
-        // On comptabilise les frais s'ils existent dans la transaction
         if (tx.fee) acc.totalFees += tx.fee;
       }
       return acc;
     }, { income: 0, outcome: 0, totalFees: 0 });
 
-    // On formate les transactions pour s'assurer que les metadata 
-    // récupérées (phoneNumber, provider) soient prêtes pour le client
     const formattedTransactions = transactions.map(tx => ({
       ...tx,
-      // On s'assure que les metadata sont bien parsées
-      displayMetadata: tx.metadata as any 
+      displayMetadata: tx.metadata as any
     }));
 
     return { transactions: formattedTransactions, stats, userId };
