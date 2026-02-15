@@ -1,20 +1,8 @@
-import Script from "next/script";
-
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-[#020617] relative">
-      {/* Le SDK est déjà chargé dans le Root Layout. 
-        On garde celui-ci uniquement comme "Filet de sécurité" avec 'afterInteractive'
-      */}
-      <Script
-        src="https://sdk.minepi.com/pi-sdk.js"
-        strategy="afterInteractive"
-      />
-
-      {/* On ne force pas window.Pi.init ici. 
-         C'est le Hook usePiAuth qui s'en chargera lors de l'appel 
-         pour éviter les conflits de version.
-      */}
+      {/* Le SDK Pi est charge dans le Root Layout (beforeInteractive)
+          et initialise par PiInitializer.tsx - pas de doublon ici */}
 
       {/* Contenu des pages login/signup */}
       <div className="relative z-10">
