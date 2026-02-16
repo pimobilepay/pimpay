@@ -1,16 +1,15 @@
 "use client";
 
-import React, { useState } from 'react';
-import { 
-  Lock, 
-  Unlock, 
-  Settings, 
-  CreditCard, 
-  ShieldAlert, 
+import React, { useState } from "react";
+import {
+  Lock,
+  Unlock,
+  Settings,
+  ShieldAlert,
   Zap,
-  Loader2
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+  Loader2,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface CardActionsProps {
   cardId: string;
@@ -23,82 +22,108 @@ export default function CardActions({ cardId, isFrozen }: CardActionsProps) {
   const router = useRouter();
 
   const handleToggleFreeze = async () => {
-    if (!confirm(`Voulez-vous vraiment ${frozen ? 'dégeler' : 'geler'} cette carte ?`)) return;
+    if (
+      !confirm(
+        `Voulez-vous vraiment ${frozen ? "degeler" : "geler"} cette carte ?`
+      )
+    )
+      return;
 
     setLoading(true);
     try {
-      // Appel à l'API (à créer ou adapter selon ton back)
-      const res = await fetch(`/api/auth/session/logout-others`, { // Exemple d'appel API
-        method: 'POST',
-        body: JSON.stringify({ cardId, action: frozen ? 'unfreeze' : 'freeze' })
+      const res = await fetch("/api/user/card/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId,
+          action: frozen ? "unfreeze" : "freeze",
+        }),
       });
 
-      // Simulation pour le test si l'API n'est pas encore prête
-      setTimeout(() => {
+      if (res.ok) {
         setFrozen(!frozen);
-        setLoading(false);
-        router.refresh();
-      }, 800);
-
+      }
     } catch (error) {
       console.error("Erreur action carte:", error);
+    } finally {
       setLoading(false);
+      router.refresh();
     }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Bouton Geler / Dégeler */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Bouton Geler / Degeler */}
       <button
         onClick={handleToggleFreeze}
         disabled={loading}
         className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-          frozen 
-          ? 'bg-green-50 border-green-100 text-green-700 hover:bg-green-100' 
-          : 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
+          frozen
+            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15"
+            : "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15"
         }`}
       >
-        <div className={`p-2 rounded-xl ${frozen ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'}`}>
-          {loading ? <Loader2 size={20} className="animate-spin" /> : (frozen ? <Unlock size={20} /> : <Lock size={20} />)}
+        <div
+          className={`p-2 rounded-xl ${frozen ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}
+        >
+          {loading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : frozen ? (
+            <Unlock size={20} />
+          ) : (
+            <Lock size={20} />
+          )}
         </div>
         <div className="text-left">
           <p className="font-bold text-sm uppercase tracking-tight">
             {frozen ? "Activer la carte" : "Geler la carte"}
           </p>
-          <p className="text-[10px] opacity-70">Sécurité instantanée</p>
+          <p className="text-[10px] opacity-60">
+            {"Securite instantanee"}
+          </p>
         </div>
       </button>
 
-      {/* Bouton Limites (Exemple d'autre action) */}
-      <button className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all">
-        <div className="p-2 rounded-xl bg-gray-200 text-gray-600">
+      {/* Bouton Limites */}
+      <button className="flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] transition-all">
+        <div className="p-2 rounded-xl bg-white/5 text-white/50">
           <Settings size={20} />
         </div>
         <div className="text-left">
-          <p className="font-bold text-sm uppercase tracking-tight">Plafonds</p>
-          <p className="text-[10px] opacity-70">Gérer les limites</p>
+          <p className="font-bold text-sm uppercase tracking-tight">
+            Plafonds
+          </p>
+          <p className="text-[10px] opacity-60">
+            {"Gerer les limites"}
+          </p>
         </div>
       </button>
 
-      {/* Bouton Remplacer */}
-      <button className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all">
-        <div className="p-2 rounded-xl bg-gray-200 text-gray-600">
+      {/* Bouton Details */}
+      <button className="flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] transition-all">
+        <div className="p-2 rounded-xl bg-white/5 text-white/50">
           <Zap size={20} />
         </div>
         <div className="text-left">
-          <p className="font-bold text-sm uppercase tracking-tight">Détails</p>
-          <p className="text-[10px] opacity-70">Voir les infos sensibles</p>
+          <p className="font-bold text-sm uppercase tracking-tight">
+            {"Details"}
+          </p>
+          <p className="text-[10px] opacity-60">
+            Voir les infos sensibles
+          </p>
         </div>
       </button>
 
       {/* Bouton Signaler */}
-      <button className="flex items-center gap-4 p-4 rounded-2xl border border-red-50 bg-red-50/30 text-red-600 hover:bg-red-50 transition-all">
-        <div className="p-2 rounded-xl bg-red-100 text-red-600">
+      <button className="flex items-center gap-4 p-4 rounded-2xl border border-red-500/15 bg-red-500/5 text-red-400 hover:bg-red-500/10 transition-all">
+        <div className="p-2 rounded-xl bg-red-500/10 text-red-400">
           <ShieldAlert size={20} />
         </div>
         <div className="text-left">
-          <p className="font-bold text-sm uppercase tracking-tight">Signaler</p>
-          <p className="text-[10px] opacity-70">Perte ou vol</p>
+          <p className="font-bold text-sm uppercase tracking-tight">
+            Signaler
+          </p>
+          <p className="text-[10px] opacity-60">Perte ou vol</p>
         </div>
       </button>
     </div>

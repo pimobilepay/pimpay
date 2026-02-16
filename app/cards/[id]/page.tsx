@@ -19,7 +19,8 @@ import VirtualCard from "@/components/cards/VirtualCard";
 import CardActions from "@/components/cards/CardActions";
 
 async function getCardDetails(cardId: string) {
-  const token = cookies().get("token")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
   if (!token) return null;
   try {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -28,17 +29,22 @@ async function getCardDetails(cardId: string) {
     return await prisma.virtualCard.findFirst({
       where: {
         id: cardId,
-        userId: payload.id as string
+        userId: payload.id as string,
       },
-      include: { user: true }
+      include: { user: true },
     });
   } catch {
     return null;
   }
 }
 
-export default async function CardDetailsPage({ params }: { params: { id: string } }) {
-  const card = await getCardDetails(params.id);
+export default async function CardDetailsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const resolvedParams = await params;
+  const card = await getCardDetails(resolvedParams.id);
 
   if (!card) {
     return (
