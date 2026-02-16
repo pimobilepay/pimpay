@@ -89,6 +89,12 @@ model User {
   sidraAddress   String? @unique 
   sidraPrivateKey String?        
 
+  xrpAddress     String? @unique  // XRP Ledger
+  xrpSecret      String?
+
+  xlmAddress     String? @unique  // Stellar Lumens
+  xlmSecret      String?
+
   wallets          Wallet[]
   vaults           Vault[]
   stakings         Staking[]
