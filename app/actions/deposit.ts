@@ -5,11 +5,11 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 
 const MTN_CONFIG = {
-  baseUrl: "https://sandbox.momodeveloper.mtn.com",
-  subscriptionKey: "be348175da3041539aa325294a43cdf6",
-  apiUser: "f80ff15f-a76c-42af-8f5b-ff6c5ca4c9bc",    
-  apiKey: "d050f8202cce434aa9d120c89719fea4", 
-  targetEnv: "sandbox",
+  baseUrl: process.env.MTN_BASE_URL || "https://proxy.momoapi.mtn.com",
+  subscriptionKey: process.env.MTN_SUBSCRIPTION_KEY || "",
+  apiUser: process.env.MTN_API_USER || "",
+  apiKey: process.env.MTN_API_KEY || "",
+  targetEnv: process.env.MTN_TARGET_ENV || "mtnuganda",
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -108,7 +108,7 @@ export async function processDeposit(formData: {
           description: `Dépôt via ${formData.method}`,
           metadata: {
             phone: formData.phone,
-            gateway: "MTN_MOMO_SANDBOX"
+            gateway: "MTN_MOMO_PRODUCTION"
           }
         }
       });
