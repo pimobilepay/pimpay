@@ -16,8 +16,8 @@ const generateCardNumber = () => {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get("token")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });

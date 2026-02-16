@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     const { paymentId, amount } = body;
 
     // 1. Récupération de la session utilisateur via le token JWT
-    const cookieStore = cookies();
-    const token = cookieStore.get("token")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
       console.error(`[${timestamp}] ❌ [AUTH] Aucun token trouvé dans les cookies.`);

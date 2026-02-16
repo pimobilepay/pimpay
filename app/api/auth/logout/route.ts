@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 
 export async function POST() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
 
     // On prépare les options communes pour la suppression
     const cookieOptions = {

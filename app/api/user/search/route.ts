@@ -71,15 +71,22 @@ export async function GET(request: Request) {
     // --- 2. DÉTECTION D'ADRESSE EXTERNE ---
     const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(query);
     const isTron = query.startsWith('T') && query.length === 34;
+    const isPiAddress = /^G[A-Z2-7]{55}$/.test(query);
 
-    if (isSdaOrEth || isTron) {
+    if (isSdaOrEth || isTron || isPiAddress) {
+      let lastName = "Externe";
+      if (isPiAddress) lastName = "Pi Network Externe";
+      else if (isSdaOrEth) lastName = "SDA/EVM Externe";
+      else if (isTron) lastName = "USDT Externe";
+
       return NextResponse.json({
         id: "external",
         username: query.slice(0, 6) + "..." + query.slice(-4),
         firstName: "Destinataire",
-        lastName: isSdaOrEth ? "SDA/EVM Externe" : "USDT Externe",
+        lastName,
         avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${query}`,
         isExternal: true,
+        walletAddress: isPiAddress ? query : null,
         sidraAddress: isSdaOrEth ? query : null,
         usdtAddress: isTron ? query : null,
         kycStatus: "EXTERNAL"

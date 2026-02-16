@@ -68,10 +68,16 @@ export async function POST(req: NextRequest) {
           OR: [
             { username: { equals: cleanIdentifier, mode: 'insensitive' } },
             { email: { equals: cleanIdentifier, mode: 'insensitive' } },
-            { sidraAddress: cleanIdentifier }
+            { sidraAddress: cleanIdentifier },
+            { walletAddress: cleanIdentifier },
+            { piUserId: cleanIdentifier },
+            { phone: cleanIdentifier }
           ]
         }
       });
+
+      // Détection d'adresse Pi externe (commence par G et 56 caractères)
+      const isExternalPi = /^G[A-Z2-7]{55}$/.test(cleanIdentifier);
 
       let txHash = null;
       let toUserId = null;
@@ -126,8 +132,23 @@ export async function POST(req: NextRequest) {
             type: "PAYMENT_RECEIVED"
           }
         });
-      } else {
-        throw new Error("Cible introuvable.");
+      // CAS C : TRANSFERT PI VERS ADRESSE EXTERNE (Mainnet)
+      else if (isExternalPi && transferCurrency === "PI") {
+        // Pour l'instant, les transferts PI externes sont enregistrés comme PENDING
+        // et nécessitent une validation manuelle ou un processeur blockchain séparé
+        txHash = `PI-EXT-${Date.now()}`;
+
+        await tx.notification.create({
+          data: {
+            userId: senderId,
+            title: "Transfert Pi externe initie",
+            message: `Envoi de ${transferAmount} PI vers ${cleanIdentifier.slice(0, 8)}...${cleanIdentifier.slice(-6)}`,
+            type: "PAYMENT_SENT"
+          }
+        });
+      }
+      else {
+        throw new Error("Destinataire introuvable. Verifiez le pseudo, email ou adresse wallet.");
       }
 
       return await tx.transaction.create({
@@ -142,7 +163,7 @@ export async function POST(req: NextRequest) {
           toUserId: toUserId,
           toWalletId: toWalletId,
           blockchainTx: txHash,
-          description: description || (txHash ? `Retrait Blockchain` : `Vers @${recipient?.username}`)
+          description: description || (isExternalPi ? `Transfert Pi vers ${cleanIdentifier.slice(0, 8)}...` : txHash ? `Retrait Blockchain` : `Vers @${recipient?.username}`)
         }
       });
     }, { timeout: 30000 }); // Timeout ajusté

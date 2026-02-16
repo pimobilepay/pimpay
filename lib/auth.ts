@@ -46,8 +46,8 @@ export async function verifyAuth(req: NextRequest) {
 // 2. Pour tes pages et Server Actions
 export const auth = async () => {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('token')?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value || cookieStore.get('pimpay_token')?.value;
 
     if (!token) return null;
 

@@ -7,7 +7,7 @@ import * as jose from "jose";
 export async function POST(req: Request) {
   try {
     // 1. Vérification de la session
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     
     if (!token) {

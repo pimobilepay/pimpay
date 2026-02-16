@@ -12,8 +12,8 @@ export async function GET(request: Request) {
     if (!txId) return NextResponse.json({ error: "ID manquant" }, { status: 400 });
 
     // 1. Vérification de la session
-    const cookieStore = cookies();
-    const token = cookieStore.get("session_id")?.value || cookieStore.get("token")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 

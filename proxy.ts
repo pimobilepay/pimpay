@@ -6,8 +6,8 @@ import * as jose from "jose";
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Récupération des tokens
-  const token = req.cookies.get("token")?.value;
+  // 1. Récupération des tokens (vérifier tous les noms de cookies utilisés)
+  const token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
   const piToken = req.cookies.get("pi_session_token")?.value;
 
   // 2. EXCLUSIONS (On laisse passer les fichiers statiques et l'auth)
@@ -52,7 +52,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
-  const isProtectedPath = pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+  const isProtectedPath = pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname.startsWith("/transfer") || pathname.startsWith("/deposit") || pathname.startsWith("/settings") || pathname.startsWith("/profile");
   if (!userPayload && isProtectedPath) {
     return NextResponse.redirect(new URL("/", req.url));
   }

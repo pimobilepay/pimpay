@@ -9,8 +9,8 @@ import { PI_CONSENSUS_RATE, calculateExchangeWithFee } from "@/lib/exchange";
 export async function POST(req: NextRequest) {
   try {
     // 1. AUTHENTIFICATION SÉCURISÉE (Correction structure Pimpay)
-    const cookieStore = cookies();
-    const token = cookieStore.get("token")?.value || cookieStore.get("session_id")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     
     if (!token) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });

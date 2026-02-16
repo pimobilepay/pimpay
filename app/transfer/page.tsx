@@ -136,7 +136,7 @@ export default function SendPage() {
             setRecipientData(data);
           } else if (
             isMountedRef.current &&
-            (recipientId.startsWith("0x") || recipientId.startsWith("G") || recipientId.length > 20)
+            (recipientId.startsWith("0x") || /^G[A-Z2-7]{55}$/.test(recipientId) || (recipientId.startsWith("T") && recipientId.length === 34))
           ) {
             setRecipientData({
               firstName: "Adresse",
