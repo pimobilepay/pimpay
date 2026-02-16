@@ -5,17 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 
-async function getLiveBTCPrice() {
+async function getLiveMarketPrices() {
   try {
-    // Timeout court pour ne pas bloquer l'utilisateur si CoinGecko est lent
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { 
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ripple,stellar&vs_currencies=usd', { 
         next: { revalidate: 60 },
         signal: AbortSignal.timeout(3000) 
     });
     const data = await res.json();
-    return data.bitcoin.usd;
+    return {
+      BTC: data.bitcoin?.usd || 95000,
+      XRP: data.ripple?.usd || 2.50,
+      XLM: data.stellar?.usd || 0.40,
+    };
   } catch (e) {
-    return 95000; // Prix de secours
+    return { BTC: 95000, XRP: 2.50, XLM: 0.40 };
   }
 }
 
@@ -53,14 +56,16 @@ export async function POST(request: Request) {
 
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
-    const btcPrice = await getLiveBTCPrice();
+    const livePrices = await getLiveMarketPrices();
 
-    // AJUSTEMENT DES PRIX (Inclusion du prix consensus Pi et Sidra)
+    // AJUSTEMENT DES PRIX (Inclusion du prix consensus Pi et Sidra + XRP/XLM)
     const PRICES: Record<string, number> = {
       "SDA": 1.2,
       "USDT": 1,
-      "BTC": btcPrice,
-      "PI": 314159 // Le fameux prix consensus
+      "BTC": livePrices.BTC,
+      "PI": 314159,
+      "XRP": livePrices.XRP,
+      "XLM": livePrices.XLM,
     };
 
     if (!PRICES[from] || !PRICES[to]) {

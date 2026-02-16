@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
       });
 
       const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
+      const isExternalXRP = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(cleanIdentifier);
+      const isExternalXLM = /^G[A-Z2-7]{55}$/.test(cleanIdentifier);
       
       const senderWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: senderId, currency: transferCurrency } }
@@ -94,7 +96,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // B. CAS INTERNE : TRANSFERT ENTRE MEMBRES PIMPAY
+      // B. CAS XRP EXTERNE
+      else if (isExternalXRP && transferCurrency === "XRP" && !recipient) {
+        txHash = `XRP-EXT-${Date.now()}`;
+      }
+
+      // C. CAS XLM EXTERNE  
+      else if (isExternalXLM && transferCurrency === "XLM" && !recipient) {
+        txHash = `XLM-EXT-${Date.now()}`;
+      }
+
+      // D. CAS INTERNE : TRANSFERT ENTRE MEMBRES PIMPAY
       else if (recipient) {
         if (recipient.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer d'argent à vous-même.");
         

@@ -42,6 +42,8 @@ export async function GET() {
         walletAddress: true,
         sidraAddress: true,
         usdtAddress: true,
+        xrpAddress: true,
+        xlmAddress: true,
         wallets: true,
       }
     });
@@ -97,6 +99,10 @@ export async function GET() {
     const daiWallet = user.wallets.find(w => w.currency === "DAI");
     const busdWallet = user.wallets.find(w => w.currency === "BUSD");
 
+    // Récupérer les wallets XRP/XLM
+    const xrpWallet = user.wallets.find(w => w.currency === "XRP");
+    const xlmWallet = user.wallets.find(w => w.currency === "XLM");
+
     return NextResponse.json({
       success: true,
       ...balancesMap,
@@ -107,6 +113,8 @@ export async function GET() {
       USDC: balancesMap["USDC"] || "0.0000",
       DAI: balancesMap["DAI"] || "0.0000",
       BUSD: balancesMap["BUSD"] || "0.0000",
+      XRP: balancesMap["XRP"] || "0.000000",
+      XLM: balancesMap["XLM"] || "0.0000000",
       addresses: {
         PI: user.walletAddress || "",
         SDA: user.sidraAddress || "",
@@ -115,6 +123,8 @@ export async function GET() {
         USDC: usdcWallet?.depositMemo || "",
         DAI: daiWallet?.depositMemo || "",
         BUSD: busdWallet?.depositMemo || "",
+        XRP: user.xrpAddress || xrpWallet?.depositMemo || "",
+        XLM: user.xlmAddress || xlmWallet?.depositMemo || "",
       },
       wallets: user.wallets.map(w => ({
         currency: w.currency === "SIDRA" ? "SDA" : w.currency,

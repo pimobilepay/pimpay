@@ -56,6 +56,24 @@ const BusdLogo = () => (
   </div>
 );
 
+const XrpLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-slate-900/60 flex items-center justify-center border border-slate-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#23292f"/>
+      <path d="M23.07 8h2.89l-6.01 5.84a5.52 5.52 0 01-7.9 0L6.04 8h2.89l4.58 4.46a3.5 3.5 0 005.01 0L23.07 8zm-17.14 16H3.04l6.01-5.84a5.52 5.52 0 017.9 0L22.96 24h-2.89l-4.58-4.46a3.5 3.5 0 00-5.01 0L5.93 24z" fill="#fff"/>
+    </svg>
+  </div>
+);
+
+const XlmLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-sky-900/20 flex items-center justify-center border border-sky-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#0e1b2e"/>
+      <path d="M24.9 10.5l-1.4.8-14 8-2.5 1.4V18l2.5-1.4 10.3-5.9 1.4-.8L24.9 8v2.5zm0 3.7l-2.5 1.4-10.3 5.9-1.4.8-2.5 1.4-2.2 1.3v-2.5l2.2-1.3 1.4-.8 10.3-5.9 2.5-1.4 2.5-1.4v2.5l-2.5 1.4 2.5-1.4zm0 3.6l-2.5 1.4-14 8-1.4.8v-2.5l1.4-.8 14-8 2.5-1.4V24l-2.5 1.4V17.8z" fill="#50e6ff"/>
+    </svg>
+  </div>
+);
+
 // --- TYPES ---
 interface WalletAddresses {
   PI: string;
@@ -65,6 +83,8 @@ interface WalletAddresses {
   USDC: string;
   DAI: string;
   BUSD: string;
+  XRP: string;
+  XLM: string;
 }
 
 export default function WalletPage() {
