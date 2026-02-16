@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     const wif = bytesToWif(privKeyBytes);
     const encryptedKey = encrypt(wif);
 
-    // SAUVEGARDE
+    // SAUVEGARDE - On ne touche PAS à user.walletAddress (réservé à Pi)
     const result = await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "BTC" } },
@@ -71,11 +71,6 @@ export async function POST(req: Request) {
 
       await tx.vault.create({
         data: { userId, name: `BTC_PRIV_${address}`, amount: 0 }
-      });
-
-      await tx.user.update({
-        where: { id: userId },
-        data: { walletAddress: address }
       });
 
       return wallet;

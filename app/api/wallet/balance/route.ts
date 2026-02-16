@@ -39,7 +39,9 @@ export async function GET() {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        walletAddress: true,
         sidraAddress: true,
+        usdtAddress: true,
         wallets: true,
       }
     });
@@ -78,20 +80,37 @@ export async function GET() {
 
     // --- CONSTRUCTION DE LA RÉPONSE ---
     const balancesMap = user.wallets.reduce((acc, wallet) => {
-      acc[wallet.currency] = wallet.balance.toFixed(4);
+      // Normaliser SIDRA -> SDA pour le frontend
+      const key = wallet.currency === "SIDRA" ? "SDA" : wallet.currency;
+      acc[key] = wallet.balance.toFixed(4);
       return acc;
     }, {} as Record<string, string>);
 
     // On s'assure que SDA est à jour dans l'objet final
     balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
 
+    // Récupérer l'adresse BTC depuis le wallet BTC (depositMemo)
+    const btcWallet = user.wallets.find(w => w.currency === "BTC");
+
     return NextResponse.json({
       success: true,
       ...balancesMap,
       PI: balancesMap["PI"] || "0.0000",
       USDT: balancesMap["USDT"] || "0.00",
+      BTC: balancesMap["BTC"] || "0.00000000",
       SDA: balancesMap["SDA"],
-      address: user.sidraAddress,
+      addresses: {
+        PI: user.walletAddress || "",
+        SDA: user.sidraAddress || "",
+        USDT: user.usdtAddress || "",
+        BTC: btcWallet?.depositMemo || "",
+      },
+      wallets: user.wallets.map(w => ({
+        currency: w.currency === "SIDRA" ? "SDA" : w.currency,
+        balance: w.balance,
+        depositMemo: w.depositMemo,
+        type: w.type,
+      })),
     });
 
   } catch (error: any) {

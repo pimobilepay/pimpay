@@ -1,41 +1,99 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  ArrowLeft,
-  MoreVertical,
-  Share2,
-  Download,
-  Clock,
-  X,
-  Copy,
-  Check,
-  History
+  ArrowLeft, Share2, Download, Clock, X, Copy, Check, History,
+  ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar,
+  RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import SendModal from "@/components/SendModal";
+import { toast } from "sonner";
+
+// --- ASSET CONFIG ---
+const ASSET_CONFIG: Record<string, {
+  name: string;
+  network: string;
+  image: string;
+  accentColor: string;
+  accentBg: string;
+  accentBorder: string;
+  explorerLabel: string;
+  explorerBase: string;
+  decimals: number;
+}> = {
+  PI: {
+    name: "Pi Network",
+    network: "Pi Mainnet",
+    image: "/pi-coin.png",
+    accentColor: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    accentBorder: "border-blue-500/20",
+    explorerLabel: "Pi Explorer",
+    explorerBase: "https://minepi.com/blockexplorer/tx/",
+    decimals: 8,
+  },
+  SDA: {
+    name: "Sidra Chain",
+    network: "Sidra Mainnet",
+    image: "/sidrachain.png",
+    accentColor: "text-emerald-400",
+    accentBg: "bg-emerald-500/10",
+    accentBorder: "border-emerald-500/20",
+    explorerLabel: "Sidra Ledger",
+    explorerBase: "https://ledger.sidrachain.com/tx/",
+    decimals: 4,
+  },
+  USDT: {
+    name: "Tether USD",
+    network: "TRC20 (TRON)",
+    image: "/tether-usdt.png",
+    accentColor: "text-emerald-400",
+    accentBg: "bg-emerald-500/10",
+    accentBorder: "border-emerald-500/20",
+    explorerLabel: "TronScan",
+    explorerBase: "https://tronscan.org/#/transaction/",
+    decimals: 4,
+  },
+  BTC: {
+    name: "Bitcoin",
+    network: "Bitcoin Mainnet",
+    image: "/bitcoin.png",
+    accentColor: "text-orange-400",
+    accentBg: "bg-orange-500/10",
+    accentBorder: "border-orange-500/20",
+    explorerLabel: "Blockchain.com",
+    explorerBase: "https://www.blockchain.com/btc/tx/",
+    decimals: 8,
+  },
+};
+
+const MARKET_DEFAULTS: Record<string, number> = {
+  PI: 314159,
+  SDA: 1.20,
+  USDT: 1.00,
+  BTC: 0,
+};
 
 interface Transaction {
   createdAt: string;
   currency: string;
   amount: number;
   status: string;
+  type?: string;
   blockchainTx?: string;
+  externalId?: string;
+  toUserId?: string;
+  fromUserId?: string;
 }
 
-interface AssetData {
-  name: string;
-  symbol: string;
-  balance: string;
-  address: string;
-}
-
-export default function AssetDetailStructure() {
+export default function AssetDetailPage() {
   const router = useRouter();
   const params = useParams();
 
   const rawAssetId = typeof params?.assetid === 'string' ? params.assetid : "PI";
   const assetId = rawAssetId.toUpperCase();
+  const config = ASSET_CONFIG[assetId] || ASSET_CONFIG.PI;
 
   const [isMounted, setIsMounted] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -43,228 +101,388 @@ export default function AssetDetailStructure() {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [userId, setUserId] = useState("");
 
-  const [assetData, setAssetData] = useState<AssetData>({
-    name: assetId === "PI" ? "Pi Network" : assetId === "SDA" ? "Sidra Chain" : assetId === "USDT" ? "Tether USD" : "Bitcoin",
-    symbol: assetId,
-    balance: "0.00000000",
-    address: ""
-  });
+  const [balance, setBalance] = useState("0.00000000");
+  const [address, setAddress] = useState("");
+  const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
+
+  // Fetch market prices
+  const fetchMarketPrice = useCallback(async () => {
+    if (assetId === "PI" || assetId === "SDA") return; // No public API for these
+    try {
+      const ids = assetId === "BTC" ? "bitcoin" : "tether";
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`);
+      if (res.ok) {
+        const data = await res.json();
+        const price = assetId === "BTC" ? data.bitcoin?.usd : data.tether?.usd;
+        if (price) setMarketPrice(price);
+      }
+    } catch { /* keep default */ }
+  }, [assetId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // Sync SDA if needed
+      if (assetId === "SDA") {
+        fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+      }
+
       const [profileRes, balanceRes, historyRes] = await Promise.all([
         fetch('/api/user/profile'),
         fetch('/api/wallet/balance'),
         fetch(`/api/wallet/history?currency=${assetId}`)
       ]);
 
-      if (profileRes.ok && balanceRes.ok) {
-        const profile = await profileRes.json();
-        const balances = await balanceRes.json();
-
-        let addr = "";
-        let realBalance = "0.00000000";
-
-        // --- LOGIQUE DE RÉCUPÉRATION DES DONNÉES RÉELLES ---
-        switch (assetId) {
-          case "PI":
-            addr = "GD3SGMIZH6NAQ3RY7KQZDSSDHTN2K2HFKRRPEVAWWFJGL4CZ7MXW7UQR";
-            realBalance = profile.balance ? parseFloat(profile.balance).toFixed(8) : "0.00000000";
-            break;
-          case "SDA":
-            addr = profile.sidraAddress;
-            realBalance = balances.SDA ? parseFloat(balances.SDA).toFixed(2) : "0.00";
-            break;
-          case "USDT":
-            addr = profile.usdtAddress;
-            realBalance = balances.USDT ? parseFloat(balances.USDT).toFixed(2) : "0.00";
-            break;
-          case "BTC":
-            // CORRECTION : On évite profile.walletAddress qui contient l'adresse Pi.
-            // On tente de récupérer l'adresse BTC spécifique dans les wallets.
-            const btcWallet = balances.wallets?.find((w: any) => w.currency === "BTC");
-            
-            if (btcWallet?.depositMemo && btcWallet.depositMemo.startsWith("bc1")) {
-              addr = btcWallet.depositMemo;
-            } else {
-              // Si pas d'adresse BTC ou adresse erronée, on appelle l'API de génération
-              const genRes = await fetch('/api/wallet/btc', { method: 'POST' });
-              if (genRes.ok) {
-                const genData = await genRes.json();
-                addr = genData.address;
-              } else {
-                addr = "Génération échouée";
-              }
-            }
-            realBalance = balances.BTC ? parseFloat(balances.BTC).toFixed(8) : "0.00000000";
-            break;
+      // Profile - read from result.user
+      if (profileRes.ok) {
+        const profileJson = await profileRes.json();
+        const user = profileJson.user;
+        if (user) {
+          setUserId(user.id);
         }
-
-        setAssetData(prev => ({
-          ...prev,
-          balance: realBalance,
-          address: addr || "Non configurée"
-        }));
       }
 
+      // Balance + addresses from the unified balance API
+      if (balanceRes.ok) {
+        const balData = await balanceRes.json();
+
+        // Get balance
+        const rawBalance = balData[assetId] || "0";
+        setBalance(parseFloat(rawBalance).toFixed(config.decimals));
+
+        // Get address from addresses object
+        let addr = "";
+        if (balData.addresses) {
+          addr = balData.addresses[assetId] || "";
+        }
+
+        // For BTC, if no address, generate one
+        if (assetId === "BTC" && !addr) {
+          try {
+            const genRes = await fetch('/api/wallet/btc', { method: 'POST' });
+            if (genRes.ok) {
+              const genData = await genRes.json();
+              addr = genData.address || "";
+            }
+          } catch { /* ignore */ }
+        }
+
+        setAddress(addr);
+      }
+
+      // Transaction history
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         const filtered = (historyData.transactions || []).filter(
-          (tx: Transaction) => tx.currency.toUpperCase() === assetId
+          (tx: Transaction) => tx.currency?.toUpperCase() === assetId ||
+            (assetId === "SDA" && tx.currency?.toUpperCase() === "SIDRA")
         );
         setTransactions(filtered);
       }
     } catch (err) {
-      console.error("Erreur PimPay Sync:", err);
+      console.error("Asset data error:", err);
     } finally {
       setLoading(false);
     }
-  }, [assetId]);
+  }, [assetId, config.decimals]);
 
   useEffect(() => {
     setIsMounted(true);
     loadData();
-  }, [loadData]);
+    fetchMarketPrice();
+  }, [loadData, fetchMarketPrice]);
 
-  const handleCopy = (address: string) => {
-    if (!address || address === "Non configurée" || address === "Génération en cours...") return;
-    navigator.clipboard.writeText(address);
+  const handleCopy = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     setCopied(true);
+    toast.success("Adresse copiee");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getAssetImage = () => {
-    switch(assetId) {
-      case "PI": return "/pi-coin.png";
-      case "SDA": return "/sidrachain.png";
-      case "USDT": return "/tether-usdt.png";
-      case "BTC": return "/bitcoin.png";
-      default: return "/pi-coin.png";
-    }
-  };
+  const usdValue = parseFloat(balance) * marketPrice;
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col pb-32">
+    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col pb-36">
       {/* HEADER */}
-      <div className="px-6 pt-12 pb-4 flex justify-between items-center">
-        <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90">
-          <ArrowLeft size={22} className="text-slate-400" />
+      <div className="px-5 pt-12 pb-3 flex justify-between items-center">
+        <button
+          onClick={() => router.back()}
+          className="p-2.5 bg-white/5 rounded-xl border border-white/10 active:scale-90 transition-transform"
+        >
+          <ArrowLeft size={20} className="text-slate-400" />
         </button>
         <div className="text-center">
-          <h1 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">Détails de l'actif</h1>
-          <p className="text-xs font-bold text-slate-500 uppercase">{assetData.name}</p>
+          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${config.accentColor}`}>{config.name}</p>
+          <p className="text-[9px] font-bold text-slate-600 uppercase">{config.network}</p>
         </div>
-        <button onClick={loadData} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:rotate-180 transition-transform">
-          <MoreVertical size={22} className="text-slate-400" />
+        <button
+          onClick={loadData}
+          disabled={loading}
+          className="p-2.5 bg-white/5 rounded-xl border border-white/10 active:scale-90 transition-transform disabled:opacity-50"
+        >
+          <RefreshCcw size={20} className={loading ? "animate-spin text-blue-500" : "text-slate-400"} />
         </button>
       </div>
 
-      {/* BALANCE SECTION */}
-      <div className="flex-1 flex flex-col items-center pt-8 px-6">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-600/20 to-transparent p-5 mb-6 border border-white/10 shadow-2xl relative flex items-center justify-center">
-          <img src={getAssetImage()} alt={assetId} className="w-full h-full object-contain" />
-          {loading && <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
-        </div>
+      <div className="flex-1 flex flex-col items-center px-5">
+        {/* ASSET ICON + BALANCE */}
+        <div className="flex flex-col items-center pt-6 pb-8">
+          <div className={`w-20 h-20 rounded-full ${config.accentBg} p-4 mb-5 border ${config.accentBorder} relative flex items-center justify-center`}>
+            <img src={config.image} alt={assetId} className="w-full h-full object-contain" />
+            {loading && (
+              <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            )}
+          </div>
 
-        <div className="text-center mb-10">
-          <h2 className="text-4xl font-black tracking-tighter text-white mb-2">
-            {loading ? "..." : assetData.balance}
-          </h2>
-          <span className="px-4 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-500 font-black text-[10px] uppercase tracking-widest">
-            {assetData.symbol} Balance
-          </span>
+          <div className="text-center">
+            {loading ? (
+              <div className="h-10 w-40 bg-white/5 rounded-xl animate-pulse mx-auto mb-2" />
+            ) : (
+              <h2 className="text-4xl font-black tracking-tighter text-white mb-1">
+                {balance}
+              </h2>
+            )}
+            <span className={`text-[11px] font-black uppercase tracking-wider ${config.accentColor}`}>
+              {assetId}
+            </span>
+
+            {/* USD VALUE */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+              {loading ? (
+                <div className="h-5 w-24 bg-white/5 rounded animate-pulse" />
+              ) : (
+                <p className="text-sm font-bold text-slate-400">
+                  ${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* STATS CARDS */}
-        <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-10">
-          <div className="bg-white/5 border border-white/10 p-5 rounded-[2rem]">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-1">Disponible</p>
-            <p className="text-sm font-black text-white truncate">{assetData.balance}</p>
+        <div className="grid grid-cols-3 gap-2.5 w-full max-w-sm mb-8">
+          <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-2xl text-center">
+            <Wallet size={14} className="mx-auto text-slate-600 mb-1.5" />
+            <p className="text-[8px] font-bold uppercase text-slate-600 tracking-wide mb-1">Disponible</p>
+            <p className="text-[11px] font-black text-white truncate">{loading ? "..." : balance}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 p-5 rounded-[2rem]">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-1">En attente</p>
-            <p className="text-sm font-black text-slate-700">0.0000</p>
+          <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-2xl text-center">
+            <TrendingUp size={14} className="mx-auto text-slate-600 mb-1.5" />
+            <p className="text-[8px] font-bold uppercase text-slate-600 tracking-wide mb-1">Prix</p>
+            <p className="text-[11px] font-black text-white truncate">${marketPrice.toLocaleString()}</p>
+          </div>
+          <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-2xl text-center">
+            <Globe size={14} className="mx-auto text-slate-600 mb-1.5" />
+            <p className="text-[8px] font-bold uppercase text-slate-600 tracking-wide mb-1">Reseau</p>
+            <p className="text-[10px] font-black text-white truncate">{config.network}</p>
           </div>
         </div>
 
-        {/* HISTORIQUE SECTION */}
-        <div className="w-full">
-          <div className="flex justify-between items-center mb-6 px-2">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Historique {assetId}</h3>
-            <button onClick={() => router.push('/wallet/history')} className="text-[10px] font-bold text-blue-500 uppercase">Tout</button>
+        {/* ADDRESS SECTION */}
+        <div className="w-full max-w-sm mb-8">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
+            Adresse {assetId}
+          </p>
+          <div
+            onClick={() => handleCopy(address)}
+            className={`bg-white/[0.03] border ${address ? 'border-white/[0.08] cursor-pointer active:bg-white/[0.06]' : 'border-white/[0.05]'} p-4 rounded-2xl flex items-center justify-between transition-all`}
+          >
+            <div className="flex-1 min-w-0 mr-3">
+              {loading ? (
+                <div className="h-4 w-full bg-white/5 rounded animate-pulse" />
+              ) : (
+                <p className="text-[10px] font-mono text-slate-400 truncate">
+                  {address || "Non configuree"}
+                </p>
+              )}
+              <p className="text-[8px] font-bold text-slate-600 uppercase mt-1">{config.network}</p>
+            </div>
+            {address && !loading && (
+              copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />
+            )}
           </div>
 
-          <div className="space-y-3">
-            {transactions.length > 0 ? transactions.map((tx, i) => (
-              <div key={i} className="bg-white/5 border border-white/5 p-4 rounded-[1.5rem] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-                    <History size={18} />
+          {assetId === "USDT" && (
+            <div className="mt-2 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
+              <p className="text-[9px] font-bold text-orange-400/80 uppercase text-center">
+                Reseau TRC20 (TRON) uniquement
+              </p>
+            </div>
+          )}
+          {assetId === "BTC" && address && (
+            <div className="mt-2 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
+              <p className="text-[9px] font-bold text-orange-400/80 uppercase text-center">
+                Bitcoin Mainnet - SegWit (bc1...)
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* TRANSACTION HISTORY */}
+        <div className="w-full">
+          <div className="flex justify-between items-center mb-4 px-1">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Historique {assetId}</h3>
+            <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">Tout voir</button>
+          </div>
+
+          <div className="space-y-2.5">
+            {transactions.length > 0 ? transactions.map((tx, i) => {
+              const txDate = new Date(tx.createdAt).toLocaleDateString('fr-FR', {
+                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+              });
+
+              let txType = "ENVOI";
+              let TxIcon = ArrowUpRight;
+              let iconBg = "bg-red-500/10";
+              let iconColor = "text-red-400";
+              let amountPrefix = "-";
+              let amountColor = "text-white";
+
+              if (tx.type === "EXCHANGE" || tx.type === "SWAP") {
+                txType = "SWAP";
+                TxIcon = ArrowLeftRight;
+                iconBg = "bg-blue-500/10";
+                iconColor = "text-blue-400";
+                amountPrefix = "";
+              } else if (tx.toUserId === userId || tx.type === "DEPOSIT") {
+                txType = tx.type === "DEPOSIT" ? "DEPOT" : "RECU";
+                TxIcon = ArrowDownLeft;
+                iconBg = "bg-emerald-500/10";
+                iconColor = "text-emerald-400";
+                amountPrefix = "+";
+                amountColor = "text-emerald-400";
+              }
+
+              const hash = tx.blockchainTx || tx.externalId;
+
+              return (
+                <div
+                  key={i}
+                  className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer"
+                  onClick={() => {
+                    if (hash) window.open(`${config.explorerBase}${hash}`, '_blank');
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center`}>
+                      <TxIcon size={18} className={iconColor} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase tracking-tight">{txType}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Calendar size={9} className="text-slate-600" />
+                        <p className="text-[9px] text-slate-500 font-bold">{txDate}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[11px] font-black text-white uppercase tracking-tight">Activité {tx.currency}</p>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <p className={`text-[12px] font-black tracking-tight ${amountColor}`}>
+                        {amountPrefix}{tx.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: config.decimals })} {assetId}
+                      </p>
+                      <div className="flex items-center justify-end gap-1 mt-0.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? 'bg-emerald-500' :
+                          tx.status === 'FAILED' ? 'bg-red-500' : 'bg-yellow-500'
+                        }`} />
+                        <p className="text-[8px] text-slate-500 uppercase font-bold">{tx.status}</p>
+                      </div>
+                    </div>
+                    {hash && <ExternalLink size={12} className="text-slate-700" />}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[12px] font-black text-white">{tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(4)}</p>
-                  <p className="text-[8px] text-emerald-500 uppercase font-black">{tx.status}</p>
-                </div>
-              </div>
-            )) : (
-              <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-[2rem] p-8 text-center">
+              );
+            }) : (
+              <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-10 text-center">
                 <Clock size={20} className="mx-auto text-slate-700 mb-2" />
-                <p className="text-[9px] font-black text-slate-600 uppercase">Aucune activité {assetId}</p>
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                  Aucune activite {assetId}
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ACTIONS FIXED */}
-      <div className="fixed bottom-0 inset-x-0 bg-[#020617]/80 backdrop-blur-xl border-t border-white/5 p-6 pb-10">
-        <div className="flex gap-4 max-w-md mx-auto">
+      {/* BOTTOM ACTION BAR */}
+      <div className="fixed bottom-0 inset-x-0 bg-[#020617]/90 backdrop-blur-xl border-t border-white/5 p-5 pb-8">
+        <div className="flex gap-3 max-w-sm mx-auto">
           <button
             onClick={() => setShowSendModal(true)}
-            className="flex-1 bg-white text-black py-5 rounded-[22px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 shadow-lg"
+            className="flex-1 bg-white/[0.08] border border-white/10 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform hover:bg-white/[0.12]"
           >
-            <Share2 size={18} strokeWidth={3} /> Envoyer
+            <Share2 size={16} strokeWidth={2.5} /> Envoyer
           </button>
           <button
             onClick={() => setShowReceiveModal(true)}
-            className="flex-1 bg-blue-600 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 shadow-lg shadow-blue-600/20"
+            className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform hover:bg-blue-500 shadow-lg shadow-blue-600/20"
           >
-            <Download size={18} strokeWidth={3} /> Recevoir
+            <Download size={16} strokeWidth={2.5} /> Recevoir
           </button>
         </div>
       </div>
 
-      {/* MODALE RECEVOIR (Dynamique avec QR) */}
+      {/* RECEIVE MODAL */}
       {showReceiveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
-          <div className="bg-[#0a0a0a] w-full max-w-xs rounded-[3rem] border border-white/10 p-8 relative text-center">
-            <button onClick={() => setShowReceiveModal(false)} className="absolute top-6 right-6 text-slate-500 p-2"><X size={24} /></button>
-            <p className="text-[9px] font-black uppercase text-blue-500 mb-2 tracking-[0.2em]">PimPay Network Deposit</p>
-            <h4 className="text-xl font-black text-white mb-6 uppercase tracking-tighter">{assetData.name}</h4>
-            <div className="bg-white p-4 rounded-[2rem] inline-block mb-8 shadow-[0_0_40px_rgba(59,130,246,0.15)]">
-              <QRCodeSVG value={assetData.address} size={170} />
+          <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
+            <button onClick={() => setShowReceiveModal(false)} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
+              <X size={20} />
+            </button>
+
+            <div className="mb-5">
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Deposer {assetId}</p>
+              <h4 className="text-lg font-black text-white uppercase tracking-tight">{config.name}</h4>
+              <span className={`inline-block mt-2 px-3 py-1 ${config.accentBg} border ${config.accentBorder} rounded-lg text-[9px] font-black ${config.accentColor} uppercase`}>
+                {config.network}
+              </span>
             </div>
-            <div onClick={() => handleCopy(assetData.address)} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between cursor-pointer active:bg-white/10 transition-all group">
-              <p className="text-[9px] font-mono text-slate-400 truncate mr-4">{assetData.address}</p>
-              {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />}
+
+            <div className="bg-white p-3 rounded-2xl inline-block mb-5 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+              {!address ? (
+                <div className="w-[170px] h-[170px] flex items-center justify-center text-slate-400 font-bold uppercase text-[10px] animate-pulse">
+                  Chargement...
+                </div>
+              ) : (
+                <QRCodeSVG value={address} size={170} />
+              )}
             </div>
-            <p className="mt-4 text-[8px] text-slate-600 uppercase font-bold tracking-widest">Envoyez uniquement du {assetData.symbol} sur cette adresse</p>
+
+            <div
+              onClick={() => handleCopy(address)}
+              className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex items-center justify-between cursor-pointer active:bg-white/10 transition-all"
+            >
+              <p className="text-[10px] font-mono text-slate-400 truncate mr-3">{address || "Non disponible"}</p>
+              {copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />}
+            </div>
+
+            {assetId === "USDT" && (
+              <div className="mt-3 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
+                <p className="text-[9px] font-bold text-orange-400/80 uppercase">Reseau TRC20 (TRON) uniquement</p>
+              </div>
+            )}
+
+            <p className="text-[8px] text-slate-600 uppercase font-bold mt-4 tracking-wide">
+              Envoyez uniquement du {assetId} sur cette adresse
+            </p>
           </div>
         </div>
       )}
 
-      {/* MODALE ENVOYER */}
+      {/* SEND MODAL */}
       {showSendModal && (
-        <SendModal isOpen={showSendModal} onClose={() => setShowSendModal(false)} balance={assetData.balance} currency={assetId} onRefresh={loadData} />
+        <SendModal
+          isOpen={showSendModal}
+          onClose={() => setShowSendModal(false)}
+          balance={balance}
+          currency={assetId}
+          onRefresh={loadData}
+        />
       )}
     </div>
   );
