@@ -4,7 +4,7 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter,
-  Users2 
+  Users2, LifeBuoy, Lock, FileText
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -109,6 +109,9 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     {
       title: "Support & Aide",
       items: [
+        { label: "Centre d'Aide", icon: <LifeBuoy size={20} className="text-cyan-400" />, path: "/support" },
+        { label: "Confidentialite", icon: <Lock size={20} className="text-amber-400" />, path: "/legal/privacy" },
+        { label: "Conditions", icon: <FileText size={20} className="text-violet-400" />, path: "/legal/terms" },
         { label: "Contact", icon: <Users2 size={20} className="text-teal-400" />, path: "/contacts" },
       ]
     },

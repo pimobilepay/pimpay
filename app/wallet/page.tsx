@@ -38,12 +38,33 @@ const BtcLogo = () => (
   </div>
 );
 
+const UsdcLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-blue-900/20 flex items-center justify-center border border-blue-400/20 p-2">
+    <img src="/usdc.jpg" alt="USDC" className="w-full h-full object-contain rounded-lg" />
+  </div>
+);
+
+const DaiLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-amber-900/20 flex items-center justify-center border border-amber-500/20 p-2">
+    <img src="/dai.jpg" alt="DAI" className="w-full h-full object-contain rounded-lg" />
+  </div>
+);
+
+const BusdLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-yellow-900/20 flex items-center justify-center border border-yellow-500/20 p-2">
+    <img src="/busd.jpg" alt="BUSD" className="w-full h-full object-contain rounded-lg" />
+  </div>
+);
+
 // --- TYPES ---
 interface WalletAddresses {
   PI: string;
   SDA: string;
   USDT: string;
   BTC: string;
+  USDC: string;
+  DAI: string;
+  BUSD: string;
 }
 
 export default function WalletPage() {
@@ -62,24 +83,30 @@ export default function WalletPage() {
   const [btcBalance, setBtcBalance] = useState("0.00000000");
   const [sdaBalance, setSdaBalance] = useState("0.0000");
   const [usdtBalance, setUsdtBalance] = useState("0.0000");
+  const [usdcBalance, setUsdcBalance] = useState("0.0000");
+  const [daiBalance, setDaiBalance] = useState("0.0000");
+  const [busdBalance, setBusdBalance] = useState("0.0000");
 
   const [addresses, setAddresses] = useState<WalletAddresses>({
-    PI: "", SDA: "", USDT: "", BTC: ""
+    PI: "", SDA: "", USDT: "", BTC: "", USDC: "", DAI: "", BUSD: ""
   });
 
   const [marketPrices, setMarketPrices] = useState({
-    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159
+    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00
   });
 
   const fetchMarketPrices = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether&vs_currencies=usd');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd&vs_currencies=usd');
       if (res.ok) {
         const result = await res.json();
         setMarketPrices(prev => ({
           ...prev,
           BTC: result.bitcoin?.usd || prev.BTC,
-          USDT: result.tether?.usd || prev.USDT
+          USDT: result.tether?.usd || prev.USDT,
+          USDC: result["usd-coin"]?.usd || prev.USDC,
+          DAI: result.dai?.usd || prev.DAI,
+          BUSD: result["binance-usd"]?.usd || prev.BUSD,
         }));
       }
     } catch (err) { /* silently fail, keep defaults */ }
@@ -114,6 +141,9 @@ export default function WalletPage() {
         setSdaBalance(parseFloat(balData.SDA || "0").toFixed(4));
         setUsdtBalance(parseFloat(balData.USDT || "0").toFixed(4));
         setBtcBalance(parseFloat(balData.BTC || "0").toFixed(8));
+        setUsdcBalance(parseFloat(balData.USDC || "0").toFixed(4));
+        setDaiBalance(parseFloat(balData.DAI || "0").toFixed(4));
+        setBusdBalance(parseFloat(balData.BUSD || "0").toFixed(4));
 
         if (balData.addresses) {
           setAddresses({
@@ -121,6 +151,9 @@ export default function WalletPage() {
             SDA: balData.addresses.SDA || "",
             USDT: balData.addresses.USDT || "",
             BTC: balData.addresses.BTC || "",
+            USDC: balData.addresses.USDC || "",
+            DAI: balData.addresses.DAI || "",
+            BUSD: balData.addresses.BUSD || "",
           });
         }
       }
@@ -155,7 +188,10 @@ export default function WalletPage() {
     (parseFloat(piBalance) * marketPrices.PI) +
     (parseFloat(btcBalance) * marketPrices.BTC) +
     (parseFloat(sdaBalance) * marketPrices.SDA) +
-    (parseFloat(usdtBalance) * marketPrices.USDT);
+    (parseFloat(usdtBalance) * marketPrices.USDT) +
+    (parseFloat(usdcBalance) * marketPrices.USDC) +
+    (parseFloat(daiBalance) * marketPrices.DAI) +
+    (parseFloat(busdBalance) * marketPrices.BUSD);
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
@@ -215,7 +251,7 @@ export default function WalletPage() {
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{userName}</p>
                 </div>
                 <div className="flex gap-1">
-                  {["PI", "BTC", "SDA", "USDT"].map((c) => (
+                  {["PI", "BTC", "SDA", "USDT", "USDC", "DAI", "BUSD"].map((c) => (
                     <span key={c} className="text-[7px] font-black text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{c}</span>
                   ))}
                 </div>
@@ -256,7 +292,7 @@ export default function WalletPage() {
         {/* ASSETS LIST */}
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tes Actifs</h3>
-          <span className="text-[9px] font-bold text-slate-600">4 actifs</span>
+          <span className="text-[9px] font-bold text-slate-600">7 actifs</span>
         </div>
 
         <div className="space-y-2.5 mb-8">
@@ -304,6 +340,45 @@ export default function WalletPage() {
             usdValue={parseFloat(btcBalance) * marketPrices.BTC}
             loading={loading}
             onClick={() => router.push('/wallet/btc')}
+          />
+
+          {/* --- STABLECOINS --- */}
+          <div className="pt-4 pb-2 px-1">
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Stablecoins</h3>
+          </div>
+
+          <AssetCard
+            logo={<UsdcLogo />}
+            name="USD Coin"
+            symbol="USDC"
+            network="ERC20 / TRC20"
+            balance={usdcBalance}
+            marketPrice={marketPrices.USDC}
+            usdValue={parseFloat(usdcBalance) * marketPrices.USDC}
+            loading={loading}
+            onClick={() => router.push('/wallet/usdc')}
+          />
+          <AssetCard
+            logo={<DaiLogo />}
+            name="Dai"
+            symbol="DAI"
+            network="ERC20"
+            balance={daiBalance}
+            marketPrice={marketPrices.DAI}
+            usdValue={parseFloat(daiBalance) * marketPrices.DAI}
+            loading={loading}
+            onClick={() => router.push('/wallet/dai')}
+          />
+          <AssetCard
+            logo={<BusdLogo />}
+            name="Binance USD"
+            symbol="BUSD"
+            network="BEP20"
+            balance={busdBalance}
+            marketPrice={marketPrices.BUSD}
+            usdValue={parseFloat(busdBalance) * marketPrices.BUSD}
+            loading={loading}
+            onClick={() => router.push('/wallet/busd')}
           />
         </div>
 

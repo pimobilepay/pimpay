@@ -92,6 +92,11 @@ export async function GET() {
     // Récupérer l'adresse BTC depuis le wallet BTC (depositMemo)
     const btcWallet = user.wallets.find(w => w.currency === "BTC");
 
+    // Récupérer les wallets stablecoins
+    const usdcWallet = user.wallets.find(w => w.currency === "USDC");
+    const daiWallet = user.wallets.find(w => w.currency === "DAI");
+    const busdWallet = user.wallets.find(w => w.currency === "BUSD");
+
     return NextResponse.json({
       success: true,
       ...balancesMap,
@@ -99,11 +104,17 @@ export async function GET() {
       USDT: balancesMap["USDT"] || "0.00",
       BTC: balancesMap["BTC"] || "0.00000000",
       SDA: balancesMap["SDA"],
+      USDC: balancesMap["USDC"] || "0.0000",
+      DAI: balancesMap["DAI"] || "0.0000",
+      BUSD: balancesMap["BUSD"] || "0.0000",
       addresses: {
         PI: user.walletAddress || "",
         SDA: user.sidraAddress || "",
         USDT: user.usdtAddress || "",
         BTC: btcWallet?.depositMemo || "",
+        USDC: usdcWallet?.depositMemo || "",
+        DAI: daiWallet?.depositMemo || "",
+        BUSD: busdWallet?.depositMemo || "",
       },
       wallets: user.wallets.map(w => ({
         currency: w.currency === "SIDRA" ? "SDA" : w.currency,
