@@ -531,7 +531,7 @@ export default function DepositPage() {
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={8} className="text-blue-500 animate-pulse" />
               <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
-                Approvisionnement
+                Liquidity Inflow
               </span>
             </div>
           </div>
