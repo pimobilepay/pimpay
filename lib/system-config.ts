@@ -6,7 +6,7 @@ export const PI_NETWORK_CONFIG = {
 
 export const BACKEND_CONFIG = {
   BASE_URL: "https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com",
-  BLOCKCHAIN_BASE_URL: "https://api.testnet.minepi.com",
+  BLOCKCHAIN_BASE_URL: "https://api.mainnet.minepi.com",
 } as const;
 
 export const BACKEND_URLS = {
