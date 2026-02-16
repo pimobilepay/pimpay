@@ -1,51 +1,55 @@
-# 💳 Pimpay - Protocol Sécurisé Elara
+# 💳 PimPay - Protocol Sécurisé Elara
 
-![Pimpay Banner](https://img.shields.io/badge/Status-In_Development-blueviolet?style=for-the-badge)
-![Pi Network](https://img.shields.io/badge/Pi_Network-Ecosystem-orange?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js_14-Black?style=for-the-badge&logo=next.js)
+![PimPay Banner](https://img.shields.io/badge/Status-In_Development-blueviolet?style=for-the-badge)
+![Sidra Chain](https://img.shields.io/badge/Blockchain-Sidra_Chain-green?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js_16-Black?style=for-the-badge&logo=next.js)
+![Compliance](https://img.shields.io/badge/Compliance-SMIIC_%7C_AAOIFI-gold?style=for-the-badge)
 
-**Pimpay** est une solution fintech de pointe intégrée à l'écosystème **Pi Network**. Notre mission est de combler le fossé entre la cryptomonnaie Pi et les services financiers traditionnels (Fiat), tout en offrant des capacités de swap inter-chaînes (BTC, USDT, etc.).
+**PimPay** est une solution fintech de banque virtuelle de pointe, désormais multi-chaînes, intégrée aux écosystèmes **Sidra Chain** et **Pi Network**. Notre mission est de combler le fossé entre les actifs numériques et les services financiers traditionnels (Fiat), tout en garantissant une conformité éthique et légale stricte.
 
 ---
 
 ## 🚀 Vision du Projet
 
-Pimpay ne se contente pas d'être un simple wallet. C'est une plateforme hybride :
-* **P2P & Fiat :** Passer du Pi Network vers les monnaies locales (CFA, EUR, USD).
-* **Crypto Swap :** Échanger vos actifs nativement entre Pi, Bitcoin, et Stablecoins.
-* **Staking :** Faire fructifier vos actifs avec des protocoles sécurisés.
-* **Sécurité Elara :** Une interface ultra-sécurisée avec authentification biométrique (PIN) et intégration directe du SDK Pi.
+PimPay évolue pour devenir une plateforme bancaire hybride et conforme :
+* **Finance Islamique :** Intégration native des principes de la Sidra Chain (élimination du Riba et du Gharar).
+* **P2P & Fiat :** Passer des actifs numériques vers les monnaies locales (CFA, EUR, USD).
+* **Crypto Swap :** Échanges inter-chaînes entre Pi, Sidra, Bitcoin et Stablecoins.
+* **Sécurité Elara :** Architecture ultra-sécurisée avec chiffrement de grade bancaire et authentification biométrique.
+
+---
+
+## ⚖️ Conformité & Gouvernance (Audit Ready)
+
+Pour répondre aux standards **AAOIFI**, **SMIIC** et **Basel III**, PimPay intègre :
+- **Conseil Sharia (SSB) :** Supervision pour la validation de chaque produit financier (SMIIC 1:2020).
+- **Protection des Données :** Chiffrement **AES-256** au repos et TLS 1.3 en transit (SMIIC 8:2022).
+- **Cadre Réglementaire :** Modèle **Banking-as-a-Service (BaaS)** pour opérer via des licences bancaires partenaires.
+- **Géo-restriction :** Contrôle d'accès par juridiction pour respecter les lois bancaires locales.
 
 ---
 
 ## ✨ Fonctionnalités Clés
 
 ### 🔒 Authentification & Sécurité
-- Intégration complète du **SDK Pi Network v2.0**.
+- Intégration multi-SDK : **Sidra Chain Auth** & **Pi Network SDK v2.0**.
 - Système de **PIN Code** secondaire pour la validation des transactions sensibles.
-- Gestion des rôles (Admin / User) avec redirection dynamique.
+- Masquage dynamique des données sensibles sur l'interface (Système Show/Hide).
 
 ### 💰 Wallet & CashFlow
-- **Wallet Virtuel :** Affichage en temps réel du solde, numéro de carte virtuelle et statut KYC.
+- **Wallet Virtuel :** Affichage en temps réel du solde Sidra/Pi, carte virtuelle et statut KYC.
 - **Graphique de Flux :** Visualisation des revenus et dépenses via `Recharts`.
-- **Système de Swap :** Interface intuitive pour convertir vos Pi en d'autres cryptos.
-
-### 📊 Historique Multi-Catégories
-Suivi détaillé de toutes les activités :
-- 📥 Dépôts
-- 📤 Retraits
-- 🔄 Swaps
-- 🥩 Staking
+- **Système de Swap :** Conversion instantanée conforme aux règles éthiques.
 
 ---
 
 ## 🛠 Stack Technique
 
-- **Frontend :** Next.js 16 (App Router), TypeScript, Tailwind CSS.
-- **UI Components :** Shadcn/UI, Lucide React (Icônes).
-- **State Management :** React Context API (PiAuthContext).
+- **Frontend :** **Next.js 16 (App Router)**, TypeScript, Tailwind CSS.
+- **Blockchain :** **Sidra Chain Mainnet**, SDK Pi Network.
+- **Sécurité :** Web Crypto API (AES-256), JWT sécurisés.
 - **Base de données :** PostgreSQL avec Prisma ORM.
-- **Blockchain :** SDK Pi Network.
+- **UI Components :** Shadcn/UI, Lucide React (Icônes).
 
 ---
 
@@ -53,10 +57,10 @@ Suivi détaillé de toutes les activités :
 
 ```text
 pimpay/
-├── app/                # Routes Next.js (Dashboard, Wallet, Auth)
-├── components/         # Composants réutilisables (Modals, Charts, UI)
-├── context/            # Logique d'authentification Pi
-├── hooks/              # Hooks personnalisés
-├── lib/                # Configuration API et utilitaires
+├── app/                # Routes Next.js 16 (Dashboard, Wallet, Auth)
+├── components/         # Composants UI (Modals, Charts, WalletPage)
+├── context/            # Logique d'authentification (Sidra & Pi)
+├── docs/               # Documentation de conformité (Sharia, Legal)
+├── lib/                # Utilitaires de géo-restriction et API
+├── services/           # Logique de chiffrement et sécurité (AES-256)
 └── prisma/             # Schéma de la base de données
-
