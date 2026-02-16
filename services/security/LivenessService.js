@@ -27,4 +27,3 @@ const detectMoirePatterns = (canvas) => {
   // Si on détecte une grille de pixels, c'est un écran !
   return false; 
 };
-

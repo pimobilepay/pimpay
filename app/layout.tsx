@@ -49,23 +49,8 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
-        {/* 2. INITIALISATION V2.0 (Comme dans la vidéo)
-            On s'assure que window.Pi existe avant de lancer l'init.
-        */}
-        <Script id="pi-sdk-init" strategy="afterInteractive">
-          {`
-            (function() {
-              const checkPi = setInterval(() => {
-                if (window.Pi) {
-                  window.Pi.init({ version: "2.0", sandbox: false });
-                  console.log("PimPay: SDK Pi 2.0 initialisé");
-                  clearInterval(checkPi);
-                }
-              }, 100);
-              setTimeout(() => clearInterval(checkPi), 5000); // Timeout sécurité
-            })();
-          `}
-        </Script>
+        {/* L'initialisation du SDK Pi est geree par PiInitializer.tsx
+            pour eviter les doubles appels a Pi.init() */}
 
         <script
           id="theme-strategy"

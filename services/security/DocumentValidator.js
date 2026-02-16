@@ -54,4 +54,3 @@ export const processKYC = (file, meta) => {
   
   return { status: "SUCCESS", hash: report.documentHash };
 };
-

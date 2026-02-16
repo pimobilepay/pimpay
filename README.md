@@ -41,7 +41,7 @@ Suivi détaillé de toutes les activités :
 
 ## 🛠 Stack Technique
 
-- **Frontend :** Next.js 14 (App Router), TypeScript, Tailwind CSS.
+- **Frontend :** Next.js 16 (App Router), TypeScript, Tailwind CSS.
 - **UI Components :** Shadcn/UI, Lucide React (Icônes).
 - **State Management :** React Context API (PiAuthContext).
 - **Base de données :** PostgreSQL avec Prisma ORM.
