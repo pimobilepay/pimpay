@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, ShieldCheck, Zap, Info, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Zap, Info, ChevronRight, Loader2, Fingerprint, Landmark } from "lucide-react";
 import { useState } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 export default function PaymentSummary() {
   const router = useRouter();
@@ -15,6 +15,13 @@ export default function PaymentSummary() {
     to: params.get("to") || "Utilisateur PimPay",
     method: params.get("method") || "wallet",
     txid: params.get("txid") || "N/A"
+  };
+
+  const methodLabels: Record<string, string> = {
+    wallet: "Pi Wallet",
+    usd: "Solde USD",
+    card: "Visa PimPay",
+    external: "Pi Browser"
   };
 
   const handleFinalConfirm = async () => {
@@ -32,7 +39,7 @@ export default function PaymentSummary() {
       } else {
         router.push(`/mpay/failed?reason=${result.message}`);
       }
-    } catch (err) {
+    } catch {
       router.push(`/mpay/failed?reason=Erreur de connexion serveur`);
     } finally {
       setIsConfirming(false);
@@ -40,54 +47,100 @@ export default function PaymentSummary() {
   };
 
   return (
-    <main className="min-h-screen bg-[#020617] text-white p-6 pt-12">
-      <div className="max-w-md mx-auto">
-        <button onClick={() => router.back()} className="mb-8 p-3 bg-white/5 rounded-2xl border border-white/10">
-          <ArrowLeft size={20} />
-        </button>
+    <main className="min-h-screen bg-[#020617] text-white font-sans">
+      {/* Ambient glow */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[50%] h-[30%] bg-blue-600/8 blur-[120px] rounded-full" />
+      </div>
 
-        <h1 className="text-2xl font-black uppercase italic mb-2">Résumé du paiement</h1>
-        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-10">Vérifiez les détails avant de confirmer</p>
+      <div className="relative z-10 max-w-md mx-auto px-6 pt-12 pb-12">
+        {/* Header */}
+        <header className="flex items-center justify-between mb-8">
+          <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="text-center">
+            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Confirmation</p>
+            <p className="text-[10px] text-slate-500 uppercase font-bold">Derniere verification</p>
+          </div>
+          <div className="w-11" />
+        </header>
 
-        <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-6 space-y-6">
-          <div className="flex justify-between items-end">
-            <div>
-              <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Montant à envoyer</p>
-              <p className="text-4xl font-black italic">{data.amount} <span className="text-blue-500">π</span></p>
-            </div>
-            <Zap className="text-blue-500 opacity-20" size={40} />
+        {/* Step indicator */}
+        <div className="flex gap-2 mb-8">
+          <div className="h-1 flex-1 rounded-full bg-blue-600" />
+          <div className="h-1 flex-1 rounded-full bg-blue-600" />
+          <div className="h-1 flex-1 rounded-full bg-blue-600 animate-pulse" />
+        </div>
+
+        {/* Amount Card */}
+        <div className="bg-slate-900/40 border border-white/10 rounded-[2rem] p-8 mb-6 text-center relative overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="absolute top-0 right-0 p-6 opacity-5">
+            <Zap size={80} />
           </div>
 
-          <div className="space-y-4 pt-6 border-t border-white/5">
-            <div className="flex justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Destinataire</span>
-              <span className="text-xs font-black uppercase">{data.to}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Mode de paiement</span>
-              <span className="text-xs font-black uppercase text-blue-400">{data.method}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Frais Réseau</span>
-              <span className="text-xs font-black uppercase text-emerald-500">0.01 π</span>
-            </div>
+          <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+            <Zap size={28} className="text-blue-500" />
           </div>
 
-          <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-2xl flex gap-3">
-            <Info size={18} className="text-blue-500 shrink-0" />
-            <p className="text-[10px] text-slate-300 leading-relaxed font-medium">
-              En confirmant, vous autorisez PimPay à débiter votre solde immédiatement. Cette action est irréversible sur la blockchain.
-            </p>
+          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">Montant a envoyer</p>
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-5xl font-black tracking-tighter">{data.amount}</span>
+            <span className="text-xl font-black text-blue-500">Pi</span>
           </div>
         </div>
 
+        {/* Details Card */}
+        <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-4 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
+          <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Destinataire</span>
+            <span className="text-xs font-black uppercase">{data.to}</span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mode</span>
+            <span className="text-xs font-black uppercase text-blue-400">{methodLabels[data.method] || data.method}</span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Frais Reseau</span>
+            <span className="text-xs font-black uppercase text-emerald-400">0.01 Pi</span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Debite</span>
+            <span className="text-sm font-black uppercase">{(parseFloat(data.amount) + 0.01).toFixed(2)} Pi</span>
+          </div>
+        </div>
+
+        {/* Warning */}
+        <div className="bg-blue-600/5 border border-blue-500/20 p-4 rounded-2xl flex gap-3 mb-8 animate-in fade-in duration-500 delay-200">
+          <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+            En confirmant, vous autorisez PimPay a debiter votre solde immediatement. Cette action est irreversible.
+          </p>
+        </div>
+
+        {/* Biometric hint */}
+        <div className="flex flex-col items-center gap-3 mb-8 animate-in fade-in duration-500 delay-300">
+          <div className="p-4 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-500 animate-bounce">
+            <Fingerprint size={28} />
+          </div>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Signature biometrique requise</p>
+        </div>
+
+        {/* Confirm Button */}
         <button
           onClick={handleFinalConfirm}
           disabled={isConfirming}
-          className="w-full h-16 bg-blue-600 rounded-[22px] mt-10 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20 disabled:opacity-50"
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm flex items-center justify-center gap-3 shadow-xl shadow-blue-600/30 disabled:opacity-50 active:scale-95 transition-all"
         >
-          {isConfirming ? <Loader2 className="animate-spin" /> : <>Confirmer & Payer <ChevronRight size={18} /></>}
+          {isConfirming ? <Loader2 className="animate-spin" /> : <ShieldCheck size={18} />}
+          {isConfirming ? "Traitement en cours..." : "Confirmer & Payer"}
         </button>
+
+        {/* Footer */}
+        <div className="mt-8 flex items-center justify-center gap-2 opacity-30">
+          <Landmark size={12} className="text-blue-500" />
+          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PimPay mPay Protocol V2</p>
+        </div>
       </div>
     </main>
   );
