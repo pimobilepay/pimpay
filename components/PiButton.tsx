@@ -1,95 +1,182 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
-export const PiButton = ({ amount }: { amount: number }) => {
+declare global {
+  interface Window {
+    Pi: any;
+    __PI_SDK_READY__: boolean;
+  }
+}
+
+interface PiButtonProps {
+  /** Montant en Pi a envoyer */
+  amount: number;
+  /** Texte descriptif du paiement */
+  memo?: string;
+  /** Callback apres succes */
+  onSuccess?: (txid: string) => void;
+  /** Callback en cas d'erreur */
+  onError?: (error: string) => void;
+  /** Label du bouton */
+  label?: string;
+}
+
+/**
+ * Bouton de paiement Pi Network pour PimPay
+ * 
+ * S'appuie sur PiInitializer pour l'init du SDK (charge dans layout.tsx).
+ * Gere le flux complet: authenticate -> createPayment -> approve -> complete.
+ */
+export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonProps) {
   const [loading, setLoading] = useState(false);
 
-  const handlePayment = async () => {
-    // 1. Sécurité de base
-    if (typeof window === "undefined" || !window.Pi) {
-      toast.error("Ouvrez PimPay dans le Pi Browser");
-      return;
+  const ensureSdkReady = useCallback((): boolean => {
+    if (typeof window === "undefined") return false;
+
+    if (!window.Pi) {
+      toast.error("Ouvrez PimPay dans le Pi Browser pour effectuer cette operation.");
+      return false;
     }
 
-    if (amount <= 0) {
-      toast.error("Veuillez entrer un montant");
+    // Si le SDK est present mais pas encore initialise, on tente l'init
+    if (!window.__PI_SDK_READY__) {
+      try {
+        window.Pi.init({ version: "2.0", sandbox: false });
+        window.__PI_SDK_READY__ = true;
+      } catch {
+        // Deja initialise - on continue
+        window.__PI_SDK_READY__ = true;
+      }
+    }
+
+    return true;
+  }, []);
+
+  const handleIncompletePayment = useCallback(async (payment: any) => {
+    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier);
+    try {
+      await fetch("/api/payments/incomplete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: payment.identifier,
+          txid: payment.transaction?.txid,
+        }),
+      });
+    } catch (error) {
+      console.error("[PimPay] Erreur traitement paiement incomplet:", error);
+    }
+  }, []);
+
+  const handlePayment = async () => {
+    if (!ensureSdkReady()) return;
+
+    if (!amount || amount <= 0) {
+      toast.error("Veuillez entrer un montant valide.");
       return;
     }
 
     setLoading(true);
-    const loadingToast = toast.loading("Connexion au réseau Pi...");
+    const loadingToast = toast.loading("Connexion au reseau Pi...");
 
     try {
-      // 🚀 LANCEMENT DIRECT : On ne refait pas authenticate() pour ne pas compliquer
-      // le flux puisque l'utilisateur est déjà sur sa session PimPay.
-      
-      await window.Pi.createPayment({
-        // Argument 1 : Les détails financiers
-        amount: amount,
-        memo: `Dépôt PimPay - ${amount} Pi`,
-        metadata: { orderId: `pim-${Date.now()}`, type: "deposit" },
-      }, {
-        // Argument 2 : Les étapes de validation
-        onReadyForServerApproval: async (paymentId: string) => {
-          console.log("[PIMPAY] En attente d'approbation serveur...");
-          
-          const res = await fetch("/api/payments/approve", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            // On envoie tout ce que ton API attend
-            body: JSON.stringify({ 
-              paymentId, 
-              amount, 
-              memo: `Dépôt PimPay - ${amount} Pi` 
-            }),
-          });
+      // Etape 1: Authentification pour obtenir les scopes payments
+      const auth = await window.Pi.authenticate(
+        ["username", "payments", "wallet_address"],
+        handleIncompletePayment
+      );
 
-          if (!res.ok) {
-            const error = await res.json();
-            throw new Error(error.error || "Approbation refusée");
-          }
+      if (!auth || !auth.user) {
+        throw new Error("Autorisation refusee par l'utilisateur.");
+      }
 
-          return res.json();
+      // Etape 2: Creation du paiement
+      const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;
+
+      await window.Pi.createPayment(
+        {
+          amount: amount,
+          memo: paymentMemo,
+          metadata: {
+            orderId: `pim-dep-${Date.now()}`,
+            type: "deposit",
+            app: "pimpay_core",
+          },
         },
+        {
+          onReadyForServerApproval: async (paymentId: string) => {
+            console.log("[PimPay] Approbation serveur pour:", paymentId);
 
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          console.log("[PIMPAY] Paiement Blockchain détecté, finalisation...");
+            const res = await fetch("/api/payments/approve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                paymentId,
+                amount,
+                memo: paymentMemo,
+              }),
+            });
 
-          const res = await fetch("/api/payments/complete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId, txid }),
-          });
+            if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(errorData.error || "Approbation refusee par le serveur.");
+            }
 
-          toast.dismiss(loadingToast);
-          if (res.ok) {
-            toast.success(`Dépôt de ${amount} Pi réussi !`, { duration: 5000 });
-            // Le solde sera mis à jour automatiquement via ton API complete
-          } else {
-            toast.error("Le solde sera mis à jour dans quelques instants.");
-          }
-          setLoading(false);
-        },
+            return res.json();
+          },
 
-        onCancel: (paymentId: string) => {
-          toast.dismiss(loadingToast);
-          console.log("[PIMPAY] Annulé par l'utilisateur");
-          setLoading(false);
-        },
+          onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            console.log("[PimPay] Paiement blockchain detecte, txid:", txid);
 
-        onError: (error: Error, payment?: any) => {
-          toast.dismiss(loadingToast);
-          console.error("[PIMPAY] Erreur SDK:", error.message);
-          toast.error("Erreur réseau Pi. Réessayez.");
-          setLoading(false);
-        },
-      });
+            const res = await fetch("/api/payments/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ paymentId, txid }),
+            });
+
+            toast.dismiss(loadingToast);
+
+            if (res.ok) {
+              toast.success(`Depot de ${amount} Pi reussi !`, { duration: 5000 });
+              onSuccess?.(txid);
+            } else {
+              toast.info("Le solde sera mis a jour dans quelques instants.");
+              onSuccess?.(txid);
+            }
+            setLoading(false);
+          },
+
+          onCancel: () => {
+            toast.dismiss(loadingToast);
+            toast.info("Paiement annule.");
+            setLoading(false);
+          },
+
+          onError: (error: Error) => {
+            toast.dismiss(loadingToast);
+            console.error("[PimPay] Erreur SDK:", error.message);
+            const msg = "Erreur reseau Pi. Veuillez reessayer.";
+            toast.error(msg);
+            onError?.(msg);
+            setLoading(false);
+          },
+        }
+      );
     } catch (err: any) {
       toast.dismiss(loadingToast);
-      console.error("Erreur critique:", err);
-      toast.error(err.message || "Action impossible pour le moment");
+      console.error("[PimPay] Erreur critique:", err);
+
+      let errorMsg = "Action impossible pour le moment.";
+      if (err.message?.includes("User cancelled")) errorMsg = "Connexion annulee.";
+      if (err.message?.includes("disallowed")) errorMsg = "Permissions refusees.";
+      if (err.message?.includes("timed out")) errorMsg = "Le SDK Pi ne repond pas.";
+      if (err.message?.includes("not initialized")) errorMsg = "SDK Pi non initialise. Rechargez la page.";
+
+      toast.error(errorMsg);
+      onError?.(errorMsg);
       setLoading(false);
     }
   };
@@ -97,23 +184,23 @@ export const PiButton = ({ amount }: { amount: number }) => {
   return (
     <button
       onClick={handlePayment}
-      disabled={loading || amount <= 0}
+      disabled={loading || !amount || amount <= 0}
       className={`w-full h-16 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
-        loading || amount <= 0
-        ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-        : "bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-blue-500/20"
+        loading || !amount || amount <= 0
+          ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+          : "bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-blue-500/20"
       }`}
     >
       {loading ? (
         <>
-          <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          OUVERTURE DU WALLET PI...
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Ouverture du wallet Pi...</span>
         </>
       ) : (
-        `Confirmer le dépôt de ${amount} Pi`
+        label || `Deposer ${amount > 0 ? amount + " Pi" : ""}`
       )}
     </button>
   );
-};
+}
 
 export default PiButton;
