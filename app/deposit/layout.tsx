@@ -16,7 +16,7 @@ export default function DepositLayout({
        Pas de balises de structure globale ici. 
        On utilise un conteneur qui respecte le thème sombre de PimPay.
     */
-    <div className="w-full min-h-[calc(100-vh-4rem)] bg-[#02040a] animate-in fade-in zoom-in-95 duration-500">
+    <div className="w-full min-h-[calc(100vh-4rem)] bg-[#02040a] animate-in fade-in zoom-in-95 duration-500">
       {children}
     </div>
   );

@@ -4,6 +4,7 @@
 declare global {
   interface Window {
     Pi: any;
+    __PI_SDK_READY__: boolean;
   }
 }
 
@@ -13,10 +14,17 @@ declare global {
 export const initPiSDK = () => {
   if (typeof window !== "undefined" && window.Pi) {
     try {
-      window.Pi.init({ version: "1.5", sandbox: true });
-      console.log("✅ Pi SDK initialisé (Sandbox: ON)");
-    } catch (error) {
-      console.error("❌ Erreur lors de l'initialisation du SDK Pi:", error);
+      // Ne pas re-initialiser si deja fait par PiInitializer
+      if (window.__PI_SDK_READY__) return;
+      window.Pi.init({ version: "2.0", sandbox: false });
+      window.__PI_SDK_READY__ = true;
+      console.log("[PimPay] Pi SDK 2.0 initialise");
+    } catch (error: any) {
+      if (error?.message?.includes("already")) {
+        window.__PI_SDK_READY__ = true;
+      } else {
+        console.error("[PimPay] Erreur init SDK Pi:", error);
+      }
     }
   }
 };
