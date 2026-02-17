@@ -294,7 +294,7 @@ export default function AssetDetailPage() {
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col pb-36">
+    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col pb-52">
       {/* HEADER */}
       <div className="px-5 pt-12 pb-3 flex justify-between items-center">
         <button
@@ -497,7 +497,7 @@ export default function AssetDetailPage() {
       </div>
 
       {/* BOTTOM ACTION BAR */}
-      <div className="fixed bottom-0 inset-x-0 bg-[#020617]/90 backdrop-blur-xl border-t border-white/5 p-5 pb-8">
+      <div className="fixed bottom-[80px] inset-x-0 z-[91] bg-[#020617]/90 backdrop-blur-xl border-t border-white/5 p-4 pb-5">
         <div className="flex gap-3 max-w-sm mx-auto">
           <button
             onClick={() => setShowSendModal(true)}
