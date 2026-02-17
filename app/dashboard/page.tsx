@@ -30,10 +30,15 @@ export default function UserDashboard() {
   const walletRef = useRef<HTMLDivElement>(null);
 
   const [activeWalletIndex, setActiveWalletIndex] = useState(0);
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({
+    PI: PI_CONSENSUS_USD, SDA: 1.20, USDT: 1.00, BTC: 0, XRP: 0, XLM: 0,
+    USDC: 1.00, DAI: 1.00, BUSD: 1.00, XAF: 1 / 615,
+  });
 
   useEffect(() => {
     setHasMounted(true);
     fetchDashboardData();
+    fetchMarketPrices();
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
@@ -45,6 +50,25 @@ export default function UserDashboard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  async function fetchMarketPrices() {
+    try {
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd');
+      if (res.ok) {
+        const result = await res.json();
+        setMarketPrices(prev => ({
+          ...prev,
+          BTC: result.bitcoin?.usd || prev.BTC,
+          USDT: result.tether?.usd || prev.USDT,
+          USDC: result["usd-coin"]?.usd || prev.USDC,
+          DAI: result.dai?.usd || prev.DAI,
+          BUSD: result["binance-usd"]?.usd || prev.BUSD,
+          XRP: result.ripple?.usd || prev.XRP,
+          XLM: result.stellar?.usd || prev.XLM,
+        }));
+      }
+    } catch { /* keep defaults */ }
+  }
 
   async function fetchDashboardData() {
     try {
@@ -124,7 +148,7 @@ export default function UserDashboard() {
   const currentCurrency = currentWallet.currency;
   const displayName = data?.name || "PIONEER";
 
-  const rateToUse = currentCurrency === "PI" ? PI_CONSENSUS_USD : 1;
+  const rateToUse = marketPrices[currentCurrency] ?? 1;
   const convertedValue = balance * rateToUse * RATES[currency];
 
   return (
@@ -219,7 +243,7 @@ export default function UserDashboard() {
 
             <div>
               <h2 className="text-4xl font-black tracking-tighter flex items-center gap-2">
-                <span className="text-blue-200">{currentCurrency === "PI" ? "π" : ""}</span>
+                <span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency === "XAF" ? "" : "$"}</span>
                 {showBalance ? balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : "••••••"}
               </h2>
               <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p>

@@ -88,6 +88,10 @@ model User {
   sidraPrivateKey  String? 
   walletPrivateKey String? // Clé générique pour les autres réseaux EVM (USDC/BUSD)
 
+  // USDT (TRC20)
+  usdtAddress      String? @unique
+  usdtPrivateKey   String?
+
   // XRP Ledger
   xrpAddress       String? @unique
   xrpPrivateKey    String? // Utilisé par le Worker

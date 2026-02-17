@@ -139,8 +139,9 @@ export default function WithdrawPage() {
 
           <div className="flex items-baseline gap-2 relative z-10">
              <span className="text-4xl font-black tracking-tighter italic text-white">
-               {currentWallet.currency === "PI" ? "π" : "$"} {formatValue(balance)}
+               {currentWallet.currency === "PI" ? "π" : currentWallet.currency === "XAF" ? "" : ""} {formatValue(balance)}
              </span>
+             <span className="text-sm font-black text-blue-400">{currentWallet.currency}</span>
           </div>
         </section>
 
