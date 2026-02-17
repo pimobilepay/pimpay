@@ -13,6 +13,12 @@ import {
   Globe,
   Shield,
   Sparkles,
+  Lock,
+  RefreshCw,
+  Clock,
+  CheckCircle2,
+  DollarSign,
+  ArrowUpRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -29,51 +35,27 @@ const CURRENCY_RATES = {
 const CARD_TIERS = [
   {
     id: "CLASSIC",
-    tier: "Visa Classic",
-    brand: "VISA",
+    tier: "Mastercard Blue",
+    brand: "MASTERCARD",
     price: 10,
     limit: "1,000",
-    gradient: "from-[#1a1f71] via-[#2d3a8c] to-[#0d1137]",
+    gradient: "from-[#1e3a8a] via-[#3b82f6] to-[#1e40af]",
     border: "border-blue-500/30",
     accent: "text-blue-400",
     accentBg: "bg-blue-500/20",
-    features: ["Paiements en ligne", "200+ pays"],
+    features: ["Paiements Web", "Validité 3 ans"],
   },
   {
     id: "GOLD",
-    tier: "Visa Gold",
-    brand: "VISA",
+    tier: "Mastercard Diamond",
+    brand: "MASTERCARD",
     price: 25,
-    limit: "5,000",
-    gradient: "from-[#b45309] via-[#78350f] to-[#451a03]",
+    limit: "10,000",
+    gradient: "from-[#fbbf24] via-[#b45309] to-[#78350f]",
     border: "border-amber-500/40",
     accent: "text-amber-400",
     accentBg: "bg-amber-500/20",
-    features: ["Cashback 2%", "Assurance voyage"],
-  },
-  {
-    id: "BUSINESS",
-    tier: "MasterCard Business",
-    brand: "MASTERCARD",
-    price: 50,
-    limit: "25,000",
-    gradient: "from-[#eb001b] via-[#c41230] to-[#ff5f00]",
-    border: "border-red-400/30",
-    accent: "text-red-400",
-    accentBg: "bg-red-500/20",
-    features: ["Cashback 3%", "Lounge VIP"],
-  },
-  {
-    id: "ULTRA",
-    tier: "Visa Ultra",
-    brand: "VISA",
-    price: 100,
-    limit: "Illimite",
-    gradient: "from-[#581c87] via-[#2e1065] to-[#000000]",
-    border: "border-purple-500/50",
-    accent: "text-purple-400",
-    accentBg: "bg-purple-500/20",
-    features: ["Cashback 5%", "Conciergerie 24/7"],
+    features: ["Cashback 2%", "3DS Secured"],
   },
 ];
 
@@ -81,31 +63,39 @@ export default function CardOrderPage() {
   const [selectedId, setSelectedId] = useState("GOLD");
   const [loading, setLoading] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
-  const [userBalance, setUserBalance] = useState<number>(0);
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [userMainBalance, setUserMainBalance] = useState<number>(0); // En USD
   const [currency, setCurrency] = useState<keyof typeof CURRENCY_RATES>("USD");
   const router = useRouter();
 
   const selectedCard = CARD_TIERS.find((c) => c.id === selectedId)!;
   const priceInPi = selectedCard.price / PI_RATE_GCV;
-  const isBalanceInsufficient = userBalance < priceInPi;
+  
+  // Calcul du solde disponible en USD pour l'achat
+  const availableUSD = userMainBalance;
+  const isBalanceInsufficient = availableUSD < selectedCard.price;
 
   useEffect(() => {
-    fetch("/api/user/profile")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.wallets) {
-          const piWallet = data.wallets.find(
-            (w: any) => w.currency === "PI"
-          );
-          setUserBalance(piWallet ? piWallet.balance : 0);
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch("/api/user/profile");
+        const data = await res.json();
+        if (data.success || data.id) {
+          setWallets(data.wallets || []);
+          // On cherche le solde USDT ou USD pour payer la carte, ou on convertit le solde total
+          const usdWallet = data.wallets?.find((w: any) => w.currency === "USDT" || w.currency === "USD");
+          setUserMainBalance(usdWallet ? usdWallet.balance : 0);
         }
-      })
-      .catch(console.error);
+      } catch (err) {
+        console.error("Erreur solde:", err);
+      }
+    };
+    fetchBalance();
   }, []);
 
   const handleFinalConfirm = async () => {
     setLoading(true);
-    const toastId = toast.loading("Minage du Smart Contract...");
+    const toastId = toast.loading("Sécurisation du Smart Contract...");
     try {
       const response = await fetch("/api/user/card/order", {
         method: "POST",
@@ -114,17 +104,14 @@ export default function CardOrderPage() {
       });
 
       const res = await response.json();
-
       if (res.success) {
-        toast.success("Carte activee sur le reseau !", { id: toastId });
-        router.push("/cards");
-        router.refresh();
+        toast.success("Carte émise avec succès !", { id: toastId });
+        router.push("/dashboard/card");
       } else {
-        toast.error(res.error || "Echec", { id: toastId });
-        setShowSummary(false);
+        toast.error(res.error || "Échec de l'émission", { id: toastId });
       }
     } catch {
-      toast.error("Erreur reseau", { id: toastId });
+      toast.error("Erreur réseau", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -132,339 +119,187 @@ export default function CardOrderPage() {
 
   return (
     <div className="min-h-screen bg-[#030014] text-white pb-32 font-sans relative overflow-hidden">
-      {/* Background Effects */}
+      {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/8 rounded-full blur-[180px]"></div>
-        <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-cyan-500/8 rounded-full blur-[180px]"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:60px_60px]"></div>
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-purple-600/5 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-500/5 rounded-full blur-[120px]"></div>
       </div>
 
       <div className="relative z-10 max-w-lg mx-auto px-6">
         {!showSummary ? (
-          <div className="animate-in fade-in duration-500">
+          <div className="pt-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <header className="pt-8 mb-8">
-              <button
-                onClick={() => router.back()}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors mb-6"
-              >
-                <ArrowLeft size={16} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Retour
-                </span>
+            <header className="flex items-center justify-between">
+              <button onClick={() => router.back()} className="p-2 bg-white/5 rounded-xl border border-white/10">
+                <ArrowLeft size={20} />
               </button>
-
-              <div className="flex justify-between items-start">
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight">
-                    {"Emettre une "}
-                    <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                      Carte
-                    </span>
-                  </h1>
-                  <p className="text-white/40 text-xs mt-2 uppercase tracking-wider font-bold">
-                    {"Choisissez votre niveau d'acces"}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">
-                    Solde PI
-                  </p>
-                  <p className="text-sm font-black text-emerald-400">
-                    {userBalance.toLocaleString(undefined, {
-                      minimumFractionDigits: 4,
-                    })}{" "}
-                    {"π"}
-                  </p>
-                </div>
-              </div>
+              <h1 className="text-lg font-bold">Commander une Carte</h1>
+              <div className="w-10"></div>
             </header>
 
-            {/* Card Preview */}
-            <div
-              className={`relative w-full aspect-[1.586/1] rounded-[24px] overflow-hidden shadow-2xl border ${selectedCard.border} mb-8 transition-all duration-500`}
-            >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${selectedCard.gradient}`}
-              >
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+            {/* Card Preview avec design dynamique */}
+            <div className={`relative w-full aspect-[1.58/1] rounded-[28px] overflow-hidden shadow-2xl border ${selectedCard.border} transition-all duration-500`}>
+              <div className={`absolute inset-0 bg-gradient-to-br ${selectedCard.gradient}`}>
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
               </div>
-
-              <div className="relative z-10 h-full p-7 flex flex-col justify-between">
-                {/* Card Header */}
+              
+              <div className="relative h-full p-8 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={12} className="text-white/60" />
-                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                      Pimpay Virtual
-                    </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black tracking-[0.2em] opacity-60">VIRTUAL DEBIT</span>
+                    <span className="text-xl font-bold tracking-tight">PimPay</span>
                   </div>
-                  <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] font-bold border border-white/10 uppercase tracking-wider">
-                    {selectedCard.tier}
+                  <div className="flex items-center gap-1">
+                    <div className="w-6 h-6 bg-[#eb001b] rounded-full"></div>
+                    <div className="w-6 h-6 bg-[#f79e1b] rounded-full -ml-3"></div>
                   </div>
                 </div>
 
-                {/* Chip and Contactless */}
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-9 rounded-md bg-gradient-to-br from-amber-300 to-amber-500">
-                    <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
-                      {[...Array(6)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="bg-black/20 rounded-[1px]"
-                        ></div>
-                      ))}
-                    </div>
-                  </div>
-                  <Wifi size={22} className="rotate-90 text-white/50" />
+                   <div className="w-12 h-9 bg-gradient-to-br from-amber-200 to-amber-500 rounded-md opacity-80"></div>
+                   <Wifi size={20} className="rotate-90 opacity-40" />
                 </div>
 
-                {/* Card Number */}
+                <div className="space-y-1">
+                  <p className="text-xl font-mono tracking-[0.25em]">•••• •••• •••• ••••</p>
+                  <div className="flex justify-between items-end">
+                    <p className="text-xs font-medium uppercase opacity-70">NOM DU TITULAIRE</p>
+                    <p className="text-xs font-mono opacity-70">••/••</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Solde Disponible (Inspiré de ta capture) */}
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                  <DollarSign size={20} className="text-emerald-400" />
+                </div>
                 <div>
-                  <p className="text-xl font-mono tracking-[0.2em] text-white/90">
-                    {"•••• •••• •••• 0000"}
-                  </p>
-                  <div className="flex gap-8 mt-2">
-                    <div>
-                      <p className="text-[9px] text-white/40 uppercase tracking-wider">
-                        Expire
-                      </p>
-                      <p className="text-xs font-bold tracking-widest text-white/80">
-                        --/--
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-white/40 uppercase tracking-wider">
-                        CVV
-                      </p>
-                      <p className="text-xs font-bold tracking-widest text-white/80">
-                        {"•••"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Footer */}
-                <div className="flex justify-between items-end">
-                  <p className="text-xs font-medium tracking-wide uppercase text-white/60">
-                    Votre nom ici
-                  </p>
-                  {selectedCard.brand === "VISA" ? (
-                    <span
-                      className="text-2xl font-black italic text-white tracking-tight"
-                      style={{ fontFamily: "Arial, sans-serif" }}
-                    >
-                      VISA
-                    </span>
-                  ) : (
-                    <div className="flex items-center">
-                      <div className="w-7 h-7 rounded-full bg-[#eb001b] opacity-90"></div>
-                      <div className="w-7 h-7 rounded-full bg-[#f79e1b] opacity-90 -ml-3"></div>
-                    </div>
-                  )}
+                  <p className="text-[10px] font-bold text-emerald-400/80 uppercase">Solde du compte</p>
+                  <p className="text-sm font-black">Vous avez {availableUSD.toLocaleString()} USD</p>
                 </div>
               </div>
+              <ArrowUpRight size={18} className="text-emerald-500" />
             </div>
 
-            {/* Balance Display */}
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6 flex justify-between items-center">
-              <div>
-                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
-                  Solde Convertible
-                </p>
-                <p className="text-lg font-black text-white">
-                  {(
-                    userBalance *
-                    PI_RATE_GCV *
-                    CURRENCY_RATES[currency]
-                  ).toLocaleString(undefined, {
-                    maximumFractionDigits: 0,
-                  })}{" "}
-                  <span className="text-sm text-white/40">{currency}</span>
-                </p>
-              </div>
-              <select
-                value={currency}
-                onChange={(e) =>
-                  setCurrency(
-                    e.target.value as keyof typeof CURRENCY_RATES
-                  )
-                }
-                className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white/70 focus:outline-none focus:border-purple-500/50"
-              >
-                {Object.keys(CURRENCY_RATES).map((c) => (
-                  <option key={c} value={c} className="bg-[#030014]">
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tier Selection Grid */}
-            <div className="grid grid-cols-2 gap-3 mb-8">
+            {/* Tier Selection */}
+            <div className="grid grid-cols-2 gap-3">
               {CARD_TIERS.map((tier) => (
                 <button
                   key={tier.id}
                   onClick={() => setSelectedId(tier.id)}
-                  className={`p-5 rounded-[20px] border transition-all text-left ${
-                    selectedId === tier.id
-                      ? `${tier.border} bg-white/[0.06] shadow-lg`
-                      : "border-white/5 bg-white/[0.02] opacity-60 hover:opacity-80"
+                  className={`p-4 rounded-2xl border transition-all text-left ${
+                    selectedId === tier.id ? `${tier.border} bg-white/10` : "border-white/5 bg-white/5 opacity-50"
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className={`w-6 h-6 rounded-lg ${tier.accentBg} flex items-center justify-center`}
-                    >
-                      <CreditCard size={12} className={tier.accent} />
-                    </div>
-                    <p
-                      className={`text-[9px] font-bold ${tier.accent} uppercase tracking-tight`}
-                    >
-                      {tier.tier}
-                    </p>
-                  </div>
+                  <p className={`text-[10px] font-bold ${tier.accent} mb-1 uppercase`}>{tier.tier}</p>
                   <p className="text-xl font-black">${tier.price}</p>
-                  <p className="text-[9px] font-bold text-white/30 mt-1">
-                    {(tier.price / PI_RATE_GCV).toFixed(7)} {"π"}
-                  </p>
-                  <p className="text-[9px] text-white/30 mt-2 font-medium">
-                    Limite: ${tier.limit}
-                  </p>
+                  <p className="text-[10px] opacity-40">Limite: ${tier.limit}</p>
                 </button>
               ))}
             </div>
 
-            {/* Features for selected tier */}
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
-                <Globe size={18} className="text-purple-400 mb-2" />
-                <p className="text-[10px] font-bold text-white/70">
-                  {selectedCard.features[0]}
-                </p>
-              </div>
-              <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
-                <Sparkles size={18} className="text-cyan-400 mb-2" />
-                <p className="text-[10px] font-bold text-white/70">
-                  {selectedCard.features[1]}
-                </p>
-              </div>
-              <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
-                <Shield size={18} className="text-emerald-400 mb-2" />
-                <p className="text-[10px] font-bold text-white/70">
-                  Protection totale
-                </p>
-              </div>
-              <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
-                <Zap size={18} className="text-amber-400 mb-2" />
-                <p className="text-[10px] font-bold text-white/70">
-                  Activation instant.
-                </p>
+            {/* Section Card Features (Inspirée capture) */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-2">
+                <Sparkles size={14} className="text-amber-400" /> Caractéristiques
+              </h3>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { icon: ShieldCheck, text: "3DS Secured - Protection avancée", color: "text-emerald-400" },
+                  { icon: RefreshCw, text: "Rechargeable instantanément", color: "text-blue-400" },
+                  { icon: Clock, text: "Validité de 3 ans - Renouvellement auto", color: "text-purple-400" },
+                  { icon: Globe, text: "Acceptation globale - Mastercard network", color: "text-pink-400" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                    <item.icon size={16} className={item.color} />
+                    <span className="text-xs font-medium text-white/70">{item.text}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* CTA Button */}
+            {/* Section Pricing Details (Inspirée capture) */}
+            <div className="p-5 bg-white/[0.02] border border-white/10 rounded-[24px] space-y-4">
+                <h3 className="text-xs font-bold uppercase text-white/40 mb-2">Détails des frais</h3>
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-white/60">Maintenance mensuelle</span>
+                        <span className="font-bold">$1/mois</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-white/60">Frais de recharge</span>
+                        <span className="font-bold">2.5% (min $1)</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-white/60">Frais de retrait</span>
+                        <span className="font-bold">1.5%</span>
+                    </div>
+                    <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                        <span className="text-sm font-bold">Total à payer</span>
+                        <span className="text-lg font-black text-purple-400">${selectedCard.price}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bouton Action */}
             <button
               onClick={() => setShowSummary(true)}
               disabled={isBalanceInsufficient}
-              className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all ${
-                isBalanceInsufficient
-                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
-                  : "bg-gradient-to-r from-purple-600 to-cyan-500 text-white shadow-xl shadow-purple-500/20 active:scale-95"
+              className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${
+                isBalanceInsufficient 
+                ? "bg-red-500/10 text-red-500 border border-red-500/20" 
+                : "bg-gradient-to-r from-purple-600 to-cyan-500 shadow-lg shadow-purple-500/20"
               }`}
             >
-              {isBalanceInsufficient
-                ? "Solde Insuffisant"
-                : "Confirmer l'emission"}
+              {isBalanceInsufficient ? "Solde Insuffisant" : "Continuer"}
               <ChevronRight size={18} />
             </button>
           </div>
         ) : (
           /* --- SUMMARY STEP --- */
-          <div className="animate-in slide-in-from-right duration-300 pt-8">
-            <button
-              onClick={() => setShowSummary(false)}
-              className="mb-6 flex items-center gap-2 text-white/40 hover:text-white transition-colors"
-            >
-              <ArrowLeft size={16} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                Modifier le choix
-              </span>
-            </button>
+          <div className="pt-8 space-y-8 animate-in slide-in-from-right duration-500">
+             <header className="flex items-center gap-4">
+                <button onClick={() => setShowSummary(false)} className="p-2 bg-white/5 rounded-xl">
+                    <ArrowLeft size={20} />
+                </button>
+                <h1 className="text-lg font-bold">Confirmation</h1>
+             </header>
 
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6">
-              {"Resume du "}
-              <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                Minage
-              </span>
-            </h2>
-
-            <div className="bg-white/[0.03] border border-white/10 rounded-[28px] overflow-hidden">
-              <div className="p-6 bg-white/[0.02] flex items-center justify-between border-b border-white/5">
-                <div>
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">
-                    {"Produit selectionne"}
-                  </p>
-                  <p className="text-sm font-black uppercase">
-                    {selectedCard.tier}
-                  </p>
+             <div className="p-6 bg-gradient-to-br from-purple-500/10 to-transparent border border-white/10 rounded-[32px] text-center space-y-4">
+                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Lock size={28} className="text-purple-400" />
                 </div>
-                <div
-                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${selectedCard.gradient} border border-white/10`}
-                />
-              </div>
-
-              <div className="p-6 space-y-5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-white/40 font-bold uppercase">
-                    Solde Actuel
-                  </span>
-                  <span className="font-black text-emerald-400">
-                    {userBalance.toFixed(6)} {"π"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-white/40 font-bold uppercase">
-                    {"Cout de la carte"}
-                  </span>
-                  <span className="font-black text-white">
-                    {priceInPi.toFixed(8)} {"π"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs border-t border-white/5 pt-4">
-                  <span className="text-purple-400 font-bold uppercase">
-                    {"Nouveau solde estime"}
-                  </span>
-                  <span className="font-black text-purple-400">
-                    {(userBalance - priceInPi).toFixed(6)} {"π"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="m-4 p-4 bg-purple-500/5 rounded-2xl flex gap-3 border border-purple-500/10">
-                <Info size={16} className="text-purple-400 shrink-0 mt-0.5" />
-                <p className="text-[9px] text-white/50 font-medium leading-relaxed">
-                  {`Ce paiement utilise le taux GCV de $314,159. Votre carte sera creditee de $${selectedCard.price} instantanement apres validation.`}
+                <h2 className="text-xl font-black">Paiement Sécurisé</h2>
+                <p className="text-xs text-white/50 px-6">
+                    L'émission de votre <b>{selectedCard.tier}</b> sera effectuée au taux GCV de $314,159/π si vous utilisez vos Pi.
                 </p>
-              </div>
-            </div>
+                <div className="py-4 border-y border-white/5 flex justify-around">
+                    <div>
+                        <p className="text-[10px] text-white/40 uppercase">Montant</p>
+                        <p className="text-lg font-bold">${selectedCard.price}</p>
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-white/40 uppercase">Equivalent</p>
+                        <p className="text-lg font-bold text-amber-400">{priceInPi.toFixed(7)} π</p>
+                    </div>
+                </div>
+             </div>
 
-            <button
-              onClick={handleFinalConfirm}
-              disabled={loading}
-              className="w-full mt-8 bg-gradient-to-r from-purple-600 to-cyan-500 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-purple-500/20 flex items-center justify-center gap-3 active:scale-95 transition-all"
-            >
-              {loading ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                <>
-                  <span>
-                    {"Valider & Payer"} {priceInPi.toFixed(8)} {"π"}
-                  </span>
-                  <ShieldCheck size={18} />
-                </>
-              )}
-            </button>
+             <button
+                onClick={handleFinalConfirm}
+                disabled={loading}
+                className="w-full py-5 bg-gradient-to-r from-purple-600 to-cyan-500 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95 transition-all"
+             >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : (
+                    <>
+                        <span>Confirmer le paiement</span>
+                        <CheckCircle2 size={20} />
+                    </>
+                )}
+             </button>
           </div>
         )}
       </div>

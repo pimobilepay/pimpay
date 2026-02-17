@@ -1,23 +1,42 @@
-# PimPay - Plateforme Fintech Multi-Chain
+# 💳 PimPay - Plateforme Fintech Multi-Chain
 
-![PimPay Banner](https://img.shields.io/badge/Status-In_Development-blueviolet?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-In_Development-blueviolet?style=for-the-badge)
 ![Sidra Chain](https://img.shields.io/badge/Blockchain-Sidra_Chain-green?style=for-the-badge)
 ![Pi Network](https://img.shields.io/badge/Blockchain-Pi_Network-gold?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js_16-Black?style=for-the-badge&logo=next.js)
+![Node.js](https://img.shields.io/badge/Node.js_20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express_5.2.1-000000?style=for-the-badge&logo=express&logoColor=white)
+![JOSE](https://img.shields.io/badge/jose_6.1.3-blue?style=for-the-badge)
 ![Compliance](https://img.shields.io/badge/Compliance-SMIIC_%7C_AAOIFI-gold?style=for-the-badge)
 
-**PimPay** est une solution fintech de banque virtuelle de pointe, multi-chaines, integree aux ecosystemes **Sidra Chain** et **Pi Network**. Notre mission est de combler le fosse entre les actifs numeriques et les services financiers traditionnels (Fiat), tout en garantissant une conformite ethique et legale stricte.
+**PimPay** est une solution fintech de banque virtuelle de pointe, multi-chaînes, intégrée aux écosystèmes **Sidra Chain** et **Pi Network**. Notre mission est de combler le fossé entre les actifs numériques et les services financiers traditionnels (Fiat), tout en garantissant une conformité éthique et légale stricte.
 
 ---
 
-## Vision du Projet
+## 🚀 Vision du Projet
 
-PimPay evolue pour devenir une plateforme bancaire hybride et conforme :
-* **Finance Islamique :** Integration native des principes de la Sidra Chain (elimination du Riba et du Gharar).
-* **Pi Network :** Passerelle entre l'ecosysteme Pi et les services financiers traditionnels via le SDK Pi v2.0.
-* **P2P & Fiat :** Passer des actifs numeriques vers les monnaies locales (XAF, EUR, USD, CDF).
-* **Crypto Swap :** Echanges inter-chaines entre Pi, Sidra, Bitcoin, USDT et Stablecoins.
-* **Securite Elara :** Architecture ultra-securisee avec chiffrement de grade bancaire et authentification multi-facteurs.
+PimPay évolue pour devenir une plateforme bancaire hybride et conforme :
+* **Finance Islamique :** Intégration native des principes de la Sidra Chain (élimination du Riba et du Gharar).
+* **Pi Network :** Passerelle entre l'écosystème Pi et les services financiers traditionnels via le SDK Pi v2.0.
+* **P2P & Fiat :** Passer des actifs numériques vers les monnaies locales (XAF, EUR, USD, CDF).
+* **Crypto Swap :** Échanges inter-chaînes entre Pi, Sidra, Bitcoin, USDT et Stablecoins.
+* **Sécurité Elara AI :** Architecture ultra-sécurisée avec chiffrement de grade bancaire et authentification multi-facteurs et signatures JWS/JWE.
+
+---
+
+## 🛠 Stack Technique (Core v16)
+
+| Composant | Technologie | Version |
+|---|---|---|
+| **Environnement** | Node.js | v20.x |
+| **Frontend** | Next.js (App Router) | v16.x |
+| **Backend API** | Express.js | v5.2.1 |
+| **Blockchain** | Ethers.js | v6.13.2 |
+| **Sécurité/Hash** | Bcryptjs | v3.0.3 |
+| **JWT/Signature** | Jose | v6.1.3 |
+| **Blockchain Lib** | Pi Network SDK | v2.0 |
+| **Base de données** | PostgreSQL / Prisma | - |
+| **Chiffrement** | Web Crypto API | AES-256 |
 
 ---
 
@@ -48,7 +67,7 @@ Pi Network est un ecosysteme de crypto-monnaie mobile avec une communaute mondia
 
 ---
 
-## Conformite & Gouvernance (Audit Ready)
+## ⚖️  Conformite & Gouvernance (Audit Ready)
 
 Pour repondre aux standards **AAOIFI**, **SMIIC** et **Basel III**, PimPay integre :
 - **Conseil Sharia (SSB) :** Supervision pour la validation de chaque produit financier (SMIIC 1:2020).
@@ -120,7 +139,7 @@ Pour repondre aux standards **AAOIFI**, **SMIIC** et **Basel III**, PimPay integ
 
 ---
 
-## Structure du Projet
+## 📁  Structure du Projet
 
 ```text
 pimpay/
@@ -181,7 +200,7 @@ pimpay/
 
 ---
 
-## Plan de Developpement
+## 📈 Plan de Developpement
 
 1. **Phase 1 : Market Research** - Analyse des besoins et audit juridique des regulations locales.
 2. **Phase 2 : Prototype Development** - Developpement du MVP avec integration Sidra Chain et Pi Network.
@@ -191,7 +210,7 @@ pimpay/
 
 ---
 
-## Contact
+## ​📞 Contact
 
 - **Support :** support@pimpay.pi
 - **Juridique :** juridique@pimpay.pi
