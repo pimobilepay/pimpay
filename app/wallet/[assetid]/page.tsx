@@ -3,11 +3,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft, Share2, Download, Clock, X, Copy, Check, History,
   ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar,
-  RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp
+  RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp,
+  Send, Loader2, Scan
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import SendModal from "@/components/SendModal";
+import { QRScanner } from "@/components/qr-scanner";
 import { toast } from "sonner";
 
 // --- ASSET CONFIG ---
@@ -66,6 +67,61 @@ const ASSET_CONFIG: Record<string, {
     explorerBase: "https://www.blockchain.com/btc/tx/",
     decimals: 8,
   },
+  XRP: {
+    name: "Ripple",
+    network: "XRP Ledger",
+    image: "/xrp.png",
+    accentColor: "text-slate-300",
+    accentBg: "bg-slate-500/10",
+    accentBorder: "border-slate-400/20",
+    explorerLabel: "XRP Scan",
+    explorerBase: "https://xrpscan.com/tx/",
+    decimals: 6,
+  },
+  XLM: {
+    name: "Stellar",
+    network: "Stellar Network",
+    image: "/xlm.png",
+    accentColor: "text-sky-400",
+    accentBg: "bg-sky-500/10",
+    accentBorder: "border-sky-400/20",
+    explorerLabel: "Stellar Expert",
+    explorerBase: "https://stellar.expert/explorer/public/tx/",
+    decimals: 7,
+  },
+  USDC: {
+    name: "USD Coin",
+    network: "ERC20 / TRC20",
+    image: "/usdc.png",
+    accentColor: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    accentBorder: "border-blue-400/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 4,
+  },
+  DAI: {
+    name: "Dai",
+    network: "ERC20",
+    image: "/dai.png",
+    accentColor: "text-amber-400",
+    accentBg: "bg-amber-500/10",
+    accentBorder: "border-amber-500/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 4,
+  },
+  BUSD: {
+    name: "Binance USD",
+    network: "BEP20",
+    image: "/busd.png",
+    accentColor: "text-yellow-400",
+    accentBg: "bg-yellow-500/10",
+    accentBorder: "border-yellow-500/20",
+    explorerLabel: "BscScan",
+    explorerBase: "https://bscscan.com/tx/",
+    decimals: 4,
+  },
 };
 
 const MARKET_DEFAULTS: Record<string, number> = {
@@ -73,6 +129,11 @@ const MARKET_DEFAULTS: Record<string, number> = {
   SDA: 1.20,
   USDT: 1.00,
   BTC: 0,
+  XRP: 0,
+  XLM: 0,
+  USDC: 1.00,
+  DAI: 1.00,
+  BUSD: 1.00,
 };
 
 interface Transaction {
@@ -98,24 +159,42 @@ export default function AssetDetailPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userId, setUserId] = useState("");
+
+  // Send form state
+  const [sendAddress, setSendAddress] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
+  const [sendStatus, setSendStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [sendTxHash, setSendTxHash] = useState("");
 
   const [balance, setBalance] = useState("0.00000000");
   const [address, setAddress] = useState("");
   const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
 
   // Fetch market prices
+  const COINGECKO_IDS: Record<string, string> = {
+    BTC: "bitcoin",
+    USDT: "tether",
+    USDC: "usd-coin",
+    DAI: "dai",
+    BUSD: "binance-usd",
+    XRP: "ripple",
+    XLM: "stellar",
+  };
+
   const fetchMarketPrice = useCallback(async () => {
-    if (assetId === "PI" || assetId === "SDA") return; // No public API for these
+    if (assetId === "PI" || assetId === "SDA") return;
+    const geckoId = COINGECKO_IDS[assetId];
+    if (!geckoId) return;
     try {
-      const ids = assetId === "BTC" ? "bitcoin" : "tether";
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`);
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd`);
       if (res.ok) {
         const data = await res.json();
-        const price = assetId === "BTC" ? data.bitcoin?.usd : data.tether?.usd;
+        const price = data[geckoId]?.usd;
         if (price) setMarketPrice(price);
       }
     } catch { /* keep default */ }
@@ -158,15 +237,23 @@ export default function AssetDetailPage() {
           addr = balData.addresses[assetId] || "";
         }
 
-        // For BTC, if no address, generate one
-        if (assetId === "BTC" && !addr) {
-          try {
-            const genRes = await fetch('/api/wallet/btc', { method: 'POST' });
-            if (genRes.ok) {
-              const genData = await genRes.json();
-              addr = genData.address || "";
-            }
-          } catch { /* ignore */ }
+        // For BTC/XRP/XLM, if no address, generate one
+        if (!addr) {
+          const genEndpoints: Record<string, string> = {
+            BTC: '/api/wallet/btc',
+            XRP: '/api/wallet/xrp',
+            XLM: '/api/wallet/xlm',
+          };
+          const genEndpoint = genEndpoints[assetId];
+          if (genEndpoint) {
+            try {
+              const genRes = await fetch(genEndpoint, { method: 'POST' });
+              if (genRes.ok) {
+                const genData = await genRes.json();
+                addr = genData.address || "";
+              }
+            } catch { /* ignore */ }
+          }
         }
 
         setAddress(addr);
@@ -474,14 +561,170 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      {/* SEND MODAL */}
+      {/* SEND MODAL - with address input and QR scan */}
       {showSendModal && (
-        <SendModal
-          isOpen={showSendModal}
-          onClose={() => setShowSendModal(false)}
-          balance={balance}
-          currency={assetId}
-          onRefresh={loadData}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
+          <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
+            <button
+              onClick={() => {
+                setShowSendModal(false);
+                setSendAddress("");
+                setSendAmount("");
+                setSendStatus("idle");
+                setSendTxHash("");
+              }}
+              className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1"
+            >
+              <X size={20} />
+            </button>
+
+            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
+            <h4 className="text-lg font-black text-white uppercase tracking-tight mb-5">{config.name}</h4>
+
+            {sendStatus === "success" ? (
+              <div className="flex flex-col items-center py-4 text-center">
+                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4">
+                  <Check size={40} className="text-emerald-500" />
+                </div>
+                <p className="text-sm font-black text-white mb-1 uppercase">Transfert reussi</p>
+                <p className="text-[10px] text-slate-400 mb-4 font-medium uppercase tracking-tight">
+                  {sendAmount} {assetId} envoyes avec succes
+                </p>
+                {sendTxHash && (
+                  <a
+                    href={`${config.explorerBase}${sendTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 hover:bg-white/10 transition-colors"
+                  >
+                    <p className="text-[9px] font-mono text-slate-400 truncate flex-1">{sendTxHash}</p>
+                    <ExternalLink size={14} className="text-blue-500 shrink-0" />
+                  </a>
+                )}
+                <button
+                  onClick={() => {
+                    setShowSendModal(false);
+                    setSendAddress("");
+                    setSendAmount("");
+                    setSendStatus("idle");
+                    setSendTxHash("");
+                    loadData();
+                  }}
+                  className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all"
+                >
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 text-left">
+                {/* Address input with QR scan */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Adresse de destination
+                  </label>
+                  <div className="relative">
+                    <input
+                      value={sendAddress}
+                      onChange={(e) => setSendAddress(e.target.value)}
+                      placeholder={`Adresse ${assetId}...`}
+                      className="w-full bg-white/5 border border-white/10 p-4 pr-14 rounded-2xl text-[11px] font-mono text-blue-100 focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
+                    />
+                    <button
+                      onClick={() => setShowQRScanner(true)}
+                      className="absolute right-3 top-3 p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"
+                      aria-label="Scanner un QR code"
+                    >
+                      <Scan size={16} className="text-white" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Amount input */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex justify-between">
+                    <span>Montant</span>
+                    <span className="text-blue-500 font-bold tracking-tighter">Solde: {balance} {assetId}</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={sendAmount}
+                      onChange={(e) => setSendAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-sm font-black text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
+                    />
+                    <button
+                      onClick={() => setSendAmount(balance)}
+                      className="absolute right-3 top-3 px-2.5 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded-lg text-[8px] font-black text-blue-400 uppercase hover:bg-blue-600/30 transition-colors"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                </div>
+
+                {/* Warning if insufficient */}
+                {sendAmount && parseFloat(sendAmount) > parseFloat(balance) && (
+                  <div className="py-2 px-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <p className="text-[9px] font-bold text-red-400 uppercase text-center">Solde insuffisant</p>
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  onClick={async () => {
+                    if (!sendAddress || !sendAmount) return;
+                    if (parseFloat(sendAmount) > parseFloat(balance)) {
+                      toast.error("Solde insuffisant");
+                      return;
+                    }
+                    setSendStatus("loading");
+                    try {
+                      const res = await fetch("/api/wallet/send", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }),
+                      });
+                      const result = await res.json();
+                      if (res.ok) {
+                        setSendStatus("success");
+                        setSendTxHash(result.hash || "");
+                      } else {
+                        toast.error(result.error || "Erreur lors de l'envoi");
+                        setSendStatus("idle");
+                      }
+                    } catch {
+                      toast.error("Erreur reseau");
+                      setSendStatus("idle");
+                    }
+                  }}
+                  disabled={sendStatus === "loading" || !sendAddress || !sendAmount || parseFloat(sendAmount) > parseFloat(balance)}
+                  className="w-full py-4 bg-blue-600 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[11px] tracking-widest disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-blue-600/10 active:scale-95 hover:bg-blue-500"
+                >
+                  {sendStatus === "loading" ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      <span>Confirmer le transfert</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* QR Scanner */}
+      {showQRScanner && (
+        <QRScanner
+          onClose={(data: string) => {
+            setShowQRScanner(false);
+            if (data && data.length > 0) {
+              setSendAddress(data);
+              toast.success("Adresse scannee avec succes");
+            }
+          }}
         />
       )}
     </div>

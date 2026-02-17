@@ -107,17 +107,20 @@ export default function WalletPage() {
   const [daiBalance, setDaiBalance] = useState("0.0000");
   const [busdBalance, setBusdBalance] = useState("0.0000");
 
+  const [xrpBalance, setXrpBalance] = useState("0.000000");
+  const [xlmBalance, setXlmBalance] = useState("0.0000000");
+
   const [addresses, setAddresses] = useState<WalletAddresses>({
-    PI: "", SDA: "", USDT: "", BTC: "", USDC: "", DAI: "", BUSD: ""
+    PI: "", SDA: "", USDT: "", BTC: "", USDC: "", DAI: "", BUSD: "", XRP: "", XLM: ""
   });
 
   const [marketPrices, setMarketPrices] = useState({
-    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00
+    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00, XRP: 0, XLM: 0
   });
 
   const fetchMarketPrices = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd&vs_currencies=usd');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd');
       if (res.ok) {
         const result = await res.json();
         setMarketPrices(prev => ({
@@ -127,6 +130,8 @@ export default function WalletPage() {
           USDC: result["usd-coin"]?.usd || prev.USDC,
           DAI: result.dai?.usd || prev.DAI,
           BUSD: result["binance-usd"]?.usd || prev.BUSD,
+          XRP: result.ripple?.usd || prev.XRP,
+          XLM: result.stellar?.usd || prev.XLM,
         }));
       }
     } catch (err) { /* silently fail, keep defaults */ }
@@ -164,6 +169,8 @@ export default function WalletPage() {
         setUsdcBalance(parseFloat(balData.USDC || "0").toFixed(4));
         setDaiBalance(parseFloat(balData.DAI || "0").toFixed(4));
         setBusdBalance(parseFloat(balData.BUSD || "0").toFixed(4));
+        setXrpBalance(parseFloat(balData.XRP || "0").toFixed(6));
+        setXlmBalance(parseFloat(balData.XLM || "0").toFixed(7));
 
         if (balData.addresses) {
           setAddresses({
@@ -174,6 +181,8 @@ export default function WalletPage() {
             USDC: balData.addresses.USDC || "",
             DAI: balData.addresses.DAI || "",
             BUSD: balData.addresses.BUSD || "",
+            XRP: balData.addresses.XRP || "",
+            XLM: balData.addresses.XLM || "",
           });
         }
       }
@@ -211,7 +220,9 @@ export default function WalletPage() {
     (parseFloat(usdtBalance) * marketPrices.USDT) +
     (parseFloat(usdcBalance) * marketPrices.USDC) +
     (parseFloat(daiBalance) * marketPrices.DAI) +
-    (parseFloat(busdBalance) * marketPrices.BUSD);
+    (parseFloat(busdBalance) * marketPrices.BUSD) +
+    (parseFloat(xrpBalance) * marketPrices.XRP) +
+    (parseFloat(xlmBalance) * marketPrices.XLM);
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
@@ -271,7 +282,7 @@ export default function WalletPage() {
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{userName}</p>
                 </div>
                 <div className="flex gap-1">
-                  {["PI", "BTC", "SDA", "USDT", "USDC", "DAI", "BUSD"].map((c) => (
+                  {["PI", "BTC", "SDA", "USDT", "XRP", "XLM", "USDC", "DAI", "BUSD"].map((c) => (
                     <span key={c} className="text-[7px] font-black text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{c}</span>
                   ))}
                 </div>
@@ -312,7 +323,7 @@ export default function WalletPage() {
         {/* ASSETS LIST */}
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tes Actifs</h3>
-          <span className="text-[9px] font-bold text-slate-600">7 actifs</span>
+          <span className="text-[9px] font-bold text-slate-600">9 actifs</span>
         </div>
 
         <div className="space-y-2.5 mb-8">
@@ -360,6 +371,29 @@ export default function WalletPage() {
             usdValue={parseFloat(btcBalance) * marketPrices.BTC}
             loading={loading}
             onClick={() => router.push('/wallet/btc')}
+          />
+
+          <AssetCard
+            logo={<XrpLogo />}
+            name="Ripple"
+            symbol="XRP"
+            network="XRP Ledger"
+            balance={xrpBalance}
+            marketPrice={marketPrices.XRP}
+            usdValue={parseFloat(xrpBalance) * marketPrices.XRP}
+            loading={loading}
+            onClick={() => router.push('/wallet/xrp')}
+          />
+          <AssetCard
+            logo={<XlmLogo />}
+            name="Stellar"
+            symbol="XLM"
+            network="Stellar Network"
+            balance={xlmBalance}
+            marketPrice={marketPrices.XLM}
+            usdValue={parseFloat(xlmBalance) * marketPrices.XLM}
+            loading={loading}
+            onClick={() => router.push('/wallet/xlm')}
           />
 
           {/* --- STABLECOINS --- */}

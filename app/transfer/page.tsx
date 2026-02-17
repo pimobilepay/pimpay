@@ -46,6 +46,11 @@ const CURRENCY_META: Record<string, { symbol: string; network: string; color: st
   SDA: { symbol: "SDA", network: "Sidra Mainnet", color: "text-emerald-400", icon: "sidrachain.png" },
   USDT: { symbol: "USDT", network: "TRC20", color: "text-emerald-400", icon: "tether-usdt.png" },
   BTC: { symbol: "BTC", network: "Bitcoin", color: "text-orange-400", icon: "bitcoin.png" },
+  XRP: { symbol: "XRP", network: "XRP Ledger", color: "text-slate-300", icon: "xrp.png" },
+  XLM: { symbol: "XLM", network: "Stellar Network", color: "text-sky-400", icon: "xlm.png" },
+  USDC: { symbol: "USDC", network: "ERC20 / TRC20", color: "text-blue-400", icon: "usdc.png" },
+  DAI: { symbol: "DAI", network: "ERC20", color: "text-amber-400", icon: "dai.png" },
+  BUSD: { symbol: "BUSD", network: "BEP20", color: "text-yellow-400", icon: "busd.png" },
 };
 
 // --- QUICK AMOUNT PRESETS ---
