@@ -6,14 +6,12 @@ import {
   ArrowLeft,
   Search,
   Scan,
-  Send,
   CheckCircle2,
   Loader2,
   Wallet as WalletIcon,
   ChevronDown,
   ShieldCheck,
   Globe,
-  Zap,
   AlertTriangle,
   ArrowUpRight,
   X,
@@ -26,6 +24,7 @@ import { QRScanner } from "@/components/qr-scanner";
 
 // --- TYPES ---
 interface WalletData {
+  id?: string; // Ajouté pour la sécurité des clés React
   currency: string;
   balance: number;
   type?: string;
@@ -53,7 +52,6 @@ const CURRENCY_META: Record<string, { symbol: string; network: string; color: st
   BUSD: { symbol: "BUSD", network: "BEP20", color: "text-yellow-400", icon: "busd.png" },
 };
 
-// --- QUICK AMOUNT PRESETS ---
 const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
 
 export default function SendPage() {
@@ -91,10 +89,10 @@ export default function SendPage() {
         const data = await res.json();
         const userWallets = data.user?.wallets || [];
         setWallets(userWallets);
-        if (
-          userWallets.length > 0 &&
-          !userWallets.find((w: WalletData) => w.currency === "XAF")
-        ) {
+        
+        // Sélection par défaut intelligente
+        const hasXAF = userWallets.find((w: WalletData) => w.currency === "XAF");
+        if (!hasXAF && userWallets.length > 0) {
           setSelectedCurrency(userWallets[0].currency);
         }
       }
@@ -128,6 +126,7 @@ export default function SendPage() {
   // --- RECIPIENT SEARCH ---
   useEffect(() => {
     const abortController = new AbortController();
+    
     const searchUser = async () => {
       if (recipientId.length >= 3) {
         setIsSearching(true);
@@ -136,24 +135,29 @@ export default function SendPage() {
             `/api/user/search?query=${encodeURIComponent(recipientId)}`,
             { signal: abortController.signal }
           );
+          
           if (res.ok && isMountedRef.current) {
             const data = await res.json();
             setRecipientData(data);
-          } else if (
-            isMountedRef.current &&
-            (recipientId.startsWith("0x") || /^G[A-Z2-7]{55}$/.test(recipientId) || (recipientId.startsWith("T") && recipientId.length === 34))
-          ) {
-            setRecipientData({
-              firstName: "Adresse",
-              lastName: "Externe",
-              avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${recipientId}`,
-              isExternal: true,
-            });
-          } else {
-            setRecipientData(null);
+          } else if (isMountedRef.current) {
+            // Détection adresse externe (Crypto)
+            const isCryptoAddr = recipientId.startsWith("0x") || 
+                               /^G[A-Z2-7]{55}$/.test(recipientId) || 
+                               (recipientId.startsWith("T") && recipientId.length === 34);
+            
+            if (isCryptoAddr) {
+              setRecipientData({
+                firstName: "Adresse",
+                lastName: "Externe",
+                avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${recipientId}`,
+                isExternal: true,
+              });
+            } else {
+              setRecipientData(null);
+            }
           }
         } catch (err: any) {
-          if (err.name !== "AbortError") setRecipientData(null);
+          if (err.name !== "AbortError" && isMountedRef.current) setRecipientData(null);
         } finally {
           if (isMountedRef.current) setIsSearching(false);
         }
@@ -161,6 +165,7 @@ export default function SendPage() {
         setRecipientData(null);
       }
     };
+
     const timer = setTimeout(searchUser, 600);
     return () => {
       clearTimeout(timer);
@@ -168,16 +173,14 @@ export default function SendPage() {
     };
   }, [recipientId]);
 
-  // --- QR SCANNER CALLBACK ---
   const handleQRResult = (data: string) => {
     setShowQRScanner(false);
     if (data && data.length > 0) {
       setRecipientId(data);
-      toast.success("Adresse scannee avec succes");
+      toast.success("Adresse scannée avec succès");
     }
   };
 
-  // --- SUBMIT ---
   const handleGoToSummary = async () => {
     if (!recipientId || !amount) {
       toast.error("Veuillez remplir tous les champs");
@@ -185,7 +188,6 @@ export default function SendPage() {
     }
     const numericAmount = parseFloat(amount);
     if (numericAmount <= 0) return toast.error("Montant invalide");
-
     if (numericAmount > currentWallet.balance) {
       toast.error(`Solde insuffisant en ${selectedCurrency}`);
       return;
@@ -194,16 +196,13 @@ export default function SendPage() {
     setIsSubmitting(true);
     const params = new URLSearchParams({
       recipient: recipientId,
-      recipientName: recipientData
-        ? `${recipientData.firstName} ${recipientData.lastName}`
-        : recipientId,
+      recipientName: recipientData ? `${recipientData.firstName} ${recipientData.lastName}` : recipientId,
       recipientAvatar: recipientData?.avatar || "",
       amount: amount,
       currency: selectedCurrency,
       fee: networkFee.toString(),
       description: description || "Transfert PimPay",
     });
-
     router.push(`/transfer/summary?${params.toString()}`);
   };
 
@@ -214,24 +213,18 @@ export default function SendPage() {
   return (
     <div className="flex-1 min-h-screen bg-[#020617] text-white font-sans">
       <div className="max-w-md mx-auto px-5 pt-10 pb-32">
-        {/* Header */}
         <header className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
             className="w-11 h-11 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center active:scale-90 transition-all"
-            aria-label="Retour"
           >
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-black uppercase italic tracking-tighter">
-              Envoyer
-            </h1>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter">Envoyer</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em]">
-                PimPay Secure Protocol
-              </p>
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em]">PimPay Secure Protocol</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -243,9 +236,7 @@ export default function SendPage() {
         <div className="space-y-5">
           {/* WALLET SELECTOR */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">
-              Source des fonds
-            </label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Source des fonds</label>
             <div className="relative">
               <button
                 disabled={isLoadingWallets}
@@ -255,40 +246,29 @@ export default function SendPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/20">
                     {currencyMeta.icon ? (
-                      <img
-                        src={`/${currencyMeta.icon}`}
-                        alt={selectedCurrency}
-                        className="w-6 h-6 object-contain"
-                      />
+                      <img src={`/${currencyMeta.icon}`} alt={selectedCurrency} className="w-6 h-6 object-contain" />
                     ) : (
                       <WalletIcon size={18} className="text-blue-400" />
                     )}
                   </div>
                   <div className="text-left">
-                    <p className="text-xs font-black uppercase tracking-tight">
-                      {selectedCurrency}
-                    </p>
+                    <p className="text-xs font-black uppercase tracking-tight">{selectedCurrency}</p>
                     <p className="text-[10px] text-emerald-500 font-bold">
-                      {isLoadingWallets
-                        ? "Chargement..."
-                        : `${currentWallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} disponible`}
+                      {isLoadingWallets ? "Chargement..." : `${currentWallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} disponible`}
                     </p>
                   </div>
                 </div>
-                <ChevronDown
-                  size={18}
-                  className={`text-slate-500 transition-transform ${showWalletPicker ? "rotate-180" : ""}`}
-                />
+                <ChevronDown size={18} className={`text-slate-500 transition-transform ${showWalletPicker ? "rotate-180" : ""}`} />
               </button>
 
               {showWalletPicker && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f172a] border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl">
                   {wallets.length > 0 ? (
-                    wallets.map((w) => {
+                    wallets.map((w, idx) => {
                       const meta = CURRENCY_META[w.currency];
                       return (
                         <button
-                          key={w.currency}
+                          key={w.id || `${w.currency}-${idx}`} // Clé unique sécurisée
                           onClick={() => {
                             setSelectedCurrency(w.currency);
                             setShowWalletPicker(false);
@@ -297,54 +277,34 @@ export default function SendPage() {
                         >
                           <div className="w-8 h-8 bg-slate-800 rounded-xl flex items-center justify-center overflow-hidden">
                             {meta?.icon ? (
-                              <img
-                                src={`/${meta.icon}`}
-                                alt={w.currency}
-                                className="w-5 h-5 object-contain"
-                              />
+                              <img src={`/${meta.icon}`} alt={w.currency} className="w-5 h-5 object-contain" />
                             ) : (
-                              <span className="text-[9px] font-black uppercase">
-                                {w.currency.slice(0, 2)}
-                              </span>
+                              <span className="text-[9px] font-black uppercase">{w.currency.slice(0, 2)}</span>
                             )}
                           </div>
                           <div className="text-left flex-1">
                             <p className="text-xs font-black uppercase">{w.currency}</p>
-                            <p className="text-[9px] text-slate-500 font-bold">
-                              {w.balance.toLocaleString()} {w.currency}
-                            </p>
+                            <p className="text-[9px] text-slate-500 font-bold">{w.balance.toLocaleString()} {w.currency}</p>
                           </div>
-                          {selectedCurrency === w.currency && (
-                            <CheckCircle2 size={16} className="text-blue-500" />
-                          )}
+                          {selectedCurrency === w.currency && <CheckCircle2 size={16} className="text-blue-500" />}
                         </button>
                       );
                     })
                   ) : (
-                    <div className="p-4 text-[10px] text-center text-slate-500 font-black">
-                      AUCUN WALLET
-                    </div>
+                    <div className="p-4 text-[10px] text-center text-slate-500 font-black">AUCUN WALLET</div>
                   )}
                 </div>
               )}
             </div>
-
-            {/* Network badge */}
             <div className="flex items-center gap-2 ml-1">
-              <span className="text-[8px] font-black text-slate-600 bg-white/5 px-2 py-0.5 rounded uppercase">
-                {currencyMeta.network}
-              </span>
-              <span className="text-[8px] font-bold text-slate-600">
-                Frais: {networkFee} {selectedCurrency}
-              </span>
+              <span className="text-[8px] font-black text-slate-600 bg-white/5 px-2 py-0.5 rounded uppercase">{currencyMeta.network}</span>
+              <span className="text-[8px] font-bold text-slate-600">Frais: {networkFee} {selectedCurrency}</span>
             </div>
           </section>
 
           {/* RECIPIENT SECTION */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">
-              Beneficiaire
-            </label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Bénéficiaire</label>
             <div className="relative">
               <input
                 type="text"
@@ -353,66 +313,45 @@ export default function SendPage() {
                 onChange={(e) => setRecipientId(e.target.value)}
                 className="w-full bg-[#0c1629] border border-white/[0.06] rounded-2xl p-4 pl-12 pr-14 text-sm text-white focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-700"
               />
-              <Search className="absolute left-4 top-4.5 text-slate-600" size={18} />
+              <Search className="absolute left-4 top-[1.1rem] text-slate-600" size={18} />
               <button
                 onClick={() => setShowQRScanner(true)}
-                className="absolute right-3 top-3 p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"
-                aria-label="Scanner un QR code"
+                className="absolute right-3 top-[0.75rem] p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"
               >
                 <Scan size={18} />
               </button>
             </div>
-
             {isSearching && (
               <div className="text-[9px] text-blue-400 font-black uppercase px-2 flex gap-2 items-center tracking-widest">
-                <Loader2 className="animate-spin" size={12} /> Recherche
-                blockchain...
+                <Loader2 className="animate-spin" size={12} /> Recherche blockchain...
               </div>
             )}
 
             {recipientData && (
-              <div className="flex items-center gap-3.5 p-3.5 border rounded-2xl bg-blue-600/5 border-blue-600/20">
+              <div className="flex items-center gap-3.5 p-3.5 border rounded-2xl bg-blue-600/5 border-blue-600/20 animate-in fade-in slide-in-from-top-2">
                 <div className="relative w-11 h-11 flex-shrink-0">
                   <img
                     src={recipientData.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${recipientId}`}
                     alt="Avatar"
                     className="w-full h-full rounded-full border-2 border-blue-500/30 object-cover bg-slate-800"
-                    crossOrigin="anonymous"
                   />
                   {!recipientData.isExternal && (
                     <div className="absolute -bottom-1 -right-1 bg-[#020617] p-0.5 rounded-full">
-                      <ShieldCheck
-                        className="text-blue-500"
-                        size={13}
-                        fill="currentColor"
-                      />
+                      <ShieldCheck className="text-blue-500" size={13} fill="currentColor" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black uppercase tracking-tight truncate">
-                    {recipientData.firstName} {recipientData.lastName}
-                  </p>
+                  <p className="text-sm font-black uppercase tracking-tight truncate">{recipientData.firstName} {recipientData.lastName}</p>
                   <div className="flex items-center gap-1.5">
                     {recipientData.isExternal ? (
-                      <span className="text-[8px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase">
-                        Externe
-                      </span>
+                      <span className="text-[8px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase">Externe</span>
                     ) : (
-                      <span className="text-[9px] text-blue-400 uppercase font-black tracking-tight">
-                        @{recipientData.username || "pimuser"}
-                      </span>
+                      <span className="text-[9px] text-blue-400 uppercase font-black tracking-tight">@{recipientData.username || "pimuser"}</span>
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setRecipientId("");
-                    setRecipientData(null);
-                  }}
-                  className="p-1.5 text-slate-600 hover:text-white"
-                  aria-label="Effacer le destinataire"
-                >
+                <button onClick={() => { setRecipientId(""); setRecipientData(null); }} className="p-1.5 text-slate-600 hover:text-white">
                   <X size={14} />
                 </button>
               </div>
@@ -431,9 +370,7 @@ export default function SendPage() {
                 className="w-full bg-transparent p-3 text-5xl font-black outline-none text-center text-white placeholder:text-white/5 transition-all"
               />
               <div className="flex justify-center items-center gap-2 mt-1">
-                <span className="px-3 py-1 bg-blue-600/10 text-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest italic">
-                  {selectedCurrency}
-                </span>
+                <span className="px-3 py-1 bg-blue-600/10 text-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest italic">{selectedCurrency}</span>
                 {amount && parseFloat(amount) > currentWallet.balance && (
                   <span className="flex items-center gap-1 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400">
                     <AlertTriangle size={10} /> Insuffisant
@@ -442,16 +379,13 @@ export default function SendPage() {
               </div>
             </div>
 
-            {/* Quick amounts */}
             <div className="flex gap-2 overflow-x-auto pb-1 px-1 scrollbar-hide">
               {QUICK_AMOUNTS.map((val) => (
                 <button
                   key={val}
                   onClick={() => setAmount(val.toString())}
                   className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase border transition-all ${
-                    amount === val.toString()
-                      ? "bg-blue-600/20 border-blue-500/40 text-blue-400"
-                      : "bg-white/[0.03] border-white/5 text-slate-500 hover:text-slate-300"
+                    amount === val.toString() ? "bg-blue-600/20 border-blue-500/40 text-blue-400" : "bg-white/[0.03] border-white/5 text-slate-500 hover:text-slate-300"
                   }`}
                 >
                   {val.toLocaleString()}
@@ -468,9 +402,7 @@ export default function SendPage() {
 
           {/* DESCRIPTION */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">
-              Note (optionnel)
-            </label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Note (optionnel)</label>
             <input
               type="text"
               placeholder="Ex: Remboursement, Paiement service..."
@@ -480,41 +412,29 @@ export default function SendPage() {
             />
           </section>
 
-          {/* FEE INFO */}
+          {/* RESUME */}
           {amount && parseFloat(amount) > 0 && (
-            <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2.5">
+            <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2.5 animate-in fade-in zoom-in-95">
               <div className="flex items-center gap-1.5 mb-1">
                 <Info size={12} className="text-slate-500" />
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  Resume
-                </span>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Résumé</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide">
                 <span className="text-slate-500">Montant</span>
-                <span className="text-white">
-                  {parseFloat(amount).toLocaleString()} {selectedCurrency}
-                </span>
+                <span className="text-white">{parseFloat(amount).toLocaleString()} {selectedCurrency}</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide">
-                <span className="text-slate-500">Frais reseau</span>
-                <span className="text-slate-400">
-                  {networkFee} {selectedCurrency}
-                </span>
+                <span className="text-slate-500">Frais réseau</span>
+                <span className="text-slate-400">{networkFee} {selectedCurrency}</span>
               </div>
               <div className="h-px bg-white/5" />
               <div className="flex justify-between text-[11px] font-black uppercase">
-                <span className="text-blue-400">Total debit</span>
-                <span className="text-white">
-                  {(parseFloat(amount) + networkFee).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {selectedCurrency}
-                </span>
+                <span className="text-blue-400">Total débit</span>
+                <span className="text-white">{(parseFloat(amount) + networkFee).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedCurrency}</span>
               </div>
             </div>
           )}
 
-          {/* SUBMIT BUTTON */}
           <button
             disabled={isSubmitting || !amount || !recipientId || (parseFloat(amount) > currentWallet.balance)}
             onClick={handleGoToSummary}
@@ -537,19 +457,14 @@ export default function SendPage() {
             )}
           </button>
 
-          {/* Security badge */}
           <div className="flex items-center justify-center gap-2 pt-2">
             <ShieldCheck size={12} className="text-slate-600" />
-            <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">
-              Transaction chiffree bout-en-bout
-            </p>
+            <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Transaction chiffrée bout-en-bout</p>
           </div>
         </div>
       </div>
 
-      {/* QR Scanner Modal */}
       {showQRScanner && <QRScanner onClose={handleQRResult} />}
-
       <div className="lg:hidden">
         <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
       </div>
