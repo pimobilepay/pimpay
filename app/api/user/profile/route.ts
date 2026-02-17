@@ -20,7 +20,6 @@ const generateBlockchainIdentities = () => {
     };
 };
 
-// All required wallet currencies
 const REQUIRED_WALLETS = [
     { currency: "XAF", type: "FIAT" as const },
     { currency: "PI", type: "PI" as const },
@@ -62,116 +61,75 @@ export async function GET() {
 
         if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-        // --- SYNC BLOCKCHAIN ADDRESSES ---
-        const needsAddressSync = !user.sidraAddress || !user.walletAddress;
-        if (needsAddressSync) {
+        // 1. Synchronisation des adresses ET des clés privées (walletPrivateKey inclus)
+        if (!user.sidraAddress || !user.usdtAddress || !user.walletPrivateKey) {
             const ids = generateBlockchainIdentities();
-
-            // Build safe update data (only fields that exist in schema)
-            const updateData: Record<string, unknown> = {
-                sidraAddress: user.sidraAddress || ids.sidra.address,
-                sidraPrivateKey: user.sidraPrivateKey || ids.sidra.privateKey,
-                walletAddress: user.walletAddress || ids.pi.address,
-            };
-
-            // Try to set usdtAddress safely
-            try {
-                user = await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        ...updateData,
-                        usdtAddress: (user as Record<string, unknown>).usdtAddress as string || ids.usdt.address,
-                        usdtPrivateKey: (user as Record<string, unknown>).usdtPrivateKey as string || ids.usdt.privateKey,
-                    },
-                    include: { wallets: true, virtualCards: true }
-                });
-            } catch {
-                // Fallback without usdtAddress fields if they don't exist in DB yet
-                user = await prisma.user.update({
-                    where: { id: userId },
-                    data: updateData,
-                    include: { wallets: true, virtualCards: true }
-                });
-            }
+            user = await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    sidraAddress: user.sidraAddress || ids.sidra.address,
+                    sidraPrivateKey: user.sidraPrivateKey || ids.sidra.privateKey,
+                    walletPrivateKey: user.walletPrivateKey || ids.sidra.privateKey, // RÉPARE L'ERREUR D'ENVOI
+                    usdtAddress: user.usdtAddress || ids.usdt.address,
+                    usdtPrivateKey: user.usdtPrivateKey || ids.usdt.privateKey,
+                    walletAddress: user.walletAddress || ids.pi.address,
+                },
+                include: { wallets: true, virtualCards: true }
+            });
         }
 
-        // --- ENSURE ALL REQUIRED WALLETS EXIST ---
+        // 2. Gestion intelligente des monnaies (Évite les doublons SDA/SIDRA)
         const existingCurrencies = new Set(user.wallets.map(w => w.currency));
-        const missingWallets = REQUIRED_WALLETS.filter(rw => !existingCurrencies.has(rw.currency));
+        
+        // On considère que SDA et SIDRA c'est la même chose pour éviter le doublon
+        const hasSidraAnyForm = existingCurrencies.has("SIDRA") || existingCurrencies.has("SDA");
+
+        const missingWallets = REQUIRED_WALLETS.filter(rw => {
+            if (rw.currency === "SIDRA" && hasSidraAnyForm) return false;
+            return !existingCurrencies.has(rw.currency);
+        });
 
         if (missingWallets.length > 0) {
             await Promise.all(
                 missingWallets.map(mw =>
                     prisma.wallet.create({
                         data: {
-                            userId,
+                            userId: userId as string,
                             currency: mw.currency,
                             balance: 0,
                             type: mw.type,
                         }
-                    }).catch(() => null) // ignore if already exists due to race condition
+                    }).catch(() => null)
                 )
             );
-
-            // Re-fetch user with all wallets
             user = await prisma.user.findUnique({
                 where: { id: userId },
                 include: { wallets: true, virtualCards: true }
-            }) as typeof user;
-
-            if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+            }) as any;
         }
 
-        // --- EXTRACT BALANCES ---
-        const walletBalances: Record<string, number> = {};
-        for (const w of user.wallets) {
-            const key = w.currency === "SIDRA" ? "sda" : w.currency.toLowerCase();
-            walletBalances[key] = w.balance;
-        }
-
-        // Get usdtAddress safely
-        let usdtAddress = "";
-        try {
-            usdtAddress = (user as Record<string, unknown>).usdtAddress as string || "";
-        } catch {
-            // Field may not exist
-        }
+        // 3. Extraction des soldes
+        const balances: Record<string, number> = {};
+        user?.wallets.forEach(w => {
+            const key = (w.currency === "SIDRA" || w.currency === "SDA") ? "sda" : w.currency.toLowerCase();
+            balances[key] = w.balance;
+        });
 
         return NextResponse.json({
             success: true,
             user: {
-                id: user.id,
-                username: user.username,
-                name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || "PIONEER",
-                piUserId: user.piUserId,
-                avatar: user.avatar,
-                kycStatus: user.kycStatus,
-                walletAddress: user.walletAddress,
-                usdtAddress: usdtAddress,
-                sidraAddress: user.sidraAddress,
-                balances: {
-                    pi: walletBalances.pi ?? 0,
-                    xaf: walletBalances.xaf ?? 0,
-                    sda: walletBalances.sda ?? 0,
-                    usdt: walletBalances.usdt ?? 0,
-                    btc: walletBalances.btc ?? 0,
-                    xrp: walletBalances.xrp ?? 0,
-                    xlm: walletBalances.xlm ?? 0,
-                    usdc: walletBalances.usdc ?? 0,
-                    dai: walletBalances.dai ?? 0,
-                    busd: walletBalances.busd ?? 0,
-                },
-                wallets: user.wallets.map(w => ({
+                ...user,
+                name: user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || "PIONEER",
+                balances,
+                wallets: user?.wallets.map(w => ({
                     ...w,
-                    currency: w.currency === "SIDRA" ? "SDA" : w.currency,
+                    currency: (w.currency === "SIDRA" || w.currency === "SDA") ? "SDA" : w.currency,
                 })),
-                virtualCards: user.virtualCards,
             }
         });
 
-    } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        console.error("PROFILE_ERROR:", message);
+    } catch (error: any) {
+        console.error("PROFILE_ERROR:", error.message);
         return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
 }
