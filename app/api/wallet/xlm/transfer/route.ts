@@ -2,97 +2,85 @@ import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TransactionType, TransactionStatus } from "@prisma/client";
+import * as StellarSdk from '@stellar/stellar-sdk'; // Pour la validation d'adresse
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.id) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    if (!session?.id) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const { toAddress, amount, memo } = await req.json();
     const transferAmount = parseFloat(amount);
 
+    // 1. Validations de base
     if (!toAddress || isNaN(transferAmount) || transferAmount <= 0) {
-      return NextResponse.json({ error: "Parametres invalides" }, { status: 400 });
+      return NextResponse.json({ error: "Montant ou adresse invalide" }, { status: 400 });
     }
 
-    // Validate Stellar address format (starts with 'G', 56 chars)
-    if (!/^G[A-Z2-7]{55}$/.test(toAddress)) {
-      return NextResponse.json({ error: "Adresse Stellar (XLM) invalide" }, { status: 400 });
+    // 2. Validation robuste de l'adresse Pi (Format Ed25519 standard)
+    // Utiliser le SDK est plus sûr qu'une Regex pour manipuler de l'argent réel
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(toAddress)) {
+      return NextResponse.json({ error: "L'adresse Pi Network est invalide" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // 3. Vérifier le wallet PI de l'expéditeur
       const senderWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: session.id, currency: "XLM" } }
+        where: { userId_currency: { userId: session.id, currency: "PI" } }
       });
 
       if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error("Solde XLM insuffisant");
+        throw new Error("Solde Pi insuffisant pour effectuer ce transfert");
       }
 
-      const user = await tx.user.findUnique({
-        where: { id: session.id },
-        select: { xlmAddress: true, xlmSecret: true }
-      });
+      // 4. Tag pour le Worker externe spécialisé Pi
+      const tempHash = `PI-EXT-${Date.now()}`;
 
-      let txHash = `XLM-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-      // Submit via Horizon API
-      try {
-        // Build and submit a Stellar transaction via Horizon
-        const horizonRes = await fetch(`https://horizon.stellar.org/accounts/${user?.xlmAddress}`, {
-          signal: AbortSignal.timeout(5000)
-        });
-
-        if (horizonRes.ok) {
-          const accountData = await horizonRes.json();
-          const sequence = accountData.sequence;
-          
-          // For production: use stellar-sdk to build and sign proper transactions
-          // For now, record the transaction internally
-          txHash = `XLM-PIMPAY-${Date.now()}`;
-        }
-      } catch (err) {
-        console.error("[XLM_BROADCAST]:", err);
-      }
-
-      // Debit sender
+      // 5. Débit immédiat (Garantie de la banque PimPay)
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // Create transaction record
+      // 6. Création de la transaction dans l'historique
       const transaction = await tx.transaction.create({
         data: {
-          reference: `XLM-TX-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
+          reference: `PIM-PI-${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
           amount: transferAmount,
-          currency: "XLM",
+          currency: "PI",
           type: TransactionType.TRANSFER,
           status: TransactionStatus.SUCCESS,
           fromUserId: session.id,
           fromWalletId: senderWallet.id,
-          blockchainTx: txHash,
-          description: `Envoi XLM vers ${toAddress.slice(0, 6)}...${toAddress.slice(-4)}`
+          blockchainTx: tempHash, // Sera remplacé par le vrai hash Pi Mainnet
+          description: `Envoi Pi vers ${toAddress}`,
+          metadata: memo ? { memo } : {}
         }
       });
 
+      // 7. Notification Pi enrichie
       await tx.notification.create({
         data: {
           userId: session.id,
-          title: "Transfert XLM envoye",
-          message: `${transferAmount} XLM envoyes vers ${toAddress.slice(0, 8)}...`,
+          title: "Paiement Pi envoyé ! 🥧",
+          message: `Votre transfert de ${transferAmount} PI vers ${toAddress.slice(0, 4)}...${toAddress.slice(-4)} est en cours de traitement sur le Mainnet.`,
           type: "PAYMENT_SENT"
         }
       });
 
-      return { txHash, transaction };
-    }, { timeout: 30000 });
+      return transaction;
+    }, { timeout: 20000 });
 
-    return NextResponse.json({ success: true, txHash: result.txHash });
+    return NextResponse.json({
+      success: true,
+      message: "Transfert Pi enregistré avec succès",
+      transaction: result
+    });
+
   } catch (error: any) {
-    console.error("[XLM_TRANSFER_ERROR]:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[PI_TRANSFER_API_ERROR]:", error);
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

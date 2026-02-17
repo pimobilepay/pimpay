@@ -139,7 +139,7 @@ export default function LoginPage() {
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
               <input
                 type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email ou Username"
+                placeholder="email ou username"
                 className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none text-sm"
               />
             </div>

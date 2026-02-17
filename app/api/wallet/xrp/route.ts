@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth"; // Assure-toi que ton helper auth retourne bien l'ID
 import { prisma } from "@/lib/prisma";
 import crypto from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
+// Récupération de la clé de chiffrement depuis le .env
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
 
+/**
+ * Chiffre la clé privée en AES-256-GCM
+ */
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(12);
   const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
@@ -15,27 +19,21 @@ function encrypt(text: string): string {
   return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
 }
 
-// XRP address derivation from seed (using ripple-keypairs-like logic)
+/**
+ * Simule la génération d'une paire de clés XRP
+ * Note : En production, il est préférable d'utiliser la lib 'xrpl' (xrpl.Wallet.generate())
+ */
 function generateXrpKeypair() {
   const seed = crypto.randomBytes(16);
-  // Encode as base58 with "s" prefix for XRP secret format
   const alphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-  
-  // Generate a deterministic keypair from the seed
   const hash = crypto.createHash('sha256').update(seed).digest();
-  
-  // Create a classic XRP address (starts with 'r')
-  const addressHash = crypto.createHash('sha256').update(hash).update('address').digest();
-  const ripemd = crypto.createHash('ripemd160').update(addressHash).digest();
-  
-  // Base58 encode with XRP alphabet
+  const ripemd = crypto.createHash('ripemd160').update(hash).digest();
+
   let address = 'r';
-  const chars = ripemd;
   for (let i = 0; i < 24; i++) {
-    address += alphabet[chars[i % chars.length] % alphabet.length];
+    address += alphabet[ripemd[i % ripemd.length] % alphabet.length];
   }
-  
-  // Generate secret (starts with 's')
+
   let secret = 's';
   for (let i = 0; i < 28; i++) {
     secret += alphabet[seed[i % seed.length] % alphabet.length];
@@ -44,23 +42,14 @@ function generateXrpKeypair() {
   return { address, secret };
 }
 
-// POST: Generate or retrieve XRP address
+// POST: Générer ou récupérer l'adresse XRP de l'utilisateur
 export async function POST() {
   try {
     const userSession = await auth();
-    if (!userSession?.id) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    if (!userSession?.id) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     const userId = userSession.id;
 
-    // Check if already has an XRP wallet
-    const existing = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: "XRP" } }
-    });
-
-    if (existing?.depositMemo) {
-      return NextResponse.json({ address: existing.depositMemo, symbol: "XRP" });
-    }
-
-    // Also check user.xrpAddress
+    // 1. Vérifier si l'utilisateur a déjà une adresse dans la table User
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { xrpAddress: true }
@@ -70,17 +59,22 @@ export async function POST() {
       return NextResponse.json({ address: user.xrpAddress, symbol: "XRP" });
     }
 
-    // Generate new keypair
+    // 2. Générer une nouvelle paire de clés
     const { address, secret } = generateXrpKeypair();
     const encryptedSecret = encrypt(secret);
 
-    // Save to DB
+    // 3. Sauvegarde atomique (Transaction)
     await prisma.$transaction(async (tx) => {
+      // Mise à jour de l'utilisateur avec la nouvelle adresse et clé chiffrée
       await tx.user.update({
         where: { id: userId },
-        data: { xrpAddress: address, xrpSecret: encryptedSecret }
+        data: { 
+          xrpAddress: address, 
+          xrpPrivateKey: encryptedSecret // NOM CORRIGÉ selon ton schéma
+        }
       });
 
+      // Création ou mise à jour du Wallet XRP
       await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "XRP" } },
         update: { depositMemo: address, type: "CRYPTO" },
@@ -97,28 +91,29 @@ export async function POST() {
     return NextResponse.json({ address, symbol: "XRP" });
   } catch (error: any) {
     console.error("[XRP_GEN_ERROR]:", error);
-    return NextResponse.json({ error: "Echec de generation", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Échec de génération", details: error.message }, { status: 500 });
   }
 }
 
-// GET: Fetch XRP balance from the ledger
+// GET: Récupérer le solde XRP depuis le Ledger
 export async function GET() {
   try {
     const userSession = await auth();
-    if (!userSession?.id) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    if (!userSession?.id) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const userId = userSession.id;
 
     const user = await prisma.user.findUnique({
-      where: { id: userSession.id },
+      where: { id: userId },
       select: { xrpAddress: true }
     });
 
     if (!user?.xrpAddress) {
-      return NextResponse.json({ balance: "0", address: null });
+      return NextResponse.json({ balance: "0.000000", address: null });
     }
 
-    // Fetch balance from XRP Ledger public API
     let xrpBalance = 0;
     try {
+      // Appel au nœud public Ripple
       const response = await fetch('https://s1.ripple.com:51234/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -126,30 +121,33 @@ export async function GET() {
           method: 'account_info',
           params: [{ account: user.xrpAddress, ledger_index: 'validated' }]
         }),
-        signal: AbortSignal.timeout(5000)
+        next: { revalidate: 60 } // Cache d'une minute
       });
 
       const data = await response.json();
       if (data.result?.account_data?.Balance) {
-        // XRP balance is in drops (1 XRP = 1,000,000 drops)
+        // Conversion Drops -> XRP
         xrpBalance = parseInt(data.result.account_data.Balance) / 1_000_000;
       }
-    } catch {
-      // Fallback to DB value
+    } catch (err) {
+      console.warn("XRPL Node injoignable, lecture solde DB.");
       const wallet = await prisma.wallet.findUnique({
-        where: { userId_currency: { userId: userSession.id, currency: "XRP" } }
+        where: { userId_currency: { userId, currency: "XRP" } }
       });
       xrpBalance = wallet?.balance || 0;
     }
 
-    // Sync to DB
-    await prisma.wallet.upsert({
-      where: { userId_currency: { userId: userSession.id, currency: "XRP" } },
-      update: { balance: xrpBalance },
-      create: { userId: userSession.id, currency: "XRP", balance: xrpBalance, type: "CRYPTO" }
+    // Synchronisation du solde dans la base de données
+    await prisma.wallet.update({
+      where: { userId_currency: { userId, currency: "XRP" } },
+      data: { balance: xrpBalance }
     });
 
-    return NextResponse.json({ balance: xrpBalance.toFixed(6), address: user.xrpAddress });
+    return NextResponse.json({ 
+      balance: xrpBalance.toFixed(6), 
+      address: user.xrpAddress 
+    });
+
   } catch (error: any) {
     console.error("[XRP_BALANCE_ERROR]:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

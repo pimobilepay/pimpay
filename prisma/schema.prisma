@@ -79,21 +79,22 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // --- WALLETS MULTI-CHAIN ---
-  walletAddress  String? @unique // Bitcoin / Pi
-  piUserId       String? @unique
+  // --- WALLETS MULTI-CHAIN (Corrigé pour API & Worker) ---
+  walletAddress    String? @unique // Bitcoin / Pi
+  piUserId         String? @unique
 
-  usdtAddress    String? @unique // USDT TRC20
-  usdtPrivateKey String?
+  // EVM & Sidra (USDT, SIDRA, USDC, BUSD, DAI)
+  sidraAddress     String? @unique
+  sidraPrivateKey  String? 
+  walletPrivateKey String? // Clé générique pour les autres réseaux EVM (USDC/BUSD)
 
-  sidraAddress   String? @unique 
-  sidraPrivateKey String?        
+  // XRP Ledger
+  xrpAddress       String? @unique
+  xrpPrivateKey    String? // Utilisé par le Worker
 
-  xrpAddress     String? @unique  // XRP Ledger
-  xrpSecret      String?
-
-  xlmAddress     String? @unique  // Stellar Lumens
-  xlmSecret      String?
+  // Stellar & Pi Network
+  xlmAddress        String? @unique
+  stellarPrivateKey String? // Utilisé par le Worker (XLM et PI)
 
   wallets          Wallet[]
   vaults           Vault[]
@@ -114,16 +115,15 @@ model User {
 }
 
 // -----------------------------------------------------------------------------
-// FINANCE & ÉPARGNE (Modifié pour Multi-Devises)
+// FINANCE & ÉPARGNE
 // -----------------------------------------------------------------------------
 model Wallet {
   id            String     @id @default(cuid())
   userId        String
   balance       Float      @default(0)
   frozenBalance Float      @default(0)
-  
-  // Défini sur XAF par défaut pour PimPay, mais peut être EUR, CDF, PI, etc.
-  currency      String     @default("XAF") 
+
+  currency      String     @default("XAF")
   type          WalletType @default(FIAT)
 
   depositMemo   String?    @unique
@@ -135,7 +135,6 @@ model Wallet {
   transactionsFrom Transaction[] @relation("tx_from_wallet")
   transactionsTo   Transaction[] @relation("tx_to_wallet")
 
-  // AJOUT CRUCIAL : Un utilisateur peut avoir un wallet par devise (XAF, EUR, PI...)
   @@unique([userId, currency])
   @@index([userId])
   @@index([depositMemo])
@@ -196,7 +195,7 @@ model Vault {
   targetAmount Float?
   interestRate Float     @default(0)
   lockUntil    DateTime?
-  createdAt    DateTime  @default(now()) 
+  createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -242,7 +241,7 @@ model Transaction {
   amount       Float
   fee          Float             @default(0)
   netAmount    Float?
-  currency     String            @default("XAF") // Modifié PI -> XAF par défaut pour la banque
+  currency     String            @default("XAF")
   destCurrency String?
   type         TransactionType   @default(TRANSFER)
 
@@ -479,7 +478,7 @@ enum WalletType {
   PI
   FIAT
   CRYPTO
-  SIDRA 
+  SIDRA
 }
 
 enum TransactionType {
@@ -506,4 +505,3 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
-

@@ -40,19 +40,19 @@ const BtcLogo = () => (
 
 const UsdcLogo = () => (
   <div className="w-11 h-11 rounded-2xl bg-blue-900/20 flex items-center justify-center border border-blue-400/20 p-2">
-    <img src="/usdc.jpg" alt="USDC" className="w-full h-full object-contain rounded-lg" />
+    <img src="/usdc.png" alt="USDC" className="w-full h-full object-contain rounded-lg" />
   </div>
 );
 
 const DaiLogo = () => (
   <div className="w-11 h-11 rounded-2xl bg-amber-900/20 flex items-center justify-center border border-amber-500/20 p-2">
-    <img src="/dai.jpg" alt="DAI" className="w-full h-full object-contain rounded-lg" />
+    <img src="/dai.png" alt="DAI" className="w-full h-full object-contain rounded-lg" />
   </div>
 );
 
 const BusdLogo = () => (
   <div className="w-11 h-11 rounded-2xl bg-yellow-900/20 flex items-center justify-center border border-yellow-500/20 p-2">
-    <img src="/busd.jpg" alt="BUSD" className="w-full h-full object-contain rounded-lg" />
+    <img src="/busd.png" alt="BUSD" className="w-full h-full object-contain rounded-lg" />
   </div>
 );
 

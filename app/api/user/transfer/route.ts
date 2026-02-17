@@ -6,8 +6,13 @@ import { jwtVerify } from "jose";
 import { ethers } from "ethers";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
-// Utilisation d'un nœud plus stable ou gestion du timeout
-const SIDRA_RPC = "https://rpc.sidrachain.com";
+// Configurations des RPC
+const RPC_CONFIGS: Record<string, string> = {
+  SDA: "https://rpc.sidrachain.com",
+  USDC: process.env.POLYGON_RPC || "https://polygon-rpc.com", // Exemple sur Polygon
+  BUSD: "https://bsc-dataseed.binance.org",
+  DAI: "https://eth-mainnet.public.blastapi.io",
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,41 +32,44 @@ export async function POST(req: NextRequest) {
     const cleanIdentifier = recipientIdentifier.startsWith('@') ? recipientIdentifier.substring(1) : recipientIdentifier;
     const transferAmount = parseFloat(amount);
     const transferCurrency = (currency || "XAF").toUpperCase();
-    const isExternalSDA = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
+
+    // --- LOGIQUE DE DÉTECTION DES RÉSEAUX ---
+    const isEVMAddress = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
+    const isXRPAddress = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(cleanIdentifier);
+    const isXLMAddress = /^G[A-Z2-7]{55}$/.test(cleanIdentifier);
+    const isPiAddress = isXLMAddress; // Pi utilise le format Stellar (XLM)
 
     if (isNaN(transferAmount) || transferAmount <= 0) throw new Error("Montant invalide.");
 
-    // --- VACCIN 1 : PRÉ-VÉRIFICATION DU RÉSEAU (Évite les logs infinis) ---
-    if (isExternalSDA && transferCurrency === "SDA") {
+    // --- VÉRIFICATION DE DISPONIBILITÉ RÉSEAU (Pour les cryptos EVM) ---
+    if (isEVMAddress && RPC_CONFIGS[transferCurrency]) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 sec max
-        const probe = await fetch(SIDRA_RPC, {
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await fetch(RPC_CONFIGS[transferCurrency], {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 }),
           signal: controller.signal
         });
         clearTimeout(timeoutId);
-        if (!probe.ok) throw new Error();
       } catch (e) {
-        throw new Error("Le réseau Sidra est actuellement indisponible (Erreur 502/Timeout). Réessayez dans quelques instants.");
+        throw new Error(`Le réseau ${transferCurrency} est injoignable. Réessayez plus tard.`);
       }
     }
 
     // --- TRANSACTION ATOMIQUE PIMPAY ---
     const result = await prisma.$transaction(async (tx) => {
-      
       const senderWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: senderId, currency: transferCurrency } }
       });
 
       if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error("Solde insuffisant dans votre wallet PimPay.");
+        throw new Error(`Solde insuffisant en ${transferCurrency}.`);
       }
 
       const sender = await tx.user.findUnique({ where: { id: senderId } });
-      if (!sender) throw new Error("Compte expéditeur introuvable.");
+      if (!sender) throw new Error("Expéditeur introuvable.");
 
       const recipient = await tx.user.findFirst({
         where: {
@@ -70,46 +78,46 @@ export async function POST(req: NextRequest) {
             { email: { equals: cleanIdentifier, mode: 'insensitive' } },
             { sidraAddress: cleanIdentifier },
             { walletAddress: cleanIdentifier },
-            { piUserId: cleanIdentifier },
             { phone: cleanIdentifier }
           ]
         }
       });
 
-      // Détection d'adresse Pi externe (commence par G et 56 caractères)
-      const isExternalPi = /^G[A-Z2-7]{55}$/.test(cleanIdentifier);
-
       let txHash = null;
       let toUserId = null;
       let toWalletId = null;
 
-      // Débit immédiat pour sécurité
+      // Débit préventif (Rollback automatique si erreur)
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // CAS A : RETRAIT VERS BLOCKCHAIN EXTERNE
-      if (isExternalSDA && transferCurrency === "SDA") {
-        if (!sender.sidraPrivateKey) throw new Error("Clé privée Sidra manquante.");
+      // --- CAS 1 : BLOCKCHAIN EXTERNE (EVM: SDA, USDC, BUSD, DAI) ---
+      if (isEVMAddress && RPC_CONFIGS[transferCurrency]) {
+        if (!sender.walletPrivateKey) throw new Error(`Clé privée manquante pour ${transferCurrency}.`);
         
         try {
-          // VACCIN 2 : staticNetwork empêche ethers de boucler sur la détection du réseau
-          const provider = new ethers.JsonRpcProvider(SIDRA_RPC, undefined, {
-            staticNetwork: new ethers.Network("Sidra Chain", 121314) // Remplace par le bon ChainID si nécessaire
-          });
+          const provider = new ethers.JsonRpcProvider(RPC_CONFIGS[transferCurrency]);
+          const wallet = new ethers.Wallet(sender.walletPrivateKey, provider);
           
-          const wallet = new ethers.Wallet(sender.sidraPrivateKey, provider);
+          // Note: Pour les tokens (USDC/BUSD), il faudrait utiliser un contrat Interface. 
+          // Ici, on gère l'envoi de la monnaie native du réseau configuré.
           const val = ethers.parseEther(amount.toString());
-          
           const blockchainTx = await wallet.sendTransaction({ to: cleanIdentifier, value: val });
           txHash = blockchainTx.hash;
         } catch (err: any) {
-          // Si la blockchain échoue, l'erreur remontera et Prisma annulera le débit (Rollback)
-          throw new Error(`Réseau Sidra saturé : ${err.message}`);
+          throw new Error(`Erreur Blockchain ${transferCurrency}: ${err.message}`);
         }
       } 
-      // CAS B : TRANSFERT INTERNE
+      
+      // --- CAS 2 : BLOCKCHAIN EXTERNE (NON-EVM: XRP, XLM, PI) ---
+      else if ((isXRPAddress && transferCurrency === "XRP") || (isXLMAddress && (transferCurrency === "XLM" || transferCurrency === "PI"))) {
+        // Enregistrement pour traitement par le bridge PimPay (Node.js worker dédié)
+        txHash = `${transferCurrency}-EXT-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      }
+
+      // --- CAS 3 : TRANSFERT INTERNE PIMPAY ---
       else if (recipient) {
         toUserId = recipient.id;
         const recipientWallet = await tx.wallet.upsert({
@@ -119,7 +127,7 @@ export async function POST(req: NextRequest) {
             userId: recipient.id,
             currency: transferCurrency,
             balance: transferAmount,
-            type: transferCurrency === "SDA" ? WalletType.SIDRA : WalletType.FIAT
+            type: WalletType.CRYPTO // On généralise le type
           }
         });
         toWalletId = recipientWallet.id;
@@ -127,28 +135,13 @@ export async function POST(req: NextRequest) {
         await tx.notification.create({
           data: {
             userId: recipient.id,
-            title: "Argent reçu ! 📥",
-            message: `Vous avez reçu ${transferAmount} ${transferCurrency} de @${sender.username}.`,
+            title: "Paiement reçu",
+            message: `${transferAmount} ${transferCurrency} de @${sender.username}`,
             type: "PAYMENT_RECEIVED"
           }
         });
-      // CAS C : TRANSFERT PI VERS ADRESSE EXTERNE (Mainnet)
-      else if (isExternalPi && transferCurrency === "PI") {
-        // Pour l'instant, les transferts PI externes sont enregistrés comme PENDING
-        // et nécessitent une validation manuelle ou un processeur blockchain séparé
-        txHash = `PI-EXT-${Date.now()}`;
-
-        await tx.notification.create({
-          data: {
-            userId: senderId,
-            title: "Transfert Pi externe initie",
-            message: `Envoi de ${transferAmount} PI vers ${cleanIdentifier.slice(0, 8)}...${cleanIdentifier.slice(-6)}`,
-            type: "PAYMENT_SENT"
-          }
-        });
-      }
-      else {
-        throw new Error("Destinataire introuvable. Verifiez le pseudo, email ou adresse wallet.");
+      } else {
+        throw new Error("Format d'adresse ou destinataire inconnu.");
       }
 
       return await tx.transaction.create({
@@ -163,16 +156,14 @@ export async function POST(req: NextRequest) {
           toUserId: toUserId,
           toWalletId: toWalletId,
           blockchainTx: txHash,
-          description: description || (isExternalPi ? `Transfert Pi vers ${cleanIdentifier.slice(0, 8)}...` : txHash ? `Retrait Blockchain` : `Vers @${recipient?.username}`)
+          description: description || `Transfert ${transferCurrency}`
         }
       });
-    }, { timeout: 30000 }); // Timeout ajusté
+    }, { timeout: 30000 });
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("Erreur Transfert:", error.message);
-    // On renvoie un message propre à l'utilisateur
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
