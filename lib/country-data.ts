@@ -335,18 +335,73 @@ export const coreCountries: Country[] = [
 ];
 
 export const worldCountries: Country[] = [
-  { name: "United States", code: "US", flag: "🇺🇸", currency: "USD", currencySymbol: "$", piToLocalRate: 1, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "Canada", code: "CA", flag: "🇨🇦", currency: "CAD", currencySymbol: "$", piToLocalRate: 1.36, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "Brazil", code: "BR", flag: "🇧🇷", currency: "BRL", currencySymbol: "R$", piToLocalRate: 5, dialCode: "+55", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "United Kingdom", code: "GB", flag: "🇬🇧", currency: "GBP", currencySymbol: "£", piToLocalRate: 0.79, dialCode: "+44", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "Germany", code: "DE", flag: "🇩🇪", currency: "EUR", currencySymbol: "€", piToLocalRate: 0.93, dialCode: "+49", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "China", code: "CN", flag: "🇨🇳", currency: "CNY", currencySymbol: "¥", piToLocalRate: 7.1, dialCode: "+86", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "Japan", code: "JP", flag: "🇯🇵", currency: "JPY", currencySymbol: "¥", piToLocalRate: 150, dialCode: "+81", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "India", code: "IN", flag: "🇮🇳", currency: "INR", currencySymbol: "₹", piToLocalRate: 83, dialCode: "+91", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "Australia", code: "AU", flag: "🇦🇺", currency: "AUD", currencySymbol: "$", piToLocalRate: 1.5, dialCode: "+61", continent: "OCEANIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "United States", code: "US", flag: "US", currency: "USD", currencySymbol: "$", piToLocalRate: 1, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Canada", code: "CA", flag: "CA", currency: "CAD", currencySymbol: "$", piToLocalRate: 1.36, dialCode: "+1", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Brazil", code: "BR", flag: "BR", currency: "BRL", currencySymbol: "R$", piToLocalRate: 5, dialCode: "+55", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Mexico", code: "MX", flag: "MX", currency: "MXN", currencySymbol: "$", piToLocalRate: 17.2, dialCode: "+52", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Argentina", code: "AR", flag: "AR", currency: "ARS", currencySymbol: "$", piToLocalRate: 870, dialCode: "+54", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Colombia", code: "CO", flag: "CO", currency: "COP", currencySymbol: "$", piToLocalRate: 3900, dialCode: "+57", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Chile", code: "CL", flag: "CL", currency: "CLP", currencySymbol: "$", piToLocalRate: 930, dialCode: "+56", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Peru", code: "PE", flag: "PE", currency: "PEN", currencySymbol: "S/", piToLocalRate: 3.7, dialCode: "+51", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "United Kingdom", code: "GB", flag: "GB", currency: "GBP", currencySymbol: "\u00a3", piToLocalRate: 0.79, dialCode: "+44", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Germany", code: "DE", flag: "DE", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+49", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Italy", code: "IT", flag: "IT", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+39", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Spain", code: "ES", flag: "ES", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+34", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Netherlands", code: "NL", flag: "NL", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+31", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Belgium", code: "BE", flag: "BE", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+32", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Switzerland", code: "CH", flag: "CH", currency: "CHF", currencySymbol: "CHF", piToLocalRate: 0.88, dialCode: "+41", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Portugal", code: "PT", flag: "PT", currency: "EUR", currencySymbol: "\u20ac", piToLocalRate: 0.93, dialCode: "+351", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Poland", code: "PL", flag: "PL", currency: "PLN", currencySymbol: "z\u0142", piToLocalRate: 4.0, dialCode: "+48", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Sweden", code: "SE", flag: "SE", currency: "SEK", currencySymbol: "kr", piToLocalRate: 10.5, dialCode: "+46", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Turkey", code: "TR", flag: "TR", currency: "TRY", currencySymbol: "\u20ba", piToLocalRate: 32, dialCode: "+90", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Russia", code: "RU", flag: "RU", currency: "RUB", currencySymbol: "\u20bd", piToLocalRate: 92, dialCode: "+7", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Ukraine", code: "UA", flag: "UA", currency: "UAH", currencySymbol: "\u20b4", piToLocalRate: 41, dialCode: "+380", continent: "EUROPE", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "China", code: "CN", flag: "CN", currency: "CNY", currencySymbol: "\u00a5", piToLocalRate: 7.1, dialCode: "+86", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Japan", code: "JP", flag: "JP", currency: "JPY", currencySymbol: "\u00a5", piToLocalRate: 150, dialCode: "+81", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "India", code: "IN", flag: "IN", currency: "INR", currencySymbol: "\u20b9", piToLocalRate: 83, dialCode: "+91", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "South Korea", code: "KR", flag: "KR", currency: "KRW", currencySymbol: "\u20a9", piToLocalRate: 1340, dialCode: "+82", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Indonesia", code: "ID", flag: "ID", currency: "IDR", currencySymbol: "Rp", piToLocalRate: 15700, dialCode: "+62", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Vietnam", code: "VN", flag: "VN", currency: "VND", currencySymbol: "\u20ab", piToLocalRate: 25450, dialCode: "+84", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Thailand", code: "TH", flag: "TH", currency: "THB", currencySymbol: "\u0e3f", piToLocalRate: 36, dialCode: "+66", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Philippines", code: "PH", flag: "PH", currency: "PHP", currencySymbol: "\u20b1", piToLocalRate: 57, dialCode: "+63", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Malaysia", code: "MY", flag: "MY", currency: "MYR", currencySymbol: "RM", piToLocalRate: 4.7, dialCode: "+60", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Singapore", code: "SG", flag: "SG", currency: "SGD", currencySymbol: "$", piToLocalRate: 1.35, dialCode: "+65", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Pakistan", code: "PK", flag: "PK", currency: "PKR", currencySymbol: "\u20a8", piToLocalRate: 280, dialCode: "+92", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Bangladesh", code: "BD", flag: "BD", currency: "BDT", currencySymbol: "\u09f3", piToLocalRate: 110, dialCode: "+880", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Saudi Arabia", code: "SA", flag: "SA", currency: "SAR", currencySymbol: "\ufdfc", piToLocalRate: 3.75, dialCode: "+966", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "UAE", code: "AE", flag: "AE", currency: "AED", currencySymbol: "AED", piToLocalRate: 3.67, dialCode: "+971", continent: "ASIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Australia", code: "AU", flag: "AU", currency: "AUD", currencySymbol: "$", piToLocalRate: 1.5, dialCode: "+61", continent: "OCEANIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "New Zealand", code: "NZ", flag: "NZ", currency: "NZD", currencySymbol: "$", piToLocalRate: 1.65, dialCode: "+64", continent: "OCEANIA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "South Africa", code: "ZA", flag: "ZA", currency: "ZAR", currencySymbol: "R", piToLocalRate: 18.5, dialCode: "+27", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Tanzania", code: "TZ", flag: "TZ", currency: "TZS", currencySymbol: "TSh", piToLocalRate: 2560, dialCode: "+255", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "vodacom_tz", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Uganda", code: "UG", flag: "UG", currency: "UGX", currencySymbol: "USh", piToLocalRate: 3700, dialCode: "+256", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "mtn_ug", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } }, { id: "airtel_ug", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Rwanda", code: "RW", flag: "RW", currency: "RWF", currencySymbol: "RF", piToLocalRate: 1280, dialCode: "+250", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "mtn_rw", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Ethiopia", code: "ET", flag: "ET", currency: "ETB", currencySymbol: "Br", piToLocalRate: 57, dialCode: "+251", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "telebirr_et", name: "Telebirr", icon: LOGOS.telebirr, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Morocco", code: "MA", flag: "MA", currency: "MAD", currencySymbol: "MAD", piToLocalRate: 10, dialCode: "+212", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Tunisia", code: "TN", flag: "TN", currency: "TND", currencySymbol: "DT", piToLocalRate: 3.1, dialCode: "+216", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Egypt", code: "EG", flag: "EG", currency: "EGP", currencySymbol: "LE", piToLocalRate: 49, dialCode: "+20", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Madagascar", code: "MG", flag: "MG", currency: "MGA", currencySymbol: "Ar", piToLocalRate: 4500, dialCode: "+261", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "orange_mg", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Togo", code: "TG", flag: "TG", currency: "XOF", currencySymbol: "FCFA", piToLocalRate: 605.5, dialCode: "+228", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "moov_tg", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Niger", code: "NE", flag: "NE", currency: "XOF", currencySymbol: "FCFA", piToLocalRate: 605.5, dialCode: "+227", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "airtel_ne", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Tchad", code: "TD", flag: "TD", currency: "XAF", currencySymbol: "FCFA", piToLocalRate: 605.5, dialCode: "+235", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "airtel_td", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Zambia", code: "ZM", flag: "ZM", currency: "ZMW", currencySymbol: "ZK", piToLocalRate: 26, dialCode: "+260", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "mtn_zm", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } }, { id: "airtel_zm", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Mozambique", code: "MZ", flag: "MZ", currency: "MZN", currencySymbol: "MT", piToLocalRate: 64, dialCode: "+258", continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [{ id: "vodacom_mz", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } }] },
+  { name: "Haiti", code: "HT", flag: "HT", currency: "HTG", currencySymbol: "G", piToLocalRate: 132, dialCode: "+509", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Dominican Republic", code: "DO", flag: "DO", currency: "DOP", currencySymbol: "$", piToLocalRate: 59, dialCode: "+1-809", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  { name: "Jamaica", code: "JM", flag: "JM", currency: "JMD", currencySymbol: "$", piToLocalRate: 156, dialCode: "+1-876", continent: "AMERICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
 ];
 
 export const countries: Country[] = [...coreCountries, ...worldCountries];
 export const getActiveCountries = () => countries.filter(c => c.isActive);
 export const getCountriesByContinent = (continent: Country["continent"]) =>
   countries.filter(c => c.continent === continent);
+export const searchCountries = (query: string): Country[] => {
+  if (!query) return countries;
+  const q = query.toLowerCase();
+  return countries.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    c.code.toLowerCase().includes(q) ||
+    c.currency.toLowerCase().includes(q) ||
+    c.dialCode.includes(q)
+  );
+};
