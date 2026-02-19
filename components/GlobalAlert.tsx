@@ -194,7 +194,8 @@ export default function GlobalAlert() {
   }
 
   // 3. ECRAN DE MAINTENANCE FINTECH WEB3
-  if (config.maintenanceMode) {
+  // Les admins peuvent naviguer librement pendant la maintenance
+  if (config.maintenanceMode && !config.isAdmin) {
     return (
       <div className="fixed inset-0 z-[9999] bg-[#020617] flex items-center justify-center overflow-hidden">
         {/* Animated background effects */}

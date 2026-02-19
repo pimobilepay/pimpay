@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
     let isAdmin = false;
 
     try {
+      // Check if the current user is admin (via JWT token in cookie or header)
       const adminSession = await adminAuth(req);
       if (adminSession) {
         isAdmin = true;
@@ -70,6 +71,12 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 10
         });
+      } else {
+        // Fallback: check via verifyAuth if user has ADMIN role
+        const userSession = await verifyAuth(req);
+        if (userSession && userSession.role === "ADMIN") {
+          isAdmin = true;
+        }
       }
     } catch (e) { isAdmin = false; }
 

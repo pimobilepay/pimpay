@@ -7,7 +7,7 @@ import {                                                LogOut, Shield, Users, Z
   Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
   CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight
 } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
 // --- TYPES ---
 type LedgerUser = {
@@ -34,7 +34,7 @@ type Transaction = {
   amount: number;
   status: string;
   type: string;
-  fromUser: { username: string; email: string; name: string }; // Ajout de name
+  fromUser: { username: string; email: string; name: string };
   createdAt: string;
 };
 
@@ -46,22 +46,30 @@ type AuditLog = {
   createdAt: string;
 };
 
-type ServerStats = {
-  cpuUsage: string;
-  ramUsage: string;
-  storage: string;
-  uptime: string;
-  latency: string;
-  activeSessions: number;
-  os: string;
-  platform: string;
-  version: string;
+type ChartDataPoint = {
+  day: string;
+  entrant: number;
+  sortant: number;
+  exchange: number;
+  total: number;
 };
 
-const chartData = [
-  { day: 'Lun', vol: 450 }, { day: 'Mar', vol: 890 }, { day: 'Mer', vol: 1200 },
-  { day: 'Jeu', vol: 700 }, { day: 'Ven', vol: 1500 }, { day: 'Sam', vol: 2100 }, { day: 'Dim', vol: 1800 },
-];
+type ChartSummary = {
+  totalEntrant: number;
+  totalSortant: number;
+  totalExchange: number;
+  totalVolume: number;
+  transactionCount: number;
+};
+
+type ServerStats = {
+  cpu: { usage: string; usageNum: number; model: string; cores: number; arch: string };
+  ram: { total: string; used: string; free: string; percent: string; percentNum: number };
+  process: { heapUsed: string; heapTotal: string; rss: string; external: string };
+  system: { platform: string; osType: string; osRelease: string; hostname: string; uptime: string; uptimeSeconds: number; nodeVersion: string };
+  database: { totalUsers: number; activeSessions: number; totalTransactions: number; pendingTransactions: number; latency: string };
+  timestamp: string;
+} | null;
 
 // --- COMPOSANTS INTERNES ---
 
@@ -170,10 +178,9 @@ function DashboardContent() {
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [serverStats, setServerStats] = useState<ServerStats>({
-    cpuUsage: "12%", ramUsage: "45%", storage: "28%", uptime: "14j 6h", latency: "14ms", activeSessions: 42,
-    os: "Linux v6.1", platform: "Node.js 20", version: "PimPay Engine 4.0"
-  });
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalVolume: 0, transactionCount: 0 });
+  const [serverStats, setServerStats] = useState<ServerStats>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -198,8 +205,13 @@ function DashboardContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [u, c, l, t] = await Promise.all([
-        fetch("/api/admin/users"), fetch("/api/admin/config"), fetch("/api/admin/logs"), fetch("/api/admin/transactions?status=PENDING")
+      const [u, c, l, t, ch, sv] = await Promise.all([
+        fetch("/api/admin/users"),
+        fetch("/api/admin/config"),
+        fetch("/api/admin/logs"),
+        fetch("/api/admin/transactions?status=PENDING"),
+        fetch("/api/admin/chart-data"),
+        fetch("/api/admin/server-stats"),
       ]);
       if (u.ok) setUsers(await u.json());
       if (l.ok) setLogs(await l.json());
@@ -209,9 +221,30 @@ function DashboardContent() {
         setIsMaintenanceMode(config.maintenanceMode);
         setMaintenanceEnd(config.maintenanceUntil || null);
       }
+      if (ch.ok) {
+        const chartRes = await ch.json();
+        setChartData(chartRes.chartData || []);
+        setChartSummary(chartRes.summary || { totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalVolume: 0, transactionCount: 0 });
+      }
+      if (sv.ok) {
+        const stats = await sv.json();
+        setServerStats(stats);
+      }
     } catch (err) { toast.error("Erreur Sync"); }
     finally { setLoading(false); }
   };
+
+  // Real-time server stats polling (every 10 seconds)
+  useEffect(() => {
+    if (!isMounted) return;
+    const statsInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/admin/server-stats");
+        if (res.ok) setServerStats(await res.json());
+      } catch { /* silent */ }
+    }, 10000);
+    return () => clearInterval(statsInterval);
+  }, [isMounted]);
 
   const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[], transactionId?: string, newSecret?: string) => {
     try {
@@ -325,10 +358,66 @@ function DashboardContent() {
                             <Button onClick={() => handleAction(null, "TOGGLE_MAINTENANCE")} variant="ghost" className="text-orange-500 text-[10px] font-black uppercase">Arrêter</Button>
                         </Card>
                     )}
-                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 h-48 overflow-hidden">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}><Area type="monotone" dataKey="vol" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={3} /></AreaChart>
-                        </ResponsiveContainer>
+                    {/* Dynamic Chart - Entrants / Sortants / Exchange */}
+                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Volume 7 Jours</p>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[8px] font-black text-slate-400 uppercase">Entrant</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400" /><span className="text-[8px] font-black text-slate-400 uppercase">Sortant</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-[8px] font-black text-slate-400 uppercase">Exchange</span></div>
+                          </div>
+                        </div>
+                        <div className="h-52">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="gradEntrant" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
+                                <linearGradient id="gradSortant" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
+                                </linearGradient>
+                                <linearGradient id="gradExchange" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+                              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 8, fill: '#475569' }} axisLine={false} tickLine={false} />
+                              <Tooltip
+                                contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', fontSize: '10px', fontWeight: 800 }}
+                                labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '8px', letterSpacing: '2px', marginBottom: '4px' }}
+                                itemStyle={{ fontWeight: 800 }}
+                              />
+                              <Area type="monotone" dataKey="entrant" stroke="#10b981" fill="url(#gradEntrant)" strokeWidth={2.5} name="Entrant" dot={false} />
+                              <Area type="monotone" dataKey="sortant" stroke="#f87171" fill="url(#gradSortant)" strokeWidth={2.5} name="Sortant" dot={false} />
+                              <Area type="monotone" dataKey="exchange" stroke="#3b82f6" fill="url(#gradExchange)" strokeWidth={2.5} name="Exchange" dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                        {/* Summary cards */}
+                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                          <div className="text-center">
+                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Entrant</p>
+                            <p className="text-sm font-black text-emerald-400">{chartSummary.totalEntrant.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Sortant</p>
+                            <p className="text-sm font-black text-red-400">{chartSummary.totalSortant.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Exchange</p>
+                            <p className="text-sm font-black text-blue-400">{chartSummary.totalExchange.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">TX Total</p>
+                            <p className="text-sm font-black text-white">{chartSummary.transactionCount}</p>
+                          </div>
+                        </div>
                     </Card>
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
                         <p className="text-[10px] font-black uppercase text-blue-500 mb-4 tracking-widest">Logs Audit (Dernières Actions)</p>
@@ -403,49 +492,123 @@ function DashboardContent() {
 
             {activeTab === "system" && (
                 <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 text-white">
-                            <Cpu size={20} className="text-blue-500 mb-4" />
-                            <p className="text-[8px] font-black text-slate-500 uppercase">CPU Usage</p>
-                            <p className="text-xl font-black">{serverStats.cpuUsage}</p>
-                        </Card>
-                        <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-6 text-white">
-                            <Activity size={20} className="text-emerald-500 mb-4" />
-                            <p className="text-[8px] font-black text-slate-500 uppercase">Latence DB</p>
-                            <p className="text-xl font-black">{serverStats.latency}</p>
-                        </Card>
-                    </div>
-
-                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 text-white space-y-4">
-                        <div className="flex items-center gap-3 border-b border-white/5 pb-3">
-                           <Server size={18} className="text-blue-400" />
-                           <p className="text-[10px] font-black uppercase tracking-widest">Infos Serveur PimPay</p>
+                    {!serverStats ? (
+                      <div className="p-16 text-center">
+                        <div className="w-10 h-10 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Chargement des stats serveur...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Live indicator */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                              <div className="absolute inset-0 w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                            </div>
+                            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-[2px]">Temps Reel</span>
+                          </div>
+                          <span className="text-[8px] font-mono text-slate-600">{new Date(serverStats.timestamp).toLocaleTimeString("fr-FR")}</span>
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
-                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
-                              <span className="text-[9px] font-black text-slate-500 uppercase">Système / OS</span>
-                              <span className="text-[10px] font-bold text-white uppercase">{serverStats.os}</span>
-                           </div>
-                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
-                              <span className="text-[9px] font-black text-slate-500 uppercase">Platforme</span>
-                              <span className="text-[10px] font-bold text-white uppercase">{serverStats.platform}</span>
-                           </div>
-                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
-                              <span className="text-[9px] font-black text-slate-500 uppercase">Ram Alloc.</span>
-                              <span className="text-[10px] font-bold text-emerald-500">{serverStats.ramUsage}</span>
-                           </div>
-                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
-                              <span className="text-[9px] font-black text-slate-500 uppercase">Stockage</span>
-                              <span className="text-[10px] font-bold text-blue-400">{serverStats.storage}</span>
-                           </div>
-                           <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
-                              <span className="text-[9px] font-black text-slate-500 uppercase">Version Engine</span>
-                              <span className="text-[10px] font-bold text-white">{serverStats.version}</span>
-                           </div>
-                        </div>
-                    </Card>
 
-                    <Button onClick={() => { const msg = prompt("Message annonce réseau :"); if(msg) handleAction(null, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }} className="w-full h-14 bg-blue-600 rounded-2xl font-black text-[9px] uppercase flex items-center justify-center gap-2">
+                        {/* CPU & RAM with progress bars */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 text-white space-y-3">
+                            <div className="flex items-center gap-2">
+                              <Cpu size={16} className="text-blue-500" />
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">CPU</p>
+                            </div>
+                            <p className="text-2xl font-black text-white">{serverStats.cpu.usage}</p>
+                            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${serverStats.cpu.usageNum}%`, background: serverStats.cpu.usageNum > 80 ? '#ef4444' : serverStats.cpu.usageNum > 50 ? '#f59e0b' : '#3b82f6' }} />
+                            </div>
+                            <p className="text-[7px] text-slate-600 font-mono">{serverStats.cpu.cores} Cores // {serverStats.cpu.arch}</p>
+                          </Card>
+                          <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 text-white space-y-3">
+                            <div className="flex items-center gap-2">
+                              <Activity size={16} className="text-emerald-500" />
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">RAM</p>
+                            </div>
+                            <p className="text-2xl font-black text-white">{serverStats.ram.percent}</p>
+                            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${serverStats.ram.percentNum}%`, background: serverStats.ram.percentNum > 80 ? '#ef4444' : serverStats.ram.percentNum > 60 ? '#f59e0b' : '#10b981' }} />
+                            </div>
+                            <p className="text-[7px] text-slate-600 font-mono">{serverStats.ram.used} / {serverStats.ram.total}</p>
+                          </Card>
+                        </div>
+
+                        {/* DB Latency & Uptime */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 text-white space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Database size={14} className="text-amber-500" />
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">DB Latence</p>
+                            </div>
+                            <p className="text-xl font-black text-amber-400">{serverStats.database.latency}</p>
+                            <p className="text-[7px] text-slate-600 font-mono">{serverStats.database.totalTransactions} TX total</p>
+                          </Card>
+                          <Card className="bg-slate-900/60 border-white/5 rounded-[2rem] p-5 text-white space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Clock size={14} className="text-cyan-500" />
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Uptime</p>
+                            </div>
+                            <p className="text-xl font-black text-cyan-400">{serverStats.system.uptime}</p>
+                            <p className="text-[7px] text-slate-600 font-mono">{serverStats.system.hostname}</p>
+                          </Card>
+                        </div>
+
+                        {/* System Info Card */}
+                        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 text-white space-y-4">
+                          <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                            <Server size={18} className="text-blue-400" />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Infos Systeme PimPay</p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3">
+                            {[
+                              { label: "OS / Type", value: `${serverStats.system.osType} ${serverStats.system.osRelease}`, color: "text-white" },
+                              { label: "Plateforme", value: `${serverStats.system.platform} (${serverStats.cpu.arch})`, color: "text-white" },
+                              { label: "CPU Model", value: serverStats.cpu.model, color: "text-blue-400" },
+                              { label: "Node.js Version", value: serverStats.system.nodeVersion, color: "text-emerald-400" },
+                              { label: "Process RSS", value: serverStats.process.rss, color: "text-amber-400" },
+                              { label: "Heap Used / Total", value: `${serverStats.process.heapUsed} / ${serverStats.process.heapTotal}`, color: "text-cyan-400" },
+                            ].map((item, i) => (
+                              <div key={i} className="flex justify-between items-center bg-white/[0.03] p-4 rounded-2xl border border-white/[0.03]">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{item.label}</span>
+                                <span className={`text-[10px] font-bold ${item.color} font-mono max-w-[55%] text-right truncate`}>{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+
+                        {/* Database Stats Card */}
+                        <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 text-white space-y-4">
+                          <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                            <Database size={18} className="text-emerald-400" />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Base de Donnees</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/[0.03] text-center">
+                              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Utilisateurs</p>
+                              <p className="text-lg font-black text-white">{serverStats.database.totalUsers}</p>
+                            </div>
+                            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/[0.03] text-center">
+                              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Sessions Actives</p>
+                              <p className="text-lg font-black text-emerald-400">{serverStats.database.activeSessions}</p>
+                            </div>
+                            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/[0.03] text-center">
+                              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">TX Total</p>
+                              <p className="text-lg font-black text-blue-400">{serverStats.database.totalTransactions}</p>
+                            </div>
+                            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/[0.03] text-center">
+                              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">TX En Attente</p>
+                              <p className="text-lg font-black text-amber-400">{serverStats.database.pendingTransactions}</p>
+                            </div>
+                          </div>
+                        </Card>
+                      </>
+                    )}
+
+                    <Button onClick={() => { const msg = prompt("Message annonce reseau :"); if(msg) handleAction(null, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }} className="w-full h-14 bg-blue-600 rounded-2xl font-black text-[9px] uppercase flex items-center justify-center gap-2">
                         <Radio size={16} className="animate-pulse" /> Envoyer Annonce Network
                     </Button>
                 </div>
