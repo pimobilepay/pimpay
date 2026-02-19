@@ -141,11 +141,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(updated);
     }
 
-    // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise à jour globale depuis ton formulaire)
+    // 2b. ACTION : MAINTENANCE AVEC DATE (depuis MaintenanceControl)
+    if (body.maintenanceMode !== undefined && !body.appVersion) {
+      const updateData: any = {
+        maintenanceMode: Boolean(body.maintenanceMode),
+      };
+      if (body.maintenanceUntil) {
+        updateData.maintenanceUntil = new Date(body.maintenanceUntil);
+      } else if (!body.maintenanceMode) {
+        updateData.maintenanceUntil = null;
+      }
+
+      const updated = await ConfigModel.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        update: updateData,
+        create: { id: "GLOBAL_CONFIG", ...updateData },
+      });
+
+      // Cookie de maintenance pour le proxy
+      const response = NextResponse.json(updated);
+      if (body.maintenanceMode) {
+        response.cookies.set("maintenance_mode", "true", {
+          path: "/", httpOnly: false, secure: process.env.NODE_ENV === "production",
+          sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
+        });
+      } else {
+        response.cookies.delete("maintenance_mode");
+      }
+      return response;
+    }
+
+    // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise a jour globale depuis ton formulaire)
     const {
       appVersion, globalAnnouncement, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
-      consensusPrice, stakingAPY, forceUpdate
+      consensusPrice, stakingAPY, forceUpdate,
+      maintenanceUntil,
     } = body;
 
     const updatedConfig = await ConfigModel.update({
@@ -155,7 +186,8 @@ export async function POST(req: NextRequest) {
         globalAnnouncement,
         transactionFee: Number(transactionFee),
         maintenanceMode: Boolean(maintenanceMode),
-        comingSoonMode: Boolean(comingSoonMode), // Support du nouveau mode
+        maintenanceUntil: maintenanceUntil ? new Date(maintenanceUntil) : null,
+        comingSoonMode: Boolean(comingSoonMode),
         minWithdrawal: Number(minWithdrawal),
         consensusPrice: Number(consensusPrice),
         stakingAPY: Number(stakingAPY),

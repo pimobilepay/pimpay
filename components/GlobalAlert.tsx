@@ -1,16 +1,135 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { AlertOctagon, Hammer, Timer, Snowflake, ShieldAlert } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { AlertOctagon, Snowflake, Wrench } from "lucide-react";
 
+// -------------------------------------------------------------------------
+// TYPES
+// -------------------------------------------------------------------------
+interface ConfigData {
+  maintenanceMode?: boolean;
+  maintenanceUntil?: string | null;
+  userStatus?: {
+    isBanned?: boolean;
+    isFrozen?: boolean;
+  };
+}
+
+interface CountdownData {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  progress: number; // 0 -> 100
+  totalMs: number;
+  elapsedMs: number;
+}
+
+// -------------------------------------------------------------------------
+// HELPERS
+// -------------------------------------------------------------------------
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function computeCountdown(startIso: string | null, endIso: string): CountdownData | null {
+  const now = Date.now();
+  const end = new Date(endIso).getTime();
+  const remaining = end - now;
+
+  if (remaining <= 0) return null;
+
+  // Si on a un debut connu on calcule la progression, sinon on met 0%
+  const start = startIso ? new Date(startIso).getTime() : now;
+  const total = end - start;
+  const elapsed = now - start;
+  const progress = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+
+  const d = Math.floor(remaining / (1000 * 60 * 60 * 24));
+  const h = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const m = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((remaining % (1000 * 60)) / 1000);
+
+  return { days: d, hours: h, minutes: m, seconds: s, progress, totalMs: total, elapsedMs: elapsed };
+}
+
+// -------------------------------------------------------------------------
+// COUNTDOWN TIMER DIGIT
+// -------------------------------------------------------------------------
+function Digit({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-[68px] h-[72px] bg-[#0a1628] border border-blue-500/10 rounded-2xl flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent" />
+        <span className="relative text-3xl font-black text-white font-mono tracking-tighter">{value}</span>
+      </div>
+      <span className="text-[8px] font-black text-blue-400/60 uppercase tracking-[0.25em] mt-2">{label}</span>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// PROGRESS BAR
+// -------------------------------------------------------------------------
+function ProgressBar({ progress }: { progress: number }) {
+  return (
+    <div className="w-full max-w-sm mx-auto space-y-2">
+      <div className="flex justify-between items-center">
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Progression</span>
+        <span className="text-[9px] font-black text-blue-400 font-mono">{Math.round(progress)}%</span>
+      </div>
+      <div className="h-2 bg-[#0a1628] rounded-full overflow-hidden border border-white/5">
+        <div
+          className="h-full rounded-full transition-all duration-1000 ease-linear relative"
+          style={{
+            width: `${progress}%`,
+            background: "linear-gradient(90deg, #1d4ed8, #3b82f6, #60a5fa)",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// PARTICLES
+// -------------------------------------------------------------------------
+function Particles() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {Array.from({ length: 20 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-1 h-1 bg-blue-500/20 rounded-full"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationName: "floatParticle",
+            animationDuration: `${4 + Math.random() * 6}s`,
+            animationDelay: `${Math.random() * 3}s`,
+            animationIterationCount: "infinite",
+            animationTimingFunction: "ease-in-out",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// MAIN COMPONENT
+// -------------------------------------------------------------------------
 export default function GlobalAlert() {
-  const [config, setConfig] = useState<any>(null);
-  const [timeLeft, setTimeLeft] = useState<{ h: string; m: string; s: string } | null>(null);
+  const [config, setConfig] = useState<ConfigData | null>(null);
+  const [countdown, setCountdown] = useState<CountdownData | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [startTime] = useState<string>(new Date().toISOString());
+  const abortRef = useRef<AbortController | null>(null);
+  const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // --- LOGIQUE DE DÉCONNEXION FORCÉE ---
-  const forceLogout = () => {
+  const forceLogout = useCallback(() => {
     localStorage.clear();
     sessionStorage.clear();
     document.cookie.split(";").forEach((c) => {
@@ -18,76 +137,86 @@ export default function GlobalAlert() {
         .replace(/^ +/, "")
         .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-  };
-
-  // --- CALCUL DU COMPTE À REBOURS ---
-  useEffect(() => {
-    if (!config?.maintenanceUntil || !config?.maintenanceMode) return;
-
-    const timer = setInterval(() => {
-      const now = new Date().getTime();
-      const distance = new Date(config.maintenanceUntil).getTime() - now;
-
-      if (distance < 0) {
-        setTimeLeft(null);
-        clearInterval(timer);
-        return;
-      }
-
-      const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((distance % (1000 * 60)) / 1000);
-
-      setTimeLeft({
-        h: h.toString().padStart(2, "0"),
-        m: m.toString().padStart(2, "0"),
-        s: s.toString().padStart(2, "0"),
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [config]);
-
-  // --- SURVEILLANCE CONFIGURATION ---
-  useEffect(() => {
-    setIsMounted(true);
-
-    const checkConfig = async () => {
-      // Annuler la requête précédente si elle est encore en cours
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-      abortControllerRef.current = new AbortController();
-
-      try {
-        const res = await fetch("/api/admin/config", { 
-          signal: abortControllerRef.current.signal 
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        if (data) {
-          setConfig(data);
-          if (data.userStatus?.isBanned) forceLogout();
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          // Silently fail - config API may not be available
-        }
-      }
-    };
-
-    checkConfig();
-    const interval = setInterval(checkConfig, 20000);
-    
-    return () => {
-      clearInterval(interval);
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-    };
   }, []);
 
-  // Empêche les erreurs de "removeChild" en ne rendant rien côté serveur
+  // Fetch config
+  const fetchConfig = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+
+    try {
+      const res = await fetch("/api/admin/config", { signal: abortRef.current.signal });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data) {
+        setConfig(data);
+        if (data.userStatus?.isBanned) forceLogout();
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") { /* silently fail */ }
+    }
+  }, [forceLogout]);
+
+  // Auto-restore: check if maintenance expired
+  const checkMaintenanceExpiry = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/maintenance/check");
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.autoDisabled || !data.maintenanceMode) {
+        // Maintenance a ete auto-desactivee ou est off
+        setConfig((prev) => prev ? { ...prev, maintenanceMode: false, maintenanceUntil: null } : prev);
+        setCountdown(null);
+        // Reload pour retirer le cookie et restaurer le systeme
+        window.location.reload();
+      }
+    } catch (_) { /* silently fail */ }
+  }, []);
+
+  useEffect(() => {
+    setIsMounted(true);
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 20000);
+    return () => {
+      clearInterval(interval);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, [fetchConfig]);
+
+  // Countdown tick
+  useEffect(() => {
+    if (!config?.maintenanceMode || !config?.maintenanceUntil) {
+      setCountdown(null);
+      return;
+    }
+
+    const tick = () => {
+      const cd = computeCountdown(startTime, config.maintenanceUntil!);
+      if (!cd) {
+        // Maintenance a expire -> auto-restore
+        setCountdown(null);
+        checkMaintenanceExpiry();
+        return;
+      }
+      setCountdown(cd);
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+
+    // Auto check expiry toutes les 15s
+    checkIntervalRef.current = setInterval(checkMaintenanceExpiry, 15000);
+
+    return () => {
+      clearInterval(timer);
+      if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
+    };
+  }, [config?.maintenanceMode, config?.maintenanceUntil, startTime, checkMaintenanceExpiry]);
+
   if (!isMounted || !config) return <div className="hidden" aria-hidden="true" />;
 
-  // 1. ÉCRAN DE BANNISSEMENT (CRITICAL)
+  // ------ ECRAN BANNISSEMENT ------
   if (config.userStatus?.isBanned) {
     return (
       <div className="fixed inset-0 z-[10000] bg-[#02040a] flex items-center justify-center p-8 text-center overflow-hidden">
@@ -97,18 +226,18 @@ export default function GlobalAlert() {
             <AlertOctagon size={48} />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Accès Révoqué</h1>
+            <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">{"Acces Revoque"}</h1>
             <div className="h-px w-12 bg-red-500/50 mx-auto" />
           </div>
           <p className="text-slate-400 font-medium leading-relaxed">
-            Votre compte a été définitivement suspendu pour violation des protocoles de sécurité PimPay.
+            {"Votre compte a ete definitivement suspendu pour violation des protocoles de securite PimPay."}
           </p>
         </div>
       </div>
     );
   }
 
-  // 2. ÉCRAN DE COMPTE GELÉ (FREEZE)
+  // ------ ECRAN COMPTE GELE ------
   if (config.userStatus?.isFrozen) {
     return (
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9998] w-[calc(100%-3rem)] max-w-sm">
@@ -117,52 +246,116 @@ export default function GlobalAlert() {
             <Snowflake size={24} className="animate-pulse" />
           </div>
           <div className="space-y-0.5">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Statut: Compte Gelé</h4>
-            <p className="text-[11px] text-slate-300 leading-tight">Vos actifs sont sécurisés mais les transferts sont temporairement restreints.</p>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">{"Statut: Compte Gele"}</h4>
+            <p className="text-[11px] text-slate-300 leading-tight">{"Vos actifs sont securises mais les transferts sont temporairement restreints."}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // 3. ÉCRAN DE MAINTENANCE AVEC COMPTE À REBOURS
+  // ------ ECRAN DE MAINTENANCE ------
   if (config.maintenanceMode) {
+    const endDate = config.maintenanceUntil ? new Date(config.maintenanceUntil) : null;
+
     return (
-      <div className="fixed inset-0 z-[9999] bg-[#02040a] flex items-center justify-center p-8 text-center">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.03)_0%,transparent_70%)]" />
-        <div className="relative max-w-md w-full space-y-12">
-          <div className="space-y-4">
-            <div className="relative inline-block">
-              <Hammer size={48} className="text-blue-500 animate-bounce" />
-              <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 animate-pulse" />
+      <div className="fixed inset-0 z-[9999] bg-[#020617] flex items-center justify-center overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.08)_0%,transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(30,64,175,0.06)_0%,transparent_50%)]" />
+        <Particles />
+
+        <div className="relative w-full max-w-md px-8 flex flex-col items-center gap-10">
+          {/* Icon */}
+          <div className="relative">
+            <div className="w-24 h-24 bg-blue-500/10 border border-blue-500/20 rounded-[2rem] flex items-center justify-center">
+              <Wrench size={40} className="text-blue-400" />
             </div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter text-white">Maintenance</h1>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] max-w-xs mx-auto">
-              Optimisation GCV Core Ledger v1.0.4
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-pulse" />
+            <div className="absolute inset-0 bg-blue-500/20 rounded-[2rem] blur-2xl" />
+          </div>
+
+          {/* Title */}
+          <div className="text-center space-y-3">
+            <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white text-balance">
+              {"Maintenance en cours"}
+            </h1>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-xs mx-auto text-pretty">
+              {"Nous optimisons nos systemes pour vous offrir une meilleure experience. Merci de votre patience."}
             </p>
           </div>
 
-          {/* Widget Compte à rebours High-Tech */}
-          {timeLeft ? (
-            <div className="flex justify-center items-center gap-4">
-              {[
-                { label: "HRS", val: timeLeft.h },
-                { label: "MIN", val: timeLeft.m },
-                { label: "SEC", val: timeLeft.s },
-              ].map((t, i) => (
-                <div key={i} className="flex flex-col items-center bg-[#0b1120] border border-white/5 rounded-2xl p-4 min-w-[80px] shadow-xl">
-                  <div className="text-3xl font-black text-white font-mono tracking-tighter">{t.val}</div>
-                  <div className="text-[8px] uppercase font-black text-blue-500 tracking-[0.3em] mt-1">{t.label}</div>
-                </div>
-              ))}
+          {/* Countdown */}
+          {countdown ? (
+            <div className="flex items-center gap-3">
+              {countdown.days > 0 && (
+                <>
+                  <Digit value={pad(countdown.days)} label="Jours" />
+                  <span className="text-xl font-black text-blue-500/30 mt-[-16px]">:</span>
+                </>
+              )}
+              <Digit value={pad(countdown.hours)} label="Heures" />
+              <span className="text-xl font-black text-blue-500/30 mt-[-16px]">:</span>
+              <Digit value={pad(countdown.minutes)} label="Minutes" />
+              <span className="text-xl font-black text-blue-500/30 mt-[-16px]">:</span>
+              <Digit value={pad(countdown.seconds)} label="Secondes" />
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-3 text-blue-500 font-black text-[10px] uppercase tracking-[0.4em] animate-pulse">
-              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-              Synchronisation Finale...
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+              <span className="text-xs font-black text-blue-400 uppercase tracking-[0.3em]">
+                {"Synchronisation en cours..."}
+              </span>
             </div>
           )}
+
+          {/* Progress bar */}
+          {countdown && <ProgressBar progress={countdown.progress} />}
+
+          {/* End date info */}
+          {endDate && (
+            <div className="bg-[#0a1628] border border-white/5 rounded-2xl px-6 py-4 text-center w-full max-w-sm">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                {"Fin prevue"}
+              </p>
+              <p className="text-sm font-bold text-white font-mono">
+                {endDate.toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+                {" "}
+                {endDate.toLocaleTimeString("fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          )}
+
+          {/* Status badge */}
+          <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">
+              {"Le systeme reprendra automatiquement"}
+            </span>
+          </div>
         </div>
+
+        <style jsx>{`
+          @keyframes floatParticle {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+            50% { transform: translateY(-30px) scale(1.5); opacity: 0.6; }
+          }
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          .animate-shimmer {
+            animation: shimmer 2s infinite;
+          }
+        `}</style>
       </div>
     );
   }
