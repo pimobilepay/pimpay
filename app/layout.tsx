@@ -9,6 +9,7 @@ import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 import { PiInitializer } from "@/components/PiInitializer";
 
 export const viewport: Viewport = {
@@ -68,39 +69,39 @@ export default function RootLayout({
       </head>
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
-        <ThemeProvider>
-          {/* Gère l'authentification et les scopes 'payments' */}
-          <PiInitializer />
+        <LanguageProvider>
+          <ThemeProvider>
+            <PiInitializer />
 
-          <div id="portal-root">
-            <GlobalAlert />
-          </div>
+            <div id="portal-root">
+              <GlobalAlert />
+            </div>
 
-          <GlobalAnnouncement />
+            <GlobalAnnouncement />
 
-          <ClientLayout>{children}</ClientLayout>
+            <ClientLayout>{children}</ClientLayout>
 
-          {/* CinetPay en lazy pour ne pas ralentir le login Pi */}
-          <Script
-            src="https://cdn.cinetpay.com/seamless/main.js"
-            strategy="lazyOnload"
-          />
+            <Script
+              src="https://cdn.cinetpay.com/seamless/main.js"
+              strategy="lazyOnload"
+            />
 
-          <Toaster
-            position="top-center"
-            richColors
-            expand={false}
-            theme="dark"
-            toastOptions={{
-              style: {
-                borderRadius: "1rem",
-                background: "rgba(15, 23, 42, 0.8)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.1)",
-              },
-            }}
-          />
-        </ThemeProvider>
+            <Toaster
+              position="top-center"
+              richColors
+              expand={false}
+              theme="dark"
+              toastOptions={{
+                style: {
+                  borderRadius: "1rem",
+                  background: "rgba(15, 23, 42, 0.8)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                },
+              }}
+            />
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

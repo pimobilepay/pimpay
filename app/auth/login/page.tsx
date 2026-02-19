@@ -9,6 +9,7 @@ import Link from "next/link";
 // ✅ CORRECTION : On utilise le HOOK direct (comme le 15 Janvier)
 import { usePiAuth } from "@/hooks/usePiAuth"; 
 import PinCodeModal from "@/components/modals/PinCodeModal";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
@@ -20,12 +21,12 @@ export default function LoginPage() {
   const [tempUserId, setTempUserId] = useState<string | null>(null);
   const [tempRole, setTempRole] = useState<string | null>(null);
 
-  // ✅ Utilisation du Hook Direct
   const { loginWithPi, loading: piLoading } = usePiAuth();
+  const { t } = useLanguage();
 
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStep, setTransitionStep] = useState("init");
-  const [dynamicMessage, setDynamicMessage] = useState("Initialisation");
+  const [dynamicMessage, setDynamicMessage] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -33,8 +34,9 @@ export default function LoginPage() {
 
   const triggerSuccessTransition = (targetPath: string) => {
     setShowTransition(true);
-    setTimeout(() => setDynamicMessage("Sécurisation"), 1000);
-    setTimeout(() => setDynamicMessage("Synchronisation"), 2000);
+    setDynamicMessage(t("auth.login.init"));
+    setTimeout(() => setDynamicMessage(t("auth.login.securing")), 1000);
+    setTimeout(() => setDynamicMessage(t("auth.login.syncing")), 2000);
     setTimeout(() => {
       setTransitionStep("success");
       setTimeout(() => {
@@ -58,7 +60,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data?.error ?? "Identifiants invalides");
+        toast.error(data?.error ?? t("auth.login.invalidCredentials"));
         setLoading(false);
         return;
       }
@@ -73,7 +75,7 @@ export default function LoginPage() {
         triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
       }
     } catch (error) {
-      toast.error("Le serveur ne répond pas");
+      toast.error(t("auth.login.serverError"));
       setLoading(false);
     }
   };
@@ -90,7 +92,7 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error("Erreur Pi Login:", error);
-      toast.error("Erreur de communication avec le Pi Browser");
+      toast.error(t("auth.login.piError"));
     }
   };
 
@@ -129,17 +131,17 @@ export default function LoginPage() {
             <ShieldCheck className="w-10 h-10 text-blue-500" />
           </div>
           <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1">PIMPAY<span className="text-blue-500 not-italic">.</span></h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Protocol Sécurisé Elara</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{t("auth.login.subtitle")}</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Identifiant</Label>
+            <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">{t("auth.login.identifier")}</Label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
               <input
                 type="text" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="email ou username"
+                placeholder={t("auth.login.identifierPlaceholder")}
                 className="w-full h-14 pl-12 bg-slate-950/50 border border-white/5 text-white rounded-2xl focus:border-blue-500/50 transition-all outline-none text-sm"
               />
             </div>
@@ -147,8 +149,8 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">Mot de passe</Label>
-              <Link href="/auth/forgot-password" size="sm" className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">Oublié ?</Link>
+              <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">{t("auth.login.password")}</Label>
+              <Link href="/auth/forgot-password" size="sm" className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">{t("auth.login.forgot")}</Link>
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />
@@ -164,13 +166,13 @@ export default function LoginPage() {
           </div>
 
           <Button type="submit" disabled={loading || piLoading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold active:scale-[0.98] transition-all">
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONNEXION"}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth.login.loginButton")}
           </Button>
         </form>
 
         <div className="flex items-center gap-4 my-6">
           <div className="h-px flex-1 bg-white/5" />
-          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">OU</span>
+          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t("common.or")}</span>
           <div className="h-px flex-1 bg-white/5" />
         </div>
 
@@ -194,9 +196,9 @@ export default function LoginPage() {
 
         <div className="mt-8 text-center">
           <p className="text-[11px] text-slate-500 font-medium">
-            Pas encore de compte ?
+            {t("auth.login.noAccount")}
             <Link href="/auth/signup" className="ml-2 text-blue-500 font-bold uppercase tracking-widest hover:underline">
-              Rejoindre PimPay
+              {t("auth.login.joinPimpay")}
             </Link>
           </p>
         </div>

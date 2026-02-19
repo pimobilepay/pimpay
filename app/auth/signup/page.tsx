@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function SignupPage() {
   const [mounted, setMounted] = useState(false);
@@ -30,6 +31,7 @@ export default function SignupPage() {
   const [pin, setPin] = useState("");
   const [authToken, setAuthToken] = useState("");
   const router = useRouter();
+  const { t } = useLanguage();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -41,7 +43,7 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      toast.error("Les mots de passe ne correspondent pas");
+      toast.error(t("auth.signup.passwordMismatch"));
       return;
     }
     setLoading(true);
@@ -57,7 +59,7 @@ export default function SignupPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur d'inscription");
+      if (!res.ok) throw new Error(data.error || t("auth.signup.signupError"));
 
       if (data.token) {
         setAuthToken(data.token);
@@ -66,7 +68,7 @@ export default function SignupPage() {
       }
 
       setStep(2);
-      toast.success("Compte créé !");
+      toast.success(t("auth.signup.accountCreated"));
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -92,10 +94,10 @@ export default function SignupPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur PIN");
+      if (!res.ok) throw new Error(data.error || t("auth.signup.pinError"));
 
       setStep(3);
-      toast.success("Sécurité configurée !");
+      toast.success(t("auth.signup.securityConfigured"));
     } catch (err: any) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
@@ -137,25 +139,25 @@ export default function SignupPage() {
               <ShieldCheck className="w-10 h-10 text-blue-500" />
             </div>
             <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMPAY<span className="text-blue-500 not-italic">.</span></h1>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Créer un compte pimpay</p>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{t("auth.signup.title")}</p>
           </div>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Nom Complet</Label>
+              <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("auth.signup.fullName")}</Label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 size-4" />
-                <input className="w-full h-12 pl-11 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder="Nom Prénom" value={formData.fullName} onChange={e => handleChange("fullName", e.target.value)} required />
+                <input className="w-full h-12 pl-11 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder={t("auth.signup.fullNamePlaceholder")} value={formData.fullName} onChange={e => handleChange("fullName", e.target.value)} required />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Email</Label>
+                <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("auth.signup.email")}</Label>
                 <input type="email" className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder="mail@pimpay.com" value={formData.email} onChange={e => handleChange("email", e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Téléphone</Label>
+                <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("auth.signup.phone")}</Label>
                 <input type="tel" className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder="+242..." value={formData.phone} onChange={e => handleChange("phone", e.target.value)} required />
               </div>
             </div>
@@ -172,11 +174,11 @@ export default function SignupPage() {
             </div>
 
             <Button type="submit" disabled={loading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all mt-4">
-              {loading ? <Loader2 className="animate-spin" /> : "CONTINUER"}
+              {loading ? <Loader2 className="animate-spin" /> : t("auth.signup.continueButton")}
             </Button>
           </form>
           <p className="text-center mt-6 text-[11px] text-slate-500 uppercase font-bold tracking-widest">
-            Déjà inscrit ? <Link href="/auth/login" className="text-blue-500 ml-1">Connexion</Link>
+            {t("auth.signup.alreadyRegistered")} <Link href="/auth/login" className="text-blue-500 ml-1">{t("auth.signup.loginLink")}</Link>
           </p>
         </Card>
       )}
@@ -195,8 +197,8 @@ export default function SignupPage() {
                 <div className="inline-flex p-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-3">
                   <ShieldCheck className="text-blue-500" size={24} />
                 </div>
-                <h2 className="text-lg font-black uppercase tracking-tighter text-white">Définir un PIN</h2>
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">Sécurisé par Elara</p>
+                <h2 className="text-lg font-black uppercase tracking-tighter text-white">{t("auth.signup.setPin")}</h2>
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">{t("auth.signup.securedByElara")}</p>
               </div>
 
               <div className={`px-8 py-6 ${shake ? "animate-shake" : ""}`}>
@@ -231,7 +233,7 @@ export default function SignupPage() {
                     onClick={() => setStep(1)}
                     className="flex items-center justify-center text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-rose-500 transition-colors"
                   >
-                    ANNULER
+                    {t("auth.signup.cancelPin")}
                   </button>
                   <button
                     type="button"
