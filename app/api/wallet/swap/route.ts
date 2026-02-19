@@ -7,18 +7,32 @@ import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 
 async function getLiveMarketPrices() {
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ripple,stellar&vs_currencies=usd', { 
-        next: { revalidate: 60 },
-        signal: AbortSignal.timeout(3000) 
-    });
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd',
+      { next: { revalidate: 60 }, signal: AbortSignal.timeout(5000) }
+    );
     const data = await res.json();
     return {
       BTC: data.bitcoin?.usd || 95000,
+      ETH: data.ethereum?.usd || 3200,
+      BNB: data.binancecoin?.usd || 600,
+      SOL: data.solana?.usd || 180,
       XRP: data.ripple?.usd || 2.50,
       XLM: data.stellar?.usd || 0.40,
+      TRX: data.tron?.usd || 0.12,
+      ADA: data.cardano?.usd || 0.65,
+      DOGE: data.dogecoin?.usd || 0.15,
+      TON: data["the-open-network"]?.usd || 5.5,
+      USDT: data.tether?.usd || 1,
+      USDC: data["usd-coin"]?.usd || 1,
+      DAI: data.dai?.usd || 1,
     };
   } catch (e) {
-    return { BTC: 95000, XRP: 2.50, XLM: 0.40 };
+    return {
+      BTC: 95000, ETH: 3200, BNB: 600, SOL: 180,
+      XRP: 2.50, XLM: 0.40, TRX: 0.12, ADA: 0.65,
+      DOGE: 0.15, TON: 5.5, USDT: 1, USDC: 1, DAI: 1,
+    };
   }
 }
 
@@ -58,14 +72,24 @@ export async function POST(request: Request) {
     const to = toCurrency.toUpperCase();
     const livePrices = await getLiveMarketPrices();
 
-    // AJUSTEMENT DES PRIX (Inclusion du prix consensus Pi et Sidra + XRP/XLM)
+    // PRIX : Ecosysteme + Live Market
     const PRICES: Record<string, number> = {
-      "SDA": 1.2,
-      "USDT": 1,
-      "BTC": livePrices.BTC,
       "PI": 314159,
+      "SDA": 1.2,
+      "BTC": livePrices.BTC,
+      "ETH": livePrices.ETH,
+      "BNB": livePrices.BNB,
+      "SOL": livePrices.SOL,
       "XRP": livePrices.XRP,
       "XLM": livePrices.XLM,
+      "TRX": livePrices.TRX,
+      "ADA": livePrices.ADA,
+      "DOGE": livePrices.DOGE,
+      "TON": livePrices.TON,
+      "USDT": livePrices.USDT,
+      "USDC": livePrices.USDC,
+      "DAI": livePrices.DAI,
+      "BUSD": 1,
     };
 
     if (!PRICES[from] || !PRICES[to]) {
@@ -88,10 +112,11 @@ export async function POST(request: Request) {
         throw new Error(`Solde ${from} insuffisant.`);
       }
 
-      // 2. Déterminer le type de Wallet automatiquement
+      // 2. Determiner le type de Wallet automatiquement
       const getWalletType = (curr: string): WalletType => {
-        if (curr === "SDA") return WalletType.SIDRA;
+        if (curr === "SDA" || curr === "SIDRA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
+        if (["XAF", "XOF", "CDF", "USD", "EUR"].includes(curr)) return WalletType.FIAT;
         return WalletType.CRYPTO;
       };
 
