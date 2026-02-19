@@ -72,12 +72,19 @@ export async function POST(req: NextRequest) {
         break;
 
       // VALIDATION DE DÉPÔT / RETRAIT
-      case "VALIDATE_DEPOSIT":
+      case "VALIDATE_DEPOSIT": {
         if (!transactionId) return NextResponse.json({ error: "ID Transaction requis" }, { status: 400 });
         const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
 
         if (!tx || tx.status !== "PENDING") {
           return NextResponse.json({ error: "Transaction introuvable ou déjà traitée" }, { status: 400 });
+        }
+
+        // Pour les dépôts Pi Browser, l'utilisateur est dans toUserId
+        // Pour les dépôts manuels/retraits, l'utilisateur est dans fromUserId
+        const depositUserId = tx.toUserId || tx.fromUserId;
+        if (!depositUserId) {
+          return NextResponse.json({ error: "Impossible d'identifier l'utilisateur de la transaction" }, { status: 400 });
         }
 
         // Transaction atomique pour éviter les erreurs de solde
@@ -87,20 +94,56 @@ export async function POST(req: NextRequest) {
             data: { status: "COMPLETED" }
           }),
           prisma.wallet.upsert({
-            where: { userId_currency: { userId: tx.fromUserId!, currency: tx.currency } },
+            where: { userId_currency: { userId: depositUserId, currency: tx.currency } },
             update: { balance: { increment: tx.amount } },
-            create: { userId: tx.fromUserId!, currency: tx.currency, balance: tx.amount },
+            create: { userId: depositUserId, currency: tx.currency, balance: tx.amount },
           }),
           prisma.notification.create({
             data: {
-              userId: tx.fromUserId!,
+              userId: depositUserId,
               title: "Transaction Approuvée",
-              message: `Votre opération de ${tx.amount} ${tx.currency} a été validée.`,
+              message: `Votre dépôt de ${tx.amount} ${tx.currency} a été validé.`,
               type: "SUCCESS"
             }
           })
         ]);
         break;
+      }
+
+      // REJET DE DÉPÔT
+      case "REJECT_DEPOSIT": {
+        if (!transactionId) return NextResponse.json({ error: "ID Transaction requis" }, { status: 400 });
+        const txReject = await prisma.transaction.findUnique({ where: { id: transactionId } });
+
+        if (!txReject || txReject.status !== "PENDING") {
+          return NextResponse.json({ error: "Transaction introuvable ou déjà traitée" }, { status: 400 });
+        }
+
+        const rejectUserId = txReject.toUserId || txReject.fromUserId;
+
+        const rejectOps: any[] = [
+          prisma.transaction.update({
+            where: { id: transactionId },
+            data: { status: "FAILED" }
+          }),
+        ];
+
+        if (rejectUserId) {
+          rejectOps.push(
+            prisma.notification.create({
+              data: {
+                userId: rejectUserId,
+                title: "Transaction Rejetée",
+                message: `Votre dépôt de ${txReject.amount} ${txReject.currency} a été rejeté par l'administration.`,
+                type: "ERROR"
+              }
+            })
+          );
+        }
+
+        await prisma.$transaction(rejectOps);
+        break;
+      }
 
       // AJUSTEMENT MANUEL DE SOLDE
       case "UPDATE_BALANCE":

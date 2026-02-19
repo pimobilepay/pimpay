@@ -31,10 +31,13 @@ type LedgerUser = {
 
 type Transaction = {
   id: string;
+  userId: string;
+  userName: string;
   amount: number;
+  currency: string;
+  method: string;
+  phoneNumber: string;
   status: string;
-  type: string;
-  fromUser: { username: string; email: string; name: string };
   createdAt: string;
 };
 
@@ -474,15 +477,24 @@ function DashboardContent() {
                         pendingTransactions.map(tx => (
                           <Card key={`tx-${tx.id}`} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-5 flex items-center justify-between">
                             <div>
-                              <p className="text-xs font-black text-white uppercase">{tx.fromUser?.username || tx.fromUser?.name || 'Utilisateur Inconnu'}</p>
+                              <p className="text-xs font-black text-white uppercase">{tx.userName || 'Utilisateur Inconnu'}</p>
                               <p className="text-[10px] text-emerald-500 font-bold">π {tx.amount.toLocaleString()}</p>
+                              <p className="text-[9px] text-slate-500 font-bold">{tx.method} {tx.phoneNumber !== 'Non spécifié' ? `- ${tx.phoneNumber}` : ''}</p>
                             </div>
-                            <Button
-                              onClick={() => handleAction(null, "VALIDATE_DEPOSIT", tx.amount, "", [], tx.id)}
-                              className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
-                            >
-                              <Check size={14} /> Confirmer
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                onClick={() => handleAction(tx.userId, "VALIDATE_DEPOSIT", tx.amount, tx.currency, [], tx.id)}
+                                className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
+                              >
+                                <Check size={14} /> Confirmer
+                              </Button>
+                              <Button
+                                onClick={() => handleAction(tx.userId, "REJECT_DEPOSIT", tx.amount, "", [], tx.id)}
+                                className="h-10 bg-red-500/20 text-red-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
+                              >
+                                <X size={14} /> Rejeter
+                              </Button>
+                            </div>
                           </Card>
                         ))
                       )}

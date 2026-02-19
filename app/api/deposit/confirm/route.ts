@@ -9,22 +9,28 @@ export async function POST(req: Request) {
     // 1. Trouver la transaction
     const transaction = await prisma.transaction.findUnique({
       where: { reference },
-      include: { fromUser: true }
+      include: { fromUser: true, toUser: true }
     });
 
     if (!transaction || transaction.status !== "PENDING") {
       return NextResponse.json({ error: "Transaction invalide ou déjà traitée" }, { status: 400 });
     }
 
+    // Identifier l'utilisateur : toUserId pour dépôts Pi Browser, fromUserId pour dépôts manuels
+    const depositUserId = transaction.toUserId || transaction.fromUserId;
+    if (!depositUserId) {
+      return NextResponse.json({ error: "Impossible d'identifier l'utilisateur" }, { status: 400 });
+    }
+
     // 2. Utiliser une transaction Prisma pour garantir l'atomicité
     const result = await prisma.$transaction(async (tx) => {
       
-      // MISE À JOUR OU CRÉATION DU WALLET (L'étape qui posait problème)
+      // MISE À JOUR OU CRÉATION DU WALLET
       const updatedWallet = await tx.wallet.upsert({
         where: {
           userId_currency: {
-            userId: transaction.fromUserId!,
-            currency: "USD", // On assume que c'est un dépôt USD
+            userId: depositUserId,
+            currency: transaction.currency || "USD",
           },
         },
         update: {
@@ -33,10 +39,10 @@ export async function POST(req: Request) {
           },
         },
         create: {
-          userId: transaction.fromUserId!,
-          currency: "USD",
+          userId: depositUserId,
+          currency: transaction.currency || "USD",
           balance: transaction.amount,
-          type: "FIAT", // Type FIAT selon ton Enum WalletType
+          type: "FIAT",
         },
       });
 

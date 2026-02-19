@@ -9,7 +9,8 @@ export async function GET() {
         status: 'PENDING',
       },
       include: {
-        fromUser: true, 
+        fromUser: true,
+        toUser: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -25,13 +26,17 @@ export async function GET() {
         tx.accountNumber ||           // 1. D'abord le numéro de compte direct
         meta?.phoneNumber ||           // 2. Ensuite le phoneNumber dans les metadata (ton cas ici)
         meta?.phone ||                 // 3. Alternativement 'phone'
-        tx.fromUser?.phone ||          // 4. En dernier recours le profil
+        user?.phone ||                  // 4. En dernier recours le profil
         "Non spécifié";
+
+      // Pour les dépôts Pi Browser, l'utilisateur est dans toUser (toUserId)
+      // Pour les retraits/dépôts manuels, l'utilisateur est dans fromUser (fromUserId)
+      const user = tx.fromUser || tx.toUser;
 
       return {
         id: tx.id,
-        userId: tx.fromUserId || "N/A",
-        userName: tx.fromUser?.name || tx.fromUser?.username || "Client",
+        userId: tx.fromUserId || tx.toUserId || "N/A",
+        userName: user?.name || user?.username || "Client",
         amount: tx.amount,
         currency: tx.currency,
         // On récupère la méthode de retrait (mobile, bank, etc.)
