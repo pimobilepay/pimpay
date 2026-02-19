@@ -61,6 +61,7 @@ export default function GlobalAlert() {
         const res = await fetch("/api/admin/config", { 
           signal: abortControllerRef.current.signal 
         });
+        if (!res.ok) return;
         const data = await res.json();
         
         if (data) {
@@ -68,7 +69,9 @@ export default function GlobalAlert() {
           if (data.userStatus?.isBanned) forceLogout();
         }
       } catch (err: any) {
-        if (err.name !== 'AbortError') console.error("Monitoring error:", err);
+        if (err.name !== 'AbortError') {
+          // Silently fail - config API may not be available
+        }
       }
     };
 

@@ -8,8 +8,30 @@ import bcrypt from "bcryptjs";
 
 const ConfigModel = prisma.systemConfig;
 
+// Defaults returned when the database is not reachable (e.g. missing DATABASE_URL)
+const FALLBACK_CONFIG = {
+  id: "GLOBAL_CONFIG",
+  appVersion: "2.4.0-STABLE",
+  maintenanceMode: false,
+  comingSoonMode: false,
+  consensusPrice: 314159.0,
+  stakingAPY: 12.0,
+  transactionFee: 0.5,
+  minWithdrawal: 10.0,
+  globalAnnouncement: "",
+  forceUpdate: false,
+  auditLogs: [],
+  isAdmin: false,
+  stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
+};
+
 // --- GET : RÉCUPÉRATION DE LA CONFIGURATION ET DES STATS ---
 export async function GET(req: NextRequest) {
+  // Early exit when DATABASE_URL is not configured
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json(FALLBACK_CONFIG);
+  }
+
   try {
     let config = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
 
