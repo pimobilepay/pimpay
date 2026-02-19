@@ -79,7 +79,8 @@ export async function POST(req: Request) {
           currency: targetCurrency,
           balance: quote.toAmount,
           // Détection intelligente du type pour PimPay
-          type: targetCurrency === "PI" ? "PI" : ["BTC", "USDT", "SDA"].includes(targetCurrency) ? "CRYPTO" : "FIAT"
+          type: targetCurrency === "PI" ? "PI" :
+            ["SDA","BTC","ETH","BNB","SOL","XRP","XLM","TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD"].includes(targetCurrency) ? "CRYPTO" : "FIAT"
         }
       });                                      
 

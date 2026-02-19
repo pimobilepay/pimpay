@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 
-const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67 };
+const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450 };
 const PI_GCV = 314159;
 
 export async function POST(req: Request) {
@@ -90,13 +90,14 @@ export async function POST(req: Request) {
 
     const finalRate = toAmount / parseFloat(amount);
 
-    // 4. Sauvegarde (SANS sourceCurrency car absent du schéma)
+    // 4. Sauvegarde avec sourceCurrency
     const quote = await prisma.swapQuote.create({
       data: {
         userId,
         fromAmount: parseFloat(amount),
         toAmount: toAmount,
         rate: finalRate,
+        sourceCurrency: fromCurr,
         targetCurrency: toCurr,
         expiresAt: new Date(Date.now() + 30000),
       }
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
         quoteId: quote.id, 
         convertedAmount: toAmount, 
         rate: finalRate, 
-        fromCurrency: fromCurr // On renvoie l'info au client pour qu'il la garde
+        fromCurrency: fromCurr,
     }, { headers });
 
   } catch (error: any) {

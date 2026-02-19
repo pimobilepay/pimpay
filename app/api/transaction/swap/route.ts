@@ -21,16 +21,15 @@ export async function POST(req: Request) {
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
 
-    const { quoteId, fromCurrency: clientFromCurrency } = await req.json();
+    const { quoteId } = await req.json();
 
     const result = await prisma.$transaction(async (tx) => {
       const quote = await tx.swapQuote.findUnique({ where: { id: quoteId, userId } });
       if (!quote) throw new Error("Devis introuvable");
       if (new Date() > quote.expiresAt) throw new Error("Devis expiré");
 
-      // LOGIQUE DE DÉDUCTION : On utilise la monnaie envoyée par le client 
-      // ou on déduit (Si Target = XAF, Source est probablement USDT ou PI)
-      const fromCurrency = clientFromCurrency || (quote.targetCurrency === "PI" ? "USD" : "USDT");
+      // On utilise sourceCurrency stocké dans le quote lors de la création
+      const fromCurrency = quote.sourceCurrency.toUpperCase();
 
       const sourceWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: fromCurrency } }
@@ -54,7 +53,8 @@ export async function POST(req: Request) {
           userId,
           currency: quote.targetCurrency,
           balance: quote.toAmount,
-          type: quote.targetCurrency === "PI" ? "PI" : ["BTC", "USDT"].includes(quote.targetCurrency) ? "CRYPTO" : "FIAT"
+          type: quote.targetCurrency === "PI" ? "PI" :
+            ["SDA","BTC","ETH","BNB","SOL","XRP","XLM","TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD"].includes(quote.targetCurrency) ? "CRYPTO" : "FIAT"
         }
       });
 
