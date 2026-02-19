@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Check, ArrowLeft, ShieldCheck, Info, Loader2 } from "lucide-react";
+import { Copy, Check, ArrowLeft, Loader2, Info, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -31,6 +31,24 @@ export default function ReceivePage() {
     loadAddress();
   }, []);
 
+  // --- FONCTION DE RÉCUPÉRATION DES PAIEMENTS BLOQUÉS ---
+  const handleIncompletePayment = async (payment) => {
+    console.log("⚠️ Paiement incomplet détecté:", payment);
+    try {
+      await fetch("/api/pi/incomplete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          paymentId: payment.identifier, 
+          txid: payment.transaction.txid 
+        }),
+      });
+      toast.success("Ancien paiement synchronisé !");
+    } catch (err) {
+      console.error("Échec de récupération:", err);
+    }
+  };
+
   const handleCopy = () => {
     if (!piAddress || piAddress === "Non disponible") return;
     navigator.clipboard.writeText(piAddress);
@@ -41,101 +59,83 @@ export default function ReceivePage() {
 
   const handlePiPayment = async () => {
     const floatAmount = parseFloat(amount);
-
     if (!amount || floatAmount <= 0) {
       toast.error("Veuillez saisir un montant valide");
       return;
     }
 
-    // Vérification du SDK Pi
     if (typeof window === "undefined" || !window.Pi) {
-      toast.error("Veuillez ouvrir PimPay dans le Pi Browser");
+      toast.error("Ouvrez PimPay dans le Pi Browser");
       return;
     }
 
     setIsProcessing(true);
-    const loadingToast = toast.loading("Initialisation du paiement Pi...");
+    const loadingToast = toast.loading("Connexion au Pi Network...");
 
     try {
-      // 1. Authentification pour s'assurer que la session est active
-      const scopes = ['payments', 'wallet_address'];
-      await window.Pi.authenticate(scopes, (onIncompletePayment) => {
-        console.log("Paiement incomplet trouvé:", onIncompletePayment);
-      });
+      // 1. Authentification avec gestion des paiements incomplets (CRUCIAL)
+      const scopes = ['payments'];
+      await window.Pi.authenticate(scopes, handleIncompletePayment);
 
-      // 2. Création du paiement via le SDK
+      // 2. Création du paiement
       await window.Pi.createPayment({
         amount: floatAmount,
         memo: memo || "Dépôt PimPay",
-        metadata: { 
-          type: "deposit", 
-          platform: "pimpay",
-          userId: piAddress // Pour aider ton backend à identifier le compte
-        },
+        metadata: { type: "deposit" },
       }, {
         onReadyForServerApproval: async (paymentId) => {
-          // Étape cruciale : Ton serveur doit valider ce paymentId auprès de Pi Network
           const res = await fetch("/api/payments/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId }),
+            body: JSON.stringify({ paymentId, amount: floatAmount, memo }),
           });
-          
-          if (!res.ok) throw new Error("Approbation serveur échouée");
+          if (!res.ok) throw new Error("Approbation refusée par le serveur");
           return res.json();
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
-          // Étape finale : Enregistrement de la transaction en base de données
           const res = await fetch("/api/payments/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId, txid, amount: floatAmount }),
+            body: JSON.stringify({ paymentId, txid }),
           });
 
           toast.dismiss(loadingToast);
           if (res.ok) {
-            toast.success(`Dépôt de ${floatAmount} π validé !`, { duration: 5000 });
+            toast.success(`Succès ! +${floatAmount} PI ajouté.`);
             setAmount("");
-            setMemo("");
+            // Rediriger vers le wallet pour voir le graphique bouger
+            setTimeout(() => window.location.href = "/wallet", 2000);
           } else {
-            toast.error("Erreur de synchronisation du solde");
+            toast.error("Erreur de mise à jour du solde.");
           }
           setIsProcessing(false);
         },
         onCancel: (paymentId) => {
           toast.dismiss(loadingToast);
-          console.log("Paiement annulé:", paymentId);
           setIsProcessing(false);
         },
-        onError: (error: any, paymentId?: string) => {
+        onError: (error, paymentId) => {
           toast.dismiss(loadingToast);
-          console.error("SDK Error:", error, paymentId);
-          toast.error(`Erreur Pi: ${error.message || "Paiement refusé"}`);
+          toast.error("Erreur: " + error.message);
           setIsProcessing(false);
         },
       });
-    } catch (err: any) {
+    } catch (err) {
       toast.dismiss(loadingToast);
-      console.error("Catch Error:", err);
-      toast.error("Vérifiez votre connexion au Pi Browser");
+      toast.error("Action annulée ou erreur SDK");
       setIsProcessing(false);
     }
   };
 
   if (!mounted) return null;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
+  // ... (Le reste de ton JSX reste identique, il est déjà très beau)
   return (
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-24 font-sans">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+       {/* Garde ton Header, QR Section et Formulaire tels quels */}
+       {/* Assure-toi juste que le bouton utilise handlePiPayment */}
+       {/* ... */}
+       <div className="flex items-center gap-4 mb-8">
         <Link href="/wallet" className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-95">
           <ArrowLeft size={20} />
         </Link>
@@ -146,7 +146,6 @@ export default function ReceivePage() {
       </div>
 
       <div className="max-w-md mx-auto space-y-6">
-        {/* QR Section */}
         <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center relative shadow-2xl">
           <div className="bg-white p-3 rounded-[1.5rem] mb-6 shadow-xl shadow-white/5">
             {piAddress && <QRCodeSVG value={piAddress} size={180} level="H" />}
@@ -165,7 +164,6 @@ export default function ReceivePage() {
           </div>
         </div>
 
-        {/* Form */}
         <div className="p-6 bg-slate-900/50 border border-white/5 rounded-[2.5rem] space-y-4">
           <div className="space-y-4">
             <div className="space-y-2">
@@ -178,33 +176,17 @@ export default function ReceivePage() {
                 className="w-full h-16 px-6 bg-black/60 border border-white/10 rounded-2xl outline-none focus:border-blue-500/50 text-2xl font-black transition-all"
               />
             </div>
-            <input
-              type="text"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="Note (ex: Recharge PimPay)"
-              className="w-full h-14 px-6 bg-black/40 border border-white/10 rounded-2xl outline-none text-sm"
-            />
           </div>
 
           <button
             onClick={handlePiPayment}
             disabled={isProcessing}
             className={`w-full h-16 rounded-2xl font-black uppercase tracking-wider transition-all shadow-lg ${
-              isProcessing
-                ? "bg-slate-800 text-slate-500"
-                : "bg-blue-600 shadow-blue-500/20 active:scale-95"
+              isProcessing ? "bg-slate-800 text-slate-500" : "bg-blue-600 shadow-blue-500/20 active:scale-95"
             }`}
           >
-            {isProcessing ? "Lancement du SDK..." : "Confirmer le dépôt"}
+            {isProcessing ? "Traitement..." : "Confirmer le dépôt"}
           </button>
-        </div>
-
-        <div className="p-5 bg-blue-500/5 border border-blue-500/10 rounded-3xl flex gap-3">
-          <Info size={16} className="text-blue-500 shrink-0" />
-          <p className="text-[10px] text-slate-400 leading-tight">
-            Le paiement s'ouvrira dans une fenêtre sécurisée de Pi Network. Ne fermez pas l'application pendant le processus.
-          </p>
         </div>
       </div>
     </div>
