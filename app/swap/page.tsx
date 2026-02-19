@@ -202,7 +202,7 @@ export default function SwapPage() {
             </div>
         </div>
         
-        <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Swap Réussi !</h2>
+        <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">Swap Réussi !</h2>
         <p className="text-slate-400 text-sm mb-8 font-medium px-10">
             Vos fonds ont été convertis avec succès au taux GCV de PimPay.
         </p>

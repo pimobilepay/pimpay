@@ -124,7 +124,7 @@ function SummaryContent() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tighter italic">Récapitulatif</h1>
+          <h2 className="text-xl font-black uppercase tracking-tighter">Récapitulatif</h2>
           <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Vérification finale</p>
         </div>
       </div>

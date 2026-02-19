@@ -234,8 +234,8 @@ export default function WalletPage() {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-xl font-black uppercase italic tracking-tighter">
-              PimPay<span className="text-blue-500">Wallet</span>
+            <h1 className="text-xl font-black uppercase tracking-tighter">
+              M<span className="text-blue-500">Wallet</span>
             </h1>
             <p className="text-[9px] font-black text-blue-400/70 uppercase tracking-[0.2em] mt-0.5">Multi-Chain Web3 Portfolio</p>
           </div>

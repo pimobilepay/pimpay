@@ -221,7 +221,7 @@ export default function SendPage() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-black uppercase italic tracking-tighter">Envoyer</h1>
+            <h1 className="text-xl font-black uppercase  tracking-tighter">Transfert</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
               <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em]">PimPay Secure Protocol</p>
