@@ -11,12 +11,13 @@ export default function GlobalAnnouncement() {
     const fetchConfig = async () => {
       try {
         const res = await fetch("/api/admin/config");
+        if (!res.ok) return;
         const data = await res.json();
         if (data?.globalAnnouncement) {
           setMsg(data.globalAnnouncement);
         }
       } catch (e) {
-        console.error("Announcement fetch error");
+        // Silently fail - config API may not be available
       }
     };
     fetchConfig();
