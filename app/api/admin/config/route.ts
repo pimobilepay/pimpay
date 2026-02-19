@@ -84,8 +84,10 @@ export async function GET(req: NextRequest) {
       }
     });
   } catch (error: any) {
+    // When the database is unreachable return safe defaults instead of a 500
+    // so that client components (GlobalAnnouncement, GlobalAlert) keep working.
     console.error("GET_CONFIG_ERROR:", error);
-    return NextResponse.json({ error: "Erreur noyau Elara" }, { status: 500 });
+    return NextResponse.json(FALLBACK_CONFIG);
   }
 }
 
