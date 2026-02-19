@@ -125,12 +125,22 @@ export async function POST(req: NextRequest) {
         await prisma.user.update({ where: { id: userId }, data: { status: UserStatus.FROZEN } });
         break;
 
-      // CHANGEMENT DE RÔLE (ADMIN/USER)
+      // CHANGEMENT DE ROLE (ADMIN/USER)
       case "TOGGLE_ROLE":
         const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
         await prisma.user.update({
           where: { id: userId },
           data: { role: target?.role === UserRole.ADMIN ? UserRole.USER : UserRole.ADMIN }
+        });
+        break;
+
+      // AUTO-APPROVE TOGGLE
+      case "TOGGLE_AUTO_APPROVE":
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForAutoApprove = await prisma.user.findUnique({ where: { id: userId }, select: { autoApprove: true } });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { autoApprove: !userForAutoApprove?.autoApprove }
         });
         break;
 

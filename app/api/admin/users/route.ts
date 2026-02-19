@@ -26,12 +26,18 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
         id: true,
         email: true,
         name: true,
+        username: true,
+        avatar: true,
+        piUserId: true,
+        phone: true,
+        country: true,
         status: true,
         role: true,
         createdAt: true,
         kycStatus: true,
         autoApprove: true,
         lastLoginIp: true,
+        lastLoginAt: true,
         wallets: {
           select: {
             balance: true,

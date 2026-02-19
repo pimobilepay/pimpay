@@ -94,15 +94,39 @@ export async function GET(req: NextRequest) {
 // --- POST : CENTRE DE COMMANDE ACTIONS ADMIN ---
 export async function POST(req: NextRequest) {
   try {
-    const adminSession = await adminAuth(req);
-    if (!adminSession) {
-      return NextResponse.json({ error: "Accès refusé - Protocole Elara" }, { status: 403 });
-    }
-
     const body = await req.json();
     const { action } = body;
 
-    // 1. ACTION : RÉINITIALISATION (Password/Pin)
+    // AUTO-RESUME: No admin auth needed - server validates time expiry
+    if (action === "AUTO_RESUME") {
+      const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+      if (current?.maintenanceMode && current?.maintenanceUntil) {
+        const now = new Date();
+        const until = new Date(current.maintenanceUntil);
+        if (now >= until) {
+          const resumed = await ConfigModel.update({
+            where: { id: "GLOBAL_CONFIG" },
+            data: { maintenanceMode: false, maintenanceUntil: null }
+          });
+          await prisma.auditLog.create({
+            data: {
+              adminName: "SYSTEM",
+              action: "AUTO_RESUME_MAINTENANCE",
+              details: "Maintenance desactivee automatiquement apres expiration du delai."
+            }
+          }).catch(() => null);
+          return NextResponse.json(resumed);
+        }
+      }
+      return NextResponse.json({ error: "Maintenance encore active" }, { status: 400 });
+    }
+
+    const adminSession = await adminAuth(req);
+    if (!adminSession) {
+      return NextResponse.json({ error: "Acces refuse - Protocole Elara" }, { status: 403 });
+    }
+
+    // 1. ACTION : REINITIALISATION (Password/Pin)
     if (action === "RESET_PASSWORD" || action === "RESET_PIN") {
       const { userId, newSecret } = body;
       if (!userId || !newSecret) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
@@ -145,22 +169,27 @@ export async function POST(req: NextRequest) {
     const {
       appVersion, globalAnnouncement, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
-      consensusPrice, stakingAPY, forceUpdate
+      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil
     } = body;
+
+    // Build update data, handling maintenanceUntil properly
+    const updateData: any = {};
+    if (appVersion !== undefined) updateData.appVersion = appVersion;
+    if (globalAnnouncement !== undefined) updateData.globalAnnouncement = globalAnnouncement;
+    if (transactionFee !== undefined) updateData.transactionFee = Number(transactionFee);
+    if (maintenanceMode !== undefined) updateData.maintenanceMode = Boolean(maintenanceMode);
+    if (comingSoonMode !== undefined) updateData.comingSoonMode = Boolean(comingSoonMode);
+    if (minWithdrawal !== undefined) updateData.minWithdrawal = Number(minWithdrawal);
+    if (consensusPrice !== undefined) updateData.consensusPrice = Number(consensusPrice);
+    if (stakingAPY !== undefined) updateData.stakingAPY = Number(stakingAPY);
+    if (forceUpdate !== undefined) updateData.forceUpdate = Boolean(forceUpdate);
+    if (maintenanceUntil !== undefined) updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
+    // When disabling maintenance, also clear the until date
+    if (maintenanceMode === false) updateData.maintenanceUntil = null;
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },
-      data: {
-        appVersion,
-        globalAnnouncement,
-        transactionFee: Number(transactionFee),
-        maintenanceMode: Boolean(maintenanceMode),
-        comingSoonMode: Boolean(comingSoonMode), // Support du nouveau mode
-        minWithdrawal: Number(minWithdrawal),
-        consensusPrice: Number(consensusPrice),
-        stakingAPY: Number(stakingAPY),
-        forceUpdate: Boolean(forceUpdate)
-      }
+      data: updateData
     });
 
     await prisma.auditLog.create({
