@@ -178,19 +178,25 @@ export default function WithdrawPage() {
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       {/* HEADER */}
-      <header className="px-6 pt-12 pb-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-30 border-b border-white/5">
-        <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
-          <ArrowLeft size={20} />
-        </button>
-        <div className="text-center">
-          <h1 className="text-xl font-black uppercase tracking-tighter">Retrait</h1>
-          <div className="flex items-center justify-center gap-1.5 mt-0.5">
-            <CircleDot size={8} className="text-blue-500 animate-pulse" />
-            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Outflow</span>
+      <header className="px-6 pt-10 pb-6 flex items-center justify-between sticky top-0 bg-[#020617]/80 backdrop-blur-md z-30">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.back()}
+            className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
+              Retrait
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <CircleDot size={8} className="text-blue-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
+                Liquidity Outflow
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="p-3 opacity-0 pointer-events-none">
-          <ArrowLeft size={20} />
         </div>
       </header>
 
