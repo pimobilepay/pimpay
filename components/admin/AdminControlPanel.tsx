@@ -136,15 +136,26 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
                 icon={<CreditCard size={16}/>}
                 onClick={() => {
                    const pin = prompt("Nouveau PIN (4 ou 6 chiffres) :");
-                   if(pin) runAction("RESET_PIN", { extraData: pin });
+                   if(pin) runAction("RESET_PIN", { newSecret: pin });
                 }}
                 loading={loadingAction === "RESET_PIN"}
               />
               <AdminButton
                 label="Maintenance Indiv."
                 icon={<Hammer size={16}/>}
-                onClick={() => runAction("USER_SPECIFIC_MAINTENANCE")}
+                onClick={() => {
+                  const d = prompt("Date fin (YYYY-MM-DD) :");
+                  const t = prompt("Heure (HH:MM) :");
+                  if (d && t) {
+                    runAction("USER_SPECIFIC_MAINTENANCE", { extraData: `${d}T${t}:00.000Z` });
+                  } else if (d) {
+                    runAction("USER_SPECIFIC_MAINTENANCE", { extraData: `${d}T23:59:00.000Z` });
+                  } else {
+                    runAction("USER_SPECIFIC_MAINTENANCE");
+                  }
+                }}
                 variant="warning"
+                loading={loadingAction === "USER_SPECIFIC_MAINTENANCE"}
               />
             </div>
           </div>

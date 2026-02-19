@@ -74,7 +74,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onApproveKyc }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
 
   return (
@@ -113,6 +113,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <button onClick={onFreeze} title="Geler" className={`p-2 rounded-xl shrink-0 ${user.status === 'FROZEN' ? 'bg-cyan-500 text-white' : 'bg-white/5 text-slate-500'}`}><Snowflake size={14} /></button>
         <button onClick={onSendMessage} title="Message" className="p-2 bg-blue-500/10 text-blue-500 rounded-xl shrink-0"><Send size={14} /></button>
         <button onClick={onSupport} title="Support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Headphones size={14} /></button>
+        <button onClick={onApproveKyc} title="KYC" className={`p-2 rounded-xl shrink-0 ${user.kycStatus === 'VERIFIED' || user.kycStatus === 'APPROVED' ? 'bg-emerald-500 text-white' : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'}`}><ShieldCheck size={14} /></button>
         <button onClick={onToggleAutoApprove} title="Auto" className={`p-2 rounded-xl shrink-0 ${user.autoApprove ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-700'}`}><Shield size={14} /></button>
         <button onClick={() => onIndividualMaintenance(user)} title="Maint." className="p-2 bg-orange-500/10 text-orange-500 rounded-xl shrink-0"><Clock size={14} /></button>
         <button onClick={() => {
@@ -336,6 +337,15 @@ function DashboardContent() {
                             }}
                             onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
+                            onApproveKyc={() => {
+                              if (user.kycStatus === 'VERIFIED' || user.kycStatus === 'APPROVED') {
+                                toast.info("KYC déjà approuvé pour cet utilisateur");
+                              } else {
+                                if (confirm(`Approuver le KYC de ${user.username || user.name} ?`)) {
+                                  handleAction(user.id, 'APPROVE_KYC');
+                                }
+                              }
+                            }}
                             onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
                             onSupport={() => toast.success(`Support ouvert pour ${user.username || user.name}`)}
                         />

@@ -510,3 +510,22 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
+
+// -----------------------------------------------------------------------------
+// CONFIGURATION SYSTÈME
+// -----------------------------------------------------------------------------
+model SystemConfig {
+  id                 String   @id @default("GLOBAL_CONFIG")
+  appVersion         String   @default("2.4.0-STABLE")
+  maintenanceMode    Boolean  @default(false)
+  maintenanceUntil   DateTime?
+  comingSoonMode     Boolean  @default(false)
+  consensusPrice     Float    @default(314159.0)
+  stakingAPY         Float    @default(12.0)
+  transactionFee     Float    @default(0.5)
+  minWithdrawal      Float    @default(10.0)
+  globalAnnouncement String   @default("")
+  forceUpdate        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
