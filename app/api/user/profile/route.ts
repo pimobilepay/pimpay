@@ -23,7 +23,7 @@ const generateBlockchainIdentities = () => {
 const REQUIRED_WALLETS = [
     { currency: "XAF", type: "FIAT" as const },
     { currency: "PI", type: "PI" as const },
-    { currency: "SIDRA", type: "SIDRA" as const },
+    { currency: "SDA", type: "SIDRA" as const },
     { currency: "USDT", type: "CRYPTO" as const },
     { currency: "BTC", type: "CRYPTO" as const },
     { currency: "XRP", type: "CRYPTO" as const },
@@ -85,7 +85,7 @@ export async function GET() {
         const hasSidraAnyForm = existingCurrencies.has("SIDRA") || existingCurrencies.has("SDA");
 
         const missingWallets = REQUIRED_WALLETS.filter(rw => {
-            if (rw.currency === "SIDRA" && hasSidraAnyForm) return false;
+            if (rw.currency === "SDA" && hasSidraAnyForm) return false;
             return !existingCurrencies.has(rw.currency);
         });
 
