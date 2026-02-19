@@ -150,6 +150,7 @@ model SwapQuote {
   fromAmount     Float
   toAmount       Float
   rate           Float
+  sourceCurrency String   @default("USDT")
   targetCurrency String
   expiresAt      DateTime
   createdAt      DateTime @default(now())
