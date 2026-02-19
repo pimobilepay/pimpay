@@ -76,19 +76,12 @@ export async function GET() {
         const formattedSda = ethers.formatEther(balanceRaw);
         sdaBalanceValue = parseFloat(formattedSda);
 
-        // Sync SDA balance to DB
+        // Sync SDA balance to DB (currency: "SDA", type: "SIDRA")
         await prisma.wallet.upsert({
           where: { userId_currency: { userId, currency: "SDA" } },
           update: { balance: sdaBalanceValue },
           create: { userId, currency: "SDA", balance: sdaBalanceValue, type: "SIDRA" }
-        }).catch(() => {
-          // Also try with "SIDRA" currency key
-          return prisma.wallet.upsert({
-            where: { userId_currency: { userId, currency: "SIDRA" } },
-            update: { balance: sdaBalanceValue },
-            create: { userId, currency: "SIDRA", balance: sdaBalanceValue, type: "SIDRA" }
-          }).catch(() => null);
-        });
+        }).catch(() => null);
       } catch (rpcError) {
         console.error("RPC ERROR (Sidra):", rpcError);
         // Fallback to last known DB value
