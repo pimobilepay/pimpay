@@ -97,8 +97,8 @@ export default function UserDashboard() {
         router.push("/auth/login");
       }
     } catch (err) {
-      console.error("Erreur PimPay Sync:", err);
-      toast.error("Erreur de synchronisation");
+      console.error("PimPay Sync Error:", err);
+      toast.error("Sync error");
     } finally {
       setIsLoading(false);
     }
@@ -111,10 +111,10 @@ export default function UserDashboard() {
     const swaps = txs.filter((t: any) => t.type === 'EXCHANGE').length;
 
     return [
-      { name: "Envois", value: sent || 0 },
-      { name: "Reçus", value: received || 0 },
+      { name: "Sent", value: sent || 0 },
+      { name: "Received", value: received || 0 },
       { name: "Swaps", value: swaps || 0 },
-      { name: "Autres", value: 1 },
+      { name: "Others", value: 1 },
     ];
   };
 
@@ -181,14 +181,14 @@ export default function UserDashboard() {
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
                 <div className="p-4 border-b border-white/5 mb-2">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Compte PimPay</p>
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p>
                   <p className="text-sm font-bold truncate">@{data?.username}</p>
                 </div>
                 <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
-                  <Settings size={16} /> Profil
+                  <Settings size={16} /> Profile
                 </button>
                 <button onClick={() => handleLogout()} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left">
-                  <LogOut size={16} /> Déconnexion
+                  <LogOut size={16} /> Logout
                 </button>
               </div>
             )}
@@ -261,10 +261,10 @@ export default function UserDashboard() {
 
         {/* ACTIONS RAPIDES */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          {[{ icon: <ArrowUpRight />, label: "Envoi", color: "bg-blue-600", link: "/transfer" },
-            { icon: <ArrowDownLeft />, label: "Retrait", color: "bg-emerald-600", link: "/withdraw" },
+          {[{ icon: <ArrowUpRight />, label: "Send", color: "bg-blue-600", link: "/transfer" },
+            { icon: <ArrowDownLeft />, label: "Withdraw", color: "bg-emerald-600", link: "/withdraw" },
             { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-            { icon: <CreditCard />, label: "Carte", color: "bg-slate-800", link: "/dashboard/card" }
+            { icon: <CreditCard />, label: "Card", color: "bg-slate-800", link: "/dashboard/card" }
           ].map((action, i) => (
             <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2">
               <div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>{action.icon}</div>
