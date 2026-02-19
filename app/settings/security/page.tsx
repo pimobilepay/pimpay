@@ -1,14 +1,29 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ShieldCheck, Fingerprint, KeyRound,
   Mail, MessageCircle, ChevronRight,
   Lock, ArrowLeft, ShieldAlert, Monitor,
-  Smartphone, Trash2, Zap, Shield
+  Smartphone, Trash2, Zap, Shield, Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
+
+interface SessionData {
+  id: string;
+  deviceName: string;
+  os: string;
+  browser: string;
+  ip: string;
+  city: string | null;
+  country: string | null;
+  isMobile: boolean;
+  lastActiveAt: string;
+  isCurrent: boolean;
+}
 
 export default function SecurityPage() {
   const router = useRouter();
@@ -16,13 +31,49 @@ export default function SecurityPage() {
   const [otpEmail, setOtpEmail] = useState(false);
   const [otpSms, setOtpSms] = useState(false);
   const [biometric, setBiometric] = useState(false);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/sessions");
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data.sessions || []);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm("Voulez-vous vraiment deconnecter cet appareil ?")) return;
+    setDeletingSessionId(sessionId);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      if (res.ok) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        toast.success("Session revoquee avec succes");
+      } else {
+        toast.error("Erreur lors de la revocation");
+      }
+    } catch {
+      toast.error("Une erreur est survenue");
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
     setOtpEmail(localStorage.getItem("otpEmail") === "true");
     setOtpSms(localStorage.getItem("otpSms") === "true");
     setBiometric(localStorage.getItem("biometric") === "true");
-  }, []);
+    fetchSessions();
+  }, [fetchSessions]);
 
   const toggleSwitch = (key: string, value: boolean, setValue: (v: boolean) => void) => {
     const newVal = !value;
@@ -143,39 +194,91 @@ export default function SecurityPage() {
         <section>
           <div className="flex items-center gap-2 mb-5 ml-2">
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">Sessions Actives</h3>
+            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">
+              Sessions Actives
+              {!loadingSessions && sessions.length > 0 && (
+                <span className="ml-2 text-emerald-500">{sessions.length}</span>
+              )}
+            </h3>
           </div>
-          <div className="space-y-3">
-              <div className="flex items-center justify-between p-5 rounded-[2rem] bg-slate-900/40 border border-emerald-500/10 group active:scale-[0.98] transition-all">
-                  <div className="flex items-center gap-4">
-                      <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
-                          <Smartphone size={22} />
-                      </div>
-                      <div>
-                          <p className="text-sm font-black uppercase tracking-tight">iPhone 15 Pro</p>
-                          <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">Actuel • RDC</p>
-                      </div>
-                  </div>
-                  <div className="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-                      <span className="text-[8px] font-black text-emerald-500 uppercase">En ligne</span>
-                  </div>
-              </div>
 
-              <div className="flex items-center justify-between p-5 rounded-[2rem] bg-slate-900/20 border border-white/5 opacity-50 grayscale">
+          {loadingSessions ? (
+            <div className="flex items-center justify-center p-8 rounded-[2rem] bg-slate-900/40 border border-white/5">
+              <Loader2 size={20} className="animate-spin text-blue-500" />
+              <span className="ml-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Chargement des sessions...
+              </span>
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="p-8 text-center rounded-[2rem] bg-slate-900/40 border border-dashed border-white/10">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Aucune session active
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={`flex items-center justify-between p-5 rounded-[2rem] transition-all ${
+                    session.isCurrent
+                      ? "bg-slate-900/40 border border-emerald-500/10"
+                      : "bg-slate-900/20 border border-white/5 opacity-60"
+                  }`}
+                >
                   <div className="flex items-center gap-4">
-                      <div className="p-3.5 rounded-2xl bg-slate-800 text-slate-400">
-                          <Monitor size={22} />
-                      </div>
-                      <div>
-                          <p className="text-sm font-black uppercase tracking-tight">MacBook Pro</p>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Dernière activité: 24h</p>
-                      </div>
+                    <div
+                      className={`p-3.5 rounded-2xl ${
+                        session.isCurrent
+                          ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/10"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      {session.isMobile ? <Smartphone size={22} /> : <Monitor size={22} />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black uppercase tracking-tight">
+                        {session.deviceName}
+                      </p>
+                      {session.isCurrent ? (
+                        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">
+                          {"Actuel"}
+                          {session.country ? ` \u2022 ${session.city ? `${session.city}, ` : ""}${session.country}` : ""}
+                        </p>
+                      ) : (
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                          {formatDistanceToNow(new Date(session.lastActiveAt), {
+                            addSuffix: true,
+                            locale: fr,
+                          })}
+                          {session.country ? ` \u2022 ${session.city ? `${session.city}, ` : ""}${session.country}` : ""}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <button className="p-3 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 rounded-2xl transition-all active:scale-90">
-                      <Trash2 size={18} />
-                  </button>
-              </div>
-          </div>
+
+                  {session.isCurrent ? (
+                    <div className="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                      <span className="text-[8px] font-black text-emerald-500 uppercase">
+                        En ligne
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleDeleteSession(session.id)}
+                      disabled={deletingSessionId === session.id}
+                      className="p-3 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 rounded-2xl transition-all active:scale-90 disabled:opacity-50"
+                    >
+                      <Trash2
+                        size={18}
+                        className={deletingSessionId === session.id ? "animate-pulse" : ""}
+                      />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* BIOMETRY SECTION */}

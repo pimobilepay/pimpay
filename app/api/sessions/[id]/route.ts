@@ -9,23 +9,26 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = cookies().get("token")?.value;
-    if (!token) return new NextResponse("Non autorisé", { status: 401 });
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    if (!token) return new NextResponse("Non autorise", { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
 
-    // Supprimer la session seulement si elle appartient à l'utilisateur
+    const { id } = await params;
+
+    // Supprimer la session seulement si elle appartient a l'utilisateur
     // et que ce n'est pas la session actuelle
     await prisma.session.deleteMany({
       where: {
-        id: params.id,
+        id: id,
         userId: userId,
         NOT: {
-          token: token
-        }
-      }
+          token: token,
+        },
+      },
     });
 
     return NextResponse.json({ success: true });
