@@ -15,12 +15,17 @@ type LedgerUser = {
   name: string | null;
   username: string | null;
   email: string | null;
+  avatar: string | null;
+  piUserId: string | null;
+  phone: string | null;
+  country: string | null;
   status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'FROZEN' | 'SUSPENDED';
   role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT';
   autoApprove: boolean;
   wallets: { balance: number; currency: string }[];
   kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'APPROVED';
   lastLoginIp?: string | null;
+  lastLoginAt?: string | null;
   createdAt: string;
 };
 
@@ -76,24 +81,46 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
 
 const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
+  const isPiUser = !!user.piUserId;
 
   return (
     <div className={`p-5 bg-slate-900/40 border ${isSelected ? 'border-blue-500/50 bg-blue-500/5' : 'border-white/5'} rounded-[2rem] space-y-4 transition-all notranslate`}>
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-4">
           <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelect(); }}>
-             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border uppercase ${isSelected ? 'bg-blue-600 border-white text-white' : 'bg-slate-800 border-white/5 text-slate-400'}`}>
-                {isSelected ? <CheckCircle2 size={20} /> : (user.username?.[0] || user.name?.[0] || '?')}
-             </div>
+             {isSelected ? (
+               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border bg-blue-600 border-white text-white">
+                 <CheckCircle2 size={20} />
+               </div>
+             ) : user.avatar ? (
+               <img
+                 src={user.avatar}
+                 alt={user.username || user.name || "Avatar"}
+                 className="w-12 h-12 rounded-2xl object-cover border border-white/10"
+                 crossOrigin="anonymous"
+               />
+             ) : (
+               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border bg-slate-800 border-white/5 text-slate-400 uppercase">
+                 {user.username?.[0] || user.name?.[0] || '?'}
+               </div>
+             )}
              {user.status === 'ACTIVE' && <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-4 border-[#020617]" />}
+             {isPiUser && (
+               <div className="absolute -bottom-1 -left-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-[#020617] flex items-center justify-center">
+                 <span className="text-[8px] font-black text-white">Pi</span>
+               </div>
+             )}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-black text-white tracking-tight uppercase">{user.username || user.name || "Sans nom"}</p>
               <ShieldCheck size={10} className={user.kycStatus === 'APPROVED' || user.kycStatus === 'VERIFIED' ? "text-emerald-500" : "text-slate-600"} />
+              {isPiUser && (
+                <span className="text-[7px] font-black px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20 uppercase tracking-wider">Pi Network</span>
+              )}
             </div>
             <p className="text-[10px] text-blue-400 font-mono font-bold uppercase tracking-widest">
-                {user.role} • π {piBalance.toLocaleString()}
+                {user.role} {user.email ? `// ${user.email}` : ""} {"// \u03C0"} {piBalance.toLocaleString()}
             </p>
           </div>
         </div>
@@ -101,7 +128,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
           onClick={(e) => { e.stopPropagation(); onBan(); }}
           className={`text-[7px] font-black px-2 py-1 rounded-full border uppercase tracking-widest transition-colors ${user.status === 'BANNED' ? 'bg-red-500 border-red-500 text-white' : 'border-white/10 text-slate-500 hover:border-red-500 hover:text-red-500'}`}
         >
-            {user.status === 'BANNED' ? 'Débannir' : 'Bannir'}
+            {user.status === 'BANNED' ? 'Debannir' : 'Bannir'}
         </button>
       </div>
 

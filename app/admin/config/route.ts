@@ -6,7 +6,7 @@ import { jwtVerify } from "jose";
 export async function GET() {
   try {
     // 1. Vérification de sécurité (Optionnel mais recommandé)
-    const token = cookies().get("token")?.value;
+    const token = (await cookies()).get("token")?.value;
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     // 2. Récupération simplifiée

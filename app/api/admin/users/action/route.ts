@@ -122,6 +122,30 @@ export async function POST(req: NextRequest) {
         });
         break;
 
+      case "FREEZE":
+      case "UNFREEZE":
+        await prisma.user.update({
+          where: { id: userId },
+          data: { status: action === "FREEZE" ? "FROZEN" : "ACTIVE" },
+        });
+        break;
+
+      case "TOGGLE_ROLE":
+        const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { role: targetUser?.role === "ADMIN" ? "USER" : "ADMIN" },
+        });
+        break;
+
+      case "AIRDROP":
+        if (!amount) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
+        await prisma.wallet.updateMany({
+          where: { userId: userId, currency: "PI" },
+          data: { balance: { increment: parseFloat(amount) } },
+        });
+        break;
+
       case "UPDATE_BALANCE":
         if (amount === undefined) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
         await prisma.wallet.updateMany({
@@ -136,6 +160,16 @@ export async function POST(req: NextRequest) {
           where: { id: "GLOBAL_CONFIG" },
           update: { maintenanceMode: !currentConfig?.maintenanceMode },
           create: { id: "GLOBAL_CONFIG", maintenanceMode: true },
+        });
+        break;
+
+      // AUTO-APPROVE TOGGLE
+      case "TOGGLE_AUTO_APPROVE":
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForAuto = await prisma.user.findUnique({ where: { id: userId }, select: { autoApprove: true } });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { autoApprove: !userForAuto?.autoApprove }
         });
         break;
 
