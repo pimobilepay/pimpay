@@ -21,24 +21,29 @@ import { toast } from "sonner";
 function SuccessContent() {
   const searchParams = useSearchParams();
   
-  // Extraction sécurisée des paramètres
+  // Extraction securisee des parametres
   const ref = searchParams.get("ref");
+  const txid = searchParams.get("txid");
   const amountParam = searchParams.get("amount");
-  const methodParam = searchParams.get("method") || "Dépôt Mobile";
+  const methodParam = searchParams.get("method") || "Depot Mobile";
 
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!ref) {
+    if (!ref && !txid) {
       setLoading(false);
       return;
     }
 
     const fetchTx = async () => {
       try {
-        // On cherche la transaction dans la table Transaction via la référence
-        const res = await fetch(`/api/pi/transaction?ref=${encodeURIComponent(ref)}`);
+        // Construire l'URL avec les parametres disponibles
+        const params = new URLSearchParams();
+        if (txid) params.set("txid", txid);
+        if (ref) params.set("ref", ref);
+
+        const res = await fetch(`/api/pi/transaction?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           setTransaction(data);
@@ -51,16 +56,60 @@ function SuccessContent() {
     };
 
     fetchTx();
-  }, [ref]);
+  }, [ref, txid]);
 
-  // CORRECTION : Priorité au montant réel de la transaction ou du paramètre URL
-  // On ne met 0 que si vraiment rien n'est trouvé, fini le "50.00" par défaut.
-  const amount = transaction?.amount || (amountParam ? parseFloat(amountParam) : 0.0);
+  // Montant reel depuis la transaction DB, puis fallback sur le param URL
+  const amount = transaction?.amount ?? (amountParam ? parseFloat(amountParam) : 0.0);
+  const currency = transaction?.currency || "PI";
   
-  // Frais dynamiques (ex: 2% ou frais réels de la table Transaction)
-  const fee = transaction?.fee || amount * 0.02;
+  // Frais reels depuis la DB, sinon calcul 2%
+  const fee = transaction?.fee ?? amount * 0.02;
   
   const reference = transaction?.reference || ref || "PIMPAY-TX-PENDING";
+  const method = transaction?.description || methodParam;
+  const status = transaction?.status || "SUCCESS";
+  const blockchainTx = transaction?.blockchainTx || txid || null;
+
+  // Statut affichage avec classes explicites (Tailwind ne supporte pas les classes dynamiques)
+  const statusConfig: Record<string, { label: string; badge: string; text: string; bg: string; border: string; dot: string; icon: string }> = {
+    SUCCESS: {
+      label: "Complete",
+      badge: "bg-emerald-500/10 border-emerald-500/20",
+      text: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      dot: "bg-emerald-500",
+      icon: "text-emerald-500",
+    },
+    COMPLETED: {
+      label: "Complete",
+      badge: "bg-emerald-500/10 border-emerald-500/20",
+      text: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      dot: "bg-emerald-500",
+      icon: "text-emerald-500",
+    },
+    PENDING: {
+      label: "En attente",
+      badge: "bg-amber-500/10 border-amber-500/20",
+      text: "text-amber-500",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/20",
+      dot: "bg-amber-500",
+      icon: "text-amber-500",
+    },
+    FAILED: {
+      label: "Echoue",
+      badge: "bg-red-500/10 border-red-500/20",
+      text: "text-red-500",
+      bg: "bg-red-500/10",
+      border: "border-red-500/20",
+      dot: "bg-red-500",
+      icon: "text-red-500",
+    },
+  };
+  const currentStatus = statusConfig[status] || statusConfig.SUCCESS;
   
   const txDate = transaction?.createdAt
     ? new Date(transaction.createdAt).toLocaleString("fr-FR", {
@@ -82,7 +131,7 @@ function SuccessContent() {
       try {
         await navigator.share({
           title: "Dépôt PimPay réussi",
-          text: `Dépôt de $${amount.toFixed(2)} USD confirmé sur PimPay. Réf: ${reference}`,
+          text: `Depot de ${amount} ${currency} confirme sur PimPay. Ref: ${reference}`,
         });
       } catch {
         // Annulé
@@ -107,10 +156,10 @@ function SuccessContent() {
 
       {/* Top section */}
       <div className="flex flex-col items-center w-full animate-in fade-in zoom-in-95 duration-700 relative z-10">
-        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-10">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-            Transaction approuvée
+        <div className={`flex items-center gap-2 px-4 py-2 ${currentStatus.badge} border rounded-full mb-10`}>
+          <div className={`w-2 h-2 ${currentStatus.dot} rounded-full animate-pulse`} />
+          <span className={`text-[9px] font-black ${currentStatus.text} uppercase tracking-widest`}>
+            {status === "PENDING" ? "Transaction en attente" : "Transaction approuvee"}
           </span>
         </div>
 
@@ -122,20 +171,27 @@ function SuccessContent() {
         </div>
 
         <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2 text-balance">
-          Dépôt confirmé
+          {status === "PENDING" ? "Depot en attente" : "Depot confirme"}
         </h1>
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.25em] max-w-[240px] leading-relaxed">
-          Votre solde PimPay a été mis à jour avec succès
+          {status === "PENDING"
+            ? "Votre depot est en cours de validation par l'equipe"
+            : "Votre solde PimPay a ete mis a jour avec succes"}
         </p>
 
         {/* Montant Dynamique */}
         <div className="mt-8 mb-2">
           <div className="flex items-baseline justify-center gap-1">
             <span className="text-5xl font-black text-white tracking-tighter">
-              ${amount.toFixed(2)}
+              {currency === "PI" ? `${amount.toFixed(8)}` : `$${amount.toFixed(2)}`}
             </span>
-            <span className="text-lg font-bold text-blue-500">USD</span>
+            <span className="text-lg font-bold text-blue-500">{currency}</span>
           </div>
+          {currency === "PI" && amount > 0 && (
+            <p className="text-xs text-slate-500 mt-1 font-bold">
+              {`~ $${(amount * 314159).toFixed(2)} USD (GCV)`}
+            </p>
+          )}
         </div>
 
         {/* Détails de la transaction liés au Schéma Prisma */}
@@ -178,7 +234,7 @@ function SuccessContent() {
                 </span>
               </div>
               <span className="text-[10px] font-bold text-white uppercase">
-                {methodParam}
+                {method}
               </span>
             </div>
 
@@ -191,24 +247,39 @@ function SuccessContent() {
                 </span>
               </div>
               <span className="text-[10px] font-bold text-blue-400">
-                ${fee.toFixed(2)} USD
+                {currency === "PI" ? `${fee.toFixed(8)} PI` : `$${fee.toFixed(2)} USD`}
               </span>
             </div>
 
-            {/* Statut (status dans ton Prisma) */}
+            {/* Statut (status dans Prisma) */}
             <div className="flex justify-between items-center border-t border-white/5 pt-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-emerald-500" />
+                <CheckCircle2 size={14} className={currentStatus.icon} />
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
                   Statut
                 </span>
               </div>
-              <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                <span className="text-[9px] font-black text-emerald-500 uppercase">
-                  Complété
+              <div className={`px-3 py-1 ${currentStatus.bg} border ${currentStatus.border} rounded-full`}>
+                <span className={`text-[9px] font-black ${currentStatus.text} uppercase`}>
+                  {currentStatus.label}
                 </span>
               </div>
             </div>
+
+            {/* Blockchain TX (si disponible) */}
+            {blockchainTx && (
+              <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                <div className="flex items-center gap-2">
+                  <ArrowUpRight size={14} className="text-blue-500" />
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                    TX Blockchain
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 font-bold">
+                  {blockchainTx.slice(0, 12)}...
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="bg-blue-600/5 py-2.5 text-center border-t border-white/5">

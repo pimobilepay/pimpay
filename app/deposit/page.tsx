@@ -885,7 +885,7 @@ export default function DepositPage() {
               <PiButton
                 amount={feesCalculation.piAmount}
                 memo={`Depot PimPay - ${amount || 0} USD`}
-                onSuccess={() => router.push("/deposit/success")}
+                onSuccess={(txid) => router.push(`/deposit/success?txid=${encodeURIComponent(txid)}&amount=${encodeURIComponent(amount || "0")}&method=Pi+Network`)}
                 label={
                   feesCalculation.piAmount > 0
                     ? `Deposer ${feesCalculation.piEquivalent} Pi`
