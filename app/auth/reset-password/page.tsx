@@ -4,10 +4,12 @@ import React, { useState, useEffect, Suspense } from "react";
 import { ArrowLeft, Eye, EyeOff, Shield, Lock, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
 
   // Récupération des preuves de validation du GCV Shield
@@ -24,7 +26,7 @@ function ResetPasswordContent() {
     setMounted(true);
     // Sécurité : Si pas de token ou de username, on renvoie à la case départ
     if (mounted && (!token || !username)) {
-      toast.error("Preuves de sécurité manquantes");
+      toast.error(t("extra.missingSecurityProofs"));
       router.push("/auth/forgot-password");
     }
   }, [mounted, token, username, router]);
@@ -33,12 +35,12 @@ function ResetPasswordContent() {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      toast.error("Les mots de passe ne correspondent pas");
+      toast.error(t("extra.passwordsMismatch"));
       return;
     }
 
     if (newPassword.length < 6) {
-      toast.error("Le mot de passe doit faire au moins 6 caractères");
+      toast.error(t("extra.passwordTooShort"));
       return;
     }
 
@@ -58,10 +60,10 @@ function ResetPasswordContent() {
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Échec de la mise à jour");
+      if (!res.ok) throw new Error(data.error || t("extra.updateFailed"));
 
       setIsSuccess(true);
-      toast.success("Sécurité PimPay mise à jour !");
+      toast.success(t("extra.securityUpdated"));
 
       setTimeout(() => {
         router.push("/auth/login");
@@ -69,7 +71,7 @@ function ResetPasswordContent() {
 
     } catch (err: any) {
       // Diagnostic précis pour aider l'utilisateur
-      toast.error(err.message || "Erreur de connexion");
+      toast.error(err.message || t("extra.pinConnectionError"));
       console.error("RESET_SUBMIT_ERROR:", err);
     } finally {
       setLoading(false);
@@ -90,8 +92,8 @@ function ResetPasswordContent() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tighter italic">Réinitialisation</h1>
-          <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest">GCV Shield Protocol</p>
+          <h1 className="text-xl font-black uppercase tracking-tighter italic">{t("extra.resetTitle")}</h1>
+          <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest">{t("extra.gcvShieldProtocol")}</p>
         </div>
       </div>
 
@@ -101,15 +103,15 @@ function ResetPasswordContent() {
             <div className="inline-flex p-4 rounded-3xl bg-blue-600/10 border border-blue-500/20 mb-4">
               <Shield className="text-blue-500" size={32} />
             </div>
-            <h2 className="text-2xl font-black uppercase tracking-tighter text-white">Nouveau Pass</h2>
-            <p className="text-slate-400 text-sm">Définissez vos nouveaux accès pour <span className="text-blue-400">@{username}</span></p>
+            <h2 className="text-2xl font-black uppercase tracking-tighter text-white">{t("extra.newPass")}</h2>
+            <p className="text-slate-400 text-sm">{t("extra.setNewAccess")} <span className="text-blue-400">@{username}</span></p>
           </div>
 
           {!isSuccess ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Input Nouveau Password */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Nouveau mot de passe</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">{t("extra.newPassword")}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input
@@ -132,7 +134,7 @@ function ResetPasswordContent() {
 
               {/* Confirmation */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Confirmer le mot de passe</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">{t("extra.confirmPassword")}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input
@@ -151,13 +153,13 @@ function ResetPasswordContent() {
                 disabled={loading}
                 className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all mt-4 flex items-center justify-center gap-2"
               >
-                {loading ? <Loader2 className="animate-spin" size={16} /> : "Confirmer le changement"}
+                {loading ? <Loader2 className="animate-spin" size={16} /> : t("extra.confirmChange")}
               </button>
             </form>
           ) : (
             <div className="text-center p-8 bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] space-y-4 animate-in zoom-in-95">
                <CheckCircle2 size={48} className="text-emerald-500 mx-auto" />
-               <p className="text-sm font-bold text-emerald-200">Mot de passe modifié avec succès ! Redirection...</p>
+               <p className="text-sm font-bold text-emerald-200">{t("extra.passwordChanged")}</p>
             </div>
           )}
 

@@ -7,9 +7,11 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
   const [hp, setHp] = useState(""); // HoneyPot
@@ -48,13 +50,13 @@ export default function ForgotPasswordPage() {
           phone: result.data.phone
         });
         setStep(2);
-        toast.info("Protocole d'identification activé");
+        toast.info(t("extra.identificationProtocol"));
       } else {
         // CORRECTION : Message d'erreur personnalisé
-        toast.error(result.error || "Utilisateur introuvable sur PimPay");
+        toast.error(result.error || t("extra.userNotFound"));
       }
     } catch (error) {
-      toast.error("Erreur de liaison GCV Shield");
+      toast.error(t("extra.connectionError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,12 +81,12 @@ export default function ForgotPasswordPage() {
       if (res.ok) {
         setStep(3);
         setCooldown(60);
-        toast.success(`Cryptogramme transmis par ${method?.toUpperCase()}`);
+        toast.success(`${t("extra.codeSentBy")} ${method?.toUpperCase()}`);
       } else {
-        toast.error(result.error || "Échec de l'envoi du code");
+        toast.error(result.error || t("extra.sendFailed"));
       }
     } catch (e) {
-      toast.error("Interruption de connexion");
+      toast.error(t("extra.connectionInterrupted"));
     } finally {
       setIsSubmitting(false);
     }
@@ -109,8 +111,8 @@ export default function ForgotPasswordPage() {
                 <ShieldCheck size={36} className="text-blue-500" />
                 <div className="absolute -right-1 -top-1 w-4 h-4 bg-blue-500 rounded-full animate-ping opacity-20"></div>
             </div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter italic">Sécurité</h1>
-            <p className="text-[10px] text-blue-500 font-black uppercase tracking-[0.4em] mt-2">PimPay GCV Shield</p>
+            <h1 className="text-3xl font-black uppercase tracking-tighter italic">{t("extra.securityTitle")}</h1>
+            <p className="text-[10px] text-blue-500 font-black uppercase tracking-[0.4em] mt-2">{t("extra.gcvShield")}</p>
         </div>
 
         {step === 1 && (
@@ -118,7 +120,7 @@ export default function ForgotPasswordPage() {
             <div className="space-y-4">
                 <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-2xl text-center">
                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">
-                    Entrez votre identifiant pour que nous puissions localiser vos points de contact sécurisés.
+                    {t("extra.enterIdentifier")}
                    </p>
                 </div>
                 <div className="space-y-2">
@@ -142,7 +144,7 @@ export default function ForgotPasswordPage() {
                 disabled={isSubmitting || username.length < 3}
                 className="w-full flex items-center justify-center gap-3 p-6 bg-blue-600 rounded-[2rem] text-[12px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 disabled:opacity-30"
             >
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : "Vérifier le compte"}
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : t("extra.verifyAccount")}
             </button>
           </form>
         )}
@@ -150,7 +152,7 @@ export default function ForgotPasswordPage() {
         {step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
             <div className="text-center space-y-2">
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Canaux vérifiés pour</p>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{t("extra.verifiedChannels")}</p>
                 <span className="text-sm font-black italic text-blue-500">@{username.toLowerCase()}</span>
             </div>
 
@@ -158,7 +160,7 @@ export default function ForgotPasswordPage() {
                 {foundUserData.email && (
                   <SelectionCard
                       icon={<Mail size={20}/>}
-                      title="Email de secours"
+                      title="Recovery email"
                       description={foundUserData.email}
                       selected={method === 'email'}
                       onClick={() => setMethod('email')}
@@ -167,7 +169,7 @@ export default function ForgotPasswordPage() {
                 {foundUserData.phone && (
                   <SelectionCard
                       icon={<Phone size={20}/>}
-                      title="Mobile sécurisé"
+                      title="Secured mobile"
                       description={foundUserData.phone}
                       selected={method === 'phone'}
                       onClick={() => setMethod('phone')}
@@ -180,7 +182,7 @@ export default function ForgotPasswordPage() {
                 disabled={isSubmitting || !method || cooldown > 0}
                 className="w-full flex items-center justify-center gap-3 mt-4 p-6 bg-blue-600 rounded-[2rem] text-[12px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 disabled:opacity-30 transition-all"
             >
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : cooldown > 0 ? `Attendre ${cooldown}s` : "Envoyer le code"}
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : cooldown > 0 ? `${t("extra.waitCooldown")} ${cooldown}s` : t("extra.sendCode")}
             </button>
           </div>
         )}
@@ -189,16 +191,16 @@ export default function ForgotPasswordPage() {
           <div className="space-y-8 animate-in zoom-in-95 duration-500 text-center">
             <CheckCircle2 size={64} className="text-emerald-500 mx-auto" />
             <div className="space-y-3">
-                <h2 className="text-2xl font-black uppercase tracking-tighter italic">Lien Transmis</h2>
+                <h2 className="text-2xl font-black uppercase tracking-tighter italic">{t("extra.linkSent")}</h2>
                 <p className="text-xs text-slate-400 font-medium px-6 leading-relaxed">
-                    Un code de sécurité unique vient d'être généré et envoyé à votre {method}.
+                    {t("extra.codeSentMessage")} {method}.
                 </p>
             </div>
 
             <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 text-left">
                 <Lock size={16} className="text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-[10px] text-amber-200/70 font-medium italic">
-                    Attention : Ne communiquez jamais ce code. PimPay ne vous contactera jamais pour le demander.
+                    {t("extra.codeWarning")}
                 </p>
             </div>
 
@@ -206,7 +208,7 @@ export default function ForgotPasswordPage() {
                 onClick={() => router.push(`/auth/verify-otp?username=${username.toLowerCase()}`)}
                 className="w-full p-6 bg-white text-black rounded-[2rem] text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all"
             >
-                Vérifier le code
+                {t("extra.verifyCode")}
             </button>
           </div>
         )}

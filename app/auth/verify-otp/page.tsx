@@ -7,11 +7,13 @@ import {
   LockKeyhole, CheckCircle2 
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 function VerifyOtpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const username = searchParams.get("username") || "";
+  const { t } = useLanguage();
 
   const [code, setCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
@@ -33,16 +35,16 @@ function VerifyOtpContent() {
 
       if (res.ok) {
         setIsSuccess(true);
-        toast.success("Identité confirmée avec succès");
+        toast.success(t("extra.identityConfirmed"));
         // Redirection vers la réinitialisation du mot de passe après 2 secondes
         setTimeout(() => {
           router.push(`/auth/reset-password?username=${username}&token=${code}`);
         }, 2000);
       } else {
-        toast.error(result.error || "Code incorrect ou expiré");
+        toast.error(result.error || t("extra.invalidOrExpired"));
       }
     } catch (error) {
-      toast.error("Erreur de connexion au serveur GCV");
+      toast.error(t("extra.gcvServerError"));
     } finally {
       setIsVerifying(false);
     }
@@ -62,9 +64,9 @@ function VerifyOtpContent() {
           <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6">
             <LockKeyhole size={32} className="text-emerald-500" />
           </div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter italic">Vérification</h1>
+          <h1 className="text-3xl font-black uppercase tracking-tighter italic">{t("extra.verification")}</h1>
           <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] mt-2">
-            Entrez le code envoyé à @{username}
+            {t("extra.enterCodeSent")} @{username}
           </p>
         </div>
 
@@ -81,7 +83,7 @@ function VerifyOtpContent() {
                 required
               />
               <p className="text-[11px] text-center text-slate-500 italic">
-                Le code est composé de 6 chiffres numériques.
+                {t("extra.codeIs6Digits")}
               </p>
             </div>
 
@@ -90,7 +92,7 @@ function VerifyOtpContent() {
               disabled={isVerifying || code.length < 6}
               className="w-full flex items-center justify-center gap-3 p-6 bg-emerald-600 rounded-[2rem] text-[12px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 disabled:opacity-30"
             >
-              {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Valider le cryptogramme"}
+              {isVerifying ? <Loader2 className="animate-spin" size={20} /> : t("extra.validateCryptogram")}
             </button>
           </form>
         ) : (
