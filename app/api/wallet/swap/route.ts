@@ -7,15 +7,14 @@ import { prisma } from "@/lib/prisma";
 import * as jose from "jose";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 
-// Fonction utilitaire pour les prix
+// 1. Sortir l'appel API de la transaction pour éviter le timeout
 async function getLiveMarketPrices() {
   try {
     const res = await fetch(
       'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd',
       { next: { revalidate: 60 }, signal: AbortSignal.timeout(5000) }
     );
-    const data = await res.json();
-    return data;
+    return await res.json();
   } catch (e) {
     return {};
   }
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const SECRET = process.env.JWT_SECRET;
 
-    // 1. AUTHENTIFICATION (Multi-Token PimPay)
+    // --- AUTHENTIFICATION ---
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     if (!token || !SECRET) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
@@ -34,7 +33,6 @@ export async function POST(request: Request) {
     const { payload } = await jose.jwtVerify(token, secretKey);
     const userId = payload.id as string;
 
-    // 2. RÉCUPÉRATION DES DONNÉES
     const { amount, fromCurrency, toCurrency } = await request.json();
     const swapAmount = parseFloat(amount);
 
@@ -45,17 +43,16 @@ export async function POST(request: Request) {
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
 
-    // 3. LOGIQUE DES PRIX (Consensus PimPay + Live)
+    // --- CALCUL DES PRIX (Avant la transaction) ---
     const live = await getLiveMarketPrices();
     const PRICES: Record<string, number> = {
-      PI: 314159,
+      PI: 314159, // Prix de consensus Daniel.F
       SDA: 1.2,
       BTC: live.bitcoin?.usd || 95000,
       ETH: live.ethereum?.usd || 3200,
       USDT: 1,
       USDC: 1,
       BNB: live.binancecoin?.usd || 600,
-      SOL: live.solana?.usd || 180,
       XAF: 0.0015
     };
 
@@ -64,29 +61,28 @@ export async function POST(request: Request) {
     }
 
     const rate = PRICES[from] / PRICES[to];
-    const targetAmount = Number((swapAmount * rate).toFixed(from === "BTC" || from === "PI" ? 8 : 4));
+    const targetAmount = Number((swapAmount * rate).toFixed(to === "BTC" || to === "PI" ? 8 : 4));
 
-    // 4. TRANSACTION ATOMIQUE PRISMA
+    // --- TRANSACTION ATOMIQUE ---
     const result = await prisma.$transaction(async (tx) => {
       
       const getWalletType = (curr: string): WalletType => {
         if (curr === "SDA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
+        if (["XAF", "USD", "EUR"].includes(curr)) return WalletType.FIAT;
         return WalletType.CRYPTO;
       };
 
-      // A. Vérifier/Créer le wallet source
-      const sourceWallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId, currency: from } },
-        update: {},
-        create: { userId, currency: from, balance: 0, type: getWalletType(from) }
+      // A. Wallet Source : On vérifie le solde
+      const sourceWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId, currency: from } }
       });
 
-      if (sourceWallet.balance < swapAmount) {
-        throw new Error(`Solde ${from} insuffisant. Requis: ${swapAmount}, Dispo: ${sourceWallet.balance}`);
+      if (!sourceWallet || sourceWallet.balance < swapAmount) {
+        throw new Error(`Solde ${from} insuffisant.`);
       }
 
-      // B. Exécuter le mouvement de fonds
+      // B. Débit et Crédit simultanés
       const updatedSource = await tx.wallet.update({
         where: { id: sourceWallet.id },
         data: { balance: { decrement: swapAmount } }
@@ -95,10 +91,15 @@ export async function POST(request: Request) {
       const updatedTarget = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: to } },
         update: { balance: { increment: targetAmount } },
-        create: { userId, currency: to, balance: targetAmount, type: getWalletType(to) }
+        create: { 
+          userId, 
+          currency: to, 
+          balance: targetAmount, 
+          type: getWalletType(to) 
+        }
       });
 
-      // C. Créer la transaction de log (Crucial pour ton graphique)
+      // C. Log de transaction conforme au schéma PimPay
       const transaction = await tx.transaction.create({
         data: {
           reference: `SWAP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -112,11 +113,13 @@ export async function POST(request: Request) {
           toUserId: userId,
           fromWalletId: updatedSource.id,
           toWalletId: updatedTarget.id,
-          description: `Swap ${swapAmount} ${from} ➡️ ${targetAmount} ${to}`
+          description: `Swap ${swapAmount} ${from} vers ${targetAmount} ${to}`
         }
       });
 
-      return { transaction, received: targetAmount };
+      return { reference: transaction.reference, received: targetAmount };
+    }, {
+      timeout: 10000 // Augmentation du timeout à 10s pour éviter l'erreur de ta capture
     });
 
     return NextResponse.json({ success: true, ...result });

@@ -13,90 +13,85 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    console.log(`[PIMPAY] 🔄 Tentative de récupération du paiement incomplet : ${paymentId}`);
+    // 1. VÉRIFICATION HORS TRANSACTION (Évite l'erreur 500)
+    // On vérifie d'abord si on a déjà cette transaction pour éviter de rappeler Pi Network pour rien
+    let existingTx = await prisma.transaction.findUnique({
+      where: { externalId: paymentId }
+    });
 
-    // --- TRANSACTION ATOMIQUE PIMPAY ---
+    let amount: number;
+    let userId: string | null;
+
+    if (!existingTx) {
+      console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente. Appel API Pi Network...`);
+      
+      const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
+        headers: { Authorization: `Key ${process.env.PI_API_KEY}` }
+      });
+      
+      if (!piRes.ok) {
+        throw new Error(`Pi Network API Error: ${piRes.statusText}`);
+      }
+
+      const piData = await piRes.json();
+      amount = piData.amount;
+      userId = piData.metadata?.userId || null;
+    } else {
+      amount = existingTx.amount;
+      userId = existingTx.toUserId;
+    }
+
+    if (!userId) {
+      throw new Error("Utilisateur introuvable dans les données de paiement.");
+    }
+
+    // 2. TRANSACTION ATOMIQUE (Courte et Rapide)
     const result = await prisma.$transaction(async (tx) => {
       
-      // 1. Chercher la transaction (externalId est ton Pi paymentId)
-      let transaction = await tx.transaction.findUnique({
-        where: { externalId: paymentId }
-      });
-
-      // 2. LE "SAUVEUR" : Si la transaction n'existe pas (après db-clean-up)
-      // On doit la recréer pour pouvoir créditer l'utilisateur
-      if (!transaction) {
-        console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} introuvable en DB. Récréation...`);
-        
-        // On récupère les infos depuis Pi Network (S2S) pour être sûr du montant
-        const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-          headers: { Authorization: `Key ${process.env.PI_API_KEY}` }
-        });
-        const piData = await piRes.json();
-
-        if (!piRes.ok) throw new Error("Impossible de vérifier le paiement auprès de Pi Network");
-
-        // On recrée la transaction supprimée
-        transaction = await tx.transaction.create({
-          data: {
-            reference: `REC-${paymentId.slice(-6).toUpperCase()}`,
-            externalId: paymentId,
-            blockchainTx: txid,
-            amount: piData.amount,
-            currency: "PI",
-            type: TransactionType.DEPOSIT,
-            status: TransactionStatus.PENDING, // Sera mis à jour en SUCCESS juste après
-            toUserId: piData.metadata?.userId || null, // On espère que l'userId était dans les metadata
-            description: "Dépôt récupéré (Incomplete Callback)"
-          }
-        });
-      }
-
-      // 3. Éviter le double traitement
-      if (transaction.status === TransactionStatus.SUCCESS) {
-        return { message: "Déjà synchronisé", transaction };
-      }
-
-      // 4. Identifier l'utilisateur (Priorité : Transaction > Pi Data)
-      const finalUserId = transaction.toUserId;
-      if (!finalUserId) {
-        throw new Error("Impossible d'identifier l'utilisateur propriétaire du paiement.");
-      }
-
-      // 5. UPSERT DU WALLET (Sécurité maximale si le wallet a aussi été supprimé)
+      // Upsert du Wallet (Pi)
       const wallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId: finalUserId, currency: "PI" } },
-        update: { balance: { increment: transaction.amount } },
+        where: { userId_currency: { userId: userId as string, currency: "PI" } },
+        update: { balance: { increment: existingTx && existingTx.status === TransactionStatus.SUCCESS ? 0 : amount } },
         create: {
-          userId: finalUserId,
+          userId: userId as string,
           currency: "PI",
-          balance: transaction.amount,
+          balance: amount,
           type: WalletType.PI
         }
       });
 
-      // 6. Mise à jour de la Transaction en SUCCESS
-      const updatedTx = await tx.transaction.update({
-        where: { id: transaction.id },
-        data: {
+      // Création ou Mise à jour de la transaction
+      const updatedTx = await tx.transaction.upsert({
+        where: { externalId: paymentId },
+        update: {
           status: TransactionStatus.SUCCESS,
           blockchainTx: txid,
           toWalletId: wallet.id,
           metadata: {
-            ...(typeof transaction.metadata === 'object' ? transaction.metadata : {}),
             recoveredAt: new Date().toISOString(),
             method: "S2S_INCOMPLETE_RECOVERY"
           }
+        },
+        create: {
+          reference: `REC-${paymentId.slice(-6).toUpperCase()}`,
+          externalId: paymentId,
+          blockchainTx: txid,
+          amount: amount,
+          currency: "PI",
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.SUCCESS,
+          toUserId: userId,
+          toWalletId: wallet.id,
+          description: "Dépôt récupéré avec succès"
         }
       });
 
       return { message: "Synchronisation réussie", transaction: updatedTx };
+    }, {
+      timeout: 10000 // Sécurité 10s
     });
 
-    return NextResponse.json({
-      success: true,
-      ...result
-    });
+    return NextResponse.json({ success: true, ...result });
 
   } catch (error: any) {
     console.error("❌ [INCOMPLETE_PAYMENT_ERROR]:", error.message);
