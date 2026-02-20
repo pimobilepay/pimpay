@@ -281,9 +281,9 @@ export default function CryptoSwapPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
-              Swap
-            </h1>
+            <h1 className="text-base font-black uppercase tracking-tight">
+                M<span className="text-blue-500">SWAP</span>
+              </h1>
             <div className="flex items-center gap-2 mt-1">
               <TrendingUp size={8} className="text-blue-500" />
               <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
