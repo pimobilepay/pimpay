@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import * as jose from "jose";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 
+// Fonction utilitaire pour les prix
 async function getLiveMarketPrices() {
   try {
     const res = await fetch(
@@ -12,27 +15,9 @@ async function getLiveMarketPrices() {
       { next: { revalidate: 60 }, signal: AbortSignal.timeout(5000) }
     );
     const data = await res.json();
-    return {
-      BTC: data.bitcoin?.usd || 95000,
-      ETH: data.ethereum?.usd || 3200,
-      BNB: data.binancecoin?.usd || 600,
-      SOL: data.solana?.usd || 180,
-      XRP: data.ripple?.usd || 2.50,
-      XLM: data.stellar?.usd || 0.40,
-      TRX: data.tron?.usd || 0.12,
-      ADA: data.cardano?.usd || 0.65,
-      DOGE: data.dogecoin?.usd || 0.15,
-      TON: data["the-open-network"]?.usd || 5.5,
-      USDT: data.tether?.usd || 1,
-      USDC: data["usd-coin"]?.usd || 1,
-      DAI: data.dai?.usd || 1,
-    };
+    return data;
   } catch (e) {
-    return {
-      BTC: 95000, ETH: 3200, BNB: 600, SOL: 180,
-      XRP: 2.50, XLM: 0.40, TRX: 0.12, ADA: 0.65,
-      DOGE: 0.15, TON: 5.5, USDT: 1, USDC: 1, DAI: 1,
-    };
+    return {};
   }
 }
 
@@ -41,28 +26,16 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const SECRET = process.env.JWT_SECRET;
 
-    // --- RÉCUPÉRATION USER ID (Multi-Token) ---
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    // 1. AUTHENTIFICATION (Multi-Token PimPay)
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    if (!token || !SECRET) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-    let userId: string | null = null;
+    const secretKey = new TextEncoder().encode(SECRET);
+    const { payload } = await jose.jwtVerify(token, secretKey);
+    const userId = payload.id as string;
 
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken && SECRET) {
-      try {
-        const secretKey = new TextEncoder().encode(SECRET);
-        const { payload } = await jwtVerify(classicToken, secretKey);
-        userId = payload.id as string;
-      } catch (e) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-    }
-
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-
-    const body = await request.json();
-    const { amount, fromCurrency, toCurrency } = body;
+    // 2. RÉCUPÉRATION DES DONNÉES
+    const { amount, fromCurrency, toCurrency } = await request.json();
     const swapAmount = parseFloat(amount);
 
     if (isNaN(swapAmount) || swapAmount <= 0) {
@@ -71,26 +44,19 @@ export async function POST(request: Request) {
 
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
-    const livePrices = await getLiveMarketPrices();
 
+    // 3. LOGIQUE DES PRIX (Consensus PimPay + Live)
+    const live = await getLiveMarketPrices();
     const PRICES: Record<string, number> = {
-      "PI": 314159,
-      "SDA": 1.2,
-      "BTC": livePrices.BTC,
-      "ETH": livePrices.ETH,
-      "BNB": livePrices.BNB,
-      "SOL": livePrices.SOL,
-      "XRP": livePrices.XRP,
-      "XLM": livePrices.XLM,
-      "TRX": livePrices.TRX,
-      "ADA": livePrices.ADA,
-      "DOGE": livePrices.DOGE,
-      "TON": livePrices.TON,
-      "USDT": livePrices.USDT,
-      "USDC": livePrices.USDC,
-      "DAI": livePrices.DAI,
-      "BUSD": 1,
-      "XAF": 0.0015 // Environ
+      PI: 314159,
+      SDA: 1.2,
+      BTC: live.bitcoin?.usd || 95000,
+      ETH: live.ethereum?.usd || 3200,
+      USDT: 1,
+      USDC: 1,
+      BNB: live.binancecoin?.usd || 600,
+      SOL: live.solana?.usd || 180,
+      XAF: 0.0015
     };
 
     if (!PRICES[from] || !PRICES[to]) {
@@ -98,56 +64,42 @@ export async function POST(request: Request) {
     }
 
     const rate = PRICES[from] / PRICES[to];
-    const targetAmount = (to === "BTC")
-      ? Number((swapAmount * rate).toFixed(8))
-      : Number((swapAmount * rate).toFixed(4));
+    const targetAmount = Number((swapAmount * rate).toFixed(from === "BTC" || from === "PI" ? 8 : 4));
 
-    // --- TRANSACTION ATOMIQUE PIMPAY ---
+    // 4. TRANSACTION ATOMIQUE PRISMA
     const result = await prisma.$transaction(async (tx) => {
       
       const getWalletType = (curr: string): WalletType => {
-        if (curr === "SDA" || curr === "SIDRA") return WalletType.SIDRA;
+        if (curr === "SDA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
-        if (["XAF", "XOF", "CDF", "USD", "EUR"].includes(curr)) return WalletType.FIAT;
         return WalletType.CRYPTO;
       };
 
-      // 1. UTILISATION DE UPSERT POUR LE SOURCE (Évite le crash si wallet supprimé)
+      // A. Vérifier/Créer le wallet source
       const sourceWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: from } },
-        update: {}, // Ne fait rien s'il existe
-        create: {
-          userId,
-          currency: from,
-          balance: 0,
-          type: getWalletType(from)
-        }
+        update: {},
+        create: { userId, currency: from, balance: 0, type: getWalletType(from) }
       });
 
       if (sourceWallet.balance < swapAmount) {
-        throw new Error(`Solde ${from} insuffisant (${sourceWallet.balance}).`);
+        throw new Error(`Solde ${from} insuffisant. Requis: ${swapAmount}, Dispo: ${sourceWallet.balance}`);
       }
 
-      // 2. Débiter la source
+      // B. Exécuter le mouvement de fonds
       const updatedSource = await tx.wallet.update({
         where: { id: sourceWallet.id },
         data: { balance: { decrement: swapAmount } }
       });
 
-      // 3. Créditer la cible (Upsert automatique)
       const updatedTarget = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: to } },
         update: { balance: { increment: targetAmount } },
-        create: {
-          userId,
-          currency: to,
-          balance: targetAmount,
-          type: getWalletType(to)
-        }
+        create: { userId, currency: to, balance: targetAmount, type: getWalletType(to) }
       });
 
-      // 4. Créer le log de transaction (Status SUCCESS pour le graphique)
-      const transactionLog = await tx.transaction.create({
+      // C. Créer la transaction de log (Crucial pour ton graphique)
+      const transaction = await tx.transaction.create({
         data: {
           reference: `SWAP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: swapAmount,
@@ -160,24 +112,14 @@ export async function POST(request: Request) {
           toUserId: userId,
           fromWalletId: updatedSource.id,
           toWalletId: updatedTarget.id,
-          description: `Échange ${swapAmount} ${from} vers ${targetAmount} ${to}`
+          description: `Swap ${swapAmount} ${from} ➡️ ${targetAmount} ${to}`
         }
       });
 
-      // 5. Notification (type: "info" en minuscules pour correspondre au défaut du schéma)
-      await tx.notification.create({
-        data: {
-          userId,
-          title: "Swap réussi ! 🔄",
-          message: `Vous avez reçu ${targetAmount} ${to}.`,
-          type: "info" 
-        }
-      });
-
-      return { from, to, received: targetAmount, reference: transactionLog.reference };
+      return { transaction, received: targetAmount };
     });
 
-    return NextResponse.json({ success: true, details: result });
+    return NextResponse.json({ success: true, ...result });
 
   } catch (error: any) {
     console.error("❌ [SWAP_ERROR]:", error.message);

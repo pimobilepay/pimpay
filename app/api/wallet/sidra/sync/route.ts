@@ -1,9 +1,12 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { v4 as uuidv4 } from 'uuid';
+import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
@@ -12,83 +15,91 @@ export async function POST(req: Request) {
     const JWT_SECRET = process.env.JWT_SECRET;
 
     // 1. AUTHENTIFICATION SÉCURISÉE
-    let userId = null;
-    if (token) {
-      try {
-        const secretKey = new TextEncoder().encode(JWT_SECRET || "");
-        const { payload } = await jwtVerify(token, secretKey);
-        userId = payload.id as string;
-      } catch (e) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-    }
+    if (!token || !JWT_SECRET) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
 
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const secretKey = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secretKey);
+    const userId = payload.id as string;
 
-    // 2. RÉCUPÉRATION DES DONNÉES ENTRANTES
-    // On ne met plus 1.06 en dur. On attend que le client envoie le solde réel détecté.
+    // 2. RÉCUPÉRATION DES DONNÉES ENTRANTES (Plus robuste)
     const body = await req.json().catch(() => ({}));
-    const { realBlockchainBalance } = body; 
+    const { realBlockchainBalance } = body;
 
-    if (realBlockchainBalance === undefined) {
+    // Vérification stricte car 0 est une valeur valide
+    if (realBlockchainBalance === undefined || realBlockchainBalance === null) {
       return NextResponse.json({ error: "Aucun solde blockchain fourni" }, { status: 400 });
     }
 
-    // 3. VÉRIFICATION DU WALLET
-    const walletSDA = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: "SDA" } }
+    // 3. RÉCUPÉRATION OU CRÉATION DU WALLET (Blindage post-cleanup)
+    const walletSDA = await prisma.wallet.upsert({
+      where: { userId_currency: { userId, currency: "SDA" } },
+      update: {}, // On ne change rien si il existe
+      create: {
+        userId,
+        currency: "SDA",
+        balance: 0,
+        type: WalletType.SIDRA
+      }
     });
 
-    if (!walletSDA) return NextResponse.json({ error: "Wallet Sidra non trouvé" }, { status: 404 });
-
     // 4. CALCUL DE LA DIFFÉRENCE
-    const difference = realBlockchainBalance - walletSDA.balance;
+    const difference = parseFloat(realBlockchainBalance) - walletSDA.balance;
 
-    // Sécurité : On ne synchronise que si le gain est positif
+    // On ne synchronise que si le gain est positif et significatif
     if (difference > 0.000001) {
       const result = await prisma.$transaction(async (tx) => {
-        // Vérifier si une synchro a déjà eu lieu il y a moins de 5 minutes (Anti-spam)
+        
+        // Anti-spam simplifié : On cherche par description/type au lieu du JSON path complexe
         const recentSync = await tx.transaction.findFirst({
           where: {
             toUserId: userId,
             currency: "SDA",
-            metadata: { path: ["method"], equals: "auto_sync" },
-            createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) }
+            type: TransactionType.DEPOSIT,
+            description: "Synchronisation Sidra Chain",
+            createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) } // 5 minutes
           }
         });
 
         if (recentSync) {
-          throw new Error("Veuillez attendre entre deux synchronisations");
+          throw new Error("Veuillez attendre 5 minutes entre deux synchronisations");
         }
 
         // Mise à jour du solde Wallet
-        await tx.wallet.update({
+        const updatedWallet = await tx.wallet.update({
           where: { id: walletSDA.id },
           data: { balance: { increment: difference } }
         });
 
         // Création du log de transaction
-        return await tx.transaction.create({
+        const newTx = await tx.transaction.create({
           data: {
             reference: `SDA-SYNC-${uuidv4().slice(0, 8).toUpperCase()}`,
             amount: difference,
             currency: "SDA",
-            type: "DEPOSIT",
-            status: "SUCCESS",
+            type: TransactionType.DEPOSIT,
+            status: TransactionStatus.SUCCESS,
             description: "Synchronisation Sidra Chain",
             toUserId: userId,
-            metadata: { method: "auto_sync", syncedAt: new Date().toISOString() }
+            toWalletId: updatedWallet.id,
+            metadata: { 
+              method: "auto_sync", 
+              syncedAt: new Date().toISOString(),
+              blockchainBalance: realBlockchainBalance 
+            }
           }
         });
+
+        return { difference, newBalance: updatedWallet.balance };
       });
 
-      return NextResponse.json({ success: true, added: difference });
+      return NextResponse.json({ success: true, added: result.difference, total: result.newBalance });
     }
 
     return NextResponse.json({ success: true, message: "Le solde est déjà à jour" });
 
   } catch (error: any) {
     console.error("❌ [SIDRA_SYNC_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur synchro" }, { status: 500 });
+    // On renvoie un message clair à l'utilisateur
+    return NextResponse.json({ error: error.message || "Erreur synchro" }, { status: error.message.includes("attendre") ? 429 : 500 });
   }
 }

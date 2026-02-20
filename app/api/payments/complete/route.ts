@@ -5,8 +5,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
+import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
 
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
     const PI_API_KEY = process.env.PI_API_KEY;
@@ -14,34 +15,19 @@ export async function POST(request) {
 
     // --- 1. AUTHENTIFICATION ---
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    if (!token) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    if (!token || !JWT_SECRET) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secretKey);
-    const userId = payload.id;
+    const userId = payload.id as string;
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {
-      return NextResponse.json({ error: "Données de paiement incomplètes" }, { status: 400 });
+      return NextResponse.json({ error: "Données incomplètes" }, { status: 400 });
     }
 
-    // --- 2. RÉCUPÉRATION DE LA TRANSACTION ---
-    // On utilise findUnique car externalId est marqué @unique dans ton schéma
-    const transaction = await prisma.transaction.findUnique({
-      where: { externalId: paymentId }
-    });
-
-    if (!transaction) {
-      console.error(`[PIMPAY] ❌ Transaction introuvable pour ID: ${paymentId}`);
-      return NextResponse.json({ error: "Transaction non enregistrée en base" }, { status: 404 });
-    }
-
-    // Sécurité : Ne pas traiter deux fois
-    if (transaction.status === "SUCCESS" || transaction.status === "COMPLETED") {
-      return NextResponse.json({ success: true, message: "Déjà traité" });
-    }
-
-    // --- 3. VALIDATION PI NETWORK (S2S) ---
+    // --- 2. VALIDATION PI NETWORK (S2S) ---
+    // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)
     const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
@@ -52,57 +38,86 @@ export async function POST(request) {
     });
 
     const piData = await piRes.json();
+    
+    // Si Pi dit que c'est déjà complété, on continue pour synchroniser notre base
+    const isAlreadyCompleted = piData.message === "Payment already completed";
+    
+    if (!piRes.ok && !isAlreadyCompleted) {
+      console.error("❌ Pi Network Error:", piData);
+      return NextResponse.json({ error: "Échec validation Pi Network" }, { status: 403 });
+    }
 
-    if (!piRes.ok) {
-      // Si Pi dit que c'est déjà complété, on ne bloque pas l'utilisateur
-      if (piData.message !== "Payment already completed") {
-        console.error("❌ Pi Network Error:", piData);
-        return NextResponse.json({ error: "Échec de validation Pi Network" }, { status: 403 });
-      }
+    // --- 3. RÉCUPÉRATION OU RÉCRÉATION DE LA TRANSACTION ---
+    // Correction du crash findUnique : On utilise findUnique mais on gère l'absence
+    let transaction = await prisma.transaction.findUnique({
+      where: { externalId: paymentId }
+    });
+
+    // Si la transaction n'existe pas (cas du db-clean-up), on la recrée
+    if (!transaction) {
+      console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
+      
+      // On récupère le montant depuis piData ou on met une valeur par défaut sécurisée
+      const amountFromPi = piData.amount || 0; 
+
+      transaction = await prisma.transaction.create({
+        data: {
+          reference: `REC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          externalId: paymentId,
+          amount: amountFromPi,
+          currency: "PI",
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.PENDING,
+          toUserId: userId,
+          description: "Récupération dépôt Pi Network"
+        }
+      });
+    }
+
+    // Sécurité : Éviter le double crédit
+    if (transaction.status === TransactionStatus.SUCCESS) {
+      return NextResponse.json({ success: true, message: "Déjà crédité" });
     }
 
     // --- 4. MISE À JOUR BANCAIRE ATOMIQUE ---
     const finalResult = await prisma.$transaction(async (tx) => {
-      // Vérifier le Wallet PI de l'utilisateur
-      const wallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId, currency: "PI" } }
-      });
-
-      if (!wallet) throw new Error("Wallet PI manquant.");
-
-      // Mise à jour de la transaction (On utilise SUCCESS pour correspondre à ton Enum)
-      const updatedTx = await tx.transaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: "SUCCESS",
-          blockchainTx: txid,
-          metadata: {
-            ...(transaction.metadata || {}),
-            completedAt: new Date().toISOString(),
-            confirmedVia: "PiServer"
-          }
+      // Utilisation de upsert pour le Wallet pour éviter tout crash si le wallet PI n'existe pas
+      const wallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId, currency: "PI" } },
+        update: { balance: { increment: transaction!.amount } },
+        create: {
+          userId,
+          currency: "PI",
+          balance: transaction!.amount,
+          type: WalletType.PI
         }
       });
 
-      // Créditer le solde
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: transaction.amount } }
+      // Mise à jour de la transaction en SUCCESS
+      return await tx.transaction.update({
+        where: { id: transaction!.id },
+        data: {
+          status: TransactionStatus.SUCCESS,
+          blockchainTx: txid,
+          toWalletId: wallet.id,
+          metadata: {
+            completedAt: new Date().toISOString(),
+            recoveredAfterCleanup: true
+          }
+        }
       });
-
-      return updatedTx;
     });
 
-    console.log(`[PIMPAY] ✅ Dépôt réussi: ${transaction.amount} PI pour ${userId}`);
+    console.log(`[PIMPAY] ✅ Portefeuille crédité : ${transaction.amount} PI pour ${userId}`);
 
     return NextResponse.json({
       success: true,
-      message: "Votre solde PimPay a été mis à jour avec succès !",
+      message: "Solde mis à jour !",
       amount: transaction.amount
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ [CRITICAL_PAYMENT_ERROR]:", error.message);
-    return NextResponse.json({ error: "Erreur interne de traitement" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
   }
 }
