@@ -4,10 +4,11 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter,
-  Users2, LifeBuoy, Lock, FileText
+  Users2, LifeBuoy, Lock, FileText, Globe, Info
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface UserData {
   name: string;
@@ -20,6 +21,7 @@ interface UserData {
 export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { locale, setLocale, t } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
 
   useEffect(() => {
@@ -80,46 +82,52 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     router.push(path);
   };
 
+  const toggleLanguage = () => {
+    const next = locale === "fr" ? "en" : "fr";
+    setLocale(next);
+  };
+
   const menuGroups = [
     {
-      title: "Principal",
+      title: t("sideMenu.main"),
       items: [
-        { label: "Accueil", icon: <Home size={20} className="text-blue-400" />, path: "/dashboard" },
-        { label: "Mon Wallet", icon: <Wallet size={20} className="text-emerald-400" />, path: "/wallet" },
-        { label: "Historique", icon: <Clock size={20} className="text-purple-400" />, path: "/statements" },
+        { label: t("sideMenu.home"), icon: <Home size={20} className="text-blue-400" />, path: "/dashboard" },
+        { label: t("sideMenu.myWallet"), icon: <Wallet size={20} className="text-emerald-400" />, path: "/wallet" },
+        { label: t("sideMenu.history"), icon: <Clock size={20} className="text-purple-400" />, path: "/statements" },
       ]
     },
     {
-      title: "Services Pimpay",
+      title: t("sideMenu.pimpayServices"),
       items: [
-        { label: "Mpay", icon: <Smartphone size={20} className="text-blue-500" />, path: "/mpay" },
-        { label: "Swap", icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
-        { label: "Carte virtuelle", icon: <CreditCard size={20} className="text-pink-400" />, path: "/dashboard/card" },
-        { label: "Recharge Mobile", icon: <Smartphone size={20} className="text-orange-400" />, path: "/airtime" },
+        { label: t("sideMenu.mpay"), icon: <Smartphone size={20} className="text-blue-500" />, path: "/mpay" },
+        { label: t("sideMenu.swap"), icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
+        { label: t("sideMenu.virtualCard"), icon: <CreditCard size={20} className="text-pink-400" />, path: "/dashboard/card" },
+        { label: t("sideMenu.mobileRecharge"), icon: <Smartphone size={20} className="text-orange-400" />, path: "/airtime" },
       ]
     },
     {
-      title: "Transactions",
+      title: t("sideMenu.transactions"),
       items: [
-        { label: "Dépôt", icon: <ArrowDown size={20} className="text-green-400" />, path: "/deposit" },
-        { label: "Retrait", icon: <ArrowUp size={20} className="text-red-400" />, path: "/withdraw" },
-        { label: "Transfert", icon: <Send size={20} className="text-sky-400" />, path: "/transfer" },
+        { label: t("sideMenu.deposit"), icon: <ArrowDown size={20} className="text-green-400" />, path: "/deposit" },
+        { label: t("sideMenu.withdraw"), icon: <ArrowUp size={20} className="text-red-400" />, path: "/withdraw" },
+        { label: t("sideMenu.transfer"), icon: <Send size={20} className="text-sky-400" />, path: "/transfer" },
       ]
     },
     {
-      title: "Support & Aide",
+      title: t("sideMenu.supportHelp"),
       items: [
-        { label: "Centre d'Aide", icon: <LifeBuoy size={20} className="text-cyan-400" />, path: "/support" },
-        { label: "Confidentialite", icon: <Lock size={20} className="text-amber-400" />, path: "/legal/privacy" },
-        { label: "Conditions", icon: <FileText size={20} className="text-violet-400" />, path: "/legal/terms" },
-        { label: "Contact", icon: <Users2 size={20} className="text-teal-400" />, path: "/contacts" },
+        { label: t("sideMenu.helpCenter"), icon: <LifeBuoy size={20} className="text-cyan-400" />, path: "/support" },
+        { label: t("sideMenu.about"), icon: <Info size={20} className="text-blue-400" />, path: "/about" },
+        { label: t("sideMenu.privacy"), icon: <Lock size={20} className="text-amber-400" />, path: "/legal/privacy" },
+        { label: t("sideMenu.terms"), icon: <FileText size={20} className="text-violet-400" />, path: "/legal/terms" },
+        { label: t("sideMenu.contact"), icon: <Users2 size={20} className="text-teal-400" />, path: "/contacts" },
       ]
     },
     {
-      title: "Compte",
+      title: t("sideMenu.account"),
       items: [
-        { label: "Mon Profil", icon: <User size={20} className="text-slate-400" />, path: "/profile" },
-        { label: "Paramètres", icon: <Settings size={20} className="text-slate-400" />, path: "/settings" },
+        { label: t("sideMenu.myProfile"), icon: <User size={20} className="text-slate-400" />, path: "/profile" },
+        { label: t("sideMenu.settings"), icon: <Settings size={20} className="text-slate-400" />, path: "/settings" },
       ]
     }
   ];
@@ -180,7 +188,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                 <div className="flex items-center gap-1.5 mt-1.5">
                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${user?.kycStatus === 'VERIFIED' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
                     <ShieldCheck size={10} />
-                    {user?.kycStatus === 'VERIFIED' ? 'Compte Vérifié' : 'Vérification...'}
+                    {user?.kycStatus === 'VERIFIED' ? t("sideMenu.accountVerified") : t("sideMenu.verifying")}
                   </div>
                 </div>
               </div>
@@ -190,7 +198,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
           <div className="px-6 mb-6">
             <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-2xl border border-white/5 focus-within:border-blue-500/30 transition-all">
               <Search size={18} className="text-slate-500" />
-              <input type="text" placeholder="Rechercher..." className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder:text-slate-600 font-medium" />
+              <input type="text" placeholder={t("sideMenu.search")} className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder:text-slate-600 font-medium" />
             </div>
           </div>
 
@@ -215,8 +223,28 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
             ))}
           </div>
 
-          <div className="p-6 bg-[#020617] border-t border-white/5 space-y-6">
-            {/* RÉSEAUX SOCIAUX AJOUTÉS ICI */}
+          <div className="p-6 bg-[#020617] border-t border-white/5 space-y-4">
+            {/* Language Switcher */}
+            <button
+              onClick={toggleLanguage}
+              className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-white/5 border border-white/5 active:scale-[0.98] transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-cyan-500/10">
+                  <Globe size={18} className="text-cyan-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("sideMenu.language")}</p>
+                  <p className="text-sm font-black text-white">{t("sideMenu.languageCurrent")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black text-cyan-400 uppercase">{locale === "fr" ? "EN" : "FR"}</span>
+                <ChevronRight size={14} className="text-slate-600 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </button>
+
+            {/* Social Links */}
             <div className="flex items-center justify-center gap-4 px-2">
               <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all active:scale-90">
                 <Facebook size={20} />
@@ -231,7 +259,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
             <button onClick={logout} className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-sm uppercase tracking-widest bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-95">
               <LogOut size={18} />
-              Déconnexion
+              {t("sideMenu.logout")}
             </button>
           </div>
         </div>

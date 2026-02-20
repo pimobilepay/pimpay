@@ -95,6 +95,9 @@ export const en: TranslationKeys = {
     accountVerified: "Verified Account",
     verifying: "Verifying...",
     logout: "Logout",
+    about: "About",
+    language: "Language",
+    languageCurrent: "English",
   },
 
   auth: {

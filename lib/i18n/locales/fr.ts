@@ -93,6 +93,9 @@ export const fr = {
     accountVerified: "Compte Verifie",
     verifying: "Verification...",
     logout: "Deconnexion",
+    about: "A propos",
+    language: "Langue",
+    languageCurrent: "Francais",
   },
 
   auth: {
