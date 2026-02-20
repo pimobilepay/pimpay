@@ -4,21 +4,17 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { ethers } from "ethers";
-// Import direct des enums générés par ton schéma
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 const RPC_CONFIGS: Record<string, string> = {
-  SDA: "https://node.sidrachain.com", // Ton RPC Sidra
+  SDA: "https://node.sidrachain.com",
   USDC: "https://polygon-rpc.com",
-  BUSD: "https://bsc-dataseed.binance.org",
-  DAI: "https://eth-mainnet.public.blastapi.io",
 };
 
 export async function POST(req: NextRequest) {
   try {
     const SECRET = process.env.JWT_SECRET;
     const cookieStore = await cookies();
-    // Correction du nom du cookie pour correspondre à ton système d'authentification
     const token = cookieStore.get("token")?.value;
 
     if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -34,113 +30,81 @@ export async function POST(req: NextRequest) {
     const transferAmount = parseFloat(amount);
     const transferCurrency = (currency || "XAF").toUpperCase();
 
-    const isEVMAddress = cleanIdentifier.startsWith('0x') && cleanIdentifier.length === 42;
-
     if (isNaN(transferAmount) || transferAmount <= 0) throw new Error("Montant invalide.");
 
-    // --- TRANSACTION ATOMIQUE PIMPAY ---
+    // --- TRANSACTION ATOMIQUE ---
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Trouver le wallet source unique (grâce à @@unique[userId, currency])
-      const senderWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: senderId, currency: transferCurrency } }
+      
+      // 1. RECHERCHE SÉCURISÉE DU WALLET (Correction de l'erreur findUnique)
+      // On utilise upsert au cas où le wallet a été supprimé lors du cleanup
+      const senderWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: senderId, currency: transferCurrency } },
+        update: {}, // On ne change rien s'il existe
+        create: {
+          userId: senderId,
+          currency: transferCurrency,
+          balance: 0,
+          type: transferCurrency === "PI" ? WalletType.PI : WalletType.FIAT
+        }
       });
 
-      if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error(`Solde insuffisant en ${transferCurrency}.`);
+      if (senderWallet.balance < transferAmount) {
+        throw new Error(`Solde insuffisant : ${senderWallet.balance} ${transferCurrency} disponibles.`);
       }
 
-      const sender = await tx.user.findUnique({ where: { id: senderId } });
-      if (!sender) throw new Error("Expéditeur introuvable.");
-
-      // 2. Identifier le destinataire (Interne ou Externe)
+      // 2. IDENTIFIER LE DESTINATAIRE
       const recipient = await tx.user.findFirst({
         where: {
           OR: [
             { username: { equals: cleanIdentifier, mode: 'insensitive' } },
             { email: { equals: cleanIdentifier, mode: 'insensitive' } },
-            { sidraAddress: cleanIdentifier },
             { walletAddress: cleanIdentifier }
           ]
         }
       });
 
-      let txHash = null;
-      let toUserId = null;
-      let toWalletId = null;
+      if (!recipient) throw new Error("Destinataire introuvable dans PimPay.");
+      if (recipient.id === senderId) throw new Error("Impossible de s'envoyer à soi-même.");
 
-      // --- CAS 1 : TRANSFERT BLOCKCHAIN RÉEL (SDA / EVM) ---
-      if (isEVMAddress && RPC_CONFIGS[transferCurrency]) {
-        // Sélection de la clé privée spécifique selon le schéma
-        const privateKey = transferCurrency === "SDA" ? sender.sidraPrivateKey : sender.walletPrivateKey;
-        
-        if (!privateKey) throw new Error(`Configuration blockchain manquante pour ${transferCurrency}.`);
-
-        try {
-          const provider = new ethers.JsonRpcProvider(RPC_CONFIGS[transferCurrency]);
-          const wallet = new ethers.Wallet(privateKey, provider);
-          
-          // Vérification du gaz réel sur la blockchain
-          const gasBalance = await provider.getBalance(wallet.address);
-          if (gasBalance === 0n) throw new Error("Frais de gaz (SDA) insuffisants sur votre adresse.");
-
-          const val = ethers.parseEther(amount.toString());
-          const blockchainTx = await wallet.sendTransaction({ to: cleanIdentifier, value: val });
-          txHash = blockchainTx.hash;
-        } catch (err: any) {
-          throw new Error(`Erreur Blockchain: ${err.message}`);
-        }
-      }
-
-      // --- CAS 2 : TRANSFERT INTERNE PIMPAY ---
-      if (recipient) {
-        toUserId = recipient.id;
-        // Déterminer le type de wallet selon la devise (Enum WalletType)
-        let walletType = WalletType.FIAT;
-        if (transferCurrency === "SDA") walletType = WalletType.SIDRA;
-        else if (transferCurrency === "PI") walletType = WalletType.PI;
-        else if (["USDT", "USDC", "BTC"].includes(transferCurrency)) walletType = WalletType.CRYPTO;
-
-        const recipientWallet = await tx.wallet.upsert({
-          where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
-          update: { balance: { increment: transferAmount } },
-          create: {
-            userId: recipient.id,
-            currency: transferCurrency,
-            balance: transferAmount,
-            type: walletType
-          }
-        });
-        toWalletId = recipientWallet.id;
-      }
-
-      // 3. Mise à jour des soldes et création du log
+      // 3. MISE À JOUR DES SOLDES (Débit / Crédit)
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
+      const recipientWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
+        update: { balance: { increment: transferAmount } },
+        create: {
+          userId: recipient.id,
+          currency: transferCurrency,
+          balance: transferAmount,
+          type: transferCurrency === "PI" ? WalletType.PI : WalletType.FIAT
+        }
+      });
+
+      // 4. CRÉATION DE LA TRANSACTION (SUCCESS pour le graphique)
       return await tx.transaction.create({
         data: {
-          reference: `PIM-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          reference: `PIM-TR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
           amount: transferAmount,
           currency: transferCurrency,
           type: TransactionType.TRANSFER,
-          status: TransactionStatus.SUCCESS, // Utilisation de l'Enum correct
+          status: TransactionStatus.SUCCESS, 
           fromUserId: senderId,
           fromWalletId: senderWallet.id,
-          toUserId: toUserId,
-          toWalletId: toWalletId,
-          blockchainTx: txHash,
-          description: description || `Transfert ${transferCurrency}`,
-          metadata: { method: isEVMAddress ? "blockchain" : "internal" }
+          toUserId: recipient.id,
+          toWalletId: recipientWallet.id,
+          description: description || `Transfert vers ${recipient.username || recipient.email}`,
+          metadata: { cleanIdentifier }
         }
       });
-    }, { timeout: 30000 });
+    }, { timeout: 15000 });
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("Erreur Transfert:", error.message);
+    console.error("❌ Erreur Transfert:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

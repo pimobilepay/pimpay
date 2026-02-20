@@ -39,8 +39,9 @@ async function getLiveMarketPrices() {
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
+    const SECRET = process.env.JWT_SECRET;
 
-    // --- LE VACCIN HYBRIDE : ÉTAPE CRUCIALE ---
+    // --- RÉCUPÉRATION USER ID (Multi-Token) ---
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
@@ -48,9 +49,9 @@ export async function POST(request: Request) {
 
     if (piToken) {
       userId = piToken;
-    } else if (classicToken) {
+    } else if (classicToken && SECRET) {
       try {
-        const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
+        const secretKey = new TextEncoder().encode(SECRET);
         const { payload } = await jwtVerify(classicToken, secretKey);
         userId = payload.id as string;
       } catch (e) {
@@ -72,7 +73,6 @@ export async function POST(request: Request) {
     const to = toCurrency.toUpperCase();
     const livePrices = await getLiveMarketPrices();
 
-    // PRIX : Ecosysteme + Live Market
     const PRICES: Record<string, number> = {
       "PI": 314159,
       "SDA": 1.2,
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       "USDC": livePrices.USDC,
       "DAI": livePrices.DAI,
       "BUSD": 1,
+      "XAF": 0.0015 // Environ
     };
 
     if (!PRICES[from] || !PRICES[to]) {
@@ -101,18 +102,9 @@ export async function POST(request: Request) {
       ? Number((swapAmount * rate).toFixed(8))
       : Number((swapAmount * rate).toFixed(4));
 
-    // TRANSACTION ATOMIQUE : Sécurité maximale pour le swap
+    // --- TRANSACTION ATOMIQUE PIMPAY ---
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Vérifier le wallet source
-      const sourceWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId, currency: from } }
-      });
-
-      if (!sourceWallet || sourceWallet.balance < swapAmount) {
-        throw new Error(`Solde ${from} insuffisant.`);
-      }
-
-      // 2. Determiner le type de Wallet automatiquement
+      
       const getWalletType = (curr: string): WalletType => {
         if (curr === "SDA" || curr === "SIDRA") return WalletType.SIDRA;
         if (curr === "PI") return WalletType.PI;
@@ -120,12 +112,29 @@ export async function POST(request: Request) {
         return WalletType.CRYPTO;
       };
 
-      // 3. Soustraire du source et ajouter à la cible
+      // 1. UTILISATION DE UPSERT POUR LE SOURCE (Évite le crash si wallet supprimé)
+      const sourceWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId, currency: from } },
+        update: {}, // Ne fait rien s'il existe
+        create: {
+          userId,
+          currency: from,
+          balance: 0,
+          type: getWalletType(from)
+        }
+      });
+
+      if (sourceWallet.balance < swapAmount) {
+        throw new Error(`Solde ${from} insuffisant (${sourceWallet.balance}).`);
+      }
+
+      // 2. Débiter la source
       const updatedSource = await tx.wallet.update({
         where: { id: sourceWallet.id },
         data: { balance: { decrement: swapAmount } }
       });
 
+      // 3. Créditer la cible (Upsert automatique)
       const updatedTarget = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: to } },
         update: { balance: { increment: targetAmount } },
@@ -137,7 +146,7 @@ export async function POST(request: Request) {
         }
       });
 
-      // 4. Créer l'historique (Transaction Log)
+      // 4. Créer le log de transaction (Status SUCCESS pour le graphique)
       const transactionLog = await tx.transaction.create({
         data: {
           reference: `SWAP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -146,22 +155,22 @@ export async function POST(request: Request) {
           currency: from,
           destCurrency: to,
           type: TransactionType.EXCHANGE,
-          status: TransactionStatus.SUCCESS, // Aligné avec ton Enum
+          status: TransactionStatus.SUCCESS,
           fromUserId: userId,
           toUserId: userId,
           fromWalletId: updatedSource.id,
           toWalletId: updatedTarget.id,
-          description: `Swap: ${swapAmount} ${from} ➔ ${targetAmount} ${to}`
+          description: `Échange ${swapAmount} ${from} vers ${targetAmount} ${to}`
         }
       });
 
-      // 5. Créer la notification pour l'utilisateur
+      // 5. Notification (type: "info" en minuscules pour correspondre au défaut du schéma)
       await tx.notification.create({
         data: {
           userId,
           title: "Swap réussi ! 🔄",
-          message: `Vous avez échangé ${swapAmount} ${from} contre ${targetAmount} ${to}.`,
-          type: "INFO" // Assure-toi que "INFO" ou "TRANSACTION" existe dans ton enum
+          message: `Vous avez reçu ${targetAmount} ${to}.`,
+          type: "info" 
         }
       });
 
