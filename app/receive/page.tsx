@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Check, ArrowLeft, Loader2, Info, ShieldCheck } from "lucide-react";
+import { Copy, Check, ArrowLeft, Loader2, Info } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -15,39 +15,47 @@ export default function ReceivePage() {
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
 
+  // --- FONCTION DE RÉCUPÉRATION (Mémorisée pour éviter les boucles) ---
+  const handleIncompletePayment = useCallback(async (payment) => {
+    console.log("⚠️ Paiement incomplet détecté:", payment.identifier);
+    try {
+      const res = await fetch("/api/pi/incomplete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: payment.identifier,
+          txid: payment.transaction.txid
+        }),
+      });
+      if (res.ok) {
+        toast.success("Ancien paiement synchronisé et débloqué !");
+      }
+    } catch (err) {
+      console.error("Échec de récupération:", err);
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
-    const loadAddress = async () => {
+    const loadData = async () => {
       try {
+        // 1. Charger le profil
         const res = await fetch('/api/user/profile');
         const data = await res.json();
         setPiAddress(data.user?.walletAddress || data.user?.id || "Non disponible");
+
+        // 2. VÉRIFICATION AUTOMATIQUE AU CHARGEMENT (Anti-blocage)
+        if (window.Pi) {
+          await window.Pi.authenticate(['payments'], handleIncompletePayment);
+        }
       } catch (e) {
         setPiAddress("Erreur de chargement");
       } finally {
         setLoading(false);
       }
     };
-    loadAddress();
-  }, []);
-
-  // --- FONCTION DE RÉCUPÉRATION DES PAIEMENTS BLOQUÉS ---
-  const handleIncompletePayment = async (payment) => {
-    console.log("⚠️ Paiement incomplet détecté:", payment);
-    try {
-      await fetch("/api/pi/incomplete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          paymentId: payment.identifier, 
-          txid: payment.transaction.txid 
-        }),
-      });
-      toast.success("Ancien paiement synchronisé !");
-    } catch (err) {
-      console.error("Échec de récupération:", err);
-    }
-  };
+    loadData();
+  }, [handleIncompletePayment]);
 
   const handleCopy = () => {
     if (!piAddress || piAddress === "Non disponible") return;
@@ -64,32 +72,31 @@ export default function ReceivePage() {
       return;
     }
 
-    if (typeof window === "undefined" || !window.Pi) {
+    if (!window.Pi) {
       toast.error("Ouvrez PimPay dans le Pi Browser");
       return;
     }
 
     setIsProcessing(true);
-    const loadingToast = toast.loading("Connexion au Pi Network...");
+    const loadingToast = toast.loading("Vérification des sessions...");
 
     try {
-      // 1. Authentification avec gestion des paiements incomplets (CRUCIAL)
-      const scopes = ['payments'];
-      await window.Pi.authenticate(scopes, handleIncompletePayment);
+      // ÉTAPE 1: Forcer la résolution de tout paiement incomplet avant de créer
+      await window.Pi.authenticate(['payments'], handleIncompletePayment);
 
-      // 2. Création du paiement
+      // ÉTAPE 2: Création du paiement
       await window.Pi.createPayment({
         amount: floatAmount,
         memo: memo || "Dépôt PimPay",
-        metadata: { type: "deposit" },
+        metadata: { type: "deposit", app: "pimpay" },
       }, {
         onReadyForServerApproval: async (paymentId) => {
           const res = await fetch("/api/payments/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId, amount: floatAmount, memo }),
+            body: JSON.stringify({ paymentId, amount: floatAmount }),
           });
-          if (!res.ok) throw new Error("Approbation refusée par le serveur");
+          if (!res.ok) throw new Error("Approbation refusée");
           return res.json();
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
@@ -103,38 +110,44 @@ export default function ReceivePage() {
           if (res.ok) {
             toast.success(`Succès ! +${floatAmount} PI ajouté.`);
             setAmount("");
-            // Rediriger vers le wallet pour voir le graphique bouger
-            setTimeout(() => window.location.href = "/wallet", 2000);
+            // Redirection pour forcer le rafraîchissement du solde et du graphique
+            setTimeout(() => window.location.href = "/wallet", 1500);
           } else {
-            toast.error("Erreur de mise à jour du solde.");
+            toast.error("Erreur de synchronisation du solde.");
           }
           setIsProcessing(false);
         },
         onCancel: (paymentId) => {
           toast.dismiss(loadingToast);
           setIsProcessing(false);
+          toast.info("Paiement annulé");
         },
         onError: (error, paymentId) => {
           toast.dismiss(loadingToast);
-          toast.error("Erreur: " + error.message);
+          console.error("SDK Error:", error);
+          // Si l'erreur est "Already has a pending payment", on tente de nettoyer
+          if (error.message?.includes("already has a pending payment")) {
+             window.Pi.authenticate(['payments'], handleIncompletePayment);
+          }
+          toast.error(`Erreur: ${error.message}`);
           setIsProcessing(false);
         },
       });
     } catch (err) {
       toast.dismiss(loadingToast);
-      toast.error("Action annulée ou erreur SDK");
       setIsProcessing(false);
     }
   };
 
   if (!mounted) return null;
+  if (loading) return (
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+    </div>
+  );
 
-  // ... (Le reste de ton JSX reste identique, il est déjà très beau)
   return (
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-24 font-sans">
-       {/* Garde ton Header, QR Section et Formulaire tels quels */}
-       {/* Assure-toi juste que le bouton utilise handlePiPayment */}
-       {/* ... */}
        <div className="flex items-center gap-4 mb-8">
         <Link href="/wallet" className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-95">
           <ArrowLeft size={20} />
@@ -150,13 +163,10 @@ export default function ReceivePage() {
           <div className="bg-white p-3 rounded-[1.5rem] mb-6 shadow-xl shadow-white/5">
             {piAddress && <QRCodeSVG value={piAddress} size={180} level="H" />}
           </div>
-
           <div className="w-full space-y-2">
             <p className="text-[10px] font-bold text-slate-500 uppercase text-center">Adresse de réception</p>
             <div className="flex items-center gap-2 bg-black/40 p-1 pl-4 rounded-2xl border border-white/5">
-               <p className="text-[10px] font-mono text-slate-300 break-all flex-1 py-2">
-                {piAddress}
-              </p>
+              <p className="text-[10px] font-mono text-slate-300 break-all flex-1 py-2">{piAddress}</p>
               <button onClick={handleCopy} className="p-3 bg-blue-600 rounded-xl active:scale-90 transition-all">
                 {copied ? <Check size={16} /> : <Copy size={16} />}
               </button>
@@ -177,7 +187,6 @@ export default function ReceivePage() {
               />
             </div>
           </div>
-
           <button
             onClick={handlePiPayment}
             disabled={isProcessing}
