@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   User, ShieldCheck, CheckCircle2,
-  Loader2, ArrowLeft, Delete, Lock
+  Loader2, ArrowLeft, Delete, Lock,
+  XCircle, AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -30,6 +31,9 @@ export default function SignupPage() {
 
   const [pin, setPin] = useState("");
   const [authToken, setAuthToken] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "valid" | "invalid" | "disposable" | "error">("idle");
+  const [emailMessage, setEmailMessage] = useState("");
+  const emailCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const { t } = useLanguage();
 
@@ -37,6 +41,79 @@ export default function SignupPage() {
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // If email field changed, reset status and debounce verification
+    if (field === "email") {
+      setEmailStatus("idle");
+      setEmailMessage("");
+
+      // Clear any pending timeout
+      if (emailCheckTimeoutRef.current) {
+        clearTimeout(emailCheckTimeoutRef.current);
+        emailCheckTimeoutRef.current = null;
+      }
+    }
+  };
+
+  // Basic client-side email format check
+  const isEmailFormatValid = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // Email verification on blur with debounce
+  const handleEmailBlur = () => {
+    const email = formData.email.trim();
+
+    if (!email) {
+      setEmailStatus("idle");
+      return;
+    }
+
+    if (!isEmailFormatValid(email)) {
+      setEmailStatus("invalid");
+      setEmailMessage(t("extra.emailVerificationInvalidFormat"));
+      return;
+    }
+
+    // Debounce: wait 500ms before calling the API
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
+
+    setEmailStatus("checking");
+    setEmailMessage(t("extra.emailVerificationChecking"));
+
+    emailCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.toLowerCase() }),
+        });
+
+        const data = await res.json();
+
+        if (res.status === 429) {
+          // Rate limited - don't block the user
+          setEmailStatus("idle");
+          setEmailMessage("");
+          return;
+        }
+
+        if (data.isValid) {
+          setEmailStatus("valid");
+          setEmailMessage(t("extra.emailVerificationValid"));
+        } else if (data.isDisposable) {
+          setEmailStatus("disposable");
+          setEmailMessage(t("extra.emailVerificationDisposable"));
+        } else {
+          setEmailStatus("invalid");
+          setEmailMessage(t("extra.emailVerificationInvalid"));
+        }
+      } catch {
+        // On error, don't block the user
+        setEmailStatus("error");
+        setEmailMessage(t("extra.emailVerificationError"));
+      }
+    }, 500);
   };
 
   // --- ÉTAPE 1 : INSCRIPTION ---
@@ -154,7 +231,49 @@ export default function SignupPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Email</Label>
-                <input type="email" className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder="mail@pimpay.com" value={formData.email} onChange={e => handleChange("email", e.target.value)} required />
+                <div className="relative">
+                  <input
+                    type="email"
+                    className={`w-full h-12 px-4 pr-10 bg-slate-950/50 border text-white rounded-2xl outline-none transition-all ${
+                      emailStatus === "valid"
+                        ? "border-green-500/50 focus:border-green-500/70"
+                        : emailStatus === "invalid" || emailStatus === "disposable"
+                        ? "border-red-500/50 focus:border-red-500/70"
+                        : "border-white/5 focus:border-blue-500/50"
+                    }`}
+                    placeholder="mail@pimpay.com"
+                    value={formData.email}
+                    onChange={e => handleChange("email", e.target.value)}
+                    onBlur={handleEmailBlur}
+                    required
+                  />
+                  {/* Status icon */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {emailStatus === "checking" && (
+                      <Loader2 className="size-4 animate-spin text-blue-400" />
+                    )}
+                    {emailStatus === "valid" && (
+                      <CheckCircle2 className="size-4 text-green-500" />
+                    )}
+                    {(emailStatus === "invalid" || emailStatus === "disposable") && (
+                      <XCircle className="size-4 text-red-500" />
+                    )}
+                    {emailStatus === "error" && (
+                      <AlertCircle className="size-4 text-yellow-500" />
+                    )}
+                  </div>
+                </div>
+                {/* Status message */}
+                {emailMessage && emailStatus !== "idle" && (
+                  <p className={`text-[10px] ml-1 font-medium ${
+                    emailStatus === "valid" ? "text-green-500" :
+                    emailStatus === "checking" ? "text-blue-400" :
+                    emailStatus === "error" ? "text-yellow-500" :
+                    "text-red-500"
+                  }`}>
+                    {emailMessage}
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("extra.phone")}</Label>
@@ -173,7 +292,11 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all mt-4">
+            <Button
+              type="submit"
+              disabled={loading || emailStatus === "invalid" || emailStatus === "disposable" || emailStatus === "checking"}
+              className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {loading ? <Loader2 className="animate-spin" /> : t("extra.continueButton")}
             </Button>
           </form>

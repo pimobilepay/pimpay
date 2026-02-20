@@ -775,6 +775,14 @@ export const fr = {
 
     // Airtime
     mobileRecharge: "Recharge Mobile",
+
+    // Email verification (ZeroBounce)
+    emailVerificationChecking: "Verification de l'email...",
+    emailVerificationValid: "Email valide",
+    emailVerificationInvalid: "Adresse email invalide ou inexistante",
+    emailVerificationDisposable: "Les adresses email jetables ne sont pas acceptees",
+    emailVerificationError: "Impossible de verifier l'email",
+    emailVerificationInvalidFormat: "Format d'email invalide",
   },
 } as const;
 

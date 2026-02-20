@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { NextResponse } from "next/server";
+import { verifyEmail } from "@/lib/zerobounce";
 
 export async function POST(req: Request) {
   try {
@@ -17,6 +18,23 @@ export async function POST(req: Request) {
 
     if (!fullName || !username || !email || !phone || !password) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
+    }
+
+    // 0. VÉRIFICATION EMAIL VIA ZEROBOUNCE (avant tout le reste)
+    try {
+      const emailCheck = await verifyEmail(email.toLowerCase());
+      if (!emailCheck.isValid) {
+        let errorMessage = "Adresse email invalide ou inexistante";
+        if (emailCheck.isDisposable) {
+          errorMessage = "Les adresses email jetables ne sont pas acceptées";
+        } else if (emailCheck.status === "invalid") {
+          errorMessage = "Adresse email invalide ou inexistante";
+        }
+        return NextResponse.json({ error: errorMessage }, { status: 400 });
+      }
+    } catch (emailError) {
+      // Fail-open: if ZeroBounce is unreachable, continue with signup
+      console.warn("ZEROBOUNCE_SKIP: Email verification failed, proceeding with signup", emailError);
     }
 
     // 1. VÉRIFICATION HORS TRANSACTION (Plus rapide)

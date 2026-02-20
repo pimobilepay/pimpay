@@ -777,5 +777,13 @@ export const en: TranslationKeys = {
 
     // Airtime
     mobileRecharge: "Mobile Top-up",
+
+    // Email verification (ZeroBounce)
+    emailVerificationChecking: "Verifying email...",
+    emailVerificationValid: "Email is valid",
+    emailVerificationInvalid: "Invalid or non-existent email address",
+    emailVerificationDisposable: "Disposable email addresses are not accepted",
+    emailVerificationError: "Unable to verify email",
+    emailVerificationInvalidFormat: "Invalid email format",
   },
 } as const;
