@@ -55,8 +55,31 @@ export const authenticateWithPi = async () => {
 
 /**
  * Gestionnaire des paiements incomplets (obligatoire selon la doc Pi)
+ * 
+ * Cette fonction est appelee automatiquement par le SDK Pi quand un paiement
+ * est reste en suspend. Elle tente de le completer ou de l'annuler via notre API.
  */
-const onIncompletePaymentFound = (payment: any) => {
-  console.log("⚠️ Paiement incomplet détecté:", payment);
-  // Ici, tu devrais appeler ton API /api/payments/complete pour régulariser
+const onIncompletePaymentFound = async (payment: any) => {
+  console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+  
+  try {
+    const response = await fetch("/api/payments/incomplete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paymentId: payment.identifier,
+        txid: payment.transaction?.txid || null,
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log(`[PimPay] Paiement incomplet ${payment.identifier} traite: ${data.action} - ${data.message}`);
+    } else {
+      console.error(`[PimPay] Echec traitement paiement incomplet ${payment.identifier}:`, data);
+    }
+  } catch (error) {
+    console.error("[PimPay] Erreur reseau lors du traitement du paiement incomplet:", error);
+  }
 };

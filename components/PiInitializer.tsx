@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 declare global {
   interface Window {
     Pi: any;
     __PI_SDK_READY__: boolean;
+    __PI_INCOMPLETE_CHECKED__: boolean;
   }
 }
 
@@ -15,8 +16,12 @@ declare global {
  * Ce composant est monte dans le RootLayout et sert de source de verite
  * pour l'initialisation du SDK. Les hooks (usePiAuth, usePiPayment) 
  * ne doivent PAS reinitialiser le SDK eux-memes.
+ * 
+ * Il gere aussi la detection automatique des paiements incomplets au chargement.
  */
 export function PiInitializer() {
+  const checkedRef = useRef(false);
+
   useEffect(() => {
     // Eviter l'execution cote serveur
     if (typeof window === "undefined") return;
@@ -42,14 +47,33 @@ export function PiInitializer() {
       }
     };
 
+    // Proactive server-side check for incomplete payments (runs once per session)
+    const checkIncompletePayments = async () => {
+      if (checkedRef.current || window.__PI_INCOMPLETE_CHECKED__) return;
+      checkedRef.current = true;
+      window.__PI_INCOMPLETE_CHECKED__ = true;
+
+      try {
+        const res = await fetch("/api/payments/incomplete");
+        const data = await res.json();
+        if (data.details?.length > 0) {
+          console.log(`[PimPay] ${data.details.length} paiement(s) incomplet(s) resolus au chargement`);
+        }
+      } catch {
+        // Silencieux - ne pas bloquer l'app
+      }
+    };
+
     // Verification immediate
     if (window.Pi) {
       initPi();
+      checkIncompletePayments();
     } else {
       // Polling si le script sdk n'est pas encore charge
       const interval = setInterval(() => {
         if (window.Pi) {
           initPi();
+          checkIncompletePayments();
           clearInterval(interval);
         }
       }, 300);
@@ -57,10 +81,11 @@ export function PiInitializer() {
       // Timeout securite apres 10s
       const timeout = setTimeout(() => {
         clearInterval(interval);
-        // Si on est pas dans le Pi Browser, ce n'est pas une erreur
         if (!window.Pi) {
           console.log("[PimPay] SDK Pi non disponible (navigateur classique)");
         }
+        // Still try to resolve incomplete payments via server even without SDK
+        checkIncompletePayments();
       }, 10000);
 
       return () => {
