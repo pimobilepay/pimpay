@@ -224,26 +224,6 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
           </div>
 
           <div className="p-6 bg-[#020617] border-t border-white/5 space-y-4">
-            {/* Language Switcher */}
-            <button
-              onClick={toggleLanguage}
-              className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-white/5 border border-white/5 active:scale-[0.98] transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-cyan-500/10">
-                  <Globe size={18} className="text-cyan-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("sideMenu.language")}</p>
-                  <p className="text-sm font-black text-white">{t("sideMenu.languageCurrent")}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black text-cyan-400 uppercase">{locale === "fr" ? "EN" : "FR"}</span>
-                <ChevronRight size={14} className="text-slate-600 group-hover:translate-x-1 transition-transform" />
-              </div>
-            </button>
-
             {/* Social Links */}
             <div className="flex items-center justify-center gap-4 px-2">
               <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all active:scale-90">

@@ -11,6 +11,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { useLanguage } from "@/context/LanguageContext";
 
 const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
 type CurrencyKey = keyof typeof RATES;
@@ -18,6 +19,7 @@ const PIE_COLORS = ["#3b82f6", "#10b981", "#6366f1", "#f59e0b"];
 
 export default function UserDashboard() {
   const router = useRouter();
+  const { locale, setLocale, t } = useLanguage();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -192,6 +194,18 @@ export default function UserDashboard() {
                 </div>
                 <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
                   <Settings size={16} /> Profile
+                </button>
+                <button
+                  onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
+                  className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe size={16} className="text-cyan-400" />
+                    <span>{locale === "fr" ? "Francais" : "English"}</span>
+                  </div>
+                  <span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">
+                    {locale === "fr" ? "EN" : "FR"}
+                  </span>
                 </button>
                 <button onClick={() => handleLogout()} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left">
                   <LogOut size={16} /> Logout
