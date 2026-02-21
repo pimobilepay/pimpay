@@ -36,7 +36,7 @@ const AboutPage = () => {
   return (
     <div style={{ backgroundColor: colors.background, color: colors.textMain, minHeight: '100vh', padding: '40px 20px', fontFamily: 'sans-serif' }}>
       <header style={{ textAlign: 'center', marginBottom: '50px' }}>
-        <h1 style={{ fontSize: '2.2rem', fontWeight: 'bold', marginBottom: '10px' }}>À propos de Pimpay</h1>
+        <h3 style={{ fontSize: '2.1rem', fontWeight: 'bold', marginBottom: '10px' }}>À propos de Pimpay</h3>
         <p style={{ color: colors.textMuted, maxWidth: '600px', margin: '0 auto', fontSize: '1.1rem' }}>
           La banque virtuelle de nouvelle génération, alliant la puissance de la Pi Network à la sécurité internationale.
         </p>
