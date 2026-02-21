@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { TransactionStatus } from '@prisma/client';
 
 export async function GET() {
   try {
     const transactions = await prisma.transaction.findMany({
       where: {
-        status: 'PENDING',
+        // Utilisation de l'Enum correct pour éviter les erreurs de type
+        status: TransactionStatus.PENDING,
       },
       include: {
         fromUser: true,
@@ -18,38 +20,46 @@ export async function GET() {
     });
 
     const formattedData = transactions.map((tx) => {
-      // On récupère l'objet metadata
-      const meta = tx.metadata as any;
-
-      // CORRECTION : On cible 'phoneNumber' qui est utilisé dans tes métadonnées (vu sur ta capture)
-      const withdrawalPhone = 
-        tx.accountNumber ||           // 1. D'abord le numéro de compte direct
-        meta?.phoneNumber ||           // 2. Ensuite le phoneNumber dans les metadata (ton cas ici)
-        meta?.phone ||                 // 3. Alternativement 'phone'
-        user?.phone ||                  // 4. En dernier recours le profil
-        "Non spécifié";
-
-      // Pour les dépôts Pi Browser, l'utilisateur est dans toUser (toUserId)
-      // Pour les retraits/dépôts manuels, l'utilisateur est dans fromUser (fromUserId)
+      const meta = (tx.metadata as any) || {};
+      
+      // On identifie l'utilisateur (soit celui qui envoie, soit celui qui reçoit)
       const user = tx.fromUser || tx.toUser;
+
+      // Construction du nom complet à partir de ton schéma
+      const fullName = user 
+        ? `${user.firstName || ''} ${user.lastName || ''}`.trim() 
+        : (user?.username || "Client PimPay");
+
+      // Logique de récupération du numéro de téléphone (Retraits Mobile Money)
+      const withdrawalPhone =
+        tx.accountNumber ||           
+        meta.phoneNumber ||           
+        meta.phone ||                 
+        user?.phone ||                  
+        "Non spécifié";
 
       return {
         id: tx.id,
         userId: tx.fromUserId || tx.toUserId || "N/A",
-        userName: user?.name || user?.username || "Client",
+        // Ces champs correspondent maintenant aux interfaces de ton frontend
+        fromUser: {
+          firstName: user?.firstName || "Utilisateur",
+          lastName: user?.lastName || "PimPay"
+        },
         amount: tx.amount,
         currency: tx.currency,
-        // On récupère la méthode de retrait (mobile, bank, etc.)
-        method: meta?.method || meta?.provider || "MOBILE",
-        phoneNumber: withdrawalPhone, 
-        status: 'pending',
+        type: tx.type,
+        // Information complémentaire pour l'affichage Admin
+        method: meta.method || meta.provider || (tx.currency === "PI" ? "PI_NETWORK" : "MOBILE"),
+        accountNumber: withdrawalPhone,
+        status: tx.status,
         createdAt: tx.createdAt.toISOString(),
       };
     });
 
     return NextResponse.json(formattedData);
-  } catch (error) {
-    console.error("Erreur API Admin Pimpay:", error);
-    return NextResponse.json({ error: "Erreur de lecture" }, { status: 500 });
+  } catch (error: any) {
+    console.error("❌ [API_ADMIN_GET_ERROR]:", error.message);
+    return NextResponse.json({ error: "Impossible de charger les flux critiques" }, { status: 500 });
   }
 }

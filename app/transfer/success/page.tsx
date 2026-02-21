@@ -1,128 +1,198 @@
 "use client";
 
-import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
 import {
   CheckCircle2,
-  Share2,
-  Home,
+  ArrowRight,
+  Receipt,
+  Wallet,
+  Loader2,
+  Copy,
+  Clock,
   ShieldCheck,
-  Download,
-  ExternalLink
+  Share2,
+  ArrowUpRight,
+  Banknote,
+  User,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-function SuccessContent() {
-  const router = useRouter();
+function TransferSuccessContent() {
   const searchParams = useSearchParams();
 
-  // RÉCUPÉRATION DYNAMIQUE (Désormais avec Currency)
-  const amount = searchParams.get("amount") || "0";
-  const name = searchParams.get("name") || "Utilisateur";
-  const currency = searchParams.get("currency") || "π"; // Récupère la devise, défaut sur π
-  const reference = searchParams.get("ref") || `TX-${Math.random().toString(36).toUpperCase().slice(2, 10)}`;
+  // Extraction des paramètres
+  const ref = searchParams.get("ref");
+  const amountParam = searchParams.get("amount");
+  const nameParam = searchParams.get("name") || "Utilisateur";
+  const currencyParam = searchParams.get("currency") || "XAF";
 
-  const handleShare = async () => {
-    const shareText = `PimPay : J'ai envoyé ${amount} ${currency} à ${name}. Réf: ${reference}`;
-    if (navigator.share) {
+  const [transaction, setTransaction] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ref) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchTx = async () => {
       try {
-        await navigator.share({
-          title: 'Reçu PimPay',
-          text: shareText,
-        });
-      } catch (err) {
-        console.log("Erreur de partage");
+        const res = await fetch(`/api/transaction/detail?ref=${ref}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTransaction(data);
+        }
+      } catch (error) {
+        console.error("Erreur fetch transaction:", error);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      navigator.clipboard.writeText(shareText);
-      toast.success("Détails copiés dans le presse-papier");
+    };
+
+    fetchTx();
+  }, [ref]);
+
+  // Données finales
+  const amount = transaction?.amount ?? parseFloat(amountParam || "0");
+  const currency = (transaction?.currency || currencyParam).toUpperCase();
+  const reference = transaction?.reference || ref || "PIMPAY-TR-PENDING";
+  const status = transaction?.status || "SUCCESS";
+  const blockchainTx = transaction?.blockchainTx || transaction?.metadata?.blockchainTx;
+  const beneficiary = transaction?.toUser?.username || transaction?.toUser?.name || nameParam;
+
+  // Configuration des Explorateurs selon la devise
+  const getBlockExplorer = (curr: string, txHash: string) => {
+    if (!txHash) return null;
+    switch (curr) {
+      case "PI": return `https://minepi.com/blockexplorer/tx/${txHash}`;
+      case "SDA": return `https://sidrascan.com/tx/${txHash}`;
+      case "BTC": return `https://blockchain.info/tx/${txHash}`;
+      case "USDT": return `https://tronscan.org/#/transaction/${txHash}`;
+      case "ETH": return `https://etherscan.io/tx/${txHash}`;
+      default: return null;
     }
   };
 
+  const explorerUrl = getBlockExplorer(currency, blockchainTx);
+
+  const statusConfig: any = {
+    SUCCESS: { label: "Transféré", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    PENDING: { label: "En cours", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+    FAILED: { label: "Échec", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
+  };
+
+  const currentStatus = statusConfig[status] || statusConfig.SUCCESS;
+
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center justify-center p-8 text-center">
-      {/* Animation de succès améliorée */}
-      <div className="relative mb-8">
-        <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full animate-pulse"></div>
-        <div className="relative w-28 h-28 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center animate-in zoom-in duration-700">
-          <CheckCircle2 size={56} className="text-emerald-500" />
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center py-12 px-6 text-center relative overflow-hidden">
+      {/* Glow effect */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <h2 className="text-1xl font-black uppercase tracking-tighter mb-2 italic">
-        Transfert Réussi
-      </h2>
-      <div className="flex items-center justify-center gap-2 mb-8 opacity-60">
-        <ShieldCheck size={14} className="text-emerald-500" />
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Authentifié par PimPay Protocol</p>
-      </div>
-
-      {/* REÇU DÉTAILLÉ */}
-      <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[40px] mb-10 w-full max-w-sm relative overflow-hidden backdrop-blur-md">
-        <div className="absolute top-0 right-0 p-4 opacity-5">
-           <CheckCircle2 size={80} />
+      <div className="animate-in fade-in zoom-in duration-700 w-full max-w-md relative z-10">
+        
+        {/* Badge Statut */}
+        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${currentStatus.bg} ${currentStatus.border} mb-8`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${currentStatus.color.replace('text', 'bg')} animate-pulse`} />
+          <span className={`text-[10px] font-black uppercase tracking-widest ${currentStatus.color}`}>
+            {currentStatus.label}
+          </span>
         </div>
 
-        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Montant de la transaction</p>
-
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span className="text-5xl font-black tracking-tighter">{amount}</span>
-          <span className="text-2xl font-black italic text-blue-500">{currency}</span>
+        {/* Icône de succès */}
+        <div className="relative w-24 h-24 bg-white/5 border border-white/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-2xl">
+           <CheckCircle2 className="text-emerald-500" size={40} />
         </div>
 
-        <div className="space-y-4 pt-6 border-t border-white/5">
-          <div className="flex justify-between items-center">
-            <span className="text-[9px] font-black text-slate-500 uppercase">Bénéficiaire</span>
-            <span className="text-xs font-bold text-white uppercase">{name}</span>
+        <h1 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">
+          Transfert Réussi
+        </h1>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
+          Fonds envoyés avec succès vers le destinataire
+        </p>
+
+        {/* Montant */}
+        <div className="mb-10">
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-5xl font-black text-white tracking-tighter">{amount.toLocaleString()}</span>
+            <span className="text-xl font-black text-blue-500 italic">{currency}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[9px] font-black text-slate-500 uppercase">Référence</span>
-            <span className="text-[9px] font-mono text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">{reference}</span>
+          <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">Confirmation PimPay Network</p>
+        </div>
+
+        {/* Card Détails */}
+        <div className="bg-white/[0.03] border border-white/5 rounded-3xl overflow-hidden mb-8">
+          <div className="p-6 space-y-4">
+            <DetailRow icon={<User size={14}/>} label="Bénéficiaire" value={beneficiary} />
+            <DetailRow icon={<ShieldCheck size={14}/>} label="Référence" value={reference} isCopy />
+            <DetailRow icon={<Banknote size={14}/>} label="Méthode" value={`Portefeuille ${currency}`} />
+            <DetailRow icon={<Clock size={14}/>} label="Date" value={new Date().toLocaleDateString('fr-FR')} />
+            
+            {explorerUrl && (
+              <a 
+                href={explorerUrl} 
+                target="_blank" 
+                className="flex justify-between items-center pt-3 border-t border-white/5 group"
+              >
+                <div className="flex items-center gap-2">
+                  <ExternalLink size={14} className="text-blue-500" />
+                  <span className="text-[9px] font-black text-slate-500 uppercase">Blockchain</span>
+                </div>
+                <span className="text-[10px] font-bold text-blue-400 group-hover:underline">Vérifier l'envoi</span>
+              </a>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* BOUTONS D'ACTION */}
-      <div className="w-full max-w-sm space-y-4">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 rounded-[28px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-600/20"
-        >
-          <Home size={18} /> Retour au Portefeuille
-        </button>
-
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={handleShare}
-            className="bg-slate-900 border border-white/5 py-5 rounded-[24px] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-slate-400 active:scale-95 transition-all"
-          >
-            <Share2 size={16} /> Partager
-          </button>
-          <button
-            className="bg-slate-900 border border-white/5 py-5 rounded-[24px] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-slate-400 active:scale-95 transition-all"
-          >
-            <Download size={16} /> Reçu
-          </button>
+        {/* Actions */}
+        <div className="space-y-3">
+          <Link href="/dashboard" className="w-full h-16 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
+            <Wallet size={18} /> Retour au Portefeuille
+          </Link>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <button className="h-14 bg-white/5 border border-white/10 rounded-2xl font-black uppercase text-[10px] text-slate-400 flex items-center justify-center gap-2">
+              <Receipt size={16} /> Reçu
+            </button>
+            <button className="h-14 bg-white/5 border border-white/10 rounded-2xl font-black uppercase text-[10px] text-slate-400 flex items-center justify-center gap-2">
+              <Share2 size={16} /> Partager
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Explorateur de blocs */}
-      <div className="mt-12 flex items-center gap-2 text-slate-600 cursor-pointer hover:text-blue-400 transition-colors">
-         <ExternalLink size={12} />
-         <p className="text-[9px] font-black uppercase tracking-[0.2em]">Voir sur le Block Explorer</p>
       </div>
     </div>
   );
 }
 
-export default function SuccessPage() {
+// Sous-composant pour les lignes de détails
+function DetailRow({ icon, label, value, isCopy = false }: any) {
+  const copy = () => {
+    navigator.clipboard.writeText(value);
+    toast.success("Copié !");
+  };
+
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div className="flex justify-between items-center">
+      <div className="flex items-center gap-2">
+        <span className="text-blue-500">{icon}</span>
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
       </div>
-    }>
-      <SuccessContent />
+      <span 
+        onClick={isCopy ? copy : undefined}
+        className={`text-[10px] font-bold text-white uppercase ${isCopy ? 'cursor-pointer hover:text-blue-400 transition-colors font-mono' : ''}`}
+      >
+        {isCopy ? `${value.slice(0, 12)}...` : value}
+      </span>
+    </div>
+  );
+}
+
+export default function TransferSuccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>}>
+      <TransferSuccessContent />
     </Suspense>
   );
 }

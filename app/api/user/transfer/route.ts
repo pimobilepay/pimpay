@@ -4,17 +4,25 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
+import { nanoid } from 'nanoid';
 
-// Helper: detect external crypto addresses
 function detectExternalAddress(identifier: string): { isExternal: boolean; network: string | null } {
-  const isPiAddress = /^G[A-Z2-7]{55}$/.test(identifier);
-  const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(identifier);
+  const isPiAddress = /^G[A-Z2-7]{55}$/.test(identifier); 
+  const isEVM = /^0x[a-fA-F0-9]{40}$/.test(identifier);
   const isTron = identifier.startsWith('T') && identifier.length === 34;
 
   if (isPiAddress) return { isExternal: true, network: "PI" };
-  if (isSdaOrEth) return { isExternal: true, network: "SDA" };
+  if (isEVM) return { isExternal: true, network: "EVM" };
   if (isTron) return { isExternal: true, network: "USDT" };
   return { isExternal: false, network: null };
+}
+
+// Utilitaire pour définir le type de wallet selon la monnaie
+function getWalletType(currency: string): WalletType {
+  if (currency === "PI") return WalletType.PI;
+  if (currency === "SDA") return WalletType.SIDRA;
+  if (["XAF", "USD", "EUR", "CDF"].includes(currency)) return WalletType.FIAT;
+  return WalletType.CRYPTO;
 }
 
 export async function POST(req: NextRequest) {
@@ -23,7 +31,7 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    if (!token || !SECRET) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const secretKey = new TextEncoder().encode(SECRET);
     const { payload } = await jwtVerify(token, secretKey);
@@ -38,115 +46,110 @@ export async function POST(req: NextRequest) {
 
     if (isNaN(transferAmount) || transferAmount <= 0) throw new Error("Montant invalide.");
 
-    // Detect if this is an external address (Pi Network, SDA, USDT/TRC20)
     const externalCheck = detectExternalAddress(cleanIdentifier);
 
-    // --- TRANSACTION ATOMIQUE ---
     const result = await prisma.$transaction(async (tx) => {
-      
-      // 1. WALLET DE L'EXPEDITEUR
-      const senderWallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId: senderId, currency: transferCurrency } },
-        update: {},
-        create: {
-          userId: senderId,
-          currency: transferCurrency,
-          balance: 0,
-          type: transferCurrency === "PI" ? WalletType.PI : WalletType.FIAT
-        }
+      // 1. Vérification stricte du portefeuille expéditeur
+      const senderWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: senderId, currency: transferCurrency } }
       });
 
-      if (senderWallet.balance < transferAmount) {
-        throw new Error(`Solde insuffisant : ${senderWallet.balance} ${transferCurrency} disponibles.`);
+      if (!senderWallet || senderWallet.balance < transferAmount) {
+        throw new Error(`Solde insuffisant (${senderWallet?.balance || 0} ${transferCurrency}).`);
       }
 
-      // 2. IDENTIFIER LE DESTINATAIRE (interne ou externe)
-      let recipient = await tx.user.findFirst({
+      // 2. Recherche du destinataire (Username, Email, Phone ou Adresse)
+      const recipient = await tx.user.findFirst({
         where: {
           OR: [
             { username: { equals: cleanIdentifier, mode: 'insensitive' } },
             { email: { equals: cleanIdentifier, mode: 'insensitive' } },
             { walletAddress: cleanIdentifier },
-            { sidraAddress: cleanIdentifier },
-            { usdtAddress: cleanIdentifier },
-            { xlmAddress: cleanIdentifier },
-            { xrpAddress: cleanIdentifier },
-            { phone: cleanIdentifier }
+            { phone: cleanIdentifier },
+            { piUserId: cleanIdentifier },
+            { sidraAddress: cleanIdentifier }
           ]
         }
       });
 
-      // --- TRANSFERT EXTERNE (Pi Network, SDA, USDT etc.) ---
+      // --- CAS 1 : TRANSFERT EXTERNE ---
       if (!recipient && externalCheck.isExternal) {
-        // Debit sender wallet
         await tx.wallet.update({
           where: { id: senderWallet.id },
           data: { balance: { decrement: transferAmount } }
         });
 
-        // Create a PENDING transaction for external withdrawal
         return await tx.transaction.create({
           data: {
-            reference: `PIM-EXT-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+            reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
             amount: transferAmount,
             currency: transferCurrency,
             type: TransactionType.WITHDRAW,
             status: TransactionStatus.PENDING,
             fromUserId: senderId,
             fromWalletId: senderWallet.id,
-            description: description || `Transfert externe vers ${cleanIdentifier.slice(0, 8)}...${cleanIdentifier.slice(-6)}`,
-            metadata: {
-              externalAddress: cleanIdentifier,
-              network: externalCheck.network,
-              isExternalTransfer: true,
-            }
+            description: description || `Transfert ${externalCheck.network} externe`,
+            metadata: { externalAddress: cleanIdentifier, network: externalCheck.network }
           }
         });
       }
 
-      // --- TRANSFERT INTERNE ---
-      if (!recipient) throw new Error("Destinataire introuvable dans PimPay.");
-      if (recipient.id === senderId) throw new Error("Impossible de s'envoyer a soi-meme.");
+      // --- CAS 2 : TRANSFERT INTERNE PIMPAY ---
+      if (!recipient) throw new Error("Destinataire introuvable.");
+      if (recipient.id === senderId) throw new Error("Envoi vers soi-même impossible.");
 
-      // 3. MISE A JOUR DES SOLDES (Debit / Credit)
-      await tx.wallet.update({
+      // A. Débit Expéditeur
+      const updatedSender = await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      const recipientWallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
-        update: { balance: { increment: transferAmount } },
-        create: {
-          userId: recipient.id,
-          currency: transferCurrency,
-          balance: transferAmount,
-          type: transferCurrency === "PI" ? WalletType.PI : WalletType.FIAT
-        }
+      // B. Crédit Destinataire (Sécurisé : Trouve ou Crée)
+      let recipientWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: recipient.id, currency: transferCurrency } }
       });
 
-      // 4. CREATION DE LA TRANSACTION (SUCCESS pour le graphique)
+      if (!recipientWallet) {
+        recipientWallet = await tx.wallet.create({
+          data: {
+            userId: recipient.id,
+            currency: transferCurrency,
+            balance: transferAmount,
+            type: getWalletType(transferCurrency)
+          }
+        });
+      } else {
+        recipientWallet = await tx.wallet.update({
+          where: { id: recipientWallet.id },
+          data: { balance: { increment: transferAmount } }
+        });
+      }
+
+      // C. Création du Log de Transaction final
       return await tx.transaction.create({
         data: {
-          reference: `PIM-TR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          reference: `PIM-TR-${nanoid(10).toUpperCase()}`,
           amount: transferAmount,
           currency: transferCurrency,
           type: TransactionType.TRANSFER,
-          status: TransactionStatus.SUCCESS, 
+          status: TransactionStatus.SUCCESS,
           fromUserId: senderId,
-          fromWalletId: senderWallet.id,
+          fromWalletId: updatedSender.id,
           toUserId: recipient.id,
           toWalletId: recipientWallet.id,
-          description: description || `Transfert vers ${recipient.username || recipient.email}`,
-          metadata: { cleanIdentifier }
+          description: description || `Transfert à ${recipient.username || recipient.email}`,
+          metadata: { internal: true }
         }
       });
-    }, { timeout: 15000 });
+    }, {
+      timeout: 20000,
+      isolationLevel: "Serializable" // Protection maximale contre la double dépense
+    });
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("Erreur Transfert:", error.message);
+    console.error("ERREUR TRANSFERT:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
