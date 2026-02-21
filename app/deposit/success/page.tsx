@@ -70,6 +70,31 @@ function SuccessContent() {
   const status = transaction?.status || "SUCCESS";
   const blockchainTx = transaction?.blockchainTx || txid || null;
 
+  // Formatage intelligent des montants
+  const formatAmount = (val: number, cur: string) => {
+    if (cur === "PI") {
+      // Pour PI: pas de decimales inutiles, max 4 decimales
+      if (val === Math.floor(val)) return val.toLocaleString("fr-FR");
+      return val.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+    return val.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatFee = (val: number, cur: string) => {
+    if (cur === "PI") {
+      if (val < 0.01) return val.toFixed(6);
+      return val.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+    return val.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatUSD = (val: number) => {
+    if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(2)}B`;
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000) return `${(val / 1_000).toFixed(2)}K`;
+    return val.toFixed(2);
+  };
+
   // Statut affichage avec classes explicites (Tailwind ne supporte pas les classes dynamiques)
   const statusConfig: Record<string, { label: string; badge: string; text: string; bg: string; border: string; dot: string; icon: string }> = {
     SUCCESS: {
@@ -181,15 +206,15 @@ function SuccessContent() {
 
         {/* Montant Dynamique */}
         <div className="mt-8 mb-2">
-          <div className="flex items-baseline justify-center gap-1">
-            <span className="text-5xl font-black text-white tracking-tighter">
-              {currency === "PI" ? `${amount.toFixed(8)}` : `$${amount.toFixed(2)}`}
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-4xl font-black text-white tracking-tighter">
+              {formatAmount(amount, currency)}
             </span>
             <span className="text-lg font-bold text-blue-500">{currency}</span>
           </div>
           {currency === "PI" && amount > 0 && (
             <p className="text-xs text-slate-500 mt-1 font-bold">
-              {`~ $${(amount * 314159).toFixed(2)} USD (GCV)`}
+              {`~ $${formatUSD(amount * 314159)} USD (GCV)`}
             </p>
           )}
         </div>
@@ -247,7 +272,7 @@ function SuccessContent() {
                 </span>
               </div>
               <span className="text-[10px] font-bold text-blue-400">
-                {currency === "PI" ? `${fee.toFixed(8)} PI` : `$${fee.toFixed(2)} USD`}
+                {currency === "PI" ? `${formatFee(fee, currency)} PI` : `$${formatFee(fee, currency)} USD`}
               </span>
             </div>
 
