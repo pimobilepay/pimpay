@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
         where: { createdAt: { gte: last24h } }
       }),
       prisma.transaction.findMany({
-        where: { createdAt: { gte: last24h }, status: "COMPLETED" }, // "COMPLETED" est souvent utilisé à la place de "SUCCESS"
+        where: { createdAt: { gte: last24h }, status: { in: ["SUCCESS", "COMPLETED"] } },
         select: { amount: true, fee: true }
       }),
       prisma.wallet.aggregate({

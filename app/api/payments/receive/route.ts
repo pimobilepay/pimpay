@@ -37,7 +37,7 @@ export async function POST(request: Request) {
         type: "DEPOSIT",
         currency: "PI",
         amount: finalAmount,
-        status: "COMPLETED",
+        status: "SUCCESS",
         externalId: paymentId,
         description: memo || "Paiement Pi Network (Automatique)",
         metadata: {

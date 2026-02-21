@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         amount: finalAmount,
         blockchainTx: externalRef,
         type: "DEPOSIT",
-        status: "COMPLETED",
+        status: "SUCCESS",
         fromUserId: userId,
         toUserId: userId,
         toWalletId: userWallet.id,
