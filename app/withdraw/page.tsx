@@ -16,10 +16,12 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function WithdrawPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"mobile" | "bank" | "logs">("mobile");
@@ -132,12 +134,12 @@ export default function WithdrawPage() {
   })();
 
   const continents = [
-    { id: "ALL", label: "Tous" },
-    { id: "AFRICA", label: "Afrique" },
+    { id: "ALL", label: "All" },
+    { id: "AFRICA", label: "Africa" },
     { id: "EUROPE", label: "Europe" },
-    { id: "ASIA", label: "Asie" },
-    { id: "AMERICA", label: "Amerique" },
-    { id: "OCEANIA", label: "Oceanie" },
+    { id: "ASIA", label: "Asia" },
+    { id: "AMERICA", label: "America" },
+    { id: "OCEANIA", label: "Oceania" },
   ];
 
   const canSubmitMobile = piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && phoneNumber && selectedOperator;
@@ -167,7 +169,7 @@ export default function WithdrawPage() {
       }));
       router.push(`/withdraw/summary?data=${encoded}`);
     } catch {
-      toast.error("Erreur lors de la preparation");
+      toast.error(t("extra.preparationError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -188,7 +190,7 @@ export default function WithdrawPage() {
           </button>
           <div>
             <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
-              Retrait
+              {t("withdraw.title")}
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={8} className="text-blue-500 animate-pulse" />
@@ -210,7 +212,7 @@ export default function WithdrawPage() {
             </div>
 
             <div className="flex justify-between items-start relative z-10 mb-3">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solde {currentWallet.currency} Disponible</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{currentWallet.currency} {t("common.balance")} {t("common.available")}</p>
 
               <div className="relative" ref={walletRef}>
                 <button
@@ -263,9 +265,9 @@ export default function WithdrawPage() {
         {/* TABS */}
         <nav className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
           {([
-            { id: "mobile" as const, label: "Mobile", icon: Smartphone },
-            { id: "bank" as const, label: "Banque", icon: Building2 },
-            { id: "logs" as const, label: "Historique", icon: Clock },
+            { id: "mobile" as const, label: t("deposit.mobile"), icon: Smartphone },
+            { id: "bank" as const, label: t("extra.bankTransfer"), icon: Building2 },
+            { id: "logs" as const, label: t("wallet.history"), icon: Clock },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -296,7 +298,7 @@ export default function WithdrawPage() {
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 {/* Country */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Pays de destination</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("withdraw.destination")}</label>
                   <button
                     onClick={() => setIsCountryModalOpen(true)}
                     className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 flex items-center justify-between hover:border-blue-500/30 transition-all"
@@ -314,7 +316,7 @@ export default function WithdrawPage() {
 
                 {/* Operator */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Reseau Mobile</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.mobileOperator")}</label>
                   {selectedCountry.operators.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
                       {selectedCountry.operators.map((op) => (
@@ -352,7 +354,7 @@ export default function WithdrawPage() {
                     <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
                       <AlertTriangle size={16} className="text-amber-400" />
                       <p className="text-[10px] font-bold text-amber-400">
-                        Aucun operateur mobile disponible pour ce pays. Utilisez le virement bancaire.
+                        {t("deposit.noOperatorWarning")}
                       </p>
                     </div>
                   )}
@@ -360,7 +362,7 @@ export default function WithdrawPage() {
 
                 {/* Phone */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Numero beneficiaire</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("transfer.beneficiary")}</label>
                   <div className="flex gap-2">
                     <div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center gap-2">
                       <span className={`fi fi-${selectedCountry.code.toLowerCase()} rounded-sm`} />
@@ -381,7 +383,7 @@ export default function WithdrawPage() {
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                    Montant a retirer ({currentWallet.currency})
+                    {t("withdraw.amount")} ({currentWallet.currency})
                   </label>
                   <div className="relative">
                     <input
@@ -422,16 +424,16 @@ export default function WithdrawPage() {
                     className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                   >
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
-                      <span>Valeur brute</span>
+                      <span>{"Gross Value"}</span>
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>Frais PimPay (2%)</span>
+                      <span>{"PimPay Fees (2%)"}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>
-                        <span className="text-[9px] font-black text-blue-500 uppercase block">Cashout Net Estime</span>
+                        <span className="text-[9px] font-black text-blue-500 uppercase block">{"Estimated Net Cashout"}</span>
                         <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
                       </div>
                       <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
@@ -452,9 +454,9 @@ export default function WithdrawPage() {
                   {isSubmitting ? (
                     <Loader2 className="animate-spin" size={20} />
                   ) : parseFloat(piAmount || "0") > balance ? (
-                    "Solde insuffisant"
+                    t("transfer.insufficientFunds")
                   ) : (
-                    "Verifier le Cashout"
+                    "Verify Cashout"
                   )}
                 </button>
               </div>
@@ -473,7 +475,7 @@ export default function WithdrawPage() {
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 {/* Country */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Pays de destination</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("withdraw.destination")}</label>
                   <button
                     onClick={() => setIsCountryModalOpen(true)}
                     className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 flex items-center justify-between hover:border-blue-500/30 transition-all"
@@ -492,7 +494,7 @@ export default function WithdrawPage() {
                 {/* Bank Selection */}
                 {selectedCountry.banks.length > 0 ? (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Banque</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{"Bank"}</label>
                     <div className="space-y-2">
                       {selectedCountry.banks.map((bank) => (
                         <button
@@ -523,7 +525,7 @@ export default function WithdrawPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nom de la banque</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{"Bank Name"}</label>
                     <input
                       type="text"
                       placeholder="Ex: Bank of America"
@@ -536,10 +538,10 @@ export default function WithdrawPage() {
 
                 {/* Account Name */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nom du beneficiaire</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{"Beneficiary Name"}</label>
                   <input
                     type="text"
-                    placeholder="Nom complet"
+                    placeholder="Full name"
                     value={accountName}
                     onChange={(e) => setAccountName(e.target.value)}
                     className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-xs font-black outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
@@ -548,7 +550,7 @@ export default function WithdrawPage() {
 
                 {/* Account / IBAN */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">IBAN / Numero de compte</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{"IBAN / Account Number"}</label>
                   <input
                     type="text"
                     placeholder="Ex: FR76 3000 4028 ..."
@@ -575,7 +577,7 @@ export default function WithdrawPage() {
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                    Montant a retirer ({currentWallet.currency})
+                    {t("withdraw.amount")} ({currentWallet.currency})
                   </label>
                   <div className="relative">
                     <input
@@ -599,16 +601,16 @@ export default function WithdrawPage() {
                     className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                   >
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
-                      <span>Valeur brute</span>
+                      <span>{"Gross Value"}</span>
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>Frais PimPay (2%)</span>
+                      <span>{"PimPay Fees (2%)"}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>
-                        <span className="text-[9px] font-black text-blue-500 uppercase block">Virement Net Estime</span>
+                        <span className="text-[9px] font-black text-blue-500 uppercase block">{"Estimated Net Transfer"}</span>
                         <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
                       </div>
                       <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
@@ -620,7 +622,7 @@ export default function WithdrawPage() {
                 <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
                   <Info size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
                   <p className="text-[10px] font-bold text-slate-400">
-                    Les virements bancaires prennent entre <span className="text-white">24h et 48h</span> ouvrees. Les frais bancaires externes ne sont pas inclus.
+                    {"Bank transfers take between "}<span className="text-white">{"24h and 48h"}</span>{" business days. External bank fees are not included."}
                   </p>
                 </div>
 
@@ -637,9 +639,9 @@ export default function WithdrawPage() {
                   {isSubmitting ? (
                     <Loader2 className="animate-spin" size={20} />
                   ) : parseFloat(piAmount || "0") > balance ? (
-                    "Solde insuffisant"
+                    t("transfer.insufficientFunds")
                   ) : (
-                    "Initier le virement"
+                    "Initiate Transfer"
                   )}
                 </button>
               </div>
@@ -658,7 +660,7 @@ export default function WithdrawPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock size={14} className="text-blue-500" />
-                  <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Derniers retraits</h2>
+                  <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">{"Recent Withdrawals"}</h2>
                 </div>
               </div>
 

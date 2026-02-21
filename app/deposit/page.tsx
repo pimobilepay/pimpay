@@ -32,13 +32,14 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { PiButton } from "@/components/PiButton";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 import "flag-icons/css/flag-icons.min.css";
 
 const PI_GCV_PRICE = 314159;
 
 // ===================== SUB COMPONENTS =====================
 
-function DepositBanner() {
+function DepositBanner({ t }: { t: (key: string) => string }) {
   return (
     <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-600/15 via-blue-800/10 to-transparent border border-white/5 overflow-hidden">
       <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.04]">
@@ -50,11 +51,10 @@ function DepositBanner() {
         </div>
         <div>
           <p className="text-[11px] font-black uppercase tracking-widest text-blue-400">
-            PimPay Secure Deposit
+            {t("deposit.secureDeposit")}
           </p>
           <p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">
-            Approvisionnez votre compte via Mobile Money ou Pi Network. 
-            Toutes les transactions sont chiffrees et securisees.
+            {t("deposit.secureBanner")}
           </p>
         </div>
       </div>
@@ -65,14 +65,16 @@ function DepositBanner() {
 function DepositTabs({
   activeTab,
   onTabChange,
+  t,
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  t: (key: string) => string;
 }) {
   const tabs = [
-    { id: "mobile", label: "Mobile", icon: <Smartphone size={16} /> },
-    { id: "card", label: "Carte", icon: <CreditCard size={16} /> },
-    { id: "crypto", label: "Crypto", icon: <Bitcoin size={16} /> },
+    { id: "mobile", label: t("deposit.mobile"), icon: <Smartphone size={16} /> },
+    { id: "card", label: t("deposit.card"), icon: <CreditCard size={16} /> },
+    { id: "crypto", label: t("deposit.crypto"), icon: <Bitcoin size={16} /> },
   ];
 
   return (
@@ -97,15 +99,17 @@ function DepositTabs({
 function CountrySelector({
   selectedCountry,
   onOpen,
+  t,
 }: {
   selectedCountry: Country;
   onOpen: () => void;
+  t: (key: string) => string;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-        Pays de residence
-      </label>
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
+                  {t("deposit.amountUsd")}
+                </label>
       <button
         onClick={onOpen}
         className="w-full h-16 bg-slate-900/50 rounded-2xl border border-white/10 px-5 flex items-center justify-between active:scale-[0.98] transition-transform"
@@ -134,11 +138,13 @@ function FeesBreakdown({
   fee,
   totalLocal,
   currency,
+  t,
 }: {
   amount: string;
   fee: string;
   totalLocal: string;
   currency: string;
+  t: (key: string) => string;
 }) {
   if (!amount) return null;
 
@@ -147,20 +153,20 @@ function FeesBreakdown({
       <div className="flex items-center gap-2 mb-1">
         <Banknote size={14} className="text-slate-400" />
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Recapitulatif
+          {t("deposit.recap")}
         </span>
       </div>
       <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-        <span className="text-slate-500">Montant</span>
+        <span className="text-slate-500">{t("common.amount")}</span>
         <span className="text-white">{amount} USD</span>
       </div>
       <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-        <span className="text-slate-500">Frais Reseau (2%)</span>
+        <span className="text-slate-500">{t("deposit.networkFeePercent")}</span>
         <span className="text-red-400">+{fee} USD</span>
       </div>
       <div className="h-px bg-white/5" />
       <div className="flex justify-between text-[13px] font-black uppercase text-emerald-400">
-        <span>Total a payer</span>
+        <span>{t("deposit.totalToPay")}</span>
         <span>
           {totalLocal} {currency}
         </span>
@@ -169,13 +175,13 @@ function FeesBreakdown({
   );
 }
 
-function TransactionInfo() {
+function TransactionInfo({ t }: { t: (key: string) => string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Info size={14} className="text-blue-400" />
         <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-          Informations importantes
+          {t("deposit.importantInfo")}
         </span>
       </div>
 
@@ -184,11 +190,10 @@ function TransactionInfo() {
           <Clock size={16} className="text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-[10px] font-black text-white uppercase">
-              Delai de traitement
+              {t("deposit.processingDelay")}
             </p>
             <p className="text-[9px] text-slate-400 mt-0.5 leading-relaxed">
-              Mobile Money : 1 a 5 minutes. Crypto Pi : instantane apres
-              confirmation blockchain.
+              {t("deposit.processingDelayDesc")}
             </p>
           </div>
         </div>
@@ -197,11 +202,10 @@ function TransactionInfo() {
           <TrendingUp size={16} className="text-blue-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-[10px] font-black text-white uppercase">
-              Frais de transaction
+              {t("deposit.transactionFees")}
             </p>
             <p className="text-[9px] text-slate-400 mt-0.5 leading-relaxed">
-              2% sur les depots Mobile Money. 0% sur les depots via Pi Network
-              (seuls les frais blockchain s'appliquent).
+              {t("deposit.transactionFeesDesc")}
             </p>
           </div>
         </div>
@@ -210,11 +214,10 @@ function TransactionInfo() {
           <Wallet size={16} className="text-emerald-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-[10px] font-black text-white uppercase">
-              Limites
+              {t("deposit.limits")}
             </p>
             <p className="text-[9px] text-slate-400 mt-0.5 leading-relaxed">
-              Min: 1 USD / Max: 5 000 USD par transaction. Limite journaliere :
-              10 000 USD.
+              {t("deposit.limitsDesc")}
             </p>
           </div>
         </div>
@@ -223,13 +226,13 @@ function TransactionInfo() {
   );
 }
 
-function SecuritySection() {
+function SecuritySection({ t }: { t: (key: string) => string }) {
   return (
     <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5">
       <div className="flex items-center gap-2">
         <Shield size={14} className="text-blue-400" />
         <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-          Securite et garanties
+          {t("deposit.securityGuarantees")}
         </span>
       </div>
       <div className="space-y-4">
@@ -237,11 +240,10 @@ function SecuritySection() {
           <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
           <div>
             <h4 className="text-[10px] font-black uppercase text-white">
-              Fonds proteges
+              {t("deposit.fundsProtected")}
             </h4>
             <p className="text-[9px] text-slate-500 leading-relaxed">
-              Chaque depot est garanti par le protocole PimPay. Vos fonds sont
-              couverts en cas de probleme technique.
+              {t("deposit.fundsProtectedDesc")}
             </p>
           </div>
         </div>
@@ -249,11 +251,10 @@ function SecuritySection() {
           <Shield size={18} className="text-blue-400 shrink-0" />
           <div>
             <h4 className="text-[10px] font-black uppercase text-white">
-              Audit en temps reel
+              {t("deposit.realTimeAudit")}
             </h4>
             <p className="text-[9px] text-slate-500 leading-relaxed">
-              Verification automatique et traabilite complete de chaque
-              transaction sur le ledger PimPay.
+              {t("deposit.realTimeAuditDesc")}
             </p>
           </div>
         </div>
@@ -261,11 +262,10 @@ function SecuritySection() {
           <Lock size={18} className="text-amber-400 shrink-0" />
           <div>
             <h4 className="text-[10px] font-black uppercase text-white">
-              Chiffrement bout-en-bout
+              {t("deposit.endToEndEncryption")}
             </h4>
             <p className="text-[9px] text-slate-500 leading-relaxed">
-              Toutes les donnees transitent via un protocole SSL/TLS 256 bits.
-              Aucune information n'est stockee en clair.
+              {t("deposit.endToEndEncryptionDesc")}
             </p>
           </div>
         </div>
@@ -274,19 +274,19 @@ function SecuritySection() {
   );
 }
 
-function FAQSection() {
+function FAQSection({ t }: { t: (key: string) => string }) {
   const faqs = [
     {
-      q: "Combien de temps prend un depot Mobile Money ?",
-      a: "En general, le depot est credite en 1 a 5 minutes. Si votre operateur rencontre un souci technique, le delai peut aller jusqu'a 30 minutes. Contactez le support si le probleme persiste.",
+      q: t("deposit.faqMobileTime"),
+      a: t("deposit.faqMobileTimeAnswer"),
     },
     {
-      q: "Quels sont les frais ?",
-      a: "Les depots Mobile Money sont soumis a 2% de frais. Les depots en Pi via le Pi Browser sont sans frais cote PimPay (seuls les frais blockchain Mainnet s'appliquent).",
+      q: t("deposit.faqFees"),
+      a: t("deposit.faqFeesAnswer"),
     },
     {
-      q: "Mon depot est en attente, que faire ?",
-      a: "Assurez-vous que votre solde operateur est suffisant et que vous avez valide le code PIN sur votre telephone. Si apres 30 minutes le depot n'est pas credite, contactez le support.",
+      q: t("deposit.faqPending"),
+      a: t("deposit.faqPendingAnswer"),
     },
   ];
 
@@ -295,7 +295,7 @@ function FAQSection() {
       <div className="flex items-center gap-2">
         <HelpCircle size={14} className="text-blue-400" />
         <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-          Questions frequentes
+          {t("deposit.faq")}
         </span>
       </div>
       <div className="space-y-2">
@@ -332,6 +332,7 @@ function CountryModal({
   searchQuery,
   onSearchChange,
   filteredCountries,
+  t,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -339,6 +340,7 @@ function CountryModal({
   searchQuery: string;
   onSearchChange: (value: string) => void;
   filteredCountries: Country[];
+  t: (key: string) => string;
 }) {
   return (
     <AnimatePresence>
@@ -352,13 +354,13 @@ function CountryModal({
         >
           <div className="flex items-center justify-between mb-6 pt-4">
             <h2 className="text-xl font-black uppercase tracking-tighter">
-              Selection Pays
+              {t("deposit.selectCountry")}
             </h2>
             <button
               onClick={onClose}
               className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black uppercase"
             >
-              Fermer
+              {t("deposit.closeBtn")}
             </button>
           </div>
           <div className="relative mb-4">
@@ -368,7 +370,7 @@ function CountryModal({
             />
             <input
               type="text"
-              placeholder="Rechercher un pays..."
+              placeholder={t("deposit.searchCountry")}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 text-sm outline-none font-medium"
@@ -413,6 +415,7 @@ function CountryModal({
 
 export default function DepositPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -464,20 +467,20 @@ export default function DepositPage() {
 
   const handleMobileDeposit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Veuillez entrer un montant valide.");
+      toast.error(t("deposit.enterValidAmount"));
       return;
     }
     if (!phoneNumber) {
-      toast.error("Veuillez entrer votre numero de telephone.");
+      toast.error(t("deposit.enterPhoneNumber"));
       return;
     }
     if (!selectedOperator) {
-      toast.error("Veuillez selectionner un operateur.");
+      toast.error(t("deposit.selectOperator"));
       return;
     }
 
     setIsLoading(true);
-    const loadingToast = toast.loading("Envoi de la demande de paiement...");
+    const loadingToast = toast.loading(t("deposit.sendingPaymentRequest"));
 
     try {
       const response = await fetch("/api/transaction/deposit", {
@@ -496,14 +499,14 @@ export default function DepositPage() {
       toast.dismiss(loadingToast);
 
       if (result.success) {
-        toast.success("Demande envoyee ! Validez sur votre telephone.");
+        toast.success(t("deposit.requestSent"));
         router.push(`/deposit/confirm?ref=${result.reference}`);
       } else {
-        toast.error(result.error || "Erreur lors du depot.");
+        toast.error(result.error || t("deposit.depositError"));
       }
     } catch {
       toast.dismiss(loadingToast);
-      toast.error("Erreur de connexion. Veuillez reessayer.");
+      toast.error(t("deposit.connectionError"));
     } finally {
       setIsLoading(false);
     }
@@ -526,7 +529,7 @@ export default function DepositPage() {
           </button>
           <div>
             <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
-              Depot
+              {t("deposit.title")}
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <CircleDot size={8} className="text-blue-500 animate-pulse" />
@@ -556,15 +559,16 @@ export default function DepositPage() {
 
       <main className="px-6 space-y-6">
         {/* BANNER */}
-        <DepositBanner />
+        <DepositBanner t={t} />
 
         {/* TABS */}
-        <DepositTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <DepositTabs activeTab={activeTab} onTabChange={setActiveTab} t={t} />
 
         {/* COUNTRY SELECTOR */}
         <CountrySelector
           selectedCountry={selectedCountry}
           onOpen={() => setIsCountryModalOpen(true)}
+          t={t}
         />
 
         {/* TAB CONTENT */}
@@ -578,10 +582,10 @@ export default function DepositPage() {
               exit={{ opacity: 0, y: -10 }}
               className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6"
             >
-              {/* MONTANT */}
+              {/* AMOUNT */}
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-                  Montant (USD)
+                  {t("deposit.amountUsd")}
                 </label>
                 <div className="relative">
                   <input
@@ -618,7 +622,7 @@ export default function DepositPage() {
               {selectedCountry.operators?.length > 0 && (
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-                    Operateur Mobile
+                    {t("deposit.mobileOperator")}
                   </label>
                   <div className="grid grid-cols-1 gap-2">
                     {selectedCountry.operators.map((op) => (
@@ -649,8 +653,8 @@ export default function DepositPage() {
                             </span>
                             <span className="text-[8px] text-slate-500 font-bold uppercase">
                               {op.features.cashIn
-                                ? "Depot disponible"
-                                : "Indisponible"}
+                                ? t("deposit.depositAvailable")
+                                : t("deposit.unavailable")}
                             </span>
                           </div>
                         </div>
@@ -672,8 +676,7 @@ export default function DepositPage() {
                 <div className="flex items-center gap-3 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
                   <AlertTriangle size={18} className="text-amber-400 shrink-0" />
                   <p className="text-[10px] text-amber-300 font-bold">
-                    Aucun operateur Mobile Money disponible pour ce pays. Utilisez
-                    l'onglet Crypto pour deposer via Pi Network.
+                    {t("deposit.noOperatorWarning")}
                   </p>
                 </div>
               )}
@@ -684,12 +687,13 @@ export default function DepositPage() {
                 fee={feesCalculation.fee}
                 totalLocal={feesCalculation.totalLocal}
                 currency={selectedCountry.currency}
+                t={t}
               />
 
               {/* PHONE NUMBER */}
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-                  Numero de telephone
+                  {t("deposit.phoneNumber")}
                 </label>
                 <div className="flex gap-2">
                   <div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center text-xs font-black text-blue-500">
@@ -710,8 +714,7 @@ export default function DepositPage() {
               <div className="flex items-center gap-2.5 p-3 bg-blue-500/5 rounded-xl border border-blue-500/10">
                 <Clock size={14} className="text-blue-400 shrink-0" />
                 <p className="text-[9px] text-blue-300/80 font-bold leading-relaxed">
-                  Delai estime : 1-5 min. Vous recevrez un message USSD sur votre
-                  telephone pour confirmer.
+                  {t("deposit.estimatedDelay")}
                 </p>
               </div>
 
@@ -728,7 +731,7 @@ export default function DepositPage() {
                 {isLoading ? (
                   <Loader2 className="animate-spin" size={22} />
                 ) : (
-                  "Payer maintenant"
+                  t("deposit.payNow")
                 )}
               </button>
             </motion.div>
@@ -746,14 +749,14 @@ export default function DepositPage() {
               <div className="flex items-center gap-2 mb-2 text-emerald-500">
                 <Lock size={14} />
                 <span className="text-[10px] font-black uppercase tracking-widest">
-                  Paiement Securise SSL
+                  {t("deposit.secureSSL")}
                 </span>
               </div>
 
               {/* Amount for card */}
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-                  Montant (USD)
+                  {t("deposit.amountUsd")}
                 </label>
                 <div className="relative">
                   <input
@@ -768,7 +771,7 @@ export default function DepositPage() {
               </div>
 
               <input
-                placeholder="Numero de Carte"
+                placeholder={t("deposit.cardNumber")}
                 className="w-full h-14 bg-slate-900/80 border border-white/10 rounded-2xl px-5 text-sm font-black outline-none focus:border-blue-500/50 transition-colors"
               />
               <div className="grid grid-cols-2 gap-4">
@@ -785,13 +788,12 @@ export default function DepositPage() {
               <div className="flex items-center gap-2.5 p-3 bg-blue-500/5 rounded-xl border border-blue-500/10">
                 <Info size={14} className="text-blue-400 shrink-0" />
                 <p className="text-[9px] text-blue-300/80 font-bold leading-relaxed">
-                  Frais : 2.5% + 0.30 USD. Traitement instantane. Cartes Visa et
-                  Mastercard acceptees.
+                  {t("deposit.cardFeeInfo")}
                 </p>
               </div>
 
               <button className="w-full h-14 bg-blue-600 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-transform">
-                Debiter la carte
+                {t("deposit.debitCard")}
               </button>
             </motion.div>
           )}
@@ -814,7 +816,7 @@ export default function DepositPage() {
                     Pi Network Bridge
                   </h3>
                   <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-widest">
-                    Transfert direct Mainnet
+                    {t("deposit.directMainnetTransfer")}
                   </p>
                 </div>
               </div>
@@ -822,7 +824,7 @@ export default function DepositPage() {
               {/* Amount input for crypto */}
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-2">
-                  Montant (USD)
+                  {t("deposit.amountUsd")}
                 </label>
                 <div className="relative">
                   <input
@@ -843,7 +845,7 @@ export default function DepositPage() {
               <div className="bg-black/40 p-4 rounded-2xl border border-white/5 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Conversion GCV
+                    {t("deposit.gcvConversion")}
                   </span>
                   <span className="text-sm font-black text-blue-400">
                     {feesCalculation.piEquivalent} Pi
@@ -851,19 +853,19 @@ export default function DepositPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Frais PimPay
+                    {t("deposit.pimpayFees")}
                   </span>
                   <span className="text-sm font-black text-emerald-400">
-                    0% (gratuit)
+                    {t("deposit.freeLabel")}
                   </span>
                 </div>
                 <div className="h-px bg-white/5" />
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Frais blockchain
+                    {t("deposit.blockchainFees")}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400">
-                    ~0.01 Pi (estime)
+                    {t("deposit.estimatedBlockchainFee")}
                   </span>
                 </div>
               </div>
@@ -875,21 +877,19 @@ export default function DepositPage() {
                   className="text-amber-400 shrink-0 mt-0.5"
                 />
                 <p className="text-[9px] text-amber-300/80 font-bold leading-relaxed">
-                  Assurez-vous d'utiliser le Pi Browser pour que le paiement Pi
-                  fonctionne. Le depot est credite instantanement apres
-                  confirmation blockchain.
+                  {t("deposit.piWarning")}
                 </p>
               </div>
 
               {/* Pi Payment Button */}
               <PiButton
                 amount={feesCalculation.piAmount}
-                memo={`Depot PimPay - ${amount || 0} USD`}
+                memo={`PimPay Deposit - ${amount || 0} USD`}
                 onSuccess={(txid) => router.push(`/deposit/success?txid=${encodeURIComponent(txid)}&amount=${encodeURIComponent(amount || "0")}&method=Pi+Network`)}
                 label={
                   feesCalculation.piAmount > 0
-                    ? `Deposer ${feesCalculation.piEquivalent} Pi`
-                    : "Entrez un montant"
+                    ? `${t("deposit.title")} ${feesCalculation.piEquivalent} Pi`
+                    : t("deposit.enterAmount")
                 }
               />
             </motion.div>
@@ -897,18 +897,18 @@ export default function DepositPage() {
         </AnimatePresence>
 
         {/* TRANSACTION INFO */}
-        <TransactionInfo />
+        <TransactionInfo t={t} />
 
         {/* SECURITY SECTION */}
-        <SecuritySection />
+        <SecuritySection t={t} />
 
         {/* FAQ */}
-        <FAQSection />
+        <FAQSection t={t} />
 
         {/* Footer disclaimer */}
         <div className="text-center py-4">
           <p className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">
-            PimPay Secure Gateway v4.0 - Protocole de securite bancaire
+            {t("deposit.secureGateway")}
           </p>
         </div>
       </main>
@@ -921,6 +921,7 @@ export default function DepositPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         filteredCountries={filteredCountries}
+        t={t}
       />
 
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
