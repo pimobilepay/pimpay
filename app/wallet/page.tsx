@@ -12,6 +12,7 @@ import SideMenu from "@/components/SideMenu";
 import { useRouter } from "next/navigation";
 import SendModal from "@/components/SendModal";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 // --- LOGOS ---
 const PiLogo = () => (
@@ -89,6 +90,7 @@ interface WalletAddresses {
 
 export default function WalletPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -209,7 +211,7 @@ export default function WalletPage() {
     if (!address) return;
     navigator.clipboard.writeText(address);
     setCopied(true);
-    toast.success("Adresse copiee");
+    toast.success(t("wallet.addressCopied"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -237,7 +239,7 @@ export default function WalletPage() {
             <h1 className="text-xl font-black uppercase tracking-tighter">
               M<span className="text-blue-500">Wallet</span>
             </h1>
-            <p className="text-[9px] font-black text-blue-400/70 uppercase tracking-[0.2em] mt-0.5">Multi-Chain Web3 Portfolio</p>
+            <p className="text-[9px] font-black text-blue-400/70 uppercase tracking-[0.2em] mt-0.5">{t("wallet.multiChainPortfolio")}</p>
           </div>
           <button
             onClick={loadWalletData}
@@ -261,7 +263,7 @@ export default function WalletPage() {
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Solde Total</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{t("wallet.totalBalance")}</p>
                   {loading ? (
                     <div className="h-9 w-48 bg-white/5 rounded-xl animate-pulse" />
                   ) : (
@@ -295,12 +297,12 @@ export default function WalletPage() {
         <div className="grid grid-cols-4 gap-3 mb-8">
           <QuickAction
             icon={<ArrowUpRight size={20} />}
-            label="Envoyer"
+            label={t("wallet.send")}
             onClick={() => setIsSendOpen(true)}
           />
           <QuickAction
             icon={<Download size={20} />}
-            label="Recevoir"
+            label={t("wallet.receive")}
             onClick={() => setSelectedAsset({
               name: "Pi Network",
               symbol: "PI",
@@ -310,20 +312,20 @@ export default function WalletPage() {
           />
           <QuickAction
             icon={<ArrowLeftRight size={20} />}
-            label="Swap"
+            label={t("wallet.swap")}
             onClick={() => router.push('/wallet/swap')}
           />
           <QuickAction
             icon={<History size={20} />}
-            label="Historique"
+            label={t("wallet.history")}
             onClick={() => router.push('/transactions')}
           />
         </div>
 
         {/* ASSETS LIST */}
         <div className="flex items-center justify-between mb-4 px-1">
-          <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tes Actifs</h3>
-          <span className="text-[9px] font-bold text-slate-600">9 actifs</span>
+          <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
+          <span className="text-[9px] font-bold text-slate-600">9 {t("wallet.assetsCount")}</span>
         </div>
 
         <div className="space-y-2.5 mb-8">
@@ -439,8 +441,8 @@ export default function WalletPage() {
         {/* RECENT ACTIVITY */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4 px-1">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Activites Recentes</h3>
-            <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">Voir tout</button>
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.recentActivity")}</h3>
+            <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">{t("wallet.viewAll")}</button>
           </div>
 
           <div className="space-y-2.5">
@@ -449,7 +451,7 @@ export default function WalletPage() {
                 day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
               });
 
-              let txType = "TRANSFERT";
+              let txType = t("wallet.transfer");
               let TxIcon = ArrowUpRight;
               let iconBg = "bg-red-500/10";
               let iconColor = "text-red-400";
@@ -457,13 +459,13 @@ export default function WalletPage() {
               let amountColor = "text-white";
 
               if (tx.type === "EXCHANGE" || tx.type === "SWAP") {
-                txType = "SWAP";
+                txType = t("wallet.swapLabel");
                 TxIcon = ArrowLeftRight;
                 iconBg = "bg-blue-500/10";
                 iconColor = "text-blue-400";
                 amountPrefix = "";
               } else if (tx.toUserId === userId || tx.type === "DEPOSIT") {
-                txType = tx.type === "DEPOSIT" ? "DEPOT" : "RECU";
+                txType = tx.type === "DEPOSIT" ? t("wallet.depositLabel") : t("wallet.received");
                 TxIcon = ArrowDownLeft;
                 iconBg = "bg-emerald-500/10";
                 iconColor = "text-emerald-400";
@@ -513,7 +515,7 @@ export default function WalletPage() {
             }) : (
               <div className="p-10 text-center bg-white/[0.02] rounded-2xl border border-dashed border-white/10">
                 <Clock size={22} className="mx-auto text-slate-700 mb-2" />
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">Aucune activite recente</p>
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{t("wallet.noRecentActivity")}</p>
               </div>
             )}
           </div>
@@ -542,11 +544,11 @@ export default function WalletPage() {
             </button>
 
             <div className="mb-4">
-              <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">Deposer {selectedAsset.symbol}</p>
+              <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">{t("wallet.depositSymbol")} {selectedAsset.symbol}</p>
               <h4 className="text-lg font-black text-white uppercase tracking-tight">{selectedAsset.name}</h4>
               {selectedAsset.network && (
                 <span className="inline-block mt-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[9px] font-black text-blue-400 uppercase">
-                  Reseau: {selectedAsset.network}
+                  {t("wallet.network")}: {selectedAsset.network}
                 </span>
               )}
             </div>
@@ -554,7 +556,7 @@ export default function WalletPage() {
             <div className="bg-white p-3 rounded-2xl inline-block mb-5">
               {!selectedAsset.address ? (
                 <div className="w-[170px] h-[170px] flex items-center justify-center text-slate-400 font-bold uppercase text-[10px] animate-pulse">
-                  Chargement...
+                  {t("wallet.loading")}
                 </div>
               ) : (
                 <QRCodeSVG value={selectedAsset.address} size={170} />
@@ -566,19 +568,19 @@ export default function WalletPage() {
               className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex items-center justify-between cursor-pointer active:bg-white/10 transition-all"
             >
               <p className="text-[10px] font-mono text-slate-400 truncate mr-3">
-                {selectedAsset.address || "Non disponible"}
+                {selectedAsset.address || t("wallet.notAvailable")}
               </p>
               {copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />}
             </div>
 
             {selectedAsset.symbol === "USDT" && (
               <div className="mt-3 py-1.5 px-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                <p className="text-[9px] font-bold text-orange-400 uppercase">Reseau TRC20 (TRON) uniquement</p>
+                <p className="text-[9px] font-bold text-orange-400 uppercase">{t("wallet.trc20Only")}</p>
               </div>
             )}
 
             <p className="text-[8px] text-slate-600 uppercase font-bold mt-4 tracking-wide">
-              Envoyez uniquement du {selectedAsset.symbol} sur cette adresse
+              {t("wallet.sendOnlyWarning").replace("{symbol}", selectedAsset.symbol)}
             </p>
           </div>
         </div>

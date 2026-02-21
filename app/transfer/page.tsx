@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { QRScanner } from "@/components/qr-scanner";
+import { useLanguage } from "@/context/LanguageContext";
 
 // --- TYPES ---
 interface WalletData {
@@ -56,6 +57,7 @@ const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
 
 export default function SendPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -153,8 +155,8 @@ export default function SendPage() {
               else if (isTron) networkLabel = "USDT TRC20";
 
               setRecipientData({
-                firstName: "Adresse",
-                lastName: `${networkLabel} Externe`,
+                firstName: t("transfer.externalAddress"),
+                lastName: `${networkLabel} ${t("transfer.externalNetwork")}`,
                 avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${recipientId}`,
                 isExternal: true,
               });
@@ -183,19 +185,19 @@ export default function SendPage() {
     setShowQRScanner(false);
     if (data && data.length > 0) {
       setRecipientId(data);
-      toast.success("Adresse scannée avec succès");
+      toast.success(t("transfer.qrScanned"));
     }
   };
 
   const handleGoToSummary = async () => {
     if (!recipientId || !amount) {
-      toast.error("Veuillez remplir tous les champs");
+      toast.error(t("transfer.fillAllFields"));
       return;
     }
     const numericAmount = parseFloat(amount);
-    if (numericAmount <= 0) return toast.error("Montant invalide");
+    if (numericAmount <= 0) return toast.error(t("transfer.invalidAmount"));
     if (numericAmount > currentWallet.balance) {
-      toast.error(`Solde insuffisant en ${selectedCurrency}`);
+      toast.error(t("transfer.insufficientBalance").replace("{currency}", selectedCurrency));
       return;
     }
 
@@ -207,7 +209,7 @@ export default function SendPage() {
       amount: amount,
       currency: selectedCurrency,
       fee: networkFee.toString(),
-      description: description || "Transfert PimPay",
+      description: description || t("transfer.defaultDescription"),
     });
     router.push(`/transfer/summary?${params.toString()}`);
   };
@@ -227,7 +229,7 @@ export default function SendPage() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-black uppercase  tracking-tighter">Transfert</h1>
+            <h1 className="text-xl font-black uppercase  tracking-tighter">{t("transfer.title")}</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
               <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em]">PimPay Secure Protocol</p>
@@ -242,7 +244,7 @@ export default function SendPage() {
         <div className="space-y-5">
           {/* WALLET SELECTOR */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Source des fonds</label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">{t("transfer.fundSource")}</label>
             <div className="relative">
               <button
                 disabled={isLoadingWallets}
@@ -260,7 +262,7 @@ export default function SendPage() {
                   <div className="text-left">
                     <p className="text-xs font-black uppercase tracking-tight">{selectedCurrency}</p>
                     <p className="text-[10px] text-emerald-500 font-bold">
-                      {isLoadingWallets ? "Chargement..." : `${currentWallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} disponible`}
+                      {isLoadingWallets ? t("transfer.loadingWallets") : `${currentWallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${t("transfer.availableSuffix")}`}
                     </p>
                   </div>
                 </div>
@@ -297,24 +299,24 @@ export default function SendPage() {
                       );
                     })
                   ) : (
-                    <div className="p-4 text-[10px] text-center text-slate-500 font-black">AUCUN WALLET</div>
+                    <div className="p-4 text-[10px] text-center text-slate-500 font-black">{t("transfer.noWallet")}</div>
                   )}
                 </div>
               )}
             </div>
             <div className="flex items-center gap-2 ml-1">
               <span className="text-[8px] font-black text-slate-600 bg-white/5 px-2 py-0.5 rounded uppercase">{currencyMeta.network}</span>
-              <span className="text-[8px] font-bold text-slate-600">Frais: {networkFee} {selectedCurrency}</span>
+              <span className="text-[8px] font-bold text-slate-600">{t("common.fee")}: {networkFee} {selectedCurrency}</span>
             </div>
           </section>
 
           {/* RECIPIENT SECTION */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Bénéficiaire</label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">{t("transfer.beneficiary")}</label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Pseudo, email ou adresse wallet..."
+                placeholder={t("transfer.recipientInputPlaceholder")}
                 value={recipientId}
                 onChange={(e) => setRecipientId(e.target.value)}
                 className="w-full bg-[#0c1629] border border-white/[0.06] rounded-2xl p-4 pl-12 pr-14 text-sm text-white focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-700"
@@ -329,7 +331,7 @@ export default function SendPage() {
             </div>
             {isSearching && (
               <div className="text-[9px] text-blue-400 font-black uppercase px-2 flex gap-2 items-center tracking-widest">
-                <Loader2 className="animate-spin" size={12} /> Recherche blockchain...
+                <Loader2 className="animate-spin" size={12} /> {t("transfer.searchingBlockchain")}
               </div>
             )}
 
@@ -351,7 +353,7 @@ export default function SendPage() {
                   <p className="text-sm font-black uppercase tracking-tight truncate">{recipientData.firstName} {recipientData.lastName}</p>
                   <div className="flex items-center gap-1.5">
                     {recipientData.isExternal ? (
-                      <span className="text-[8px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase">Externe</span>
+                      <span className="text-[8px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase">{t("transfer.external")}</span>
                     ) : (
                       <span className="text-[9px] text-blue-400 uppercase font-black tracking-tight">@{recipientData.username || "pimuser"}</span>
                     )}
@@ -379,7 +381,7 @@ export default function SendPage() {
                 <span className="px-3 py-1 bg-blue-600/10 text-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest italic">{selectedCurrency}</span>
                 {amount && parseFloat(amount) > currentWallet.balance && (
                   <span className="flex items-center gap-1 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400">
-                    <AlertTriangle size={10} /> Insuffisant
+                    <AlertTriangle size={10} /> {t("transfer.insufficient")}
                   </span>
                 )}
               </div>
@@ -408,10 +410,10 @@ export default function SendPage() {
 
           {/* DESCRIPTION */}
           <section className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Note (optionnel)</label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">{t("transfer.noteOptional")}</label>
             <input
               type="text"
-              placeholder="Ex: Remboursement, Paiement service..."
+              placeholder={t("transfer.notePlaceholderEx")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-[#0c1629] border border-white/[0.06] rounded-2xl p-4 text-sm text-white outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
@@ -423,19 +425,19 @@ export default function SendPage() {
             <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2.5 animate-in fade-in zoom-in-95">
               <div className="flex items-center gap-1.5 mb-1">
                 <Info size={12} className="text-slate-500" />
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Résumé</span>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t("transfer.summaryLabel")}</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide">
-                <span className="text-slate-500">Montant</span>
+                <span className="text-slate-500">{t("transfer.amountLabel")}</span>
                 <span className="text-white">{parseFloat(amount).toLocaleString()} {selectedCurrency}</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide">
-                <span className="text-slate-500">Frais réseau</span>
+                <span className="text-slate-500">{t("transfer.networkFee")}</span>
                 <span className="text-slate-400">{networkFee} {selectedCurrency}</span>
               </div>
               <div className="h-px bg-white/5" />
               <div className="flex justify-between text-[11px] font-black uppercase">
-                <span className="text-blue-400">Total débit</span>
+                <span className="text-blue-400">{t("transfer.totalDebit")}</span>
                 <span className="text-white">{(parseFloat(amount) + networkFee).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedCurrency}</span>
               </div>
             </div>
@@ -453,11 +455,11 @@ export default function SendPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="animate-spin" size={20} />
-                <span>Traitement...</span>
+                <span>{t("transfer.processing")}</span>
               </>
             ) : (
               <>
-                <span>Continuer</span>
+                <span>{t("transfer.continueBtn")}</span>
                 <ArrowUpRight size={18} />
               </>
             )}
@@ -465,7 +467,7 @@ export default function SendPage() {
 
           <div className="flex items-center justify-center gap-2 pt-2">
             <ShieldCheck size={12} className="text-slate-600" />
-            <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Transaction chiffrée bout-en-bout</p>
+            <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">{t("transfer.encryptedTransaction")}</p>
           </div>
         </div>
       </div>

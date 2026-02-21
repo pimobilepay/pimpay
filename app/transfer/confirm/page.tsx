@@ -7,9 +7,11 @@ import {
   Loader2, Lock, ChevronRight, X, Wallet
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 function ConfirmContent() {
   const router = useRouter();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -19,9 +21,9 @@ function ConfirmContent() {
 
   // Données de transaction depuis l'URL
   const recipientId = searchParams.get("recipientId");
-  const recipientName = searchParams.get("recipientName") || "Utilisateur";
+  const recipientName = searchParams.get("recipientName") || t("common.noData");
   const amount = parseFloat(searchParams.get("amount") || "0");
-  const description = searchParams.get("description") || "Transfert Pi";
+  const description = searchParams.get("description") || t("transfer.defaultDescription");
   
   // Utilisation des frais définis dans le schéma ou par défaut
   const networkFee = 0.01;
@@ -79,16 +81,16 @@ function ConfirmContent() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        toast.success("Signature acceptée par le Mainnet");
+        toast.success(t("transfer.signatureAccepted"));
         // Redirection vers le succès avec la référence Prisma
         router.push(`/transfer/success?amount=${amount}&name=${encodeURIComponent(recipientName)}&ref=${result.data.reference}`);
       } else {
-        toast.error(result.error || "Échec de la transaction");
-        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || "Refus de signature")}`);
+        toast.error(result.error || t("transfer.transactionFailed"));
+        router.push(`/transfer/failed?error=${encodeURIComponent(result.error || t("transfer.signatureRefusal"))}`);
       }
     } catch (err) {
-      toast.error("Erreur de communication blockchain");
-      router.push(`/transfer/failed?error=Erreur réseau`);
+      toast.error(t("transfer.blockchainError"));
+      router.push(`/transfer/failed?error=${encodeURIComponent(t("transfer.networkError"))}`);
     } finally {
       setIsLoading(false);
       setPin("");
@@ -105,7 +107,7 @@ function ConfirmContent() {
         </button>
         <div className="text-right">
           <h1 className="text-xl font-black uppercase italic">PimPay<span className="text-blue-500">.Sign</span></h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Confirmation de transfert</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("transfer.confirmTransfer")}</p>
         </div>
       </div>
 
@@ -114,7 +116,7 @@ function ConfirmContent() {
         <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-sm">
           <Wallet size={14} className="text-blue-500" />
           <span className="text-xs font-bold text-slate-300">
-            {walletBalance !== null ? `${walletBalance.toFixed(4)} π disponible` : "Synchronisation..."}
+            {walletBalance !== null ? `${walletBalance.toFixed(4)} π ${t("transfer.availableBalance")}` : t("transfer.syncing")}
           </span>
         </div>
       </div>
@@ -125,7 +127,7 @@ function ConfirmContent() {
         </div>
         
         <div className="p-10 text-center bg-white/[0.01]">
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Montant à envoyer</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">{t("transfer.amountToSend")}</p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-5xl font-black tracking-tighter">{amount}</span>
             <span className="text-2xl font-black italic text-blue-500">π</span>
@@ -134,7 +136,7 @@ function ConfirmContent() {
 
         <div className="p-6 space-y-5 border-t border-white/5 bg-black/20">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase">Destinataire</span>
+            <span className="text-[10px] font-black text-slate-500 uppercase">{t("transfer.recipientLabel")}</span>
             <div className="flex items-center gap-2">
                 <span className="text-sm font-bold uppercase truncate max-w-[150px]">{recipientName}</span>
                 <ShieldCheck size={14} className="text-emerald-500" />
@@ -142,8 +144,8 @@ function ConfirmContent() {
           </div>
           <div className="pt-4 border-t border-white/5 flex justify-between items-center">
             <div className="flex flex-col">
-                <span className="text-blue-500 font-black text-[11px] uppercase tracking-tighter">Total débit</span>
-                <span className="text-[8px] text-slate-500 font-bold uppercase italic">(Incluant 0.01 π de frais)</span>
+                <span className="text-blue-500 font-black text-[11px] uppercase tracking-tighter">{t("transfer.totalDebitLabel")}</span>
+                <span className="text-[8px] text-slate-500 font-bold uppercase italic">{t("transfer.includingFees")}</span>
             </div>
             <span className={`text-xl font-black ${isInsufficient ? 'text-red-500' : 'text-white'}`}>
                 {totalDebit.toFixed(2)} π
