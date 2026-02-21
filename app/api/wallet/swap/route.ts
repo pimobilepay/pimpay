@@ -131,6 +131,23 @@ export async function POST(request: Request) {
       isolationLevel: "Serializable"
     });
 
+    // Notification de swap
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Swap effectue !",
+        message: `Vous avez converti ${swapAmount} ${from} en ${result.received} ${to}.`,
+        type: "SWAP",
+        metadata: {
+          fromCurrency: from,
+          toCurrency: to,
+          fromAmount: swapAmount,
+          toAmount: result.received,
+          reference: result.reference,
+        }
+      }
+    }).catch(() => {});
+
     return NextResponse.json({ success: true, ...result });
 
   } catch (error: any) {

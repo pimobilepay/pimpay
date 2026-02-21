@@ -28,32 +28,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Paiement déjà traité" }, { status: 400 });
     }
 
-    // Créer une transaction en attente
+    const finalAmount = parseFloat(amount);
+
+    // Créer la transaction approuvée automatiquement
     const transaction = await prisma.transaction.create({
       data: {
         userId: user.id,
         type: "DEPOSIT",
         currency: "PI",
-        amount: parseFloat(amount),
-        status: "PENDING",
+        amount: finalAmount,
+        status: "COMPLETED",
         externalId: paymentId,
-        description: memo || "Demande de paiement Pi Network",
+        description: memo || "Paiement Pi Network (Automatique)",
         metadata: {
           paymentType: "receive_request",
           requestedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
         }
       }
     });
 
-    console.log(`[RECEIVE-PAYMENT] Transaction created: ${transaction.id}`);
+    // Créditer le wallet PI immédiatement
+    const piWallet = await prisma.wallet.findFirst({
+      where: { userId: user.id, currency: "PI" }
+    });
 
-    // Ici, vous devriez appeler l'API Pi Network pour approuver le paiement
-    // Pour l'instant, on retourne simplement la confirmation
+    if (piWallet) {
+      await prisma.wallet.update({
+        where: { id: piWallet.id },
+        data: { balance: { increment: finalAmount } }
+      });
+    }
+
+    // Notification de confirmation
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        title: "Paiement recu !",
+        message: `Votre compte a été crédité de ${finalAmount} PI.`,
+        type: "SUCCESS"
+      }
+    });
+
+    console.log(`[RECEIVE-PAYMENT] Transaction completed: ${transaction.id}`);
+
     return NextResponse.json({
       success: true,
       transactionId: transaction.id,
       paymentId,
-      message: "Paiement en attente d'approbation"
+      message: "Paiement approuvé et crédité"
     });
 
   } catch (error: any) {

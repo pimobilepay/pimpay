@@ -51,8 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Création de la transaction dans PimPay
-    // Si paymentId existe, c'est le SDK Pi Browser -> On valide direct
-    const isPiAutomatic = !!paymentId; 
+    // Toutes les transactions entrantes sont approuvées automatiquement
     const finalAmount = parseFloat(amount) || 0;
 
     const deposit = await prisma.transaction.create({
@@ -61,11 +60,11 @@ export async function POST(req: NextRequest) {
         amount: finalAmount,
         blockchainTx: externalRef,
         type: "DEPOSIT",
-        status: isPiAutomatic ? "COMPLETED" : "PENDING",
+        status: "COMPLETED",
         fromUserId: userId,
         toUserId: userId,
         toWalletId: userWallet.id,
-        description: isPiAutomatic ? "Dépôt Pi Browser (Automatique)" : `Dépôt ${provider} (Manuel)`,
+        description: `Dépôt ${provider} (Automatique)`,
         metadata: {
           txHash,
           paymentId,
@@ -75,23 +74,19 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // 6. Mise à jour du solde IMMÉDIATE pour Pi Browser uniquement
-    if (isPiAutomatic) {
-      await prisma.wallet.update({
-        where: { id: userWallet.id },
-        data: { balance: { increment: finalAmount } }
-      });
-    }
+    // 6. Mise à jour du solde IMMÉDIATE pour tous les dépôts
+    await prisma.wallet.update({
+      where: { id: userWallet.id },
+      data: { balance: { increment: finalAmount } }
+    });
 
     // 7. Notification de confirmation
     await prisma.notification.create({
       data: {
         userId,
-        title: isPiAutomatic ? "Dépôt réussi !" : "Dépôt en attente",
-        message: isPiAutomatic 
-          ? `Votre compte a été crédité de ${finalAmount} ${currency}.`
-          : `Nous vérifions votre dépôt de ${finalAmount} ${currency}.`,
-        type: "INFO"
+        title: "Dépôt réussi !",
+        message: `Votre compte a été crédité de ${finalAmount} ${currency}.`,
+        type: "SUCCESS"
       }
     });
 

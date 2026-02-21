@@ -114,6 +114,24 @@ export async function POST(req: Request) {
       timeout: 15000 // Sécurité pour les connexions lentes sur mobile
     });
                                                    
+    // Notification de swap
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Swap effectue !",
+        message: `Vous avez converti ${result.amount} ${result.currency} en ${result.netAmount} ${result.destCurrency}.`,
+        type: "SWAP",
+        metadata: {
+          fromCurrency: result.currency,
+          toCurrency: result.destCurrency,
+          fromAmount: result.amount,
+          toAmount: result.netAmount,
+          rate: result.retailRate,
+          reference: result.reference,
+        }
+      }
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       message: "Swap effectué avec succès",

@@ -26,6 +26,12 @@ interface Notification {
     location?: string;
     os?: string;
     browser?: string;
+    fromCurrency?: string;
+    toCurrency?: string;
+    fromAmount?: number;
+    toAmount?: number;
+    rate?: number;
+    reference?: string;
   };
 }
 
@@ -81,9 +87,10 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
-      // CORRECTION : Utilisation de PUT comme défini dans ton API pour "Tout marquer"
       const res = await fetch("/api/notifications", {
-        method: "PUT",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
       });
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -237,6 +244,44 @@ export default function NotificationsPage() {
                                <Globe size={10} /> {notif.metadata.ip}
                              </div>
                            )}
+                        </div>
+                      )}
+
+                      {/* Métadonnées de swap si disponibles */}
+                      {notif.metadata && notif.type === "SWAP" && (
+                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-white/5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-rose-500/20 rounded-lg flex items-center justify-center">
+                                <ArrowUpRight size={10} className="text-rose-400" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Envoyé</span>
+                                <p className="text-xs font-bold text-white">{notif.metadata.fromAmount} {notif.metadata.fromCurrency}</p>
+                              </div>
+                            </div>
+                            <Repeat size={14} className="text-slate-600" />
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider text-right block">Recu</span>
+                                <p className="text-xs font-bold text-emerald-400">{notif.metadata.toAmount} {notif.metadata.toCurrency}</p>
+                              </div>
+                              <div className="w-6 h-6 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                                <ArrowDownLeft size={10} className="text-emerald-400" />
+                              </div>
+                            </div>
+                          </div>
+                          {notif.metadata.rate && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-1 border-t border-white/5">
+                              <Info size={10} />
+                              <span>Taux: 1 {notif.metadata.fromCurrency} = {Number(notif.metadata.rate).toFixed(4)} {notif.metadata.toCurrency}</span>
+                            </div>
+                          )}
+                          {notif.metadata.reference && (
+                            <div className="text-[9px] text-slate-600 font-mono">
+                              Ref: {notif.metadata.reference}
+                            </div>
+                          )}
                         </div>
                       )}
 
