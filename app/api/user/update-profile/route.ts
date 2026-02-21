@@ -24,14 +24,25 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // --- LOGIQUE DE NETTOYAGE DES ADRESSES ---
+    // --- LOGIQUE DE NETTOYAGE DES DONNEES ---
     const updateData: any = {
       firstName: body.firstName ?? undefined,
       lastName: body.lastName ?? undefined,
       username: body.username ?? undefined,
       email: body.email ?? undefined,
+      phone: body.phone ?? undefined,
       country: body.country ?? undefined,
-      // On n'accepte l'adresse que si elle ressemble à une vraie adresse Pi (commence par G)
+      city: body.city ?? undefined,
+      address: body.address ?? undefined,
+      postalCode: body.postalCode ?? undefined,
+      nationality: body.nationality ?? undefined,
+      gender: body.gender ?? undefined,
+      occupation: body.occupation ?? undefined,
+      sourceOfFunds: body.sourceOfFunds ?? undefined,
+      idType: body.idType ?? undefined,
+      idNumber: body.idNumber ?? undefined,
+      birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
+      // On n'accepte l'adresse que si elle ressemble a une vraie adresse Pi (commence par G)
       walletAddress: body.walletAddress?.startsWith('G') ? body.walletAddress.trim() : undefined,
       sidraAddress: body.sidraAddress ?? undefined,
       usdtAddress: body.usdtAddress ?? undefined,

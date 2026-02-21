@@ -41,10 +41,24 @@ export async function GET() {
         status: true,
         kycStatus: true,
         name: true,
-        firstName: true, // Ajouté pour le fallback du nom
-        lastName: true,  // Ajouté pour le fallback du nom
+        firstName: true,
+        lastName: true,
         avatar: true,
+        email: true,
+        phone: true,
+        birthDate: true,
+        nationality: true,
+        country: true,
+        city: true,
+        address: true,
+        postalCode: true,
+        gender: true,
+        occupation: true,
+        sourceOfFunds: true,
+        idType: true,
+        idNumber: true,
         walletAddress: true,
+        createdAt: true,
         wallets: {
           where: { currency: "PI" },
           select: { balance: true }
