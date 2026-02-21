@@ -59,9 +59,11 @@ export async function GET(req: NextRequest) {
         chartMap[key].sortant += amount;
       } else if (tx.type === "EXCHANGE") {
         chartMap[key].exchange += amount;
-      } else {
-        // TRANSFER and others go to total
-        chartMap[key].total += amount;
+      } else if (tx.type === "TRANSFER") {
+        // TRANSFER counted as both entrant (for recipient) and sortant (for sender)
+        // At the admin level, we count it as sortant volume since it's moving money
+        chartMap[key].sortant += amount;
+        chartMap[key].entrant += amount;
       }
 
       chartMap[key].total += amount;

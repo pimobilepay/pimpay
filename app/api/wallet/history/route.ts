@@ -44,14 +44,17 @@ export async function GET(req: Request) {
         toUser: { select: { username: true, firstName: true } }
       },
       orderBy: { createdAt: 'desc' },
-      take: 20 // On en prend un peu plus pour le confort
+      take: 50 // More transactions for accurate chart data
     });
 
     // --- FORMATAGE INTELLIGENT POUR LE DASHBOARD ---
     const formattedTransactions = transactions.map(tx => {
-      const isDebit = tx.fromUserId === userId;
+      // For EXCHANGE type, always treat as debit (outgoing from source currency)
+      const isDebit = tx.type === 'EXCHANGE' 
+        ? true 
+        : tx.fromUserId === userId;
       
-      // On définit qui est "l'autre" personne dans la transaction
+      // Define the "other" person in the transaction
       const peer = isDebit ? tx.toUser : tx.fromUser;
       const peerName = peer?.username || peer?.firstName || "Utilisateur externe";
 

@@ -140,15 +140,21 @@ export default function SendPage() {
             const data = await res.json();
             setRecipientData(data);
           } else if (isMountedRef.current) {
-            // Détection adresse externe (Crypto)
-            const isCryptoAddr = recipientId.startsWith("0x") || 
-                               /^G[A-Z2-7]{55}$/.test(recipientId) || 
-                               (recipientId.startsWith("T") && recipientId.length === 34);
+            // Detection adresse externe (Crypto / Pi Network)
+            const isPiAddress = /^G[A-Z2-7]{55}$/.test(recipientId);
+            const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(recipientId);
+            const isTron = recipientId.startsWith("T") && recipientId.length === 34;
+            const isCryptoAddr = isPiAddress || isSdaOrEth || isTron;
             
             if (isCryptoAddr) {
+              let networkLabel = "Blockchain";
+              if (isPiAddress) networkLabel = "Pi Network";
+              else if (isSdaOrEth) networkLabel = "SDA/EVM";
+              else if (isTron) networkLabel = "USDT TRC20";
+
               setRecipientData({
                 firstName: "Adresse",
-                lastName: "Externe",
+                lastName: `${networkLabel} Externe`,
                 avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${recipientId}`,
                 isExternal: true,
               });

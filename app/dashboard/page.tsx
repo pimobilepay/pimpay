@@ -106,15 +106,21 @@ export default function UserDashboard() {
 
   const getStats = () => {
     const txs = data?.transactions || [];
+    
+    // Sent = debit transactions that are not swaps (TRANSFER, WITHDRAW, PAYMENT, CARD_PURCHASE)
     const sent = txs.filter((t: any) => t.isDebit && t.type !== 'EXCHANGE').length;
+    // Received = credit transactions that are not swaps (DEPOSIT, TRANSFER received, AIRDROP, STAKING_REWARD)
     const received = txs.filter((t: any) => !t.isDebit && t.type !== 'EXCHANGE').length;
+    // Swaps = all EXCHANGE type transactions
     const swaps = txs.filter((t: any) => t.type === 'EXCHANGE').length;
+    // Total
+    const total = txs.length;
 
     return [
-      { name: "Sent", value: sent || 0 },
-      { name: "Received", value: received || 0 },
+      { name: "Sortant", value: sent || 0 },
+      { name: "Entrant", value: received || 0 },
       { name: "Swaps", value: swaps || 0 },
-      { name: "Others", value: 1 },
+      { name: "Total", value: total || 0 },
     ];
   };
 
@@ -283,12 +289,25 @@ export default function UserDashboard() {
             <div className="w-32 h-32 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={getStats()} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value">
-                    {getStats().map((_, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />)}
+                  <Pie 
+                    data={getStats().filter(s => s.value > 0).length > 0 
+                      ? getStats().filter(s => s.value > 0) 
+                      : [{ name: "Aucune", value: 1 }]} 
+                    cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value"
+                  >
+                    {getStats().filter(s => s.value > 0).length > 0 
+                      ? getStats().filter(s => s.value > 0).map((entry, index) => {
+                          const colorIndex = getStats().findIndex(s => s.name === entry.name);
+                          return <Cell key={index} fill={PIE_COLORS[colorIndex % PIE_COLORS.length]} stroke="none" />;
+                        })
+                      : [<Cell key={0} fill="#1e293b" stroke="none" />]
+                    }
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase text-blue-400">Live</div>
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase text-blue-400">
+                {(data?.transactions?.length || 0) > 0 ? "Live" : "N/A"}
+              </div>
             </div>
             <div className="flex-1 grid grid-cols-1 gap-2">
               {getStats().map((item, i) => (
