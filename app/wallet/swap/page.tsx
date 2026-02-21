@@ -72,6 +72,7 @@ export default function CryptoSwapPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
   const [isSelecting, setIsSelecting] = useState<"from" | "to" | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -180,12 +181,14 @@ export default function CryptoSwapPage() {
     const currentBalance = parseFloat(balances[fromAsset.id] || "0");
     if (parseFloat(fromAmount) > currentBalance)
       return toast.error(`Solde ${fromAsset.symbol} insuffisant`);
+    setSwapError(null);
     setShowConfirm(true);
   };
 
   const handleSwapExecute = async () => {
     if (loading) return;
     setLoading(true);
+    setSwapError(null);
     try {
       const response = await fetch("/api/wallet/swap", {
         method: "POST",
@@ -201,12 +204,18 @@ export default function CryptoSwapPage() {
         toast.success("Transaction validee par PimPay !");
         setFromAmount("");
         setShowConfirm(false);
+        setSwapError(null);
         await loadUserData();
       } else {
         const data = await response.json();
-        toast.error(data.error || "Le swap a echoue");
+        const errMsg = data.error || "Le swap a echoue";
+        setSwapError(errMsg);
+        setShowConfirm(false);
+        toast.error(errMsg);
       }
     } catch {
+      setSwapError("Erreur reseau. Verifiez votre connexion.");
+      setShowConfirm(false);
       toast.error("Erreur reseau");
     } finally {
       setLoading(false);
@@ -304,6 +313,21 @@ export default function CryptoSwapPage() {
       </div>
 
       <div className="px-6">
+        {/* Error Banner */}
+        {swapError && (
+          <div className="mb-4 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+            <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={16} />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-red-400">{swapError}</p>
+              <button 
+                onClick={() => setSwapError(null)} 
+                className="text-[9px] text-red-300/60 font-bold uppercase mt-1 hover:text-red-300 transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        )}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 space-y-4 shadow-2xl relative">
           {/* FROM */}
           <div className="space-y-2">

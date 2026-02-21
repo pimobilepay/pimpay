@@ -73,13 +73,20 @@ export async function POST(request: Request) {
         return WalletType.CRYPTO;
       };
 
-      // A. Wallet Source : On vérifie le solde
-      const sourceWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId, currency: from } }
+      // A. Wallet Source : upsert pour eviter l'erreur findUnique si le wallet n'existe pas
+      const sourceWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId, currency: from } },
+        update: {},
+        create: {
+          userId,
+          currency: from,
+          balance: 0,
+          type: getWalletType(from),
+        }
       });
 
-      if (!sourceWallet || sourceWallet.balance < swapAmount) {
-        throw new Error(`Solde ${from} insuffisant.`);
+      if (sourceWallet.balance < swapAmount) {
+        throw new Error(`Solde ${from} insuffisant. Disponible: ${sourceWallet.balance} ${from}`);
       }
 
       // B. Débit et Crédit simultanés
@@ -119,13 +126,20 @@ export async function POST(request: Request) {
 
       return { reference: transaction.reference, received: targetAmount };
     }, {
-      timeout: 10000 // Augmentation du timeout à 10s pour éviter l'erreur de ta capture
+      timeout: 15000 // 15s timeout pour eviter les erreurs de transaction Prisma
     });
 
     return NextResponse.json({ success: true, ...result });
 
   } catch (error: any) {
-    console.error("❌ [SWAP_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error("[SWAP_ERROR]:", error.message);
+    
+    // Message d'erreur propre pour le client
+    let clientError = error.message;
+    if (error.message.includes("Transaction API error") || error.message.includes("findUnique")) {
+      clientError = "Erreur temporaire. Veuillez reessayer dans quelques secondes.";
+    }
+    
+    return NextResponse.json({ error: clientError }, { status: 400 });
   }
 }

@@ -59,16 +59,33 @@ function SuccessContent() {
   }, [ref, txid]);
 
   // Montant reel depuis la transaction DB, puis fallback sur le param URL
-  const amount = transaction?.amount ?? (amountParam ? parseFloat(amountParam) : 0.0);
+  const rawAmount = transaction?.amount ?? (amountParam ? parseFloat(amountParam) : 0.0);
   const currency = transaction?.currency || "PI";
   
   // Frais reels depuis la DB, sinon calcul 2%
-  const fee = transaction?.fee ?? amount * 0.02;
+  const fee = transaction?.fee ?? rawAmount * 0.02;
   
   const reference = transaction?.reference || ref || "PIMPAY-TX-PENDING";
   const method = transaction?.description || methodParam;
   const status = transaction?.status || "SUCCESS";
   const blockchainTx = transaction?.blockchainTx || txid || null;
+
+  // GCV rate: 1 PI = $314,159 USD
+  const PI_GCV_PRICE = 314159;
+
+  // Calcul de la valeur nette en PI
+  // Si la devise est PI, le montant est deja en PI
+  // Sinon (USD, XAF), on convertit en PI via le GCV
+  const piNetAmount = currency === "PI" 
+    ? rawAmount 
+    : rawAmount / PI_GCV_PRICE;
+  
+  // Montant affiche: toujours en PI (valeur nette deposee)
+  const displayAmount = piNetAmount;
+  const displayCurrency = "PI";
+
+  // Equivalent USD via GCV
+  const usdEquivalent = displayAmount * PI_GCV_PRICE;
 
   // Formatage intelligent des montants
   const formatAmount = (val: number, cur: string) => {
@@ -156,7 +173,7 @@ function SuccessContent() {
       try {
         await navigator.share({
           title: "Dépôt PimPay réussi",
-          text: `Depot de ${amount} ${currency} confirme sur PimPay. Ref: ${reference}`,
+          text: `Depot de ${formatAmount(displayAmount, "PI")} PI confirme sur PimPay. Ref: ${reference}`,
         });
       } catch {
         // Annulé
@@ -204,17 +221,22 @@ function SuccessContent() {
             : "Votre solde PimPay a ete mis a jour avec succes"}
         </p>
 
-        {/* Montant Dynamique */}
+        {/* Montant Net en PI */}
         <div className="mt-8 mb-2">
           <div className="flex items-baseline justify-center gap-2">
             <span className="text-4xl font-black text-white tracking-tighter">
-              {formatAmount(amount, currency)}
+              {formatAmount(displayAmount, displayCurrency)}
             </span>
-            <span className="text-lg font-bold text-blue-500">{currency}</span>
+            <span className="text-lg font-bold text-blue-500">{displayCurrency}</span>
           </div>
-          {currency === "PI" && amount > 0 && (
+          {displayAmount > 0 && (
             <p className="text-xs text-slate-500 mt-1 font-bold">
-              {`~ $${formatUSD(amount * 314159)} USD (GCV)`}
+              {`~ $${formatUSD(usdEquivalent)} USD (GCV)`}
+            </p>
+          )}
+          {currency !== "PI" && rawAmount > 0 && (
+            <p className="text-[10px] text-slate-600 mt-1 font-medium">
+              {`Depot initial: $${rawAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`}
             </p>
           )}
         </div>
@@ -268,11 +290,11 @@ function SuccessContent() {
               <div className="flex items-center gap-2">
                 <Receipt size={14} className="text-blue-500" />
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  Frais réseau
+                  Frais
                 </span>
               </div>
               <span className="text-[10px] font-bold text-blue-400">
-                {currency === "PI" ? `${formatFee(fee, currency)} PI` : `$${formatFee(fee, currency)} USD`}
+                {formatFee(fee, "PI")} PI
               </span>
             </div>
 
@@ -291,7 +313,7 @@ function SuccessContent() {
               </div>
             </div>
 
-            {/* Blockchain TX (si disponible) */}
+            {/* Blockchain TX (si disponible) - LIEN VERIFICATION */}
             {blockchainTx && (
               <div className="flex justify-between items-center border-t border-white/5 pt-3">
                 <div className="flex items-center gap-2">
@@ -300,18 +322,40 @@ function SuccessContent() {
                     TX Blockchain
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-400 font-bold">
-                  {blockchainTx.slice(0, 12)}...
-                </span>
+                <a
+                  href={`https://minepi.com/blockexplorer/tx/${blockchainTx}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[10px] font-mono text-blue-400 font-bold hover:text-blue-300 transition-colors"
+                >
+                  {blockchainTx.slice(0, 10)}...
+                  <ArrowUpRight size={10} />
+                </a>
               </div>
             )}
           </div>
 
-          <div className="bg-blue-600/5 py-2.5 text-center border-t border-white/5">
-            <p className="text-[8px] font-black text-blue-400/60 uppercase tracking-[0.4em]">
-              PimPay Network - Sécurisé par Blockchain
-            </p>
-          </div>
+          {/* Bouton verification blockchain */}
+          {blockchainTx && (
+            <a
+              href={`https://minepi.com/blockexplorer/tx/${blockchainTx}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-3 bg-blue-600/10 text-blue-400 border-t border-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600/20 transition-colors"
+            >
+              <ShieldCheck size={14} />
+              Verifier sur Pi Blockchain
+              <ArrowUpRight size={12} />
+            </a>
+          )}
+
+          {!blockchainTx && (
+            <div className="bg-blue-600/5 py-2.5 text-center border-t border-white/5">
+              <p className="text-[8px] font-black text-blue-400/60 uppercase tracking-[0.4em]">
+                PimPay Network - Securise par Blockchain
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
