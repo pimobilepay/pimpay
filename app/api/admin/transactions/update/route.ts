@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. Récupération de la transaction avec les relations
+    // --- ÉTAPE 1 : VERIFICATION PRÉLIMINAIRE ---
     const tx = await prisma.transaction.findUnique({
       where: { id: transactionId },
     });
@@ -20,18 +20,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // SÉCURITÉ : On bloque si la transaction n'est pas en PENDING
     if (tx.status !== TransactionStatus.PENDING) {
-      return NextResponse.json({ error: `Transaction déjà finalisée (${tx.status})` }, { status: 400 });
+      return NextResponse.json({ error: `Déjà finalisée (${tx.status})` }, { status: 400 });
     }
 
     const isApprove = action === 'approve';
     const newStatus = isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED;
 
+    // --- ÉTAPE 2 : TRANSACTION ATOMIQUE ---
+    // On passe un timeout plus long pour éviter les déconnexions sur mobile
     const result = await prisma.$transaction(async (p) => {
-
-      // 2. Mise à jour du statut de la transaction
-      const updated = await p.transaction.update({
+      
+      // IMPORTANT : On met à jour la transaction EN PREMIER
+      const updatedTx = await p.transaction.update({
         where: { id: transactionId },
         data: {
           status: newStatus,
@@ -39,9 +40,8 @@ export async function POST(req: Request) {
         },
       });
 
-      // 3. LOGIQUE D'APPROBATION (SUCCESS)
       if (isApprove) {
-        // Mise à jour des statistiques globales (Volume Pi)
+        // Stats Globales
         if (tx.currency === "PI") {
           await p.systemConfig.update({
             where: { id: "GLOBAL_CONFIG" },
@@ -49,63 +49,72 @@ export async function POST(req: Request) {
           });
         }
 
-        // Cas Dépôt : On crédite enfin le portefeuille du destinataire
+        // Crédit du portefeuille (Cas Dépôt)
         if (tx.type === TransactionType.DEPOSIT && tx.toUserId) {
           await p.wallet.update({
-            where: { userId_currency: { userId: tx.toUserId, currency: tx.currency } },
+            where: { 
+              userId_currency: { 
+                userId: tx.toUserId, 
+                currency: tx.currency 
+              } 
+            },
             data: { balance: { increment: tx.amount } }
           });
         }
-        
-        // Note: Pour un TRANSFER, les fonds sont déjà mouvementés au moment de l'envoi 
-        // ou gérés par le statut SUCCESS ici si c'est un transfert manuel.
-      }
-
-      // 4. LOGIQUE DE REFUS (FAILED) - REMBOURSEMENT
+      } 
       else {
-        // Si c'est un retrait (WITHDRAW) ou un transfert qui a déjà débité l'expéditeur
+        // Remboursement (Cas Refus Retrait/Transfert)
         if ((tx.type === TransactionType.WITHDRAW || tx.type === TransactionType.TRANSFER) && tx.fromUserId) {
           const refundAmount = tx.amount + (tx.fee || 0);
           await p.wallet.update({
-            where: { userId_currency: { userId: tx.fromUserId, currency: tx.currency } },
+            where: { 
+              userId_currency: { 
+                userId: tx.fromUserId, 
+                currency: tx.currency 
+              } 
+            },
             data: { balance: { increment: refundAmount } }
           });
         }
       }
 
-      // 5. NOTIFICATION UTILISATEUR
-      const notificationUserId = tx.fromUserId || tx.toUserId;
-      if (notificationUserId) {
+      // Notifications et Logs (Toujours via 'p' pour rester dans la transaction)
+      const targetUserId = tx.fromUserId || tx.toUserId;
+      if (targetUserId) {
         await p.notification.create({
           data: {
-            userId: notificationUserId,
+            userId: targetUserId,
             title: isApprove ? "Opération validée ✅" : "Opération refusée ❌",
-            message: isApprove
-              ? `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a été approuvé avec succès.`
-              : `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a été refusé.`,
+            message: `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a été ${isApprove ? 'approuvé' : 'refusé'}.`,
             type: isApprove ? "success" : "error",
             metadata: { txRef: tx.reference }
-          },
+          }
         });
       }
 
-      // 6. AUDIT LOG (Pour l'historique admin)
       await p.auditLog.create({
         data: {
           adminId: adminId || null,
           action: isApprove ? "TRANSACTION_APPROVE" : "TRANSACTION_REJECT",
-          targetId: notificationUserId,
-          details: `TX: ${tx.reference} | Montant: ${tx.amount} ${tx.currency} | Statut final: ${newStatus}`,
+          targetId: targetUserId,
+          details: `TX: ${tx.reference} | Statut final: ${newStatus}`,
         }
       });
 
-      return updated;
+      return updatedTx;
+    }, {
+      timeout: 15000 // Augmente le temps limite à 15s pour éviter l'erreur de vos captures
     });
 
     return NextResponse.json({ success: true, status: result.status });
 
   } catch (error: any) {
-    console.error("❌ [ADMIN_TX_UPDATE_ERROR]:", error.message);
-    return NextResponse.json({ error: "Erreur serveur : " + error.message }, { status: 500 });
+    console.error("❌ ERROR UPDATE:", error.message);
+    // On renvoie un message propre à l'interface
+    return NextResponse.json({ 
+      error: error.message.includes("Transaction not found") 
+        ? "La connexion a été perdue. Veuillez réessayer." 
+        : error.message 
+    }, { status: 500 });
   }
 }
