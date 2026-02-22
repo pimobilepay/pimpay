@@ -100,6 +100,10 @@ model User {
   xlmAddress        String? @unique
   stellarPrivateKey String? // Utilisé par le Worker (XLM et PI)
 
+  // Solana (SOL)
+  solAddress       String? @unique
+  solPrivateKey    String?
+
   wallets          Wallet[]
   vaults           Vault[]
   stakings         Staking[]
