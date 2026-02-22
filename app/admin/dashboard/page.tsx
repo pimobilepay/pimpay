@@ -178,6 +178,7 @@ function DashboardContent() {
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [maintenanceEnd, setMaintenanceEnd] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
+  const [globalAnnouncement, setGlobalAnnouncement] = useState<string>("");
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -223,6 +224,7 @@ function DashboardContent() {
         const config = await c.json();
         setIsMaintenanceMode(config.maintenanceMode);
         setMaintenanceEnd(config.maintenanceUntil || null);
+        setGlobalAnnouncement(config.globalAnnouncement || "");
       }
       if (ch.ok) {
         const chartRes = await ch.json();
@@ -619,6 +621,48 @@ function DashboardContent() {
                         </Card>
                       </>
                     )}
+
+                    {/* Global Announcement Control */}
+                    <Card className={`border rounded-[2.5rem] p-6 space-y-4 ${globalAnnouncement ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-slate-900/60 border-white/5'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-3 rounded-2xl ${globalAnnouncement ? 'bg-indigo-500 text-white animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
+                            <Megaphone size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white">Annonce Globale</p>
+                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+                              {globalAnnouncement ? "EN COURS DE DIFFUSION" : "AUCUNE ANNONCE ACTIVE"}
+                            </p>
+                          </div>
+                        </div>
+                        {globalAnnouncement && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await fetch("/api/admin/config", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ globalAnnouncement: "" }),
+                                });
+                                if (res.ok) {
+                                  setGlobalAnnouncement("");
+                                  toast.success("Annonce globale desactivee");
+                                } else { toast.error("Echec de la desactivation"); }
+                              } catch { toast.error("Erreur reseau"); }
+                            }}
+                            className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                          >
+                            <X size={14} /> Stopper
+                          </button>
+                        )}
+                      </div>
+                      {globalAnnouncement && (
+                        <div className="bg-black/30 border border-white/5 rounded-2xl p-4">
+                          <p className="text-[10px] text-slate-300 font-mono leading-relaxed break-words">{globalAnnouncement}</p>
+                        </div>
+                      )}
+                    </Card>
 
                     <Button onClick={() => { const msg = prompt("Message annonce reseau :"); if(msg) handleAction(null, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }} className="w-full h-14 bg-blue-600 rounded-2xl font-black text-[9px] uppercase flex items-center justify-center gap-2">
                         <Radio size={16} className="animate-pulse" /> Envoyer Annonce Network
