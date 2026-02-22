@@ -128,10 +128,20 @@ export default function UserDashboard() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/auth/login");
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      localStorage.removeItem("pimpay_user");
+      const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
+      for (const c of cookieNames) {
+        document.cookie = `${c}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
+        document.cookie = `${c}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
+      }
+      window.location.href = "/auth/login";
     } catch (err) {
-      router.push("/auth/login");
+      localStorage.removeItem("pimpay_user");
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      window.location.href = "/auth/login";
     }
   };
 

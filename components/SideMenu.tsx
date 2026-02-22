@@ -135,14 +135,30 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
   const logout = async () => {
     try {
+      onClose();
+
+      // 1. Appel API d'abord pour invalider la session en DB et supprimer les cookies httpOnly
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+
+      // 2. Nettoyer le stockage local
+      localStorage.removeItem("pimpay_user");
+
+      // 3. Supprimer tous les cookies cote client (fallback pour les cookies non-httpOnly)
+      const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
+      for (const name of cookieNames) {
+        document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
+        document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
+      }
+
+      // 4. Rediriger vers la page de login
+      window.location.href = "/auth/login";
+    } catch (err) {
+      // En cas d'erreur reseau, forcer quand meme la deconnexion locale
       localStorage.removeItem("pimpay_user");
       document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      onClose();
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.replace("/auth/login");
-    } catch (err) {
-      router.replace("/auth/login");
+      window.location.href = "/auth/login";
     }
   };
 
