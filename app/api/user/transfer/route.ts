@@ -6,38 +6,34 @@ import { jwtVerify } from "jose";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
 
-// Détection étendue des adresses externes
+// 1. Détection étendue des adresses selon l'image
 function detectExternalAddress(identifier: string): { isExternal: boolean; network: string | null } {
-  const isPiAddress = /^G[A-Z2-7]{55}$/.test(identifier); // Pi / Stellar
-  const isEVM = /^0x[a-fA-F0-9]{40}$/.test(identifier); // ETH, BNB, SIDRA, Polygon
-  const isTron = identifier.startsWith('T') && identifier.length === 34; // USDT (TRC20)
-  const isBTC = /^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,62}$/.test(identifier); // Bitcoin
-  const isXRP = /^r[1-9A-HJ-NP-Za-km-z]{25,33}$/.test(identifier); // Ripple
-
-  if (isPiAddress) return { isExternal: true, network: "PI_STELLAR" };
-  if (isEVM) return { isExternal: true, network: "EVM_NETWORK" }; // Couvre USDC, BUSD, DAI, SIDRA
-  if (isTron) return { isExternal: true, network: "TRON_USDT" };
-  if (isBTC) return { isExternal: true, network: "BITCOIN" };
-  if (isXRP) return { isExternal: true, network: "XRP_LEDGER" };
+  const clean = identifier.trim();
   
+  if (/^G[A-Z2-7]{55}$/.test(clean)) return { isExternal: true, network: "PI_STELLAR" }; // Pi/XLM
+  if (/^0x[a-fA-F0-9]{40}$/.test(clean)) return { isExternal: true, network: "EVM_NETWORK" }; // ETH/BNB/SOL/USDT/MATIC
+  if (/^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,62}$/.test(clean)) return { isExternal: true, network: "BITCOIN" };
+  if (clean.startsWith('T') && clean.length === 34) return { isExternal: true, network: "TRON_TRC20" }; // TRX/USDT-TRC20
+  if (/^r[1-9A-HJ-NP-Za-km-z]{25,33}$/.test(clean)) return { isExternal: true, network: "RIPPLE" };
+  if (clean.startsWith('addr1') || (clean.length === 58 && clean.startsWith('D'))) return { isExternal: true, network: "CARDANO_DOGE" };
+  if (clean.length === 48 || clean.startsWith('EQ')) return { isExternal: true, network: "TONCOIN" };
+
   return { isExternal: false, network: null };
 }
 
-// Classification selon ton Enum WalletType
+// 2. Mapping intelligent des WalletType selon votre schéma
 function getWalletType(currency: string): WalletType {
   const c = currency.toUpperCase();
   if (c === "PI") return WalletType.PI;
   if (c === "SDA" || c === "SIDRA") return WalletType.SIDRA;
   if (["XAF", "USD", "EUR", "CDF"].includes(c)) return WalletType.FIAT;
-  // Toutes les autres cryptos demandées (BTC, USDT, USDC, BUSD, DAI, XRP, XLM)
-  return WalletType.CRYPTO;
+  return WalletType.CRYPTO; // Pour BTC, ETH, USDT, etc.
 }
 
 export async function POST(req: NextRequest) {
   try {
     const SECRET = process.env.JWT_SECRET;
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    const token = (await cookies()).get("token")?.value || (await cookies()).get("pimpay_token")?.value;
 
     if (!token || !SECRET) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
@@ -45,45 +41,46 @@ export async function POST(req: NextRequest) {
     const { payload } = await jwtVerify(token, secretKey);
     const senderId = payload.id as string;
 
-    const body = await req.json();
-    let { recipientIdentifier, amount, currency, description } = body;
+    const { recipientIdentifier, amount, currency, description } = await req.json();
 
-    const cleanIdentifier = recipientIdentifier.startsWith('@') ? recipientIdentifier.substring(1) : recipientIdentifier;
+    const cleanIdentifier = recipientIdentifier.trim().replace(/^@/, '');
     const transferAmount = parseFloat(amount);
-    const transferCurrency = (currency || "XAF").toUpperCase();
+    const transferCurrency = (currency || "PI").toUpperCase();
 
     if (isNaN(transferAmount) || transferAmount <= 0) throw new Error("Montant invalide.");
 
     const externalCheck = detectExternalAddress(cleanIdentifier);
 
+    // ÉVITER LE TIMEOUT : Rechercher le destinataire AVANT d'ouvrir la transaction Prisma
+    const recipient = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: cleanIdentifier, mode: 'insensitive' } },
+          { email: { equals: cleanIdentifier, mode: 'insensitive' } },
+          { phone: cleanIdentifier },
+          { walletAddress: cleanIdentifier },
+          { sidraAddress: cleanIdentifier },
+          { usdtAddress: cleanIdentifier },
+          { xrpAddress: cleanIdentifier },
+          { xlmAddress: cleanIdentifier }
+        ]
+      }
+    });
+
+    // EXECUTION DE LA TRANSACTION (SÉCURISÉE)
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Vérification du solde expéditeur
+      
+      // 1. Vérifier le solde de l'expéditeur
       const senderWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: senderId, currency: transferCurrency } }
       });
 
       if (!senderWallet || senderWallet.balance < transferAmount) {
-        throw new Error(`Solde insuffisant (${senderWallet?.balance || 0} ${transferCurrency}).`);
+        throw new Error(`Solde ${transferCurrency} insuffisant.`);
       }
 
-      // 2. Recherche du destinataire (Interne PimPay)
-      const recipient = await tx.user.findFirst({
-        where: {
-          OR: [
-            { username: { equals: cleanIdentifier, mode: 'insensitive' } },
-            { email: { equals: cleanIdentifier, mode: 'insensitive' } },
-            { phone: cleanIdentifier },
-            { walletAddress: cleanIdentifier }, // BTC / PI
-            { sidraAddress: cleanIdentifier },  // SIDRA / EVM
-            { usdtAddress: cleanIdentifier },   // TRC20
-            { xrpAddress: cleanIdentifier },    // XRP
-            { xlmAddress: cleanIdentifier }     // XLM
-          ]
-        }
-      });
-
-      // --- CAS 1 : TRANSFERT VERS UNE ADRESSE EXTERNE (Blockchain) ---
-      if (!recipient && externalCheck.isExternal) {
+      // --- CAS EXTERNE (RETRAIT BLOCKCHAIN) ---
+      if (externalCheck.isExternal && !recipient) {
         await tx.wallet.update({
           where: { id: senderWallet.id },
           data: { balance: { decrement: transferAmount } }
@@ -95,51 +92,41 @@ export async function POST(req: NextRequest) {
             amount: transferAmount,
             currency: transferCurrency,
             type: TransactionType.WITHDRAW,
-            status: TransactionStatus.PENDING, // En attente de validation/envoi par le worker
+            status: TransactionStatus.PENDING,
             fromUserId: senderId,
             fromWalletId: senderWallet.id,
-            description: description || `Retrait ${transferCurrency} vers réseau ${externalCheck.network}`,
+            description: description || `Retrait ${transferCurrency} vers ${externalCheck.network}`,
             metadata: { 
-                externalAddress: cleanIdentifier, 
-                network: externalCheck.network,
-                isBlockchain: true 
+               externalAddress: cleanIdentifier, 
+               network: externalCheck.network,
+               isExternal: true 
             }
           }
         });
       }
 
-      // --- CAS 2 : TRANSFERT INTERNE PIMPAY ---
-      if (!recipient) throw new Error("Destinataire introuvable sur PimPay.");
-      if (recipient.id === senderId) throw new Error("Envoi vers soi-même impossible.");
+      // --- CAS INTERNE (TRANSFERT PIMPAY) ---
+      if (!recipient) throw new Error("Identifiant introuvable.");
+      if (recipient.id === senderId) throw new Error("Impossible d'envoyer à soi-même.");
 
-      // A. Débit Expéditeur
+      // Débit
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // B. Crédit Destinataire (Trouve ou Crée le portefeuille de la devise)
-      let recipientWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: recipient.id, currency: transferCurrency } }
+      // Crédit avec Upsert (Création auto du wallet si inexistant chez le destinataire)
+      const recipientWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: recipient.id, currency: transferCurrency } },
+        update: { balance: { increment: transferAmount } },
+        create: {
+          userId: recipient.id,
+          currency: transferCurrency,
+          balance: transferAmount,
+          type: getWalletType(transferCurrency)
+        }
       });
 
-      if (!recipientWallet) {
-        recipientWallet = await tx.wallet.create({
-          data: {
-            userId: recipient.id,
-            currency: transferCurrency,
-            balance: transferAmount,
-            type: getWalletType(transferCurrency)
-          }
-        });
-      } else {
-        recipientWallet = await tx.wallet.update({
-          where: { id: recipientWallet.id },
-          data: { balance: { increment: transferAmount } }
-        });
-      }
-
-      // C. Création du Log final
       return await tx.transaction.create({
         data: {
           reference: `PIM-TR-${nanoid(10).toUpperCase()}`,
@@ -151,19 +138,17 @@ export async function POST(req: NextRequest) {
           fromWalletId: senderWallet.id,
           toUserId: recipient.id,
           toWalletId: recipientWallet.id,
-          description: description || `Transfert ${transferCurrency} vers ${recipient.username || 'utilisateur'}`,
-          metadata: { internal: true }
+          description: description || `Transfert de ${senderWallet.currency} à ${recipient.username || 'Utilisateur'}`,
         }
       });
     }, {
-      timeout: 25000,
-      isolationLevel: "Serializable"
+      timeout: 20000 // Augmentation du timeout pour les connexions mobiles lentes
     });
 
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
-    console.error("ERREUR TRANSFERT PIMPAY:", error.message);
+    console.error("ERREUR TRANSFERT:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
