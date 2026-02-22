@@ -92,6 +92,18 @@ export async function POST(req: Request) {
       body: JSON.stringify({ txid: txid || "" }),
     }).catch(e => console.warn("⚠️ Pi /complete auto-call skip"));
 
+    // 5. NOTIFICATION utilisateur pour confirmation instantanee
+    try {
+      await prisma.notification.create({
+        data: {
+          userId,
+          title: "Depot Pi approuve !",
+          message: `Votre depot de ${parseFloat(amount)} PI a ete credite automatiquement.`,
+          type: "SUCCESS",
+        }
+      });
+    } catch (_) { /* notification non-bloquante */ }
+
     return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
