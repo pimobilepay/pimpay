@@ -10,131 +10,13 @@ import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { QRScanner } from "@/components/qr-scanner";
 import { toast } from "sonner";
-
-// --- ASSET CONFIG ---
-const ASSET_CONFIG: Record<string, {
-  name: string;
-  network: string;
-  image: string;
-  accentColor: string;
-  accentBg: string;
-  accentBorder: string;
-  explorerLabel: string;
-  explorerBase: string;
-  decimals: number;
-}> = {
-  PI: {
-    name: "Pi Network",
-    network: "Pi Mainnet",
-    image: "/pi-coin.png",
-    accentColor: "text-blue-400",
-    accentBg: "bg-blue-500/10",
-    accentBorder: "border-blue-500/20",
-    explorerLabel: "Pi Explorer",
-    explorerBase: "https://minepi.com/blockexplorer/tx/",
-    decimals: 8,
-  },
-  SDA: {
-    name: "Sidra Chain",
-    network: "Sidra Mainnet",
-    image: "/sidrachain.png",
-    accentColor: "text-emerald-400",
-    accentBg: "bg-emerald-500/10",
-    accentBorder: "border-emerald-500/20",
-    explorerLabel: "Sidra Ledger",
-    explorerBase: "https://ledger.sidrachain.com/tx/",
-    decimals: 4,
-  },
-  USDT: {
-    name: "Tether USD",
-    network: "TRC20 (TRON)",
-    image: "/tether-usdt.png",
-    accentColor: "text-emerald-400",
-    accentBg: "bg-emerald-500/10",
-    accentBorder: "border-emerald-500/20",
-    explorerLabel: "TronScan",
-    explorerBase: "https://tronscan.org/#/transaction/",
-    decimals: 4,
-  },
-  BTC: {
-    name: "Bitcoin",
-    network: "Bitcoin Mainnet",
-    image: "/bitcoin.png",
-    accentColor: "text-orange-400",
-    accentBg: "bg-orange-500/10",
-    accentBorder: "border-orange-500/20",
-    explorerLabel: "Blockchain.com",
-    explorerBase: "https://www.blockchain.com/btc/tx/",
-    decimals: 8,
-  },
-  XRP: {
-    name: "Ripple",
-    network: "XRP Ledger",
-    image: "/xrp.png",
-    accentColor: "text-slate-300",
-    accentBg: "bg-slate-500/10",
-    accentBorder: "border-slate-400/20",
-    explorerLabel: "XRP Scan",
-    explorerBase: "https://xrpscan.com/tx/",
-    decimals: 6,
-  },
-  XLM: {
-    name: "Stellar",
-    network: "Stellar Network",
-    image: "/xlm.png",
-    accentColor: "text-sky-400",
-    accentBg: "bg-sky-500/10",
-    accentBorder: "border-sky-400/20",
-    explorerLabel: "Stellar Expert",
-    explorerBase: "https://stellar.expert/explorer/public/tx/",
-    decimals: 7,
-  },
-  USDC: {
-    name: "USD Coin",
-    network: "ERC20 / TRC20",
-    image: "/usdc.png",
-    accentColor: "text-blue-400",
-    accentBg: "bg-blue-500/10",
-    accentBorder: "border-blue-400/20",
-    explorerLabel: "Etherscan",
-    explorerBase: "https://etherscan.io/tx/",
-    decimals: 4,
-  },
-  DAI: {
-    name: "Dai",
-    network: "ERC20",
-    image: "/dai.png",
-    accentColor: "text-amber-400",
-    accentBg: "bg-amber-500/10",
-    accentBorder: "border-amber-500/20",
-    explorerLabel: "Etherscan",
-    explorerBase: "https://etherscan.io/tx/",
-    decimals: 4,
-  },
-  BUSD: {
-    name: "Binance USD",
-    network: "BEP20",
-    image: "/busd.png",
-    accentColor: "text-yellow-400",
-    accentBg: "bg-yellow-500/10",
-    accentBorder: "border-yellow-500/20",
-    explorerLabel: "BscScan",
-    explorerBase: "https://bscscan.com/tx/",
-    decimals: 4,
-  },
-};
-
-const MARKET_DEFAULTS: Record<string, number> = {
-  PI: 314159,
-  SDA: 1.20,
-  USDT: 1.00,
-  BTC: 0,
-  XRP: 0,
-  XLM: 0,
-  USDC: 1.00,
-  DAI: 1.00,
-  BUSD: 1.00,
-};
+import {
+  CRYPTO_ASSETS,
+  getAssetConfig,
+  getExplorerLink,
+  getCoinGeckoIds,
+} from "@/lib/crypto-config";
+import { validateAddress } from "@/lib/crypto-validator";
 
 interface Transaction {
   createdAt: string;
@@ -154,7 +36,7 @@ export default function AssetDetailPage() {
 
   const rawAssetId = typeof params?.assetid === 'string' ? params.assetid : "PI";
   const assetId = rawAssetId.toUpperCase();
-  const config = ASSET_CONFIG[assetId] || ASSET_CONFIG.PI;
+  const config = getAssetConfig(assetId);
 
   const [isMounted, setIsMounted] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -164,46 +46,34 @@ export default function AssetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userId, setUserId] = useState("");
+  const [generatingAddress, setGeneratingAddress] = useState(false);
 
   // Send form state
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendStatus, setSendStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [sendTxHash, setSendTxHash] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const [balance, setBalance] = useState("0.00000000");
   const [address, setAddress] = useState("");
-  const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
-
-  // Fetch market prices
-  const COINGECKO_IDS: Record<string, string> = {
-    BTC: "bitcoin",
-    USDT: "tether",
-    USDC: "usd-coin",
-    DAI: "dai",
-    BUSD: "binance-usd",
-    XRP: "ripple",
-    XLM: "stellar",
-  };
+  const [marketPrice, setMarketPrice] = useState(config.defaultPrice);
 
   const fetchMarketPrice = useCallback(async () => {
-    if (assetId === "PI" || assetId === "SDA") return;
-    const geckoId = COINGECKO_IDS[assetId];
-    if (!geckoId) return;
+    if (!config.coingeckoId) return;
     try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd`);
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${config.coingeckoId}&vs_currencies=usd`);
       if (res.ok) {
         const data = await res.json();
-        const price = data[geckoId]?.usd;
+        const price = data[config.coingeckoId!]?.usd;
         if (price) setMarketPrice(price);
       }
     } catch { /* keep default */ }
-  }, [assetId]);
+  }, [config.coingeckoId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Sync SDA if needed
       if (assetId === "SDA") {
         fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
       }
@@ -214,52 +84,36 @@ export default function AssetDetailPage() {
         fetch(`/api/wallet/history?currency=${assetId}`)
       ]);
 
-      // Profile - read from result.user
       if (profileRes.ok) {
         const profileJson = await profileRes.json();
         const user = profileJson.user;
-        if (user) {
-          setUserId(user.id);
-        }
+        if (user) setUserId(user.id);
       }
 
-      // Balance + addresses from the unified balance API
       if (balanceRes.ok) {
         const balData = await balanceRes.json();
-
-        // Get balance
         const rawBalance = balData[assetId] || "0";
         setBalance(parseFloat(rawBalance).toFixed(config.decimals));
 
-        // Get address from addresses object
         let addr = "";
         if (balData.addresses) {
           addr = balData.addresses[assetId] || "";
         }
 
-        // For BTC/XRP/XLM, if no address, generate one
+        // If no address, auto-generate via group API
         if (!addr) {
-          const genEndpoints: Record<string, string> = {
-            BTC: '/api/wallet/btc',
-            XRP: '/api/wallet/xrp',
-            XLM: '/api/wallet/xlm',
-          };
-          const genEndpoint = genEndpoints[assetId];
-          if (genEndpoint) {
-            try {
-              const genRes = await fetch(genEndpoint, { method: 'POST' });
-              if (genRes.ok) {
-                const genData = await genRes.json();
-                addr = genData.address || "";
-              }
-            } catch { /* ignore */ }
-          }
+          try {
+            const genRes = await fetch(config.targetApi, { method: 'POST' });
+            if (genRes.ok) {
+              const genData = await genRes.json();
+              addr = genData.address || "";
+            }
+          } catch { /* ignore */ }
         }
 
         setAddress(addr);
       }
 
-      // Transaction history
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         const filtered = (historyData.transactions || []).filter(
@@ -273,7 +127,7 @@ export default function AssetDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [assetId, config.decimals]);
+  }, [assetId, config.decimals, config.targetApi]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -287,6 +141,82 @@ export default function AssetDetailPage() {
     setCopied(true);
     toast.success("Adresse copiee");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Handle receive: generate address if needed
+  const handleReceive = async () => {
+    if (!address || address === "Non configuree") {
+      setGeneratingAddress(true);
+      setShowReceiveModal(true);
+      try {
+        const res = await fetch(config.targetApi, { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          const newAddr = data.address || "";
+          setAddress(newAddr);
+          toast.success("Adresse generee avec succes");
+        } else {
+          toast.error("Erreur lors de la generation de l'adresse");
+        }
+      } catch {
+        toast.error("Erreur reseau");
+      } finally {
+        setGeneratingAddress(false);
+      }
+    } else {
+      setShowReceiveModal(true);
+    }
+  };
+
+  // Handle send with validation
+  const handleSendSubmit = async () => {
+    if (!sendAddress || !sendAmount) return;
+
+    // Validate address format
+    const validation = validateAddress(sendAddress, assetId);
+    if (!validation.isValid) {
+      setValidationError(validation.error || "Adresse invalide");
+      return;
+    }
+    setValidationError("");
+
+    if (parseFloat(sendAmount) > parseFloat(balance)) {
+      toast.error("Solde insuffisant");
+      return;
+    }
+
+    setSendStatus("loading");
+    try {
+      const res = await fetch("/api/wallet/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setSendStatus("success");
+        setSendTxHash(result.hash || "");
+      } else {
+        toast.error(result.error || "Erreur lors de l'envoi");
+        setSendStatus("idle");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+      setSendStatus("idle");
+    }
+  };
+
+  // Dynamic placeholder for address input
+  const getAddressPlaceholder = () => {
+    switch (config.group) {
+      case "EVM": return "Adresse commencant par 0x...";
+      case "STELLAR": return "Adresse commencant par G...";
+      case "TRON": return "Adresse commencant par T...";
+      case "XRP": return "Adresse commencant par r...";
+      case "BTC": return "Adresse commencant par bc1/1/3...";
+      case "SOL": return "Adresse Solana (Base58)...";
+      default: return `Adresse ${assetId}...`;
+    }
   };
 
   const usdValue = parseFloat(balance) * marketPrice;
@@ -320,7 +250,7 @@ export default function AssetDetailPage() {
         {/* ASSET ICON + BALANCE */}
         <div className="flex flex-col items-center pt-6 pb-8">
           <div className={`w-20 h-20 rounded-full ${config.accentBg} p-4 mb-5 border ${config.accentBorder} relative flex items-center justify-center`}>
-            <img src={config.image} alt={assetId} className="w-full h-full object-contain" />
+            <img src={config.logo} alt={assetId} className="w-full h-full object-contain" />
             {loading && (
               <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             )}
@@ -338,7 +268,6 @@ export default function AssetDetailPage() {
               {assetId}
             </span>
 
-            {/* USD VALUE */}
             <div className="mt-3 flex items-center justify-center gap-2">
               {loading ? (
                 <div className="h-5 w-24 bg-white/5 rounded animate-pulse" />
@@ -394,10 +323,10 @@ export default function AssetDetailPage() {
             )}
           </div>
 
-          {assetId === "USDT" && (
+          {(assetId === "USDT" || assetId === "TRX") && (
             <div className="mt-2 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
               <p className="text-[9px] font-bold text-orange-400/80 uppercase text-center">
-                Reseau TRC20 (TRON) uniquement
+                Reseau Tron Network (TRC20) uniquement
               </p>
             </div>
           )}
@@ -452,7 +381,7 @@ export default function AssetDetailPage() {
                   key={i}
                   className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer"
                   onClick={() => {
-                    if (hash) window.open(`${config.explorerBase}${hash}`, '_blank');
+                    if (hash) window.open(getExplorerLink(assetId, hash), '_blank');
                   }}
                 >
                   <div className="flex items-center gap-3">
@@ -506,7 +435,7 @@ export default function AssetDetailPage() {
             <Share2 size={16} strokeWidth={2.5} /> Envoyer
           </button>
           <button
-            onClick={() => setShowReceiveModal(true)}
+            onClick={handleReceive}
             className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform hover:bg-blue-500 shadow-lg shadow-blue-600/20"
           >
             <Download size={16} strokeWidth={2.5} /> Recevoir
@@ -531,9 +460,18 @@ export default function AssetDetailPage() {
             </div>
 
             <div className="bg-white p-3 rounded-2xl inline-block mb-5 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
-              {!address ? (
-                <div className="w-[170px] h-[170px] flex items-center justify-center text-slate-400 font-bold uppercase text-[10px] animate-pulse">
-                  Chargement...
+              {!address || generatingAddress ? (
+                <div className="w-[170px] h-[170px] flex flex-col items-center justify-center gap-2">
+                  {generatingAddress ? (
+                    <>
+                      <Loader2 size={24} className="text-blue-500 animate-spin" />
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">Generation...</span>
+                    </>
+                  ) : (
+                    <span className="text-slate-400 font-bold uppercase text-[10px] animate-pulse">
+                      Chargement...
+                    </span>
+                  )}
                 </div>
               ) : (
                 <QRCodeSVG value={address} size={170} />
@@ -548,9 +486,9 @@ export default function AssetDetailPage() {
               {copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />}
             </div>
 
-            {assetId === "USDT" && (
+            {(assetId === "USDT" || assetId === "TRX") && (
               <div className="mt-3 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
-                <p className="text-[9px] font-bold text-orange-400/80 uppercase">Reseau TRC20 (TRON) uniquement</p>
+                <p className="text-[9px] font-bold text-orange-400/80 uppercase">Reseau Tron Network (TRC20) uniquement</p>
               </div>
             )}
 
@@ -561,7 +499,7 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      {/* SEND MODAL - with address input and QR scan */}
+      {/* SEND MODAL - with address validation and QR scan */}
       {showSendModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
           <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
@@ -572,6 +510,7 @@ export default function AssetDetailPage() {
                 setSendAmount("");
                 setSendStatus("idle");
                 setSendTxHash("");
+                setValidationError("");
               }}
               className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1"
             >
@@ -579,7 +518,8 @@ export default function AssetDetailPage() {
             </button>
 
             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
-            <h4 className="text-lg font-black text-white uppercase tracking-tight mb-5">{config.name}</h4>
+            <h4 className="text-lg font-black text-white uppercase tracking-tight mb-1">{config.name}</h4>
+            <p className="text-[9px] font-bold text-slate-600 text-center mb-5 uppercase">{config.network}</p>
 
             {sendStatus === "success" ? (
               <div className="flex flex-col items-center py-4 text-center">
@@ -592,7 +532,7 @@ export default function AssetDetailPage() {
                 </p>
                 {sendTxHash && (
                   <a
-                    href={`${config.explorerBase}${sendTxHash}`}
+                    href={getExplorerLink(assetId, sendTxHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 hover:bg-white/10 transition-colors"
@@ -608,6 +548,7 @@ export default function AssetDetailPage() {
                     setSendAmount("");
                     setSendStatus("idle");
                     setSendTxHash("");
+                    setValidationError("");
                     loadData();
                   }}
                   className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all"
@@ -625,8 +566,11 @@ export default function AssetDetailPage() {
                   <div className="relative">
                     <input
                       value={sendAddress}
-                      onChange={(e) => setSendAddress(e.target.value)}
-                      placeholder={`Adresse ${assetId}...`}
+                      onChange={(e) => {
+                        setSendAddress(e.target.value);
+                        setValidationError("");
+                      }}
+                      placeholder={getAddressPlaceholder()}
                       className="w-full bg-white/5 border border-white/10 p-4 pr-14 rounded-2xl text-[11px] font-mono text-blue-100 focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
                     />
                     <button
@@ -649,7 +593,10 @@ export default function AssetDetailPage() {
                     <input
                       type="number"
                       value={sendAmount}
-                      onChange={(e) => setSendAmount(e.target.value)}
+                      onChange={(e) => {
+                        setSendAmount(e.target.value);
+                        setValidationError("");
+                      }}
                       placeholder="0.00"
                       className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-sm font-black text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
                     />
@@ -662,8 +609,15 @@ export default function AssetDetailPage() {
                   </div>
                 </div>
 
+                {/* Validation error */}
+                {validationError && (
+                  <div className="py-2 px-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <p className="text-[9px] font-bold text-red-400 uppercase text-center">{validationError}</p>
+                  </div>
+                )}
+
                 {/* Warning if insufficient */}
-                {sendAmount && parseFloat(sendAmount) > parseFloat(balance) && (
+                {sendAmount && parseFloat(sendAmount) > parseFloat(balance) && !validationError && (
                   <div className="py-2 px-3 bg-red-500/10 border border-red-500/20 rounded-xl">
                     <p className="text-[9px] font-bold text-red-400 uppercase text-center">Solde insuffisant</p>
                   </div>
@@ -671,32 +625,7 @@ export default function AssetDetailPage() {
 
                 {/* Submit */}
                 <button
-                  onClick={async () => {
-                    if (!sendAddress || !sendAmount) return;
-                    if (parseFloat(sendAmount) > parseFloat(balance)) {
-                      toast.error("Solde insuffisant");
-                      return;
-                    }
-                    setSendStatus("loading");
-                    try {
-                      const res = await fetch("/api/wallet/send", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }),
-                      });
-                      const result = await res.json();
-                      if (res.ok) {
-                        setSendStatus("success");
-                        setSendTxHash(result.hash || "");
-                      } else {
-                        toast.error(result.error || "Erreur lors de l'envoi");
-                        setSendStatus("idle");
-                      }
-                    } catch {
-                      toast.error("Erreur reseau");
-                      setSendStatus("idle");
-                    }
-                  }}
+                  onClick={handleSendSubmit}
                   disabled={sendStatus === "loading" || !sendAddress || !sendAmount || parseFloat(sendAmount) > parseFloat(balance)}
                   className="w-full py-4 bg-blue-600 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[11px] tracking-widest disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-blue-600/10 active:scale-95 hover:bg-blue-500"
                 >

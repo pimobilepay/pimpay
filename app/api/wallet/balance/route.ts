@@ -43,6 +43,8 @@ export async function GET() {
         sidraAddress: true,
         xrpAddress: true,
         xlmAddress: true,
+        solAddress: true,
+        usdtAddress: true,
         wallets: true,
       }
     });
@@ -51,17 +53,7 @@ export async function GET() {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    // Also try to get usdtAddress safely (may not exist in older schemas)
-    let usdtAddress = "";
-    try {
-      const usdtUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { usdtAddress: true }
-      });
-      usdtAddress = usdtUser?.usdtAddress || "";
-    } catch {
-      // Field may not exist yet in DB schema
-    }
+    const usdtAddress = user.usdtAddress || "";
 
     // --- Fetch real SDA balance from Sidra blockchain ---
     let sdaBalanceValue = 0;
@@ -106,11 +98,16 @@ export async function GET() {
 
     // Find wallet addresses from depositMemo
     const btcWallet = user.wallets.find(w => w.currency === "BTC");
-    const usdcWallet = user.wallets.find(w => w.currency === "USDC");
-    const daiWallet = user.wallets.find(w => w.currency === "DAI");
-    const busdWallet = user.wallets.find(w => w.currency === "BUSD");
-    const xrpWallet = user.wallets.find(w => w.currency === "XRP");
-    const xlmWallet = user.wallets.find(w => w.currency === "XLM");
+
+    // --- Build addresses map using group logic ---
+    // EVM Group: ETH, BNB, SDA, MATIC, USDC, DAI, BUSD share sidraAddress
+    const evmAddress = user.sidraAddress || "";
+    // Stellar Group: PI, XLM share xlmAddress  
+    const stellarAddress = user.xlmAddress || "";
+    // Tron Group: TRX, USDT share usdtAddress
+    const tronAddress = usdtAddress;
+    // Unique: SOL uses solAddress
+    const solAddr = user.solAddress || "";
 
     return NextResponse.json({
       success: true,
@@ -132,16 +129,29 @@ export async function GET() {
       XRP: balancesMap["XRP"] || "0.000000",
       XLM: balancesMap["XLM"] || "0.0000000",
       XAF: balancesMap["XAF"] || "0.00",
+      MATIC: balancesMap["MATIC"] || "0.00000000",
       addresses: {
-        PI: user.walletAddress || "",
-        SDA: user.sidraAddress || "",
-        USDT: usdtAddress,
-        BTC: btcWallet?.depositMemo || "",
-        USDC: usdcWallet?.depositMemo || "",
-        DAI: daiWallet?.depositMemo || "",
-        BUSD: busdWallet?.depositMemo || "",
-        XRP: user.xrpAddress || xrpWallet?.depositMemo || "",
-        XLM: user.xlmAddress || xlmWallet?.depositMemo || "",
+        // Stellar / Pi Network group
+        PI: user.walletAddress || stellarAddress,
+        XLM: stellarAddress,
+        // EVM group (shared sidraAddress)
+        SDA: evmAddress,
+        ETH: evmAddress,
+        BNB: evmAddress,
+        MATIC: evmAddress,
+        USDC: evmAddress,
+        DAI: evmAddress,
+        BUSD: evmAddress,
+        ADA: evmAddress,
+        DOGE: evmAddress,
+        TON: evmAddress,
+        // Tron group (shared usdtAddress)
+        USDT: tronAddress,
+        TRX: tronAddress,
+        // Unique chains
+        BTC: btcWallet?.depositMemo || user.walletAddress || "",
+        XRP: user.xrpAddress || "",
+        SOL: solAddr,
       },
       wallets: user.wallets.map(w => ({
         currency: w.currency === "SIDRA" ? "SDA" : w.currency,

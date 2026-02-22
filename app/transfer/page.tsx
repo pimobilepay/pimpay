@@ -22,10 +22,11 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { QRScanner } from "@/components/qr-scanner";
 import { useLanguage } from "@/context/LanguageContext";
+import { CRYPTO_ASSETS, getAssetConfig } from "@/lib/crypto-config";
 
 // --- TYPES ---
 interface WalletData {
-  id?: string; // Ajouté pour la sécurité des clés React
+  id?: string;
   currency: string;
   balance: number;
   type?: string;
@@ -39,19 +40,16 @@ interface RecipientData {
   isExternal?: boolean;
 }
 
-// --- CURRENCY CONFIG ---
-const CURRENCY_META: Record<string, { symbol: string; network: string; color: string; icon: string }> = {
-  PI: { symbol: "PI", network: "Pi Mainnet", color: "text-blue-400", icon: "pi-coin.png" },
-  XAF: { symbol: "XAF", network: "PimPay", color: "text-emerald-400", icon: "" },
-  SDA: { symbol: "SDA", network: "Sidra Mainnet", color: "text-emerald-400", icon: "sidrachain.png" },
-  USDT: { symbol: "USDT", network: "TRC20", color: "text-emerald-400", icon: "tether-usdt.png" },
-  BTC: { symbol: "BTC", network: "Bitcoin", color: "text-orange-400", icon: "bitcoin.png" },
-  XRP: { symbol: "XRP", network: "XRP Ledger", color: "text-slate-300", icon: "xrp.png" },
-  XLM: { symbol: "XLM", network: "Stellar Network", color: "text-sky-400", icon: "xlm.png" },
-  USDC: { symbol: "USDC", network: "ERC20 / TRC20", color: "text-blue-400", icon: "usdc.png" },
-  DAI: { symbol: "DAI", network: "ERC20", color: "text-amber-400", icon: "dai.png" },
-  BUSD: { symbol: "BUSD", network: "BEP20", color: "text-yellow-400", icon: "busd.png" },
-};
+// XAF fallback for fiat wallet
+const XAF_META = { symbol: "XAF", network: "PimPay", color: "text-emerald-400", logo: "" };
+
+/** Get currency display info from centralized config, with XAF fallback */
+function getCurrencyMeta(currency: string) {
+  if (currency === "XAF") return XAF_META;
+  const config = CRYPTO_ASSETS[currency.toUpperCase()];
+  if (config) return { symbol: config.symbol, network: config.network, color: config.accentColor, logo: config.logo };
+  return XAF_META;
+}
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
 
@@ -216,7 +214,7 @@ export default function SendPage() {
 
   if (!mounted) return null;
 
-  const currencyMeta = CURRENCY_META[selectedCurrency] || CURRENCY_META.XAF;
+  const currencyMeta = getCurrencyMeta(selectedCurrency);
 
   return (
     <div className="flex-1 min-h-screen bg-[#020617] text-white font-sans">
@@ -253,8 +251,8 @@ export default function SendPage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/20">
-                    {currencyMeta.icon ? (
-                      <img src={`/${currencyMeta.icon}`} alt={selectedCurrency} className="w-6 h-6 object-contain" />
+                    {currencyMeta.logo ? (
+                      <img src={currencyMeta.logo} alt={selectedCurrency} className="w-6 h-6 object-contain" />
                     ) : (
                       <WalletIcon size={18} className="text-blue-400" />
                     )}
@@ -273,10 +271,10 @@ export default function SendPage() {
                 <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f172a] border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl">
                   {wallets.length > 0 ? (
                     wallets.map((w, idx) => {
-                      const meta = CURRENCY_META[w.currency];
+                      const meta = getCurrencyMeta(w.currency);
                       return (
                         <button
-                          key={w.id || `${w.currency}-${idx}`} // Clé unique sécurisée
+                          key={w.id || `${w.currency}-${idx}`}
                           onClick={() => {
                             setSelectedCurrency(w.currency);
                             setShowWalletPicker(false);
@@ -284,8 +282,8 @@ export default function SendPage() {
                           className="w-full p-4 flex items-center gap-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
                         >
                           <div className="w-8 h-8 bg-slate-800 rounded-xl flex items-center justify-center overflow-hidden">
-                            {meta?.icon ? (
-                              <img src={`/${meta.icon}`} alt={w.currency} className="w-5 h-5 object-contain" />
+                            {meta?.logo ? (
+                              <img src={meta.logo} alt={w.currency} className="w-5 h-5 object-contain" />
                             ) : (
                               <span className="text-[9px] font-black uppercase">{w.currency.slice(0, 2)}</span>
                             )}
