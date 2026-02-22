@@ -75,12 +75,91 @@ const XlmLogo = () => (
   </div>
 );
 
+const EthLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-indigo-900/20 flex items-center justify-center border border-indigo-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#627eea"/>
+      <path d="M16.498 4v8.87l7.497 3.35z" fill="#fff" fillOpacity=".6"/>
+      <path d="M16.498 4L9 16.22l7.498-3.35z" fill="#fff"/>
+      <path d="M16.498 21.968v6.027L24 17.616z" fill="#fff" fillOpacity=".6"/>
+      <path d="M16.498 27.995v-6.028L9 17.616z" fill="#fff"/>
+      <path d="M16.498 20.573l7.497-4.353-7.497-3.348z" fill="#fff" fillOpacity=".2"/>
+      <path d="M9 16.22l7.498 4.353v-7.701z" fill="#fff" fillOpacity=".6"/>
+    </svg>
+  </div>
+);
+
+const BnbLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-yellow-900/20 flex items-center justify-center border border-yellow-500/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#f3ba2f"/>
+      <path d="M12.116 14.404L16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26zM6 16l2.26-2.26L10.52 16l-2.26 2.26zm6.116 1.596L16 21.48l3.886-3.886 2.26 2.259L16 26l-6.144-6.144-.003-.003 2.263-2.257zM21.48 16l2.26-2.26L26 16l-2.26 2.26zm-3.188-.002h.002L16 13.706 14.294 15.4l-.002.002-.2.2-.09.09L16 17.696l2.293-2.293.001-.001-.002-.004z" fill="#fff"/>
+    </svg>
+  </div>
+);
+
+const SolLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-purple-900/20 flex items-center justify-center border border-purple-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#000"/>
+      <defs><linearGradient id="sol-a" x1="6" y1="24" x2="26" y2="8"><stop stopColor="#9945FF"/><stop offset="1" stopColor="#14F195"/></linearGradient></defs>
+      <path d="M9.5 20.8a.6.6 0 01.42-.17h15.33a.3.3 0 01.21.51l-2.96 2.96a.6.6 0 01-.42.17H6.75a.3.3 0 01-.21-.51l2.96-2.96zm0-12.87a.6.6 0 01.42-.17h15.33a.3.3 0 01.21.51l-2.96 2.96a.6.6 0 01-.42.17H6.75a.3.3 0 01-.21-.51l2.96-2.96zm13.5 6.43a.6.6 0 00-.42-.17H7.25a.3.3 0 00-.21.51l2.96 2.96a.6.6 0 00.42.17h15.33a.3.3 0 00.21-.51l-2.96-2.96z" fill="url(#sol-a)"/>
+    </svg>
+  </div>
+);
+
+const TrxLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-red-900/20 flex items-center justify-center border border-red-500/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#eb0029"/>
+      <path d="M8 8.8l3.5 12.9L24.3 10 8 8.8zm4 3l8.3.6-7.1 7.2L12 11.8z" fill="#fff"/>
+    </svg>
+  </div>
+);
+
+const AdaLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-blue-900/30 flex items-center justify-center border border-blue-500/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#0033ad"/>
+      <circle cx="16" cy="10" r="2" fill="#fff"/><circle cx="16" cy="22" r="2" fill="#fff"/>
+      <circle cx="10.5" cy="13" r="1.6" fill="#fff"/><circle cx="21.5" cy="13" r="1.6" fill="#fff"/>
+      <circle cx="10.5" cy="19" r="1.6" fill="#fff"/><circle cx="21.5" cy="19" r="1.6" fill="#fff"/>
+      <circle cx="16" cy="16" r="3" fill="none" stroke="#fff" strokeWidth="1"/>
+    </svg>
+  </div>
+);
+
+const DogeLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-amber-900/20 flex items-center justify-center border border-amber-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#c2a633"/>
+      <text x="16" y="21" textAnchor="middle" fill="#fff" fontWeight="900" fontSize="14" fontFamily="sans-serif">D</text>
+    </svg>
+  </div>
+);
+
+const TonLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-sky-900/20 flex items-center justify-center border border-sky-400/20 p-2">
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#0098ea"/>
+      <path d="M16 6l-9 16h6l3-6 3 6h6z" fill="#fff"/>
+    </svg>
+  </div>
+);
+
 // --- TYPES ---
 interface WalletAddresses {
   PI: string;
   SDA: string;
   USDT: string;
   BTC: string;
+  ETH: string;
+  BNB: string;
+  SOL: string;
+  TRX: string;
+  ADA: string;
+  DOGE: string;
+  TON: string;
   USDC: string;
   DAI: string;
   BUSD: string;
@@ -111,18 +190,26 @@ export default function WalletPage() {
 
   const [xrpBalance, setXrpBalance] = useState("0.000000");
   const [xlmBalance, setXlmBalance] = useState("0.0000000");
+  const [ethBalance, setEthBalance] = useState("0.00000000");
+  const [bnbBalance, setBnbBalance] = useState("0.00000000");
+  const [solBalance, setSolBalance] = useState("0.00000000");
+  const [trxBalance, setTrxBalance] = useState("0.000000");
+  const [adaBalance, setAdaBalance] = useState("0.000000");
+  const [dogeBalance, setDogeBalance] = useState("0.000000");
+  const [tonBalance, setTonBalance] = useState("0.000000");
 
   const [addresses, setAddresses] = useState<WalletAddresses>({
-    PI: "", SDA: "", USDT: "", BTC: "", USDC: "", DAI: "", BUSD: "", XRP: "", XLM: ""
+    PI: "", SDA: "", USDT: "", BTC: "", ETH: "", BNB: "", SOL: "", TRX: "", ADA: "", DOGE: "", TON: "", USDC: "", DAI: "", BUSD: "", XRP: "", XLM: ""
   });
 
   const [marketPrices, setMarketPrices] = useState({
-    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00, XRP: 0, XLM: 0
+    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00, XRP: 0, XLM: 0,
+    ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
   });
 
   const fetchMarketPrices = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd');
       if (res.ok) {
         const result = await res.json();
         setMarketPrices(prev => ({
@@ -134,6 +221,13 @@ export default function WalletPage() {
           BUSD: result["binance-usd"]?.usd || prev.BUSD,
           XRP: result.ripple?.usd || prev.XRP,
           XLM: result.stellar?.usd || prev.XLM,
+          ETH: result.ethereum?.usd || prev.ETH,
+          BNB: result.binancecoin?.usd || prev.BNB,
+          SOL: result.solana?.usd || prev.SOL,
+          TRX: result.tron?.usd || prev.TRX,
+          ADA: result.cardano?.usd || prev.ADA,
+          DOGE: result.dogecoin?.usd || prev.DOGE,
+          TON: result["the-open-network"]?.usd || prev.TON,
         }));
       }
     } catch (err) { /* silently fail, keep defaults */ }
@@ -173,6 +267,13 @@ export default function WalletPage() {
         setBusdBalance(parseFloat(balData.BUSD || "0").toFixed(4));
         setXrpBalance(parseFloat(balData.XRP || "0").toFixed(6));
         setXlmBalance(parseFloat(balData.XLM || "0").toFixed(7));
+        setEthBalance(parseFloat(balData.ETH || "0").toFixed(8));
+        setBnbBalance(parseFloat(balData.BNB || "0").toFixed(8));
+        setSolBalance(parseFloat(balData.SOL || "0").toFixed(8));
+        setTrxBalance(parseFloat(balData.TRX || "0").toFixed(6));
+        setAdaBalance(parseFloat(balData.ADA || "0").toFixed(6));
+        setDogeBalance(parseFloat(balData.DOGE || "0").toFixed(6));
+        setTonBalance(parseFloat(balData.TON || "0").toFixed(6));
 
         if (balData.addresses) {
           setAddresses({
@@ -180,6 +281,13 @@ export default function WalletPage() {
             SDA: balData.addresses.SDA || "",
             USDT: balData.addresses.USDT || "",
             BTC: balData.addresses.BTC || "",
+            ETH: balData.addresses.ETH || "",
+            BNB: balData.addresses.BNB || "",
+            SOL: balData.addresses.SOL || "",
+            TRX: balData.addresses.TRX || "",
+            ADA: balData.addresses.ADA || "",
+            DOGE: balData.addresses.DOGE || "",
+            TON: balData.addresses.TON || "",
             USDC: balData.addresses.USDC || "",
             DAI: balData.addresses.DAI || "",
             BUSD: balData.addresses.BUSD || "",
@@ -224,7 +332,14 @@ export default function WalletPage() {
     (parseFloat(daiBalance) * marketPrices.DAI) +
     (parseFloat(busdBalance) * marketPrices.BUSD) +
     (parseFloat(xrpBalance) * marketPrices.XRP) +
-    (parseFloat(xlmBalance) * marketPrices.XLM);
+    (parseFloat(xlmBalance) * marketPrices.XLM) +
+    (parseFloat(ethBalance) * marketPrices.ETH) +
+    (parseFloat(bnbBalance) * marketPrices.BNB) +
+    (parseFloat(solBalance) * marketPrices.SOL) +
+    (parseFloat(trxBalance) * marketPrices.TRX) +
+    (parseFloat(adaBalance) * marketPrices.ADA) +
+    (parseFloat(dogeBalance) * marketPrices.DOGE) +
+    (parseFloat(tonBalance) * marketPrices.TON);
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
@@ -284,7 +399,7 @@ export default function WalletPage() {
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{userName}</p>
                 </div>
                 <div className="flex gap-1">
-                  {["PI", "BTC", "SDA", "USDT", "XRP", "XLM", "USDC", "DAI", "BUSD"].map((c) => (
+                  {["PI", "BTC", "ETH", "SDA", "USDT", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD"].map((c) => (
                     <span key={c} className="text-[7px] font-black text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{c}</span>
                   ))}
                 </div>
@@ -325,7 +440,7 @@ export default function WalletPage() {
         {/* ASSETS LIST */}
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
-          <span className="text-[9px] font-bold text-slate-600">9 {t("wallet.assetsCount")}</span>
+          <span className="text-[9px] font-bold text-slate-600">16 {t("wallet.assetsCount")}</span>
         </div>
 
         <div className="space-y-2.5 mb-8">
@@ -374,6 +489,39 @@ export default function WalletPage() {
             loading={loading}
             onClick={() => router.push('/wallet/btc')}
           />
+          <AssetCard
+            logo={<EthLogo />}
+            name="Ethereum"
+            symbol="ETH"
+            network="ERC20"
+            balance={ethBalance}
+            marketPrice={marketPrices.ETH}
+            usdValue={parseFloat(ethBalance) * marketPrices.ETH}
+            loading={loading}
+            onClick={() => router.push('/wallet/eth')}
+          />
+          <AssetCard
+            logo={<BnbLogo />}
+            name="BNB"
+            symbol="BNB"
+            network="BEP20"
+            balance={bnbBalance}
+            marketPrice={marketPrices.BNB}
+            usdValue={parseFloat(bnbBalance) * marketPrices.BNB}
+            loading={loading}
+            onClick={() => router.push('/wallet/bnb')}
+          />
+          <AssetCard
+            logo={<SolLogo />}
+            name="Solana"
+            symbol="SOL"
+            network="Solana Mainnet"
+            balance={solBalance}
+            marketPrice={marketPrices.SOL}
+            usdValue={parseFloat(solBalance) * marketPrices.SOL}
+            loading={loading}
+            onClick={() => router.push('/wallet/sol')}
+          />
 
           <AssetCard
             logo={<XrpLogo />}
@@ -396,6 +544,50 @@ export default function WalletPage() {
             usdValue={parseFloat(xlmBalance) * marketPrices.XLM}
             loading={loading}
             onClick={() => router.push('/wallet/xlm')}
+          />
+          <AssetCard
+            logo={<TrxLogo />}
+            name="Tron"
+            symbol="TRX"
+            network="TRC20"
+            balance={trxBalance}
+            marketPrice={marketPrices.TRX}
+            usdValue={parseFloat(trxBalance) * marketPrices.TRX}
+            loading={loading}
+            onClick={() => router.push('/wallet/trx')}
+          />
+          <AssetCard
+            logo={<AdaLogo />}
+            name="Cardano"
+            symbol="ADA"
+            network="Cardano Mainnet"
+            balance={adaBalance}
+            marketPrice={marketPrices.ADA}
+            usdValue={parseFloat(adaBalance) * marketPrices.ADA}
+            loading={loading}
+            onClick={() => router.push('/wallet/ada')}
+          />
+          <AssetCard
+            logo={<DogeLogo />}
+            name="Dogecoin"
+            symbol="DOGE"
+            network="Dogecoin Network"
+            balance={dogeBalance}
+            marketPrice={marketPrices.DOGE}
+            usdValue={parseFloat(dogeBalance) * marketPrices.DOGE}
+            loading={loading}
+            onClick={() => router.push('/wallet/doge')}
+          />
+          <AssetCard
+            logo={<TonLogo />}
+            name="Toncoin"
+            symbol="TON"
+            network="TON Network"
+            balance={tonBalance}
+            marketPrice={marketPrices.TON}
+            usdValue={parseFloat(tonBalance) * marketPrices.TON}
+            loading={loading}
+            onClick={() => router.push('/wallet/ton')}
           />
 
           {/* --- STABLECOINS --- */}
@@ -464,7 +656,7 @@ export default function WalletPage() {
                 iconBg = "bg-blue-500/10";
                 iconColor = "text-blue-400";
                 amountPrefix = "";
-              } else if (tx.toUserId === userId || tx.type === "DEPOSIT") {
+              } else if (tx.isDebit === false) {
                 txType = tx.type === "DEPOSIT" ? t("wallet.depositLabel") : t("wallet.received");
                 TxIcon = ArrowDownLeft;
                 iconBg = "bg-emerald-500/10";

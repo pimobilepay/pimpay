@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         await prisma.$transaction([
           prisma.transaction.update({
             where: { id: transactionId },
-            data: { status: "COMPLETED" }
+            data: { status: "SUCCESS" }
           }),
           prisma.wallet.upsert({
             where: { userId_currency: { userId: depositUserId, currency: tx.currency } },

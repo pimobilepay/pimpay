@@ -49,10 +49,19 @@ export async function GET(req: Request) {
 
     // --- FORMATAGE INTELLIGENT POUR LE DASHBOARD ---
     const formattedTransactions = transactions.map(tx => {
-      // For EXCHANGE type, always treat as debit (outgoing from source currency)
-      const isDebit = tx.type === 'EXCHANGE' 
-        ? true 
-        : tx.fromUserId === userId;
+      // Determine transaction direction for the current user
+      let isDebit: boolean;
+
+      if (tx.type === 'EXCHANGE') {
+        // Exchanges: always show as swap (neutral), but technically debit from source
+        isDebit = true;
+      } else if (tx.type === 'DEPOSIT' || tx.type === 'AIRDROP' || tx.type === 'STAKING_REWARD') {
+        // Deposits, airdrops, and staking rewards are ALWAYS incoming (credit)
+        isDebit = false;
+      } else {
+        // For transfers, payments, withdrawals, etc.: check who initiated
+        isDebit = tx.fromUserId === userId;
+      }
       
       // Define the "other" person in the transaction
       const peer = isDebit ? tx.toUser : tx.fromUser;

@@ -29,6 +29,8 @@ interface TransactionData {
   blockchainTx?: string;
   fromUserId?: string;
   toUserId?: string;
+  isDebit?: boolean;
+  peerName?: string;
 }
 
 export default function TransactionsPage() {
@@ -78,20 +80,20 @@ export default function TransactionsPage() {
     if (tx.type === 'STAKING_REWARD') {
       return {
         icon: <Layers size={18} className="text-purple-500" />,
-        label: "RÉCOMPENSE STAKING",
+        label: "RECOMPENSE STAKING",
         color: "text-purple-500",
         prefix: "+"
       };
     }
 
-    // LOGIQUE CORRIGÉE : On vérifie si l'utilisateur est le destinataire 
-    // ou si c'est un dépôt système pour SDA/PI/USDT
-    const isReceived = tx.toUserId === userId || tx.type === 'DEPOSIT' || tx.type === 'AIRDROP';
+    // Use the isDebit field from the API which correctly handles
+    // DEPOSIT, AIRDROP, and STAKING_REWARD as incoming (credit)
+    const isReceived = tx.isDebit === false;
 
     if (isReceived) {
       return {
         icon: <ArrowDownLeft size={18} className="text-emerald-500" />,
-        label: `REÇU ${tx.currency}`,
+        label: `RECU ${tx.currency}`,
         color: "text-emerald-500",
         prefix: "+"
       };
@@ -99,7 +101,7 @@ export default function TransactionsPage() {
 
     return {
       icon: <ArrowUpRight size={18} className="text-red-500" />,
-      label: `ENVOYÉ ${tx.currency}`,
+      label: `ENVOYE ${tx.currency}`,
       color: "text-red-500",
       prefix: "-"
     };

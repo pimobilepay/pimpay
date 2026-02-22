@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     const transactions = await prisma.transaction.findMany({
       where: {
         createdAt: { gte: sevenDaysAgo },
+        status: { in: ["SUCCESS", "COMPLETED"] },
       },
       select: {
         amount: true,
