@@ -4,7 +4,7 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter,
-  Users2, LifeBuoy, Lock, FileText, Globe, Info
+  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -116,6 +116,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     {
       title: t("sideMenu.supportHelp"),
       items: [
+        { label: "Elara AI", icon: <Sparkles size={20} className="text-blue-400" />, path: "/chat" },
         { label: t("sideMenu.helpCenter"), icon: <LifeBuoy size={20} className="text-cyan-400" />, path: "/support" },
         { label: t("sideMenu.about"), icon: <Info size={20} className="text-blue-400" />, path: "/about" },
         { label: t("sideMenu.privacy"), icon: <Lock size={20} className="text-amber-400" />, path: "/legal/privacy" },

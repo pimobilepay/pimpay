@@ -82,6 +82,7 @@ export const fr = {
     withdraw: "Retrait",
     transfer: "Transfert",
     supportHelp: "Support & Aide",
+    elaraAi: "Elara AI",
     helpCenter: "Centre d'Aide",
     privacy: "Confidentialite",
     terms: "Conditions",

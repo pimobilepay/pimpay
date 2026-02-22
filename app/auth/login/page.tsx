@@ -10,6 +10,7 @@ import Link from "next/link";
 import { usePiAuth } from "@/hooks/usePiAuth"; 
 import PinCodeModal from "@/components/modals/PinCodeModal";
 import { useLanguage } from "@/context/LanguageContext";
+import ChatBubble from "@/components/ChatBubble";
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
@@ -203,6 +204,8 @@ export default function LoginPage() {
           </p>
         </div>
       </Card>
+
+      <ChatBubble className="bottom-6" />
     </div>
   );
 }

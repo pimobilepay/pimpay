@@ -383,7 +383,7 @@ export default function HelpPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <button className="bg-blue-600 p-5 rounded-2xl flex flex-col items-center gap-3 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
+          <button onClick={() => router.push("/chat")} className="bg-blue-600 p-5 rounded-2xl flex flex-col items-center gap-3 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
             <MessageSquare size={22} />
             <span className="text-[10px] font-black uppercase tracking-widest text-white">
               Live Chat

@@ -84,6 +84,7 @@ export const en: TranslationKeys = {
     withdraw: "Withdraw",
     transfer: "Transfer",
     supportHelp: "Support & Help",
+    elaraAi: "Elara AI",
     helpCenter: "Help Center",
     privacy: "Privacy",
     terms: "Terms",

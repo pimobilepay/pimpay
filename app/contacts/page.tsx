@@ -5,6 +5,7 @@ import { useState } from "react";                     import {
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
+import ChatBubble from "@/components/ChatBubble";
 
 export default function ContactsPage() {
   const router = useRouter();
@@ -215,6 +216,7 @@ export default function ContactsPage() {
 
       </main>
 
+      <ChatBubble />
       <BottomNav onOpenMenu={handleOpenMenu} />
     </div>
   );
