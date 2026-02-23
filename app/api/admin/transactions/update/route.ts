@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     // --- ÉTAPE 2 : TRANSACTION ATOMIQUE ---
     // On passe un timeout plus long pour éviter les déconnexions sur mobile
     const result = await prisma.$transaction(async (p) => {
-      
+
       // IMPORTANT : On met à jour la transaction EN PREMIER
       const updatedTx = await p.transaction.update({
         where: { id: transactionId },
@@ -52,26 +52,26 @@ export async function POST(req: Request) {
         // Crédit du portefeuille (Cas Dépôt)
         if (tx.type === TransactionType.DEPOSIT && tx.toUserId) {
           await p.wallet.update({
-            where: { 
-              userId_currency: { 
-                userId: tx.toUserId, 
-                currency: tx.currency 
-              } 
+            where: {
+              userId_currency: {
+                userId: tx.toUserId,
+                currency: tx.currency
+              }
             },
             data: { balance: { increment: tx.amount } }
           });
         }
-      } 
+      }
       else {
         // Remboursement (Cas Refus Retrait/Transfert)
         if ((tx.type === TransactionType.WITHDRAW || tx.type === TransactionType.TRANSFER) && tx.fromUserId) {
           const refundAmount = tx.amount + (tx.fee || 0);
           await p.wallet.update({
-            where: { 
-              userId_currency: { 
-                userId: tx.fromUserId, 
-                currency: tx.currency 
-              } 
+            where: {
+              userId_currency: {
+                userId: tx.fromUserId,
+                currency: tx.currency
+              }
             },
             data: { balance: { increment: refundAmount } }
           });
@@ -111,10 +111,10 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("❌ ERROR UPDATE:", error.message);
     // On renvoie un message propre à l'interface
-    return NextResponse.json({ 
-      error: error.message.includes("Transaction not found") 
-        ? "La connexion a été perdue. Veuillez réessayer." 
-        : error.message 
+    return NextResponse.json({
+      error: error.message.includes("Transaction not found")
+        ? "La connexion a été perdue. Veuillez réessayer."
+        : error.message
     }, { status: 500 });
   }
 }
