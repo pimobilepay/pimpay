@@ -503,7 +503,6 @@ enum TransactionType {
 
 enum TransactionStatus {
   PENDING
-  COMPLETED
   SUCCESS
   FAILED
   CANCELLED

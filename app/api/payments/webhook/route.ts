@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Traitement en cas de succès
-    if (status === "SUCCESS" || status === "COMPLETED") {
+    if (status === "SUCCESS" || status === "SUCCESS") {
 
       // Récupérer le prix de consensus actuel
       const config = await prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } });

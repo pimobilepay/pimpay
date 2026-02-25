@@ -75,17 +75,17 @@ export default function TransactionDetailsPage() {
       {/* Status Card */}
       <div className="text-center mb-10">
         <div className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 ${
-          tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+          tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
         }`}>
-          {tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? <CheckCircle2 size={40} /> : <Clock size={40} />}
+          {tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? <CheckCircle2 size={40} /> : <Clock size={40} />}
         </div>
         <h2 className="text-4xl font-black mb-1">
           {isSent ? '-' : '+'}{tx.amount.toLocaleString()} <span className="text-xl italic text-blue-500">π</span>
         </h2>
         <p className={`text-[10px] font-black uppercase tracking-widest ${
-          tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? 'text-emerald-500' : 'text-amber-500'
+          tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-amber-500'
         }`}>
-          Transaction {tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? 'Confirmée' : 'En attente'}
+          Transaction {tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? 'Confirmée' : 'En attente'}
         </p>
       </div>
 

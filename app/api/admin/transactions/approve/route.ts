@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. Mise à jour du statut
-      // 'as any' permet de forcer le build même si ton Enum Prisma attend "SUCCESS" ou "COMPLETED"
+      // 'as any' permet de forcer le build même si ton Enum Prisma attend "SUCCESS" ou "SUCCESS"
       return await tx.transaction.update({
         where: { id: transactionId },
         data: {

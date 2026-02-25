@@ -60,7 +60,7 @@ function ConfirmContent() {
         const data = await response.json();
         if (
           data.status === "SUCCESS" ||
-          data.status === "COMPLETED"
+          data.status === "SUCCESS"
         ) {
           setStatus("success");
           setTimeout(() => {

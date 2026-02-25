@@ -11,7 +11,7 @@ export async function watchDeposit(paymentId: string) {
     const paymentData = await response.json();
 
     // 2. Sécurité : Status et Destinataire
-    if (paymentData.status !== "COMPLETED") {
+    if (paymentData.status !== "SUCCESS") {
         return { success: false, message: "Paiement non finalisé sur la blockchain" };
     }
 

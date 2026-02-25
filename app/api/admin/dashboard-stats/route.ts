@@ -50,7 +50,7 @@ export async function GET() {
             gte: day.start,
             lt: new Date(day.start.getTime() + 24 * 60 * 60 * 1000)
           },
-          status: { in: ["SUCCESS", "COMPLETED"] }
+          status: { in: ["SUCCESS", "SUCCESS"] }
         }
       });
 

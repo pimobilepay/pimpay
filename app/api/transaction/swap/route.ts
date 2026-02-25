@@ -67,7 +67,7 @@ export async function POST(req: Request) {
           currency: fromCurrency,
           destCurrency: quote.targetCurrency,
           type: "EXCHANGE",
-          status: "COMPLETED",
+          status: "SUCCESS",
           description: `Swap PimPay : ${fromCurrency} -> ${quote.targetCurrency}`,
           fromUserId: userId,
           toUserId: userId,

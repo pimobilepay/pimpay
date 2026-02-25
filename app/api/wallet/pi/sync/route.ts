@@ -45,7 +45,7 @@ export async function POST(req: Request) {
             amount: difference,
             currency: "PI",
             type: "DEPOSIT", // TransactionType Enum
-            status: "COMPLETED", // TransactionStatus Enum
+            status: "SUCCESS", // TransactionStatus Enum
             description: "Synchronisation solde Pi Réel",
             toUserId: userId,
             toWalletId: walletPI.id,

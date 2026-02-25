@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       const transaction = await prisma.transaction.update({
         where: { id: identifier },
         data: {
-          status: "COMPLETED",
+          status: "SUCCESS",
           // updatedAt est géré automatiquement par Prisma ici
         },
       });
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         const txByRef = await prisma.transaction.update({
           where: { reference: identifier },
           data: { 
-            status: "COMPLETED" 
+            status: "SUCCESS" 
           }
         });
         return NextResponse.json({ success: true, data: txByRef });

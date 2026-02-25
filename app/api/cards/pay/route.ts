@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       where: {
         fromUserId: userPayload.id,
         type: "PAYMENT",
-        status: "COMPLETED",
+        status: "SUCCESS",
         createdAt: { gte: startOfDay }
       },
       _sum: { amount: true }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
           amount: amount,
           fee: 0,
           type: "PAYMENT",
-          status: "COMPLETED",
+          status: "SUCCESS",
           description: `Paiement Carte chez ${merchantName}`,
           fromUserId: userPayload.id,
           metadata: {

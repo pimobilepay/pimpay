@@ -110,7 +110,7 @@ export default function TransactionsPage() {
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'SUCCESS':
-      case 'COMPLETED': return 'text-emerald-500 bg-emerald-500/10';
+      case 'SUCCESS': return 'text-emerald-500 bg-emerald-500/10';
       case 'PENDING': return 'text-amber-500 bg-amber-500/10';
       default: return 'text-red-500 bg-red-500/10';
     }

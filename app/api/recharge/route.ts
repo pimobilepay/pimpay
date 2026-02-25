@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
           reference: `TOPUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           amount: parsedPiAmount,
           type: "PAYMENT",
-          status: "COMPLETED", // Harmonisé avec tes enums
+          status: "SUCCESS", // Harmonisé avec tes enums
           description: `Recharge mobile ${operator || 'Global'} pour ${phoneNumber}`,
           fromUserId: userId,
           fromWalletId: wallet.id,

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       const completedTx = await tx.transaction.update({
         where: { reference },
         data: { 
-          status: "SUCCESS", // ou "COMPLETED" selon ton Enum
+          status: "SUCCESS", // ou "SUCCESS" selon ton Enum
           toWalletId: updatedWallet.id 
         },
       });

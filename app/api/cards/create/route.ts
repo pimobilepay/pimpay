@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
           amount: finalPrice,
           currency,
           type: "PAYMENT",
-          status: "COMPLETED",
+          status: "SUCCESS",
           description: `Achat Carte ${type}`,
           fromUserId: userPayload.id,
           fromWalletId: wallet.id,

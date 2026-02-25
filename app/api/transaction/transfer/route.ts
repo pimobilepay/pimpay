@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
           netAmount: amountNum,
           currency: "PI",
           type: "TRANSFER",
-          status: "COMPLETED",
+          status: "SUCCESS",
           fromUserId: sender.id,
           toUserId: recipient.id,
           fromWalletId: senderWallet.id,

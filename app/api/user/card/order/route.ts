@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
           currency: "PI",
           type: "CARD_PURCHASE",
           description: `Achat Carte Virtuelle ${tier}`,
-          status: "COMPLETED",
+          status: "SUCCESS",
           fromUserId: userId,
           fromWalletId: wallet.id,
         }

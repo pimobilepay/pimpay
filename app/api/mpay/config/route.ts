@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       data: {
         reference: txid || `MPAY-${Math.random().toString(36).substring(7).toUpperCase()}`,
         amount: parseFloat(amount),
-        status: "COMPLETED",
+        status: "SUCCESS",
         type: "PAYMENT",
         fromUserId: userId,
         description: `Paiement via ${method} vers ${to}`,

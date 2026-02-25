@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     if (!token || !SECRET) {
-      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
     const secretKey = new TextEncoder().encode(SECRET);
@@ -20,14 +20,14 @@ export async function GET(req: NextRequest) {
     const userId = payload.id as string;
 
     const { searchParams } = new URL(req.url);
-    const txid = searchParams.get("txid");
-    const ref = searchParams.get("ref");
+    const txid = searchParams.get("txid"); // Correspond à blockchainTx
+    const ref = searchParams.get("ref");   // Correspond à reference
 
     if (!txid && !ref) {
-      return NextResponse.json({ error: "Parametre txid ou ref requis" }, { status: 400 });
+      return NextResponse.json({ error: "Paramètre txid ou ref requis" }, { status: 400 });
     }
 
-    // Search by blockchainTx (txid) or reference
+    // Recherche la transaction appartenant à l'utilisateur
     const transaction = await prisma.transaction.findFirst({
       where: {
         AND: [
@@ -41,41 +41,33 @@ export async function GET(req: NextRequest) {
             OR: [
               ...(txid ? [{ blockchainTx: txid }] : []),
               ...(ref ? [{ reference: ref }] : []),
+              ...(ref ? [{ externalId: ref }] : []), // Sécurité supplémentaire pour le SDK Pi
             ]
           }
         ]
       },
       include: {
-        fromUser: { select: { username: true, firstName: true } },
-        toUser: { select: { username: true, firstName: true } },
-      },
-      orderBy: { createdAt: 'desc' }
+        fromUser: { select: { username: true, firstName: true, avatar: true } },
+        toUser: { select: { username: true, firstName: true, avatar: true } },
+      }
     });
 
     if (!transaction) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
+    // Calcul dynamique du montant net si absent (Bancaire)
+    const safeNetAmount = transaction.netAmount ?? (transaction.amount - transaction.fee);
+
     return NextResponse.json({
-      id: transaction.id,
-      reference: transaction.reference,
-      amount: transaction.amount,
-      netAmount: transaction.netAmount,
-      fee: transaction.fee,
-      currency: transaction.currency,
-      destCurrency: transaction.destCurrency,
-      type: transaction.type,
-      status: transaction.status,
-      blockchainTx: transaction.blockchainTx,
-      description: transaction.description,
-      createdAt: transaction.createdAt,
-      metadata: transaction.metadata,
-      fromUser: transaction.fromUser,
-      toUser: transaction.toUser,
+      ...transaction,
+      netAmount: safeNetAmount,
+      // On s'assure que le status est bien SUCCESS (seul enum valide selon tes instructions)
+      status: transaction.status === "SUCCESS" ? "SUCCESS" : transaction.status,
     });
 
   } catch (error: any) {
-    console.error("PI_TX_FETCH_ERROR:", error.message);
+    console.error("PIMPAY_TX_ERROR:", error.message);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -673,7 +673,7 @@ export default function WithdrawPage() {
                   {logs.map((log: any, i: number) => (
                     <div key={log.id || i} className="flex items-center gap-4 p-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        log.status === "COMPLETED" || log.status === "SUCCESS"
+                        log.status === "SUCCESS" || log.status === "SUCCESS"
                           ? "bg-emerald-500/10 text-emerald-400"
                           : log.status === "FAILED"
                             ? "bg-red-500/10 text-red-400"
@@ -694,13 +694,13 @@ export default function WithdrawPage() {
                           {log.amount} {log.currency || "PI"}
                         </p>
                         <p className={`text-[8px] font-black uppercase tracking-widest ${
-                          log.status === "COMPLETED" || log.status === "SUCCESS"
+                          log.status === "SUCCESS" || log.status === "SUCCESS"
                             ? "text-emerald-500/60"
                             : log.status === "FAILED"
                               ? "text-red-500/60"
                               : "text-amber-500/60"
                         }`}>
-                          {log.status === "COMPLETED" || log.status === "SUCCESS" ? "Confirme" : log.status === "FAILED" ? "Echoue" : "En cours"}
+                          {log.status === "SUCCESS" || log.status === "SUCCESS" ? "Confirme" : log.status === "FAILED" ? "Echoue" : "En cours"}
                         </p>
                       </div>
                     </div>

@@ -10,13 +10,141 @@ import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { QRScanner } from "@/components/qr-scanner";
 import { toast } from "sonner";
-import {
-  CRYPTO_ASSETS,
-  getAssetConfig,
-  getExplorerLink,
-  getCoinGeckoIds,
-} from "@/lib/crypto-config";
-import { validateAddress } from "@/lib/crypto-validator";
+
+// --- CONFIGURATION DES ACTIFS ---
+const ASSET_CONFIG: Record<string, {
+  name: string;
+  network: string;
+  image: string;
+  accentColor: string;
+  accentBg: string;
+  accentBorder: string;
+  explorerLabel: string;
+  explorerBase: string;
+  decimals: number;
+}> = {
+  PI: {
+    name: "Pi Network",
+    network: "Pi Mainnet",
+    image: "/pi.png",
+    accentColor: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    accentBorder: "border-blue-500/20",
+    explorerLabel: "Pi Explorer",
+    explorerBase: "https://minepi.com/blockexplorer/tx/",
+    decimals: 8,
+  },
+  SDA: {
+    name: "Sidra Chain",
+    network: "Sidra Mainnet",
+    image: "/sda.png",
+    accentColor: "text-emerald-400",
+    accentBg: "bg-emerald-500/10",
+    accentBorder: "border-emerald-500/20",
+    explorerLabel: "Sidra Ledger",
+    explorerBase: "https://ledger.sidrachain.com/tx/",
+    decimals: 4,
+  },
+  USDT: {
+    name: "Tether USD",
+    network: "TRC20 (TRON)",
+    image: "/usdt.png",
+    accentColor: "text-emerald-400",
+    accentBg: "bg-emerald-500/10",
+    accentBorder: "border-emerald-500/20",
+    explorerLabel: "TronScan",
+    explorerBase: "https://tronscan.org/#/transaction/",
+    decimals: 6,
+  },
+  BTC: {
+    name: "Bitcoin",
+    network: "Bitcoin Mainnet",
+    image: "/btc.png",
+    accentColor: "text-orange-400",
+    accentBg: "bg-orange-500/10",
+    accentBorder: "border-orange-500/20",
+    explorerLabel: "Blockchain.com",
+    explorerBase: "https://www.blockchain.com/btc/tx/",
+    decimals: 8,
+  },
+  ETH: {
+    name: "Ethereum",
+    network: "ERC20",
+    image: "/eth.png",
+    accentColor: "text-indigo-400",
+    accentBg: "bg-indigo-500/10",
+    accentBorder: "border-indigo-500/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 18,
+  },
+  BNB: {
+    name: "Binance Coin",
+    network: "BSC (BEP20)",
+    image: "/bnb.png",
+    accentColor: "text-yellow-400",
+    accentBg: "bg-yellow-500/10",
+    accentBorder: "border-yellow-500/20",
+    explorerLabel: "BscScan",
+    explorerBase: "https://bscscan.com/tx/",
+    decimals: 18,
+  },
+  XRP: {
+    name: "Ripple",
+    network: "XRP Ledger",
+    image: "/xrp.png",
+    accentColor: "text-slate-300",
+    accentBg: "bg-slate-500/10",
+    accentBorder: "border-slate-400/20",
+    explorerLabel: "XRP Scan",
+    explorerBase: "https://xrpscan.com/tx/",
+    decimals: 6,
+  },
+  XLM: {
+    name: "Stellar",
+    network: "Stellar Network",
+    image: "/xlm.png",
+    accentColor: "text-sky-400",
+    accentBg: "bg-sky-500/10",
+    accentBorder: "border-sky-400/20",
+    explorerLabel: "Stellar Expert",
+    explorerBase: "https://stellar.expert/explorer/public/tx/",
+    decimals: 7,
+  },
+  USDC: {
+    name: "USD Coin",
+    network: "ERC20",
+    image: "/usdc.png",
+    accentColor: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    accentBorder: "border-blue-400/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 6,
+  },
+};
+
+const MARKET_DEFAULTS: Record<string, number> = {
+  PI: 314159,
+  SDA: 1.20,
+  USDT: 1.00,
+  BTC: 52000,
+  ETH: 2800,
+  BNB: 350,
+  XRP: 0.55,
+  XLM: 0.12,
+  USDC: 1.00,
+};
+
+const COINGECKO_IDS: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  BNB: "binancecoin",
+  USDT: "tether",
+  USDC: "usd-coin",
+  XRP: "ripple",
+  XLM: "stellar",
+};
 
 interface Transaction {
   createdAt: string;
@@ -36,7 +164,7 @@ export default function AssetDetailPage() {
 
   const rawAssetId = typeof params?.assetid === 'string' ? params.assetid : "PI";
   const assetId = rawAssetId.toUpperCase();
-  const config = getAssetConfig(assetId);
+  const config = ASSET_CONFIG[assetId] || ASSET_CONFIG.PI;
 
   const [isMounted, setIsMounted] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -46,30 +174,29 @@ export default function AssetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userId, setUserId] = useState("");
-  const [generatingAddress, setGeneratingAddress] = useState(false);
 
-  // Send form state
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendStatus, setSendStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [sendTxHash, setSendTxHash] = useState("");
-  const [validationError, setValidationError] = useState("");
 
   const [balance, setBalance] = useState("0.00000000");
   const [address, setAddress] = useState("");
-  const [marketPrice, setMarketPrice] = useState(config.defaultPrice);
+  const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
 
   const fetchMarketPrice = useCallback(async () => {
-    if (!config.coingeckoId) return;
+    if (assetId === "PI" || assetId === "SDA") return;
+    const geckoId = COINGECKO_IDS[assetId];
+    if (!geckoId) return;
     try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${config.coingeckoId}&vs_currencies=usd`);
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd`);
       if (res.ok) {
         const data = await res.json();
-        const price = data[config.coingeckoId!]?.usd;
+        const price = data[geckoId]?.usd;
         if (price) setMarketPrice(price);
       }
     } catch { /* keep default */ }
-  }, [config.coingeckoId]);
+  }, [assetId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -86,8 +213,7 @@ export default function AssetDetailPage() {
 
       if (profileRes.ok) {
         const profileJson = await profileRes.json();
-        const user = profileJson.user;
-        if (user) setUserId(user.id);
+        if (profileJson.user) setUserId(profileJson.user.id);
       }
 
       if (balanceRes.ok) {
@@ -95,30 +221,15 @@ export default function AssetDetailPage() {
         const rawBalance = balData[assetId] || "0";
         setBalance(parseFloat(rawBalance).toFixed(config.decimals));
 
-        let addr = "";
         if (balData.addresses) {
-          addr = balData.addresses[assetId] || "";
+          setAddress(balData.addresses[assetId] || "");
         }
-
-        // If no address, auto-generate via group API
-        if (!addr) {
-          try {
-            const genRes = await fetch(config.targetApi, { method: 'POST' });
-            if (genRes.ok) {
-              const genData = await genRes.json();
-              addr = genData.address || "";
-            }
-          } catch { /* ignore */ }
-        }
-
-        setAddress(addr);
       }
 
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         const filtered = (historyData.transactions || []).filter(
-          (tx: Transaction) => tx.currency?.toUpperCase() === assetId ||
-            (assetId === "SDA" && tx.currency?.toUpperCase() === "SIDRA")
+          (tx: Transaction) => tx.currency?.toUpperCase() === assetId
         );
         setTransactions(filtered);
       }
@@ -127,7 +238,7 @@ export default function AssetDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [assetId, config.decimals, config.targetApi]);
+  }, [assetId, config.decimals]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -139,84 +250,8 @@ export default function AssetDetailPage() {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Adresse copiee");
+    toast.success("Adresse copiée");
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Handle receive: generate address if needed
-  const handleReceive = async () => {
-    if (!address || address === "Non configuree") {
-      setGeneratingAddress(true);
-      setShowReceiveModal(true);
-      try {
-        const res = await fetch(config.targetApi, { method: "POST" });
-        if (res.ok) {
-          const data = await res.json();
-          const newAddr = data.address || "";
-          setAddress(newAddr);
-          toast.success("Adresse generee avec succes");
-        } else {
-          toast.error("Erreur lors de la generation de l'adresse");
-        }
-      } catch {
-        toast.error("Erreur reseau");
-      } finally {
-        setGeneratingAddress(false);
-      }
-    } else {
-      setShowReceiveModal(true);
-    }
-  };
-
-  // Handle send with validation
-  const handleSendSubmit = async () => {
-    if (!sendAddress || !sendAmount) return;
-
-    // Validate address format
-    const validation = validateAddress(sendAddress, assetId);
-    if (!validation.isValid) {
-      setValidationError(validation.error || "Adresse invalide");
-      return;
-    }
-    setValidationError("");
-
-    if (parseFloat(sendAmount) > parseFloat(balance)) {
-      toast.error("Solde insuffisant");
-      return;
-    }
-
-    setSendStatus("loading");
-    try {
-      const res = await fetch("/api/wallet/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }),
-      });
-      const result = await res.json();
-      if (res.ok) {
-        setSendStatus("success");
-        setSendTxHash(result.hash || "");
-      } else {
-        toast.error(result.error || "Erreur lors de l'envoi");
-        setSendStatus("idle");
-      }
-    } catch {
-      toast.error("Erreur reseau");
-      setSendStatus("idle");
-    }
-  };
-
-  // Dynamic placeholder for address input
-  const getAddressPlaceholder = () => {
-    switch (config.group) {
-      case "EVM": return "Adresse commencant par 0x...";
-      case "STELLAR": return "Adresse commencant par G...";
-      case "TRON": return "Adresse commencant par T...";
-      case "XRP": return "Adresse commencant par r...";
-      case "BTC": return "Adresse commencant par bc1/1/3...";
-      case "SOL": return "Adresse Solana (Base58)...";
-      default: return `Adresse ${assetId}...`;
-    }
   };
 
   const usdValue = parseFloat(balance) * marketPrice;
@@ -250,7 +285,7 @@ export default function AssetDetailPage() {
         {/* ASSET ICON + BALANCE */}
         <div className="flex flex-col items-center pt-6 pb-8">
           <div className={`w-20 h-20 rounded-full ${config.accentBg} p-4 mb-5 border ${config.accentBorder} relative flex items-center justify-center`}>
-            <img src={config.logo} alt={assetId} className="w-full h-full object-contain" />
+            <img src={config.image} alt={assetId} className="w-full h-full object-contain" />
             {loading && (
               <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             )}
@@ -294,7 +329,7 @@ export default function AssetDetailPage() {
           </div>
           <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-2xl text-center">
             <Globe size={14} className="mx-auto text-slate-600 mb-1.5" />
-            <p className="text-[8px] font-bold uppercase text-slate-600 tracking-wide mb-1">Reseau</p>
+            <p className="text-[8px] font-bold uppercase text-slate-600 tracking-wide mb-1">Réseau</p>
             <p className="text-[10px] font-black text-white truncate">{config.network}</p>
           </div>
         </div>
@@ -313,7 +348,7 @@ export default function AssetDetailPage() {
                 <div className="h-4 w-full bg-white/5 rounded animate-pulse" />
               ) : (
                 <p className="text-[10px] font-mono text-slate-400 truncate">
-                  {address || "Non configuree"}
+                  {address || "Non configurée"}
                 </p>
               )}
               <p className="text-[8px] font-bold text-slate-600 uppercase mt-1">{config.network}</p>
@@ -322,21 +357,6 @@ export default function AssetDetailPage() {
               copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />
             )}
           </div>
-
-          {(assetId === "USDT" || assetId === "TRX") && (
-            <div className="mt-2 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
-              <p className="text-[9px] font-bold text-orange-400/80 uppercase text-center">
-                Reseau Tron Network (TRC20) uniquement
-              </p>
-            </div>
-          )}
-          {assetId === "BTC" && address && (
-            <div className="mt-2 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
-              <p className="text-[9px] font-bold text-orange-400/80 uppercase text-center">
-                Bitcoin Mainnet - SegWit (bc1...)
-              </p>
-            </div>
-          )}
         </div>
 
         {/* TRANSACTION HISTORY */}
@@ -347,78 +367,23 @@ export default function AssetDetailPage() {
           </div>
 
           <div className="space-y-2.5">
-            {transactions.length > 0 ? transactions.map((tx, i) => {
-              const txDate = new Date(tx.createdAt).toLocaleDateString('fr-FR', {
-                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-              });
-
-              let txType = "ENVOI";
-              let TxIcon = ArrowUpRight;
-              let iconBg = "bg-red-500/10";
-              let iconColor = "text-red-400";
-              let amountPrefix = "-";
-              let amountColor = "text-white";
-
-              if (tx.type === "EXCHANGE" || tx.type === "SWAP") {
-                txType = "SWAP";
-                TxIcon = ArrowLeftRight;
-                iconBg = "bg-blue-500/10";
-                iconColor = "text-blue-400";
-                amountPrefix = "";
-              } else if (tx.toUserId === userId || tx.type === "DEPOSIT") {
-                txType = tx.type === "DEPOSIT" ? "DEPOT" : "RECU";
-                TxIcon = ArrowDownLeft;
-                iconBg = "bg-emerald-500/10";
-                iconColor = "text-emerald-400";
-                amountPrefix = "+";
-                amountColor = "text-emerald-400";
-              }
-
-              const hash = tx.blockchainTx || tx.externalId;
-
-              return (
-                <div
-                  key={i}
-                  className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer"
-                  onClick={() => {
-                    if (hash) window.open(getExplorerLink(assetId, hash), '_blank');
-                  }}
-                >
+            {transactions.length > 0 ? transactions.map((tx, i) => (
+               <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center`}>
-                      <TxIcon size={18} className={iconColor} />
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                      <History size={18} className="text-slate-400" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-black text-white uppercase tracking-tight">{txType}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <Calendar size={9} className="text-slate-600" />
-                        <p className="text-[9px] text-slate-500 font-bold">{txDate}</p>
-                      </div>
+                      <p className="text-[11px] font-black text-white uppercase">{tx.type || "TRANSFERT"}</p>
+                      <p className="text-[9px] text-slate-500 font-bold">{new Date(tx.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-2">
-                    <div>
-                      <p className={`text-[12px] font-black tracking-tight ${amountColor}`}>
-                        {amountPrefix}{tx.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: config.decimals })} {assetId}
-                      </p>
-                      <div className="flex items-center justify-end gap-1 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          tx.status === 'SUCCESS' || tx.status === 'COMPLETED' ? 'bg-emerald-500' :
-                          tx.status === 'FAILED' ? 'bg-red-500' : 'bg-yellow-500'
-                        }`} />
-                        <p className="text-[8px] text-slate-500 uppercase font-bold">{tx.status}</p>
-                      </div>
-                    </div>
-                    {hash && <ExternalLink size={12} className="text-slate-700" />}
-                  </div>
-                </div>
-              );
-            }) : (
+                  <p className="text-[12px] font-black text-white">{tx.amount} {assetId}</p>
+               </div>
+            )) : (
               <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-10 text-center">
                 <Clock size={20} className="mx-auto text-slate-700 mb-2" />
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
-                  Aucune activite {assetId}
-                </p>
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">Aucune activité</p>
               </div>
             )}
           </div>
@@ -435,7 +400,7 @@ export default function AssetDetailPage() {
             <Share2 size={16} strokeWidth={2.5} /> Envoyer
           </button>
           <button
-            onClick={handleReceive}
+            onClick={() => setShowReceiveModal(true)}
             className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform hover:bg-blue-500 shadow-lg shadow-blue-600/20"
           >
             <Download size={16} strokeWidth={2.5} /> Recevoir
@@ -443,63 +408,24 @@ export default function AssetDetailPage() {
         </div>
       </div>
 
-      {/* RECEIVE MODAL */}
+      {/* MODAL RECEVOIR */}
       {showReceiveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
-          <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
-            <button onClick={() => setShowReceiveModal(false)} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
-              <X size={20} />
-            </button>
-
-            <div className="mb-5">
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Deposer {assetId}</p>
-              <h4 className="text-lg font-black text-white uppercase tracking-tight">{config.name}</h4>
-              <span className={`inline-block mt-2 px-3 py-1 ${config.accentBg} border ${config.accentBorder} rounded-lg text-[9px] font-black ${config.accentColor} uppercase`}>
-                {config.network}
-              </span>
+           <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
+            <button onClick={() => setShowReceiveModal(false)} className="absolute top-5 right-5 text-slate-500 p-1"><X size={20} /></button>
+            <p className={`text-[10px] font-black uppercase mb-1 ${config.accentColor}`}>Déposer {assetId}</p>
+            <div className="bg-white p-3 rounded-2xl inline-block my-5">
+               <QRCodeSVG value={address} size={170} />
             </div>
-
-            <div className="bg-white p-3 rounded-2xl inline-block mb-5 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
-              {!address || generatingAddress ? (
-                <div className="w-[170px] h-[170px] flex flex-col items-center justify-center gap-2">
-                  {generatingAddress ? (
-                    <>
-                      <Loader2 size={24} className="text-blue-500 animate-spin" />
-                      <span className="text-slate-400 font-bold uppercase text-[10px]">Generation...</span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400 font-bold uppercase text-[10px] animate-pulse">
-                      Chargement...
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <QRCodeSVG value={address} size={170} />
-              )}
+            <div onClick={() => handleCopy(address)} className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex items-center justify-between cursor-pointer">
+              <p className="text-[10px] font-mono text-slate-400 truncate mr-3">{address}</p>
+              <Copy size={16} className="text-blue-500" />
             </div>
-
-            <div
-              onClick={() => handleCopy(address)}
-              className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex items-center justify-between cursor-pointer active:bg-white/10 transition-all"
-            >
-              <p className="text-[10px] font-mono text-slate-400 truncate mr-3">{address || "Non disponible"}</p>
-              {copied ? <Check size={16} className="text-emerald-400 shrink-0" /> : <Copy size={16} className="text-blue-500 shrink-0" />}
-            </div>
-
-            {(assetId === "USDT" || assetId === "TRX") && (
-              <div className="mt-3 py-1.5 px-3 bg-orange-500/[0.08] border border-orange-500/15 rounded-xl">
-                <p className="text-[9px] font-bold text-orange-400/80 uppercase">Reseau Tron Network (TRC20) uniquement</p>
-              </div>
-            )}
-
-            <p className="text-[8px] text-slate-600 uppercase font-bold mt-4 tracking-wide">
-              Envoyez uniquement du {assetId} sur cette adresse
-            </p>
           </div>
         </div>
       )}
 
-      {/* SEND MODAL - with address validation and QR scan */}
+      {/* MODAL ENVOYER (Restauré à 100% de l'ancienne version) */}
       {showSendModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
           <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
@@ -510,7 +436,6 @@ export default function AssetDetailPage() {
                 setSendAmount("");
                 setSendStatus("idle");
                 setSendTxHash("");
-                setValidationError("");
               }}
               className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1"
             >
@@ -518,21 +443,20 @@ export default function AssetDetailPage() {
             </button>
 
             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
-            <h4 className="text-lg font-black text-white uppercase tracking-tight mb-1">{config.name}</h4>
-            <p className="text-[9px] font-bold text-slate-600 text-center mb-5 uppercase">{config.network}</p>
+            <h4 className="text-lg font-black text-white uppercase tracking-tight mb-5">{config.name}</h4>
 
             {sendStatus === "success" ? (
               <div className="flex flex-col items-center py-4 text-center">
                 <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4">
                   <Check size={40} className="text-emerald-500" />
                 </div>
-                <p className="text-sm font-black text-white mb-1 uppercase">Transfert reussi</p>
+                <p className="text-sm font-black text-white mb-1 uppercase">Transfert réussi</p>
                 <p className="text-[10px] text-slate-400 mb-4 font-medium uppercase tracking-tight">
-                  {sendAmount} {assetId} envoyes avec succes
+                  {sendAmount} {assetId} envoyés avec succès
                 </p>
                 {sendTxHash && (
                   <a
-                    href={getExplorerLink(assetId, sendTxHash)}
+                    href={`${config.explorerBase}${sendTxHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 hover:bg-white/10 transition-colors"
@@ -548,7 +472,6 @@ export default function AssetDetailPage() {
                     setSendAmount("");
                     setSendStatus("idle");
                     setSendTxHash("");
-                    setValidationError("");
                     loadData();
                   }}
                   className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all"
@@ -558,7 +481,6 @@ export default function AssetDetailPage() {
               </div>
             ) : (
               <div className="space-y-4 text-left">
-                {/* Address input with QR scan */}
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">
                     Adresse de destination
@@ -566,24 +488,19 @@ export default function AssetDetailPage() {
                   <div className="relative">
                     <input
                       value={sendAddress}
-                      onChange={(e) => {
-                        setSendAddress(e.target.value);
-                        setValidationError("");
-                      }}
-                      placeholder={getAddressPlaceholder()}
+                      onChange={(e) => setSendAddress(e.target.value)}
+                      placeholder={`Adresse ${assetId}...`}
                       className="w-full bg-white/5 border border-white/10 p-4 pr-14 rounded-2xl text-[11px] font-mono text-blue-100 focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
                     />
                     <button
                       onClick={() => setShowQRScanner(true)}
                       className="absolute right-3 top-3 p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"
-                      aria-label="Scanner un QR code"
                     >
                       <Scan size={16} className="text-white" />
                     </button>
                   </div>
                 </div>
 
-                {/* Amount input */}
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex justify-between">
                     <span>Montant</span>
@@ -593,10 +510,7 @@ export default function AssetDetailPage() {
                     <input
                       type="number"
                       value={sendAmount}
-                      onChange={(e) => {
-                        setSendAmount(e.target.value);
-                        setValidationError("");
-                      }}
+                      onChange={(e) => setSendAmount(e.target.value)}
                       placeholder="0.00"
                       className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-sm font-black text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
                     />
@@ -609,23 +523,39 @@ export default function AssetDetailPage() {
                   </div>
                 </div>
 
-                {/* Validation error */}
-                {validationError && (
-                  <div className="py-2 px-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                    <p className="text-[9px] font-bold text-red-400 uppercase text-center">{validationError}</p>
-                  </div>
-                )}
-
-                {/* Warning if insufficient */}
-                {sendAmount && parseFloat(sendAmount) > parseFloat(balance) && !validationError && (
+                {sendAmount && parseFloat(sendAmount) > parseFloat(balance) && (
                   <div className="py-2 px-3 bg-red-500/10 border border-red-500/20 rounded-xl">
                     <p className="text-[9px] font-bold text-red-400 uppercase text-center">Solde insuffisant</p>
                   </div>
                 )}
 
-                {/* Submit */}
                 <button
-                  onClick={handleSendSubmit}
+                  onClick={async () => {
+                    if (!sendAddress || !sendAmount) return;
+                    if (parseFloat(sendAmount) > parseFloat(balance)) {
+                      toast.error("Solde insuffisant");
+                      return;
+                    }
+                    setSendStatus("loading");
+                    try {
+                      const res = await fetch("/api/wallet/send", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }),
+                      });
+                      const result = await res.json();
+                      if (res.ok) {
+                        setSendStatus("success");
+                        setSendTxHash(result.hash || "");
+                      } else {
+                        toast.error(result.error || "Erreur lors de l'envoi");
+                        setSendStatus("idle");
+                      }
+                    } catch {
+                      toast.error("Erreur réseau");
+                      setSendStatus("idle");
+                    }
+                  }}
                   disabled={sendStatus === "loading" || !sendAddress || !sendAmount || parseFloat(sendAmount) > parseFloat(balance)}
                   className="w-full py-4 bg-blue-600 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[11px] tracking-widest disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-blue-600/10 active:scale-95 hover:bg-blue-500"
                 >
@@ -651,7 +581,7 @@ export default function AssetDetailPage() {
             setShowQRScanner(false);
             if (data && data.length > 0) {
               setSendAddress(data);
-              toast.success("Adresse scannee avec succes");
+              toast.success("Adresse scannée avec succès");
             }
           }}
         />
