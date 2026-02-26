@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const cookieStore = await cookies();
     const SECRET = process.env.JWT_SECRET;
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    const token = cookieStore.get("pimpay_token")?.value || cookieStore.get("token")?.value;
 
     if (!token || !SECRET) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -20,14 +20,14 @@ export async function GET(req: NextRequest) {
     const userId = payload.id as string;
 
     const { searchParams } = new URL(req.url);
-    const txid = searchParams.get("txid"); // Correspond à blockchainTx
-    const ref = searchParams.get("ref");   // Correspond à reference
+    const txid = searchParams.get("txid"); 
+    const ref = searchParams.get("ref");   
 
     if (!txid && !ref) {
-      return NextResponse.json({ error: "Paramètre txid ou ref requis" }, { status: 400 });
+      return NextResponse.json({ error: "Paramètre requis" }, { status: 400 });
     }
 
-    // Recherche la transaction appartenant à l'utilisateur
+    // RECHERCHE PRISMA
     const transaction = await prisma.transaction.findFirst({
       where: {
         AND: [
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
             OR: [
               ...(txid ? [{ blockchainTx: txid }] : []),
               ...(ref ? [{ reference: ref }] : []),
-              ...(ref ? [{ externalId: ref }] : []), // Sécurité supplémentaire pour le SDK Pi
+              ...(ref ? [{ externalId: ref }] : []), // Liaison avec piPaymentId
             ]
           }
         ]
@@ -56,18 +56,38 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // Calcul dynamique du montant net si absent (Bancaire)
-    const safeNetAmount = transaction.netAmount ?? (transaction.amount - transaction.fee);
+    // CALCUL DES FRAIS (Si pas déjà fait en DB)
+    const calculatedNet = transaction.netAmount ?? (transaction.amount - transaction.fee);
 
+    // RÉPONSE PROPRE POUR LE FRONTEND
     return NextResponse.json({
-      ...transaction,
-      netAmount: safeNetAmount,
-      // On s'assure que le status est bien SUCCESS (seul enum valide selon tes instructions)
-      status: transaction.status === "SUCCESS" ? "SUCCESS" : transaction.status,
+      id: transaction.id,
+      reference: transaction.reference,
+      externalId: transaction.externalId,
+      blockchainTx: transaction.blockchainTx,
+      amount: transaction.amount,
+      fee: transaction.fee,
+      netAmount: calculatedNet,
+      currency: transaction.currency,
+      type: transaction.type,
+      status: transaction.status, // PENDING, SUCCESS, FAILED
+      description: transaction.description,
+      // On s'assure que la méthode est lisible
+      method: transaction.description?.includes('via') 
+        ? transaction.description.split('via ')[1] 
+        : (transaction.currency === "PI" ? "Pi Network" : "PimPay Transfer"),
+      createdAt: transaction.createdAt,
+      fromUser: transaction.fromUser,
+      toUser: transaction.toUser,
+      operatorId: transaction.operatorId,
+      accountNumber: transaction.accountNumber,
     });
 
   } catch (error: any) {
     console.error("PIMPAY_TX_ERROR:", error.message);
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

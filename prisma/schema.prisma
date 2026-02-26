@@ -85,7 +85,7 @@ model User {
 
   // EVM & Sidra (USDT, SIDRA, USDC, BUSD, DAI)
   sidraAddress     String? @unique
-  sidraPrivateKey  String? 
+  sidraPrivateKey  String?
   walletPrivateKey String? // Clé générique pour les autres réseaux EVM (USDC/BUSD)
 
   // USDT (TRC20)
@@ -414,14 +414,14 @@ model SecurityLog {
 
 model SupportTicket {
   id        String        @id @default(cuid())
-  userId    String
+  userId    String?
   subject   String
   status    SupportStatus @default(OPEN)
   priority  String        @default("MEDIUM")
   createdAt DateTime      @default(now())
   messages  Message[]
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Message {
