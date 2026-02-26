@@ -11,13 +11,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    // 1. On récupère la transaction hors bloc transactionnel pour économiser des ressources
+    // --- ÉTAPE 1 : VERIFICATION PRÉLIMINAIRE ---
     const tx = await prisma.transaction.findUnique({
       where: { id: transactionId },
-      include: { 
-        fromUser: true, 
-        toUser: true 
-      }
     });
 
     if (!tx) {
@@ -31,22 +27,21 @@ export async function POST(req: Request) {
     const isApprove = action === 'approve';
     const newStatus = isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED;
 
-    // 2. TRANSACTION ATOMIQUE OPTIMISÉE
+    // --- ÉTAPE 2 : TRANSACTION ATOMIQUE ---
+    // On passe un timeout plus long pour éviter les déconnexions sur mobile
     const result = await prisma.$transaction(async (p) => {
-      
-      // Mise à jour de la transaction
-      const updated = await p.transaction.update({
+
+      // IMPORTANT : On met à jour la transaction EN PREMIER
+      const updatedTx = await p.transaction.update({
         where: { id: transactionId },
         data: {
           status: newStatus,
-          note: `Admin Action: ${action.toUpperCase()} le ${new Date().toLocaleString('fr-FR')}`,
-          // On enregistre l'admin qui a fait l'action dans les métadonnées si besoin
-          metadata: { ...(tx.metadata as object || {}), approvedBy: adminId }
+          note: `Admin Action: ${action.toUpperCase()} le ${new Date().toLocaleString('fr-FR')}`
         },
       });
 
       if (isApprove) {
-        // Stats Globales Pi
+        // Stats Globales
         if (tx.currency === "PI") {
           await p.systemConfig.update({
             where: { id: "GLOBAL_CONFIG" },
@@ -54,7 +49,7 @@ export async function POST(req: Request) {
           });
         }
 
-        // Crédit du portefeuille pour un Dépôt
+        // Crédit du portefeuille (Cas Dépôt)
         if (tx.type === TransactionType.DEPOSIT && tx.toUserId) {
           await p.wallet.update({
             where: {
@@ -66,8 +61,9 @@ export async function POST(req: Request) {
             data: { balance: { increment: tx.amount } }
           });
         }
-      } else {
-        // Remboursement si Refus (pour Retraits et Transferts)
+      }
+      else {
+        // Remboursement (Cas Refus Retrait/Transfert)
         if ((tx.type === TransactionType.WITHDRAW || tx.type === TransactionType.TRANSFER) && tx.fromUserId) {
           const refundAmount = tx.amount + (tx.fee || 0);
           await p.wallet.update({
@@ -82,50 +78,43 @@ export async function POST(req: Request) {
         }
       }
 
-      // 3. LOGS ET NOTIFICATIONS (Détachés ou intégrés avec précaution)
-      const targetId = tx.type === TransactionType.DEPOSIT ? tx.toUserId : tx.fromUserId;
-      
-      if (targetId) {
+      // Notifications et Logs (Toujours via 'p' pour rester dans la transaction)
+      const targetUserId = tx.fromUserId || tx.toUserId;
+      if (targetUserId) {
         await p.notification.create({
           data: {
-            userId: targetId,
+            userId: targetUserId,
             title: isApprove ? "Opération validée ✅" : "Opération refusée ❌",
-            message: `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a été ${isApprove ? 'validé' : 'refusé'}.`,
+            message: `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a été ${isApprove ? 'approuvé' : 'refusé'}.`,
             type: isApprove ? "success" : "error",
             metadata: { txRef: tx.reference }
           }
         });
-
-        await p.auditLog.create({
-          data: {
-            adminId: adminId || null,
-            action: isApprove ? "TRANSACTION_APPROVE" : "TRANSACTION_REJECT",
-            targetId: targetId,
-            details: `TX: ${tx.reference} | Statut: ${newStatus}`,
-          }
-        });
       }
 
-      return updated;
+      await p.auditLog.create({
+        data: {
+          adminId: adminId || null,
+          action: isApprove ? "TRANSACTION_APPROVE" : "TRANSACTION_REJECT",
+          targetId: targetUserId,
+          details: `TX: ${tx.reference} | Statut final: ${newStatus}`,
+        }
+      });
+
+      return updatedTx;
     }, {
-      timeout: 20000, // 20 secondes max pour les connexions lentes
-      isolationLevel: "Serializable" // Sécurité maximale pour PimPay
+      timeout: 15000 // Augmente le temps limite à 15s pour éviter l'erreur de vos captures
     });
 
     return NextResponse.json({ success: true, status: result.status });
 
   } catch (error: any) {
-    console.error("❌ PIMPAY_ERROR:", error);
-    
-    // Gestion spécifique du timeout Prisma
-    if (error.code === 'P2024') {
-      return NextResponse.json({ 
-        error: "Le serveur de base de données est trop lent. L'action a peut-être été effectuée, rafraîchissez la page." 
-      }, { status: 504 });
-    }
-
-    return NextResponse.json({ 
-      error: "Erreur réseau. Veuillez vérifier votre connexion et réessayer." 
+    console.error("❌ ERROR UPDATE:", error.message);
+    // On renvoie un message propre à l'interface
+    return NextResponse.json({
+      error: error.message.includes("Transaction not found")
+        ? "La connexion a été perdue. Veuillez réessayer."
+        : error.message
     }, { status: 500 });
   }
 }
