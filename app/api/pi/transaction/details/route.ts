@@ -4,55 +4,44 @@ import { TransactionStatus } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URLSearchParams(req.url.split('?')[1]);
+    const { searchParams } = new URL(req.url);
     const ref = searchParams.get("ref");
     const txid = searchParams.get("txid");
 
-    if (!ref && !txid) {
-      return NextResponse.json({ error: "Référence manquante" }, { status: 400 });
-    }
-
-    // 1. Trouver la transaction
     const transaction = await prisma.transaction.findFirst({
       where: {
         OR: [
           { reference: ref || undefined },
-          { blockchainTx: txid || undefined },
-          { externalId: txid || undefined }
+          { blockchainTx: txid || undefined }
         ]
-      },
-      include: { toWallet: true }
+      }
     });
 
-    if (!transaction) {
-      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
-    }
+    if (!transaction) return NextResponse.json({ error: "Introuvable" }, { status: 404 });
 
-    // 2. Si elle est en PENDING, on la passe en SUCCESS (Validation du dépôt)
+    // Si PENDING, on valide et on renvoie la version mise à jour
     if (transaction.status === TransactionStatus.PENDING) {
-      const updatedTx = await prisma.$transaction(async (tx) => {
-        // Mettre à jour la transaction
-        const t = await tx.transaction.update({
+      const validatedTx = await prisma.$transaction(async (tx) => {
+        // 1. Update status
+        const updated = await tx.transaction.update({
           where: { id: transaction.id },
-          data: { status: TransactionStatus.SUCCESS },
+          data: { status: TransactionStatus.SUCCESS }
         });
 
-        // Créditer le Wallet du destinataire (si c'est un dépôt)
-        if (t.toWalletId) {
+        // 2. Créditer le wallet (si dépôt)
+        if (updated.toWalletId) {
           await tx.wallet.update({
-            where: { id: t.toWalletId },
-            data: { balance: { increment: t.amount } }
+            where: { id: updated.toWalletId },
+            data: { balance: { increment: updated.amount } }
           });
         }
-        return t;
-      }, { timeout: 15000 });
-
-      return NextResponse.json(updatedTx);
+        return updated;
+      });
+      return NextResponse.json(validatedTx);
     }
 
     return NextResponse.json(transaction);
-  } catch (error: any) {
-    console.error("Détails Error:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: "Erreur" }, { status: 500 });
   }
 }

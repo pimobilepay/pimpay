@@ -20,26 +20,28 @@ function SuccessContent() {
       if (txid) params.set("txid", txid); 
       if (ref) params.set("ref", ref);
       
-      const res = await fetch(`/api/transactions/details?${params.toString()}`);
+      // AJOUT : cache: 'no-store' pour éviter les données vides en ligne
+      const res = await fetch(`/api/transactions/details?${params.toString()}`, {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache' }
+      });
       
       if (res.ok) {
         const data = await res.json(); 
         setTransaction(data);
         
-        // Si malgré l'appel elle reste en PENDING, on redirige vers le résumé
         if (data.status === "PENDING") { 
-          toast.info("Transaction en cours de traitement...");
-          router.replace(`/deposit/summary?ref=${ref || txid}`); 
-        } else if (data.status === "FAILED") {
-          toast.error("La transaction a échoué");
-          router.replace("/dashboard");
+          // Si c'est encore pending après 2 secondes, on redirige
+          setTimeout(() => {
+            router.replace(`/deposit/summary?ref=${ref || txid}`); 
+          }, 2000);
         }
       } else { 
         toast.error("Transaction introuvable"); 
       }
     } catch (e) { 
       console.error(e); 
-      toast.error("Erreur de connexion au serveur");
+      toast.error("Erreur de synchronisation");
     } finally { 
       setLoading(false); 
     }
@@ -47,14 +49,26 @@ function SuccessContent() {
 
   useEffect(() => { fetchTx(); }, [fetchTx]);
 
-  // Constantes de calcul PimPay
+  // Constantes de calcul PimPay (GCV)
   const PI_GCV_PRICE = 314159;
   const currency = transaction?.currency || "PI";
-  const amount = transaction?.amount || 0;
+  const amount = Number(transaction?.amount) || 0;
   
-  // Calculs dynamiques
-  const amountPI = currency === "PI" ? amount : amount / PI_GCV_PRICE;
-  const amountUSD = currency === "USD" ? amount : (currency === "PI" ? amount * PI_GCV_PRICE : amount);
+  // Calculs dynamiques multi-devises
+  let amountDisplay = amount;
+  let amountUSD = 0;
+
+  if (currency === "PI") {
+    amountDisplay = amount;
+    amountUSD = amount * PI_GCV_PRICE;
+  } else if (currency === "XAF") {
+    amountDisplay = amount;
+    amountUSD = amount / 600; // Estimation simple USD/XAF
+  } else if (currency === "USD") {
+    amountDisplay = amount;
+    amountUSD = amount;
+  }
+
   const reference = transaction?.reference || ref || "PIMPAY-TX";
 
   const copyRef = () => { 
@@ -66,81 +80,78 @@ function SuccessContent() {
     <div className="min-h-screen bg-[#020617] flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="animate-spin text-blue-500 mb-4 mx-auto" size={40} />
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Sécurisation du Ledger...</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Validation Ledger...</p>
       </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-between py-12 px-6 text-center font-sans overflow-hidden relative">
-      {/* Background Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Header & Status */}
-      <div className="flex flex-col items-center w-full animate-in fade-in zoom-in-95 duration-700 relative z-10">
-        <div className="w-20 h-20 bg-emerald-500/10 rounded-[2rem] flex items-center justify-center border border-emerald-500/20 shadow-2xl mb-6">
-          <CheckCircle2 className="text-emerald-500" size={40} strokeWidth={2.5} />
+      <div className="flex flex-col items-center w-full animate-in fade-in slide-in-from-bottom-4 duration-1000 relative z-10">
+        <div className="w-20 h-20 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center border border-emerald-500/20 shadow-2xl mb-8">
+          <CheckCircle2 className="text-emerald-500" size={42} strokeWidth={2.5} />
         </div>
-        <h1 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">Dépôt Confirmé</h1>
-        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Votre compte PimPay a été crédité</p>
+        
+        <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Succès !</h1>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">Transfert confirmé par PimPay</p>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <div className="flex items-baseline justify-center gap-2">
-            <span className="text-5xl font-black text-white tracking-tighter">
-              {currency === "PI" ? amountPI.toFixed(4) : amount.toLocaleString()}
+            <span className="text-6xl font-black text-white tracking-tighter">
+              {currency === "PI" ? amountDisplay.toFixed(4) : amountDisplay.toLocaleString('fr-FR')}
             </span>
             <span className="text-xl font-bold text-blue-500">{currency}</span>
           </div>
-          <p className="text-[10px] text-slate-500 mt-2 font-black uppercase tracking-widest">
-            ≈ ${amountUSD.toLocaleString()} USD (GCV Price)
+          <p className="text-[11px] text-emerald-500/80 mt-3 font-black uppercase tracking-widest bg-emerald-500/5 py-1 px-3 rounded-full border border-emerald-500/10 inline-block">
+            ≈ ${amountUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
           </p>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="w-full max-w-sm space-y-3 relative z-10">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between mb-4">
+      <div className="w-full max-w-sm space-y-4 relative z-10">
+        <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex items-center justify-between backdrop-blur-md">
           <div className="text-left">
-            <p className="text-[8px] font-black text-slate-500 uppercase">Référence</p>
-            <p className="text-xs font-bold text-white tracking-tight">{reference}</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">ID Transaction</p>
+            <p className="text-sm font-mono font-bold text-white/90">{reference}</p>
           </div>
-          <button onClick={copyRef} className="p-2 bg-white/5 rounded-lg active:scale-90 transition-transform">
-            <Copy size={16} className="text-blue-400" />
+          <button onClick={copyRef} className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 active:scale-90 transition-all">
+            <Copy size={18} className="text-blue-400" />
           </button>
         </div>
 
         <Link href={`/deposit/receipt?ref=${reference}`} className="block">
-          <button className="w-full h-14 bg-white text-[#020617] rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-between px-6 active:scale-[0.98] transition-all">
-            <div className="flex items-center gap-3"><Receipt size={18} /><span>Télécharger le reçu</span></div>
-            <ArrowRight size={18} />
+          <button className="w-full h-16 bg-white text-[#020617] rounded-[2rem] font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-between px-8 hover:bg-slate-100 active:scale-[0.97] transition-all">
+            <div className="flex items-center gap-3"><Receipt size={20} /><span>Voir le reçu</span></div>
+            <ArrowRight size={20} />
           </button>
         </Link>
 
-        <div className="flex gap-3">
-          <Link href="/dashboard" className="flex-1">
-            <button className="w-full h-14 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
-              <Wallet size={16} /> Dashboard
+        <div className="grid grid-cols-5 gap-3">
+          <Link href="/dashboard" className="col-span-4">
+            <button className="w-full h-16 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 shadow-2xl shadow-blue-900/40 hover:bg-blue-500 transition-all">
+              <Wallet size={20} /> Retour au Wallet
             </button>
           </Link>
           <button 
             onClick={() => {
               if(navigator.share) {
-                navigator.share({ title: 'PimPay Success', text: `Dépôt réussi sur PimPay ! Réf: ${reference}` });
-              } else {
-                copyRef();
-              }
+                navigator.share({ title: 'PimPay Success', text: `Transaction de ${amountDisplay} ${currency} réussie !` });
+              } else { copyRef(); }
             }}
-            className="h-14 px-5 bg-white/5 border border-white/10 text-slate-400 rounded-2xl flex items-center justify-center active:bg-white/10 transition-all"
+            className="col-span-1 h-16 bg-white/5 border border-white/10 text-white rounded-[2rem] flex items-center justify-center hover:bg-white/10 transition-all"
           >
-            <Share2 size={18} />
+            <Share2 size={20} />
           </button>
         </div>
       </div>
 
-      {/* Footer Label */}
-      <div className="flex items-center gap-2 opacity-30 select-none">
-        <Lock size={12} />
-        <span className="text-[8px] font-bold uppercase tracking-widest italic">PimPay Secure Ledger</span>
+      <div className="flex flex-col items-center gap-2 opacity-20">
+        <div className="flex items-center gap-2">
+          <Lock size={12} />
+          <span className="text-[9px] font-black uppercase tracking-[0.4em]">Encrypted Ledger</span>
+        </div>
       </div>
     </div>
   );
