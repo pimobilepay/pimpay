@@ -2,9 +2,12 @@
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, CheckCircle2, Loader2, Wallet, XCircle, AlertTriangle, PiIcon } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Wallet, ShieldCheck } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
+import { PiButton } from "@/components/PiButton"; // Importation du composant PiButton
 import { toast } from "sonner";
+
+const PI_GCV_PRICE = 314159;
 
 function SummaryContent() {
   const searchParams = useSearchParams();
@@ -12,12 +15,11 @@ function SummaryContent() {
 
   const ref = searchParams.get("ref");
   const method = searchParams.get("method") || "mobile";
-  const amountParam = searchParams.get("amount");
+  const amountParam = searchParams.get("amount") || "0";
 
   const [mounted, setMounted] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -25,6 +27,7 @@ function SummaryContent() {
     router.push(`/deposit/success?ref=${reference}`);
   }, [router]);
 
+  // Récupération des détails de la transaction créée à l'étape précédente
   const fetchTransactionDetails = useCallback(async () => {
     if (!ref || !mounted) return;
     try {
@@ -47,152 +50,127 @@ function SummaryContent() {
 
   useEffect(() => { fetchTransactionDetails(); }, [fetchTransactionDetails]);
 
-  // Polling pour les dépôts Mobile Money (validation externe)
+  // Polling automatique pour Mobile Money uniquement
   useEffect(() => {
-    if (!ref || isProcessing || method === "crypto") return;
+    if (!ref || method === "crypto" || method === "Pi Network") return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/pi/transaction?ref=${encodeURIComponent(ref)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status === "SUCCESS") goToSuccess(ref);
+          if (data.status === "SUCCESS") {
+            clearInterval(interval);
+            goToSuccess(ref);
+          }
         }
       } catch (e) { console.error("Polling error", e); }
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [ref, isProcessing, method, goToSuccess]);
-
-  // LOGIQUE PI NETWORK SDK
-  const handlePiPayment = async () => {
-    if (!window.Pi) {
-      toast.error("Veuillez ouvrir PimPay dans le Pi Browser");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const payment = await window.Pi.createPayment({
-        amount: parseFloat(amountParam || "0"),
-        memo: `Dépôt PimPay - Ref: ${ref}`,
-        metadata: { reference: ref, type: "DEPOSIT" },
-      }, {
-        onReadyForServerApproval: async (paymentId) => {
-          await fetch("/api/pi/approve", {
-            method: "POST",
-            body: JSON.stringify({ paymentId, reference: ref }),
-            headers: { "Content-Type": "application/json" },
-          });
-        },
-        onReadyForServerCompletion: async (paymentId, txid) => {
-          const res = await fetch("/api/deposit/confirm", {
-            method: "POST",
-            body: JSON.stringify({ paymentId, txid, reference: ref }),
-            headers: { "Content-Type": "application/json" },
-          });
-          if (res.ok) goToSuccess(ref);
-        },
-        onCancel: () => setIsProcessing(false),
-        onError: (error) => {
-          console.error(error);
-          setIsProcessing(false);
-          toast.error("Le paiement Pi a échoué");
-        },
-      });
-    } catch (error) {
-      setIsProcessing(false);
-      toast.error("Erreur d'initialisation du paiement");
-    }
-  };
-
-  // LOGIQUE MOBILE MONEY (Validation Manuelle)
-  const handleManualConfirm = async () => {
-    setIsProcessing(true);
-    try {
-      const res = await fetch("/api/deposit/confirm", {
-        method: "POST",
-        body: JSON.stringify({ reference: ref }),
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === "SUCCESS") goToSuccess(ref);
-        else toast.info("Nous attendons toujours la confirmation de l'opérateur.");
-      }
-    } catch {
-      toast.error("Erreur de connexion");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  }, [ref, method, goToSuccess]);
 
   if (!mounted || loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-blue-500" size={48} />
-      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500/50">Préparation du reçu...</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500/50">Sécurisation du flux...</p>
     </div>
   );
 
-  const amount = transaction?.amount || parseFloat(amountParam || "0");
-  const currency = transaction?.currency || "USD";
+  // LOGIQUE DE CONVERSION PIMPAY
+  // Si c'est Pi, on affiche le montant en PI (USD / GCV)
+  const isPi = method.toLowerCase().includes("pi") || method === "crypto";
+  const rawAmount = transaction?.amount || parseFloat(amountParam);
+  const displayAmount = isPi ? (rawAmount / PI_GCV_PRICE) : rawAmount;
+  const displayCurrency = isPi ? "PI" : "USD";
+  const fees = transaction?.fee || (rawAmount * 0.02);
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans">
+    <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
       <div className="px-6 pt-10 pb-6 flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-3 rounded-xl bg-white/5 border border-white/10 active:scale-95">
+        <button onClick={() => router.back()} className="p-3 rounded-xl bg-white/5 border border-white/10 active:scale-95 transition-transform">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-black uppercase tracking-tight">Récapitulatif</h1>
+        <div>
+          <h1 className="text-xl font-black uppercase tracking-tight leading-none">Récapitulatif</h1>
+          <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-1">Validation de dépôt</p>
+        </div>
       </div>
 
-      <div className="px-6 space-y-6">
-        <Card className="bg-slate-900/60 border border-white/10 rounded-3xl p-8 text-center relative overflow-hidden">
-          <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-widest">Montant à transférer</p>
-          <div className="text-5xl font-black">
-            {amount.toLocaleString()}
-            <span className="text-lg text-blue-500 ml-1 uppercase">{currency}</span>
+      <div className="px-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* CARTE MONTANT CONVERTI */}
+        <Card className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-10 text-center relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={80} /></div>
+          <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à transférer</p>
+          <div className="flex items-center justify-center gap-2">
+             <span className="text-5xl font-black tracking-tighter">
+                {isPi ? displayAmount.toFixed(7) : displayAmount.toLocaleString()}
+             </span>
+             <span className="text-xl font-bold text-blue-500 uppercase">{displayCurrency}</span>
           </div>
-          {method === "crypto" && (
-            <div className="mt-4 p-2 bg-blue-500/10 rounded-xl inline-flex items-center gap-2">
-              <span className="text-[10px] font-bold text-blue-400">VIA PI NETWORK BRIDGE</span>
-            </div>
+          {isPi && (
+            <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+              Basé sur le consensus GCV : $314,159
+            </p>
           )}
         </Card>
 
+        {/* DETAILS DE LA TRANSACTION */}
         <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6 space-y-5">
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Référence</span>
-            <span className="text-blue-400 font-mono">{ref?.slice(0, 15)}</span>
+            <span className="text-slate-500">ID Référence</span>
+            <span className="text-blue-400 font-mono tracking-normal">{ref}</span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Frais PimPay</span>
-            <span className="text-white">{transaction?.fee || (amount * 0.02).toFixed(2)} {currency}</span>
+            <span className="text-slate-500">Méthode</span>
+            <span className="text-white">{method}</span>
           </div>
-          <div className="flex justify-between items-center pt-4 border-t border-white/5 text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Statut Actuel</span>
+          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+            <span className="text-slate-500">Frais de réseau</span>
+            <span className="text-red-400">+{isPi ? (fees/PI_GCV_PRICE).toFixed(7) : fees.toFixed(2)} {displayCurrency}</span>
+          </div>
+          <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+            <span className="text-slate-500">Statut</span>
             <span className="flex items-center gap-2 text-amber-500">
               <Loader2 size={12} className="animate-spin" />
-              PENDING
+              En attente
             </span>
           </div>
         </Card>
 
-        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-3">
-          <AlertTriangle className="text-blue-500 shrink-0" size={20} />
+        {/* INFO BOX */}
+        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-4">
+          <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
+             <AlertTriangle className="text-blue-500" size={20} />
+          </div>
           <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase">
-            {method === "crypto" 
-              ? "Cliquez sur le bouton ci-dessous pour ouvrir votre Pi Wallet et signer la transaction GCV."
-              : "Une fois le transfert effectué sur votre téléphone, cliquez sur le bouton pour synchroniser."}
+            {isPi 
+              ? "Veuillez utiliser le bouton sécurisé ci-dessous pour signer votre transaction dans le Pi Browser."
+              : "Le système détecte automatiquement votre paiement Mobile Money. Ne fermez pas cette page."}
           </p>
         </div>
 
-        <button
-          onClick={method === "crypto" ? handlePiPayment : handleManualConfirm}
-          disabled={isProcessing}
-          className={`w-full h-16 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center ${
-            isProcessing ? "bg-slate-800 text-slate-500" : "bg-blue-600 text-white shadow-blue-600/20"
-          }`}
-        >
-          {isProcessing ? <Loader2 className="animate-spin" /> : (method === "crypto" ? "PAYER AVEC PI" : "J'AI ENVOYÉ LES FONDS")}
-        </button>
+        {/* SECTION ACTION : BOUTON PI OU BOUTON MANUEL */}
+        <div className="space-y-4">
+          {isPi ? (
+            <PiButton 
+              amount={displayAmount}
+              memo={`Dépôt PimPay Ref: ${ref}`}
+              onSuccess={(txid) => goToSuccess(ref || txid)}
+              label="Payer avec mon Pi Wallet"
+            />
+          ) : (
+            <button
+              onClick={fetchTransactionDetails}
+              className="w-full h-16 bg-blue-600 text-white rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
+            >
+              Vérifier mon paiement
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-center gap-2 opacity-30 pt-4">
+          <ShieldCheck size={14} />
+          <span className="text-[8px] font-bold uppercase tracking-widest text-white">Sécurisé par PimPay Flow Engine</span>
+        </div>
       </div>
       <BottomNav onOpenMenu={() => {}} />
     </div>
