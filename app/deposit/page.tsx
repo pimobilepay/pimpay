@@ -1,110 +1,37 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, AlertTriangle } from "lucide-react";
-import countriesData from "world-countries";
-import { parsePhoneNumberFromString, getCountryCallingCode, CountryCode } from "libphonenumber-js";
-import { BottomNav } from "@/components/bottom-nav";
-import SideMenu from "@/components/SideMenu";
-import { PiButton } from "@/components/PiButton";
-import { toast } from "sonner";
-import { useLanguage } from "@/context/LanguageContext";
-import "flag-icons/css/flag-icons.min.css";
-
-type Operator = { id: string; name: string; icon: string; color: string; };
-type PimPayCountry = { name: string; code: string; dialCode: string; currency: string; operators: Operator[]; };
-const PI_GCV_PRICE = 314159;
-const OPERATORS_DB: Record<string, Operator[]> = {
-  CG: [{ id: "mtn_cg", name: "MTN Congo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg", color: "#FFCC00" }, { id: "airtel_cg", name: "Airtel Congo", icon: "https://upload.wikimedia.org/wikipedia/commons/a/a8/Airtel_logo.png", color: "#E11900" }],
-  CD: [{ id: "vodacom_cd", name: "Vodacom RDC", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Vodacom_Logo.svg/1200px-Vodacom_Logo.svg.png", color: "#E60000" }, { id: "orange_cd", name: "Orange RDC", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Orange_logo.svg/1200px-Orange_logo.svg.png", color: "#FF7900" }],
-  CM: [{ id: "orange_cm", name: "Orange Cameroun", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Orange_logo.svg/1200px-Orange_logo.svg.png", color: "#FF7900" }, { id: "mtn_cm", name: "MTN Cameroon", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg", color: "#FFCC00" }],
-  CI: [{ id: "moov_ci", name: "Moov CI", icon: "https://upload.wikimedia.org/wikipedia/fr/0/04/Moov_Africa_Logo.png", color: "#0055A4" }]
-};
-
-function DepositBanner({ t }: { t: (key: string) => string }) {
-  return (
-    <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-600/15 via-blue-800/10 to-transparent border border-white/5 overflow-hidden">
-      <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.04]"><Zap size={120} className="text-blue-500" /></div>
-      <div className="flex items-start gap-4 relative z-10">
-        <div className="p-3 bg-blue-600/20 rounded-2xl text-blue-400 border border-blue-500/20 shrink-0"><ShieldCheck size={24} /></div>
-        <div><p className="text-[11px] font-black uppercase tracking-widest text-blue-400">{t("deposit.secureDeposit")}</p><p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">{t("deposit.secureBanner")}</p></div>
-      </div>
-    </section>
-  );
-}
-
-function SecuritySection({ t }: { t: (key: string) => string }) {
-  return (
-    <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5 mb-10">
-      <div className="flex items-center gap-2"><Shield size={14} className="text-blue-400" /><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Garanties de sécurité</span></div>
-      <div className="grid gap-4">
-        <div className="flex items-center gap-4">
-          <div className="p-2 bg-emerald-500/10 rounded-lg"><Lock size={18} className="text-emerald-500" /></div>
-          <div><p className="text-[10px] font-black uppercase text-white">Chiffrement AES-256</p><p className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Vos données de paiement ne sont jamais stockées en clair.</p></div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
+import { useState, useEffect, useMemo } from "react"; import { useRouter } from "next/navigation"; import { motion, AnimatePresence } from "framer-motion"; import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, AlertTriangle } from "lucide-react"; import countriesData from "world-countries"; import { parsePhoneNumberFromString, getCountryCallingCode, CountryCode } from "libphonenumber-js"; import { BottomNav } from "@/components/bottom-nav"; import SideMenu from "@/components/SideMenu"; import { toast } from "sonner"; import { useLanguage } from "@/context/LanguageContext"; import "flag-icons/css/flag-icons.min.css";
+type Operator = { id: string; name: string; icon: string; color: string; }; type PimPayCountry = { name: string; code: string; dialCode: string; currency: string; operators: Operator[]; }; const PI_GCV_PRICE = 314159;
+const OPERATORS_DB: Record<string, Operator[]> = { CG: [{ id: "mtn_cg", name: "MTN Congo", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg", color: "#FFCC00" }, { id: "airtel_cg", name: "Airtel Congo", icon: "https://upload.wikimedia.org/wikipedia/commons/a/a8/Airtel_logo.png", color: "#E11900" }], CD: [{ id: "vodacom_cd", name: "Vodacom RDC", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Vodacom_Logo.svg/1200px-Vodacom_Logo.svg.png", color: "#E60000" }, { id: "orange_cd", name: "Orange RDC", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Orange_logo.svg/1200px-Orange_logo.svg.png", color: "#FF7900" }], CM: [{ id: "orange_cm", name: "Orange Cameroun", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Orange_logo.svg/1200px-Orange_logo.svg.png", color: "#FF7900" }, { id: "mtn_cm", name: "MTN Cameroon", icon: "https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.jpg", color: "#FFCC00" }], CI: [{ id: "moov_ci", name: "Moov CI", icon: "https://upload.wikimedia.org/wikipedia/fr/0/04/Moov_Africa_Logo.png", color: "#0055A4" }] };
+function DepositBanner({ t }: { t: (key: string) => string }) { return ( <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-600/15 via-blue-800/10 to-transparent border border-white/5 overflow-hidden"> <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.04]"><Zap size={120} className="text-blue-500" /></div> <div className="flex items-start gap-4 relative z-10"> <div className="p-3 bg-blue-600/20 rounded-2xl text-blue-400 border border-blue-500/20 shrink-0"><ShieldCheck size={24} /></div> <div><p className="text-[11px] font-black uppercase tracking-widest text-blue-400">{t("deposit.secureDeposit")}</p><p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">{t("deposit.secureBanner")}</p></div> </div> </section> ); }
+function SecuritySection({ t }: { t: (key: string) => string }) { return ( <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5 mb-10"> <div className="flex items-center gap-2"><Shield size={14} className="text-blue-400" /><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Garanties de sécurité</span></div> <div className="grid gap-4"> <div className="flex items-center gap-4"> <div className="p-2 bg-emerald-500/10 rounded-lg"><Lock size={18} className="text-emerald-500" /></div> <div><p className="text-[10px] font-black uppercase text-white">Chiffrement AES-256</p><p className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Vos données de paiement ne sont jamais stockées en clair.</p></div> </div> </div> </section> ); }
 export default function DepositPage() {
-  const router = useRouter();
-  const { t } = useLanguage();
-  const [mounted, setMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("mobile");
-  const [amount, setAmount] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
-  const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
-
-  const allCountries = useMemo(() => {
-    return countriesData.map(c => {
-      try { const dialCode = getCountryCallingCode(c.cca2 as CountryCode); return { name: c.name.common, code: c.cca2, dialCode: `+${dialCode}`, currency: Object.keys(c.currencies || {})[0] || "USD", operators: OPERATORS_DB[c.cca2] || [] }; } catch { return null; }
-    }).filter((c): c is PimPayCountry => c !== null).sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
-
-  const [selectedCountry, setSelectedCountry] = useState<PimPayCountry>(() => allCountries.find((c) => c.code === "CG") || allCountries[0]);
-  const [selectedOperator, setSelectedOperator] = useState<Operator | null>(selectedCountry.operators[0] || null);
-  const filteredCountries = useMemo(() => allCountries.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase())), [allCountries, searchQuery]);
-
-  const feesCalculation = useMemo(() => {
-    const val = parseFloat(amount) || 0;
-    const feePercent = activeTab === "crypto" ? 0 : 0.02;
-    const fee = val * feePercent;
-    const totalUsd = val + fee;
-    return { fee: fee.toFixed(2), totalUsd: totalUsd.toFixed(2), totalLocal: (totalUsd * 600).toLocaleString(), piEquivalent: val > 0 ? (val / PI_GCV_PRICE).toFixed(8) : "0" };
-  }, [amount, activeTab]);
-
+  const router = useRouter(); const { t } = useLanguage(); const [mounted, setMounted] = useState(false); const [isLoading, setIsLoading] = useState(false); const [isMenuOpen, setIsMenuOpen] = useState(false); const [activeTab, setActiveTab] = useState("mobile"); const [amount, setAmount] = useState(""); const [phoneNumber, setPhoneNumber] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [isCountryModalOpen, setIsCountryModalOpen] = useState(false); const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
+  const allCountries = useMemo(() => { return countriesData.map(c => { try { const dialCode = getCountryCallingCode(c.cca2 as CountryCode); return { name: c.name.common, code: c.cca2, dialCode: `+${dialCode}`, currency: Object.keys(c.currencies || {})[0] || "USD", operators: OPERATORS_DB[c.cca2] || [] }; } catch { return null; } }).filter((c): c is PimPayCountry => c !== null).sort((a, b) => a.name.localeCompare(b.name)); }, []);
+  const [selectedCountry, setSelectedCountry] = useState<PimPayCountry>(() => allCountries.find((c) => c.code === "CG") || allCountries[0]); const [selectedOperator, setSelectedOperator] = useState<Operator | null>(selectedCountry.operators[0] || null); const filteredCountries = useMemo(() => allCountries.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase())), [allCountries, searchQuery]);
+  const feesCalculation = useMemo(() => { const val = parseFloat(amount) || 0; const feePercent = 0.02; const fee = val * feePercent; const totalUsd = val + fee; return { fee: fee.toFixed(2), totalUsd: totalUsd.toFixed(2), piEquivalent: val > 0 ? (val / PI_GCV_PRICE).toFixed(8) : "0" }; }, [amount]);
   useEffect(() => { setMounted(true); }, []);
-
-  const handleMobileDeposit = async () => {
-    if (!selectedOperator || !amount || parseFloat(amount) <= 0) { toast.error("Veuillez remplir tous les champs"); return; }
+  const handleInitiateDeposit = async (methodType: string) => {
+    if (!amount || parseFloat(amount) <= 0) { toast.error("Montant invalide"); return; }
+    if (activeTab === "mobile" && (!selectedOperator || !phoneNumber)) { toast.error("Infos mobile manquantes"); return; }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: parseFloat(amount), fee: parseFloat(feesCalculation.fee), type: "DEPOSIT", currency: "USD", method: selectedOperator.name, operatorId: selectedOperator.id, accountNumber: `${selectedCountry.dialCode}${phoneNumber}`, countryCode: selectedCountry.code, description: `Dépôt Mobile Money via ${selectedOperator.name}` }) });
+      const payload = { 
+        amount: parseFloat(amount), 
+        fee: parseFloat(feesCalculation.fee), 
+        type: "DEPOSIT", 
+        currency: activeTab === "crypto" ? "PI" : "USD", 
+        method: activeTab === "crypto" ? "Pi Network GCV" : selectedOperator?.name,
+        accountNumber: activeTab === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : null,
+        countryCode: selectedCountry.code,
+        description: activeTab === "crypto" ? "Dépôt via Pi Network GCV Bridge" : `Dépôt Mobile Money ${selectedOperator?.name}`
+      };
+      const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await res.json();
-      if (res.ok) router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}`);
+      if (res.ok) router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}&method=${activeTab}`);
       else toast.error(result.error);
     } catch { toast.error("Erreur de connexion"); } finally { setIsLoading(false); }
   };
-
-  const handlePiSuccess = (payment: any) => {
-    setIsLoading(true);
-    toast.success("Paiement Pi détecté ! Redirection...");
-    fetch("/api/pi/transaction", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ externalId: payment.identifier, blockchainTx: payment.txid, amount: parseFloat(amount), currency: "PI", type: "DEPOSIT", status: "SUCCESS", method: "Pi Network Bridge", description: "Dépôt via Pi Network GCV" }),
-    }).catch(e => console.error("Sync background error", e));
-    setTimeout(() => { router.push(`/deposit/details?piPaymentId=${payment.identifier}&amount=${amount}`); }, 800);
-  };
-
   if (!mounted) return null;
-
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans pb-32 overflow-x-hidden">
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
@@ -130,7 +57,7 @@ export default function DepositPage() {
               <div className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6">
                 <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant USD</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-blue-500 outline-none" /></div>
                 <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Téléphone</label><div className="flex gap-2"><div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center text-blue-500 font-black">{selectedCountry.dialCode}</div><input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="flex-1 h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 font-black outline-none" /></div></div>
-                <button onClick={handleMobileDeposit} disabled={isLoading} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center">{isLoading ? <Loader2 className="animate-spin" /> : "PAYER MAINTENANT"}</button>
+                <button onClick={() => handleInitiateDeposit("mobile")} disabled={isLoading} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "CONTINUER VERS RÉCAPITULATIF"}</button>
               </div>
             )}
           </motion.div>
@@ -139,9 +66,9 @@ export default function DepositPage() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6 text-center">
             <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20"><Bitcoin size={40} className="text-blue-500" /></div>
             <h3 className="text-lg font-black uppercase tracking-tighter">Pi Network GCV Bridge</h3>
-            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant à recevoir (USD)</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-center text-blue-500 outline-none" /></div>
-            <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2"><div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">$314,159</span></div><div className="flex justify-between text-[12px] font-black uppercase"><span>À envoyer</span><span className="text-emerald-400">{feesCalculation.piEquivalent} Pi</span></div></div>
-            <PiButton amount={parseFloat(feesCalculation.piEquivalent)} memo={`Deposit ${amount} USD to PimPay`} onSuccess={handlePiSuccess} label={isLoading ? "TRAITEMENT..." : `DÉPOSER ${feesCalculation.piEquivalent} Pi`} disabled={isLoading || !amount || parseFloat(amount) <= 0} />
+            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant USD</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-center text-blue-500 outline-none" /></div>
+            <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2"><div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">$314,159</span></div><div className="flex justify-between text-[12px] font-black uppercase"><span>Pi Equivalent</span><span className="text-emerald-400">{feesCalculation.piEquivalent} Pi</span></div></div>
+            <button onClick={() => handleInitiateDeposit("crypto")} disabled={isLoading || !amount || parseFloat(amount) <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : `VÉRIFIER LE DÉPÔT (${feesCalculation.piEquivalent} Pi)`}</button>
           </motion.div>
         )}
         {activeTab === "card" && <div className="bg-slate-900/30 rounded-3xl border border-white/5 p-10 text-center"><CreditCard size={48} className="mx-auto text-slate-700" /><p className="text-[10px] font-black uppercase text-slate-500 mt-4">Bientôt disponible</p></div>}
