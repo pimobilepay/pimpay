@@ -99,7 +99,7 @@ export default function AdminTransactionsPage() {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
-            <h1 className="text-3xl font-black italic tracking-tighter uppercase">
+            <h1 className="text-xl font-black tracking-tighter uppercase">
               PIMPAY<span className="text-blue-500">FLOW</span>
             </h1>
             <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.4em] flex items-center gap-2">
