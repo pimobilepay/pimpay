@@ -10,20 +10,41 @@ function isSupport(user: any) {
   return user?.role === "ADMIN" || user?.role === "AGENT";
 }
 
+// Fonction d'auto-réponse basée sur les "Quick Questions" et le schéma
+function getElaraResponse(msg: string): string {
+  const low = msg.toLowerCase();
+
+  if (low.includes("depot") || low.includes("dépôt") || low.includes("retrait")) {
+    return "💳 **Finance :** Pour les dépôts et retraits, rendez-vous dans l'onglet Portefeuille. Les dépôts Pi sont instantanés après confirmation, les retraits FIAT (XAF/USD) prennent entre 5 et 15 minutes.";
+  }
+  
+  if (low.includes("carte") || low.includes("visa") || low.includes("virtual card")) {
+    return "🎫 **Carte Virtuelle :** Vous pouvez générer une carte VISA Classic, Gold ou Ultra. Elle permet des paiements en USD et XAF. Allez dans la section 'Cartes' pour l'activer.";
+  }
+
+  if (low.includes("swap") || low.includes("echanger") || low.includes("convertir")) {
+    return "🔄 **Swap :** PimPay vous permet de convertir vos Pi en Fiat (XAF/USD) instantanément selon le cours du jour. Utilisez le bouton 'Swap' sur votre tableau de bord.";
+  }
+
+  if (low.includes("kyc") || low.includes("verifier") || low.includes("identité")) {
+    return "🛡️ **Sécurité :** Pour vérifier votre compte, téléchargez votre CNI ou Passeport dans votre profil. Le statut passera de 'PENDING' à 'VERIFIED' sous 24h après examen par nos agents.";
+  }
+
+  if (low.includes("agent") || low.includes("humain") || low.includes("support")) {
+    return "👤 **Support Humain :** J'ai notifié un agent de votre demande. Un membre de l'équipe PimPay vous répondra ici-même dans quelques instants.";
+  }
+
+  return "Je suis Elara, votre assistante PimPay. Je ne suis pas sûre de comprendre, mais un agent de support va prendre le relais pour vous aider précisément.";
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await auth().catch(() => null);
-
     const { searchParams } = new URL(req.url);
     const ticketId = searchParams.get("ticketId");
-
     const admin = isSupport(user);
 
-    // --- Lecture d'un ticket précis ---
     if (ticketId) {
-      // Cas 1: Admin/Agent => peut lire tout
-      // Cas 2: User connecté => seulement ses tickets
-      // Cas 3: Invité => seulement tickets guest (userId null)
       const where = admin
         ? { id: ticketId }
         : user?.id
@@ -34,17 +55,16 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           messages: { orderBy: { createdAt: "asc" } },
-          user: { select: { name: true, email: true, avatar: true } }, // OK si relation User? (optionnelle)
+          user: { select: { name: true, email: true, avatar: true } },
         },
       });
 
-      if (!ticket) return jsonError("Not found", 404);
+      if (!ticket) return jsonError("Conversation introuvable", 404);
       return NextResponse.json({ ticket });
     }
 
-    // --- Liste des tickets ---
-    // Sans ticketId, on exige une auth (sinon impossible d’identifier l’invité)
-    if (!user) return jsonError("Unauthorized", 401);
+    // Un utilisateur guest ne peut pas voir de liste de tickets (il n'a pas d'ID)
+    if (!user) return NextResponse.json({ tickets: [] });
 
     const tickets = await prisma.supportTicket.findMany({
       where: admin ? {} : { userId: user.id },
@@ -56,42 +76,34 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ tickets });
-  } catch (error: any) {
+  } catch (error) {
     console.error("CHAT_GET_ERROR:", error);
-    return jsonError("Internal server error", 500);
+    return jsonError("Erreur serveur", 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await auth().catch(() => null);
+    const body = await req.json();
 
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      return jsonError("Body invalide (JSON attendu)", 400);
-    }
+    const ticketId = body?.ticketId as string | null;
+    const message = body?.message as string;
 
-    const ticketId = (body?.ticketId ?? null) as string | null;
-    const subject = (body?.subject ?? null) as string | null;
-    const message = (body?.message ?? "") as string;
-
-    if (!message || !message.trim()) return jsonError("Message requis", 400);
+    if (!message?.trim()) return jsonError("Message vide", 400);
 
     const sanitizedMessage = message.trim();
     const admin = isSupport(user);
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1) Récupérer / Créer le ticket (avec contrôle d’accès)
-      let ticket = null as any;
+      let ticket;
 
       if (!ticketId) {
-        // Création ticket
+        // Nouveau ticket (User ou Guest)
         ticket = await tx.supportTicket.create({
           data: {
-            userId: user?.id ?? null, // ✅ invité => null (PAS "GUEST_USER")
-            subject: (subject?.trim() || sanitizedMessage.slice(0, 80)).slice(0, 120),
+            userId: user?.id ?? null,
+            subject: sanitizedMessage.slice(0, 50) + "...",
             messages: {
               create: {
                 senderId: admin ? "SUPPORT" : (user?.id ?? "GUEST"),
@@ -101,17 +113,12 @@ export async function POST(req: NextRequest) {
           },
         });
       } else {
-        // Ticket existant + contrôle d’accès
-        const where = admin
-          ? { id: ticketId }
-          : user?.id
-            ? { id: ticketId, userId: user.id }
-            : { id: ticketId, userId: null }; // invité peut écrire seulement sur un ticket guest
-
+        // Ticket existant
+        const where = admin ? { id: ticketId } : { id: ticketId, userId: user?.id ?? null };
         ticket = await tx.supportTicket.findFirst({ where });
-        if (!ticket) return { notFound: true as const };
+        
+        if (!ticket) throw new Error("NOT_FOUND");
 
-        // Ajout message
         await tx.message.create({
           data: {
             ticketId: ticket.id,
@@ -121,61 +128,30 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 2) Réponse Elara (uniquement si ce n’est pas un admin/support)
+      // 🤖 Réponse automatique d'Elara (seulement si l'utilisateur n'est pas Admin)
       if (!admin) {
-        const allMsgs = await tx.message.findMany({
-          where: { ticketId: ticket.id },
-          orderBy: { createdAt: "asc" },
-        });
-
-        const userMsgs = allMsgs.filter(
-          (m) => m.senderId !== "ELARA_AI" && m.senderId !== "SUPPORT"
-        );
-
-        let elaraReply = "";
-        if (userMsgs.length === 1) {
-          elaraReply = "Bonjour ! Je suis Elara. Pour mieux vous aider, quel est votre **Nom complet** ?";
-        } else if (userMsgs.length === 2) {
-          elaraReply = "Merci ! Quelle est votre **adresse email** pour le suivi de ce ticket ?";
-        } else if (userMsgs.length === 3) {
-          elaraReply = "C'est noté. Je transmets votre dossier au support PimPay. Comment puis-je vous aider en attendant ?";
-        } else {
-          elaraReply = getAutoReply(sanitizedMessage);
-        }
-
+        const reply = getElaraResponse(sanitizedMessage);
         await tx.message.create({
-          data: { ticketId: ticket.id, senderId: "ELARA_AI", content: elaraReply },
+          data: {
+            ticketId: ticket.id,
+            senderId: "ELARA_AI",
+            content: reply,
+          },
         });
       }
 
-      // 3) Retour ticket complet
-      const updated = await tx.supportTicket.findUnique({
+      return await tx.supportTicket.findUnique({
         where: { id: ticket.id },
         include: {
           messages: { orderBy: { createdAt: "asc" } },
-          user: { select: { name: true, email: true, avatar: true } },
+          user: { select: { name: true, avatar: true } },
         },
       });
-
-      return { ticket: updated };
     });
 
-    if ((result as any).notFound) return jsonError("Not found", 404);
-
-    return NextResponse.json({ ticket: (result as any).ticket });
+    return NextResponse.json({ ticket: result });
   } catch (error: any) {
-    console.error("CHAT_POST_ERROR:", error);
-    return jsonError("Internal server error", 500);
+    if (error.message === "NOT_FOUND") return jsonError("Ticket introuvable", 404);
+    return jsonError("Erreur lors de l'envoi", 500);
   }
-}
-
-function getAutoReply(msg: string): string {
-  const low = msg.toLowerCase();
-  if (low.includes("depot") || low.includes("deposit"))
-    return "Dépôts : Menu Portefeuille > Déposer. Traitement < 5min.";
-  if (low.includes("retrait") || low.includes("withdraw"))
-    return "Retraits : Traités sous 15min. Minimum 1.0.";
-  if (low.includes("kyc"))
-    return "KYC : Envoyez CNI + Selfie dans votre Profil. Validation sous 24h.";
-  return "Je n'ai pas la réponse exacte. Un agent humain (SUPPORT) va vous répondre ici très bientôt.";
 }

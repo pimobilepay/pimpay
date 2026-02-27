@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft, Send, Sparkles, Plus, Clock,
-  Loader2, MessageCircle, Trash2, ChevronRight,
+  Loader2, MessageCircle, ChevronRight,
   HelpCircle, Wallet, CreditCard, RefreshCcw, ShieldCheck,
   X
 } from "lucide-react";
@@ -100,6 +100,7 @@ export default function ChatPage() {
 
     try {
       const body: Record<string, string> = { message: messageText };
+      // Si on est en mode guest ou nouveau chat, l'API créera un ticket auto
       if (activeTicket) {
         body.ticketId = activeTicket.id;
       }
@@ -113,7 +114,8 @@ export default function ChatPage() {
       if (res.ok) {
         const data = await res.json();
         setActiveTicket(data.ticket);
-        fetchTickets();
+        // On ne fetch l'historique que si l'utilisateur est potentiellement connecté
+        fetchTickets(); 
       }
     } catch (err) {
       console.error("Failed to send message:", err);
@@ -155,9 +157,9 @@ export default function ChatPage() {
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#020617] text-white font-sans">
-      {/* Header */}
-      <div className="shrink-0 px-5 pt-8 pb-4 bg-[#020617] border-b border-white/5">
+    <div className="flex flex-col h-[100dvh] bg-[#020617] text-white font-sans overflow-hidden">
+      {/* Header - Toujours visible */}
+      <div className="shrink-0 px-5 pt-8 pb-4 bg-[#020617] border-b border-white/5 z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -221,7 +223,7 @@ export default function ChatPage() {
               {!loading && tickets.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <MessageCircle size={32} className="text-slate-700 mb-3" />
-                  <p className="text-xs text-slate-600 font-bold">Aucune conversation</p>
+                  <p className="text-xs text-slate-600 font-bold">Connectez-vous pour voir l'historique</p>
                 </div>
               )}
               {tickets.map((ticket) => (
@@ -245,8 +247,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Main Chat Area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         {!activeTicket ? (
           <div className="flex flex-col items-center px-6 pt-10 pb-6">
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center mb-6 shadow-xl shadow-blue-600/20">
@@ -271,27 +273,23 @@ export default function ChatPage() {
               const isAI = msg.senderId === "ELARA_AI";
               const isSupport = msg.senderId === "SUPPORT";
               const isUser = !isAI && !isSupport;
-              
+
               return (
                 <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                   <div className="max-w-[85%]">
-                    {/* Header du message (Nom & Icône) */}
                     {!isUser && (
                       <div className="flex items-center gap-2 mb-1.5">
                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isSupport ? "bg-emerald-500 shadow-lg shadow-emerald-500/20" : "bg-gradient-to-br from-blue-500 to-blue-700"}`}>
-                          {isSupport ? <ShieldCheck size={12} className="text-white" /> : <Sparkles size={12} className="text-white" />}
+                          {isSupport ? <ShieldCheck size={12} className="text-white" /> : <ShieldCheck size={12} className="text-white" />}
                         </div>
                         <span className={`text-[10px] font-black uppercase tracking-wider ${isSupport ? "text-emerald-400" : "text-blue-400"}`}>
                           {isSupport ? "Support PimPay" : "Elara AI"}
                         </span>
-                        {isSupport && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                       </div>
                     )}
-
-                    {/* Bulle de message */}
                     <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                        isUser ? "bg-blue-600 text-white rounded-br-md" : 
-                        isSupport ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-50 rounded-bl-md" : 
+                        isUser ? "bg-blue-600 text-white rounded-br-md" :
+                        isSupport ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-50 rounded-bl-md" :
                         "bg-white/[0.04] border border-white/5 text-slate-300 rounded-bl-md"
                       }`}>
                       {msg.content}
@@ -325,8 +323,8 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="shrink-0 px-4 pb-6 pt-3 bg-[#020617] border-t border-white/5">
+      {/* Input Area - Fixée en bas sans barre de navigation */}
+      <div className="shrink-0 px-4 pb-8 pt-3 bg-[#020617] border-t border-white/5 z-20">
         <div className="flex items-center gap-3">
           <div className="flex-1 flex items-center bg-white/5 border border-white/10 rounded-2xl px-4 focus-within:border-blue-500/40 transition-colors">
             <input
