@@ -4,8 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft, Send, Sparkles, Plus, Clock,
   Loader2, MessageCircle, ChevronRight,
-  HelpCircle, Wallet, CreditCard, RefreshCcw, ShieldCheck,
-  X
+  ShieldCheck, X, Paperclip, FileText, Image as ImageIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
@@ -25,19 +24,12 @@ interface Ticket {
   messages: Message[];
 }
 
-const quickQuestions = [
-  { icon: <Wallet size={16} />, label: "Depot & Retrait", message: "Comment faire un depot ou un retrait ?" },
-  { icon: <CreditCard size={16} />, label: "Carte Virtuelle", message: "Comment obtenir ma carte virtuelle VISA ?" },
-  { icon: <RefreshCcw size={16} />, label: "Swap Pi/Fiat", message: "Comment fonctionne le swap Pi vers Fiat ?" },
-  { icon: <ShieldCheck size={16} />, label: "KYC", message: "Comment verifier mon identite KYC ?" },
-  { icon: <HelpCircle size={16} />, label: "Support", message: "Je souhaite parler a un agent du support." },
-];
-
 export default function ChatPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
@@ -99,23 +91,19 @@ export default function ChatPage() {
     setInputValue("");
 
     try {
-      const body: Record<string, string> = { message: messageText };
-      // Si on est en mode guest ou nouveau chat, l'API créera un ticket auto
-      if (activeTicket) {
-        body.ticketId = activeTicket.id;
-      }
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          message: messageText,
+          ticketId: activeTicket?.id || null
+        }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setActiveTicket(data.ticket);
-        // On ne fetch l'historique que si l'utilisateur est potentiellement connecté
-        fetchTickets(); 
+        fetchTickets();
       }
     } catch (err) {
       console.error("Failed to send message:", err);
@@ -125,225 +113,125 @@ export default function ChatPage() {
     }
   };
 
-  const startNewChat = () => {
-    setActiveTicket(null);
-    setShowHistory(false);
-    setInputValue("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      alert(`Fichier ${file.name} prêt pour l'envoi (implémentation S3/Upload en cours)`);
     }
-  };
-
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) return "Aujourd'hui";
-    if (days === 1) return "Hier";
-    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   };
 
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#020617] text-white font-sans overflow-hidden">
-      {/* Header - Toujours visible */}
-      <div className="shrink-0 px-5 pt-8 pb-4 bg-[#020617] border-b border-white/5 z-20">
+    <div className="fixed inset-0 flex flex-col bg-[#020617] text-white font-sans overflow-hidden z-[9999]">
+      {/* Header - Z-Index élevé pour couvrir tout */}
+      <div className="shrink-0 px-5 pt-10 pb-4 bg-[#020617]/80 backdrop-blur-md border-b border-white/5 z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                if (showHistory) {
-                  setShowHistory(false);
-                } else if (activeTicket) {
-                  setActiveTicket(null);
-                } else {
-                  router.back();
-                }
-              }}
-              className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform"
-            >
+            <button onClick={() => activeTicket ? setActiveTicket(null) : router.back()} className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
               <ArrowLeft size={18} />
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-600/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <Sparkles size={18} className="text-white" />
               </div>
               <div>
-                <h1 className="text-base font-black tracking-tight">Elara AI</h1>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">En ligne</p>
+                <h1 className="text-sm font-black tracking-tight text-white">Elara AI</h1>
+                <div className="flex items-center gap-1">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">En ligne</p>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform"
-            >
-              <Clock size={18} className="text-slate-400" />
-            </button>
-            <button
-              onClick={startNewChat}
-              className="p-2.5 bg-blue-600/20 border border-blue-500/30 rounded-2xl active:scale-90 transition-transform"
-            >
-              <Plus size={18} className="text-blue-400" />
-            </button>
-          </div>
+          <button onClick={() => setShowHistory(true)} className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
+            <Clock size={18} className="text-slate-400" />
+          </button>
         </div>
       </div>
 
       {/* History Sidebar */}
       {showHistory && (
-        <div className="absolute inset-0 z-50 flex">
+        <div className="absolute inset-0 z-[100] flex">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
-          <div className="relative w-[85%] max-w-[340px] h-full bg-[#0a0f1e] border-r border-white/5 flex flex-col animate-in slide-in-from-left duration-300">
-            <div className="p-5 pt-10 flex items-center justify-between border-b border-white/5">
-              <h2 className="text-sm font-black uppercase tracking-wider">Conversations</h2>
-              <button onClick={() => setShowHistory(false)} className="p-2 bg-white/5 rounded-xl active:scale-90 transition-transform">
-                <X size={16} className="text-slate-400" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {loading && <div className="flex items-center justify-center py-10"><Loader2 size={20} className="text-blue-500 animate-spin" /></div>}
-              {!loading && tickets.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <MessageCircle size={32} className="text-slate-700 mb-3" />
-                  <p className="text-xs text-slate-600 font-bold">Connectez-vous pour voir l'historique</p>
-                </div>
-              )}
-              {tickets.map((ticket) => (
-                <button
-                  key={ticket.id}
-                  onClick={() => loadTicket(ticket.id)}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all active:scale-[0.98] ${activeTicket?.id === ticket.id ? "bg-blue-600/10 border-blue-500/30" : "bg-white/[0.02] border-white/5 hover:bg-white/5"}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-bold truncate flex-1">{ticket.subject}</p>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${ticket.status === "OPEN" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-slate-500/10 text-slate-500 border border-slate-500/20"}`}>
-                      {ticket.status}
-                    </span>
-                  </div>
-                  {ticket.messages?.[0] && <p className="text-[11px] text-slate-500 mt-1.5 truncate">{ticket.messages[0].content}</p>}
-                  <p className="text-[9px] text-slate-700 mt-2 font-bold">{formatDate(ticket.createdAt)}</p>
-                </button>
-              ))}
-            </div>
+          <div className="relative w-[85%] h-full bg-[#0a0f1e] p-6 animate-in slide-in-from-left duration-300 border-r border-white/10">
+             <div className="flex justify-between items-center mb-8 pt-6">
+                <h2 className="font-black uppercase text-xs tracking-[0.2em] text-blue-500">Conversations</h2>
+                <button onClick={() => setShowHistory(false)} className="p-2 bg-white/5 rounded-xl"><X size={20} /></button>
+             </div>
+             <div className="space-y-3 overflow-y-auto h-[80vh]">
+               {tickets.length === 0 && <p className="text-xs text-slate-500 text-center py-10">Aucun historique</p>}
+               {tickets.map(t => (
+                 <button key={t.id} onClick={() => loadTicket(t.id)} className="w-full p-4 bg-white/[0.03] rounded-2xl text-left border border-white/5 active:scale-95 transition-all">
+                    <p className="text-sm font-bold truncate text-white">{t.subject}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{new Date(t.createdAt).toLocaleDateString()}</p>
+                 </button>
+               ))}
+             </div>
           </div>
         </div>
       )}
 
-      {/* Main Chat Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
         {!activeTicket ? (
-          <div className="flex flex-col items-center px-6 pt-10 pb-6">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center mb-6 shadow-xl shadow-blue-600/20">
-              <Sparkles size={32} className="text-white" />
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <div className="w-20 h-20 rounded-3xl bg-blue-600/10 flex items-center justify-center mb-6 border border-blue-500/20">
+                <MessageCircle size={40} className="text-blue-500" />
             </div>
-            <h2 className="text-xl font-black tracking-tight text-center mb-2">Bienvenue sur Elara AI</h2>
-            <p className="text-xs text-slate-500 text-center max-w-[280px] leading-relaxed">Votre assistant intelligent PimPay. Posez-moi vos questions ou choisissez un sujet ci-dessous.</p>
-            <div className="w-full mt-8 space-y-3">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Questions rapides</p>
-              {quickQuestions.map((q, idx) => (
-                <button key={idx} onClick={() => sendMessage(q.message)} disabled={sending} className="w-full flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl active:scale-[0.98] transition-all hover:bg-white/5 group text-left">
-                  <div className="p-2.5 bg-blue-600/10 rounded-xl text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">{q.icon}</div>
-                  <div className="flex-1 min-w-0"><p className="text-sm font-bold">{q.label}</p><p className="text-[11px] text-slate-600 truncate">{q.message}</p></div>
-                  <ChevronRight size={14} className="text-slate-700 group-hover:translate-x-1 transition-transform shrink-0" />
-                </button>
-              ))}
-            </div>
+            <h2 className="text-xl font-black mb-2">Bonjour !</h2>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-[240px]">
+                Je suis Elara. Posez-moi une question pour commencer notre discussion.
+            </p>
           </div>
         ) : (
-          <div className="px-4 py-4 space-y-3">
-            {activeTicket.messages.map((msg) => {
-              const isAI = msg.senderId === "ELARA_AI";
-              const isSupport = msg.senderId === "SUPPORT";
-              const isUser = !isAI && !isSupport;
-
-              return (
-                <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                  <div className="max-w-[85%]">
-                    {!isUser && (
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isSupport ? "bg-emerald-500 shadow-lg shadow-emerald-500/20" : "bg-gradient-to-br from-blue-500 to-blue-700"}`}>
-                          {isSupport ? <ShieldCheck size={12} className="text-white" /> : <ShieldCheck size={12} className="text-white" />}
-                        </div>
-                        <span className={`text-[10px] font-black uppercase tracking-wider ${isSupport ? "text-emerald-400" : "text-blue-400"}`}>
-                          {isSupport ? "Support PimPay" : "Elara AI"}
-                        </span>
-                      </div>
-                    )}
-                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                        isUser ? "bg-blue-600 text-white rounded-br-md" :
-                        isSupport ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-50 rounded-bl-md" :
-                        "bg-white/[0.04] border border-white/5 text-slate-300 rounded-bl-md"
-                      }`}>
-                      {msg.content}
-                    </div>
-                    <p className={`text-[9px] text-slate-700 mt-1 px-1 ${isUser ? "text-right" : "text-left"}`}>
-                      {formatTime(msg.createdAt)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="max-w-[85%]">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center"><Sparkles size={12} className="text-white" /></div>
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider">Elara AI</span>
-                  </div>
-                  <div className="px-4 py-3 rounded-2xl bg-white/[0.04] border border-white/5 rounded-bl-md">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  </div>
+          activeTicket.messages.map((msg) => {
+            const isElara = msg.senderId === "ELARA_AI" || msg.senderId === "SUPPORT";
+            return (
+              <div key={msg.id} className={`flex ${isElara ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2`}>
+                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                  isElara 
+                    ? "bg-white/[0.05] border border-white/10 text-slate-200 rounded-bl-none" 
+                    : "bg-blue-600 text-white rounded-br-none shadow-lg shadow-blue-600/20"
+                }`}>
+                  {msg.content}
                 </div>
               </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+            );
+          })
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area - Fixée en bas sans barre de navigation */}
-      <div className="shrink-0 px-4 pb-8 pt-3 bg-[#020617] border-t border-white/5 z-20">
+      {/* Input Area - NO BOTTOM NAV HERE */}
+      <div className="shrink-0 bg-[#020617] border-t border-white/5 px-4 pt-4 pb-12 z-40">
         <div className="flex items-center gap-3">
-          <div className="flex-1 flex items-center bg-white/5 border border-white/10 rounded-2xl px-4 focus-within:border-blue-500/40 transition-colors">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-12 h-12 flex items-center justify-center bg-white/[0.05] border border-white/10 rounded-2xl active:scale-90 transition-all text-slate-400"
+          >
+            <Plus size={22} />
+          </button>
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*,.pdf" />
+
+          <div className="flex-1 flex items-center bg-white/[0.05] border border-white/10 rounded-2xl px-4 focus-within:border-blue-500/50 transition-all">
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ecrivez votre message..."
+              placeholder="Ecrire à Elara..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={sending}
-              className="flex-1 bg-transparent py-4 text-sm text-white placeholder:text-slate-600 outline-none font-medium"
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              className="w-full bg-transparent py-4 text-sm text-white placeholder:text-slate-600 outline-none font-medium"
             />
           </div>
+
           <button
             onClick={() => sendMessage()}
             disabled={!inputValue.trim() || sending}
-            className="w-12 h-12 flex items-center justify-center bg-blue-600 rounded-2xl active:scale-90 transition-all disabled:opacity-30 shadow-lg shadow-blue-600/20"
+            className="w-12 h-12 flex items-center justify-center bg-blue-600 rounded-2xl disabled:opacity-30 shadow-lg shadow-blue-600/20 active:scale-90 transition-all"
           >
-            {sending ? <Loader2 size={18} className="text-white animate-spin" /> : <Send size={18} className="text-white" />}
+            {sending ? <Loader2 size={20} className="animate-spin text-white" /> : <Send size={20} className="text-white" />}
           </button>
         </div>
       </div>
