@@ -47,7 +47,7 @@ export default function PolitiqueConfidentialite() {
       icon: <Lock size={16} />,
       title: "5. Securite des donnees",
       content:
-        "PimPay met en oeuvre les mesures de securite suivantes :\n\n- Chiffrement AES-256 pour les donnees au repos (cles privees Sidra, USDT, codes PIN de cartes).\n- Protocole TLS 1.3 pour toutes les communications en transit.\n- Authentification a deux facteurs (2FA) via TOTP.\n- Code PIN secondaire obligatoire pour les transactions sensibles.\n- Suivi des sessions avec IP, appareil, navigateur et geolocalisation.\n- Comptage des tentatives de connexion echouees avec gel automatique du compte.\n- Masquage dynamique des donnees sensibles sur l'interface (numeros de carte, CVV, soldes).\n- Controle d'acces par role (ADMIN, USER, MERCHANT, AGENT) avec separation des privileges.\n- Journal d'audit complet pour chaque action administrative.",
+        "PimPay met en oeuvre les mesures de securite suivantes :\n\n- Chiffrement AES-256 pour les donnees au repos (cles privees Sidra, USDT, codes PIN de cartes).\n- Protocole TLS 1.3 pour toutes les communications en transit.\n- Authentification a deux facteurs (2FA) via OTP.\n- Code PIN secondaire obligatoire pour les transactions sensibles.\n- Suivi des sessions avec IP, appareil, navigateur et geolocalisation.\n- Comptage des tentatives de connexion echouees avec gel automatique du compte.\n- Masquage dynamique des donnees sensibles sur l'interface (numeros de carte, CVV, soldes).\n- Controle d'acces par role (ADMIN, USER, MERCHANT, AGENT) avec separation des privileges.\n- Journal d'audit complet pour chaque action administrative.",
     },
     {
       icon: <Globe size={16} />,

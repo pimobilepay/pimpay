@@ -56,7 +56,7 @@ export default function HelpPage() {
       desc: "Authentification, sessions et journaux",
       id: "security",
       details: [
-        "Authentification a deux facteurs (2FA) disponible via TOTP pour securiser votre compte.",
+        "Authentification a deux facteurs (2FA) disponible via OTP pour securiser votre compte.",
         "Chaque session est tracee avec IP, appareil, navigateur et geolocalisation (ville, pays).",
         "Un code PIN secondaire protege les transactions sensibles (retraits, transferts importants).",
         "Les tentatives de connexion echouees sont comptabilisees et le compte peut etre gele apres plusieurs echecs.",
@@ -84,7 +84,7 @@ export default function HelpPage() {
       details: [
         "La Sidra Chain est une blockchain conforme aux principes de la finance islamique (elimination du Riba et du Gharar).",
         "PimPay est connecte au Sidra Chain Mainnet via un noeud RPC (node.sidrachain.com).",
-        "Les frais de gaz sur la Sidra Chain sont quasi-nuls (environ 0.0001 SDR par transaction).",
+        "Les frais de gaz sur la Sidra Chain sont quasi-nuls (environ 0.0001 SDA par transaction).",
         "Chaque utilisateur peut avoir une adresse Sidra unique avec cle privee chiffree.",
         "Les wallets de type SIDRA permettent de stocker et echanger des tokens Sidra directement dans PimPay.",
         "La conformite Sharia est assuree par un Conseil de Surveillance (SSB) selon le standard SMIIC 1:2020.",
