@@ -60,7 +60,7 @@ export default function TermsPage() {
       id: "6",
       title: "Ecosysteme Sidra Chain",
       content:
-        "L'integration Sidra Chain dans PimPay est regie par les principes suivants :\n\n- La Sidra Chain est une blockchain conforme a la Charia, eliminant le Riba (interet) et le Gharar (incertitude).\n- PimPay se connecte au Sidra Chain Mainnet via le noeud RPC (node.sidrachain.com).\n- Les frais de gaz sont quasi-nuls (environ 0.0001 SDR par transaction), bases sur les couts reels de l'infrastructure.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque produit financier avant sa mise en service, conformement au standard SMIIC 1:2020.\n- Les modules educatifs integres dans l'application expliquent les principes de la finance ethique aux utilisateurs.\n- Toute transaction sur la Sidra Chain est transparente et immutable par nature.",
+        "L'integration Sidra Chain dans PimPay est regie par les principes suivants :\n\n- La Sidra Chain est une blockchain conforme a la Charia, eliminant le Riba (interet) et le Gharar (incertitude).\n- PimPay se connecte au Sidra Chain Mainnet via le noeud RPC (node.sidrachain.com).\n- Les frais de gaz sont quasi-nuls (environ 0.0001 SDA par transaction), bases sur les couts reels de l'infrastructure.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque produit financier avant sa mise en service, conformement au standard SMIIC 1:2020.\n- Les modules educatifs integres dans l'application expliquent les principes de la finance ethique aux utilisateurs.\n- Toute transaction sur la Sidra Chain est transparente et immutable par nature.",
     },
     {
       icon: <Zap size={16} />,
@@ -74,7 +74,7 @@ export default function TermsPage() {
       id: "8",
       title: "Securite du compte",
       content:
-        "Vous etes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via TOTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PimPay ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
+        "Vous êtes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via OTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PimPay ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
     },
     {
       icon: <Landmark size={16} />,
