@@ -23,7 +23,10 @@ export default function RechargePage() {
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amount, setAmount] = useState("");
-  const [balance] = useState(314.159);
+  
+  // États pour le solde réel
+  const [balance, setBalance] = useState(0);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(true);
 
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     countries.find((c) => c.code === "CD") || countries[0]
@@ -31,6 +34,25 @@ export default function RechargePage() {
   const [selectedOperator, setSelectedOperator] = useState("");
 
   const SUGGESTIONS = ["5", "10", "15", "20", "25", "50"];
+
+  // RÉCUPÉRATION DU SOLDE RÉEL
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch("/api/user/profile");
+        const data = await res.json();
+        if (data.success && data.user?.balances) {
+          setBalance(data.user.balances.pi || 0);
+        }
+      } catch (error) {
+        console.error("Erreur solde:", error);
+      } finally {
+        setIsBalanceLoading(false);
+      }
+    };
+
+    fetchBalance();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -59,6 +81,11 @@ export default function RechargePage() {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
+    if (parseFloat(piEquivalent) > balance) {
+      toast.error("Solde Pi insuffisant");
+      return;
+    }
+
     const params = new URLSearchParams({
       phone: `${selectedCountry.dialCode}${phoneNumber}`,
       operator: selectedOperator,
@@ -96,16 +123,25 @@ export default function RechargePage() {
 
       <main className="px-6 pt-8 pb-32 space-y-6">
 
-        {/* BALANCE CARD */}
+        {/* BALANCE CARD - CORRIGÉ AVEC LE SYMBOLE π */}
         <section className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-[2rem] blur-sm opacity-60" />
           <div className="relative bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md overflow-hidden">
             <div className="absolute right-[-10px] bottom-[-15px] opacity-[0.04] -rotate-12">
               <TrendingUp size={140} strokeWidth={1.5} />
             </div>
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 relative z-10">Solde Disponible</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 relative z-10">PI BALANCE AVAILABLE</p>
             <div className="flex items-baseline gap-2 relative z-10">
-              <span className="text-3xl font-black tracking-tighter text-white">Pi {balance.toFixed(3)}</span>
+              {isBalanceLoading ? (
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-4xl font-black tracking-tighter text-white">
+                    π {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xl font-bold text-blue-500">PI</span>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -155,7 +191,6 @@ export default function RechargePage() {
 
         {/* FORM */}
         <section className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-6">
-          {/* Phone */}
           <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2 flex items-center gap-2">
               <Smartphone size={12} className="text-blue-500" /> Numero de telephone
@@ -174,7 +209,6 @@ export default function RechargePage() {
             </div>
           </div>
 
-          {/* Amount */}
           <div className="space-y-3">
             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Montant (USD)</label>
             <div className="relative">
@@ -206,7 +240,7 @@ export default function RechargePage() {
           </div>
         </section>
 
-        {/* LIVE RECAP */}
+        {/* LIVE RECAP - CORRIGÉ AVEC LE SYMBOLE π */}
         <AnimatePresence>
           {amount && (
             <motion.section
@@ -217,7 +251,9 @@ export default function RechargePage() {
             >
               <div className="flex justify-between items-center">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Cout en Pi</span>
-                <span className="text-xs font-black text-white">Pi {piEquivalent}</span>
+                <span className={`text-xs font-black ${parseFloat(piEquivalent) > balance ? "text-red-500" : "text-white"}`}>
+                  π {piEquivalent} PI
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Operateur</span>
@@ -234,16 +270,14 @@ export default function RechargePage() {
           )}
         </AnimatePresence>
 
-        {/* CTA */}
         <button
           onClick={handleContinue}
-          disabled={!isFormValid}
+          disabled={!isFormValid || isBalanceLoading}
           className="w-full p-5 bg-blue-600 rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-30 disabled:shadow-none"
         >
           <Wallet2 size={18} /> Continuer vers le paiement
         </button>
 
-        {/* INFO BOX */}
         <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-[2rem] p-5 flex items-start gap-4">
           <div className="p-2 bg-emerald-500/10 rounded-xl flex-shrink-0">
             <Zap size={16} className="text-emerald-500" />
@@ -264,7 +298,6 @@ export default function RechargePage() {
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
             className="fixed inset-0 z-50 bg-[#020617] flex flex-col"
           >
             <div className="px-6 pt-12 pb-4 border-b border-white/5 flex items-center gap-3">
@@ -309,20 +342,6 @@ export default function RechargePage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* FOOTER STATUS */}
-      <div className="fixed bottom-20 left-0 right-0 px-6 z-40">
-        <div className="bg-slate-900/90 backdrop-blur-xl border border-white/5 py-3 px-5 rounded-2xl flex items-center justify-between shadow-2xl">
-          <div className="flex items-center gap-2.5 text-slate-400">
-            <Activity size={14} className="text-blue-500" />
-            <span className="text-[8px] font-black uppercase tracking-widest">PimPay Airtime</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-            <span className="text-[8px] font-black text-emerald-500 uppercase">Live</span>
-          </div>
-        </div>
-      </div>
 
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>

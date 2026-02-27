@@ -14,11 +14,11 @@ export default function DepositPage() {
     if (!amount || parseFloat(amount) <= 0) { toast.error("Montant invalide"); return; }
     setIsLoading(true);
     try {
-      const payload = { 
-        amount: parseFloat(amount), 
-        fee: parseFloat(feesCalculation.fee), 
-        type: "DEPOSIT", 
-        currency: activeTab === "crypto" ? "PI" : "USD", 
+      const payload = {
+        amount: parseFloat(amount),
+        fee: parseFloat(feesCalculation.fee),
+        type: "DEPOSIT",
+        currency: activeTab === "crypto" ? "PI" : "USD",
         method: activeTab,
         operatorId: activeTab === "mobile" ? selectedOperator?.id : "pi_network",
         description: `Dépôt via ${activeTab === "mobile" ? selectedOperator?.name : "Pi Network"}`,
