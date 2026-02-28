@@ -18,12 +18,13 @@ export default function DepositPage() {
         amount: parseFloat(amount),
         fee: parseFloat(feesCalculation.fee),
         type: "DEPOSIT",
-        currency: activeTab === "crypto" ? "PI" : "USD",
+        currency: "USD",
         method: activeTab,
         operatorId: activeTab === "mobile" ? selectedOperator?.id : "pi_network",
         description: `Dépôt via ${activeTab === "mobile" ? selectedOperator?.name : "Pi Network"}`,
         accountNumber: activeTab === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : null,
-        countryCode: selectedCountry.code
+        countryCode: selectedCountry.code,
+        ...(activeTab === "crypto" && { piEquivalent: parseFloat(feesCalculation.piEquivalent) })
       };
       const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const text = await res.text(); let result; try { result = JSON.parse(text); } catch (e) { throw new Error("Réponse serveur corrompue"); }
@@ -66,8 +67,14 @@ export default function DepositPage() {
             <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20"><Bitcoin size={40} className="text-blue-500" /></div>
             <h3 className="text-lg font-black uppercase tracking-tighter">Pi Network GCV Bridge</h3>
             <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant USD souhaité</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-center text-blue-500 outline-none" /></div>
-            <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2"><div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">$314,159</span></div><div className="flex justify-between text-[12px] font-black uppercase"><span>Pi à envoyer</span><span className="text-emerald-400">{feesCalculation.piEquivalent} Pi</span></div></div>
-            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : `VÉRIFIER LE DÉPÔT (${feesCalculation.piEquivalent} Pi)`}</button>
+            {parseFloat(amount) > 0 && (
+              <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3">
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Montant saisi</span><span className="text-white">${parseFloat(amount).toLocaleString()} USD</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">1 Pi = $314,159</span></div>
+                <div className="border-t border-white/5 pt-3 flex justify-between text-[12px] font-black uppercase"><span>Équivalent Pi</span><span className="text-emerald-400">{feesCalculation.piEquivalent} Pi</span></div>
+              </div>
+            )}
+            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "VÉRIFIER LE DÉPÔT"}</button>
           </motion.div>
         )}
         {activeTab === "card" && <div className="bg-slate-900/30 rounded-3xl border border-white/5 p-10 text-center"><CreditCard size={48} className="mx-auto text-slate-700" /><p className="text-[10px] font-black uppercase text-slate-500 mt-4">Bientôt disponible sur PimPay</p></div>}

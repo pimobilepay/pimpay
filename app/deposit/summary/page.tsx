@@ -76,12 +76,12 @@ function SummaryContent() {
   );
 
   // LOGIQUE DE CONVERSION PIMPAY
-  // Si c'est Pi, on affiche le montant en PI (USD / GCV)
+  // Le montant stocké est toujours en USD. On convertit en Pi si c'est crypto.
   const isPi = method.toLowerCase().includes("pi") || method === "crypto";
   const rawAmount = transaction?.amount || parseFloat(amountParam);
-  const displayAmount = isPi ? (rawAmount / PI_GCV_PRICE) : rawAmount;
-  const displayCurrency = isPi ? "PI" : "USD";
+  const piEquivalent = rawAmount / PI_GCV_PRICE;
   const fees = transaction?.fee || (rawAmount * 0.02);
+  const feePi = fees / PI_GCV_PRICE;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
@@ -99,17 +99,25 @@ function SummaryContent() {
         {/* CARTE MONTANT CONVERTI */}
         <Card className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-10 text-center relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={80} /></div>
-          <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à transférer</p>
-          <div className="flex items-center justify-center gap-2">
-             <span className="text-5xl font-black tracking-tighter">
-                {isPi ? displayAmount.toFixed(7) : displayAmount.toLocaleString()}
-             </span>
-             <span className="text-xl font-bold text-blue-500 uppercase">{displayCurrency}</span>
-          </div>
-          {isPi && (
-            <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-              Basé sur le consensus GCV : $314,159
-            </p>
+          {isPi ? (
+            <>
+              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant USD converti en Pi</p>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-5xl font-black tracking-tighter">{piEquivalent.toFixed(7)}</span>
+                <span className="text-xl font-bold text-blue-500 uppercase">Pi</span>
+              </div>
+              <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                = ${rawAmount.toLocaleString()} USD au taux GCV ($314,159 / Pi)
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à transférer</p>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-5xl font-black tracking-tighter">{rawAmount.toLocaleString()}</span>
+                <span className="text-xl font-bold text-blue-500 uppercase">USD</span>
+              </div>
+            </>
           )}
         </Card>
 
@@ -125,7 +133,7 @@ function SummaryContent() {
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">Frais de réseau</span>
-            <span className="text-red-400">+{isPi ? (fees/PI_GCV_PRICE).toFixed(7) : fees.toFixed(2)} {displayCurrency}</span>
+            <span className="text-red-400">+{isPi ? feePi.toFixed(7) + " Pi" : fees.toFixed(2) + " USD"}</span>
           </div>
           <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">Statut</span>
@@ -152,7 +160,7 @@ function SummaryContent() {
         <div className="space-y-4">
           {isPi ? (
             <PiButton 
-              amount={displayAmount}
+              amount={piEquivalent}
               memo={`Dépôt PimPay Ref: ${ref}`}
               onSuccess={(txid) => goToSuccess(ref || txid)}
               label="Payer avec mon Pi Wallet"
