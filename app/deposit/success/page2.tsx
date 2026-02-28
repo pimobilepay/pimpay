@@ -1,69 +1,60 @@
 "use client";
-
-import { Suspense, useState, useEffect, useCallback } from "react";
-import { CheckCircle2, ArrowRight, Receipt, Wallet, Loader2, Share2, Lock, Copy } from "lucide-react";
-import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useCallback } from "react"; 
+import { CheckCircle2, ArrowRight, Receipt, Wallet, Loader2, Share2, Info, Lock, Copy } from "lucide-react"; 
+import Link from "next/link"; 
+import { useSearchParams, useRouter } from "next/navigation"; 
 import { toast } from "sonner";
 
 function SuccessContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  
-  // Récupération des données depuis l'URL pour un affichage immédiat
-  const ref = searchParams.get("ref");
-  const txid = searchParams.get("txid");
-  const urlAmount = searchParams.get("amount"); // Ajouté pour récupérer le montant saisi
-  const urlCurrency = searchParams.get("currency") || "PI";
-
-  const [transaction, setTransaction] = useState<any>(null);
+  const searchParams = useSearchParams(); 
+  const router = useRouter(); 
+  const ref = searchParams.get("ref"); 
+  const txid = searchParams.get("txid"); 
+  const [transaction, setTransaction] = useState<any>(null); 
   const [loading, setLoading] = useState(true);
 
   const fetchTx = useCallback(async () => {
-    // Si on a les infos dans l'URL, on peut arrêter le loader global rapidement
-    if (!ref && !txid) { 
-      setLoading(false); 
-      return; 
-    }
-
+    if (!ref && !txid) { setLoading(false); return; }
     try {
-      const params = new URLSearchParams();
-      if (txid) params.set("txid", txid);
+      const params = new URLSearchParams(); 
+      if (txid) params.set("txid", txid); 
       if (ref) params.set("ref", ref);
-
+      
+      // AJOUT : cache: 'no-store' pour éviter les données vides en ligne
       const res = await fetch(`/api/transactions/details?${params.toString()}`, {
         cache: 'no-store',
         headers: { 'Pragma': 'no-cache' }
       });
-
+      
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json(); 
         setTransaction(data);
-
-        if (data.status === "PENDING") {
-          // On attend un peu pour laisser le temps au worker de valider
+        
+        if (data.status === "PENDING") { 
+          // Si c'est encore pending après 2 secondes, on redirige
           setTimeout(() => {
-             // Optionnel : rafraîchir ou rediriger si nécessaire
-          }, 3000);
+            router.replace(`/deposit/summary?ref=${ref || txid}`); 
+          }, 2000);
         }
+      } else { 
+        toast.error("Transaction introuvable"); 
       }
-    } catch (e) {
-      console.error("Erreur sync:", e);
-    } finally {
-      setLoading(false);
+    } catch (e) { 
+      console.error(e); 
+      toast.error("Erreur de synchronisation");
+    } finally { 
+      setLoading(false); 
     }
-  }, [ref, txid]);
+  }, [ref, txid, router]);
 
-  useEffect(() => { 
-    fetchTx(); 
-  }, [fetchTx]);
+  useEffect(() => { fetchTx(); }, [fetchTx]);
 
-  // --- LOGIQUE D'AFFICHAGE PRIORITAIRE ---
-  // On utilise la donnée de l'API, sinon celle de l'URL
+  // Constantes de calcul PimPay (GCV)
   const PI_GCV_PRICE = 314159;
-  const currency = transaction?.currency || urlCurrency;
-  const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
-
+  const currency = transaction?.currency || "PI";
+  const amount = Number(transaction?.amount) || 0;
+  
+  // Calculs dynamiques multi-devises
   let amountDisplay = amount;
   let amountUSD = 0;
 
@@ -72,24 +63,24 @@ function SuccessContent() {
     amountUSD = amount * PI_GCV_PRICE;
   } else if (currency === "XAF") {
     amountDisplay = amount;
-    amountUSD = amount / 600;
-  } else {
+    amountUSD = amount / 600; // Estimation simple USD/XAF
+  } else if (currency === "USD") {
     amountDisplay = amount;
-    amountUSD = amount; // Pour USD/BUSD/DAI
+    amountUSD = amount;
   }
 
-  const reference = transaction?.reference || ref || txid || "PIMPAY-TX";
+  const reference = transaction?.reference || ref || "PIMPAY-TX";
 
-  const copyRef = () => {
-    navigator.clipboard.writeText(reference);
-    toast.success("Référence copiée !");
+  const copyRef = () => { 
+    navigator.clipboard.writeText(reference); 
+    toast.success("Référence copiée !"); 
   };
 
-  if (loading && !urlAmount) return (
+  if (loading) return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="animate-spin text-blue-500 mb-4 mx-auto" size={40} />
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Chargement du reçu...</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Validation Ledger...</p>
       </div>
     </div>
   );
@@ -102,7 +93,7 @@ function SuccessContent() {
         <div className="w-20 h-20 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center border border-emerald-500/20 shadow-2xl mb-8">
           <CheckCircle2 className="text-emerald-500" size={42} strokeWidth={2.5} />
         </div>
-
+        
         <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Succès !</h1>
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">Transfert confirmé par PimPay</p>
 
@@ -123,7 +114,7 @@ function SuccessContent() {
         <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex items-center justify-between backdrop-blur-md">
           <div className="text-left">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">ID Transaction</p>
-            <p className="text-sm font-mono font-bold text-white/90 truncate max-w-[200px]">{reference}</p>
+            <p className="text-sm font-mono font-bold text-white/90">{reference}</p>
           </div>
           <button onClick={copyRef} className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 active:scale-90 transition-all">
             <Copy size={18} className="text-blue-400" />
@@ -143,7 +134,7 @@ function SuccessContent() {
               <Wallet size={20} /> Retour au Wallet
             </button>
           </Link>
-          <button
+          <button 
             onClick={() => {
               if(navigator.share) {
                 navigator.share({ title: 'PimPay Success', text: `Transaction de ${amountDisplay} ${currency} réussie !` });
@@ -166,10 +157,10 @@ function SuccessContent() {
   );
 }
 
-export default function DepositSuccessPage() {
+export default function DepositSuccessPage() { 
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={40} /></div>}>
       <SuccessContent />
     </Suspense>
-  );
+  ); 
 }
