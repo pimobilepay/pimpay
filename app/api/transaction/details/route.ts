@@ -7,63 +7,79 @@ import { jwtVerify } from "jose";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const txId = searchParams.get("id");
+    // On accepte 'id' ou 'ref' ou 'txid' pour être compatible avec le frontend
+    const txId = searchParams.get("id") || searchParams.get("txid");
+    const ref = searchParams.get("ref");
 
-    if (!txId) return NextResponse.json({ error: "ID manquant" }, { status: 400 });
+    if (!txId && !ref) {
+      return NextResponse.json({ error: "Identifiant manquant" }, { status: 400 });
+    }
 
     // 1. Vérification de la session
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
+
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
     const { payload } = await jwtVerify(token, secret);
     const userId = (payload.userId || payload.id) as string;
 
-    // 2. Récupération avec les relations exactes du schéma Pimpay
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: txId },
+    // 2. Recherche flexible (par ID ou par Référence)
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { id: txId || undefined },
+          { reference: ref || undefined },
+          { externalId: txId || undefined }
+        ]
+      },
       include: {
-        fromUser: { 
-          select: { 
-            name: true, 
+        fromUser: {
+          select: {
+            name: true,
             username: true,
-            walletAddress: true, // Champ direct sur User
-            wallets: { select: { currency: true, balance: true } } // Relation plurielle
-          } 
+            walletAddress: true,
+          }
         },
-        toUser: { 
-          select: { 
-            name: true, 
+        toUser: {
+          select: {
+            name: true,
             username: true,
-            walletAddress: true, // Champ direct sur User
-            wallets: { select: { currency: true, balance: true } } // Relation plurielle
-          } 
+            walletAddress: true,
+          }
         },
       }
     });
 
-    if (!transaction) return NextResponse.json({ error: "Introuvable" }, { status: 404 });
+    if (!transaction) {
+      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
+    }
 
     // 3. Formatage pour le frontend
     const isSender = transaction.fromUserId === userId;
 
     return NextResponse.json({
+      id: transaction.id,
       reference: transaction.reference,
       amount: transaction.amount,
-      fee: transaction.fee || 0.01,
-      date: new Intl.DateTimeFormat('fr-FR', {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-      }).format(new Date(transaction.createdAt)),
-      type: isSender ? "SEND" : "RECEIVE",
+      currency: transaction.currency, // Crucial pour ta page de succès
+      fee: transaction.fee,
+      netAmount: transaction.netAmount,
+      date: transaction.createdAt, // On envoie la date brute, le JS s'occupera du formatage
+      type: transaction.type,
+      direction: isSender ? "SEND" : "RECEIVE",
       status: transaction.status,
-      // Fallback sur username si name est vide
-      sender: isSender ? "Moi" : (transaction.fromUser?.name || transaction.fromUser?.username || "Anonyme"),
+      
+      // Détails des acteurs
+      sender: isSender ? "Moi" : (transaction.fromUser?.name || transaction.fromUser?.username || "Pimpay User"),
       recipient: isSender ? (transaction.toUser?.name || transaction.toUser?.username || "Destinataire") : "Moi",
-      // Utilisation du champ walletAddress défini dans ton modèle User
-      recipientAddress: transaction.toUser?.walletAddress || "N/A",
-      description: transaction.description || transaction.note
+      
+      // Adresses
+      recipientAddress: transaction.toUser?.walletAddress || transaction.accountNumber || "N/A",
+      blockchainTx: transaction.blockchainTx,
+      
+      description: transaction.description || transaction.purpose || "Transfert Pimpay"
     });
 
   } catch (error: any) {

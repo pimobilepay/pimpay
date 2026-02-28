@@ -31,7 +31,7 @@ function SuccessContent() {
       if (txid) params.set("txid", txid);
       if (ref) params.set("ref", ref);
 
-      const res = await fetch(`/api/transactions/details?${params.toString()}`, {
+      const res = await fetch(`/api/transaction/details?${params.toString()}`, {
         cache: 'no-store',
         headers: { 'Pragma': 'no-cache' }
       });
