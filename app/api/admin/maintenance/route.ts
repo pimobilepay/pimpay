@@ -20,27 +20,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
 
-    // 2. Récupération des données (Maintenance, Frais, ou Annonce)
+    // 2. Récupération des données
     const body = await req.json();
-    const { enabled, fee, announcement, action } = body;
+    const { enabled, maintenanceMode, fee, announcement, action, maintenanceUntil } = body;
+
+    // Support both field names for compatibility
+    const isMaintenance = maintenanceMode ?? enabled;
 
     // 3. Préparation de la réponse de base
     const response = NextResponse.json({
       success: true,
-      maintenanceMode: enabled ?? null,
+      maintenanceMode: isMaintenance ?? null,
       updatedFee: fee ?? null,
       updatedAnnouncement: announcement ?? null
     });
 
-    // --- LOGIQUE DE MAINTENANCE (Ta version originale préservée) ---
-    if (enabled !== undefined) {
-      if (enabled) {
+    // --- LOGIQUE DE MAINTENANCE ---
+    if (isMaintenance !== undefined) {
+      if (isMaintenance) {
         response.cookies.set("maintenance_mode", "true", {
           path: "/",
-          httpOnly: false, // Lisible par le middleware
+          httpOnly: false,
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 365, // 1 an
+          maxAge: 60 * 60 * 24 * 365,
         });
       } else {
         response.cookies.delete("maintenance_mode");

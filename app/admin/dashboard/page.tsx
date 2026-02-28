@@ -679,7 +679,25 @@ function DashboardContent() {
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isMaintenanceMode ? 'left-7' : 'left-1'}`} />
                             </button>
                         </div>
-                        <Button onClick={() => { const d = prompt("Date (YYYY-MM-DD):"); const t = prompt("Heure (HH:MM):"); if(d && t) handleAction(null, "PLAN_MAINTENANCE", 0, `${d}T${t}:00.000Z`); }} variant="outline" className="w-full h-12 border-white/10 bg-white/5 rounded-xl font-black text-[10px] uppercase gap-2"><CalendarClock size={14} /> Planifier Maintenance Globale</Button>
+                        <Button onClick={async () => { 
+                          const d = prompt("Date (YYYY-MM-DD):"); 
+                          const t = prompt("Heure (HH:MM):"); 
+                          if(d && t) {
+                            try {
+                              const res = await fetch("/api/admin/config", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ maintenanceMode: true, maintenanceUntil: `${d}T${t}:00.000Z` })
+                              });
+                              if (res.ok) {
+                                setIsMaintenanceMode(true);
+                                setMaintenanceEnd(`${d}T${t}:00.000Z`);
+                                toast.success(`Maintenance planifiee jusqu'au ${d} a ${t}`);
+                                fetchData();
+                              } else { toast.error("Echec de la planification"); }
+                            } catch { toast.error("Erreur reseau"); }
+                          }
+                        }} variant="outline" className="w-full h-12 border-white/10 bg-white/5 rounded-xl font-black text-[10px] uppercase gap-2"><CalendarClock size={14} /> Planifier Maintenance Globale</Button>
                     </Card>
 
                     <Card onClick={() => router.push('/admin/settings')} className="bg-blue-600/10 border border-blue-500/20 rounded-[2rem] p-6 cursor-pointer hover:bg-blue-600/20 transition-all flex items-center justify-between group">
