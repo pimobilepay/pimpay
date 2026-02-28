@@ -281,7 +281,8 @@ export default function AssetDetailPage() {
       if (balanceRes.ok) {
         const balData = await balanceRes.json();
         const rawBalance = balData[assetId] || "0";
-        setBalance(parseFloat(rawBalance).toFixed(config.decimals));
+        const displayDecimals = Math.min(config.decimals, 8);
+        setBalance(parseFloat(rawBalance).toFixed(displayDecimals));
         if (balData.addresses) {
           setAddress(balData.addresses[assetId] || "");
         }
@@ -393,7 +394,7 @@ export default function AssetDetailPage() {
                       <p className="text-[9px] text-slate-500 font-bold">{new Date(tx.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <p className="text-[12px] font-black text-white">{tx.amount} {assetId}</p>
+                  <p className="text-[12px] font-black text-white">{parseFloat(String(tx.amount)).toFixed(Math.min(config.decimals, 8))} {assetId}</p>
                </div>
             )) : (
               <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-10 text-center">
