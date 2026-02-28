@@ -64,8 +64,12 @@ export default function MPayPage() {
   useEffect(() => {
     fetch("/api/user/profile")
       .then(res => res.json())
-      .then(data => setUserBalance(data.balance || 0))
-      .catch(() => setUserBalance(3141.59));
+      .then(data => {
+        if (data.success && data.user?.balances) {
+          setUserBalance(data.user.balances.pi || 0);
+        }
+      })
+      .catch(() => setUserBalance(0));
   }, []);
 
   // Notification polling
