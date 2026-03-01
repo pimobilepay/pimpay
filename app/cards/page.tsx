@@ -94,8 +94,15 @@ export default async function GlobalCardsPage({
 
   // Calcul des statistiques reelles depuis les wallets
   const wallets = user.wallets || [];
-  const primaryWallet = wallets.find((w) => w.currency === "XAF") || wallets[0];
-  const totalWalletBalance = wallets.reduce((acc, w) => acc + (w.balance || 0), 0);
+  // Compute USD balance from stablecoins
+  let usdBalance = 0;
+  let eurBalance = 0;
+  for (const w of wallets) {
+    if (["USDT", "USD", "USDC", "DAI", "BUSD"].includes(w.currency)) {
+      usdBalance += w.balance;
+    }
+  }
+  eurBalance = usdBalance * 0.92;
   const totalSpent = cards.reduce((acc, c) => acc + (c.totalSpent || 0), 0);
 
   return (
@@ -181,10 +188,13 @@ export default async function GlobalCardsPage({
                   </span>
                 </div>
                 <p className="text-2xl font-black">
-                  {totalWalletBalance.toLocaleString()}{" "}
+                  ${usdBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
                   <span className="text-sm text-white/40">
-                    {primaryWallet?.currency || "XAF"}
+                    USD
                   </span>
+                </p>
+                <p className="text-xs text-white/30 mt-1">
+                  {"\u20AC"}{eurBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR
                 </p>
               </div>
 
@@ -295,9 +305,9 @@ export default async function GlobalCardsPage({
                               : "text-white/70"
                           }`}
                         >
-                          {totalWalletBalance.toLocaleString()}{" "}
+                          ${usdBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
                           <span className="text-xs text-white/40">
-                            {primaryWallet?.currency || "XAF"}
+                            USD
                           </span>
                         </p>
                       </div>

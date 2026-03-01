@@ -32,11 +32,12 @@ export default function CardActions({ cardId, isFrozen }: CardActionsProps) {
     setLoading(true);
     try {
       const res = await fetch("/api/user/card/actions", {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           cardId,
-          action: frozen ? "unfreeze" : "freeze",
+          action: frozen ? "UNLOCK" : "LOCK",
         }),
       });
 
