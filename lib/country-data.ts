@@ -41,7 +41,7 @@ const LOGOS = {
   airtel: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Airtel_logo-01.png",
   moov: "https://upload.wikimedia.org/wikipedia/fr/1/1d/Moov_Africa_logo.png",
   wave: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Wave_Logo_RGB.png/512px-Wave_Logo_RGB.png",
-  mpesa: "https://upload.wikimedia.org/wikipedia/commons/0/03/M-pesa-logo.png",
+  mpesa: "https://upload.wikimedia.org/wikipedia/en/archive/c/cc/20240725163256%21Vodafone_2017_logo.svg",
   telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
 };
