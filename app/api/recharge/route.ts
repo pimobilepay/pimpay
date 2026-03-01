@@ -71,9 +71,7 @@ export async function POST(req: NextRequest) {
           metadata: { phoneNumber, operator, amountUSD: amount }
         },
       });
-    });
-
-    // 6. NOTIFICATION SYSTÈME (Non-bloquante pour la réponse)
+    }, { maxWait: 10000, timeout: 30000 });    // 6. NOTIFICATION SYSTÈME (Non-bloquante pour la réponse)
     try {
       await sendNotification({
         userId,

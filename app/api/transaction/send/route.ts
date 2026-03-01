@@ -92,8 +92,8 @@ export async function POST(req: Request) {
 
       return transactionRecord;
     }, {
-      maxWait: 5000, // 5s pour obtenir une connexion
-      timeout: 15000  // 15s pour l'exécution (règle ton erreur de timeout)
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return NextResponse.json({ success: true, data: result });

@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       });
 
       return wallet;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ address: result.depositMemo, symbol: "BTC" });
 

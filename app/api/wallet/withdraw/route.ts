@@ -9,7 +9,7 @@ import crypto from "crypto";
 export async function POST(req: Request) {
   try {
     // 1. AUTHENTIFICATION
-    const token = cookies().get("token")?.value;
+    const token = (await cookies()).get("token")?.value;
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       });
 
       return { updatedWallet, withdrawTx };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // 6. NOTIFICATION DÉTAILLÉE
     await prisma.notification.create({

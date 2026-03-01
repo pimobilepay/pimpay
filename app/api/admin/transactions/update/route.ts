@@ -108,7 +108,8 @@ export async function POST(req: Request) {
 
       return updated;
     }, {
-      timeout: 20000, // 20 secondes max pour les connexions lentes
+      maxWait: 10000,
+      timeout: 30000,
       isolationLevel: "Serializable" // Sécurité maximale pour PimPay
     });
 

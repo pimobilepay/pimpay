@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       });
 
       return transaction;
-    }, { timeout: 20000 });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ 
       success: true, 

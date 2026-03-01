@@ -125,8 +125,8 @@ export async function POST(req: Request) {
 
       return { updated: true, total: updatedWallet.balance, added: diff };
     }, { 
-      timeout: 25000, // On passe à 25s pour éviter le "Transaction not found" en prod
-      maxWait: 5000 
+      timeout: 30000,
+      maxWait: 10000 
     });
 
     if (!result.updated && result.reason === "THROTTLED") {

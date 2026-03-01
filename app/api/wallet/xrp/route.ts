@@ -86,7 +86,7 @@ export async function POST() {
           depositMemo: address,
         }
       });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ address, symbol: "XRP" });
   } catch (error: any) {

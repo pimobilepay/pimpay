@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       });
 
       return transaction;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // Notification de confirmation
     await prisma.notification.create({

@@ -227,7 +227,7 @@ async function syncCompletedPayment(
     });
 
     return updatedTx;
-  }, { timeout: 10000 });
+  }, { maxWait: 10000, timeout: 30000 });
 
   console.log(`[PIMPAY] Paiement ${paymentId} recupere et credite: ${finalAmount} PI`);
 

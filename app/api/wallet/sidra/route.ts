@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       });
 
       return updatedUser;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     console.log(`[PIMPAY] Nouveau Wallet Sidra généré pour ${userId}: ${result.sidraAddress}`);
 

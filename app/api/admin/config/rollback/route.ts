@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       });
 
       return config;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // 5. GESTION DES COOKIES DE MAINTENANCE
     const response = NextResponse.json({ success: true, config: restoredConfig });

@@ -106,9 +106,9 @@ export async function POST(request: Request) {
           }
         }
       });
-    });
-
-    console.log(`[PIMPAY] ✅ Portefeuille crédité : ${transaction.amount} PI pour ${userId}`);
+    }, { maxWait: 10000, timeout: 30000 });
+  
+    console.log(`[PIMPAY] Portefeuille credite : ${transaction.amount} PI pour ${userId}`);
 
     return NextResponse.json({
       success: true,

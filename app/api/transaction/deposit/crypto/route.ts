@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       });
 
       return { newTransaction, updatedWallet };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // 6. Log d'audit de sécurité
     await prisma.securityLog.create({

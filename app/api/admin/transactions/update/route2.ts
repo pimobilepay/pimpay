@@ -103,7 +103,8 @@ export async function POST(req: Request) {
 
       return updatedTx;
     }, {
-      timeout: 15000 // Augmente le temps limite à 15s pour éviter l'erreur de vos captures
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return NextResponse.json({ success: true, status: result.status });

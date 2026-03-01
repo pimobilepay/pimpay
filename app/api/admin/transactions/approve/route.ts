@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
           status: "SUCCESS" 
         } as any,
       });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // 4. Audit Log (Optionnel mais recommandé pour la traçabilité admin)
     await prisma.auditLog.create({

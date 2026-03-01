@@ -64,7 +64,7 @@ export async function POST() {
           depositMemo: publicKey,
         }
       });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ address: publicKey, symbol: "XLM" });
   } catch (error: any) {

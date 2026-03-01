@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       });
 
       return transaction;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // 4. COMPLÉTION FINALE (Optionnel ici car souvent géré par le callback complete, mais sécurisant)
     // On ne bloque pas si ça échoue ici, car le SDK s'en chargera

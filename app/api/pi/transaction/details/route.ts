@@ -36,7 +36,7 @@ export async function GET(req: Request) {
           });
         }
         return updated;
-      });
+      }, { maxWait: 10000, timeout: 30000 });
       return NextResponse.json(validatedTx);
     }
 

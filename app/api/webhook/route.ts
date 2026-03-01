@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "@/lib/prisma";
 
 // Force le rendu dynamique pour éviter les erreurs au build
 export const dynamic = "force-dynamic";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
@@ -48,7 +46,7 @@ export async function POST(req: Request) {
             type: "success"
           }
         });
-      });
+      }, { maxWait: 10000, timeout: 30000 });
 
       return NextResponse.json({ message: "OK" });
     }

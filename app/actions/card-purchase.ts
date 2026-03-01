@@ -75,7 +75,7 @@ export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
       });
 
       return newCard;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return { success: true, card: result };
   } catch (error: any) {

@@ -89,7 +89,7 @@ export async function POST(req: Request) {
       });
 
       return { completedTx, wallet };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ 
       success: true, 

@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         return { type: 'EXTERNAL', transaction };
       }
 
-    }, { timeout: 20000 });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({
       success: true,

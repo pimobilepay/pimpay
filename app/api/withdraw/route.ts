@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "@/lib/prisma";
 
 // Force le rendu dynamique pour le build Vercel
 export const dynamic = "force-dynamic";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
@@ -52,7 +50,7 @@ export async function POST(req: Request) {
       });
 
       return transaction;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     // Appel CinetPay Transfer ici...
     // (Le code reste identique à l'étape précédente)

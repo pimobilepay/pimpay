@@ -124,7 +124,7 @@ export async function processDeposit(formData: {
       });
 
       return txn;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return {
       success: true,

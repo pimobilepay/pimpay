@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       });
 
       return updatedTx;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ success: true, data: result });
 

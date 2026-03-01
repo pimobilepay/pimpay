@@ -200,7 +200,8 @@ export async function POST(request: Request) {
 
       return { reference: transaction.reference, received: targetAmount };
     }, {
-      timeout: 15000,
+      maxWait: 10000,
+      timeout: 30000,
       isolationLevel: "Serializable",
     });
 
