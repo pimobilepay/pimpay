@@ -14,17 +14,20 @@ export default function DepositPage() {
     if (!amount || parseFloat(amount) <= 0) { toast.error("Montant invalide"); return; }
     setIsLoading(true);
     try {
+      // Pour les dépôts crypto, on envoie directement le montant en PI et la devise PI
+      // afin d'éviter la création d'une double transaction (USD + PI)
+      const isCrypto = activeTab === "crypto";
+      const piAmount = parseFloat(feesCalculation.piEquivalent);
       const payload = {
-        amount: parseFloat(amount),
-        fee: parseFloat(feesCalculation.fee),
+        amount: isCrypto ? piAmount : parseFloat(amount),
+        fee: isCrypto ? piAmount * 0.01 : parseFloat(feesCalculation.fee),
         type: "DEPOSIT",
-        currency: "USD",
+        currency: isCrypto ? "PI" : "USD",
         method: activeTab,
-        operatorId: activeTab === "mobile" ? selectedOperator?.id : "pi_network",
-        description: `Dépôt via ${activeTab === "mobile" ? selectedOperator?.name : "Pi Network"}`,
-        accountNumber: activeTab === "mobile" ? `${selectedCountry.dialCode}${phoneNumber}` : null,
+        operatorId: isCrypto ? "pi_network" : selectedOperator?.id,
+        description: isCrypto ? "Dépôt via Pi Network" : `Dépôt via ${selectedOperator?.name}`,
+        accountNumber: isCrypto ? "PI_NETWORK" : `${selectedCountry.dialCode}${phoneNumber}`,
         countryCode: selectedCountry.code,
-        ...(activeTab === "crypto" && { piEquivalent: parseFloat(feesCalculation.piEquivalent) })
       };
       const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const text = await res.text(); let result; try { result = JSON.parse(text); } catch (e) { throw new Error("Réponse serveur corrompue"); }

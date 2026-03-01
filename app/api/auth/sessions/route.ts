@@ -29,6 +29,8 @@ export async function GET() {
       const device = parser.getDevice();
       const os = parser.getOS();
       const browser = parser.getBrowser();
+      const engine = parser.getEngine();
+      const cpu = parser.getCPU();
 
       // Build a smart display name
       const deviceDisplayName =
@@ -46,11 +48,30 @@ export async function GET() {
         s.deviceName?.toLowerCase().includes("iphone") ||
         s.userAgent?.toLowerCase().includes("mobile");
 
+      // Device details for system info display
+      const osName = s.os || os.name || "Unknown";
+      const osVersion = os.version || "";
+      const browserName = s.browser || browser.name || "Navigateur";
+      const browserVersion = browser.version || "";
+      const deviceVendor = device.vendor || null;
+      const deviceModel = device.model || null;
+      const deviceType = device.type || (isMobile ? "mobile" : "desktop");
+      const engineName = engine.name || null;
+      const cpuArch = cpu.architecture || null;
+
       return {
         id: s.id,
         deviceName: deviceDisplayName,
-        os: s.os || `${os.name || "Unknown"} ${os.version || ""}`.trim(),
-        browser: s.browser || browser.name || "Navigateur",
+        os: `${osName} ${osVersion}`.trim(),
+        osName,
+        osVersion,
+        browser: browserName,
+        browserVersion,
+        deviceVendor,
+        deviceModel,
+        deviceType,
+        engineName,
+        cpuArch,
         ip: s.ip || "127.0.0.1",
         city: s.city || null,
         country: s.country || null,

@@ -33,36 +33,36 @@ export async function POST(req: Request) {
         throw new Error("Solde XRP insuffisant pour effectuer ce transfert");
       }
 
-      // 4. Préparer le tag pour le Worker (Indispensable pour l'exécution réelle)
-      // Le Worker cherche les transactions avec "-EXT-" dans blockchainTx
-      const tempHash = `XRP-EXT-${Date.now()}`;
-
-      // 5. Débit immédiat du solde interne (Sécurité bancaire)
+      // 4. Debit immediat du solde interne
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // 6. Création de l'enregistrement de transaction
+      // 5. Creation de la transaction PENDING pour que le worker l'envoie sur la blockchain
       const transaction = await tx.transaction.create({
         data: {
           reference: `PIM-XRP-${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
           amount: transferAmount,
           currency: "XRP",
-          type: TransactionType.TRANSFER,
-          status: TransactionStatus.SUCCESS, // Marqué success car le débit est fait
+          type: TransactionType.WITHDRAW,
+          status: TransactionStatus.PENDING,
           fromUserId: session.id,
           fromWalletId: senderWallet.id,
-          blockchainTx: tempHash, // Le Worker remplacera ceci par le vrai hash plus tard
-          description: description || `Transfert XRP vers ${toAddress}` // Le Worker lira l'adresse ici
+          description: description || `Envoi XRP vers ${toAddress.slice(0, 6)}...${toAddress.slice(-4)}`,
+          metadata: {
+            externalAddress: toAddress,
+            network: "XRP",
+            isBlockchainWithdraw: true,
+          }
         }
       });
 
-      // 7. Notification à l'utilisateur
+      // 6. Notification
       await tx.notification.create({
         data: {
           userId: session.id,
-          title: "Transfert initié 🚀",
+          title: "Transfert XRP en cours",
           message: `${transferAmount} XRP en cours d'envoi vers ${toAddress.slice(0, 8)}...`,
           type: "PAYMENT_SENT"
         }

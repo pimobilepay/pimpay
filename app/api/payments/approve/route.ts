@@ -42,41 +42,70 @@ export async function POST(req: Request) {
     }
 
     // 3. TRANSACTION ATOMIQUE PRISMA (Sécurisée contre le cleanup)
+    // On cherche d'abord une transaction PENDING existante pour cet utilisateur
+    // afin d'éviter la création d'un doublon (la transaction initiale a été créée par /api/pi/transaction)
     const result = await prisma.$transaction(async (tx) => {
       
-      // Gérer le Wallet avec UPSERT (Crée le wallet s'il a été supprimé)
+      // Gérer le Wallet avec UPSERT (Crée le wallet s'il n'existe pas encore)
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
-        update: { balance: { increment: parseFloat(amount) } },
+        update: {},
         create: {
           userId,
           currency: "PI",
-          balance: parseFloat(amount),
+          balance: 0,
           type: WalletType.PI
         }
       });
 
-      // Gérer la Transaction avec UPSERT (Évite le crash si externalId existe déjà ou a disparu)
-      const transaction = await tx.transaction.upsert({
-        where: { externalId: paymentId },
-        update: {
-          status: TransactionStatus.SUCCESS, // On valide car l'approbation est faite
-          blockchainTx: txid || null,
-          toWalletId: wallet.id
-        },
-        create: {
-          reference: `DEP-${paymentId.slice(-6).toUpperCase()}`,
-          externalId: paymentId,
-          blockchainTx: txid || null,
-          amount: parseFloat(amount),
-          currency: "PI",
+      // Chercher la transaction PENDING existante créée par /api/pi/transaction
+      // Elle n'a pas d'externalId car elle a été créée avant le flux Pi SDK
+      const existingPendingTx = await tx.transaction.findFirst({
+        where: {
+          fromUserId: userId,
           type: TransactionType.DEPOSIT,
-          status: TransactionStatus.SUCCESS,
-          description: memo || "Dépôt Pi Network",
-          toUserId: userId,
-          toWalletId: wallet.id
-        }
+          status: TransactionStatus.PENDING,
+          currency: "PI",
+        },
+        orderBy: { createdAt: "desc" }
       });
+
+      let transaction;
+
+      if (existingPendingTx) {
+        // Mettre à jour la transaction existante au lieu d'en créer une nouvelle
+        transaction = await tx.transaction.update({
+          where: { id: existingPendingTx.id },
+          data: {
+            externalId: paymentId,
+            blockchainTx: txid || null,
+            toWalletId: wallet.id,
+            toUserId: userId,
+            description: memo || existingPendingTx.description || "Dépôt Pi Network",
+          }
+        });
+      } else {
+        // Fallback : upsert sur externalId si aucune transaction PENDING trouvée
+        transaction = await tx.transaction.upsert({
+          where: { externalId: paymentId },
+          update: {
+            blockchainTx: txid || null,
+            toWalletId: wallet.id
+          },
+          create: {
+            reference: `DEP-${paymentId.slice(-6).toUpperCase()}`,
+            externalId: paymentId,
+            blockchainTx: txid || null,
+            amount: parseFloat(amount),
+            currency: "PI",
+            type: TransactionType.DEPOSIT,
+            status: TransactionStatus.PENDING,
+            description: memo || "Dépôt Pi Network",
+            toUserId: userId,
+            toWalletId: wallet.id
+          }
+        });
+      }
 
       return transaction;
     }, { maxWait: 10000, timeout: 30000 });

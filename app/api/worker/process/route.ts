@@ -6,7 +6,7 @@ import { decrypt } from '@/lib/crypto'; // Assurez-vous que cette fonction exist
 import * as xrpl from 'xrpl';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { ethers } from 'ethers'; // Pour Sidra et USDT
-import { TransactionStatus } from "@prisma/client";
+import { TransactionStatus, TransactionType } from "@prisma/client";
 
 // Configuration des accès réseaux
 const RPC_URLS = {
@@ -31,13 +31,19 @@ export async function GET(req: NextRequest) {
 }
 
 async function processExternalTransfers() {
-  // On récupère les transactions PENDING marquées isExternal
+  // On recupere les transactions PENDING marquees pour retrait blockchain
+  // Les APIs /api/wallet/send et /api/user/transfer utilisent isBlockchainWithdraw
   const pendingTxs = await prisma.transaction.findMany({
     where: {
       status: TransactionStatus.PENDING,
-      metadata: { path: ['isExternal'], equals: true }
+      type: TransactionType.WITHDRAW,
+      OR: [
+        { metadata: { path: ['isBlockchainWithdraw'], equals: true } },
+        { metadata: { path: ['isExternal'], equals: true } },
+      ],
     },
-    take: 10
+    take: 10,
+    orderBy: { createdAt: "asc" },
   });
 
   let count = 0;
@@ -78,8 +84,20 @@ async function processExternalTransfers() {
         });
         count++;
       }
-    } catch (err) {
-      console.error(`Erreur sur TX ${tx.reference}:`, err);
+    } catch (err: any) {
+      console.error(`Erreur sur TX ${tx.reference}:`, err?.message || err);
+      // Marquer la transaction comme FAILED apres une erreur pour eviter les boucles infinies
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: {
+          status: TransactionStatus.FAILED,
+          metadata: {
+            ...(tx.metadata as any),
+            workerError: err?.message || "Erreur inconnue",
+            failedAt: new Date().toISOString(),
+          },
+        },
+      }).catch(() => {});
     }
   }
   return count;
