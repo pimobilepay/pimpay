@@ -188,14 +188,6 @@ function SummaryContent() {
     } finally {
       setIsLoading(false);
     }
-
-      const msg = result?.error || "Transaction refusée";
-      router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
-    } catch (err) {
-      router.push("/transfer/failed?error=Erreur de connexion au serveur");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // Loading initial
