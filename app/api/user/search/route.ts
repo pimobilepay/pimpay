@@ -68,21 +68,32 @@ export async function GET(request: Request) {
       });
     }
 
-    // --- 2. DÉTECTION D'ADRESSE EXTERNE ---
-    const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(query);
-    const isTron = query.startsWith('T') && query.length === 34;
+    // --- 2. DETECTION D'ADRESSE EXTERNE (tous reseaux) ---
     const isPiAddress = /^G[A-Z2-7]{55}$/.test(query);
+    const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(query);
+    const isTron = /^T[a-zA-Z0-9]{33}$/.test(query);
+    const isXrp = /^r[a-zA-Z0-9]{24,33}$/.test(query);
+    const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(query) && !isSdaOrEth && !isTron && !isPiAddress && !isXrp;
+    const isBtcLegacy = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(query);
+    const isBtcBech32 = /^bc1[a-zA-HJ-NP-Z0-9]{39,59}$/.test(query);
+    const isLtc = /^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(query);
 
-    if (isSdaOrEth || isTron || isPiAddress) {
+    const isExternal = isPiAddress || isSdaOrEth || isTron || isXrp || isSolana || isBtcLegacy || isBtcBech32 || isLtc;
+
+    if (isExternal) {
       let lastName = "Externe";
-      if (isPiAddress) lastName = "Pi Network Externe";
-      else if (isSdaOrEth) lastName = "SDA/EVM Externe";
-      else if (isTron) lastName = "USDT Externe";
+      if (isPiAddress) lastName = "Pi Network";
+      else if (isSdaOrEth) lastName = "SDA/EVM";
+      else if (isTron) lastName = "USDT TRC20 (TRON)";
+      else if (isXrp) lastName = "XRP Ledger";
+      else if (isSolana) lastName = "Solana";
+      else if (isBtcLegacy || isBtcBech32) lastName = "Bitcoin";
+      else if (isLtc) lastName = "Litecoin";
 
       return NextResponse.json({
         id: "external",
         username: query.slice(0, 6) + "..." + query.slice(-4),
-        firstName: "Destinataire",
+        firstName: "Adresse Externe",
         lastName,
         avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${query}`,
         isExternal: true,

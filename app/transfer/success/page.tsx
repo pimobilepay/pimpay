@@ -23,11 +23,12 @@ import { toast } from "sonner";
 function TransferSuccessContent() {
   const searchParams = useSearchParams();
 
-  // Extraction des paramètres
+  // Extraction des parametres
   const ref = searchParams.get("ref");
   const amountParam = searchParams.get("amount");
   const nameParam = searchParams.get("name") || "Utilisateur";
   const currencyParam = searchParams.get("currency") || "XAF";
+  const modeParam = searchParams.get("mode"); // "external" if blockchain withdraw
 
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,8 @@ function TransferSuccessContent() {
   const amount = transaction?.amount ?? parseFloat(amountParam || "0");
   const currency = (transaction?.currency || currencyParam).toUpperCase();
   const reference = transaction?.reference || ref || "PIMPAY-TR-PENDING";
-  const status = transaction?.status || "SUCCESS";
+  const isExternalMode = modeParam === "external";
+  const status = transaction?.status || (isExternalMode ? "PENDING" : "SUCCESS");
   const blockchainTx = transaction?.blockchainTx || transaction?.metadata?.blockchainTx;
   const beneficiary = transaction?.toUser?.username || transaction?.toUser?.name || nameParam;
 
@@ -107,10 +109,12 @@ function TransferSuccessContent() {
         </div>
 
         <h1 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">
-          Transfert Réussi
+          {isExternalMode ? "Retrait Enregistre" : "Transfert Reussi"}
         </h1>
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
-          Fonds envoyés avec succès vers le destinataire
+          {isExternalMode
+            ? "Votre retrait blockchain est en cours de traitement"
+            : "Fonds envoyes avec succes vers le destinataire"}
         </p>
 
         {/* Montant */}

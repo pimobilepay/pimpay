@@ -155,15 +155,19 @@ function SummaryContent() {
           amount: data.amount,
           currency: data.currency,
           description: data.description,
-          fee: data.fee, // IMPORTANT: aligné avec ton API corrigée
         }),
       });
 
       const result = await response.json().catch(() => ({}));
 
-      if (response.ok) {
-        toast.success("Transfert soumis !");
-        // Bonus: si l’API renvoie transaction.reference, c’est mieux pour la page success
+      if (response.ok && result.success) {
+        const isExternal = result.mode === "EXTERNAL";
+        toast.success(
+          isExternal
+            ? "Retrait externe enregistre !"
+            : "Transfert interne reussi !"
+        );
+
         const ref = result?.transaction?.reference;
         const qs = new URLSearchParams({
           amount: String(data.amount),
@@ -171,10 +175,19 @@ function SummaryContent() {
           name: data.name,
         });
         if (ref) qs.set("ref", ref);
+        if (isExternal) qs.set("mode", "external");
 
         router.push(`/transfer/success?${qs.toString()}`);
         return;
       }
+
+      const msg = result?.error || "Transaction refusee";
+      router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
+    } catch (err) {
+      router.push("/transfer/failed?error=Erreur de connexion au serveur");
+    } finally {
+      setIsLoading(false);
+    }
 
       const msg = result?.error || "Transaction refusée";
       router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
@@ -338,7 +351,7 @@ function SummaryContent() {
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl mb-6">
           <AlertCircle size={20} className="text-amber-400 flex-shrink-0" />
           <p className="text-[10px] font-black text-amber-400 uppercase tracking-tight">
-            Vérifie attentivement l’adresse. Un envoi externe peut être irréversible.
+            Vérifie attentivement l���adresse. Un envoi externe peut être irréversible.
           </p>
         </div>
       )}
