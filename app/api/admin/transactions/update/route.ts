@@ -94,6 +94,16 @@ export async function POST(req: Request) {
               data: { balance: { increment: tx.amount } }
             });
           }
+
+          // Pour les retraits blockchain, marquer comme pret pour le worker
+          const meta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata as any : {};
+          if (tx.type === TransactionType.WITHDRAW && (meta.isBlockchainWithdraw === true || meta.isExternal === true)) {
+            // Le statusClass 'QUEUED' indique au worker que c'est pret a broadcaster
+            await p.transaction.update({
+              where: { id: transactionId },
+              data: { statusClass: 'QUEUED' }
+            });
+          }
         } else {
           // Remboursement si Refus (pour Retraits et Transferts)
           if ((tx.type === TransactionType.WITHDRAW || tx.type === TransactionType.TRANSFER) && tx.fromUserId) {

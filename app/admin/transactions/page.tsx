@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   CheckCircle, XCircle, Search, RefreshCw,
-  Clock, Hash, Phone
+  Clock, Hash, Phone, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,8 @@ interface Transaction {
   createdAt: string;
   description?: string;
   accountNumber?: string;
+  isBlockchainWithdraw?: boolean;
+  method?: string;
 }
 
 export default function AdminTransactionsPage() {
@@ -162,13 +164,17 @@ export default function AdminTransactionsPage() {
                         <div className="text-[9px] text-slate-600 font-mono italic">{tx.userId.slice(-10)}</div>
                       </td>
                       <td className="p-6">
-                        <span className="font-black text-blue-400">{tx.amount.toLocaleString()}</span>
+                        <span className="font-black text-blue-400">{typeof tx.amount === 'number' ? (tx.amount < 0.01 && tx.amount > 0 ? tx.amount.toFixed(8) : tx.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })) : tx.amount}</span>
                         <span className="ml-1 text-[10px] text-slate-500">{tx.currency}</span>
                       </td>
                       <td className="p-6">
-                        <div className="flex items-center gap-2 text-[10px] font-black uppercase text-amber-500">
-                          <Phone size={12} /> {tx.type} • {tx.accountNumber || 'PI_WALLET'}
+                        <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${tx.isBlockchainWithdraw ? 'text-blue-400' : 'text-amber-500'}`}>
+                          {tx.isBlockchainWithdraw ? <Globe size={12} /> : <Phone size={12} />}
+                          {tx.type} {tx.isBlockchainWithdraw ? `(${tx.method || tx.currency})` : ''}
                         </div>
+                        <p className={`text-[9px] mt-1 font-mono ${tx.isBlockchainWithdraw ? 'text-blue-300/70' : 'text-amber-400/70'} break-all max-w-[200px]`}>
+                          {tx.accountNumber || 'PI_WALLET'}
+                        </p>
                       </td>
                       <td className="p-6">
                         <div className="flex justify-center gap-2">

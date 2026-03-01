@@ -30,18 +30,24 @@ export async function GET() {
         ? `${user.firstName || ''} ${user.lastName || ''}`.trim() 
         : (user?.username || "Client PimPay");
 
-      // Logique de récupération du numéro de téléphone (Retraits Mobile Money)
-      const withdrawalPhone =
-        tx.accountNumber ||           
-        meta.phoneNumber ||           
-        meta.phone ||                 
-        user?.phone ||                  
-        "Non spécifié";
+      // Logique de récupération de l'identifiant de destination
+      // Pour les retraits blockchain, on utilise l'adresse externe du metadata
+      const isBlockchainWithdraw = meta.isBlockchainWithdraw === true || meta.isExternal === true;
+      const externalAddress = meta.externalAddress || meta.destination || null;
+
+      // Priorité : adresse blockchain > accountNumber en DB > téléphone
+      const accountIdentifier = isBlockchainWithdraw && externalAddress
+        ? externalAddress
+        : tx.accountNumber || meta.phoneNumber || meta.phone || user?.phone || "Non spécifié";
+
+      // Méthode de transfert
+      const transferMethod = isBlockchainWithdraw
+        ? (meta.network || tx.currency || "BLOCKCHAIN")
+        : (meta.method || meta.provider || (tx.currency === "PI" ? "PI_NETWORK" : "MOBILE"));
 
       return {
         id: tx.id,
         userId: tx.fromUserId || tx.toUserId || "N/A",
-        // Ces champs correspondent maintenant aux interfaces de ton frontend
         fromUser: {
           firstName: user?.firstName || "Utilisateur",
           lastName: user?.lastName || "PimPay"
@@ -49,11 +55,12 @@ export async function GET() {
         amount: tx.amount,
         currency: tx.currency,
         type: tx.type,
-        // Information complémentaire pour l'affichage Admin
-        method: meta.method || meta.provider || (tx.currency === "PI" ? "PI_NETWORK" : "MOBILE"),
-        accountNumber: withdrawalPhone,
+        method: transferMethod,
+        accountNumber: accountIdentifier,
+        isBlockchainWithdraw: isBlockchainWithdraw,
         status: tx.status,
         createdAt: tx.createdAt.toISOString(),
+        description: tx.description || null,
       };
     });
 
