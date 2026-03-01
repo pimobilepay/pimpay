@@ -76,12 +76,13 @@ function SummaryContent() {
   );
 
   // LOGIQUE DE CONVERSION PIMPAY
-  // Le montant stocké est toujours en USD. On convertit en Pi si c'est crypto.
+  // Pour les dépôts crypto, le montant est déjà stocké en PI (pas besoin de re-convertir)
   const isPi = method.toLowerCase().includes("pi") || method === "crypto";
   const rawAmount = transaction?.amount || parseFloat(amountParam);
-  const piEquivalent = rawAmount / PI_GCV_PRICE;
-  const fees = transaction?.fee || (rawAmount * 0.02);
-  const feePi = fees / PI_GCV_PRICE;
+  // Le montant est déjà en PI pour les dépôts crypto, pas de double conversion
+  const piEquivalent = isPi ? rawAmount : rawAmount / PI_GCV_PRICE;
+  const fees = transaction?.fee || (rawAmount * 0.01);
+  const feePi = isPi ? fees : fees / PI_GCV_PRICE;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
@@ -101,13 +102,13 @@ function SummaryContent() {
           <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={80} /></div>
           {isPi ? (
             <>
-              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant USD converti en Pi</p>
+              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant du depot en Pi</p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-5xl font-black tracking-tighter">{piEquivalent.toFixed(7)}</span>
                 <span className="text-xl font-bold text-blue-500 uppercase">Pi</span>
               </div>
               <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                = ${rawAmount.toLocaleString()} USD au taux GCV ($314,159 / Pi)
+                = ${(rawAmount * PI_GCV_PRICE).toLocaleString()} USD au taux GCV ($314,159 / Pi)
               </p>
             </>
           ) : (
