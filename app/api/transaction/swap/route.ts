@@ -46,6 +46,13 @@ export async function POST(req: Request) {
       });
 
       // 2. Crédit
+      const getWalletType = (curr: string) => {
+        if (curr === "SDA") return "SIDRA" as const;
+        if (curr === "PI") return "PI" as const;
+        if (["XAF","XOF","USD","EUR","CDF","NGN","AED","CNY","VND"].includes(curr)) return "FIAT" as const;
+        return "CRYPTO" as const;
+      };
+
       const targetWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: quote.targetCurrency } },
         update: { balance: { increment: quote.toAmount } },
@@ -53,8 +60,7 @@ export async function POST(req: Request) {
           userId,
           currency: quote.targetCurrency,
           balance: quote.toAmount,
-          type: quote.targetCurrency === "PI" ? "PI" :
-            ["SDA","BTC","ETH","BNB","SOL","XRP","XLM","TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD"].includes(quote.targetCurrency) ? "CRYPTO" : "FIAT"
+          type: getWalletType(quote.targetCurrency),
         }
       });
 

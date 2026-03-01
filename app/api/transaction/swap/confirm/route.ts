@@ -71,6 +71,13 @@ export async function POST(req: Request) {
       });
 
       // --- ETAPE B : CRÉDIT DU SOLDE CIBLE ---
+      const getWalletType = (curr: string) => {
+        if (curr === "SDA") return "SIDRA" as const;
+        if (curr === "PI") return "PI" as const;
+        if (["XAF","XOF","USD","EUR","CDF","NGN","AED","CNY","VND"].includes(curr)) return "FIAT" as const;
+        return "CRYPTO" as const;
+      };
+
       const targetWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: targetCurrency } },
         update: { balance: { increment: quote.toAmount } },
@@ -78,9 +85,7 @@ export async function POST(req: Request) {
           userId,
           currency: targetCurrency,
           balance: quote.toAmount,
-          // Détection intelligente du type pour PimPay
-          type: targetCurrency === "PI" ? "PI" :
-            ["SDA","BTC","ETH","BNB","SOL","XRP","XLM","TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD"].includes(targetCurrency) ? "CRYPTO" : "FIAT"
+          type: getWalletType(targetCurrency),
         }
       });                                      
 
