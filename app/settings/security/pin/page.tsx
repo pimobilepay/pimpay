@@ -21,12 +21,19 @@ export default function ChangePinPage() {
     setLoading(true);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      // Envoyer le token Bearer en fallback si présent dans localStorage
+      const localToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (localToken) {
+        headers["Authorization"] = `Bearer ${localToken}`;
+      }
+
       const res = await fetch("/api/security/update-pin", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
+        headers,
+        credentials: "include", // Envoie automatiquement les cookies
         body: JSON.stringify({ newPin: finalPin }),
       });
 
@@ -59,12 +66,18 @@ export default function ChangePinPage() {
       isProcessing.current = true;
       setLoading(true);
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        const localToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (localToken) {
+          headers["Authorization"] = `Bearer ${localToken}`;
+        }
+
         const res = await fetch("/api/security/verify-pin", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
-          },
+          headers,
+          credentials: "include",
           body: JSON.stringify({ pin: currentPin }),
         });
 

@@ -46,11 +46,13 @@ export default function ChangePinPage() {
 
   const validateStep = async () => {
     const currentPin = pins[step as keyof typeof pins];
-    const token = localStorage.getItem("pimpay_token");
+    const token = typeof window !== "undefined" 
+      ? (localStorage.getItem("pimpay_token") || localStorage.getItem("token")) 
+      : null;
 
-    if (!token) {
-      toast.error("Session expirée");
-      return;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
     if (step === 1) {
@@ -58,10 +60,8 @@ export default function ChangePinPage() {
       try {
         const res = await fetch("/api/security/verify-pin", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json", 
-            Authorization: `Bearer ${token}` 
-          },
+          headers,
+          credentials: "include",
           body: JSON.stringify({ pin: currentPin }),
         });
         
@@ -91,10 +91,8 @@ export default function ChangePinPage() {
       try {
         const res = await fetch("/api/security/update-pin", {
           method: "PUT",
-          headers: { 
-            "Content-Type": "application/json", 
-            Authorization: `Bearer ${token}` 
-          },
+          headers,
+          credentials: "include",
           body: JSON.stringify({ newPin: pins[2] }),
         });
 

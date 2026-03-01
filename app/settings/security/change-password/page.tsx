@@ -38,6 +38,7 @@ export default function ChangePasswordPage() {
       const res = await fetch("/api/user/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           oldPassword: oldPassword.trim(),
           newPassword: newPassword.trim()
