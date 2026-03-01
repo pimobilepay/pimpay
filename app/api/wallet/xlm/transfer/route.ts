@@ -35,37 +35,38 @@ export async function POST(req: Request) {
         throw new Error("Solde Pi insuffisant pour effectuer ce transfert");
       }
 
-      // 4. Tag pour le Worker externe spécialisé Pi
-      const tempHash = `PI-EXT-${Date.now()}`;
-
-      // 5. Débit immédiat (Garantie de la banque PimPay)
+      // 4. Debit immediat
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: transferAmount } }
       });
 
-      // 6. Création de la transaction dans l'historique
+      // 5. Creation de la transaction PENDING pour que le worker l'envoie sur la blockchain
       const transaction = await tx.transaction.create({
         data: {
           reference: `PIM-PI-${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
           amount: transferAmount,
           currency: "PI",
-          type: TransactionType.TRANSFER,
-          status: TransactionStatus.SUCCESS,
+          type: TransactionType.WITHDRAW,
+          status: TransactionStatus.PENDING,
           fromUserId: session.id,
           fromWalletId: senderWallet.id,
-          blockchainTx: tempHash, // Sera remplacé par le vrai hash Pi Mainnet
-          description: `Envoi Pi vers ${toAddress}`,
-          metadata: memo ? { memo } : {}
+          description: `Envoi Pi vers ${toAddress.slice(0, 6)}...${toAddress.slice(-4)}`,
+          metadata: {
+            externalAddress: toAddress,
+            network: "PI",
+            isBlockchainWithdraw: true,
+            ...(memo ? { memo } : {}),
+          }
         }
       });
 
-      // 7. Notification Pi enrichie
+      // 6. Notification
       await tx.notification.create({
         data: {
           userId: session.id,
-          title: "Paiement Pi envoyé ! 🥧",
-          message: `Votre transfert de ${transferAmount} PI vers ${toAddress.slice(0, 4)}...${toAddress.slice(-4)} est en cours de traitement sur le Mainnet.`,
+          title: "Transfert Pi en cours",
+          message: `Votre transfert de ${transferAmount} PI vers ${toAddress.slice(0, 6)}...${toAddress.slice(-4)} est en attente de traitement sur le Mainnet.`,
           type: "PAYMENT_SENT"
         }
       });
