@@ -21,7 +21,7 @@ function detectExternalAddress(identifier: string): boolean {
   if (/^0x[a-fA-F0-9]{40}$/.test(clean)) return true; // EVM
   if (/^T[a-zA-Z0-9]{33}$/.test(clean)) return true; // TRON
   if (/^r[a-zA-Z0-9]{24,33}$/.test(clean)) return true; // XRP
-  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean)) return true; // Solana (peut matcher large)
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean)) return true; // Solana
   if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(clean)) return true; // BTC legacy
   if (/^bc1[a-zA-HJ-NP-Z0-9]{39,59}$/.test(clean)) return true; // BTC bech32
   if (/^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(clean)) return true; // LTC
@@ -38,7 +38,9 @@ function SummaryContent() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const data = useMemo(() => {
     const recipientId = searchParams.get("recipient") || "";
@@ -91,14 +93,11 @@ function SummaryContent() {
         }
 
         const d = await res.json();
-
-        // Selon ton send page: d.user?.wallets
         const userWallets = d.user?.wallets || d.wallets || [];
         const targetWallet = userWallets.find(
           (w: any) => String(w.currency || "").toUpperCase() === data.currency
         );
 
-        // Prisma renvoie Float => number. Mais on sécurise.
         const bal = targetWallet?.balance;
         const parsed = typeof bal === "number" ? bal : parseFloat(String(bal ?? "0"));
 
@@ -135,9 +134,8 @@ function SummaryContent() {
       return;
     }
 
-    // Vérif UX (le serveur revalidera de toute façon)
     if (walletBalance !== null && walletBalance < totalRequired) {
-      toast.error(`Solde ${data.currency} insuffisant (montant + frais).`);
+      toast.error(`Solde ${data.currency} insuffisant.`);
       return;
     }
 
@@ -161,12 +159,8 @@ function SummaryContent() {
       const result = await response.json().catch(() => ({}));
 
       if (response.ok && result.success) {
-        const isExternal = result.mode === "EXTERNAL";
-        toast.success(
-          isExternal
-            ? "Retrait externe enregistre !"
-            : "Transfert interne reussi !"
-        );
+        const isExt = result.mode === "EXTERNAL";
+        toast.success(isExt ? "Retrait externe enregistré !" : "Transfert réussi !");
 
         const ref = result?.transaction?.reference;
         const qs = new URLSearchParams({
@@ -175,14 +169,13 @@ function SummaryContent() {
           name: data.name,
         });
         if (ref) qs.set("ref", ref);
-        if (isExternal) qs.set("mode", "external");
+        if (isExt) qs.set("mode", "external");
 
         router.push(`/transfer/success?${qs.toString()}`);
-        return;
+      } else {
+        const msg = result?.error || "Transaction refusée";
+        router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
       }
-
-      const msg = result?.error || "Transaction refusee";
-      router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
     } catch (err) {
       router.push("/transfer/failed?error=Erreur de connexion au serveur");
     } finally {
@@ -190,7 +183,6 @@ function SummaryContent() {
     }
   };
 
-  // Loading initial
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
@@ -199,7 +191,6 @@ function SummaryContent() {
     );
   }
 
-  // Paramètres invalides (important: évite écran cassé)
   if (!data.recipientId || data.amount <= 0) {
     return (
       <div className="min-h-screen bg-[#020617] text-white p-6 flex items-center justify-center">
@@ -209,7 +200,7 @@ function SummaryContent() {
             <h2 className="font-black uppercase tracking-tight">Récapitulatif invalide</h2>
           </div>
           <p className="text-sm text-slate-400">
-            Il manque des informations (destinataire ou montant). Retourne à la page précédente.
+            Informations manquantes. Retourne à la page précédente.
           </p>
           <button
             onClick={() => router.back()}
@@ -224,7 +215,6 @@ function SummaryContent() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white p-6 pb-12 font-sans">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-8 pt-4">
         <button
           onClick={() => router.back()}
@@ -240,7 +230,6 @@ function SummaryContent() {
         </div>
       </div>
 
-      {/* Recipient card */}
       <div className="flex flex-col items-center mb-8">
         <div className="relative mb-4">
           {data.avatar ? (
@@ -256,8 +245,6 @@ function SummaryContent() {
               {data.name.charAt(0).toUpperCase()}
             </div>
           )}
-
-          {/* Badge: certifié seulement si interne */}
           {!data.isExternal ? (
             <div className="absolute -bottom-1 -right-1 bg-blue-600 rounded-full p-1 border-2 border-[#020617]">
               <CheckCircle2 size={14} className="text-white" />
@@ -268,21 +255,12 @@ function SummaryContent() {
             </div>
           )}
         </div>
-
         <h2 className="text-lg font-black uppercase tracking-tight text-center">{data.name}</h2>
-
-        {!data.isExternal ? (
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">
-            Bénéficiaire certifié
-          </p>
-        ) : (
-          <p className="text-[10px] text-amber-400 font-black uppercase tracking-[0.2em]">
-            Adresse externe (réseau)
-          </p>
-        )}
+        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${data.isExternal ? "text-amber-400" : "text-slate-500"}`}>
+          {data.isExternal ? "Adresse externe (réseau)" : "Bénéficiaire certifié"}
+        </p>
       </div>
 
-      {/* Amount box */}
       <div className="bg-slate-900/40 border border-white/10 rounded-[32px] overflow-hidden mb-6 shadow-2xl">
         <div className="p-8 text-center bg-white/[0.02]">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">
@@ -295,7 +273,6 @@ function SummaryContent() {
             <span className="text-xl font-black italic text-blue-500">{data.currency}</span>
           </div>
         </div>
-
         <div className="p-6 space-y-4 border-t border-white/5">
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
@@ -305,7 +282,6 @@ function SummaryContent() {
               {data.fee} {data.currency}
             </span>
           </div>
-
           <div className="pt-4 border-t border-white/5 flex justify-between items-center">
             <span className="text-blue-500 font-black text-[11px] uppercase tracking-wider">
               Total Débit
@@ -318,7 +294,6 @@ function SummaryContent() {
         </div>
       </div>
 
-      {/* Wallet balance */}
       <div className="flex items-center justify-between p-5 bg-white/5 rounded-[24px] mb-6 border border-white/5">
         <div className="flex items-center gap-3">
           <Wallet size={18} className="text-blue-500" />
@@ -338,12 +313,11 @@ function SummaryContent() {
         </div>
       </div>
 
-      {/* Warning external / insufficient */}
       {data.isExternal && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl mb-6">
           <AlertCircle size={20} className="text-amber-400 flex-shrink-0" />
           <p className="text-[10px] font-black text-amber-400 uppercase tracking-tight">
-            Vérifie attentivement l���adresse. Un envoi externe peut être irréversible.
+            Vérifie attentivement l'adresse. Un envoi externe peut être irréversible.
           </p>
         </div>
       )}
@@ -357,7 +331,6 @@ function SummaryContent() {
         </div>
       )}
 
-      {/* Confirm button */}
       <button
         onClick={handleConfirm}
         disabled={!canConfirm}
@@ -377,7 +350,7 @@ function SummaryContent() {
         ) : (
           <>
             <span className="font-black uppercase tracking-widest text-sm">
-              Confirmer l&apos;envoi
+              Confirmer l'envoi
             </span>
             <ArrowRight size={20} />
           </>
