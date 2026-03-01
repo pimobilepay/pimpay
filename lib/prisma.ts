@@ -6,33 +6,29 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-function getPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
-    throw new Error(
-      'DATABASE_URL is not set. Please add it to your environment variables.'
-    )
-  }
+function createPrismaClient(): PrismaClient {
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    transactionOptions: {
+      maxWait: 10000,  // 10s max to acquire a connection from the pool
+      timeout: 30000,  // 30s max for the transaction to complete
+    },
+  })
+}
 
+// Use a single, stable PrismaClient instance.
+// In development we cache it on `globalThis` to survive HMR.
+// In production each cold-start creates one instance (which is expected).
+export const prisma: PrismaClient = (() => {
   if (globalForPrisma.prisma) {
     return globalForPrisma.prisma
   }
 
-  const client = new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  })
+  const client = createPrismaClient()
 
   if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = client
   }
 
   return client
-}
-
-// Lazy proxy: the PrismaClient is only created when a property is actually accessed,
-// so importing this module no longer crashes when DATABASE_URL is missing.
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop: string | symbol) {
-    const client = getPrismaClient()
-    return Reflect.get(client, prop, client)
-  },
-})
+})()

@@ -116,7 +116,8 @@ export async function POST(req: Request) {
       
       return transaction;
     }, {
-      timeout: 15000 // Sécurité pour les connexions lentes sur mobile
+      maxWait: 10000,
+      timeout: 30000,
     });
                                                    
     // Notification de swap

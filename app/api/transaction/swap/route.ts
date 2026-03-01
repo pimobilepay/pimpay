@@ -82,6 +82,9 @@ export async function POST(req: Request) {
           retailRate: quote.rate
         }
       });
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     // Nettoyage

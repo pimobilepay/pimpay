@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
           fee: exchange.fee / PI_CONSENSUS_RATE 
         }
       });
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     // 6. LOG DE SÉCURITÉ (AML)
