@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +13,10 @@ export async function POST(req: Request) {
 
     if (!identifier || !code || !finalPassword) {
       return NextResponse.json({ error: "Données de sécurité manquantes (Email/Code/Pass)" }, { status: 400 });
+    }
+
+    if (finalPassword.length < 6) {
+      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 6 caractères" }, { status: 400 });
     }
 
     const cleanId = identifier.toLowerCase().trim().replace('@', '');
@@ -40,12 +45,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Session de sécurité expirée ou code invalide" }, { status: 400 });
     }
 
-    // 3. TRANSACTION FINALE
+    // 3. Hachage sécurisé du nouveau mot de passe avec bcrypt
+    const hashedPassword = await bcrypt.hash(finalPassword, 12);
+
+    // 4. TRANSACTION FINALE
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
         data: { 
-          password: finalPassword, 
+          password: hashedPassword, 
           failedLoginAttempts: 0, 
           status: "ACTIVE" 
         },
@@ -63,6 +71,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, message: "Mot de passe PimPay mis à jour !" });
 
   } catch (error: any) {
+    console.error("RESET_PASSWORD_ERROR:", error.message);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
