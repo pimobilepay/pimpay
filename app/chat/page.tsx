@@ -48,6 +48,23 @@ export default function ChatPage() {
     scrollToBottom();
   }, [activeTicket?.messages]);
 
+  // Auto-refresh active ticket every 5s to pick up admin/support replies
+  useEffect(() => {
+    if (!activeTicket?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/chat?ticketId=${activeTicket.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ticket && data.ticket.messages.length !== activeTicket.messages.length) {
+            setActiveTicket(data.ticket);
+          }
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeTicket?.id, activeTicket?.messages.length]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -180,21 +197,41 @@ export default function ChatPage() {
                 <MessageCircle size={40} className="text-blue-500" />
             </div>
             <h2 className="text-xl font-black mb-2">Bonjour !</h2>
-            <p className="text-xs text-slate-500 leading-relaxed max-w-[240px]">
+            <p className="text-xs text-slate-500 leading-relaxed max-w-[240px] mb-6">
                 Je suis Elara. Posez-moi une question pour commencer notre discussion.
             </p>
+            <div className="flex flex-wrap justify-center gap-2 max-w-xs">
+              {["Comment faire un swap ?", "Probleme de retrait", "Ma carte virtuelle", "Verification KYC"].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => sendMessage(suggestion)}
+                  className="px-3 py-2 bg-white/[0.05] border border-white/10 rounded-xl text-xs text-slate-300 active:scale-95 transition-all hover:border-blue-500/30"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           activeTicket.messages.map((msg) => {
-            const isElara = msg.senderId === "ELARA_AI" || msg.senderId === "SUPPORT";
+            const isBot = msg.senderId === "ELARA_AI";
+            const isSupport = msg.senderId === "SUPPORT";
+            const isLeft = isBot || isSupport;
             return (
-              <div key={msg.id} className={`flex ${isElara ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2`}>
-                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                  isElara 
-                    ? "bg-white/[0.05] border border-white/10 text-slate-200 rounded-bl-none" 
-                    : "bg-blue-600 text-white rounded-br-none shadow-lg shadow-blue-600/20"
-                }`}>
-                  {msg.content}
+              <div key={msg.id} className={`flex ${isLeft ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2`}>
+                <div className="max-w-[85%]">
+                  {isLeft && (
+                    <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ml-1 ${isSupport ? "text-emerald-400" : "text-blue-400"}`}>
+                      {isSupport ? "Support PimPay" : "Elara AI"}
+                    </p>
+                  )}
+                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                    isLeft
+                      ? `border rounded-bl-none ${isSupport ? "bg-emerald-500/10 border-emerald-500/20 text-slate-200" : "bg-white/[0.05] border-white/10 text-slate-200"}`
+                      : "bg-blue-600 text-white rounded-br-none shadow-lg shadow-blue-600/20"
+                  }`}>
+                    {msg.content}
+                  </div>
                 </div>
               </div>
             );
