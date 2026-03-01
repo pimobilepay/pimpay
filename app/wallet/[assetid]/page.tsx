@@ -485,7 +485,7 @@ export default function AssetDetailPage() {
                     if (parseFloat(sendAmount) > parseFloat(balance)) { toast.error("Solde insuffisant"); return; }
                     setSendStatus("loading");
                     try {
-                      const res = await fetch("/api/wallet/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: sendAddress, amount: sendAmount, currency: assetId }), });
+                      const res = await fetch("/api/wallet/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), });
                       const result = await res.json();
                       if (res.ok) { setSendStatus("success"); setSendTxHash(result.hash || ""); } else { toast.error(result.error || "Erreur lors de l'envoi"); setSendStatus("idle"); }
                     } catch { toast.error("Erreur réseau"); setSendStatus("idle"); }

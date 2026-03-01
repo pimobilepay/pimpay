@@ -56,7 +56,7 @@ export default function SendModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: address,
+          address: address,
           amount,
           currency: currency,
         }),
