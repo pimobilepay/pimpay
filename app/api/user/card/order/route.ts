@@ -11,6 +11,9 @@ const CARD_CONFIG: any = {
   ULTRA: { price: 100, daily: 999999, years: 15, prismaType: "ULTRA" },
 };
 
+// Allowed currencies per card (all support USD + EUR)
+const ALLOWED_CURRENCIES = ["USD", "EUR"];
+
 export async function POST(req: NextRequest) {
   try {
     // 1. SÉCURITÉ DU SECRET (Build-safe)
@@ -104,7 +107,7 @@ export async function POST(req: NextRequest) {
           brand: tier === "ULTRA" ? "MASTERCARD" : "VISA",
           dailyLimit: config.daily,
           isFrozen: false,
-          allowedCurrencies: ["USD", "PI"]
+          allowedCurrencies: ALLOWED_CURRENCIES
         }
       });
     }, { maxWait: 10000, timeout: 30000 });

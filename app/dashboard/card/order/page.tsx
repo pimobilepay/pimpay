@@ -27,9 +27,10 @@ import { toast } from "sonner";
 
 const PI_RATE_GCV = 314159;
 
+// Tier IDs must match the API CARD_CONFIG keys: PLATINIUM, PREMIUM, GOLD, ULTRA
 const CARD_TIERS = [
   {
-    id: "CLASSIC",
+    id: "PLATINIUM",
     tier: "Mastercard Blue",
     brand: "MASTERCARD",
     price: 10,
@@ -45,11 +46,11 @@ const CARD_TIERS = [
     withdrawRate: "1.5%",
   },
   {
-    id: "GOLD",
+    id: "PREMIUM",
     tier: "Mastercard Diamond",
     brand: "MASTERCARD",
     price: 25,
-    limit: "10,000",
+    limit: "2,500",
     monthlyLimit: "50,000",
     gradient: "from-[#fbbf24] via-[#b45309] to-[#78350f]",
     border: "border-amber-500/40",
@@ -61,11 +62,11 @@ const CARD_TIERS = [
     withdrawRate: "1%",
   },
   {
-    id: "PLATINUM",
-    tier: "Mastercard Platinum",
+    id: "GOLD",
+    tier: "Mastercard Gold",
     brand: "MASTERCARD",
     price: 50,
-    limit: "50,000",
+    limit: "5,000",
     monthlyLimit: "200,000",
     gradient: "from-[#334155] via-[#475569] to-[#1e293b]",
     border: "border-slate-400/40",
@@ -76,10 +77,26 @@ const CARD_TIERS = [
     rechargeRate: "1%",
     withdrawRate: "0.5%",
   },
+  {
+    id: "ULTRA",
+    tier: "Mastercard Platinum",
+    brand: "MASTERCARD",
+    price: 100,
+    limit: "Illimite",
+    monthlyLimit: "Illimite",
+    gradient: "from-[#0f172a] via-[#1e293b] to-[#0c0a09]",
+    border: "border-white/20",
+    accent: "text-white",
+    accentBg: "bg-white/10",
+    features: ["Cashback 10%", "Conciergerie VIP", "Lounge illimite"],
+    maintenance: "$10/mois",
+    rechargeRate: "0.5%",
+    withdrawRate: "0%",
+  },
 ];
 
 export default function CardOrderPage() {
-  const [selectedId, setSelectedId] = useState("GOLD");
+  const [selectedId, setSelectedId] = useState("PREMIUM");
   const [step, setStep] = useState(1); // 1: select, 2: summary, 3: confirm
   const [loading, setLoading] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
@@ -89,6 +106,7 @@ export default function CardOrderPage() {
   const selectedCard = CARD_TIERS.find((c) => c.id === selectedId)!;
   const priceInPi = selectedCard.price / PI_RATE_GCV;
   const availableUSD = userMainBalance;
+  const availableEUR = userMainBalance * 0.92;
   const isBalanceInsufficient = availableUSD < selectedCard.price;
 
   useEffect(() => {
@@ -96,10 +114,17 @@ export default function CardOrderPage() {
       try {
         const res = await fetch("/api/user/profile");
         const data = await res.json();
-        if (data.success || data.id) {
-          setWallets(data.wallets || []);
-          const usdWallet = data.wallets?.find((w: any) => w.currency === "USDT" || w.currency === "USD");
-          setUserMainBalance(usdWallet ? usdWallet.balance : 0);
+        if (data.success && data.user) {
+          const userWallets = data.user.wallets || [];
+          setWallets(userWallets);
+          // Sum stablecoin balances as USD equivalent
+          let usdTotal = 0;
+          for (const w of userWallets) {
+            if (["USDT", "USD", "USDC", "DAI", "BUSD"].includes(w.currency)) {
+              usdTotal += w.balance;
+            }
+          }
+          setUserMainBalance(usdTotal);
         }
       } catch (err) {
         console.error("Erreur solde:", err);
@@ -216,7 +241,8 @@ export default function CardOrderPage() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-emerald-400/80 uppercase tracking-widest">Solde disponible</p>
-                    <p className="text-lg font-black">{availableUSD.toLocaleString()} <span className="text-xs text-slate-500 font-bold">USD</span></p>
+                    <p className="text-lg font-black">${availableUSD.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-slate-500 font-bold">USD</span></p>
+                    <p className="text-[10px] text-slate-600 font-bold">{"\u20AC"}{availableEUR.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR</p>
                   </div>
                 </div>
                 <ArrowUpRight size={18} className="text-emerald-500" />
@@ -249,7 +275,7 @@ export default function CardOrderPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-black">${tier.price}</p>
-                      <p className="text-[8px] font-bold text-slate-600 uppercase">USD</p>
+                      <p className="text-[8px] font-bold text-slate-600 uppercase">{"\u20AC"}{(tier.price * 0.92).toFixed(0)} EUR</p>
                     </div>
                   </button>
                 ))}
@@ -334,6 +360,10 @@ export default function CardOrderPage() {
                   <span className="font-black text-xs text-white">{selectedCard.withdrawRate}</span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Devises supportees</span>
+                  <span className="font-black text-xs text-blue-400">USD / EUR</span>
+                </div>
+                <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Limite quotidienne</span>
                   <span className="font-black text-xs text-emerald-400">${selectedCard.limit}</span>
                 </div>
@@ -347,6 +377,7 @@ export default function CardOrderPage() {
                 <div>
                   <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total a payer</p>
                   <p className="text-2xl font-black text-white">${selectedCard.price}.00</p>
+                  <p className="text-[10px] text-slate-600 font-bold">{"\u20AC"}{(selectedCard.price * 0.92).toFixed(2)} EUR</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Equivalent Pi</p>
