@@ -11,7 +11,7 @@ import {
   AlertTriangle, Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { countries, searchCountries, type Country } from "@/lib/country-data";
+import { countries, searchCountries, type Country, type Bank } from "@/lib/country-data";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
@@ -509,8 +509,17 @@ export default function WithdrawPage() {
                               : "bg-white/[0.03] border-white/5 hover:border-white/10"
                           }`}
                         >
-                          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/5">
-                            <Landmark size={18} className="text-blue-400" />
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/5 overflow-hidden bg-white/10">
+                            {bank.logo ? (
+                              <img
+                                src={bank.logo}
+                                alt={bank.name}
+                                className="w-7 h-7 object-contain"
+                                crossOrigin="anonymous"
+                              />
+                            ) : (
+                              <Landmark size={18} className="text-blue-400" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-tight truncate">{bank.name}</p>

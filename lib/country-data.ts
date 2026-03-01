@@ -5,6 +5,7 @@ export interface Bank {
   bic: string; // ISO 20022 - Business Identifier Code
   swift: string;
   ibanStructure?: string; // Format pour validation
+  logo?: string; // URL du logo de la banque
 }
 
 export interface MobileOperator {
@@ -45,6 +46,26 @@ const LOGOS = {
   vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
 };
 
+// Logos banques
+const BANK_LOGOS: Record<string, string> = {
+  zenith: "https://upload.wikimedia.org/wikipedia/en/thumb/8/81/Zenith_Bank_logo.png/200px-Zenith_Bank_logo.png",
+  access: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Access-bank-diamond.png/200px-Access-bank-diamond.png",
+  uba: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/UBA_Group_Logo.svg/200px-UBA_Group_Logo.svg.png",
+  gcb: "https://upload.wikimedia.org/wikipedia/en/thumb/9/9d/GCB_Bank_logo.svg/200px-GCB_Bank_logo.svg.png",
+  ecobank: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Ecobank_logo.svg/200px-Ecobank_logo.svg.png",
+  bgfi: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/BGFIBank_Logo.svg/200px-BGFIBank_Logo.svg.png",
+  rawbank: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Logo_RAWBANK.svg/200px-Logo_RAWBANK.svg.png",
+  tmb: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/TMB_logo.svg/200px-TMB_logo.svg.png",
+  equity: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Equity_Bank_logo.svg/200px-Equity_Bank_logo.svg.png",
+  kcb: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/KCB_Group_Logo.svg/200px-KCB_Group_Logo.svg.png",
+  afriland: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Logo_Afriland_First_Bank.svg/200px-Logo_Afriland_First_Bank.svg.png",
+  societe_generale: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg/200px-Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg.png",
+  bnp: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/BNP_Paribas.svg/200px-BNP_Paribas.svg.png",
+  revolut: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
+  nsia: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/NSIA_Banque_logo.svg/200px-NSIA_Banque_logo.svg.png",
+  coris: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
+};
+
 // --- PAYS CORE (actifs par défaut) ---
 export const coreCountries: Country[] = [
   {
@@ -59,9 +80,9 @@ export const coreCountries: Country[] = [
     isoStandard: "ISO20022",
     isActive: true,
     banks: [
-      { name: "Zenith Bank", bic: "ZENITH", swift: "ZENINLAA" },
-      { name: "Access Bank", bic: "ACCESS", swift: "ACCEGHLX" },
-      { name: "United Bank for Africa", bic: "UBA", swift: "UBAFNG" }
+      { name: "Zenith Bank", bic: "ZENITH", swift: "ZENINLAA", logo: BANK_LOGOS.zenith },
+      { name: "Access Bank", bic: "ACCESS", swift: "ACCEGHLX", logo: BANK_LOGOS.access },
+      { name: "United Bank for Africa", bic: "UBA", swift: "UBAFNG", logo: BANK_LOGOS.uba }
     ],
     operators: [
       { id: "mtn_ng", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -80,8 +101,8 @@ export const coreCountries: Country[] = [
   isoStandard: "ISO20022",
   isActive: true,
   banks: [
-    { name: "GCB Bank", bic: "GHCBGHAC", swift: "GHCBGHAC" },
-    { name: "Ecobank Ghana", bic: "ECOCGHAC", swift: "ECOCGHAC" },
+    { name: "GCB Bank", bic: "GHCBGHAC", swift: "GHCBGHAC", logo: BANK_LOGOS.gcb },
+    { name: "Ecobank Ghana", bic: "ECOCGHAC", swift: "ECOCGHAC", logo: BANK_LOGOS.ecobank },
   ],
   operators: [
     { id: "mtn_gh", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -102,7 +123,7 @@ export const coreCountries: Country[] = [
   isActive: false,
   banks: [
     { name: "Banque Centrale de la République de Guinée", bic: "BCRGGNGN", swift: "BCRGGNGN" },
-    { name: "Ecobank Guinea", bic: "ECOCGNGN", swift: "ECOCGNGN" },
+    { name: "Ecobank Guinea", bic: "ECOCGNGN", swift: "ECOCGNGN", logo: BANK_LOGOS.ecobank },
   ],
   operators: [
     { id: "orange_gn", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -121,7 +142,7 @@ export const coreCountries: Country[] = [
   isoStandard: "ISO20022",
   isActive: true,
   banks: [
-    { name: "BGFIBank Gabon", bic: "BGFIGAGX", swift: "BGFIGAGX" },
+    { name: "BGFIBank Gabon", bic: "BGFIGAGX", swift: "BGFIGAGX", logo: BANK_LOGOS.bgfi },
     { name: "UGB (Union Gabonaise de Banque)", bic: "UGBGGAGX", swift: "UGBGGAGX" },
   ],
   operators: [
@@ -161,8 +182,8 @@ export const coreCountries: Country[] = [
     isoStandard: "ISO20022",
     isActive: true,
     banks: [
-      { name: "Afriland First Bank", bic: "AFRI", swift: "AFRICM" },
-      { name: "Société Générale CM", bic: "SGC", swift: "SGCCMC" }
+      { name: "Afriland First Bank", bic: "AFRI", swift: "AFRICM", logo: BANK_LOGOS.afriland },
+      { name: "Société Générale CM", bic: "SGC", swift: "SGCCMC", logo: BANK_LOGOS.societe_generale }
     ],
     operators: [
       { id: "mtn_cm", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -197,7 +218,7 @@ export const coreCountries: Country[] = [
     continent: "AFRICA",
     isoStandard: "ISO20022",
     isActive: true,
-    banks: [{ name: "Coris Bank", bic: "CORIS", swift: "CORISBF" }],
+    banks: [{ name: "Coris Bank", bic: "CORIS", swift: "CORISBF", logo: BANK_LOGOS.coris }],
     operators: [
       { id: "orange_bf", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "moov_bf", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -214,7 +235,7 @@ export const coreCountries: Country[] = [
     continent: "AFRICA",
     isoStandard: "ISO20022",
     isActive: true,
-    banks: [{ name: "Ecobank Bénin", bic: "ECOB", swift: "ECOBBJ" }],
+    banks: [{ name: "Ecobank Bénin", bic: "ECOB", swift: "ECOBBJ", logo: BANK_LOGOS.ecobank }],
     operators: [
       { id: "mtn_bj", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "moov_bj", name: "Moov Money", icon: LOGOS.moov, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -232,9 +253,9 @@ export const coreCountries: Country[] = [
     isoStandard: "ISO20022",
     isActive: true,
     banks: [
-      { name: "BGFIBank Congo", bic: "BGFI CGXX", swift: "BGFICGBZ" },
+      { name: "BGFIBank Congo", bic: "BGFI CGXX", swift: "BGFICGBZ", logo: BANK_LOGOS.bgfi },
       { name: "LCB Bank", bic: "LCBC CGXX", swift: "LCBCCGBZ" },
-      { name: "Ecobank Congo", bic: "ECOC CGXX", swift: "ECOCCGBZ" },
+      { name: "Ecobank Congo", bic: "ECOC CGXX", swift: "ECOCCGBZ", logo: BANK_LOGOS.ecobank },
     ],
     operators: [
       { id: "mtn_cg", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -253,9 +274,9 @@ export const coreCountries: Country[] = [
     isoStandard: "ISO20022",
     isActive: true,
     banks: [
-      { name: "Rawbank", bic: "RAWBCDCX", swift: "RAWBCDCX" },
-      { name: "Trust Merchant Bank", bic: "TMBRCDNX", swift: "TMBRCDNX" },
-      { name: "Equity BCDC", bic: "EBCDCXAA", swift: "EBCDCX" },
+      { name: "Rawbank", bic: "RAWBCDCX", swift: "RAWBCDCX", logo: BANK_LOGOS.rawbank },
+      { name: "Trust Merchant Bank", bic: "TMBRCDNX", swift: "TMBRCDNX", logo: BANK_LOGOS.tmb },
+      { name: "Equity BCDC", bic: "EBCDCXAA", swift: "EBCDCX", logo: BANK_LOGOS.equity },
     ],
     operators: [
       { id: "vodacom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -274,7 +295,7 @@ export const coreCountries: Country[] = [
     continent: "AFRICA",
     isoStandard: "ISO20022",
     isActive: true,
-    banks: [{ name: "NSIA Banque", bic: "NSIA CIXX", swift: "NSIACIBJ" }],
+    banks: [{ name: "NSIA Banque", bic: "NSIA CIXX", swift: "NSIACIBJ", logo: BANK_LOGOS.nsia }],
     operators: [
       { id: "orange_ci", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "mtn_ci", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -309,7 +330,7 @@ export const coreCountries: Country[] = [
     continent: "AFRICA",
     isoStandard: "ISO20022",
     isActive: true,
-    banks: [{ name: "KCB Bank", bic: "KCBKKENX", swift: "KCBKKENX" }],
+    banks: [{ name: "KCB Bank", bic: "KCBKKENX", swift: "KCBKKENX", logo: BANK_LOGOS.kcb }],
     operators: [
       { id: "safaricom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "airtel_ke", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
@@ -327,8 +348,8 @@ export const coreCountries: Country[] = [
     isoStandard: "ISO20022",
     isActive: true,
     banks: [
-      { name: "BNP Paribas", bic: "BNPAFRPP", swift: "BNPAFRPP", ibanStructure: "FR" },
-      { name: "Revolut", bic: "REVOUM22", swift: "REVOUM22", ibanStructure: "FR" },
+      { name: "BNP Paribas", bic: "BNPAFRPP", swift: "BNPAFRPP", ibanStructure: "FR", logo: BANK_LOGOS.bnp },
+      { name: "Revolut", bic: "REVOUM22", swift: "REVOUM22", ibanStructure: "FR", logo: BANK_LOGOS.revolut },
     ],
     operators: [],
   },
