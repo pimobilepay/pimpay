@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import {
   User, ShieldCheck, CheckCircle2,
   Loader2, ArrowLeft, Delete, Lock,
-  XCircle, AlertCircle
+  XCircle, AlertCircle, Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -35,6 +36,8 @@ export default function SignupPage() {
   const [emailMessage, setEmailMessage] = useState("");
   const emailCheckTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref") || "";
   const { t } = useLanguage();
 
   useEffect(() => { setMounted(true); }, []);
@@ -131,7 +134,8 @@ export default function SignupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          username: formData.email.split('@')[0] + Math.floor(Math.random() * 100)
+          username: formData.email.split('@')[0] + Math.floor(Math.random() * 100),
+          referralCode: refCode || undefined,
         }),
       });
 
@@ -211,6 +215,15 @@ export default function SignupPage() {
       {/* STEP 1: FORMULAIRE D'INSCRIPTION */}
       {step === 1 && (
         <Card className="relative z-10 w-full max-w-[440px] p-6 sm:p-10 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[40px]">
+          {refCode && (
+            <div className="mb-6 p-4 bg-emerald-600/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+              <Gift className="text-emerald-400 flex-shrink-0" size={20} />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Bonus Parrainage</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{"Inscrivez-vous et recevez 0.25 PI de bonus !"}</p>
+              </div>
+            </div>
+          )}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-6">
               <ShieldCheck className="w-10 h-10 text-blue-500" />

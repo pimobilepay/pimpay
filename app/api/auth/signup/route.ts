@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { fullName, username, email, phone, password, confirmPassword } = body;
+    const { fullName, username, email, phone, password, confirmPassword, referralCode } = body;
 
     if (!fullName || !username || !email || !phone || !password) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
@@ -59,6 +59,16 @@ export async function POST(req: Request) {
 
     // 3. TRANSACTION AVEC TIMEOUT AUGMENTÉ (20s)
     const result = await prisma.$transaction(async (tx) => {
+      // Look up the referrer if a referral code is provided
+      let referrerId: string | null = null;
+      if (referralCode) {
+        const referrer = await tx.user.findUnique({
+          where: { referralCode },
+          select: { id: true },
+        });
+        if (referrer) referrerId = referrer.id;
+      }
+
       // Création de l'utilisateur
       const user = await tx.user.create({
         data: {
@@ -71,15 +81,41 @@ export async function POST(req: Request) {
           role: "USER",
           status: "ACTIVE",
           kycStatus: "NONE",
+          ...(referrerId ? { referredById: referrerId } : {}),
           wallets: {
             create: {
-              balance: 0,
+              balance: referrerId ? 0.25 : 0,
               currency: "PI",
               type: "PI",
             }
           }
         }
       });
+
+      // Grant referral bonus to referrer
+      if (referrerId) {
+        const referrerPiWallet = await tx.wallet.findFirst({
+          where: { userId: referrerId, currency: "PI" },
+        });
+        if (referrerPiWallet) {
+          await tx.wallet.update({
+            where: { id: referrerPiWallet.id },
+            data: { balance: { increment: 0.5 } },
+          });
+          await tx.transaction.create({
+            data: {
+              reference: `REF-BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+              amount: 0.5,
+              currency: "PI",
+              type: "AIRDROP",
+              status: "SUCCESS",
+              description: `Bonus parrainage - Filleul: ${user.username}`,
+              toUserId: referrerId,
+              toWalletId: referrerPiWallet.id,
+            },
+          });
+        }
+      }
 
       // Génération du token
       const secretKey = new TextEncoder().encode(SECRET);

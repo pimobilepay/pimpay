@@ -56,7 +56,7 @@ export async function GET() {
 
         let user = await prisma.user.findUnique({
             where: { id: userId },
-            include: { wallets: true, virtualCards: true }
+            include: { wallets: true, virtualCards: true, referrals: { select: { id: true, name: true, username: true, avatar: true, createdAt: true } } }
         });
 
         if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
@@ -104,7 +104,7 @@ export async function GET() {
             );
             user = await prisma.user.findUnique({
                 where: { id: userId },
-                include: { wallets: true, virtualCards: true }
+                include: { wallets: true, virtualCards: true, referrals: { select: { id: true, name: true, username: true, avatar: true, createdAt: true } } }
             }) as any;
         }
 
@@ -120,6 +120,9 @@ export async function GET() {
             user: {
                 ...user,
                 name: user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || "PIONEER",
+                referralCode: user?.referralCode,
+                referrals: user?.referrals || [],
+                referralCount: user?.referrals?.length || 0,
                 balances,
                 wallets: user?.wallets.map(w => ({
                     ...w,

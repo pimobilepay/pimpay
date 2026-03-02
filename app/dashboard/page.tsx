@@ -25,6 +25,7 @@ import {
   Twitter,
   Youtube,
   Wallet as WalletIcon,
+  Users as UsersIcon,
 } from "lucide-react";
 import { PI_CONSENSUS_USD } from "@/lib/exchange";
 import { BottomNav } from "@/components/bottom-nav";
@@ -32,6 +33,7 @@ import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useLanguage } from "@/context/LanguageContext";
+import { ReferralProgram } from "@/components/ReferralProgram";
 
 const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
 type CurrencyKey = keyof typeof RATES;
@@ -57,6 +59,7 @@ export default function UserDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyKey>("USD");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
@@ -173,6 +176,7 @@ export default function UserDashboard() {
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
                 <div className="p-4 border-b border-white/5 mb-2"><p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p><p className="text-sm font-bold truncate">@{data?.username}</p></div>
                 <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><Settings size={16} /> Profile</button>
+                <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Parrainage</span></div><span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span></button>
                 <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div><span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span></button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left"><LogOut size={16} /> Logout</button>
               </div>
@@ -244,6 +248,7 @@ export default function UserDashboard() {
         <div className="text-center"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p><p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p></div>
       </footer>
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
+      {showReferral && <ReferralProgram onClose={() => setShowReferral(false)} />}
     </div>
   );
 }
