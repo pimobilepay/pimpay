@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth/verify"; // Vérifie bien le chemin vers ton verifyAuth
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,11 +62,15 @@ export async function POST(req: NextRequest) {
       where: { userId: userPayload.id, currency: "PI" }
     });
 
-    const config = await prisma.systemConfig.findFirst();
+    const [config, feeConfig] = await Promise.all([
+      prisma.systemConfig.findFirst(),
+      getFeeConfig()
+    ]);
     const piPrice = config?.consensusPrice || 314159;
+    const { feeAmount: cardFee } = calculateFee(amount, feeConfig, "card_payment");
 
-    // Calcul du montant en Pi (Si montant est en USD)
-    const amountInPi = amount / piPrice;
+    // Calcul du montant en Pi (Si montant est en USD) + frais centralisés
+    const amountInPi = (amount + cardFee) / piPrice;
 
     if (!wallet || wallet.balance < amountInPi) {
       return NextResponse.json({ error: "Solde Pi insuffisant" }, { status: 400 });
@@ -82,7 +87,7 @@ export async function POST(req: NextRequest) {
         data: {
           reference: `VPAY-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: amount,
-          fee: 0,
+          fee: cardFee,
           type: "PAYMENT",
           status: "SUCCESS",
           description: `Paiement Carte chez ${merchantName}`,

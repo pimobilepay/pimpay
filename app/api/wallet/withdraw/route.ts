@@ -5,6 +5,7 @@ import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: Request) {
   try {
@@ -19,8 +20,8 @@ export async function POST(req: Request) {
     const { amount, currency, address, pin } = await req.json();
 
     // 2. RÉCUPÉRATION CONFIGURATION & UTILISATEUR
-    const [config, user] = await Promise.all([
-      prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } }),
+    const [feeConfig, user] = await Promise.all([
+      getFeeConfig(),
       prisma.user.findUnique({ 
         where: { id: userId }, 
         include: { wallets: true } 
@@ -29,10 +30,8 @@ export async function POST(req: Request) {
 
     if (!user || !user.pin) return NextResponse.json({ error: "Sécurité non configurée" }, { status: 403 });
 
-    // 3. CALCUL DES FRAIS (Ex: 1% ou valeur par défaut)
-    const feePercent = config?.transactionFee || 0.01; // 0.01 = 1%
-    const feeAmount = amount * feePercent;
-    const totalToDeduct = amount + feeAmount;
+    // 3. CALCUL DES FRAIS (Centralisé)
+    const { feeRate: feePercent, feeAmount, totalDebit: totalToDeduct } = calculateFee(amount, feeConfig, "withdraw");
 
     // 4. VÉRIFICATIONS DE SÉCURITÉ
     // a. Le PIN

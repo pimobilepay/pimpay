@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 const prisma = new PrismaClient();
 
@@ -14,10 +15,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Données invalides" }, { status: 400 });
     }
 
-    // 2. Récupérer la config système pour appliquer les frais de carte (souvent plus élevés)
-    const config = await prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } });
-    const cardFeeRate = 0.035; // Exemple : 3.5% pour les transactions par carte
-    const fee = amount * cardFeeRate;
+    // 2. Récupérer les frais centralisés (carte)
+    const feeConfig = await getFeeConfig();
+    const { feeAmount: fee } = calculateFee(amount, feeConfig, "deposit_card");
     const netAmount = amount - fee;
 
     // 3. Vérifier le Wallet de destination

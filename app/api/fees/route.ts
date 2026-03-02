@@ -2,50 +2,27 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-
-type FeeType = "transfer" | "withdraw";
+import { getFeeConfig, getFeeRate, type FeeType } from "@/lib/fees";
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const type = (url.searchParams.get("type") || "transfer") as FeeType;
     const currency = (url.searchParams.get("currency") || "XAF").toUpperCase();
-
-    // (Optionnel) si plus tard tu veux un fee dépendant du montant
     const amountParam = url.searchParams.get("amount");
     const amount = amountParam ? parseFloat(amountParam) : null;
 
-    // Récupère la config globale
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" },
-      select: {
-        transactionFee: true,
-        minWithdrawal: true,
-        maxWithdrawal: true,
-        appVersion: true,
-        maintenanceMode: true,
-        comingSoonMode: true,
-      },
-    });
+    // Récupère la config centralisée
+    const feeConfig = await getFeeConfig();
 
-    // Fallbacks si config absente
-    const transactionFee = config?.transactionFee ?? 0.01;
-    const minWithdrawal = config?.minWithdrawal ?? 1.0;
-    const maxWithdrawal = config?.maxWithdrawal ?? 5000.0;
+    // Fee pour le type demandé
+    const fee = getFeeRate(feeConfig, type);
 
-    // Fee calculé (aujourd’hui: flat fee = transactionFee)
-    // Tu peux faire évoluer ici: fee = %, réseau, plafond, etc.
-    const fee =
-      type === "withdraw"
-        ? transactionFee
-        : transactionFee;
-
-    // Exemple de validation simple future-proof (sans bloquer)
+    // Validation des limites de retrait
     const warnings: string[] = [];
     if (amount !== null && Number.isFinite(amount) && type === "withdraw") {
-      if (amount < minWithdrawal) warnings.push("AMOUNT_BELOW_MIN_WITHDRAWAL");
-      if (amount > maxWithdrawal) warnings.push("AMOUNT_ABOVE_MAX_WITHDRAWAL");
+      if (amount < feeConfig.minWithdrawal) warnings.push("AMOUNT_BELOW_MIN_WITHDRAWAL");
+      if (amount > feeConfig.maxWithdrawal) warnings.push("AMOUNT_ABOVE_MAX_WITHDRAWAL");
     }
 
     return NextResponse.json(
@@ -53,15 +30,18 @@ export async function GET(req: NextRequest) {
         ok: true,
         type,
         currency,
-        fee, // le fee que le front doit afficher/utiliser
-        transactionFee, // valeur brute de config
-        minWithdrawal,
-        maxWithdrawal,
-        flags: {
-          appVersion: config?.appVersion ?? null,
-          maintenanceMode: config?.maintenanceMode ?? false,
-          comingSoonMode: config?.comingSoonMode ?? false,
+        fee,
+        // Tous les frais individuels pour le front-end
+        fees: {
+          transferFee: feeConfig.transferFee,
+          withdrawFee: feeConfig.withdrawFee,
+          depositMobileFee: feeConfig.depositMobileFee,
+          depositCardFee: feeConfig.depositCardFee,
+          exchangeFee: feeConfig.exchangeFee,
+          cardPaymentFee: feeConfig.cardPaymentFee,
         },
+        minWithdrawal: feeConfig.minWithdrawal,
+        maxWithdrawal: feeConfig.maxWithdrawal,
         warnings,
       },
       {
@@ -72,8 +52,9 @@ export async function GET(req: NextRequest) {
         },
       }
     );
-  } catch (error: any) {
-    console.error("GET /api/fees error:", error?.message || error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("GET /api/fees error:", message);
     return NextResponse.json(
       { ok: false, error: "Impossible de récupérer les frais." },
       { status: 500 }

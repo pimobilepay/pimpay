@@ -7,7 +7,8 @@ import {
   Zap, BarChart3, Info, RotateCcw, TrendingUp,
   Wallet, AlertTriangle, Database, Activity,
   Cpu, Terminal, ShieldCheck, ChevronRight, Rocket,
-  Users, Landmark, Eye
+  Users, Landmark, Eye, CreditCard, ArrowUpDown,
+  ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat
 } from "lucide-react";
 
 export default function SystemSettings() {
@@ -27,12 +28,19 @@ export default function SystemSettings() {
     globalAnnouncement: "",
     transactionFee: 0,
     maintenanceMode: false,
-    comingSoonMode: false, // Nouvelle fonctionnalité
+    comingSoonMode: false,
     minWithdrawal: 0,
     maxWithdrawal: 0,
     consensusPrice: 0,
     stakingAPY: 0,
     forceUpdate: false,
+    // Centralized fee fields
+    transferFee: 0.01,
+    withdrawFee: 0.02,
+    depositMobileFee: 0.02,
+    depositCardFee: 0.035,
+    exchangeFee: 0.001,
+    cardPaymentFee: 0.015,
   });
 
   const loadData = async () => {
@@ -190,6 +198,82 @@ export default function SystemSettings() {
             </div>
           </div>
 
+            {/* FEE MANAGEMENT CENTER */}
+            <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[3rem] space-y-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Repeat size={18} className="text-emerald-500" />
+                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">Fee Management Center</h2>
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">
+                Tous les frais de transaction sont centralises ici. Les valeurs representent des pourcentages (ex: 0.02 = 2%).
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FeeInput
+                  icon={<ArrowUpDown size={14} />}
+                  label="Transfert P2P"
+                  sublabel="Envoi entre utilisateurs"
+                  value={config.transferFee}
+                  onChange={(v: number) => setConfig({ ...config, transferFee: v })}
+                  color="text-blue-400"
+                />
+                <FeeInput
+                  icon={<ArrowUpFromLine size={14} />}
+                  label="Retrait"
+                  sublabel="Retrait vers mobile/banque"
+                  value={config.withdrawFee}
+                  onChange={(v: number) => setConfig({ ...config, withdrawFee: v })}
+                  color="text-orange-400"
+                />
+                <FeeInput
+                  icon={<Smartphone size={14} />}
+                  label="Depot Mobile Money"
+                  sublabel="Depot via operateur mobile"
+                  value={config.depositMobileFee}
+                  onChange={(v: number) => setConfig({ ...config, depositMobileFee: v })}
+                  color="text-green-400"
+                />
+                <FeeInput
+                  icon={<CreditCard size={14} />}
+                  label="Depot Carte"
+                  sublabel="Depot par carte bancaire"
+                  value={config.depositCardFee}
+                  onChange={(v: number) => setConfig({ ...config, depositCardFee: v })}
+                  color="text-purple-400"
+                />
+                <FeeInput
+                  icon={<Repeat size={14} />}
+                  label="Echange / Swap"
+                  sublabel="Conversion crypto/fiat"
+                  value={config.exchangeFee}
+                  onChange={(v: number) => setConfig({ ...config, exchangeFee: v })}
+                  color="text-cyan-400"
+                />
+                <FeeInput
+                  icon={<CreditCard size={14} />}
+                  label="Paiement Carte Virtuelle"
+                  sublabel="Achats via carte PimPay"
+                  value={config.cardPaymentFee}
+                  onChange={(v: number) => setConfig({ ...config, cardPaymentFee: v })}
+                  color="text-pink-400"
+                />
+              </div>
+
+              {/* Fee quick preview */}
+              <div className="bg-black/30 border border-white/5 rounded-2xl p-4">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">Apercu des frais actifs</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <FeePreviewChip label="P2P" value={config.transferFee} />
+                  <FeePreviewChip label="Retrait" value={config.withdrawFee} />
+                  <FeePreviewChip label="Depot Mobile" value={config.depositMobileFee} />
+                  <FeePreviewChip label="Depot Carte" value={config.depositCardFee} />
+                  <FeePreviewChip label="Exchange" value={config.exchangeFee} />
+                  <FeePreviewChip label="Card Pay" value={config.cardPaymentFee} />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* COLONNE DROITE : PARAMÈTRES FINANCIERS */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-gradient-to-b from-blue-600/10 to-transparent border border-blue-500/20 p-8 rounded-[3rem] shadow-2xl">
@@ -268,6 +352,43 @@ function StatMiniCard({ icon, label, value, color = "text-blue-500" }: any) {
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</p>
         <p className="text-lg font-black text-white italic">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function FeeInput({ icon, label, sublabel, value, onChange, color = "text-blue-400" }: any) {
+  return (
+    <div className="bg-black/20 border border-white/5 rounded-2xl p-4 space-y-2 group hover:border-white/10 transition-all">
+      <div className="flex items-center gap-2">
+        <span className={`${color} group-hover:scale-110 transition-transform`}>{icon}</span>
+        <div>
+          <p className="text-[10px] font-black text-white uppercase tracking-widest">{label}</p>
+          <p className="text-[8px] text-slate-600 font-bold uppercase">{sublabel}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          step="0.001"
+          min="0"
+          max="1"
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          className="flex-1 bg-slate-950/50 border border-white/5 rounded-xl p-3 text-white font-mono text-sm focus:border-blue-500/50 outline-none transition-all"
+        />
+        <span className="text-[10px] font-black text-slate-500 bg-slate-900 px-3 py-3 rounded-xl">
+          {(value * 100).toFixed(1)}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function FeePreviewChip({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-3 py-2">
+      <span className="text-[8px] font-black text-slate-500 uppercase">{label}</span>
+      <span className="text-[10px] font-black text-emerald-400">{(value * 100).toFixed(1)}%</span>
     </div>
   );
 }

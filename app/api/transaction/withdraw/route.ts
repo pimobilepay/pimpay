@@ -5,6 +5,7 @@ import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { calculateExchangeWithFee, PI_CONSENSUS_RATE } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
+import { getFeeConfig } from "@/lib/fees";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,9 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // 3. Calcul de la conversion (Pi -> Fiat)
+    // 3. Calcul de la conversion (Pi -> Fiat) - Frais centralisés
     const targetCurrency = currency || "USD";
-    const conversion = calculateExchangeWithFee(piAmount, targetCurrency);
+    const feeConfig = await getFeeConfig();
+    const conversion = calculateExchangeWithFee(piAmount, targetCurrency, feeConfig.withdrawFee);
 
     // 4. Exécution de la transaction atomique (Prisma $transaction)
     const result = await prisma.$transaction(async (tx) => {

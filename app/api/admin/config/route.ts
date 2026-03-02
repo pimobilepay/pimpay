@@ -176,7 +176,10 @@ export async function POST(req: NextRequest) {
     const {
       appVersion, globalAnnouncement, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
-      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil
+      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil,
+      // New centralized fee fields
+      transferFee, withdrawFee, depositMobileFee, depositCardFee,
+      exchangeFee, cardPaymentFee, maxWithdrawal
     } = body;
 
     // Build update data, handling maintenanceUntil properly
@@ -187,12 +190,20 @@ export async function POST(req: NextRequest) {
     if (maintenanceMode !== undefined) updateData.maintenanceMode = Boolean(maintenanceMode);
     if (comingSoonMode !== undefined) updateData.comingSoonMode = Boolean(comingSoonMode);
     if (minWithdrawal !== undefined) updateData.minWithdrawal = Number(minWithdrawal);
+    if (maxWithdrawal !== undefined) updateData.maxWithdrawal = Number(maxWithdrawal);
     if (consensusPrice !== undefined) updateData.consensusPrice = Number(consensusPrice);
     if (stakingAPY !== undefined) updateData.stakingAPY = Number(stakingAPY);
     if (forceUpdate !== undefined) updateData.forceUpdate = Boolean(forceUpdate);
     if (maintenanceUntil !== undefined) updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
     // When disabling maintenance, also clear the until date
     if (maintenanceMode === false) updateData.maintenanceUntil = null;
+    // Centralized fee fields
+    if (transferFee !== undefined) updateData.transferFee = Number(transferFee);
+    if (withdrawFee !== undefined) updateData.withdrawFee = Number(withdrawFee);
+    if (depositMobileFee !== undefined) updateData.depositMobileFee = Number(depositMobileFee);
+    if (depositCardFee !== undefined) updateData.depositCardFee = Number(depositCardFee);
+    if (exchangeFee !== undefined) updateData.exchangeFee = Number(exchangeFee);
+    if (cardPaymentFee !== undefined) updateData.cardPaymentFee = Number(cardPaymentFee);
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },

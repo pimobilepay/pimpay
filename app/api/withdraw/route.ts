@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 // Force le rendu dynamique pour le build Vercel
 export const dynamic = "force-dynamic";
@@ -8,8 +9,9 @@ export async function POST(req: Request) {
   try {
     const { userId, amountUSD, phone, prefix } = await req.json();
 
-    const FEE_PERCENT = 0.02;
-    const totalToDeduct = amountUSD * (1 + FEE_PERCENT);
+    // Frais centralisés
+    const feeConfig = await getFeeConfig();
+    const { feeRate: FEE_PERCENT, feeAmount, totalDebit: totalToDeduct } = calculateFee(amountUSD, feeConfig, "withdraw");
     const amountXAF = Math.floor(amountUSD * 600);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
         data: {
           reference: `WDR-${Date.now()}`,
           amount: amountUSD,
-          fee: amountUSD * FEE_PERCENT,
+          fee: feeAmount,
           currency: "USD",
           type: "WITHDRAW",
           status: "PENDING",

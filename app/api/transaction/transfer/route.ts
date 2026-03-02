@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { PI_CONSENSUS_RATE, calculateExchangeWithFee } from "@/lib/exchange";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,8 +58,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Solde insuffisant" }, { status: 400 });
     }
 
-    // 4. CALCULS (Conformité GCV)
-    const exchange = calculateExchangeWithFee(amountNum, "USD");
+    // 4. CALCULS (Conformité GCV) - Frais centralisés
+    const feeConfig = await getFeeConfig();
+    const { feeAmount: transferFeeAmount, feeRate: transferFeeRate } = calculateFee(amountNum, feeConfig, "transfer");
+    const exchange = calculateExchangeWithFee(amountNum, "USD", feeConfig.exchangeFee);
     const valueInUsd = amountNum * PI_CONSENSUS_RATE;
 
     // 5. TRANSACTION ATOMIQUE (Correction Erreurs Prisma)
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
           fromWalletId: senderWallet.id,
           toWalletId: recipientWallet.id,
           description: note || "Transfert P2P", // 'description' est dans ton schéma
-          fee: exchange.fee / PI_CONSENSUS_RATE 
+          fee: transferFeeAmount
         }
       });
     }, {

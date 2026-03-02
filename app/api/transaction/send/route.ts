@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: Request) {
   try {
@@ -25,12 +26,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Envoi à soi-même impossible" }, { status: 400 });
     }
 
-    // 3. Récupération rapide de la config (Hors transaction pour gagner du temps)
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" }
-    });
-    const fee = config?.transactionFee || 0.01;
-    const totalDeduction = amountNum + fee;
+    // 3. Récupération centralisée des frais
+    const feeConfig = await getFeeConfig();
+    const { feeAmount: fee, totalDebit: totalDeduction } = calculateFee(amountNum, feeConfig, "transfer");
 
     // 4. TRANSACTION ATOMIQUE AVEC TIMEOUT AUGMENTÉ
     const result = await prisma.$transaction(async (tx) => {

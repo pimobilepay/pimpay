@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,14 +82,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // ── 3. FEE from SystemConfig ────────────────────────────────────────────
-    const config = await prisma.systemConfig
-      .findUnique({ where: { id: "GLOBAL_CONFIG" } })
-      .catch(() => null);
-
-    const feeRate = config?.transactionFee ?? 0.01;
-    const fee = Math.round(amount * feeRate * 100) / 100; // percentage-based fee
-    const totalDebit = amount + fee;
+    // ── 3. FEE centralisé ─────────────────────────────────────────────────
+    const feeConfig = await getFeeConfig();
+    const { feeRate, feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
 
     // ── 4. ATOMIC TRANSACTION ───────────────────────────────────────────────
     const result = await prisma.$transaction(

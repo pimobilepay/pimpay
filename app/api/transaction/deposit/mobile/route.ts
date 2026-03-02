@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient, TransactionStatus, TransactionType } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
+import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 const prisma = new PrismaClient();
 
@@ -14,12 +15,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Données manquantes" }, { status: 400 });
     }
 
-    // 2. Récupérer la configuration globale pour les frais
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" }
-    });
-    const feeRate = config?.transactionFee || 0.02; // Défaut 2%
-    const fee = amount * feeRate;
+    // 2. Récupérer les frais centralisés
+    const feeConfig = await getFeeConfig();
+    const { feeAmount: fee, feeRate } = calculateFee(amount, feeConfig, "deposit_mobile");
 
     // 3. Vérifier ou Créer le Wallet de destination pour cet utilisateur
     let wallet = await prisma.wallet.findUnique({
