@@ -49,9 +49,9 @@ export async function GET() {
 
     if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // Calculate rewards: 0.0000064 PI per referral (bonus system)
+    // New Reward: 0.0005 PI per referral
     const totalReferrals = user.referrals.length;
-    const rewardPerReferral = 0.0000064;
+    const rewardPerReferral = 0.0005;
     const totalRewards = totalReferrals * rewardPerReferral;
 
     return NextResponse.json({
@@ -82,25 +82,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Code de parrainage requis" }, { status: 400 });
     }
 
-    // Check current user
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, referredById: true, referralCode: true },
+      select: { id: true, referredById: true, referralCode: true, username: true },
     });
 
     if (!currentUser) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // User already referred
     if (currentUser.referredById) {
       return NextResponse.json({ error: "Vous avez déjà un parrain" }, { status: 400 });
     }
 
-    // Can't refer yourself
     if (currentUser.referralCode === referralCode) {
       return NextResponse.json({ error: "Vous ne pouvez pas utiliser votre propre code" }, { status: 400 });
     }
 
-    // Find the referrer by code
     const referrer = await prisma.user.findUnique({
       where: { referralCode },
       select: { id: true, username: true, name: true },
@@ -116,7 +112,7 @@ export async function POST(req: Request) {
       data: { referredById: referrer.id },
     });
 
-    // Grant bonus to referrer (0.0000064 PI)
+    // Grant bonus to referrer (0.0005 PI)
     const referrerPiWallet = await prisma.wallet.findFirst({
       where: { userId: referrer.id, currency: "PI" },
     });
@@ -124,25 +120,24 @@ export async function POST(req: Request) {
     if (referrerPiWallet) {
       await prisma.wallet.update({
         where: { id: referrerPiWallet.id },
-        data: { balance: { increment: 0.0000064 } },
+        data: { balance: { increment: 0.0005 } },
       });
 
-      // Create a transaction record for the bonus
       await prisma.transaction.create({
         data: {
           reference: `REF-BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.0000064,
+          amount: 0.0005,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
-          description: `Bonus parrainage - Filleul: ${currentUser.id.slice(0, 8)}`,
+          description: `Bonus parrainage - Filleul: ${currentUser.username || currentUser.id.slice(0, 8)}`,
           toUserId: referrer.id,
           toWalletId: referrerPiWallet.id,
         },
       });
     }
 
-    // Grant bonus to new user (0.0000032 PI)
+    // Grant bonus to new user (0.00025 PI)
     const userPiWallet = await prisma.wallet.findFirst({
       where: { userId, currency: "PI" },
     });
@@ -150,13 +145,13 @@ export async function POST(req: Request) {
     if (userPiWallet) {
       await prisma.wallet.update({
         where: { id: userPiWallet.id },
-        data: { balance: { increment: 0.0000032 } },
+        data: { balance: { increment: 0.00025 } },
       });
 
       await prisma.transaction.create({
         data: {
           reference: `REF-WELCOME-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.0000032,
+          amount: 0.00025,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
@@ -169,7 +164,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Parrainage appliqué ! Bonus: +0.25 PI pour vous, +0.5 PI pour ${referrer.name || referrer.username}`,
+      message: `Parrainage appliqué ! Bonus: +0.00025 PI pour vous, +0.0005 PI pour ${referrer.name || referrer.username}`,
       referrerName: referrer.name || referrer.username,
     });
   } catch (error: any) {
