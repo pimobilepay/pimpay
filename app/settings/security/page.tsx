@@ -257,7 +257,7 @@ export default function SecurityPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter italic leading-none">Centre de Securite</h1>
+            <h1 className="text-xl font-black uppercase tracking-tighter leading-none">Centre de Securite</h1>
             <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.3em] mt-1">Pimpay Protocol v4.0</p>
           </div>
         </div>
