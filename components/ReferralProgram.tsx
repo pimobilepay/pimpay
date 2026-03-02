@@ -103,7 +103,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
   function handleShare() {
     if (!data?.referralCode) return;
     const link = `${typeof window !== "undefined" ? window.location.origin : ""}/auth/signup?ref=${data.referralCode}`;
-    const text = `Rejoins PimPay et gagne 0.25 PI de bonus ! Utilise mon lien : ${link}`;
+    const text = `Rejoins PimPay et gagne 0.0000032 PI de bonus ! Utilise mon lien : ${link}`;
     if (navigator.share) {
       navigator.share({ title: "PimPay - Programme de Parrainage", text, url: link }).catch(() => null);
     } else {
@@ -172,7 +172,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
             </div>
             <div className="bg-orange-600/10 border border-orange-500/20 rounded-2xl p-3 text-center">
               <p className="text-lg font-black text-orange-400">
-                {data?.rewardPerReferral || 0.5}
+                {data?.rewardPerReferral || 0.0000064}
               </p>
               <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">
                 PI/Invite
@@ -222,7 +222,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
                   {[
                     { step: "01", text: "Partagez votre lien unique avec vos amis" },
                     { step: "02", text: "Votre ami s'inscrit via votre lien" },
-                    { step: "03", text: "Vous recevez 0.5 PI et votre ami 0.25 PI" },
+                    { step: "03", text: "Vous recevez 0.0000064 PI et votre ami 0.0000032 PI" },
                   ].map((item) => (
                     <div key={item.step} className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -345,7 +345,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 font-bold mb-4">
-                      Si un ami vous a invite, entrez son code pour recevoir un bonus de 0.25 PI.
+                      Si un ami vous a invite, entrez son code pour recevoir un bonus de 0.0000032 PI.
                     </p>
                     <div className="flex items-center gap-3">
                       <input
