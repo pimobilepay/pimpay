@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
+import { UAParser } from "ua-parser-js";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,8 +52,18 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
     const country = req.headers.get("x-vercel-ip-country") || "CG";
     const city = req.headers.get("x-vercel-ip-city") || "Oyo";
-    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
-    const browser = userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur";
+
+    // Parse user agent for better device identification
+    const uaParser = new UAParser(userAgent);
+    const uaDevice = uaParser.getDevice();
+    const uaOS = uaParser.getOS();
+    const uaBrowser = uaParser.getBrowser();
+    const os = uaDevice.vendor && uaDevice.model
+      ? `${uaDevice.vendor} ${uaDevice.model}`
+      : uaOS.name
+        ? `${uaOS.name}${uaOS.version ? ` ${uaOS.version}` : ""}`
+        : userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
+    const browser = uaBrowser.name || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur");
 
     try {
       // MISE À JOUR DE L'UTILISATEUR

@@ -34,13 +34,19 @@ export async function GET() {
 
       // Build a smart display name
       const deviceDisplayName =
-        s.deviceName && s.deviceName !== "Desktop" && s.deviceName !== "iPhone" && s.deviceName !== "Android"
+        // First: use device model from UA parser (e.g. "Samsung Galaxy A12")
+        device.vendor && device.model
+          ? `${device.vendor} ${device.model}`.trim()
+        // Second: use stored name if it's not a generic value
+        : s.deviceName && s.deviceName !== "Desktop" && s.deviceName !== "iPhone" && s.deviceName !== "Android"
           ? s.deviceName
-          : device.model
-            ? `${device.vendor || ""} ${device.model}`.trim()
-            : os.name
-              ? `${browser.name || "Navigateur"} sur ${os.name}`
-              : s.deviceName || "Appareil Inconnu";
+        // Third: use model alone if available
+        : device.model
+          ? device.model
+        // Fourth: build from browser + OS
+        : os.name
+          ? `${browser.name || "Navigateur"} sur ${os.name}`
+        : s.deviceName || "Appareil Inconnu";
 
       const isMobile =
         device.type === "mobile" ||

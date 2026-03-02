@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
+import { UAParser } from "ua-parser-js";
 
 export async function POST(req: Request) {
   try {
@@ -37,7 +38,17 @@ export async function POST(req: Request) {
     const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
     const country = req.headers.get("x-vercel-ip-country") || "CG";
     const city = req.headers.get("x-vercel-ip-city") || "Oyo";
-    const os = userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
+
+    // Parse user agent for better device identification
+    const uaParser = new UAParser(userAgent);
+    const uaDevice = uaParser.getDevice();
+    const uaOS = uaParser.getOS();
+    const uaBrowser = uaParser.getBrowser();
+    const os = uaDevice.vendor && uaDevice.model
+      ? `${uaDevice.vendor} ${uaDevice.model}`
+      : uaOS.name
+        ? `${uaOS.name}${uaOS.version ? ` ${uaOS.version}` : ""}`
+        : userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iPhone" : "Desktop";
 
     // --- CORRECTION : MISE À JOUR DU LAST LOGIN DÈS MAINTENANT ---
     await prisma.user.update({
@@ -96,7 +107,7 @@ export async function POST(req: Request) {
           city: city,
           country: country,
           // Extraction sommaire du navigateur
-          browser: userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur",
+          browser: uaBrowser.name || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur"),
           os: os
         }
       });

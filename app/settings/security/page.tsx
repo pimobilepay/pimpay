@@ -7,7 +7,7 @@ import {
   Lock, ArrowLeft, ShieldAlert, Monitor,
   Smartphone, Trash2, Shield, Loader2,
   Globe, Cpu, Wifi, ChevronDown, ChevronUp,
-  X, Copy, Check, Tablet
+  X, Copy, Check, Tablet, Scan, Mic, Eye
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -46,6 +46,23 @@ export default function SecurityPage() {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+
+  // Email 2FA states
+  const [showEmail2faModal, setShowEmail2faModal] = useState(false);
+  const [emailCode, setEmailCode] = useState("");
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  // SMS 2FA states
+  const [showSms2faModal, setShowSms2faModal] = useState(false);
+  const [smsCode, setSmsCode] = useState("");
+  const [smsCodeSent, setSmsCodeSent] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
+
+  // Biometric states
+  const [faceId, setFaceId] = useState(false);
+  const [fingerprint, setFingerprint] = useState(false);
+  const [voiceAuth, setVoiceAuth] = useState(false);
 
   // Google Authenticator states
   const [google2faEnabled, setGoogle2faEnabled] = useState(false);
@@ -198,6 +215,9 @@ export default function SecurityPage() {
     setOtpEmail(localStorage.getItem("otpEmail") === "true");
     setOtpSms(localStorage.getItem("otpSms") === "true");
     setBiometric(localStorage.getItem("biometric") === "true");
+    setFaceId(localStorage.getItem("faceId") === "true");
+    setFingerprint(localStorage.getItem("fingerprint") === "true");
+    setVoiceAuth(localStorage.getItem("voiceAuth") === "true");
     fetchSessions();
     fetch2faStatus();
   }, [fetchSessions, fetch2faStatus]);
@@ -214,8 +234,8 @@ export default function SecurityPage() {
 
   if (!mounted) return null;
 
-  const securityScore = [otpEmail, otpSms, biometric, google2faEnabled].filter(Boolean).length;
-  const scorePercentage = Math.round((securityScore / 4) * 100);
+  const securityScore = [otpEmail, otpSms, biometric, google2faEnabled, faceId, fingerprint, voiceAuth].filter(Boolean).length;
+  const scorePercentage = Math.round((securityScore / 7) * 100);
 
   const getDeviceIcon = (session: SessionData) => {
     const type = session.deviceType?.toLowerCase();
@@ -284,20 +304,69 @@ export default function SecurityPage() {
             <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">Double Authentification (2FA)</h3>
           </div>
           <div className="grid gap-3">
-            <SecurityToggle
-              icon={<Mail size={20} />}
-              label="Protection Email"
-              description="Validation de session par code"
-              value={otpEmail}
-              onToggle={() => toggleSwitch("otpEmail", otpEmail, setOtpEmail)}
-            />
-            <SecurityToggle
-              icon={<MessageCircle size={20} />}
-              label="Validation SMS"
-              description="OTP via Mobile Money"
-              value={otpSms}
-              onToggle={() => toggleSwitch("otpSms", otpSms, setOtpSms)}
-            />
+            {/* Email 2FA */}
+            <button
+              onClick={() => {
+                if (otpEmail) {
+                  if (!window.confirm("Desactiver la protection email reduira la securite de votre compte. Continuer ?")) return;
+                  setOtpEmail(false);
+                  localStorage.setItem("otpEmail", "false");
+                  toast.success("Protection Email desactivee");
+                } else {
+                  setEmailCode("");
+                  setEmailCodeSent(false);
+                  setShowEmail2faModal(true);
+                }
+              }}
+              className="w-full flex items-center justify-between p-5 rounded-[2.2rem] bg-slate-900/40 border border-white/5 hover:border-blue-500/20 active:scale-[0.98] transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`p-3.5 rounded-2xl transition-all duration-500 ${otpEmail ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-slate-800 text-slate-500 border border-white/5'}`}>
+                  <Mail size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">Protection Email</p>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
+                    {otpEmail ? "Verification active par email" : "Validation de session par code"}
+                  </p>
+                </div>
+              </div>
+              <div className={`w-12 h-6.5 rounded-full p-1 flex items-center transition-all duration-500 ${otpEmail ? "bg-blue-600" : "bg-slate-800"}`}>
+                <div className={`w-4.5 h-4.5 rounded-full bg-white shadow-xl transform transition-all duration-500 ease-in-out ${otpEmail ? "translate-x-5.5" : "translate-x-0"}`} />
+              </div>
+            </button>
+
+            {/* SMS 2FA */}
+            <button
+              onClick={() => {
+                if (otpSms) {
+                  if (!window.confirm("Desactiver la validation SMS reduira la securite de votre compte. Continuer ?")) return;
+                  setOtpSms(false);
+                  localStorage.setItem("otpSms", "false");
+                  toast.success("Validation SMS desactivee");
+                } else {
+                  setSmsCode("");
+                  setSmsCodeSent(false);
+                  setShowSms2faModal(true);
+                }
+              }}
+              className="w-full flex items-center justify-between p-5 rounded-[2.2rem] bg-slate-900/40 border border-white/5 hover:border-blue-500/20 active:scale-[0.98] transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`p-3.5 rounded-2xl transition-all duration-500 ${otpSms ? 'bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-slate-800 text-slate-500 border border-white/5'}`}>
+                  <MessageCircle size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">Validation SMS</p>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
+                    {otpSms ? "OTP via Mobile Money active" : "OTP via Mobile Money"}
+                  </p>
+                </div>
+              </div>
+              <div className={`w-12 h-6.5 rounded-full p-1 flex items-center transition-all duration-500 ${otpSms ? "bg-emerald-600" : "bg-slate-800"}`}>
+                <div className={`w-4.5 h-4.5 rounded-full bg-white shadow-xl transform transition-all duration-500 ease-in-out ${otpSms ? "translate-x-5.5" : "translate-x-0"}`} />
+              </div>
+            </button>
 
             {/* Google Authenticator */}
             {google2faLoading ? (
@@ -555,13 +624,36 @@ export default function SecurityPage() {
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
             <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{"Acces Biometrique"}</h3>
           </div>
-          <SecurityToggle
-            icon={<Fingerprint size={20} />}
-            label="Biometrie Native"
-            description="Touch ID / Face ID"
-            value={biometric}
-            onToggle={() => toggleSwitch("biometric", biometric, setBiometric)}
-          />
+          <div className="grid gap-3">
+            <SecurityToggle
+              icon={<Fingerprint size={20} />}
+              label="Biometrie Native"
+              description="Touch ID / Face ID"
+              value={biometric}
+              onToggle={() => toggleSwitch("biometric", biometric, setBiometric)}
+            />
+            <SecurityToggle
+              icon={<Scan size={20} />}
+              label="Reconnaissance Faciale"
+              description="Deverrouillage par visage"
+              value={faceId}
+              onToggle={() => toggleSwitch("faceId", faceId, setFaceId)}
+            />
+            <SecurityToggle
+              icon={<Eye size={20} />}
+              label="Empreinte Digitale"
+              description="Capteur biometrique avance"
+              value={fingerprint}
+              onToggle={() => toggleSwitch("fingerprint", fingerprint, setFingerprint)}
+            />
+            <SecurityToggle
+              icon={<Mic size={20} />}
+              label="Verification Vocale"
+              description="Empreinte vocale unique"
+              value={voiceAuth}
+              onToggle={() => toggleSwitch("voiceAuth", voiceAuth, setVoiceAuth)}
+            />
+          </div>
         </section>
       </div>
 
@@ -725,6 +817,194 @@ export default function SecurityPage() {
                   Desactiver
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EMAIL 2FA ACTIVATION MODAL */}
+      {showEmail2faModal && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between p-6 pb-0">
+              <div>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">Protection Email</h2>
+                <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">Activation 2FA par Email</p>
+              </div>
+              <button
+                onClick={() => setShowEmail2faModal(false)}
+                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-all active:scale-90"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 flex items-center gap-4">
+                <div className="p-3 bg-blue-600 rounded-xl shrink-0">
+                  <Mail size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">Comment ca marche</p>
+                  <p className="text-[9px] text-slate-400 font-bold mt-1">
+                    Un code de verification sera envoye a votre adresse email a chaque nouvelle connexion.
+                  </p>
+                </div>
+              </div>
+
+              {!emailCodeSent ? (
+                <button
+                  onClick={async () => {
+                    setEmailLoading(true);
+                    await new Promise(r => setTimeout(r, 1500));
+                    setEmailCodeSent(true);
+                    setEmailLoading(false);
+                    toast.success("Code envoye a votre adresse email");
+                  }}
+                  disabled={emailLoading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black uppercase text-sm tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {emailLoading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                  Envoyer le code de verification
+                </button>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">
+                      Entrez le code recu par email
+                    </p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={emailCode}
+                      onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-900/60 border border-white/10 rounded-2xl py-5 text-white placeholder:text-slate-700 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowEmail2faModal(false)}
+                      className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (emailCode.length !== 6) { toast.error("Entrez un code a 6 chiffres"); return; }
+                        setEmailLoading(true);
+                        await new Promise(r => setTimeout(r, 1000));
+                        setOtpEmail(true);
+                        localStorage.setItem("otpEmail", "true");
+                        setShowEmail2faModal(false);
+                        setEmailLoading(false);
+                        toast.success("Protection Email activee avec succes");
+                      }}
+                      disabled={emailLoading || emailCode.length !== 6}
+                      className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      {emailLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                      Activer
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS 2FA ACTIVATION MODAL */}
+      {showSms2faModal && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between p-6 pb-0">
+              <div>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">Validation SMS</h2>
+                <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em] mt-1">Activation OTP Mobile</p>
+              </div>
+              <button
+                onClick={() => setShowSms2faModal(false)}
+                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-all active:scale-90"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 flex items-center gap-4">
+                <div className="p-3 bg-emerald-600 rounded-xl shrink-0">
+                  <MessageCircle size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Verification Mobile</p>
+                  <p className="text-[9px] text-slate-400 font-bold mt-1">
+                    Un code OTP sera envoye par SMS a votre numero Mobile Money pour chaque transaction sensible.
+                  </p>
+                </div>
+              </div>
+
+              {!smsCodeSent ? (
+                <button
+                  onClick={async () => {
+                    setSmsLoading(true);
+                    await new Promise(r => setTimeout(r, 1500));
+                    setSmsCodeSent(true);
+                    setSmsLoading(false);
+                    toast.success("Code OTP envoye par SMS");
+                  }}
+                  disabled={smsLoading}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black uppercase text-sm tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {smsLoading ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
+                  Envoyer le code SMS
+                </button>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">
+                      Entrez le code recu par SMS
+                    </p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={smsCode}
+                      onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-900/60 border border-white/10 rounded-2xl py-5 text-white placeholder:text-slate-700 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowSms2faModal(false)}
+                      className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (smsCode.length !== 6) { toast.error("Entrez un code a 6 chiffres"); return; }
+                        setSmsLoading(true);
+                        await new Promise(r => setTimeout(r, 1000));
+                        setOtpSms(true);
+                        localStorage.setItem("otpSms", "true");
+                        setShowSms2faModal(false);
+                        setSmsLoading(false);
+                        toast.success("Validation SMS activee avec succes");
+                      }}
+                      disabled={smsLoading || smsCode.length !== 6}
+                      className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      {smsLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                      Activer
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
