@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "PIN validé",
       user: { id: user.id, role: user.role },
-      redirectTo: user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard"
+      redirectTo: user.role === "ADMIN" ? "/admin" : "/dashboard"
     });
 
     const isProduction = process.env.NODE_ENV === "production";

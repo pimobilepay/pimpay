@@ -1,23 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
-  TrendingUp, AlertTriangle, Zap, Search, Loader2
+  TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
+  ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Dot
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // RÉCUPÉRATION DES DONNÉES RÉELLES
   useEffect(() => {
-    async function fetchDashboardData() {
+    fetchDashboardData();
+  }, []);
+
+  async function fetchDashboardData() {
       try {
         const response = await fetch("/api/admin/dashboard-stats");
         if (!response.ok) throw new Error("Erreur de récupération");
@@ -34,8 +39,6 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     }
-    fetchDashboardData();
-  }, []);
 
   if (loading) {
     return (
@@ -47,61 +50,117 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 font-sans">
+    <div className="min-h-screen bg-[#020617] text-white p-6 font-sans pb-32">
 
-      {/* HEADER AVEC BARRE DE RECHERCHE */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+      {/* HEADER */}
+      <header className="flex justify-between items-start mb-10">
         <div>
-          <h1 className="text-3xl font-black italic tracking-tighter uppercase">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span className="text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">Admin Console v4.0</span>
+          </div>
+          <h1 className="text-2xl font-black italic tracking-tighter uppercase">
             PIMPAY<span className="text-blue-500">CORE</span>
           </h1>
-          <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.4em] animate-pulse">
-            Système de Contrôle Central v2.4.0
-          </p>
         </div>
-        <div className="relative group w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input
-            placeholder="Rechercher transaction, utilisateur ou log..."
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all backdrop-blur-md"
-          />
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setLoading(true); fetchDashboardData(); }} className="p-3 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
+            <RefreshCw size={18} className="text-slate-400" />
+          </button>
+          <button onClick={() => { window.location.href = '/'; }} className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl active:scale-90 transition-transform">
+            <LogOut size={18} className="text-red-400" />
+          </button>
         </div>
       </header>
 
-      {/* STATISTIQUES RAPIDES (NEON CARDS) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <StatCard title="Volume Total" value={`${stats?.totalVolume?.toLocaleString() || 0} XAF`} icon={<Landmark className="text-blue-500" />} trend="+12.5%" color="blue" />
-        <StatCard title="Utilisateurs" value={stats?.totalUsers || 0} icon={<Users className="text-purple-500" />} trend="+3.2%" color="purple" />
-        <StatCard title="KYC en Attente" value={stats?.pendingKyc || 0} icon={<ShieldCheck className="text-amber-500" />} trend="Priorité" color="amber" />
-        <StatCard title="Santé Système" value="99.9%" icon={<Zap className="text-emerald-500" />} trend="Stable" color="emerald" />
-      </div>
+      {/* QUICK NAV GRID */}
+      <section className="mb-10">
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+          <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Navigation Rapide</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Dashboard", desc: "Vue detaillee", icon: <LayoutGrid size={20} />, path: "/admin/dashboard", color: "blue" },
+            { label: "Utilisateurs", desc: "Gestion comptes", icon: <Users size={20} />, path: "/admin/users", color: "purple" },
+            { label: "Transactions", desc: "Flux financiers", icon: <ArrowRightLeft size={20} />, path: "/admin/transactions", color: "emerald" },
+            { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
+            { label: "Support", desc: "Tickets clients", icon: <Headphones size={20} />, path: "/admin/support", color: "rose" },
+            { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
+          ].map((item) => {
+            const colorMap: Record<string, string> = {
+              blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
+              purple: "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20",
+              emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20",
+              amber: "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20",
+              rose: "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20",
+              cyan: "bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20",
+            };
+            const iconColorMap: Record<string, string> = {
+              blue: "bg-blue-600 shadow-blue-500/30",
+              purple: "bg-purple-600 shadow-purple-500/30",
+              emerald: "bg-emerald-600 shadow-emerald-500/30",
+              amber: "bg-amber-600 shadow-amber-500/30",
+              rose: "bg-rose-600 shadow-rose-500/30",
+              cyan: "bg-cyan-600 shadow-cyan-500/30",
+            };
+            return (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`flex flex-col items-center gap-3 p-5 rounded-[2rem] border transition-all active:scale-[0.96] ${colorMap[item.color]}`}
+              >
+                <div className={`p-3 rounded-2xl text-white shadow-lg ${iconColorMap[item.color]}`}>
+                  {item.icon}
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-tight text-white leading-none">{item.label}</p>
+                  <p className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-60">{item.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* STATISTIQUES RAPIDES */}
+      <section className="mb-10">
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+          <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Apercu Systeme</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <StatCard title="Volume Total" value={`${stats?.totalVolume?.toLocaleString() || 0} XAF`} icon={<Landmark className="text-blue-500" />} trend="+12.5%" color="blue" />
+          <StatCard title="Utilisateurs" value={stats?.totalUsers || 0} icon={<Users className="text-purple-500" />} trend="+3.2%" color="purple" />
+          <StatCard title="KYC en Attente" value={stats?.pendingKyc || 0} icon={<ShieldCheck className="text-amber-500" />} trend="Priorite" color="amber" />
+          <StatCard title="Sante Systeme" value="99.9%" icon={<Zap className="text-emerald-500" />} trend="Stable" color="emerald" />
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* GRAPHIQUE PRINCIPAL RENDU "VIVANT" */}
-        <div className="lg:col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-8 backdrop-blur-xl relative overflow-hidden group">
+        {/* GRAPHIQUE PRINCIPAL */}
+        <div className="lg:col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-6 lg:p-8 backdrop-blur-xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 group-hover:text-blue-500 transition-all duration-700">
-            <TrendingUp size={120} />
+            <TrendingUp size={80} />
           </div>
           
-          <div className="flex justify-between items-center mb-10 relative z-10">
+          <div className="flex justify-between items-center mb-8 relative z-10">
             <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 italic">Analyse des Flux</h3>
-              <p className="text-[9px] text-slate-500 uppercase mt-1">Données synchronisées en temps réel</p>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Analyse des Flux</h3>
+              <p className="text-[9px] text-slate-600 uppercase mt-1">7 derniers jours</p>
             </div>
             <div className="flex gap-4">
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)] animate-pulse"></span> 
-                Entrées
+                <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" /> Entrees
               </div>
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)] animate-pulse"></span> 
-                Sorties
+                <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" /> Sorties
               </div>
             </div>
           </div>
 
-          <div className="h-80 w-full relative z-10">
+          <div className="h-64 w-full relative z-10">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData.length > 0 ? chartData : defaultChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
@@ -115,80 +174,79 @@ export default function AdminDashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="10 10" stroke="#ffffff05" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="#475569" 
-                  fontSize={10} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#64748b', fontWeight: 'bold' }}
-                  dy={10}
-                />
-                <YAxis 
-                  stroke="#475569" 
-                  fontSize={10} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#64748b' }}
-                />
+                <XAxis dataKey="name" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontWeight: 'bold' }} dy={10} />
+                <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
                 <Tooltip 
-                  cursor={{ stroke: '#3b82f6', strokeWidth: 1 }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-                    border: '1px solid rgba(59, 130, 246, 0.2)', 
-                    borderRadius: '16px', 
-                    fontSize: '10px',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-                  }} 
+                  contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '16px', fontSize: '10px', backdropFilter: 'blur(10px)' }} 
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="entrees" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
-                  fill="url(#colorEntree)" 
-                  strokeWidth={4} 
-                  animationDuration={2000}
-                  animationEasing="ease-in-out"
-                  activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="sorties" 
-                  stroke="#f43f5e" 
-                  fill="url(#colorSortie)" 
-                  strokeWidth={3} 
-                  strokeDasharray="5 5" 
-                  animationDuration={2500}
-                  animationEasing="ease-in-out"
-                />
+                <Area type="monotone" dataKey="entrees" stroke="#3b82f6" fillOpacity={1} fill="url(#colorEntree)" strokeWidth={3} animationDuration={2000} />
+                <Area type="monotone" dataKey="sorties" stroke="#f43f5e" fill="url(#colorSortie)" strokeWidth={2} strokeDasharray="5 5" animationDuration={2500} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* LOGS D'ACTIVITÉ EN DIRECT */}
-        <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 backdrop-blur-xl flex flex-col">
-          <div className="flex items-center gap-3 mb-8">
-             <Activity className="text-blue-500 animate-spin-slow" size={18} />
-             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 italic">Live Audit Log</h3>
+        {/* ACTIVITE RECENTE */}
+        <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 lg:p-8 backdrop-blur-xl flex flex-col">
+          <div className="flex items-center gap-3 mb-6">
+             <Activity className="text-blue-500" size={18} />
+             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Activite Recente</h3>
           </div>
-          <div className="space-y-6 flex-1 overflow-y-auto no-scrollbar max-h-[350px]">
+          <div className="space-y-4 flex-1 overflow-y-auto no-scrollbar max-h-[280px]">
             {activities.length > 0 ? activities.map((act, i) => (
                <ActivityItem key={i} icon={act.type === 'depot' ? <ArrowDownLeft className="text-emerald-500" /> : <ArrowUpRight className="text-rose-500" />} user={act.userName} action={act.label} amount={act.amount} time={act.time} />
             )) : (
-              <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                <Globe size={40} className="mb-4" />
-                <p className="text-[10px] text-center text-slate-500 uppercase font-black tracking-widest">Aucune donnée entrante</p>
+              <div className="flex flex-col items-center justify-center py-16 opacity-20">
+                <Globe size={32} className="mb-3" />
+                <p className="text-[9px] text-center text-slate-500 uppercase font-black tracking-widest">Aucune donnee</p>
               </div>
             )}
           </div>
-          <button className="w-full mt-8 py-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-500 hover:bg-blue-600 hover:text-white transition-all shadow-lg hover:shadow-blue-600/20">
-            Explorer l'historique complet
+          <button 
+            onClick={() => router.push('/admin/transactions')} 
+            className="w-full mt-6 py-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-500 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+          >
+            Voir toutes les transactions <ChevronRight size={14} />
           </button>
         </div>
+      </div>
 
+      {/* QUICK ACCESS FOOTER */}
+      <section className="mt-10">
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+          <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Acces Rapide</h2>
+        </div>
+        <div className="space-y-3">
+          {[
+            { label: "Gestion Complete", desc: "Dashboard detaille avec controle total", icon: <Shield size={18} />, path: "/admin/dashboard", color: "blue" },
+            { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
+            { label: "Mode Rescue", desc: "Outils de recuperation d'urgence", icon: <AlertTriangle size={18} />, path: "/admin/rescue", color: "red" },
+          ].map((item) => (
+            <button
+              key={item.path}
+              onClick={() => router.push(item.path)}
+              className="w-full flex items-center justify-between p-5 bg-slate-900/40 border border-white/5 rounded-[2rem] hover:bg-white/5 transition-all active:scale-[0.98] group"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-2xl ${item.color === 'blue' ? 'bg-blue-500/10 text-blue-400' : item.color === 'purple' ? 'bg-purple-500/10 text-purple-400' : 'bg-red-500/10 text-red-400'}`}>
+                  {item.icon}
+                </div>
+                <div className="text-left">
+                  <p className="text-[11px] font-black uppercase tracking-tight text-white">{item.label}</p>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{item.desc}</p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-slate-600 group-hover:text-white transition-colors" />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* SECURITY FOOTER */}
+      <div className="mt-12 flex flex-col items-center gap-2 opacity-15">
+        <Shield size={14} />
+        <p className="text-[8px] font-black uppercase tracking-[0.4em]">PimPay Admin Encrypted v4.0</p>
       </div>
     </div>
   );

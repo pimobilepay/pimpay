@@ -128,7 +128,7 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       user: { id: user.id, username: user.username, role: user.role },
-      redirectTo: user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard",
+      redirectTo: user.role === "ADMIN" ? "/admin" : "/dashboard",
       token: token
     });
 

@@ -48,7 +48,7 @@ export async function proxy(req: NextRequest) {
   const isAdmin = userPayload?.role === "ADMIN";
 
   if (userPayload && isLoginPage) {
-    const dest = isAdmin ? "/admin/dashboard" : "/dashboard";
+    const dest = isAdmin ? "/admin" : "/dashboard";
     return NextResponse.redirect(new URL(dest, req.url));
   }
 

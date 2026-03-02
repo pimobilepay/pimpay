@@ -73,7 +73,7 @@ export default function LoginPage() {
         setLoading(false);
       } else if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
-        triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+        triggerSuccessTransition(data.user.role === "ADMIN" ? "/admin" : "/dashboard");
       }
     } catch (error) {
       toast.error(t("auth.login.serverError"));
@@ -89,7 +89,7 @@ export default function LoginPage() {
       if (result && result.success) {
         // Le cookie 'pi_session_token' est déjà posé par le hook !
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-        triggerSuccessTransition(result.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+        triggerSuccessTransition(result.user.role === "ADMIN" ? "/admin" : "/dashboard");
       }
     } catch (error: any) {
       console.error("Erreur Pi Login:", error);
@@ -106,7 +106,7 @@ export default function LoginPage() {
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
         onSuccess={() => {
-          const destination = tempRole === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+          const destination = tempRole === "ADMIN" ? "/admin" : "/dashboard";
           triggerSuccessTransition(destination);
         }}
         userId={tempUserId}

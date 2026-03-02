@@ -294,10 +294,15 @@ function DashboardContent() {
               <h2 className="text-xl font-black text-white">ADMIN<span className="text-blue-500">MENU</span></h2>
               <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-white/5 rounded-full text-white"><X size={20}/></button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><LayoutGrid size={18}/> Accueil Admin</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/users'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Users size={18}/> Utilisateurs</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/transactions'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Wallet size={18}/> Transactions</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/kyc'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><ShieldCheck size={18}/> KYC</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/support'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Headphones size={18}/> Support</Button>
                <Button onClick={() => { setIsMenuOpen(false); fetchData(); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><RefreshCw size={18}/> Actualiser Ledger</Button>
-               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/settings'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Settings size={18}/> Paramètres Système</Button>
-               <Button onClick={() => { setIsMenuOpen(false); handleAction(null, "TOGGLE_MAINTENANCE"); }} className={`w-full justify-start gap-4 h-14 rounded-2xl text-[10px] font-black uppercase ${isMaintenanceMode ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-400'}`}><Shield size={18}/> {isMaintenanceMode ? 'Arrêter Maintenance' : 'Activer Maintenance'}</Button>
+               <Button onClick={() => { setIsMenuOpen(false); router.push('/admin/settings'); }} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase"><Settings size={18}/> Parametres</Button>
+               <Button onClick={() => { setIsMenuOpen(false); handleAction(null, "TOGGLE_MAINTENANCE"); }} className={`w-full justify-start gap-4 h-14 rounded-2xl text-[10px] font-black uppercase ${isMaintenanceMode ? 'bg-red-500 text-white' : 'bg-white/5 text-slate-400'}`}><Shield size={18}/> {isMaintenanceMode ? 'Arreter Maintenance' : 'Activer Maintenance'}</Button>
                <Button onClick={() => window.location.href = '/'} className="w-full justify-start gap-4 h-14 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-red-400"><LogOut size={18}/> Quitter Admin</Button>
             </div>
           </div>
