@@ -148,9 +148,9 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <button onClick={onResetPin} title="PIN" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Hash size={14} /></button>
         <button onClick={onResetPassword} title="Password" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Key size={14} /></button>
         <button onClick={onToggleRole} title="Rôle" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><UserCog size={14} /></button>
-        <button onClick={onFreeze} title="Geler" className={`p-2 rounded-xl shrink-0 ${user.status === 'FROZEN' ? 'bg-cyan-500 text-white' : 'bg-white/5 text-slate-500'}`}><Snowflake size={14} /></button>
+        <button onClick={onFreeze} title={user.status === 'FROZEN' ? 'Degeler' : 'Geler'} className={`p-2 rounded-xl shrink-0 transition-colors ${user.status === 'FROZEN' ? 'bg-cyan-500 text-white animate-pulse' : 'bg-white/5 text-slate-500 hover:text-cyan-400'}`}><Snowflake size={14} /></button>
         <button onClick={onSendMessage} title="Message" className="p-2 bg-blue-500/10 text-blue-500 rounded-xl shrink-0"><Send size={14} /></button>
-        <button onClick={onSupport} title="Support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Headphones size={14} /></button>
+        <button onClick={onSupport} title="Envoyer notification support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-amber-400 transition-colors shrink-0"><Headphones size={14} /></button>
         <button onClick={onToggleAutoApprove} title="Auto" className={`p-2 rounded-xl shrink-0 ${user.autoApprove ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-700'}`}><Shield size={14} /></button>
         <button onClick={() => onIndividualMaintenance(user)} title="Maint." className="p-2 bg-orange-500/10 text-orange-500 rounded-xl shrink-0"><Clock size={14} /></button>
         <button onClick={() => {
@@ -463,7 +463,10 @@ function DashboardContent() {
                             onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
                             onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
-                            onSupport={() => toast.success(`Support ouvert pour ${user.username || user.name}`)}
+                            onSupport={() => {
+                              const msg = prompt(`Notification support pour ${user.username || user.name} :`);
+                              if (msg && msg.trim()) handleAction(user.id, "SEND_SUPPORT_NOTIFICATION", 0, msg.trim());
+                            }}
                         />
                     ))}
                 </div>

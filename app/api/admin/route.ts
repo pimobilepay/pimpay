@@ -165,7 +165,46 @@ export async function POST(req: NextRequest) {
         break;
 
       case "FREEZE":
-        await prisma.user.update({ where: { id: userId }, data: { status: UserStatus.FROZEN } });
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: userId }, data: { status: UserStatus.FROZEN } }),
+          prisma.notification.create({
+            data: {
+              userId,
+              title: "Compte Gele",
+              message: "Votre compte a ete gele par l'administration. Contactez le support pour plus d'informations.",
+              type: "WARNING"
+            }
+          })
+        ]);
+        break;
+
+      case "UNFREEZE":
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } }),
+          prisma.notification.create({
+            data: {
+              userId,
+              title: "Compte Reactive",
+              message: "Votre compte a ete reactive. Vous pouvez a nouveau utiliser tous les services PimPay.",
+              type: "SUCCESS"
+            }
+          })
+        ]);
+        break;
+
+      // ENVOI DE NOTIFICATION INDIVIDUELLE (Support)
+      case "SEND_SUPPORT_NOTIFICATION":
+        if (!userId || !extraData) return NextResponse.json({ error: "ID utilisateur et message requis" }, { status: 400 });
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "Message du Support PimPay",
+            message: extraData,
+            type: "INFO"
+          }
+        });
         break;
 
       // CHANGEMENT DE ROLE (ADMIN/USER)
