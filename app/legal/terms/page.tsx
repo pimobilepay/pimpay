@@ -74,7 +74,7 @@ export default function TermsPage() {
       id: "8",
       title: "Securite du compte",
       content:
-        "Vous êtes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via OTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PimPay ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
+        "Vous êtes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via TOTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PimPay ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
     },
     {
       icon: <Landmark size={16} />,

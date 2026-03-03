@@ -47,7 +47,7 @@ export default function HelpPage() {
         "Chaque transaction possede une reference unique et un identifiant blockchain optionnel (blockchainTx).",
         "Les frais de transaction sont calcules de maniere transparente (Anti-Gharar) bases sur les couts reels du reseau.",
         "Le swap utilise un systeme de cotation (SwapQuote) avec un taux et une expiration pour proteger l'utilisateur.",
-        "Les statuts possibles : PENDING, COMPLETED, SUCCESS, FAILED, CANCELLED.",
+        "Les statuts possibles : PENDING, SUCCESS, FAILED, CANCELLED.",
       ],
     },
     {
@@ -56,7 +56,7 @@ export default function HelpPage() {
       desc: "Authentification, sessions et journaux",
       id: "security",
       details: [
-        "Authentification a deux facteurs (2FA) disponible via OTP pour securiser votre compte.",
+        "Authentification a deux facteurs (2FA) disponible via TOTP pour securiser votre compte.",
         "Chaque session est tracee avec IP, appareil, navigateur et geolocalisation (ville, pays).",
         "Un code PIN secondaire protege les transactions sensibles (retraits, transferts importants).",
         "Les tentatives de connexion echouees sont comptabilisees et le compte peut etre gele apres plusieurs echecs.",
@@ -73,7 +73,7 @@ export default function HelpPage() {
         "Chaque carte possede un numero unique, une date d'expiration, un CVV et un code PIN.",
         "Possibilite de geler/degeler une carte instantanement en cas de suspicion de fraude.",
         "Limite quotidienne configurable (par defaut 1,000 USD) et suivi des depenses totales.",
-        "Devises autorisees configurables par carte (par defaut USD et XAF).",
+        "Devises autorisees configurables par carte (par defaut USD et EUR).",
       ],
     },
     {
