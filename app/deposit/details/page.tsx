@@ -81,27 +81,54 @@ function DetailsContent() {
     if (!receiptRef.current) return;
     try {
       setIsExporting(true);
-      toast.info("Génération du reçu officiel...");
+      toast.info("Generation du recu officiel...");
+
       const { toPng } = await import("html-to-image");
-      const { default: jsPDF } = await import("jspdf");
 
       const dataUrl = await toPng(receiptRef.current, {
         cacheBust: true,
         backgroundColor: "#020617",
-        pixelRatio: 3, // Haute définition
+        pixelRatio: 2,
+        skipAutoScale: true,
+        style: {
+          transform: 'none',
+        }
       });
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "px",
-        format: [receiptRef.current.clientWidth, receiptRef.current.clientHeight],
-      });
+      // Download as PNG image (most compatible with mobile/Pi Browser)
+      const link = document.createElement("a");
+      link.download = `PimPay_Receipt_${ref || "transaction"}.png`;
+      link.href = dataUrl;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
 
-      pdf.addImage(dataUrl, "PNG", 0, 0, receiptRef.current.clientWidth, receiptRef.current.clientHeight);
-      pdf.save(`PimPay_Receipt_${ref}.pdf`);
-      toast.success("Reçu enregistré !");
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+
+      toast.success("Recu telecharge !");
     } catch (error) {
-      toast.error("Erreur d'exportation");
+      console.error("Export error:", error);
+      // Fallback: try opening in new tab so user can save manually
+      try {
+        const { toPng } = await import("html-to-image");
+        const dataUrl = await toPng(receiptRef.current!, {
+          cacheBust: true,
+          backgroundColor: "#020617",
+          pixelRatio: 2,
+        });
+        const newTab = window.open();
+        if (newTab) {
+          newTab.document.write(`<img src="${dataUrl}" style="max-width:100%;"/>`);
+          newTab.document.title = "PimPay Receipt";
+          toast.info("Recu ouvert dans un nouvel onglet. Maintenez l'image pour la sauvegarder.");
+        } else {
+          toast.error("Veuillez autoriser les pop-ups pour telecharger le recu");
+        }
+      } catch {
+        toast.error("Erreur d'exportation. Veuillez faire une capture d'ecran.");
+      }
     } finally {
       setIsExporting(false);
     }

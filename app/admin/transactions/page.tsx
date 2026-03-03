@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   CheckCircle, XCircle, Search, RefreshCw,
-  Clock, Hash, Phone, Globe
+  Clock, Hash, Phone, Globe, ArrowLeft,
+  Calendar, Smartphone, Banknote, ShieldCheck,
+  Copy, TrendingUp, Loader2, X
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const PI_GCV_PRICE = 314159;
 
 interface Transaction {
   id: string;
@@ -21,6 +25,163 @@ interface Transaction {
   accountNumber?: string;
   isBlockchainWithdraw?: boolean;
   method?: string;
+  blockchainTx?: string;
+  fee?: number;
+}
+
+function TransactionDetailView({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+  const isPi = tx.currency === "PI" || !tx.currency;
+  const amountPI = isPi ? tx.amount : tx.amount / PI_GCV_PRICE;
+  const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : tx.amount;
+  const feePI = tx.fee || (amountPI * 0.01);
+
+  const isSuccess = tx.status === "SUCCESS";
+  const isPending = tx.status === "PENDING";
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copie`);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
+      <div className="w-full max-w-lg bg-[#020617] rounded-t-[2rem] sm:rounded-[2rem] max-h-[90vh] overflow-y-auto border border-white/10">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-white/5">
+          <h2 className="text-sm font-black uppercase tracking-tight text-white">Details Transaction</h2>
+          <button
+            onClick={onClose}
+            className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all active:scale-90"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Status Header */}
+        <div className={`py-4 px-6 flex items-center justify-between ${
+          isSuccess ? "bg-emerald-500/10" : isPending ? "bg-amber-500/10" : "bg-red-500/10"
+        }`}>
+          <div className="flex items-center gap-2">
+            {isSuccess ? (
+              <CheckCircle size={16} className="text-emerald-500" />
+            ) : isPending ? (
+              <Clock size={16} className="text-amber-500" />
+            ) : (
+              <XCircle size={16} className="text-red-500" />
+            )}
+            <span className={`text-[10px] font-black uppercase tracking-widest ${
+              isSuccess ? "text-emerald-500" : isPending ? "text-amber-500" : "text-red-500"
+            }`}>
+              {tx.status}
+            </span>
+          </div>
+          <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{tx.type}</span>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Amount */}
+          <div className="flex flex-col items-center text-center">
+            <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Valeur Transactionnelle</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-white">
+                {amountPI.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
+              </span>
+              <span className="text-lg font-bold text-blue-500">PI</span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
+              <TrendingUp size={12} className="text-blue-400" />
+              <span className="text-[10px] font-bold text-blue-400">
+                {'\u2248'} ${amountUSD.toLocaleString()} USD (GCV)
+              </span>
+            </div>
+          </div>
+
+          {/* Details Grid */}
+          <div className="space-y-4 border-t border-white/5 pt-6">
+            <DetailRow 
+              icon={<Hash size={16} />} 
+              label="ID Transaction" 
+              value={tx.id.length > 18 ? tx.id.slice(0, 18) + "..." : tx.id}
+              onCopy={() => copyToClipboard(tx.id, "ID")}
+              copyable
+            />
+            <DetailRow 
+              icon={<Calendar size={16} />} 
+              label="Date" 
+              value={new Date(tx.createdAt).toLocaleString("fr-FR")}
+            />
+            <DetailRow 
+              icon={<Smartphone size={16} />} 
+              label="Methode" 
+              value={tx.description || tx.method || "Pi Wallet"}
+            />
+            <DetailRow 
+              icon={<Banknote size={16} />} 
+              label="Frais Reseau" 
+              value={`${feePI.toFixed(4)} PI`}
+              valueClassName="text-red-400"
+            />
+            {tx.accountNumber && (
+              <DetailRow 
+                icon={tx.isBlockchainWithdraw ? <Globe size={16} /> : <Phone size={16} />} 
+                label="Compte / Adresse" 
+                value={tx.accountNumber.length > 20 ? tx.accountNumber.slice(0, 20) + "..." : tx.accountNumber}
+                onCopy={() => copyToClipboard(tx.accountNumber || "", "Adresse")}
+                copyable
+              />
+            )}
+            {tx.blockchainTx && (
+              <DetailRow 
+                icon={<ShieldCheck size={16} />} 
+                label="Blockchain Hash" 
+                value={tx.blockchainTx.slice(0, 12) + "..."}
+                onCopy={() => copyToClipboard(tx.blockchainTx || "", "Hash")}
+                copyable
+                valueClassName="text-blue-400 font-mono"
+              />
+            )}
+            {/* Client Info */}
+            <DetailRow 
+              icon={<Smartphone size={16} />} 
+              label="Client" 
+              value={`${tx.fromUser?.firstName || tx.toUser?.firstName || 'User'} ${tx.fromUser?.lastName || tx.toUser?.lastName || ''}`}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
+          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PimPay Admin Console</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ icon, label, value, onCopy, copyable, valueClassName }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onCopy?: () => void;
+  copyable?: boolean;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex justify-between items-center group">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 bg-white/5 rounded-xl text-blue-500 group-hover:bg-blue-500/10 transition-colors">
+          {icon}
+        </div>
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
+      </div>
+      <div className="flex items-center gap-2" onClick={copyable ? onCopy : undefined}>
+        <span className={`text-[11px] font-bold ${valueClassName || "text-white"} ${copyable ? "cursor-pointer" : ""}`}>
+          {value}
+        </span>
+        {copyable && <Copy size={12} className="text-slate-600 hover:text-blue-400 transition-colors cursor-pointer" />}
+      </div>
+    </div>
+  );
 }
 
 export default function AdminTransactionsPage() {
@@ -28,19 +189,17 @@ export default function AdminTransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
-  // Correction du fetch : pointer vers la bonne API de récupération
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      // NOTE : Assure-toi que ton API de récupération est bien sur ce lien
       const response = await fetch('/api/admin/transactions');
       if (!response.ok) throw new Error("Erreur de connexion");
       
       const data = await response.json();
       const transactionsArray = Array.isArray(data) ? data : (data.transactions || []);
 
-      // Filtrage strict sur PENDING pour l'administration
       setTransactions(transactionsArray.filter((t: Transaction) => t.status === 'PENDING'));
     } catch (error) {
       toast.error("PimPay : Impossible de charger les flux");
@@ -54,9 +213,8 @@ export default function AdminTransactionsPage() {
     fetchTransactions();
   }, []);
 
-  // Correction handleAction : pointer vers l'API /update que nous avons corrigée
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
-    if (!confirm(`Confirmer la ${action === 'approve' ? 'validation' : 'réjection'} ?`)) return;
+    if (!confirm(`Confirmer la ${action === 'approve' ? 'validation' : 'rejection'} ?`)) return;
 
     setIsProcessing(id);
     try {
@@ -70,9 +228,10 @@ export default function AdminTransactionsPage() {
 
       if (response.ok) {
         setTransactions(prev => prev.filter(t => t.id !== id));
-        toast.success(`Flux ${action === 'approve' ? 'validé' : 'rejeté'} avec succès`);
+        setSelectedTx(null);
+        toast.success(`Flux ${action === 'approve' ? 'valide' : 'rejete'} avec succes`);
       } else {
-        toast.error(result.error || "Échec de l'opération");
+        toast.error(result.error || "Echec de l'operation");
       }
     } catch (error) {
       toast.error("Erreur de communication avec le serveur PimPay");
@@ -83,7 +242,6 @@ export default function AdminTransactionsPage() {
 
   const filteredTransactions = transactions.filter(t => {
     const searchLower = filter.toLowerCase();
-    // On vérifie fromUser ou toUser selon le type de transaction
     const user = t.fromUser || t.toUser;
     const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.toLowerCase();
 
@@ -105,7 +263,7 @@ export default function AdminTransactionsPage() {
               PIMPAY<span className="text-blue-500">FLOW</span>
             </h1>
             <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.4em] flex items-center gap-2">
-              <Clock size={12} className="animate-pulse" /> Validation des Flux de Trésorerie
+              <Clock size={12} className="animate-pulse" /> Validation des Flux de Tresorerie
             </p>
           </div>
           <button
@@ -136,21 +294,25 @@ export default function AdminTransactionsPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/5">
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-500">Référence</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-500">Reference</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Client</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Montant</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Type / Compte</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-500 text-center">Décision</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-500 text-center">Decision</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
                   <tr><td colSpan={5} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
                 ) : filteredTransactions.length === 0 ? (
-                  <tr><td colSpan={5} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie détectée</td></tr>
+                  <tr><td colSpan={5} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
                 ) : (
                   filteredTransactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-blue-600/[0.03] transition-colors">
+                    <tr 
+                      key={tx.id} 
+                      className="hover:bg-blue-600/[0.03] transition-colors cursor-pointer"
+                      onClick={() => setSelectedTx(tx)}
+                    >
                       <td className="p-6">
                         <div className="flex items-center gap-3">
                           <Hash size={14} className="text-blue-500" />
@@ -177,7 +339,7 @@ export default function AdminTransactionsPage() {
                         </p>
                       </td>
                       <td className="p-6">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleAction(tx.id, 'reject')}
                             disabled={!!isProcessing}
@@ -202,6 +364,11 @@ export default function AdminTransactionsPage() {
           </div>
         </div>
       </div>
+
+      {/* Transaction Detail Modal */}
+      {selectedTx && (
+        <TransactionDetailView tx={selectedTx} onClose={() => setSelectedTx(null)} />
+      )}
     </div>
   );
 }
