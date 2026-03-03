@@ -207,14 +207,29 @@ export async function POST(req: NextRequest) {
         });
         break;
 
-      // CHANGEMENT DE ROLE (ADMIN/USER)
+      // CHANGEMENT DE ROLE (ADMIN/USER/MERCHANT/AGENT)
       case "TOGGLE_ROLE":
-        const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-        await prisma.user.update({
-          where: { id: userId },
-          data: { role: target?.role === UserRole.ADMIN ? UserRole.USER : UserRole.ADMIN }
-        });
+      case "SET_ROLE": {
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const validRoles = ["ADMIN", "USER", "MERCHANT", "AGENT"];
+        if (extraData && validRoles.includes(extraData.toUpperCase())) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { role: extraData.toUpperCase() as UserRole }
+          });
+        } else {
+          // Fallback: cycle through roles if no specific role given
+          const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+          const roleOrder: UserRole[] = [UserRole.USER, UserRole.AGENT, UserRole.MERCHANT, UserRole.ADMIN];
+          const currentIdx = roleOrder.indexOf(target?.role || UserRole.USER);
+          const nextRole = roleOrder[(currentIdx + 1) % roleOrder.length];
+          await prisma.user.update({
+            where: { id: userId },
+            data: { role: nextRole }
+          });
+        }
         break;
+      }
 
       // AUTO-APPROVE TOGGLE
       case "TOGGLE_AUTO_APPROVE":
@@ -235,6 +250,43 @@ export async function POST(req: NextRequest) {
           create: { id: "GLOBAL_CONFIG", globalAnnouncement: extraData },
         });
         break;
+
+      // MAINTENANCE INDIVIDUELLE (Suspend l'utilisateur temporairement)
+      case "USER_SPECIFIC_MAINTENANCE": {
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForMaint = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+        if (userForMaint?.status === "SUSPENDED") {
+          // Re-activer l'utilisateur
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } }),
+            prisma.notification.create({
+              data: {
+                userId,
+                title: "Maintenance Terminee",
+                message: "La maintenance de votre compte est terminee. Vous pouvez a nouveau utiliser tous les services PimPay.",
+                type: "SUCCESS"
+              }
+            })
+          ]);
+        } else {
+          // Mettre en maintenance (SUSPENDED)
+          const maintMsg = extraData
+            ? `Votre compte est en maintenance jusqu'au ${new Date(extraData).toLocaleString("fr-FR")}. Veuillez patienter.`
+            : "Votre compte est temporairement en maintenance. Veuillez patienter.";
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { status: UserStatus.SUSPENDED } }),
+            prisma.notification.create({
+              data: {
+                userId,
+                title: "Compte en Maintenance",
+                message: maintMsg,
+                type: "WARNING"
+              }
+            })
+          ]);
+        }
+        break;
+      }
 
       default:
         return NextResponse.json({ error: `Action '${action}' non supportée` }, { status: 400 });

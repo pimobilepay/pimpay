@@ -19,7 +19,7 @@ type LedgerUser = {
   piUserId: string | null;
   phone: string | null;
   country: string | null;
-  status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'FROZEN' | 'SUSPENDED';
+  status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'FROZEN' | 'SUSPENDED' | string;
   role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT';
   autoApprove: boolean;
   wallets: { balance: number; currency: string }[];
@@ -152,7 +152,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <button onClick={onSendMessage} title="Message" className="p-2 bg-blue-500/10 text-blue-500 rounded-xl shrink-0"><Send size={14} /></button>
         <button onClick={onSupport} title="Envoyer notification support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-amber-400 transition-colors shrink-0"><Headphones size={14} /></button>
         <button onClick={onToggleAutoApprove} title="Auto" className={`p-2 rounded-xl shrink-0 ${user.autoApprove ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-700'}`}><Shield size={14} /></button>
-        <button onClick={() => onIndividualMaintenance(user)} title="Maint." className="p-2 bg-orange-500/10 text-orange-500 rounded-xl shrink-0"><Clock size={14} /></button>
+        <button onClick={() => onIndividualMaintenance(user)} title={user.status === 'SUSPENDED' ? 'Retirer Maintenance' : 'Maintenance'} className={`p-2 rounded-xl shrink-0 transition-colors ${user.status === 'SUSPENDED' ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-500/10 text-orange-500'}`}><Clock size={14} /></button>
         <button onClick={() => {
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
@@ -185,6 +185,10 @@ function DashboardContent() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalVolume: 0, transactionCount: 0 });
   const [serverStats, setServerStats] = useState<ServerStats>(null);
+  const [roleModalUser, setRoleModalUser] = useState<LedgerUser | null>(null);
+  const [maintModalUser, setMaintModalUser] = useState<LedgerUser | null>(null);
+  const [maintDate, setMaintDate] = useState("");
+  const [maintTime, setMaintTime] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
@@ -455,12 +459,12 @@ function DashboardContent() {
                             onBan={() => handleAction(user.id, user.status === 'BANNED' ? 'UNBAN' : 'BAN')}
                             onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, "", [], "", p); }}
                             onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, "", [], "", p); }}
-                            onIndividualMaintenance={() => { const d = prompt("Date fin (YYYY-MM-DD):"); const t = prompt("Heure (HH:MM):"); if(d && t) handleAction(user.id, "USER_SPECIFIC_MAINTENANCE", 0, `${d}T${t}:00.000Z`); }}
+                            onIndividualMaintenance={() => setMaintModalUser(user)}
                             onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handleAction(user.id, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }}
                             onViewSessions={() => {
                                 alert(`DÉTAILS SESSION :\n\n👤 Utilisateur: ${user.username || user.name}\n📧 Email: ${user.email}\n🌐 IP: ${user.lastLoginIp || "Aucune IP enregistrée"}\n🛡️ Rôle: ${user.role}\n⚡ Statut: ${user.status}`);
                             }}
-                            onToggleRole={() => handleAction(user.id, 'TOGGLE_ROLE')}
+                            onToggleRole={() => setRoleModalUser(user)}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
                             onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
                             onSupport={() => {
@@ -722,6 +726,110 @@ function DashboardContent() {
             )}
         </div>
       </div>
+
+      {/* ROLE SELECTOR MODAL */}
+      {roleModalUser && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setRoleModalUser(null)}>
+          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-sm space-y-5 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-blue-500 uppercase tracking-[3px]">Changer Role</p>
+                <p className="text-sm font-black text-white uppercase mt-1">{roleModalUser.username || roleModalUser.name || "Utilisateur"}</p>
+              </div>
+              <button onClick={() => setRoleModalUser(null)} className="p-2 bg-white/5 rounded-full text-white"><X size={16}/></button>
+            </div>
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+              Role actuel : <span className="text-white">{roleModalUser.role}</span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {(["USER", "AGENT", "MERCHANT", "ADMIN"] as const).map(role => (
+                <button
+                  key={role}
+                  onClick={async () => {
+                    await handleAction(roleModalUser.id, "SET_ROLE", 0, role);
+                    setRoleModalUser(null);
+                  }}
+                  className={`p-4 rounded-2xl border text-center transition-all active:scale-95 ${
+                    roleModalUser.role === role
+                      ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:border-blue-500/50 hover:text-white"
+                  }`}
+                >
+                  <UserCog size={18} className={`mx-auto mb-2 ${roleModalUser.role === role ? "text-white" : "text-slate-500"}`} />
+                  <p className="text-[10px] font-black uppercase tracking-wider">{role}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INDIVIDUAL MAINTENANCE MODAL */}
+      {maintModalUser && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => { setMaintModalUser(null); setMaintDate(""); setMaintTime(""); }}>
+          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-sm space-y-5 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-orange-500 uppercase tracking-[3px]">Maintenance Individuelle</p>
+                <p className="text-sm font-black text-white uppercase mt-1">{maintModalUser.username || maintModalUser.name || "Utilisateur"}</p>
+              </div>
+              <button onClick={() => { setMaintModalUser(null); setMaintDate(""); setMaintTime(""); }} className="p-2 bg-white/5 rounded-full text-white"><X size={16}/></button>
+            </div>
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+              Statut actuel : <span className={maintModalUser.status === "SUSPENDED" ? "text-orange-400" : "text-emerald-400"}>{maintModalUser.status}</span>
+            </p>
+
+            {maintModalUser.status === "SUSPENDED" ? (
+              <button
+                onClick={async () => {
+                  await handleAction(maintModalUser.id, "USER_SPECIFIC_MAINTENANCE");
+                  setMaintModalUser(null);
+                  setMaintDate("");
+                  setMaintTime("");
+                }}
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Check size={16} /> Retirer la maintenance
+              </button>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Date de fin (optionnel)</label>
+                    <input
+                      type="date"
+                      value={maintDate}
+                      onChange={e => setMaintDate(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-orange-500/50 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Heure de fin (optionnel)</label>
+                    <input
+                      type="time"
+                      value={maintTime}
+                      onChange={e => setMaintTime(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-orange-500/50 transition-all"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    const extra = maintDate && maintTime ? `${maintDate}T${maintTime}:00.000Z` : undefined;
+                    await handleAction(maintModalUser.id, "USER_SPECIFIC_MAINTENANCE", 0, extra || "");
+                    setMaintModalUser(null);
+                    setMaintDate("");
+                    setMaintTime("");
+                  }}
+                  className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Clock size={16} /> Mettre en maintenance
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>

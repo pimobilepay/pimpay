@@ -131,12 +131,25 @@ export async function POST(req: NextRequest) {
         break;
 
       case "TOGGLE_ROLE":
-        const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-        await prisma.user.update({
-          where: { id: userId },
-          data: { role: targetUser?.role === "ADMIN" ? "USER" : "ADMIN" },
-        });
+      case "SET_ROLE": {
+        const validRoles = ["ADMIN", "USER", "MERCHANT", "AGENT"];
+        if (extraData && validRoles.includes(extraData.toUpperCase())) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { role: extraData.toUpperCase() as any },
+          });
+        } else {
+          const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+          const roleOrder = ["USER", "AGENT", "MERCHANT", "ADMIN"];
+          const currentIdx = roleOrder.indexOf(targetUser?.role || "USER");
+          const nextRole = roleOrder[(currentIdx + 1) % roleOrder.length];
+          await prisma.user.update({
+            where: { id: userId },
+            data: { role: nextRole as any },
+          });
+        }
         break;
+      }
 
       case "AIRDROP":
         if (!amount) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
