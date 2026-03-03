@@ -30,18 +30,20 @@ function DetailsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const ref = searchParams.get("ref");
+  const txId = searchParams.get("id");
 
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchTx = useCallback(async () => {
-    if (!ref) {
+    if (!ref && !txId) {
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch(`/api/pi/transaction?ref=${encodeURIComponent(ref)}`);
+      const query = ref ? `ref=${encodeURIComponent(ref)}` : `id=${encodeURIComponent(txId!)}`;
+      const res = await fetch(`/api/pi/transaction?${query}`);
       if (res.ok) {
         const data = await res.json();
         setTransaction(data);
@@ -52,7 +54,7 @@ function DetailsContent() {
     } finally {
       setLoading(false);
     }
-  }, [ref]);
+  }, [ref, txId]);
 
   useEffect(() => {
     fetchTx();
@@ -73,6 +75,8 @@ function DetailsContent() {
   const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : (transaction?.amount || 0);
   const feePI = transaction?.fee || (amountPI * 0.01); // 1% par défaut si non spécifié
 
+  // Use the transaction's reference, falling back to query params
+  const displayRef = transaction?.reference || ref || txId || "transaction";
   const isSuccess = transaction?.status === "SUCCESS";
   const isPending = transaction?.status === "PENDING";
 
@@ -96,7 +100,7 @@ function DetailsContent() {
 
       // Try downloading as image directly (most compatible with mobile/Pi Browser)
       const link = document.createElement("a");
-      link.download = `PimPay_Receipt_${ref || "transaction"}.png`;
+      link.download = `PimPay_Receipt_${displayRef}.png`;
       link.href = dataUrl;
       link.style.display = "none";
       document.body.appendChild(link);
@@ -172,7 +176,7 @@ function DetailsContent() {
 
               {/* Grille de Détails */}
               <div className="space-y-5 border-t border-white/5 pt-8">
-                <DetailRow icon={<Hash />} label="ID Transaction" value={ref?.slice(0, 18) + "..."} onCopy={() => {navigator.clipboard.writeText(ref || ""); toast.success("ID Copié");}} copyable />
+                <DetailRow icon={<Hash />} label="ID Transaction" value={displayRef.slice(0, 18) + "..."} onCopy={() => {navigator.clipboard.writeText(displayRef); toast.success("ID Copié");}} copyable />
                 <DetailRow icon={<Calendar />} label="Date" value={transaction?.createdAt ? new Date(transaction.createdAt).toLocaleString("fr-FR") : "---"} />
                 <DetailRow icon={<Smartphone />} label="Méthode" value={transaction?.description || "Pi Wallet"} />
                 <DetailRow icon={<Banknote />} label="Frais Réseau" value={`${feePI.toFixed(4)} PI`} valueClassName="text-red-400" />

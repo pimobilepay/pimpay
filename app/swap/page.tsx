@@ -31,36 +31,38 @@ interface Asset {
   color: string;
   category: "native" | "major" | "stablecoin" | "fiat";
   flag?: string;
+  logo?: string;
+  network?: string;
 }
 
 const ALL_ASSETS: Asset[] = [
   // Native / Ecosystem
-  { id: "PI", name: "Pi Network", symbol: "PI", color: "#7c3aed", category: "native" },
-  { id: "SDA", name: "Sidra Assets", symbol: "SDA", color: "#d97706", category: "native" },
+  { id: "PI", name: "Pi Network", symbol: "PI", color: "#7c3aed", category: "native", logo: "/pi.png", network: "Pi / Stellar" },
+  { id: "SDA", name: "Sidra Assets", symbol: "SDA", color: "#d97706", category: "native", logo: "/sda.png", network: "Sidra / EVM" },
   // Major Cryptos
-  { id: "BTC", name: "Bitcoin", symbol: "BTC", color: "#f7931a", category: "major" },
-  { id: "ETH", name: "Ethereum", symbol: "ETH", color: "#627eea", category: "major" },
-  { id: "BNB", name: "BNB", symbol: "BNB", color: "#f3ba2f", category: "major" },
-  { id: "SOL", name: "Solana", symbol: "SOL", color: "#9945ff", category: "major" },
-  { id: "XRP", name: "Ripple", symbol: "XRP", color: "#23292f", category: "major" },
-  { id: "XLM", name: "Stellar", symbol: "XLM", color: "#14b8a6", category: "major" },
-  { id: "TRX", name: "Tron", symbol: "TRX", color: "#eb0029", category: "major" },
-  { id: "ADA", name: "Cardano", symbol: "ADA", color: "#0033ad", category: "major" },
-  { id: "DOGE", name: "Dogecoin", symbol: "DOGE", color: "#c2a633", category: "major" },
-  { id: "TON", name: "Toncoin", symbol: "TON", color: "#0098ea", category: "major" },
+  { id: "BTC", name: "Bitcoin", symbol: "BTC", color: "#f7931a", category: "major", logo: "/btc.png", network: "Bitcoin" },
+  { id: "ETH", name: "Ethereum", symbol: "ETH", color: "#627eea", category: "major", logo: "/eth.png", network: "EVM" },
+  { id: "BNB", name: "BNB", symbol: "BNB", color: "#f3ba2f", category: "major", logo: "/bnb.png", network: "BSC / EVM" },
+  { id: "SOL", name: "Solana", symbol: "SOL", color: "#9945ff", category: "major", logo: "/sol.png", network: "Solana" },
+  { id: "XRP", name: "Ripple", symbol: "XRP", color: "#23292f", category: "major", logo: "/xrp.png", network: "XRP Ledger" },
+  { id: "XLM", name: "Stellar", symbol: "XLM", color: "#14b8a6", category: "major", logo: "/xlm.png", network: "Stellar" },
+  { id: "TRX", name: "Tron", symbol: "TRX", color: "#eb0029", category: "major", logo: "/trx.png", network: "TRON" },
+  { id: "ADA", name: "Cardano", symbol: "ADA", color: "#0033ad", category: "major", logo: "/ada.png", network: "Cardano" },
+  { id: "DOGE", name: "Dogecoin", symbol: "DOGE", color: "#c2a633", category: "major", logo: "/doge.png", network: "Dogecoin" },
+  { id: "TON", name: "Toncoin", symbol: "TON", color: "#0098ea", category: "major", logo: "/ton.png", network: "TON" },
   // Stablecoins
-  { id: "USDT", name: "Tether", symbol: "USDT", color: "#26a17b", category: "stablecoin" },
-  { id: "USDC", name: "USD Coin", symbol: "USDC", color: "#2775ca", category: "stablecoin" },
-  { id: "DAI", name: "Dai", symbol: "DAI", color: "#f5ac37", category: "stablecoin" },
-  { id: "BUSD", name: "Binance USD", symbol: "BUSD", color: "#f0b90b", category: "stablecoin" },
+  { id: "USDT", name: "Tether", symbol: "USDT", color: "#26a17b", category: "stablecoin", logo: "/usdt.png", network: "USDT TRC20" },
+  { id: "USDC", name: "USD Coin", symbol: "USDC", color: "#2775ca", category: "stablecoin", logo: "/usdc.png", network: "EVM" },
+  { id: "DAI", name: "Dai", symbol: "DAI", color: "#f5ac37", category: "stablecoin", logo: "/dai.png", network: "EVM" },
+  { id: "BUSD", name: "Binance USD", symbol: "BUSD", color: "#f0b90b", category: "stablecoin", logo: "/busd.png", network: "EVM" },
   // Fiat
-  { id: "USD", name: "Dollar US", symbol: "USD", color: "#22c55e", category: "fiat", flag: "US" },
-  { id: "EUR", name: "Euro", symbol: "EUR", color: "#3b82f6", category: "fiat", flag: "EU" },
-  { id: "XAF", name: "Franc CFA (BEAC)", symbol: "XAF", color: "#0ea5e9", category: "fiat", flag: "CM" },
-  { id: "XOF", name: "Franc CFA (BCEAO)", symbol: "XOF", color: "#06b6d4", category: "fiat", flag: "SN" },
-  { id: "CDF", name: "Franc Congolais", symbol: "CDF", color: "#0284c7", category: "fiat", flag: "CD" },
-  { id: "NGN", name: "Naira Nigerian", symbol: "NGN", color: "#16a34a", category: "fiat", flag: "NG" },
-  { id: "AED", name: "Dirham Emirats", symbol: "AED", color: "#dc2626", category: "fiat", flag: "AE" },
+  { id: "USD", name: "Dollar US", symbol: "USD", color: "#22c55e", category: "fiat", flag: "US", network: "PimPay" },
+  { id: "EUR", name: "Euro", symbol: "EUR", color: "#3b82f6", category: "fiat", flag: "EU", network: "PimPay" },
+  { id: "XAF", name: "Franc CFA (BEAC)", symbol: "XAF", color: "#0ea5e9", category: "fiat", flag: "CM", network: "PimPay" },
+  { id: "XOF", name: "Franc CFA (BCEAO)", symbol: "XOF", color: "#06b6d4", category: "fiat", flag: "SN", network: "PimPay" },
+  { id: "CDF", name: "Franc Congolais", symbol: "CDF", color: "#0284c7", category: "fiat", flag: "CD", network: "PimPay" },
+  { id: "NGN", name: "Naira Nigerian", symbol: "NGN", color: "#16a34a", category: "fiat", flag: "NG", network: "PimPay" },
+  { id: "AED", name: "Dirham Emirats", symbol: "AED", color: "#dc2626", category: "fiat", flag: "AE", network: "PimPay" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -84,10 +86,29 @@ const PI_GCV = 314159;
 /* ------------------------------------------------------------------ */
 
 function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
+  if (asset.logo) {
+    return (
+      <div
+        className="rounded-full flex items-center justify-center shrink-0 overflow-hidden"
+        style={{
+          width: size,
+          height: size,
+          background: `${asset.color}22`,
+          border: `1px solid ${asset.color}33`,
+        }}
+      >
+        <img
+          src={asset.logo}
+          alt={asset.symbol}
+          className="w-3/4 h-3/4 object-contain"
+        />
+      </div>
+    );
+  }
   if (asset.category === "fiat" && asset.flag) {
     return (
       <div
-        className="rounded-2xl flex items-center justify-center shrink-0 font-black text-white"
+        className="rounded-full flex items-center justify-center shrink-0 font-black text-white"
         style={{
           width: size,
           height: size,
@@ -95,13 +116,13 @@ function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
           fontSize: size * 0.4,
         }}
       >
-        {asset.symbol.charAt(0)}
+        {asset.symbol.slice(0, 2)}
       </div>
     );
   }
   return (
     <div
-      className="rounded-2xl flex items-center justify-center shrink-0 font-black text-white"
+      className="rounded-full flex items-center justify-center shrink-0 font-black text-white"
       style={{
         width: size,
         height: size,
@@ -659,17 +680,11 @@ export default function SwapPage() {
                       {CATEGORY_LABELS[category] || category}
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {assets.map((asset) => {
                       const isSelected = asset.id === selectedId;
                       const balance = balances[asset.id] || "0.00";
-                      const price = CRYPTO_IDS.includes(asset.id)
-                        ? prices[asset.id]
-                        : null;
                       const balNum = parseFloat(balance);
-                      const balanceValue = CRYPTO_IDS.includes(asset.id)
-                        ? balNum * (prices[asset.id] || 0)
-                        : balNum / (prices[asset.id] || 1);
 
                       return (
                         <button
@@ -678,42 +693,31 @@ export default function SwapPage() {
                           className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all active:scale-[0.98] ${
                             isSelected
                               ? "bg-blue-500/10 border border-blue-500/20"
-                              : "bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]"
+                              : "bg-white/[0.02] border border-transparent hover:bg-white/[0.04]"
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <AssetIcon asset={asset} size={44} />
                             <div className="text-left">
-                              <p className="font-black text-sm leading-tight">
-                                {asset.name}
-                              </p>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
+                              <p className="font-bold text-sm" style={{ color: asset.color }}>
                                 {asset.symbol}
-                                {price != null && (
-                                  <span className="text-slate-600 ml-2">
-                                    ${price.toLocaleString()}
-                                  </span>
-                                )}
                               </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <p className="text-xs font-black text-slate-300">
+                              <p className="text-xs text-slate-400 mt-0.5">
                                 {balNum > 0
                                   ? balNum.toLocaleString(undefined, {
                                       maximumFractionDigits: 6,
                                     })
-                                  : "0.00"}
+                                  : "0,00"}{" "}
+                                {asset.symbol}
                               </p>
-                              {balanceValue > 0.01 && (
-                                <p className="text-[9px] text-slate-600 font-bold">
-                                  ~${balanceValue.toLocaleString(undefined, {
-                                    maximumFractionDigits: 2,
-                                  })}
-                                </p>
-                              )}
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {asset.network && (
+                              <span className="text-[10px] text-slate-400 bg-white/5 border border-white/10 px-2 py-1 rounded-md">
+                                {asset.network}
+                              </span>
+                            )}
                             {isSelected && (
                               <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
                                 <Check size={14} strokeWidth={3} />

@@ -1,5 +1,6 @@
 "use client";
                                                                 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, Search, Download, ArrowUpRight, ArrowDownLeft,
@@ -9,6 +10,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export default function HistoryClient({ initialTransactions, stats, currentUserId }: any) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeService, setActiveService] = useState("all");
 
@@ -25,6 +27,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
       return {
         id: tx.id,
+        reference: tx.reference || null,
         title: tx.description || tx.purpose || (isIncome ? "Réception" : "Envoi"),
         type: type,
         amount: tx.amount,
@@ -127,7 +130,10 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           <div className="space-y-4">
             {filteredTransactions.length > 0 ? (
               filteredTransactions.map((tx: any) => (
-                <TransactionItem key={tx.id} tx={tx} />
+                <TransactionItem key={tx.id} tx={tx} onPress={() => {
+                  const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
+                  router.push(`/deposit/receipt?${query}`);
+                }} />
               ))
             ) : (
               <div className="text-center py-10 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
@@ -162,7 +168,7 @@ function StatMiniCard({ label, value, icon, color, bg }: any) {
   );
 }
 
-function TransactionItem({ tx }: any) {
+function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
   const icons: any = {
     transfer: <ArrowRightLeft size={18} className="text-blue-400" />,
     deposit: <ArrowDownLeft size={18} className="text-green-500" />,
@@ -177,7 +183,7 @@ function TransactionItem({ tx }: any) {
   };
 
   return (
-    <div className="group p-5 bg-slate-900/40 border border-white/5 rounded-[2.5rem] hover:bg-slate-900/60 transition-all">
+    <div onClick={onPress} className="group p-5 bg-slate-900/40 border border-white/5 rounded-[2.5rem] hover:bg-slate-900/60 transition-all cursor-pointer active:scale-[0.98]">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-slate-950 border border-white/5 flex items-center justify-center relative">

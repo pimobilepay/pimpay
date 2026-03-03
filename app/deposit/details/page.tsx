@@ -29,19 +29,21 @@ function DetailsContent() {
   const receiptRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const ref = searchParams.get("ref");
-
+ const ref = searchParams.get("ref");
+  const txId = searchParams.get("id");
+  
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  const fetchTx = useCallback(async () => {
-    if (!ref) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/pi/transaction?ref=${encodeURIComponent(ref)}`);
+  
+ const fetchTx = useCallback(async () => {
+  if (!ref && !txId) {
+  setLoading(false);
+  return;
+  }
+  try {
+  const query = ref ? `ref=${encodeURIComponent(ref)}` : `id=${encodeURIComponent(txId!)}`;
+  const res = await fetch(`/api/pi/transaction?${query}`);
       if (res.ok) {
         const data = await res.json();
         setTransaction(data);
@@ -52,7 +54,7 @@ function DetailsContent() {
     } finally {
       setLoading(false);
     }
-  }, [ref]);
+  }, [ref, txId]);
 
   useEffect(() => {
     fetchTx();

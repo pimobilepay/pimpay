@@ -230,7 +230,14 @@ export default function UserDashboard() {
             {data?.transactions?.length > 0 ? data.transactions.map((tx: any) => {
               const { icon, color } = getTxIcon(tx);
               return (
-                <div key={tx.id} className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer">
+                <div 
+                  key={tx.id} 
+                  onClick={() => {
+                    const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
+                    router.push(`/deposit/receipt?${query}`);
+                  }}
+                  className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center gap-4"><div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>{icon}</div><div><p className="text-[11px] font-bold uppercase text-white">{tx.description || tx.type}</p><p className="text-[8px] text-slate-500 font-black uppercase mt-1">{tx.isDebit ? `À: ${tx.peerName || "SYSTÈME PIMPAY"}` : `DE: ${tx.peerName || "SYSTÈME PIMPAY"}`}</p></div></div>
                   <div className="text-right"><p className={`text-sm font-black ${!tx.isDebit ? "text-emerald-400" : "text-blue-400"}`}>{tx.isDebit ? "-" : "+"}{tx.amount.toLocaleString()} {tx.currency}</p><p className="text-[8px] text-slate-500 font-black mt-1">{new Date(tx.createdAt).toLocaleDateString()}</p></div>
                 </div>

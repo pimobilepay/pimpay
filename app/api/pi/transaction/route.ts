@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const txid = searchParams.get("txid");
     const ref = searchParams.get("ref");
+    const id = searchParams.get("id");
 
     const transaction = await prisma.transaction.findFirst({
       where: {
@@ -91,7 +92,8 @@ export async function GET(req: NextRequest) {
             OR: [
               ...(txid ? [{ blockchainTx: txid }] : []), 
               ...(ref ? [{ reference: ref }] : []), 
-              ...(ref ? [{ externalId: ref }] : [])
+              ...(ref ? [{ externalId: ref }] : []),
+              ...(id ? [{ id: id }] : [])
             ] 
           }
         ]
