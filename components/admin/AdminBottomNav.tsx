@@ -2,14 +2,14 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutGrid, Users, ArrowRightLeft, Headphones, Settings, Shield
+  LayoutGrid, Users, ArrowRightLeft, Headphones, Settings, Shield, BarChart3
 } from "lucide-react";
 
 const navItems = [
   { label: "Accueil", icon: LayoutGrid, path: "/admin" },
   { label: "Users", icon: Users, path: "/admin/users" },
   { label: "Flux", icon: ArrowRightLeft, path: "/admin/transactions" },
-  { label: "Support", icon: Headphones, path: "/admin/support" },
+  { label: "Analytics", icon: BarChart3, path: "/admin/analytics" },
   { label: "Config", icon: Settings, path: "/admin/settings" },
 ];
 

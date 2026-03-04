@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
-  ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare
+  ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
+  BarChart3
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -86,6 +87,7 @@ export default function AdminDashboard() {
             { label: "Transactions", desc: "Flux financiers", icon: <ArrowRightLeft size={20} />, path: "/admin/transactions", color: "emerald" },
             { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
             { label: "Support", desc: "Tickets clients", icon: <Headphones size={20} />, path: "/admin/support", color: "rose" },
+            { label: "Analytics", desc: "Statistiques", icon: <BarChart3 size={20} />, path: "/admin/analytics", color: "indigo" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
@@ -94,6 +96,7 @@ export default function AdminDashboard() {
               emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20",
               amber: "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20",
               rose: "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20",
+              indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20",
               cyan: "bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20",
             };
             const iconColorMap: Record<string, string> = {
@@ -102,6 +105,7 @@ export default function AdminDashboard() {
               emerald: "bg-emerald-600 shadow-emerald-500/30",
               amber: "bg-amber-600 shadow-amber-500/30",
               rose: "bg-rose-600 shadow-rose-500/30",
+              indigo: "bg-indigo-600 shadow-indigo-500/30",
               cyan: "bg-cyan-600 shadow-cyan-500/30",
             };
             return (

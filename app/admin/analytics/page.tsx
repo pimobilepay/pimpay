@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import {
   ArrowLeft, Users, Activity, TrendingUp, TrendingDown,
@@ -128,6 +127,7 @@ function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Arr
 export default function AdminAnalyticsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
@@ -135,11 +135,13 @@ export default function AdminAnalyticsPage() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
+      setError(false);
       const res = await fetch("/api/admin/analytics");
       if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
       setData(json);
     } catch {
+      setError(true);
       toast.error("Impossible de charger les analytics");
     } finally {
       setLoading(false);
@@ -163,11 +165,32 @@ export default function AdminAnalyticsPage() {
     }));
   }, [data]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
         <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
         <p className="text-blue-500/50 text-[10px] font-black uppercase tracking-[5px]">Chargement Analytics...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center px-6">
+        <div className="bg-slate-900/60 border border-red-500/20 rounded-[1.5rem] p-8 text-center max-w-sm w-full">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+            <BarChart3 size={24} className="text-red-400" />
+          </div>
+          <h2 className="text-sm font-black text-white uppercase tracking-wider mb-2">Erreur de chargement</h2>
+          <p className="text-[10px] text-slate-500 mb-6">Impossible de charger les analytics. Veuillez reessayer.</p>
+          <button
+            onClick={fetchAnalytics}
+            className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+          >
+            <RefreshCw size={14} />
+            Reessayer
+          </button>
+        </div>
       </div>
     );
   }
@@ -449,8 +472,6 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
       </div>
-
-      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>
   );
 }
