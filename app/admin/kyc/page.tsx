@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle, XCircle, Eye, User,
   Calendar, MapPin, Shield, Search,
-  Clock, AlertCircle, ArrowRight, Loader2
+  Clock, AlertCircle, ArrowRight, Loader2, ArrowLeft, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminKYCPage() {
+  const router = useRouter();
   const [requests, setRequests] = useState<any[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,27 +79,23 @@ export default function AdminKYCPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 font-sans">
-      <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 border-b border-white/5 pb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-black italic uppercase tracking-tighter">
-            PIMPAY<span className="text-blue-500">ADMIN</span>
-          </h1>
-          <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.3em]">Terminal de Vérification KYC</p>
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Verification KYC</h1>
+          </div>
+          <button onClick={() => fetchKYCRequests()} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <RefreshCw size={18} />
+          </button>
         </div>
-        
-        {/* BARRE DE RECHERCHE AJUSTÉE */}
-        <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
-          <input 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Rechercher un nom ou ID..." 
-            className="bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm outline-none focus:border-blue-500/50 w-full md:w-80 transition-all placeholder:text-slate-600 font-bold" 
-          />
-        </div>
-      </header>
+      </div>
 
+      <div className="p-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* LISTE DES DOSSIERS */}
         <div className="lg:col-span-1 space-y-4">
@@ -201,6 +199,7 @@ export default function AdminKYCPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

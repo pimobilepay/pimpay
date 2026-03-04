@@ -319,12 +319,12 @@ export default function AdminMessagesPage() {
       <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-xl border-b border-white/5 px-6 py-5">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-4">
-            <button onClick={() => step > 0 ? setStep(step - 1) : router.push("/admin/dashboard")} className="p-2.5 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors">
+            <button onClick={() => step > 0 ? setStep(step - 1) : router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <p className="text-[10px] font-black text-blue-500 uppercase tracking-[3px]">Messages</p>
-              <p className="text-sm font-black text-white uppercase tracking-tight">Campagne Email</p>
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+              <p className="text-sm font-black text-white uppercase tracking-wider">Campagne Email</p>
             </div>
           </div>
           {step === 2 && (

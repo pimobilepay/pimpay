@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle, XCircle, Search, RefreshCw,
   Clock, Hash, Phone, Globe, ArrowLeft,
@@ -185,6 +186,7 @@ function DetailRow({ icon, label, value, onCopy, copyable, valueClassName }: {
 }
 
 export default function AdminTransactionsPage() {
+  const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -253,28 +255,26 @@ export default function AdminTransactionsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 font-sans">
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-          <div>
-            <h1 className="text-xl font-black tracking-tighter uppercase">
-              PIMPAY<span className="text-blue-500">FLOW</span>
-            </h1>
-            <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.4em] flex items-center gap-2">
-              <Clock size={12} className="animate-pulse" /> Validation des Flux de Tresorerie
-            </p>
+        <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+          <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+            <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="text-center">
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+              <h1 className="text-sm font-black text-white uppercase tracking-wider">Transactions</h1>
+            </div>
+            <button onClick={fetchTransactions} disabled={loading} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            </button>
           </div>
-          <button
-            onClick={fetchTransactions}
-            disabled={loading}
-            className="flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Sync
-          </button>
         </div>
+
+        <div className="p-6">
 
         {/* SEARCH */}
         <div className="mb-8 relative group">
@@ -362,6 +362,7 @@ export default function AdminTransactionsPage() {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       </div>
 

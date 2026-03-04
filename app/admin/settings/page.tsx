@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Settings, Globe, ShieldAlert, Save, RefreshCw,
@@ -7,9 +8,10 @@ import {
   Wallet, AlertTriangle, Database, Activity,
   Cpu, Terminal, ShieldCheck, ChevronRight, Rocket,
   Users, Landmark, Eye, CreditCard, ArrowUpDown,
-  ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat
+  ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat, ArrowLeft
 } from "lucide-react";
 export default function SystemSettings() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -85,25 +87,29 @@ export default function SystemSettings() {
     </div>
   );
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans p-4 md:p-8 lg:p-12 overflow-x-hidden">
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans pb-32 overflow-x-hidden">
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-blue-600/5 blur-[120px] rounded-full" />
         <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-indigo-600/5 blur-[120px] rounded-full" />
       </div>
-      <div className="max-w-7xl mx-auto space-y-8 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <header className="lg:col-span-2 flex items-center gap-6 bg-white/[0.03] border border-white/5 p-6 rounded-[2.5rem] backdrop-blur-xl">
-            <div className="p-4 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl">
-              <Cpu className="text-white" size={28} />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tighter uppercase italic">PIMPAY<span className="text-blue-500">.CORE</span></h1>
-              <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em]">Elara OS v2.4.0</p>
-            </div>
-          </header>
-          <StatMiniCard icon={<Users size={16}/>} label="Users" value={stats.totalUsers} />
-          <StatMiniCard icon={<Activity size={16}/>} label="Live Sessions" value={stats.activeSessions} color="text-emerald-500" />
+
+      {/* HEADER */}
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Parametres</h1>
+          </div>
+          <button onClick={loadData} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <RefreshCw size={18} />
+          </button>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto space-y-8 relative z-10 p-4 md:p-8 lg:p-12">
         <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

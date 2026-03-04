@@ -1,7 +1,10 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 
 export default function RescuePage() {
+  const router = useRouter();
   const [status, setStatus] = useState<string>("En attente...");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
@@ -64,12 +67,22 @@ export default function RescuePage() {
     : "#fff";
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white p-6 font-sans">
-      <div className="max-w-md mx-auto space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-black text-amber-400 uppercase tracking-tight">PimPay Rescue</h1>
-          <p className="text-sm text-slate-400 mt-1">Debloquer les paiements Pi incomplets</p>
+    <div className="min-h-screen bg-[#020617] text-white font-sans pb-32">
+      {/* HEADER */}
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Rescue</h1>
+          </div>
+          <div className="w-11" />
         </div>
+      </div>
+
+      <div className="max-w-md mx-auto space-y-6 p-6">
 
         {/* Status display */}
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">

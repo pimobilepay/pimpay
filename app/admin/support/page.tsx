@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   ArrowLeft, Clock, User,
   ChevronRight, Inbox, ShieldAlert,
-  Send, X, Loader2, CheckCircle
+  Send, X, Loader2, CheckCircle, RefreshCw
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -253,21 +253,25 @@ export default function AdminSupportPage() {
 
   // ============ TICKETS LIST VIEW ============
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 pb-20 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans selection:bg-blue-500/30">
       
       {/* Header Admin */}
-      <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.back()} className="p-3 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h1 className="text-xl font-black uppercase tracking-tighter">PimPay Command Center</h1>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Console Administrateur</p>
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Support</h1>
           </div>
+          <button onClick={fetchTickets} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <RefreshCw size={18} />
+          </button>
         </div>
       </div>
+
+      <div className="p-6 pb-20">
 
       {/* SECTION STATISTIQUES DYNAMIQUES */}
       <div className="grid grid-cols-3 gap-3 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -353,12 +357,7 @@ export default function AdminSupportPage() {
         )}
       </div>
 
-      {/* Security Footer */}
-      <div className="mt-12 flex flex-col items-center gap-3 opacity-20">
-        <ShieldAlert size={16} />
-        <p className="text-[8px] font-black uppercase tracking-[0.4em] text-center">
-          PimPay Encryption - Terminal Admin v2.6.0
-        </p>
+      </div>
       </div>
     </div>
   );

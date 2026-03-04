@@ -6,7 +6,7 @@ import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
-  BarChart3
+  BarChart3, ArrowLeft, History
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -54,25 +54,20 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-[#020617] text-white p-6 font-sans pb-32">
 
       {/* HEADER */}
-      <header className="flex justify-between items-start mb-10">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span className="text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">Admin Console v4.0</span>
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06] -mx-6 -mt-6 mb-6">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Administration</h1>
           </div>
-          <h1 className="text-2xl font-black italic tracking-tighter uppercase">
-            PIMPAY<span className="text-blue-500">CORE</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => { setLoading(true); fetchDashboardData(); }} className="p-3 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
-            <RefreshCw size={18} className="text-slate-400" />
-          </button>
-          <button onClick={() => { window.location.href = '/'; }} className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl active:scale-90 transition-transform">
-            <LogOut size={18} className="text-red-400" />
+          <button onClick={() => { setLoading(true); fetchDashboardData(); }} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <RefreshCw size={18} />
           </button>
         </div>
-      </header>
+      </div>
 
       {/* QUICK NAV GRID */}
       <section className="mb-10">
@@ -85,6 +80,7 @@ export default function AdminDashboard() {
             { label: "Dashboard", desc: "Vue detaillee", icon: <LayoutGrid size={20} />, path: "/admin/dashboard", color: "blue" },
             { label: "Utilisateurs", desc: "Gestion comptes", icon: <Users size={20} />, path: "/admin/users", color: "purple" },
             { label: "Transactions", desc: "Flux financiers", icon: <ArrowRightLeft size={20} />, path: "/admin/transactions", color: "emerald" },
+            { label: "Historique", desc: "Toutes les transactions", icon: <History size={20} />, path: "/admin/historique", color: "teal" },
             { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
             { label: "Support", desc: "Tickets clients", icon: <Headphones size={20} />, path: "/admin/support", color: "rose" },
             { label: "Analytics", desc: "Statistiques", icon: <BarChart3 size={20} />, path: "/admin/analytics", color: "indigo" },
@@ -94,6 +90,7 @@ export default function AdminDashboard() {
               blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
               purple: "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20",
               emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20",
+              teal: "bg-teal-500/10 border-teal-500/20 text-teal-400 hover:bg-teal-500/20",
               amber: "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20",
               rose: "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20",
               indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20",
@@ -103,6 +100,7 @@ export default function AdminDashboard() {
               blue: "bg-blue-600 shadow-blue-500/30",
               purple: "bg-purple-600 shadow-purple-500/30",
               emerald: "bg-emerald-600 shadow-emerald-500/30",
+              teal: "bg-teal-600 shadow-teal-500/30",
               amber: "bg-amber-600 shadow-amber-500/30",
               rose: "bg-rose-600 shadow-rose-500/30",
               indigo: "bg-indigo-600 shadow-indigo-500/30",

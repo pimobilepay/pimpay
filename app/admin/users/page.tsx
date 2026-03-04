@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Clock, Eye, CircleDot, RefreshCw, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Clock, Eye, CircleDot, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 type AdminUser = {
@@ -24,6 +25,7 @@ type AdminUser = {
 };
 
 export default function AdminUsersPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -74,28 +76,25 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white p-6 md:p-8 space-y-6">
+    <div className="min-h-screen bg-[#020617] text-white pb-32 space-y-6">
 
       {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <CircleDot size={10} className="text-blue-500 animate-pulse" />
-            <span className="text-[9px] font-black text-blue-400 uppercase tracking-[3px]">Gestion Utilisateurs</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-white">
-            PIMPAY<span className="text-blue-500">USERS</span>
-          </h1>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={fetchUsers} className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all">
-            <RefreshCw size={18} className="text-slate-400" />
+      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <ArrowLeft size={18} />
           </button>
-          <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-2 text-xs font-black text-white">
-            <Users size={14} className="text-blue-500" /> {stats.total}
+          <div className="text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Utilisateurs</h1>
           </div>
+          <button onClick={fetchUsers} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+            <RefreshCw size={18} />
+          </button>
         </div>
       </div>
+
+      <div className="px-6 space-y-6">
 
       {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -221,6 +220,7 @@ export default function AdminUsersPage() {
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

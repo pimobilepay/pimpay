@@ -1,27 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-// AJOUT DE L'IMPORT ICI
 import { AdminControlPanel } from "@/components/admin/AdminControlPanel";
+import { UserDetailHeader } from "./header";
 
 export default async function AdminUserPage({ params }: { params: { id: string } }) {
+  const { id } = await params;
   const user = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { wallets: true }
   });
 
   if (!user) notFound();
 
   return (
-    <div className="min-h-screen bg-[#020617] p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">
-            PROFIL<span className="text-blue-500">ADMIN</span>
-          </h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">
-            ID: {user.id}
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#020617] pb-32">
+      <UserDetailHeader userName={user.name || user.username || "Utilisateur"} userId={user.id} />
+
+      <div className="p-8 max-w-4xl mx-auto space-y-8">
 
         {/* Le composant que nous avons corrigé ensemble */}
         <AdminControlPanel
