@@ -44,7 +44,7 @@ export default function GlobalAnnouncement() {
   // IMPORTANT: Si pas encore monté ou pas de message, on retourne une DIV VIDE de même hauteur
   // pour éviter que React ne doive recalculer tout le layout brusquement (layout shift)
   if (!mounted || !msg) {
-    return <div className="h-9 bg-[#020617]" />; 
+    return <div className="h-9 bg-background" />; 
   }
 
   return (

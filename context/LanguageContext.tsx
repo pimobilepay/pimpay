@@ -28,7 +28,7 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("fr");
+  const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
     const saved = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
@@ -50,11 +50,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string): string => {
-      // Try current locale first, fall back to French
+      // Try current locale first, fall back to English
       const value = getNestedValue(dictionaries[locale], key);
       if (value !== key) return value;
-      // Fallback to French
-      return getNestedValue(dictionaries.fr, key);
+      // Fallback to English
+      return getNestedValue(dictionaries.en, key);
     },
     [locale]
   );
@@ -76,9 +76,9 @@ export function useLanguage() {
   if (!context) {
     // Fallback for usage outside provider (e.g. in server components)
     return {
-      locale: "fr" as Locale,
+      locale: "en" as Locale,
       setLocale: () => {},
-      t: (key: string) => getNestedValue(frDict, key),
+      t: (key: string) => getNestedValue(enDict, key),
     };
   }
   return context;

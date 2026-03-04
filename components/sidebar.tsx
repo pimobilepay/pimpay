@@ -3,45 +3,47 @@
 import React from 'react';
 import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from '@/context/ThemeContext';
 
-// Utilise "export const" pour que { Sidebar } fonctionne
 export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   if (!isOpen) return null;
 
   const menuItems = [
-    { name: 'Tableau de bord', icon: LayoutDashboard, path: '/dashboard' },
-    { name: 'Portefeuille', icon: Wallet, path: '/wallet' },
-    { name: 'Sécurité', icon: Shield, path: '/settings/security' },
-    { name: 'Paramètres', icon: Settings, path: '/settings' },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { name: 'Wallet', icon: Wallet, path: '/wallet' },
+    { name: 'Security', icon: Shield, path: '/settings/security' },
+    { name: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   return (
     <div className="fixed inset-0 z-[100] flex">
-      {/* Overlay sombre */}
+      {/* Dark overlay */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className={`fixed inset-0 backdrop-blur-sm transition-opacity ${isDark ? "bg-black/60" : "bg-black/30"}`}
         onClick={onClose}
       />
 
       {/* Menu Drawer */}
-      <aside className="relative w-80 h-full bg-[#020617] border-r border-white/10 p-6 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
+      <aside className={`relative w-80 h-full border-r p-6 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300 ${isDark ? "bg-slate-950 border-white/10" : "bg-white border-slate-200"}`}>
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-xl font-black italic text-blue-500">PIMPAY</h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-400">
+          <button onClick={onClose} className={`p-2 rounded-full ${isDark ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>
             <X size={24} />
           </button>
         </div>
 
-        {/* SECTION NOTIFICATIONS AJOUTÉE */}
+        {/* NOTIFICATIONS SECTION */}
         <div className="mb-6">
           <button
             onClick={() => {
               router.push('/settings/notifications');
               onClose();
             }}
-            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-white/5 text-slate-400 hover:text-blue-400 transition-all border border-white/5"
+            className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl transition-all border ${isDark ? "bg-white/5 text-slate-400 hover:text-blue-400 border-white/5" : "bg-slate-50 text-slate-500 hover:text-blue-500 border-slate-200"}`}
           >
             <div className="flex items-center gap-4">
               <Bell size={20} />
@@ -59,7 +61,7 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 router.push(item.path);
                 onClose();
               }}
-              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-slate-400 hover:bg-blue-600 hover:text-white transition-all font-bold uppercase text-xs tracking-widest"
+              className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all font-bold uppercase text-xs tracking-widest ${isDark ? "text-slate-400 hover:bg-blue-600 hover:text-white" : "text-slate-500 hover:bg-blue-500 hover:text-white"}`}
             >
               <item.icon size={20} />
               {item.name}
@@ -67,9 +69,9 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           ))}
         </nav>
 
-        <button className="flex items-center gap-4 px-4 py-4 text-rose-500 font-bold uppercase text-xs tracking-widest mt-auto border-t border-white/5">
+        <button className={`flex items-center gap-4 px-4 py-4 text-rose-500 font-bold uppercase text-xs tracking-widest mt-auto border-t ${isDark ? "border-white/5" : "border-slate-200"}`}>
           <LogOut size={20} />
-          Déconnexion
+          Logout
         </button>
       </aside>
     </div>

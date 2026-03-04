@@ -12,13 +12,17 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    // On synchronise uniquement l'état interne avec le localStorage
+    // Sync internal state with localStorage
     const savedTheme = localStorage.getItem('pimpay-theme') as Theme;
     if (savedTheme) {
       setTheme(savedTheme);
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    } else {
+      // Default to light - ensure dark class is removed
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
@@ -38,6 +42,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (!context) return { theme: 'dark' as Theme, toggleTheme: () => {} };
+  if (!context) return { theme: 'light' as Theme, toggleTheme: () => {} };
   return context;
 };

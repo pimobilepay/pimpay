@@ -9,6 +9,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "@/context/ThemeContext";
 
 interface UserData {
   name: string;
@@ -22,6 +23,8 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const router = useRouter();
   const pathname = usePathname();
   const { locale, setLocale, t } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [user, setUser] = useState<UserData | null>(null);
 
   useEffect(() => {
@@ -44,14 +47,14 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
           name: data.user?.name || data.user?.username || "Pioneer",
           username: data.user?.username || "",
           email: data.user?.email || "",
-          kycStatus: data.user?.kycStatus || "NON VÉRIFIÉ",
+          kycStatus: data.user?.kycStatus || "NOT VERIFIED",
           avatar: data.user?.avatar
         };
         setUser(userData);
         localStorage.setItem("pimpay_user", JSON.stringify(userData));
       }
     } catch (err) {
-      console.error("Erreur Sync SideMenu:", err);
+      console.error("SideMenu Sync Error:", err);
     }
   }, []);
 
@@ -137,23 +140,23 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     try {
       onClose();
 
-      // 1. Appel API d'abord pour invalider la session en DB et supprimer les cookies httpOnly
+      // 1. API call first to invalidate session in DB and delete httpOnly cookies
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 
-      // 2. Nettoyer le stockage local
+      // 2. Clean local storage
       localStorage.removeItem("pimpay_user");
 
-      // 3. Supprimer tous les cookies cote client (fallback pour les cookies non-httpOnly)
+      // 3. Delete all client-side cookies (fallback for non-httpOnly cookies)
       const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
       for (const name of cookieNames) {
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
       }
 
-      // 4. Rediriger vers la page de login
+      // 4. Redirect to login page
       window.location.href = "/auth/login";
     } catch (err) {
-      // En cas d'erreur reseau, forcer quand meme la deconnexion locale
+      // On network error, force local logout anyway
       localStorage.removeItem("pimpay_user");
       document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
@@ -166,35 +169,35 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     <>
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-[9998] backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"} ${isDark ? "bg-black/70" : "bg-black/30"}`}
       />
 
-      <div className={`fixed top-0 left-0 h-full w-[280px] z-[9999] bg-[#020617] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-&lsqb;cubic-bezier(0.32,0.72,0,1)&rsqb; ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`fixed top-0 left-0 h-full w-[280px] z-[9999] border-r shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-x-0" : "-translate-x-full"} ${isDark ? "bg-slate-950 border-white/5" : "bg-white border-slate-200"}`}>
         <div className="flex flex-col h-full">
 
-          <div className="p-6 pt-14 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent relative">
-            <button onClick={onClose} className="absolute top-5 right-5 p-2 rounded-full bg-white/5 text-slate-400 active:scale-90 transition-all">
+          <div className={`p-6 pt-14 pb-8 relative ${isDark ? "bg-gradient-to-b from-blue-600/10 to-transparent" : "bg-gradient-to-b from-blue-50 to-transparent"}`}>
+            <button onClick={onClose} className={`absolute top-5 right-5 p-2 rounded-full active:scale-90 transition-all ${isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"}`}>
               <X size={20} />
             </button>
 
             <div className="flex items-center gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_15px_rgba(59,130,246,0.5)]">
-                  <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center overflow-hidden border-2 border-[#020617]">
+                  <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden border-2 ${isDark ? "bg-slate-950 border-slate-950" : "bg-white border-white"}`}>
                     {user?.avatar ? (
                       <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-2xl font-black italic text-white">
+                      <span className={`text-2xl font-black italic ${isDark ? "text-white" : "text-slate-800"}`}>
                         {user?.username ? user.username[0].toUpperCase() : (user?.name?.[0] || "P")}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-[3px] border-[#020617] rounded-full"></div>
+                <div className={`absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-[3px] rounded-full ${isDark ? "border-slate-950" : "border-white"}`}></div>
               </div>
 
               <div className="flex flex-col min-w-0">
-                <h2 className="text-lg font-black text-white truncate tracking-tight">
+                <h2 className={`text-lg font-black truncate tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
                   {user?.name || "Pioneer"}
                 </h2>
                 {user?.username && (
@@ -213,26 +216,26 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
           </div>
 
           <div className="px-6 mb-6">
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-2xl border border-white/5 focus-within:border-blue-500/30 transition-all">
-              <Search size={18} className="text-slate-500" />
-              <input type="text" placeholder={t("sideMenu.search")} className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder:text-slate-600 font-medium" />
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${isDark ? "bg-white/5 border-white/5 focus-within:border-blue-500/30" : "bg-slate-50 border-slate-200 focus-within:border-blue-500/30"}`}>
+              <Search size={18} className={isDark ? "text-slate-500" : "text-slate-400"} />
+              <input type="text" placeholder={t("sideMenu.search")} className={`bg-transparent outline-none text-sm w-full font-medium ${isDark ? "text-slate-200 placeholder:text-slate-600" : "text-slate-800 placeholder:text-slate-400"}`} />
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 space-y-6 pb-6 custom-scrollbar">
             {menuGroups.map((group, gIdx) => (
               <div key={gIdx}>
-                <h3 className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[2px] mb-3">{group.title}</h3>
+                <h3 className={`px-4 text-[10px] font-bold uppercase tracking-[2px] mb-3 ${isDark ? "text-slate-600" : "text-slate-400"}`}>{group.title}</h3>
                 <div className="space-y-1">
                   {group.items.map((item, iIdx) => (
-                    <button key={iIdx} onClick={() => handleNavigation(item.path)} className="w-full flex items-center justify-between p-3.5 rounded-2xl hover:bg-white/5 text-slate-300 active:bg-white/10 transition-all group">
+                    <button key={iIdx} onClick={() => handleNavigation(item.path)} className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group ${isDark ? "hover:bg-white/5 text-slate-300 active:bg-white/10" : "hover:bg-slate-50 text-slate-700 active:bg-slate-100"}`}>
                       <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-xl bg-slate-900/50 group-hover:scale-110 transition-transform">
+                        <div className={`p-2 rounded-xl group-hover:scale-110 transition-transform ${isDark ? "bg-slate-900/50" : "bg-slate-100"}`}>
                           {item.icon}
                         </div>
                         <span className="font-bold text-[13px]">{item.label}</span>
                       </div>
-                      <ChevronRight size={14} className="text-slate-700 group-hover:translate-x-1 transition-transform" />
+                      <ChevronRight size={14} className={`group-hover:translate-x-1 transition-transform ${isDark ? "text-slate-700" : "text-slate-300"}`} />
                     </button>
                   ))}
                 </div>
@@ -240,16 +243,16 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
             ))}
           </div>
 
-          <div className="p-6 bg-[#020617] border-t border-white/5 space-y-4">
+          <div className={`p-6 border-t space-y-4 ${isDark ? "bg-slate-950 border-white/5" : "bg-white border-slate-200"}`}>
             {/* Social Links */}
             <div className="flex items-center justify-center gap-4 px-2">
-              <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all active:scale-90">
+              <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${isDark ? "bg-white/5 text-slate-400 hover:text-blue-500" : "bg-slate-100 text-slate-400 hover:text-blue-500"}`}>
                 <Facebook size={20} />
               </a>
-              <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90">
+              <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${isDark ? "bg-white/5 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:text-slate-700"}`}>
                 <Twitter size={20} />
               </a>
-              <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all active:scale-90">
+              <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${isDark ? "bg-white/5 text-slate-400 hover:text-red-500" : "bg-slate-100 text-slate-400 hover:text-red-500"}`}>
                 <Youtube size={20} />
               </a>
             </div>

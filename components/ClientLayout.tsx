@@ -23,7 +23,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   if (!mounted) {
     return (
-      <div className="bg-[#020617] min-h-screen flex items-center justify-center">
+      <div className="bg-white min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -32,24 +32,24 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={`min-h-screen flex transition-colors duration-500 ${
-        isDarkMode ? "bg-[#020617] text-white" : "bg-white text-slate-900"
+        isDarkMode ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
       }`}
     >
       {!isAuthPage ? (
         <>
-          {/* SideMenu : Il prend sa place à gauche sur Desktop */}
+          {/* SideMenu: Takes its place on the left on Desktop */}
           <SideMenu
             open={isMenuOpen}
             onClose={() => setIsMenuOpen(false)}
           />
 
-          {/* Zone de contenu : flex-1 pour occuper tout l'espace restant à droite */}
+          {/* Content area: flex-1 to occupy all remaining space on the right */}
           <main className="flex-1 flex flex-col min-h-screen relative overflow-x-hidden">
             <div className="flex-1 pb-24 lg:pb-8">
               {children}
             </div>
 
-            {/* BottomNav : Uniquement visible sur Mobile (via CSS interne de BottomNav ou Tailwind) */}
+            {/* BottomNav: Only visible on Mobile (via BottomNav internal CSS or Tailwind) */}
             <div className="lg:hidden">
               <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
             </div>

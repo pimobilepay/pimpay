@@ -33,18 +33,19 @@ import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "@/context/ThemeContext";
 import { ReferralProgram } from "@/components/ReferralProgram";
 
 const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
 type CurrencyKey = keyof typeof RATES;
 
 const PIE_COLOR_BY_NAME: Record<string, string> = {
-  Sortant: "#3b82f6",
-  Entrant: "#10b981",
+  Outgoing: "#3b82f6",
+  Incoming: "#10b981",
   Swaps: "#6366f1",
-  Autres: "#f59e0b",
+  Other: "#f59e0b",
   Total: "#94a3b8",
-  Aucune: "#1e293b",
+  None: "#1e293b",
 };
 
 const pieColor = (name: string) => PIE_COLOR_BY_NAME[name] ?? "#64748b";
@@ -52,6 +53,8 @@ const pieColor = (name: string) => PIE_COLOR_BY_NAME[name] ?? "#64748b";
 export default function UserDashboard() {
   const router = useRouter();
   const { locale, setLocale } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -140,16 +143,16 @@ export default function UserDashboard() {
     const received = filtered.filter(t => !t.isDebit && t.type !== "EXCHANGE").length;
     const total = sent + received + swaps + others;
     const pie = [
-      { name: "Sortant", value: sent },
-      { name: "Entrant", value: received },
+      { name: "Outgoing", value: sent },
+      { name: "Incoming", value: received },
       { name: "Swaps", value: swaps },
-      { name: "Autres", value: others },
+      { name: "Other", value: others },
     ];
     return { pie, list: [...pie, { name: "Total", value: total }], total };
   };
 
   const stats = computeStats(data?.transactions, currentCurrency);
-  const pieData = stats.total > 0 ? stats.pie.filter(s => s.value > 0) : [{ name: "Aucune", value: 1 }];
+  const pieData = stats.total > 0 ? stats.pie.filter(s => s.value > 0) : [{ name: "None", value: 1 }];
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -161,24 +164,24 @@ export default function UserDashboard() {
     return tx.isDebit ? { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" } : { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
   };
 
-  if (!hasMounted || isLoading) return <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500"><Loader2 className="animate-spin mb-4" size={40} /><p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p></div>;
+  if (!hasMounted || isLoading) return <div className={`min-h-screen flex flex-col items-center justify-center text-blue-500 ${isDark ? "bg-slate-950" : "bg-slate-50"}`}><Loader2 className="animate-spin mb-4" size={40} /><p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p></div>;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
+    <div className={`min-h-screen font-sans flex flex-col ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}`}>
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
-        <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1><p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
+      <header className={`px-6 py-6 flex justify-between items-center backdrop-blur-md sticky top-0 z-[100] border-b ${isDark ? "bg-slate-950/80 border-white/5" : "bg-white/80 border-slate-200"}`}>
+        <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className={`text-xl font-black italic uppercase tracking-tighter leading-none ${isDark ? "text-white" : "text-slate-900"}`}>PIMPAY</h1><p className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
-          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"><Bell size={20} /><span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span></button>
-          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400"><User size={20} /></button>
+          <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className={`p-3 rounded-2xl active:scale-90 transition-all ${isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"}`}><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
+          <button onClick={() => router.push("/settings/notifications")} className={`p-3 rounded-2xl active:scale-90 transition-all relative ${isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"}`}><Bell size={20} /><span className={`absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 ${isDark ? "border-slate-950" : "border-white"}`}></span></button>
+          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className={`p-3 rounded-2xl ${isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"}`}><User size={20} /></button>
             {showProfileMenu && (
-              <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
-                <div className="p-4 border-b border-white/5 mb-2"><p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p><p className="text-sm font-bold truncate">@{data?.username}</p></div>
-                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><Settings size={16} /> Profile</button>
-                <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Parrainage</span></div><span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span></button>
-                <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div><span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span></button>
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left"><LogOut size={16} /> Logout</button>
+              <div className={`absolute right-0 mt-3 w-56 rounded-[24px] shadow-2xl p-2 z-[110] border ${isDark ? "bg-slate-900 border-white/10" : "bg-white border-slate-200"}`}>
+                <div className={`p-4 border-b mb-2 ${isDark ? "border-white/5" : "border-slate-100"}`}><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">PimPay Account</p><p className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-800"}`}>@{data?.username}</p></div>
+                <button onClick={() => router.push("/profile")} className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold uppercase text-left ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}><Settings size={16} /> Profile</button>
+                <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold uppercase text-left ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}><div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Referral</span></div><span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span></button>
+                <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold uppercase text-left ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}><div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div><span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span></button>
+                <button onClick={handleLogout} className={`w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}><LogOut size={16} /> Logout</button>
               </div>
             )}
           </div>
@@ -214,8 +217,8 @@ export default function UserDashboard() {
             <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2"><div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>{action.icon}</div><span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span></button>
           ))}
         </div>
-        <section className="mb-8 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
-          <div className="flex justify-between items-center mb-6"><h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3><LayoutGrid size={16} className="text-slate-600" /></div>
+        <section className={`mb-8 p-6 rounded-[32px] border ${isDark ? "bg-slate-900/40 border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
+          <div className="flex justify-between items-center mb-6"><h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Cash Flow</h3><LayoutGrid size={16} className="text-slate-600" /></div>
           <div className="flex items-center gap-6"><div className="w-32 h-32 relative"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value">{pieData.map((entry, index) => (<Cell key={index} fill={pieColor(entry.name)} stroke="none" />))}</Pie></PieChart></ResponsiveContainer><div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase text-blue-400">{stats.total > 0 ? "Live" : "N/A"}</div></div>
             <div className="flex-1 grid grid-cols-1 gap-2">
               {stats.list.map((item, i) => (
@@ -225,7 +228,7 @@ export default function UserDashboard() {
           </div>
         </section>
         <section className="mb-12 relative">
-          <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3><div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none italic">7</div><History size={16} className="text-slate-600" /></div>
+          <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Transaction Flow</h3><div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none italic">7</div><History size={16} className="text-slate-600" /></div>
           <div className="space-y-4 relative z-10 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
             {data?.transactions?.length > 0 ? data.transactions.map((tx: any) => {
               const { icon, color } = getTxIcon(tx);
@@ -236,21 +239,21 @@ export default function UserDashboard() {
                     const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
                     router.push(`/deposit/receipt?${query}`);
                   }}
-                  className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer"
+                  className={`p-4 rounded-[24px] flex justify-between items-center transition-colors cursor-pointer border ${isDark ? "bg-slate-900/40 border-white/5 active:bg-slate-800" : "bg-white border-slate-200 active:bg-slate-50 shadow-sm"}`}
                 >
-                  <div className="flex items-center gap-4"><div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>{icon}</div><div><p className="text-[11px] font-bold uppercase text-white">{tx.description || tx.type}</p><p className="text-[8px] text-slate-500 font-black uppercase mt-1">{tx.isDebit ? `À: ${tx.peerName || "SYSTÈME PIMPAY"}` : `DE: ${tx.peerName || "SYSTÈME PIMPAY"}`}</p></div></div>
+                  <div className="flex items-center gap-4"><div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>{icon}</div><div><p className={`text-[11px] font-bold uppercase ${isDark ? "text-white" : "text-slate-800"}`}>{tx.description || tx.type}</p><p className="text-[8px] text-slate-500 font-black uppercase mt-1">{tx.isDebit ? `To: ${tx.peerName || "PIMPAY SYSTEM"}` : `From: ${tx.peerName || "PIMPAY SYSTEM"}`}</p></div></div>
                   <div className="text-right"><p className={`text-sm font-black ${!tx.isDebit ? "text-emerald-400" : "text-blue-400"}`}>{tx.isDebit ? "-" : "+"}{tx.amount.toLocaleString()} {tx.currency}</p><p className="text-[8px] text-slate-500 font-black mt-1">{new Date(tx.createdAt).toLocaleDateString()}</p></div>
                 </div>
               );
-            }) : <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">Aucune transaction</div>}
+            }) : <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">No transactions</div>}
           </div>
         </section>
       </main>
-      <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
+      <footer className={`pt-8 pb-32 border-t flex flex-col items-center gap-6 ${isDark ? "bg-slate-950 border-white/5" : "bg-slate-50 border-slate-200"}`}>
         <div className="flex items-center gap-6">
-          <a href="https://facebook.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
-          <a href="https://x.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all"><Twitter size={20} /></a>
-          <a href="https://youtube.com/@pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all"><Youtube size={20} /></a>
+          <a href="https://facebook.com/pimobilepay" className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all ${isDark ? "bg-white/5" : "bg-slate-100"}`}><Facebook size={20} /></a>
+          <a href="https://x.com/pimobilepay" className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-400 transition-all ${isDark ? "bg-white/5 hover:text-white" : "bg-slate-100 hover:text-slate-700"}`}><Twitter size={20} /></a>
+          <a href="https://youtube.com/@pimobilepay" className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-all ${isDark ? "bg-white/5" : "bg-slate-100"}`}><Youtube size={20} /></a>
         </div>
         <div className="text-center"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p><p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p></div>
       </footer>

@@ -13,7 +13,7 @@ import { LanguageProvider } from "@/context/LanguageContext";
 import { PiInitializer } from "@/components/PiInitializer";
 
 export const viewport: Viewport = {
-  themeColor: "#02040a",
+  themeColor: "#f8fafc",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "PimPay - Core Ledger",
-  description: "L'avenir de vos transactions Pi sur pimpay.pi",
+  description: "The future of your Pi transactions on pimpay.pi",
   robots: "noindex, nofollow",
   icons: {
     icon: "/logo-pimpay.png",
@@ -36,22 +36,22 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="fr"
+      lang="en"
       translate="no"
       suppressHydrationWarning
-      className={`${GeistSans.variable} ${GeistMono.variable} notranslate dark`}
+      className={`${GeistSans.variable} ${GeistMono.variable} notranslate`}
     >
       <head>
         <meta name="google" content="notranslate" />
 
-        {/* 1. SDK PI NETWORK - Chargement critique */}
+        {/* 1. PI NETWORK SDK - Critical loading */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
 
-        {/* L'initialisation du SDK Pi est geree par PiInitializer.tsx
-            pour eviter les doubles appels a Pi.init() */}
+        {/* Pi SDK initialization is managed by PiInitializer.tsx
+            to prevent duplicate Pi.init() calls */}
 
         {/* Google Analytics */}
         <Script
@@ -73,7 +73,7 @@ export default function RootLayout({
             __html: `
               (function () {
                 try {
-                  const theme = localStorage.getItem("pimpay-theme") || 'dark';
+                  const theme = localStorage.getItem("pimpay-theme") || 'light';
                   document.documentElement.classList.toggle("dark", theme === "dark");
                 } catch (_) {}
               })();
@@ -82,7 +82,7 @@ export default function RootLayout({
         />
       </head>
 
-      <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
+      <body className="antialiased overflow-x-hidden notranslate bg-background text-foreground selection:bg-blue-500/30">
         <LanguageProvider>
           <ThemeProvider>
             <PiInitializer />
@@ -104,13 +104,13 @@ export default function RootLayout({
               position="top-center"
               richColors
               expand={false}
-              theme="dark"
+              theme="light"
               toastOptions={{
                 style: {
                   borderRadius: "1rem",
-                  background: "rgba(15, 23, 42, 0.8)",
+                  background: "rgba(255, 255, 255, 0.9)",
                   backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid rgba(0,0,0,0.1)",
                 },
               }}
             />
