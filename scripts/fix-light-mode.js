@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const APP_DIR = path.join(process.cwd(), 'app');
-const COMPONENTS_DIR = path.join(process.cwd(), 'components');
+const PROJECT_ROOT = '/vercel/share/v0-project';
+const APP_DIR = path.join(PROJECT_ROOT, 'app');
+const COMPONENTS_DIR = path.join(PROJECT_ROOT, 'components');
 
 // Collect all .tsx files recursively
 function getAllTsx(dir) {
