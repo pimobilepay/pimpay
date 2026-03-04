@@ -28,10 +28,10 @@ interface Ticket {
 
 export default function AdminSupportPage() {
   const router = useRouter();
-  
-  const [data, setData] = useState<{ tickets: Ticket[]; statistics: { total: number; open: number; inProgress: number; closed: number } }>({ 
-    tickets: [], 
-    statistics: { total: 0, open: 0, inProgress: 0, closed: 0 } 
+
+  const [data, setData] = useState<{ tickets: Ticket[]; statistics: { total: number; open: number; inProgress: number; closed: number } }>({
+    tickets: [],
+    statistics: { total: 0, open: 0, inProgress: 0, closed: 0 }
   });
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -92,7 +92,7 @@ export default function AdminSupportPage() {
         body: JSON.stringify({ content: replyText, senderId: "ADMIN" }),
       });
       if (!res.ok) throw new Error();
-      
+
       // Refresh the ticket
       const ticketRes = await fetch(`/api/support/${selectedTicket.id}`);
       if (ticketRes.ok) {
@@ -144,8 +144,8 @@ export default function AdminSupportPage() {
         {/* Header */}
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-4 mb-4">
-            <button 
-              onClick={() => setSelectedTicket(null)} 
+            <button
+              onClick={() => setSelectedTicket(null)}
               className="p-3 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform"
             >
               <ArrowLeft size={20} />
@@ -191,8 +191,8 @@ export default function AdminSupportPage() {
             return (
               <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl p-4 ${
-                  isAdmin 
-                    ? 'bg-blue-600 text-white rounded-br-md' 
+                  isAdmin
+                    ? 'bg-blue-600 text-white rounded-br-md'
                     : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-md'
                 }`}>
                   <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -254,7 +254,7 @@ export default function AdminSupportPage() {
   // ============ TICKETS LIST VIEW ============
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans selection:bg-blue-500/30">
-      
+
       {/* Header Admin */}
       <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
@@ -318,7 +318,7 @@ export default function AdminSupportPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <span className={`text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest ${
-                    ticket.status === 'OPEN' ? 'bg-blue-500 text-white' : 
+                    ticket.status === 'OPEN' ? 'bg-blue-500 text-white' :
                     ticket.status === 'IN_PROGRESS' ? 'bg-amber-500 text-white' :
                     'bg-slate-800 text-slate-400'
                   }`}>
@@ -340,7 +340,7 @@ export default function AdminSupportPage() {
                 </p>
               </div>
 
-              <button 
+              <button
                 onClick={() => openTicketDetail(ticket.id)}
                 disabled={ticketLoading}
                 className="w-full flex items-center justify-between p-4 bg-blue-600 border border-blue-500 rounded-2xl hover:bg-blue-500 transition-all active:scale-[0.98]"
@@ -357,7 +357,6 @@ export default function AdminSupportPage() {
         )}
       </div>
 
-      </div>
       </div>
     </div>
   );
