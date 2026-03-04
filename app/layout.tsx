@@ -53,6 +53,20 @@ export default function RootLayout({
         {/* L'initialisation du SDK Pi est geree par PiInitializer.tsx
             pour eviter les doubles appels a Pi.init() */}
 
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-W8HP6W3DM4"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-W8HP6W3DM4');
+          `}
+        </Script>
+
         <script
           id="theme-strategy"
           dangerouslySetInnerHTML={{
