@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";          import { Button } from "@/
 import { BottomNav } from "@/components/bottom-nav";  import { toast } from "sonner";
 import {                                                LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,                               Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
   Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
-  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight
+  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight,
+  Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
@@ -72,6 +73,49 @@ type ServerStats = {
   system: { platform: string; osType: string; osRelease: string; hostname: string; uptime: string; uptimeSeconds: number; nodeVersion: string };
   database: { totalUsers: number; activeSessions: number; totalTransactions: number; pendingTransactions: number; latency: string };
   timestamp: string;
+} | null;
+
+type SessionDetail = {
+  id: string;
+  ip: string | null;
+  userAgent: string | null;
+  deviceName: string | null;
+  os: string | null;
+  browser: string | null;
+  city: string | null;
+  country: string | null;
+  isActive: boolean;
+  lastActiveAt: string;
+  createdAt: string;
+};
+
+type ActivityDetail = {
+  id: string;
+  page: string;
+  action: string;
+  ip: string | null;
+  device: string | null;
+  browser: string | null;
+  os: string | null;
+  country: string | null;
+  city: string | null;
+  createdAt: string;
+};
+
+type SecurityLogDetail = {
+  id: string;
+  action: string;
+  ip: string | null;
+  device: string | null;
+  createdAt: string;
+};
+
+type UserSessionInfo = {
+  user: LedgerUser;
+  sessions: SessionDetail[];
+  recentActivity: ActivityDetail[];
+  securityLogs: SecurityLogDetail[];
+  loading: boolean;
 } | null;
 
 // --- COMPOSANTS INTERNES ---
@@ -189,6 +233,8 @@ function DashboardContent() {
   const [maintModalUser, setMaintModalUser] = useState<LedgerUser | null>(null);
   const [maintDate, setMaintDate] = useState("");
   const [maintTime, setMaintTime] = useState("");
+  const [sessionInfo, setSessionInfo] = useState<UserSessionInfo>(null);
+  const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
 
   useEffect(() => {
     setIsMounted(true);
@@ -241,6 +287,30 @@ function DashboardContent() {
       }
     } catch (err) { toast.error("Erreur Sync"); }
     finally { setLoading(false); }
+  };
+
+  const fetchUserSessions = async (user: LedgerUser) => {
+    setSessionInfo({ user, sessions: [], recentActivity: [], securityLogs: [], loading: true });
+    setSessionInfoTab("sessions");
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/sessions`);
+      if (res.ok) {
+        const data = await res.json();
+        setSessionInfo({
+          user,
+          sessions: data.sessions || [],
+          recentActivity: data.recentActivity || [],
+          securityLogs: data.securityLogs || [],
+          loading: false,
+        });
+      } else {
+        toast.error("Impossible de charger les sessions");
+        setSessionInfo(null);
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+      setSessionInfo(null);
+    }
   };
 
   // Real-time server stats polling (every 10 seconds)
@@ -461,9 +531,7 @@ function DashboardContent() {
                             onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, "", [], "", p); }}
                             onIndividualMaintenance={() => setMaintModalUser(user)}
                             onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handleAction(user.id, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }}
-                            onViewSessions={() => {
-                                alert(`DÉTAILS SESSION :\n\n👤 Utilisateur: ${user.username || user.name}\n📧 Email: ${user.email}\n🌐 IP: ${user.lastLoginIp || "Aucune IP enregistrée"}\n🛡️ Rôle: ${user.role}\n⚡ Statut: ${user.status}`);
-                            }}
+                            onViewSessions={() => fetchUserSessions(user)}
                             onToggleRole={() => setRoleModalUser(user)}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}
                             onToggleAutoApprove={() => handleAction(user.id, 'TOGGLE_AUTO_APPROVE')}
@@ -726,6 +794,209 @@ function DashboardContent() {
             )}
         </div>
       </div>
+
+      {/* USER SESSION INFO MODAL */}
+      {sessionInfo && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={() => setSessionInfo(null)}>
+          <div className="bg-slate-900 border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div className="p-6 border-b border-white/5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    {sessionInfo.user.avatar ? (
+                      <img src={sessionInfo.user.avatar} alt="" className="w-14 h-14 rounded-2xl object-cover border border-white/10" crossOrigin="anonymous" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black border bg-slate-800 border-white/5 text-slate-400 uppercase">
+                        {sessionInfo.user.username?.[0] || sessionInfo.user.name?.[0] || '?'}
+                      </div>
+                    )}
+                    {sessionInfo.user.piUserId && (
+                      <div className="absolute -bottom-1 -left-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                        <span className="text-[7px] font-black text-white">Pi</span>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-white uppercase tracking-tight">{sessionInfo.user.username || sessionInfo.user.name || "Sans nom"}</p>
+                    <p className="text-[10px] text-blue-400 font-mono font-bold">{sessionInfo.user.email}</p>
+                    {sessionInfo.user.piUserId && (
+                      <p className="text-[8px] text-amber-400 font-mono font-bold mt-0.5">Pi ID: {sessionInfo.user.piUserId}</p>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setSessionInfo(null)} className="p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><X size={16}/></button>
+              </div>
+
+              {/* Quick info row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                  <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Role</p>
+                  <p className="text-[10px] font-black text-white uppercase">{sessionInfo.user.role}</p>
+                </div>
+                <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                  <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Statut</p>
+                  <p className={`text-[10px] font-black uppercase ${sessionInfo.user.status === 'ACTIVE' ? 'text-emerald-400' : sessionInfo.user.status === 'BANNED' ? 'text-red-400' : 'text-amber-400'}`}>{sessionInfo.user.status}</p>
+                </div>
+                <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                  <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Derniere IP</p>
+                  <p className="text-[10px] font-black text-cyan-400 font-mono">{sessionInfo.user.lastLoginIp || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 p-2 mx-4 mt-4 bg-black/40 border border-white/5 rounded-2xl">
+              {([
+                { id: "sessions" as const, label: "Sessions", icon: <Wifi size={12} /> },
+                { id: "activity" as const, label: "Activite", icon: <Eye size={12} /> },
+                { id: "security" as const, label: "Securite", icon: <Shield size={12} /> },
+              ]).map((tab) => (
+                <button 
+                  key={tab.id} 
+                  onClick={() => setSessionInfoTab(tab.id)}
+                  className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-[8px] font-black uppercase tracking-wider ${
+                    sessionInfoTab === tab.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div className="p-4 overflow-y-auto max-h-[50vh]">
+              {sessionInfo.loading ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Loader2 size={24} className="text-blue-500 animate-spin mb-3" />
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Chargement des donnees...</p>
+                </div>
+              ) : sessionInfoTab === "sessions" ? (
+                <div className="space-y-3">
+                  {sessionInfo.sessions.length === 0 ? (
+                    <div className="text-center py-10">
+                      <WifiOff size={24} className="text-slate-600 mx-auto mb-2" />
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucune session trouvee</p>
+                    </div>
+                  ) : (
+                    sessionInfo.sessions.map((s) => (
+                      <div key={s.id} className="bg-white/[0.03] border border-white/[0.03] rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${s.isActive ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                            <span className={`text-[8px] font-black uppercase tracking-widest ${s.isActive ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {s.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <span className="text-[8px] text-slate-600 font-mono">
+                            {new Date(s.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-2">
+                            <Globe size={10} className="text-cyan-400 shrink-0" />
+                            <div>
+                              <p className="text-[7px] font-black text-slate-500 uppercase">Adresse IP</p>
+                              <p className="text-[10px] font-black text-cyan-400 font-mono">{s.ip || "Inconnue"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin size={10} className="text-amber-400 shrink-0" />
+                            <div>
+                              <p className="text-[7px] font-black text-slate-500 uppercase">Localisation</p>
+                              <p className="text-[10px] font-black text-amber-400">{[s.city, s.country].filter(Boolean).join(", ") || "Inconnue"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {s.deviceName?.toLowerCase().includes("mobile") || s.os?.toLowerCase().includes("android") || s.os?.toLowerCase().includes("ios") ? (
+                              <Smartphone size={10} className="text-blue-400 shrink-0" />
+                            ) : (
+                              <Monitor size={10} className="text-blue-400 shrink-0" />
+                            )}
+                            <div>
+                              <p className="text-[7px] font-black text-slate-500 uppercase">Appareil</p>
+                              <p className="text-[10px] font-black text-white">{s.deviceName || s.os || "Inconnu"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Activity size={10} className="text-emerald-400 shrink-0" />
+                            <div>
+                              <p className="text-[7px] font-black text-slate-500 uppercase">Navigateur</p>
+                              <p className="text-[10px] font-black text-white">{s.browser || "Inconnu"}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-white/5 flex justify-between text-[7px] text-slate-600 font-mono">
+                          <span>Derniere activite: {new Date(s.lastActiveAt).toLocaleString("fr-FR")}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : sessionInfoTab === "activity" ? (
+                <div className="space-y-2">
+                  {sessionInfo.recentActivity.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Eye size={24} className="text-slate-600 mx-auto mb-2" />
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucune activite enregistree</p>
+                    </div>
+                  ) : (
+                    sessionInfo.recentActivity.map((a) => (
+                      <div key={a.id} className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                          <Eye size={12} className="text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-black text-white truncate">{a.page}</p>
+                            {a.ip && <span className="text-[7px] font-mono text-cyan-400 shrink-0">{a.ip}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 text-[8px] text-slate-500">
+                            {a.device && <span>{a.device}</span>}
+                            {a.browser && <><span>{'/'}</span><span>{a.browser}</span></>}
+                            {a.os && <><span>{'/'}</span><span>{a.os}</span></>}
+                          </div>
+                        </div>
+                        <span className="text-[8px] text-slate-600 font-mono shrink-0">{new Date(a.createdAt).toLocaleTimeString("fr-FR")}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {sessionInfo.securityLogs.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Shield size={24} className="text-slate-600 mx-auto mb-2" />
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucun log de securite</p>
+                    </div>
+                  ) : (
+                    sessionInfo.securityLogs.map((log) => (
+                      <div key={log.id} className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          log.action.includes("LOGIN") ? "bg-emerald-500/10" : log.action.includes("FAIL") ? "bg-red-500/10" : "bg-amber-500/10"
+                        }`}>
+                          <ShieldCheck size={12} className={
+                            log.action.includes("LOGIN") ? "text-emerald-400" : log.action.includes("FAIL") ? "text-red-400" : "text-amber-400"
+                          } />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-black text-white uppercase truncate">{log.action}</p>
+                          <div className="flex items-center gap-2 text-[8px] text-slate-500">
+                            {log.ip && <span className="font-mono text-cyan-400">{log.ip}</span>}
+                            {log.device && <span>{log.device}</span>}
+                          </div>
+                        </div>
+                        <span className="text-[8px] text-slate-600 font-mono shrink-0">{new Date(log.createdAt).toLocaleString("fr-FR")}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ROLE SELECTOR MODAL */}
       {roleModalUser && (

@@ -8,57 +8,91 @@ import { cookies } from "next/headers";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. RÉCUPÉRATION DU TOKEN DEPUIS LES COOKIES (Méthode Dashboard)
-    const token = cookies().get("token")?.value;
+    // 1. RECUPERATION DU TOKEN DEPUIS LES COOKIES (Methode Dashboard)
+    const token = (await cookies()).get("token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "Non autorisé (Token manquant)" }, { status: 401 });
+      return NextResponse.json({ error: "Non autorise (Token manquant)" }, { status: 401 });
     }
 
-    // 2. VÉRIFICATION DU TOKEN
+    // 2. VERIFICATION DU TOKEN
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload }: any = await jwtVerify(token, secret);
 
-    // 3. VÉRIFICATION STRICTE DU RÔLE ADMIN
+    // 3. VERIFICATION STRICTE DU ROLE ADMIN
     const admin = await prisma.user.findUnique({ where: { id: payload.id } });
     if (!admin || admin.role !== "ADMIN") {
-      return NextResponse.json({ error: "Accès refusé (Admin requis)" }, { status: 403 });
+      return NextResponse.json({ error: "Acces refuse (Admin requis)" }, { status: 403 });
     }
 
-    const userId = params.id;
+    const { id: userId } = await params;
 
-    // 4. RÉCUPÉRATION DES SESSIONS
+    // 4. RECUPERATION DES SESSIONS
     const sessions = await prisma.session.findMany({
       where: { userId: userId },
       orderBy: { lastActiveAt: "desc" },
     });
 
-    // 5. ENRICHISSEMENT AVEC GEOLOCALISATION
+    // 5. RECUPERATION DES DERNIERES ACTIVITES
+    let recentActivity: any[] = [];
+    try {
+      recentActivity = await (prisma as any).userActivity.findMany({
+        where: { userId: userId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          page: true,
+          action: true,
+          ip: true,
+          device: true,
+          browser: true,
+          os: true,
+          country: true,
+          city: true,
+          createdAt: true,
+        },
+      });
+    } catch {
+      // UserActivity table might not exist yet
+    }
+
+    // 6. ENRICHISSEMENT AVEC GEOLOCALISATION
     const enrichedSessions = await Promise.all(
       sessions.map(async (s) => {
-        let city = "Inconnu";
-        // Correction : On utilise 'ipAddress' ou 'ip' selon ton schéma
-        const currentIp = (s as any).ipAddress || (s as any).ip;
+        let geoCity = s.city || "Inconnu";
+        const currentIp = s.ip;
         
-        if (currentIp && currentIp !== "::1" && currentIp !== "127.0.0.1") {
+        if (currentIp && currentIp !== "::1" && currentIp !== "127.0.0.1" && !s.city) {
           try {
-            const geoRes = await fetch(`http://ip-api.com/json/${currentIp}?fields=city`, {
-                next: { revalidate: 3600 } // Cache pour éviter de spammer l'API IP
+            const geoRes = await fetch(`http://ip-api.com/json/${currentIp}?fields=city,country`, {
+                next: { revalidate: 3600 }
             });
             const geo = await geoRes.json();
-            city = geo.city || "Inconnu";
-          } catch (e) {
-            console.error("Geo fetch failed for IP:", currentIp);
+            geoCity = geo.city || "Inconnu";
+          } catch {
+            // silent
           }
         }
-        return { ...s, city };
+        return { ...s, city: geoCity };
       })
     );
 
-    return NextResponse.json({ sessions: enrichedSessions });
+    // 7. RECUPERATION DES SECURITY LOGS
+    const securityLogs = await prisma.securityLog.findMany({
+      where: { userId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+
+    return NextResponse.json({ 
+      sessions: enrichedSessions,
+      recentActivity,
+      securityLogs,
+    });
     
   } catch (error: any) {
     console.error("ADMIN_GET_SESSIONS_ERROR:", error.message);
