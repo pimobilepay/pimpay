@@ -8,13 +8,20 @@ import {
   Wallet, AlertTriangle, Database, Activity,
   Cpu, Terminal, ShieldCheck, ChevronRight, Rocket,
   Users, Landmark, Eye, CreditCard, ArrowUpDown,
-  ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat, ArrowLeft
+  ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat, ArrowLeft,
+  X, Loader2, Download, HardDrive, Table, Clock, Shield, Mail
 } from "lucide-react";
 export default function SystemSettings() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [dbModal, setDbModal] = useState(false);
+  const [dbData, setDbData] = useState<any>(null);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [backupModal, setBackupModal] = useState(false);
+  const [backupRunning, setBackupRunning] = useState(false);
+  const [backupSendEmail, setBackupSendEmail] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeSessions: 0,
@@ -75,6 +82,56 @@ export default function SystemSettings() {
       toast.error(error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const fetchDbInfo = async () => {
+    setDbModal(true);
+    setDbLoading(true);
+    try {
+      const res = await fetch("/api/admin/database");
+      if (res.ok) {
+        const data = await res.json();
+        setDbData(data);
+      } else {
+        toast.error("Impossible de charger les infos DB");
+        setDbModal(false);
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+      setDbModal(false);
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  const runBackup = async () => {
+    setBackupRunning(true);
+    try {
+      const url = backupSendEmail
+        ? "/api/admin/config/backup?sendEmail=true"
+        : "/api/admin/config/backup";
+      const res = await fetch(url);
+      if (res.ok) {
+        const blob = await res.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = `pimpay_backup_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(downloadUrl);
+        toast.success("Backup telecharge avec succes");
+        setBackupModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Echec du backup");
+      }
+    } catch {
+      toast.error("Erreur de connexion au serveur");
+    } finally {
+      setBackupRunning(false);
     }
   };
   if (loading) return (
@@ -204,11 +261,13 @@ export default function SystemSettings() {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <button type="button" onClick={loadData} className="h-16 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-white/10 transition-all">
-                <RefreshCw size={20} />
+              <button type="button" onClick={fetchDbInfo} className="h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/10 flex flex-col items-center justify-center gap-1 text-emerald-500 hover:bg-emerald-500/20 transition-all active:scale-95">
+                <Database size={18} />
+                <span className="text-[7px] font-black uppercase tracking-widest">Database</span>
               </button>
-              <button type="button" className="h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/20 transition-all">
-                <Database size={20} />
+              <button type="button" onClick={() => setBackupModal(true)} className="h-16 rounded-2xl bg-amber-500/10 border border-amber-500/10 flex flex-col items-center justify-center gap-1 text-amber-500 hover:bg-amber-500/20 transition-all active:scale-95">
+                <Download size={18} />
+                <span className="text-[7px] font-black uppercase tracking-widest">Backup</span>
               </button>
             </div>
           </div>
@@ -234,8 +293,230 @@ export default function SystemSettings() {
            </div>
         </div>
       </div>
+
+      {/* DATABASE INFO MODAL */}
+      {dbModal && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={() => setDbModal(false)}>
+          <div className="bg-slate-900 border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-6 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                    <Database size={20} className="text-emerald-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider">Base de Donnees</h2>
+                    <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">{dbData?.dbProvider || "PostgreSQL"}</p>
+                  </div>
+                </div>
+                <button onClick={() => setDbModal(false)} className="p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><X size={16}/></button>
+              </div>
+              {dbData && (
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Tables</p>
+                    <p className="text-lg font-black text-white">{dbData.totalTables}</p>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Rows Total</p>
+                    <p className="text-lg font-black text-emerald-400">{dbData.totalRows?.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 text-center">
+                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Backups</p>
+                    <p className="text-lg font-black text-amber-400">{dbData.backups?.length || 0}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {dbLoading ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Loader2 size={24} className="text-emerald-500 animate-spin mb-3" />
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Connexion a la base de donnees...</p>
+                </div>
+              ) : dbData ? (
+                <div className="space-y-6">
+                  {/* Tables */}
+                  <div>
+                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-[3px] mb-3">Tables ({dbData.tables?.length})</p>
+                    <div className="space-y-2">
+                      {dbData.tables?.map((table: any) => (
+                        <div key={table.name} className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 flex items-center justify-between group hover:border-white/10 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                              <TableIcon name={table.icon} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-white uppercase">{table.name}</p>
+                              <p className="text-[8px] text-slate-600 font-mono">PostgreSQL Table</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-white">{table.rows.toLocaleString()}</p>
+                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">rows</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Backup History */}
+                  <div>
+                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-[3px] mb-3">Historique Backups</p>
+                    {dbData.backups?.length > 0 ? (
+                      <div className="space-y-2">
+                        {dbData.backups.map((bk: any) => (
+                          <div key={bk.id} className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${bk.details?.includes("Cron") ? "bg-blue-500/10" : "bg-amber-500/10"}`}>
+                              {bk.details?.includes("Cron") ? (
+                                <Clock size={12} className="text-blue-400" />
+                              ) : (
+                                <Download size={12} className="text-amber-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black text-white uppercase truncate">
+                                {bk.details?.includes("Cron") ? "Backup Automatique" : "Backup Manuel"}
+                              </p>
+                              <p className="text-[8px] text-slate-500 truncate">Par {bk.adminName || "Systeme"} - {bk.details}</p>
+                            </div>
+                            <span className="text-[8px] text-slate-600 font-mono shrink-0">
+                              {new Date(bk.createdAt).toLocaleDateString("fr-FR")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-8 text-center">
+                        <HardDrive size={20} className="text-slate-600 mx-auto mb-2" />
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucun backup enregistre</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BACKUP MODAL */}
+      {backupModal && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={() => !backupRunning && setBackupModal(false)}>
+          <div className="bg-slate-900 border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-6 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                    <Download size={20} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider">Backup Manuel</h2>
+                    <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Export Complet</p>
+                  </div>
+                </div>
+                <button onClick={() => !backupRunning && setBackupModal(false)} className="p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><X size={16}/></button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-5">
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-black text-amber-400 uppercase">Attention</p>
+                    <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
+                      Cette action va exporter toutes les donnees de la base de donnees (utilisateurs, transactions, configurations, logs) dans un fichier JSON.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Donnees incluses</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {["Utilisateurs", "Configurations", "Logs Audit", "Transactions"].map((item) => (
+                    <div key={item} className="bg-white/[0.03] border border-white/[0.03] rounded-xl p-3 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-[9px] font-bold text-white uppercase">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Email option */}
+              <div
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${backupSendEmail ? "bg-blue-500/10 border-blue-500/30" : "bg-white/[0.02] border-white/5"}`}
+                onClick={() => setBackupSendEmail(!backupSendEmail)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Mail size={16} className={backupSendEmail ? "text-blue-400" : "text-slate-600"} />
+                    <div>
+                      <p className="text-[10px] font-black text-white uppercase">Envoyer par Email</p>
+                      <p className="text-[8px] text-slate-500">Recevoir le backup par email</p>
+                    </div>
+                  </div>
+                  <div className={`w-9 h-5 rounded-full relative transition-colors ${backupSendEmail ? "bg-blue-500" : "bg-slate-800"}`}>
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${backupSendEmail ? "left-5" : "left-1"}`} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => !backupRunning && setBackupModal(false)}
+                  disabled={backupRunning}
+                  className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/5 text-slate-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={runBackup}
+                  disabled={backupRunning}
+                  className="flex-1 h-14 rounded-2xl bg-amber-600 text-white font-black text-[9px] uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-70"
+                >
+                  {backupRunning ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Backup en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      <span>Lancer le Backup</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
+}
+function TableIcon({ name }: { name: string }) {
+  const iconMap: Record<string, React.ReactNode> = {
+    users: <Users size={12} className="text-emerald-400" />,
+    transaction: <ArrowUpDown size={12} className="text-blue-400" />,
+    session: <Activity size={12} className="text-cyan-400" />,
+    wallet: <Wallet size={12} className="text-amber-400" />,
+    audit: <RotateCcw size={12} className="text-orange-400" />,
+    security: <Shield size={12} className="text-red-400" />,
+    support: <HardDrive size={12} className="text-purple-400" />,
+    stats: <BarChart3 size={12} className="text-indigo-400" />,
+    activity: <Eye size={12} className="text-teal-400" />,
+    notification: <Zap size={12} className="text-pink-400" />,
+  };
+  return <>{iconMap[name] || <Database size={12} className="text-slate-400" />}</>;
 }
 function StatMiniCard({ icon, label, value, color = "text-blue-500" }: any) {
   return (
