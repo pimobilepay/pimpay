@@ -117,6 +117,7 @@ model User {
   auditLogs        AuditLog[]      @relation("admin_actions")
   targetLogs       AuditLog[]      @relation("target_user")
   securityLogs     SecurityLog[]
+  userActivities   UserActivity[]
   supportTickets   SupportTicket[]
   merchantProfile  Merchant?       @relation("user_merchant")
   swapQuotes       SwapQuote[]
@@ -416,6 +417,28 @@ model SecurityLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  page      String
+  action    String   @default("PAGE_VIEW")
+  ip        String?
+  userAgent String?
+  device    String?
+  browser   String?
+  os        String?
+  country   String?
+  city      String?
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([page])
 }
 
 model SupportTicket {

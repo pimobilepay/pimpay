@@ -6,7 +6,7 @@ import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
-  BarChart3, ArrowLeft, History
+  BarChart3, ArrowLeft, History, Eye
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -84,6 +84,7 @@ export default function AdminDashboard() {
             { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
             { label: "Support", desc: "Tickets clients", icon: <Headphones size={20} />, path: "/admin/support", color: "rose" },
             { label: "Analytics", desc: "Statistiques", icon: <BarChart3 size={20} />, path: "/admin/analytics", color: "indigo" },
+            { label: "Logs", desc: "Activite users", icon: <Eye size={20} />, path: "/admin/logs", color: "teal" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
@@ -223,6 +224,7 @@ export default function AdminDashboard() {
           {[
             { label: "Gestion Complete", desc: "Dashboard detaille avec controle total", icon: <Shield size={18} />, path: "/admin/dashboard", color: "blue" },
             { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
+            { label: "Logs Utilisateurs", desc: "Suivi d'activite en temps reel", icon: <Eye size={18} />, path: "/admin/logs", color: "blue" },
             { label: "Mode Rescue", desc: "Outils de recuperation d'urgence", icon: <AlertTriangle size={18} />, path: "/admin/rescue", color: "red" },
           ].map((item) => (
             <button

@@ -5,6 +5,7 @@ import SideMenu from "@/components/SideMenu";
 import { BottomNav } from "@/components/bottom-nav";
 import { usePathname } from "next/navigation";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { ActivityTracker } from "@/components/ActivityTracker";
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -35,6 +36,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         isDarkMode ? "bg-[#020617] text-white" : "bg-white text-slate-900"
       }`}
     >
+      <ActivityTracker />
       {!isAuthPage ? (
         <>
           {/* SideMenu : Il prend sa place à gauche sur Desktop */}
