@@ -1,12 +1,13 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft, Users, Activity, TrendingUp, TrendingDown,
   Globe, ShieldCheck, BarChart3, RefreshCw, Loader2,
   UserPlus, ArrowUpRight, ArrowDownRight, X, LayoutGrid,
-  Wallet, Headphones, Settings, Shield, Menu
+  Wallet, Headphones, Settings, Shield, Menu,
+  Eye, Monitor, Smartphone, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +57,46 @@ type AnalyticsData = {
   topCountries: { country: string; count: number }[];
   recentSignups: RecentUser[];
 };
+
+type OnlineUser = {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userAvatar: string | null;
+  currentPage: string;
+  device: string | null;
+  lastSeen: string;
+};
+
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}j`;
+}
+
+function getPageLabel(page: string): string {
+  const labels: Record<string, string> = {
+    "/": "Accueil",
+    "/dashboard": "Dashboard",
+    "/wallet": "Portefeuille",
+    "/cards": "Cartes",
+    "/send": "Envoi",
+    "/deposit": "Depot",
+    "/withdraw": "Retrait",
+    "/exchange": "Echange",
+    "/chat": "Chat",
+    "/profile": "Profil",
+    "/settings": "Parametres",
+    "/airtime": "Recharge",
+    "/notifications": "Notifications",
+    "/staking": "Staking",
+  };
+  return labels[page] || page;
+}
 
 // --- COMPONENTS ---
 
@@ -131,6 +172,7 @@ export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
   const fetchAnalytics = async () => {
     try {
@@ -149,6 +191,26 @@ export default function AdminAnalyticsPage() {
   };
 
   useEffect(() => { fetchAnalytics(); }, []);
+
+  // Fetch online users
+  const fetchOnlineUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/user-activity?limit=1&page=1");
+      if (res.ok) {
+        const json = await res.json();
+        setOnlineUsers(json.onlineUsers || []);
+      }
+    } catch {
+      // silent fail for polling
+    }
+  }, []);
+
+  // Initial fetch + polling every 15 seconds
+  useEffect(() => {
+    fetchOnlineUsers();
+    const interval = setInterval(fetchOnlineUsers, 15000);
+    return () => clearInterval(interval);
+  }, [fetchOnlineUsers]);
 
   // Pie chart data
   const rolePieData = useMemo(() => {
@@ -276,6 +338,67 @@ export default function AdminAnalyticsPage() {
               <p className="text-[8px] font-black text-slate-500 uppercase tracking-[2px] mt-1">Suspendus</p>
             </div>
           </div>
+        </div>
+
+        {/* ONLINE USERS - Real-time */}
+        <div>
+          <SectionTitle>
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Utilisateurs en Ligne ({onlineUsers.length})
+            </span>
+          </SectionTitle>
+
+          {onlineUsers.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {onlineUsers.map((user) => (
+                <div
+                  key={user.userId}
+                  className="flex-shrink-0 bg-slate-900/60 border border-emerald-500/10 rounded-[1.5rem] p-4 min-w-[170px]"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[10px]">
+                        {user.userName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#020617]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black text-white truncate">{user.userName}</p>
+                      <p className="text-[8px] text-slate-500 truncate">{user.userEmail}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Eye size={10} className="text-emerald-400" />
+                    <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider truncate">
+                      {getPageLabel(user.currentPage)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {user.device === "Mobile" ? (
+                      <Smartphone size={9} className="text-slate-500" />
+                    ) : (
+                      <Monitor size={9} className="text-slate-500" />
+                    )}
+                    <span className="text-[8px] text-slate-600">{user.device || "Inconnu"}</span>
+                    <Clock size={9} className="text-slate-500 ml-auto" />
+                    <span className="text-[8px] text-slate-600">{formatTimeAgo(user.lastSeen)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-3">
+                <Users size={20} className="text-slate-600" />
+              </div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucun utilisateur en ligne</p>
+              <p className="text-[8px] text-slate-600 mt-1">Les utilisateurs actifs apparaitront ici en temps reel</p>
+            </div>
+          )}
         </div>
 
         {/* CHART - 30 Days */}
