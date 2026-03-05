@@ -48,13 +48,13 @@ const LOGOS = {
 
 // Logos banques
 const BANK_LOGOS: Record<string, string> = {
-  zenith: "https://upload.wikimedia.org/wikipedia/en/thumb/8/81/Zenith_Bank_logo.png/200px-Zenith_Bank_logo.png",
+  zenith: "https://fr.wikipedia.org/wiki/Zenith_Bank#/media/Fichier%3AZenith-Bank-logo.png",
   access: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Access-bank-diamond.png/200px-Access-bank-diamond.png",
   uba: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/UBA_Group_Logo.svg/200px-UBA_Group_Logo.svg.png",
   gcb: "https://upload.wikimedia.org/wikipedia/en/thumb/9/9d/GCB_Bank_logo.svg/200px-GCB_Bank_logo.svg.png",
   ecobank: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Ecobank_logo.svg/200px-Ecobank_logo.svg.png",
   bgfi: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/BGFIBank_Logo.svg/200px-BGFIBank_Logo.svg.png",
-  rawbank: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Logo_RAWBANK.svg/200px-Logo_RAWBANK.svg.png",
+  rawbank: "https://upload.wikimedia.org/wikipedia/fr/6/66/Rawbank_logo.png",
   tmb: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/TMB_logo.svg/200px-TMB_logo.svg.png",
   equity: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Equity_Bank_logo.svg/200px-Equity_Bank_logo.svg.png",
   kcb: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/KCB_Group_Logo.svg/200px-KCB_Group_Logo.svg.png",
@@ -62,7 +62,7 @@ const BANK_LOGOS: Record<string, string> = {
   societe_generale: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg/200px-Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg.png",
   bnp: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/BNP_Paribas.svg/200px-BNP_Paribas.svg.png",
   revolut: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
-  nsia: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/NSIA_Banque_logo.svg/200px-NSIA_Banque_logo.svg.png",
+  nsia: "https://fr.wikipedia.org/wiki/Nouvelle_soci%C3%A9t%C3%A9_interafricaine_d%27assurance#/media/Fichier%3ANsia-logo.png",
   coris: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
 };
 
