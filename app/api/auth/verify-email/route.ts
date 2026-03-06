@@ -1,36 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { verifyEmail } from "@/lib/zerobounce";
-
-// ── Simple in-memory rate limiter ──────────────────────────────────────────────
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 5; // max 5 requests per minute per IP
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > RATE_LIMIT_MAX;
-}
-
-// Clean up old entries periodically (prevent memory leak)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitMap.entries()) {
-    if (now > entry.resetAt) {
-      rateLimitMap.delete(key);
-    }
-  }
-}, 5 * 60 * 1000); // every 5 minutes
 
 // ── Basic email format validation ──────────────────────────────────────────────
 
@@ -40,16 +10,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-    // Rate limiting
-    if (isRateLimited(ip)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later.", code: "RATE_LIMITED" },
-        { status: 429 }
-      );
-    }
-
     const body = await req.json().catch(() => ({}));
     const { email } = body;
 
@@ -62,7 +22,7 @@ export async function POST(req: Request) {
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Basic format check before calling the API
+    // Simple format validation only (no external verification)
     if (!EMAIL_REGEX.test(trimmedEmail)) {
       return NextResponse.json(
         {
@@ -75,15 +35,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Call ZeroBounce
-    const result = await verifyEmail(trimmedEmail);
-
+    // Email format is valid - no external verification needed
     return NextResponse.json({
-      isValid: result.isValid,
-      status: result.status,
-      subStatus: result.subStatus,
-      isDisposable: result.isDisposable,
-      message: result.message,
+      isValid: true,
+      status: "valid",
+      isDisposable: false,
+      message: "Email format valid",
     });
   } catch (error: unknown) {
     console.error("[verify-email] Error:", error);
