@@ -144,13 +144,28 @@ async function sendStellarBased(tx: any, dest: string, encryptedKey: string | nu
 // --- LOGIQUE EVM (Sidra, USDT) ---
 async function sendEVM(tx: any, dest: string, encryptedKey: string | null, rpc: string) {
   if (!encryptedKey) throw new Error(`Clé ${tx.currency} manquante`);
+  
+  // Gérer les clés chiffrées et non chiffrées (legacy)
+  let privateKey = encryptedKey;
+  if (encryptedKey.includes(':')) {
+    // Clé chiffrée (format: iv:encryptedData)
+    privateKey = decrypt(encryptedKey);
+  }
+  // Si la clé commence par 0x, c'est déjà une clé privée valide
+  if (!privateKey.startsWith('0x')) {
+    privateKey = '0x' + privateKey;
+  }
+  
   const provider = new ethers.JsonRpcProvider(rpc);
-  const wallet = new ethers.Wallet(decrypt(encryptedKey), provider);
+  const wallet = new ethers.Wallet(privateKey, provider);
   
   // Envoi de la monnaie native (SDA ou BNB/ETH selon le réseau)
   const response = await wallet.sendTransaction({
     to: dest,
     value: ethers.parseEther(tx.amount.toString())
   });
-  return response.hash;
+  
+  // Attendre la confirmation de la transaction
+  const receipt = await response.wait();
+  return receipt?.hash || response.hash;
 }

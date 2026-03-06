@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import * as jose from "jose";
 import { Wallet } from "ethers";
+import { encrypt } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -51,13 +52,12 @@ export async function POST(req: Request) {
 
     // 3. TRANSACTION ATOMIQUE : Sécurité bancaire PimPay
     const result = await prisma.$transaction(async (tx) => {
-      // Mise à jour des clés sur le profil utilisateur
+      // Mise à jour des clés sur le profil utilisateur (clé privée chiffrée)
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           sidraAddress: wallet.address,
-          // Attention: En production, il vaudrait mieux chiffrer la clé privée
-          sidraPrivateKey: wallet.privateKey 
+          sidraPrivateKey: encrypt(wallet.privateKey) // Chiffrement sécurisé
         },
         select: { sidraAddress: true }
       });

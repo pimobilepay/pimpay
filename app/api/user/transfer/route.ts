@@ -7,6 +7,14 @@ import { jwtVerify } from "jose";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { ethers } from "ethers";
+import { decrypt } from "@/lib/crypto";
+
+// Configuration RPC pour les blockchains supportées
+const RPC_URLS: Record<string, string> = {
+  SDA: "https://node.sidrachain.com",
+  SIDRA: "https://node.sidrachain.com",
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -217,7 +225,55 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Create PENDING withdraw transaction
+        // Pour SDA/SIDRA, on execute le transfert blockchain immediatement
+        let blockchainTxHash: string | null = null;
+        let txStatus = TransactionStatus.PENDING;
+
+        if (currency === "SDA" || currency === "SIDRA") {
+          // Recuperer les infos de l'expediteur pour la cle privee
+          const senderUser = await tx.user.findUnique({
+            where: { id: senderId },
+            select: { sidraPrivateKey: true, sidraAddress: true }
+          });
+
+          if (senderUser?.sidraPrivateKey) {
+            try {
+              // Dechiffrer la cle privee
+              let privateKey = senderUser.sidraPrivateKey;
+              if (privateKey.includes(':')) {
+                privateKey = decrypt(privateKey);
+              }
+              if (!privateKey.startsWith('0x')) {
+                privateKey = '0x' + privateKey;
+              }
+
+              // Executer le transfert sur Sidra Chain
+              const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
+              const wallet = new ethers.Wallet(privateKey, provider);
+              
+              const txResponse = await wallet.sendTransaction({
+                to: recipientInput,
+                value: ethers.parseEther(amount.toString())
+              });
+
+              // Attendre la confirmation
+              const receipt = await txResponse.wait();
+              blockchainTxHash = receipt?.hash || txResponse.hash;
+              txStatus = TransactionStatus.SUCCESS;
+
+            } catch (blockchainError: any) {
+              console.error("[BLOCKCHAIN_ERROR]:", blockchainError.message);
+              // En cas d'echec blockchain, on rembourse l'utilisateur
+              await tx.wallet.update({
+                where: { id: senderWallet.id },
+                data: { balance: { increment: totalDebit } },
+              });
+              throw new Error(`Erreur blockchain: ${blockchainError.message || "Transaction echouee"}`);
+            }
+          }
+        }
+
+        // Create transaction record
         const transaction = await tx.transaction.create({
           data: {
             reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
@@ -226,7 +282,8 @@ export async function POST(req: NextRequest) {
             netAmount: amount,
             currency,
             type: TransactionType.WITHDRAW,
-            status: TransactionStatus.PENDING,
+            status: txStatus,
+            blockchainTx: blockchainTxHash,
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
             description:
@@ -236,6 +293,7 @@ export async function POST(req: NextRequest) {
               externalAddress: recipientInput,
               network: currency,
               isBlockchainWithdraw: true,
+              executedAt: blockchainTxHash ? new Date().toISOString() : null,
             },
           },
         });
@@ -248,18 +306,22 @@ export async function POST(req: NextRequest) {
           })
           .catch(() => {});
 
-        return { type: "EXTERNAL" as const, transaction };
+        return { type: "EXTERNAL" as const, transaction, blockchainTxHash };
       },
       { maxWait: 5000, timeout: 20000 }
     );
 
+    const isBlockchainSuccess = result.type === "EXTERNAL" && result.transaction.status === "SUCCESS";
+    
     return NextResponse.json({
       success: true,
       mode: result.type,
       message:
         result.type === "INTERNAL"
           ? "Transfert interne reussi"
-          : "Retrait externe enregistre (en attente de traitement)",
+          : isBlockchainSuccess 
+            ? "Transfert blockchain execute avec succes"
+            : "Retrait externe enregistre (en attente de traitement)",
       transaction: {
         id: result.transaction.id,
         reference: result.transaction.reference,
@@ -268,6 +330,7 @@ export async function POST(req: NextRequest) {
         currency: result.transaction.currency,
         status: result.transaction.status,
         type: result.transaction.type,
+        blockchainTx: result.transaction.blockchainTx || null,
       },
     });
   } catch (error: any) {
