@@ -23,11 +23,11 @@ export async function POST(request: Request) {
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {
-      return NextResponse.json({ error: "Données incomplètes (paymentId et txid requis)" }, { status: 400 });
+      return NextResponse.json({ error: "Données incomplètes" }, { status: 400 });
     }
 
     // --- 2. VALIDATION PI NETWORK (S2S) ---
-    // IMPORTANT: On appelle /complete pour finaliser le paiement sur Pi Network
+    // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)
     const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
@@ -38,145 +38,86 @@ export async function POST(request: Request) {
     });
 
     const piData = await piRes.json();
+    
+    // Si Pi dit que c'est déjà complété, on continue pour synchroniser notre base
     const isAlreadyCompleted = piData.message === "Payment already completed";
     
     if (!piRes.ok && !isAlreadyCompleted) {
-      console.error("Pi Network Complete Error:", piData);
-      // NE PAS créditer si Pi Network refuse
-      return NextResponse.json({ 
-        error: "Pi Network n'a pas pu valider ce paiement",
-        details: piData.message || "Transaction non confirmée sur la blockchain"
-      }, { status: 403 });
+      console.error("❌ Pi Network Error:", piData);
+      return NextResponse.json({ error: "Échec validation Pi Network" }, { status: 403 });
     }
 
-    // --- 3. VÉRIFICATION DU PAIEMENT AUPRÈS DE PI NETWORK ---
-    // On vérifie que le paiement existe vraiment et est complété
-    const verifyRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Key ${PI_API_KEY}`,
-      },
+    // --- 3. RÉCUPÉRATION OU RÉCRÉATION DE LA TRANSACTION ---
+    // Correction du crash findUnique : On utilise findUnique mais on gère l'absence
+    let transaction = await prisma.transaction.findUnique({
+      where: { externalId: paymentId }
     });
 
-    const paymentDetails = await verifyRes.json().catch(() => ({}));
-    
-    // Vérifier que la transaction blockchain est confirmée
-    if (!isAlreadyCompleted && paymentDetails.status?.transaction_verified !== true) {
-      console.error("Transaction Pi non vérifiée:", paymentDetails.status);
-      return NextResponse.json({ 
-        error: "La transaction n'est pas encore confirmée sur la blockchain Pi",
-        status: paymentDetails.status
-      }, { status: 403 });
-    }
+    // Si la transaction n'existe pas (cas du db-clean-up), on la recrée
+    if (!transaction) {
+      console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
+      
+      // On récupère le montant depuis piData ou on met une valeur par défaut sécurisée
+      const amountFromPi = piData.amount || 0; 
 
-    // Utiliser le montant vérifié par Pi Network
-    const verifiedAmount = parseFloat(paymentDetails.amount || piData.amount || 0);
-    
-    if (verifiedAmount <= 0) {
-      return NextResponse.json({ 
-        error: "Montant invalide ou non vérifié par Pi Network" 
-      }, { status: 400 });
-    }
-
-    // --- 4. VÉRIFICATION ANTI-DOUBLON ---
-    const existingSuccessTx = await prisma.transaction.findFirst({
-      where: {
-        OR: [
-          { externalId: paymentId },
-          { blockchainTx: txid }
-        ],
-        status: TransactionStatus.SUCCESS
-      }
-    });
-
-    if (existingSuccessTx) {
-      return NextResponse.json({ 
-        success: true, 
-        message: "Transaction déjà créditée",
-        amount: existingSuccessTx.amount 
+      transaction = await prisma.transaction.create({
+        data: {
+          reference: `REC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          externalId: paymentId,
+          amount: amountFromPi,
+          currency: "PI",
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.PENDING,
+          toUserId: userId,
+          description: "Récupération dépôt Pi Network"
+        }
       });
     }
 
-    // --- 5. MISE À JOUR BANCAIRE ATOMIQUE ---
+    // Sécurité : Éviter le double crédit
+    if (transaction.status === TransactionStatus.SUCCESS) {
+      return NextResponse.json({ success: true, message: "Déjà crédité" });
+    }
+
+    // --- 4. MISE À JOUR BANCAIRE ATOMIQUE ---
     const finalResult = await prisma.$transaction(async (tx) => {
-      // Chercher une transaction PENDING existante
-      let transaction = await tx.transaction.findFirst({
-        where: { externalId: paymentId }
-      });
-
-      // Si aucune transaction existe, en créer une nouvelle
-      if (!transaction) {
-        transaction = await tx.transaction.create({
-          data: {
-            reference: `PI-${paymentId.slice(-8).toUpperCase()}`,
-            externalId: paymentId,
-            blockchainTx: txid,
-            amount: verifiedAmount,
-            currency: "PI",
-            type: TransactionType.DEPOSIT,
-            status: TransactionStatus.PENDING,
-            toUserId: userId,
-            description: "Dépôt Pi Network (vérifié)",
-            metadata: {
-              piVerified: true,
-              verifiedAmount: verifiedAmount
-            }
-          }
-        });
-      }
-
-      // Wallet upsert avec crédit du montant vérifié
+      // Utilisation de upsert pour le Wallet pour éviter tout crash si le wallet PI n'existe pas
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
-        update: { balance: { increment: verifiedAmount } },
+        update: { balance: { increment: transaction!.amount } },
         create: {
           userId,
           currency: "PI",
-          balance: verifiedAmount,
+          balance: transaction!.amount,
           type: WalletType.PI
         }
       });
 
       // Mise à jour de la transaction en SUCCESS
-      const updatedTx = await tx.transaction.update({
-        where: { id: transaction.id },
+      return await tx.transaction.update({
+        where: { id: transaction!.id },
         data: {
           status: TransactionStatus.SUCCESS,
           blockchainTx: txid,
           toWalletId: wallet.id,
-          amount: verifiedAmount, // S'assurer que le montant est celui vérifié
           metadata: {
             completedAt: new Date().toISOString(),
-            piNetworkVerified: true,
-            blockchainConfirmed: true
+            recoveredAfterCleanup: true
           }
         }
       });
-
-      // Notification de succès
-      await tx.notification.create({
-        data: {
-          userId,
-          title: "Dépôt Pi confirmé",
-          message: `Votre compte a été crédité de ${verifiedAmount} PI.`,
-          type: "SUCCESS"
-        }
-      });
-
-      return updatedTx;
     }, { maxWait: 10000, timeout: 30000 });
   
-    console.log(`[PIMPAY] Portefeuille credite : ${verifiedAmount} PI pour ${userId}`);
+    console.log(`[PIMPAY] Portefeuille credite : ${transaction.amount} PI pour ${userId}`);
 
     return NextResponse.json({
       success: true,
-      message: "Dépôt Pi confirmé et crédité !",
-      amount: verifiedAmount,
-      transaction: finalResult
+      message: "Solde mis à jour !",
+      amount: transaction.amount
     });
 
   } catch (error: any) {
-    console.error("[CRITICAL_PAYMENT_ERROR]:", error.message);
+    console.error("❌ [CRITICAL_PAYMENT_ERROR]:", error.message);
     return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
   }
 }

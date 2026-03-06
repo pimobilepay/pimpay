@@ -19,66 +19,30 @@ async function getAuthUser() {
 }
 
 // POST : CRÉATION DE LA TRANSACTION
-// IMPORTANT: Pour Pi Network, on ne crée PAS de transaction ici.
-// La transaction sera créée uniquement après confirmation réelle par Pi Network.
 export async function POST(req: NextRequest) {
   try {
     const userId = await getAuthUser();
     if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     
     const body = await req.json();
-    const { amount, fee, type, currency, method, operatorId, accountNumber, countryCode, description, paymentId, txid } = body;
+    const { amount, fee, type, currency, method, operatorId, accountNumber, countryCode, description } = body;
 
     const parsedAmount = parseFloat(amount);
 
-    // Pour Pi Network: on ne crée la transaction QUE si paymentId et txid sont fournis
-    // (cela signifie que le paiement a été effectué sur Pi SDK)
-    if (currency === "PI") {
-      if (!paymentId || !txid) {
-        // Retourner un "intent" sans créer de transaction
-        // La vraie transaction sera créée après confirmation Pi Network
-        return NextResponse.json({
-          intent: true,
-          message: "Intent de dépôt Pi enregistré. Effectuez le paiement sur Pi SDK.",
-          amount: parsedAmount,
-          currency: "PI",
-          userId
-        });
+    // 1. ANTI-DOUBLON (IDEMPOTENCE)
+    // On vérifie si une transaction identique existe déjà depuis moins de 30 secondes
+    const existingTx = await prisma.transaction.findFirst({
+      where: {
+        fromUserId: userId,
+        amount: parsedAmount,
+        currency: currency || "USD",
+        status: "PENDING",
+        createdAt: { gte: new Date(Date.now() - 30 * 1000) } // 30 secondes
       }
+    });
 
-      // Vérifier que le paiement n'existe pas déjà
-      const existingPiTx = await prisma.transaction.findFirst({
-        where: {
-          OR: [
-            { externalId: paymentId },
-            { blockchainTx: txid }
-          ]
-        }
-      });
-
-      if (existingPiTx) {
-        return NextResponse.json({ 
-          error: "Cette transaction Pi a déjà été traitée.",
-          transaction: existingPiTx 
-        }, { status: 409 });
-      }
-    }
-
-    // 1. ANTI-DOUBLON (IDEMPOTENCE) - seulement pour les autres devises
-    if (currency !== "PI") {
-      const existingTx = await prisma.transaction.findFirst({
-        where: {
-          fromUserId: userId,
-          amount: parsedAmount,
-          currency: currency || "USD",
-          status: "PENDING",
-          createdAt: { gte: new Date(Date.now() - 30 * 1000) } // 30 secondes
-        }
-      });
-
-      if (existingTx) {
-        return NextResponse.json({ error: "Transaction déjà en cours, veuillez patienter." }, { status: 409 });
-      }
+    if (existingTx) {
+      return NextResponse.json({ error: "Transaction déjà en cours, veuillez patienter." }, { status: 409 });
     }
 
     // 2. GÉNÉRATION RÉFÉRENCE
@@ -93,15 +57,12 @@ export async function POST(req: NextRequest) {
         netAmount: parsedAmount - parseFloat(fee || 0),
         currency: currency || "USD",
         type: type || "DEPOSIT",
-        status: currency === "PI" ? "PENDING" : "PENDING", // Pi: sera mis à jour après validation
+        status: "PENDING",
         description: description || `Dépôt via ${method}`,
         operatorId,
-        accountNumber: currency === "PI" ? "PI_NETWORK" : accountNumber,
+        accountNumber: currency === "PI" ? "PI_NETWORK" : accountNumber, // Sécurité pour Pi
         countryCode,
         fromUserId: userId,
-        toUserId: userId, // Pour les dépôts, l'utilisateur est aussi le destinataire
-        externalId: currency === "PI" ? paymentId : undefined,
-        blockchainTx: currency === "PI" ? txid : undefined,
       }
     });
 
