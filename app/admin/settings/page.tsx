@@ -148,61 +148,82 @@ export default function SystemSettings() {
     setOptimizing(true);
     setOptimizationResults(null);
     
-    // Initial vulnerabilities to scan
-    const vulnerabilities = [
-      { name: "SQL Injection Protection", severity: "critical", status: 'scanning' as const, description: "Verification des requetes parametrees" },
-      { name: "XSS Prevention", severity: "high", status: 'scanning' as const, description: "Echappement des entrees utilisateur" },
-      { name: "CSRF Token Validation", severity: "high", status: 'scanning' as const, description: "Protection contre les attaques CSRF" },
-      { name: "Rate Limiting", severity: "medium", status: 'scanning' as const, description: "Limitation du nombre de requetes" },
-      { name: "Session Security", severity: "critical", status: 'scanning' as const, description: "Securisation des sessions utilisateur" },
-      { name: "API Authentication", severity: "critical", status: 'scanning' as const, description: "Verification des tokens JWT" },
-      { name: "Data Encryption", severity: "high", status: 'scanning' as const, description: "Chiffrement des donnees sensibles" },
-      { name: "Input Validation", severity: "medium", status: 'scanning' as const, description: "Validation des entrees formulaires" },
+    // Initialize scanning state with placeholder items
+    const initialVulnerabilities = [
+      { name: "Analyse des vulnerabilites...", severity: "critical" as const, status: 'scanning' as const, description: "Scan en cours..." },
     ];
 
-    const performance = [
-      { name: "Database Queries", improvement: "scanning", status: 'scanning' as const, description: "Optimisation des requetes N+1" },
-      { name: "Cache Management", improvement: "scanning", status: 'scanning' as const, description: "Mise en cache des donnees frequentes" },
-      { name: "Image Optimization", improvement: "scanning", status: 'scanning' as const, description: "Compression des images" },
-      { name: "Bundle Size", improvement: "scanning", status: 'scanning' as const, description: "Reduction du poids JavaScript" },
-      { name: "Memory Usage", improvement: "scanning", status: 'scanning' as const, description: "Liberation de la memoire inutilisee" },
-      { name: "API Response Time", improvement: "scanning", status: 'scanning' as const, description: "Amelioration du temps de reponse" },
+    const initialPerformance = [
+      { name: "Optimisation en cours...", improvement: "scanning", status: 'scanning' as const, description: "Analyse des performances..." },
     ];
 
-    setOptimizationResults({ vulnerabilities, performance, overallScore: 0, scanComplete: false });
+    setOptimizationResults({ vulnerabilities: initialVulnerabilities, performance: initialPerformance, overallScore: 0, scanComplete: false });
 
-    // Simulate scanning and fixing vulnerabilities
-    for (let i = 0; i < vulnerabilities.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setOptimizationResults(prev => {
-        if (!prev) return prev;
-        const updated = [...prev.vulnerabilities];
-        updated[i] = { ...updated[i], status: 'fixed' as const };
-        return { ...prev, vulnerabilities: updated };
+    try {
+      // Call the real API endpoint
+      const response = await fetch("/api/admin/system-optimizer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
       });
-    }
 
-    // Simulate performance optimizations
-    const improvements = ["+45%", "+32%", "+28%", "-40%", "+25%", "+55%"];
-    for (let i = 0; i < performance.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      setOptimizationResults(prev => {
-        if (!prev) return prev;
-        const updated = [...prev.performance];
-        updated[i] = { ...updated[i], status: 'optimized' as const, improvement: improvements[i] };
-        return { ...prev, performance: updated };
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Erreur lors de l'optimisation");
+      }
+
+      const data = await response.json();
+      
+      // Map API response to component state format
+      const mappedVulnerabilities = data.vulnerabilities.map((v: { name: string; severity: string; status: string; description: string }) => ({
+        name: v.name,
+        severity: v.severity,
+        status: v.status === "fixed" ? "fixed" as const : v.status === "detected" ? "pending" as const : "fixed" as const,
+        description: v.description
+      }));
+
+      const mappedPerformance = data.performance.map((p: { name: string; improvement: string; status: string; description: string }) => ({
+        name: p.name,
+        improvement: p.improvement,
+        status: p.status === "optimized" ? "optimized" as const : "pending" as const,
+        description: p.description
+      }));
+
+      // Animate the results appearing one by one
+      for (let i = 0; i < mappedVulnerabilities.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setOptimizationResults(prev => {
+          if (!prev) return prev;
+          const updated = [...mappedVulnerabilities.slice(0, i + 1)];
+          return { ...prev, vulnerabilities: updated };
+        });
+      }
+
+      for (let i = 0; i < mappedPerformance.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setOptimizationResults(prev => {
+          if (!prev) return prev;
+          const updated = [...mappedPerformance.slice(0, i + 1)];
+          return { ...prev, performance: updated };
+        });
+      }
+
+      // Final update with score
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setOptimizationResults({
+        vulnerabilities: mappedVulnerabilities,
+        performance: mappedPerformance,
+        overallScore: data.overallScore,
+        scanComplete: true
       });
+
+      toast.success(`Systeme optimise! Score: ${data.overallScore}/100 (${data.scanTime}ms)`);
+      
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur de connexion au serveur");
+      setOptimizationResults(null);
+    } finally {
+      setOptimizing(false);
     }
-
-    // Final score calculation
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setOptimizationResults(prev => {
-      if (!prev) return prev;
-      return { ...prev, overallScore: 98, scanComplete: true };
-    });
-
-    setOptimizing(false);
-    toast.success("Systeme optimise et securise avec succes!");
   };
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-[#020617]">
