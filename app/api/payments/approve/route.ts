@@ -14,6 +14,11 @@ export async function POST(req: Request) {
     const PI_API_KEY = process.env.PI_API_KEY;
     const JWT_SECRET = process.env.JWT_SECRET;
 
+    // Validation des données requises
+    if (!paymentId) {
+      return NextResponse.json({ error: "paymentId requis" }, { status: 400 });
+    }
+
     // 1. AUTHENTIFICATION
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
@@ -24,6 +29,7 @@ export async function POST(req: Request) {
     const userId = payload.id as string;
 
     // 2. APPROBATION S2S (Server-to-Server) avec Pi Network
+    // IMPORTANT: On ne crée PAS de transaction si Pi Network refuse
     const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
       method: "POST",
       headers: {
@@ -32,21 +38,68 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!approveRes.ok) {
-      const err = await approveRes.json();
-      // Si c'est déjà approuvé, on ne bloque pas la logique Prisma
-      if (err.message !== "Payment already approved") {
-        console.error("❌ Erreur Pi Approve:", err);
-        return NextResponse.json({ error: "Pi Network refuse l'approbation" }, { status: 403 });
-      }
+    const approveData = await approveRes.json().catch(() => ({}));
+    const isAlreadyApproved = approveData.message === "Payment already approved";
+
+    if (!approveRes.ok && !isAlreadyApproved) {
+      console.error("Pi Network refuse l'approbation:", approveData);
+      // NE PAS créer de transaction si Pi Network refuse
+      return NextResponse.json({ 
+        error: "Pi Network a refusé le paiement. Aucune transaction créée.",
+        details: approveData.message || "Erreur inconnue"
+      }, { status: 403 });
     }
 
-    // 3. TRANSACTION ATOMIQUE PRISMA (Sécurisée contre le cleanup)
-    // On cherche d'abord une transaction PENDING existante pour cet utilisateur
-    // afin d'éviter la création d'un doublon (la transaction initiale a été créée par /api/pi/transaction)
+    // 3. VÉRIFICATION: Le paiement existe-t-il vraiment sur Pi Network?
+    // On récupère les détails du paiement pour confirmer qu'il est valide
+    const verifyRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Key ${PI_API_KEY}`,
+      },
+    });
+
+    if (!verifyRes.ok) {
+      console.error("Impossible de vérifier le paiement Pi");
+      return NextResponse.json({ 
+        error: "Impossible de vérifier le paiement auprès de Pi Network" 
+      }, { status: 403 });
+    }
+
+    const paymentDetails = await verifyRes.json();
+    
+    // Vérifier que le paiement est bien destiné à notre app et a le bon statut
+    if (paymentDetails.status?.developer_approved === false) {
+      return NextResponse.json({ 
+        error: "Le paiement n'a pas été approuvé par Pi Network" 
+      }, { status: 403 });
+    }
+
+    // Utiliser le montant vérifié par Pi Network, pas celui envoyé par le client
+    const verifiedAmount = parseFloat(paymentDetails.amount || amount);
+
+    // 4. VÉRIFICATION ANTI-DOUBLON
+    const existingTx = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { externalId: paymentId },
+          { blockchainTx: txid }
+        ]
+      }
+    });
+
+    if (existingTx && existingTx.status === TransactionStatus.SUCCESS) {
+      return NextResponse.json({ 
+        success: true, 
+        message: "Transaction déjà traitée",
+        transaction: existingTx 
+      });
+    }
+
+    // 5. TRANSACTION ATOMIQUE PRISMA - Création sécurisée
     const result = await prisma.$transaction(async (tx) => {
       
-      // Gérer le Wallet avec UPSERT (Crée le wallet s'il n'existe pas encore)
+      // Gérer le Wallet avec UPSERT
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
         update: {},
@@ -58,51 +111,40 @@ export async function POST(req: Request) {
         }
       });
 
-      // Chercher la transaction PENDING existante créée par /api/pi/transaction
-      // Elle n'a pas d'externalId car elle a été créée avant le flux Pi SDK
-      const existingPendingTx = await tx.transaction.findFirst({
-        where: {
-          fromUserId: userId,
-          type: TransactionType.DEPOSIT,
-          status: TransactionStatus.PENDING,
-          currency: "PI",
-        },
-        orderBy: { createdAt: "desc" }
-      });
-
       let transaction;
 
-      if (existingPendingTx) {
-        // Mettre à jour la transaction existante au lieu d'en créer une nouvelle
+      if (existingTx) {
+        // Mettre à jour la transaction existante
         transaction = await tx.transaction.update({
-          where: { id: existingPendingTx.id },
+          where: { id: existingTx.id },
           data: {
             externalId: paymentId,
             blockchainTx: txid || null,
             toWalletId: wallet.id,
             toUserId: userId,
-            description: memo || existingPendingTx.description || "Dépôt Pi Network",
+            amount: verifiedAmount, // Utiliser le montant vérifié
+            description: memo || existingTx.description || "Dépôt Pi Network",
           }
         });
       } else {
-        // Fallback : upsert sur externalId si aucune transaction PENDING trouvée
-        transaction = await tx.transaction.upsert({
-          where: { externalId: paymentId },
-          update: {
-            blockchainTx: txid || null,
-            toWalletId: wallet.id
-          },
-          create: {
-            reference: `DEP-${paymentId.slice(-6).toUpperCase()}`,
+        // Créer nouvelle transaction uniquement si paymentId vérifié
+        transaction = await tx.transaction.create({
+          data: {
+            reference: `PI-DEP-${paymentId.slice(-6).toUpperCase()}`,
             externalId: paymentId,
             blockchainTx: txid || null,
-            amount: parseFloat(amount),
+            amount: verifiedAmount,
             currency: "PI",
             type: TransactionType.DEPOSIT,
-            status: TransactionStatus.PENDING,
-            description: memo || "Dépôt Pi Network",
+            status: TransactionStatus.PENDING, // PENDING jusqu'à /complete
+            description: memo || "Dépôt Pi Network (vérifié)",
             toUserId: userId,
-            toWalletId: wallet.id
+            toWalletId: wallet.id,
+            metadata: {
+              piVerified: true,
+              verifiedAt: new Date().toISOString(),
+              piStatus: paymentDetails.status
+            }
           }
         });
       }
@@ -110,33 +152,14 @@ export async function POST(req: Request) {
       return transaction;
     }, { maxWait: 10000, timeout: 30000 });
 
-    // 4. COMPLÉTION FINALE (Optionnel ici car souvent géré par le callback complete, mais sécurisant)
-    // On ne bloque pas si ça échoue ici, car le SDK s'en chargera
-    fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${PI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ txid: txid || "" }),
-    }).catch(e => console.warn("⚠️ Pi /complete auto-call skip"));
-
-    // 5. NOTIFICATION utilisateur pour confirmation instantanee
-    try {
-      await prisma.notification.create({
-        data: {
-          userId,
-          title: "Depot Pi approuve !",
-          message: `Votre depot de ${parseFloat(amount)} PI a ete credite automatiquement.`,
-          type: "SUCCESS",
-        }
-      });
-    } catch (_) { /* notification non-bloquante */ }
-
-    return NextResponse.json({ success: true, transaction: result });
+    return NextResponse.json({ 
+      success: true, 
+      transaction: result,
+      message: "Paiement approuvé. En attente de confirmation blockchain."
+    });
 
   } catch (error: any) {
-    console.error("❌ [APPROVE_ERROR]:", error.message);
+    console.error("[APPROVE_ERROR]:", error.message);
     return NextResponse.json({ error: error.message || "Erreur serveur" }, { status: 500 });
   }
 }
