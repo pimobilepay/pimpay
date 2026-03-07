@@ -134,7 +134,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
   const isPiUser = !!user.piUserId;
 
@@ -188,6 +188,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-white/5 gap-1 overflow-x-auto no-scrollbar">
+        <button onClick={onViewBalance} title="Voir Soldes" className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl shrink-0 hover:bg-emerald-500/20 transition-colors"><Wallet size={14} /></button>
         <button onClick={onViewSessions} title="Infos Session" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><MonitorSmartphone size={14} /></button>
         <button onClick={onResetPin} title="PIN" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Hash size={14} /></button>
         <button onClick={onResetPassword} title="Password" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Key size={14} /></button>
@@ -200,7 +201,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
         <button onClick={() => {
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
-        }} title="Balance" className="p-2 bg-green-500/10 text-green-500 rounded-xl shrink-0"><CreditCard size={14} /></button>
+        }} title="Ajuster Balance" className="p-2 bg-green-500/10 text-green-500 rounded-xl shrink-0"><CreditCard size={14} /></button>
         <button onClick={onAirdrop} title="Airdrop" className="p-2 bg-amber-500/10 text-amber-500 rounded-xl shrink-0"><Gift size={14} /></button>
       </div>
     </div>
@@ -235,6 +236,7 @@ function DashboardContent() {
   const [maintTime, setMaintTime] = useState("");
   const [sessionInfo, setSessionInfo] = useState<UserSessionInfo>(null);
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
+  const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -539,6 +541,7 @@ function DashboardContent() {
                               const msg = prompt(`Notification support pour ${user.username || user.name} :`);
                               if (msg && msg.trim()) handleAction(user.id, "SEND_SUPPORT_NOTIFICATION", 0, msg.trim());
                             }}
+                            onViewBalance={() => setBalanceModalUser(user)}
                         />
                     ))}
                 </div>
@@ -1030,6 +1033,171 @@ function DashboardContent() {
                   <p className="text-[10px] font-black uppercase tracking-wider">{role}</p>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER BALANCE MODAL */}
+      {balanceModalUser && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setBalanceModalUser(null)}>
+          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-md space-y-5 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pb-3 border-b border-white/5">
+              <div>
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[3px]">Soldes Utilisateur</p>
+                <p className="text-sm font-black text-white uppercase mt-1">{balanceModalUser.username || balanceModalUser.name || "Utilisateur"}</p>
+                <p className="text-[9px] text-slate-500 font-mono mt-0.5">{balanceModalUser.email}</p>
+              </div>
+              <button onClick={() => setBalanceModalUser(null)} className="p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><X size={16}/></button>
+            </div>
+
+            {/* Total Balance */}
+            <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-2xl p-4">
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Valeur Totale Estimee</p>
+              <p className="text-2xl font-black text-white">
+                {balanceModalUser.wallets?.reduce((acc: number, w: any) => acc + (w.balance || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} <span className="text-sm text-slate-500">unites</span>
+              </p>
+            </div>
+
+            {/* Crypto Balances */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <CircleDot size={14} className="text-amber-500" />
+                <p className="text-[9px] font-black text-amber-400 uppercase tracking-[2px]">Crypto Balances</p>
+              </div>
+              <div className="space-y-2">
+                {balanceModalUser.wallets?.filter((w: any) => ["PI", "SDA", "BTC", "ETH", "USDT", "USDC"].includes(w.currency.toUpperCase())).length > 0 ? (
+                  balanceModalUser.wallets?.filter((w: any) => ["PI", "SDA", "BTC", "ETH", "USDT", "USDC"].includes(w.currency.toUpperCase())).map((wallet: any) => (
+                    <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-amber-500/20 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] ${
+                          wallet.currency.toUpperCase() === "PI" ? "bg-amber-500/20 text-amber-400" :
+                          wallet.currency.toUpperCase() === "SDA" ? "bg-emerald-500/20 text-emerald-400" :
+                          wallet.currency.toUpperCase() === "BTC" ? "bg-orange-500/20 text-orange-400" :
+                          wallet.currency.toUpperCase() === "ETH" ? "bg-blue-500/20 text-blue-400" :
+                          "bg-green-500/20 text-green-400"
+                        }`}>
+                          {wallet.currency.toUpperCase() === "PI" ? "π" : wallet.currency.substring(0, 3).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
+                          <p className="text-[9px] text-slate-500 font-bold">Crypto</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-white">{wallet.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</p>
+                        <p className="text-[9px] text-slate-500 font-mono">{wallet.currency}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 border border-white/5 rounded-xl text-center">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Aucun solde crypto</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Fiat Balances */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Landmark size={14} className="text-blue-500" />
+                <p className="text-[9px] font-black text-blue-400 uppercase tracking-[2px]">Fiat Balances</p>
+              </div>
+              <div className="space-y-2">
+                {balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())).length > 0 ? (
+                  balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())).map((wallet: any) => (
+                    <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-blue-500/20 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] ${
+                          wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "bg-green-500/20 text-green-400" :
+                          wallet.currency.toUpperCase() === "EUR" ? "bg-blue-500/20 text-blue-400" :
+                          wallet.currency.toUpperCase() === "USD" ? "bg-emerald-500/20 text-emerald-400" :
+                          "bg-purple-500/20 text-purple-400"
+                        }`}>
+                          {wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "F" :
+                           wallet.currency.toUpperCase() === "EUR" ? "€" :
+                           wallet.currency.toUpperCase() === "USD" ? "$" :
+                           wallet.currency.toUpperCase() === "GBP" ? "£" : wallet.currency.substring(0, 2)}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
+                          <p className="text-[9px] text-slate-500 font-bold">Fiat</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-white">{wallet.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] text-slate-500 font-mono">{wallet.currency}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 border border-white/5 rounded-xl text-center">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Aucun solde fiat</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Other Balances */}
+            {balanceModalUser.wallets?.filter((w: any) => 
+              !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())
+            ).length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Wallet size={14} className="text-purple-500" />
+                  <p className="text-[9px] font-black text-purple-400 uppercase tracking-[2px]">Autres Devises</p>
+                </div>
+                <div className="space-y-2">
+                  {balanceModalUser.wallets?.filter((w: any) => 
+                    !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())
+                  ).map((wallet: any) => (
+                    <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-slate-700/50 flex items-center justify-center font-black text-[10px] text-slate-400">
+                          {wallet.currency.substring(0, 3).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
+                          <p className="text-[9px] text-slate-500 font-bold">Autre</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-white">{wallet.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</p>
+                        <p className="text-[9px] text-slate-500 font-mono">{wallet.currency}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions */}
+            <div className="flex gap-2 pt-3 border-t border-white/5">
+              <button
+                onClick={() => {
+                  const amount = prompt(`Ajuster solde pour ${balanceModalUser.username || balanceModalUser.name}:`);
+                  if (amount) {
+                    handleAction(balanceModalUser.id, 'UPDATE_BALANCE', parseFloat(amount));
+                    setBalanceModalUser(null);
+                  }
+                }}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <CreditCard size={14} /> Ajuster
+              </button>
+              <button
+                onClick={() => {
+                  const amount = prompt(`Airdrop pour ${balanceModalUser.username || balanceModalUser.name} (π):`);
+                  if (amount) {
+                    handleAction(balanceModalUser.id, 'AIRDROP', parseFloat(amount));
+                    setBalanceModalUser(null);
+                  }
+                }}
+                className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Gift size={14} /> Airdrop
+              </button>
             </div>
           </div>
         </div>
