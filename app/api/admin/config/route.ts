@@ -177,9 +177,14 @@ export async function POST(req: NextRequest) {
       appVersion, globalAnnouncement, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
       consensusPrice, stakingAPY, forceUpdate, maintenanceUntil,
-      // New centralized fee fields
-      transferFee, withdrawFee, depositMobileFee, depositCardFee,
-      exchangeFee, cardPaymentFee, maxWithdrawal
+      // Crypto fee fields
+      transferFee, withdrawFee, depositCryptoFee, exchangeFee,
+      // Fiat fee fields
+      depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee,
+      // Payment fee fields
+      cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee,
+      // Limits
+      maxWithdrawal
     } = body;
 
     // Build update data, handling maintenanceUntil properly
@@ -197,13 +202,21 @@ export async function POST(req: NextRequest) {
     if (maintenanceUntil !== undefined) updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
     // When disabling maintenance, also clear the until date
     if (maintenanceMode === false) updateData.maintenanceUntil = null;
-    // Centralized fee fields
+    // Crypto fee fields
     if (transferFee !== undefined) updateData.transferFee = Number(transferFee);
     if (withdrawFee !== undefined) updateData.withdrawFee = Number(withdrawFee);
+    if (depositCryptoFee !== undefined) updateData.depositCryptoFee = Number(depositCryptoFee);
+    if (exchangeFee !== undefined) updateData.exchangeFee = Number(exchangeFee);
+    // Fiat fee fields
     if (depositMobileFee !== undefined) updateData.depositMobileFee = Number(depositMobileFee);
     if (depositCardFee !== undefined) updateData.depositCardFee = Number(depositCardFee);
-    if (exchangeFee !== undefined) updateData.exchangeFee = Number(exchangeFee);
+    if (withdrawMobileFee !== undefined) updateData.withdrawMobileFee = Number(withdrawMobileFee);
+    if (withdrawBankFee !== undefined) updateData.withdrawBankFee = Number(withdrawBankFee);
+    // Payment fee fields
     if (cardPaymentFee !== undefined) updateData.cardPaymentFee = Number(cardPaymentFee);
+    if (merchantPaymentFee !== undefined) updateData.merchantPaymentFee = Number(merchantPaymentFee);
+    if (billPaymentFee !== undefined) updateData.billPaymentFee = Number(billPaymentFee);
+    if (qrPaymentFee !== undefined) updateData.qrPaymentFee = Number(qrPaymentFee);
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },

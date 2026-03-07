@@ -10,7 +10,8 @@ import {
   Users, Landmark, Eye, CreditCard, ArrowUpDown,
   ArrowDownToLine, ArrowUpFromLine, Smartphone, Repeat, ArrowLeft,
   X, Loader2, Download, HardDrive, Table, Clock, Shield, Mail,
-  Bug, Wrench, CheckCircle2, XCircle, Gauge, Lock, Server, Wifi, FileWarning
+  Bug, Wrench, CheckCircle2, XCircle, Gauge, Lock, Server, Wifi, FileWarning,
+  CircleDot
 } from "lucide-react";
 export default function SystemSettings() {
   const router = useRouter();
@@ -26,11 +27,12 @@ export default function SystemSettings() {
   const [optimizerModal, setOptimizerModal] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState<{
-    vulnerabilities: { name: string; severity: string; status: 'fixed' | 'pending' | 'scanning'; description: string }[];
+    vulnerabilities: { name: string; severity: string; status: 'fixed' | 'pending' | 'scanning'; description: string; patch?: string; currentVersion?: string; patchedVersion?: string; category?: string }[];
     performance: { name: string; improvement: string; status: 'optimized' | 'pending' | 'scanning'; description: string }[];
     overallScore: number;
     scanComplete: boolean;
   } | null>(null);
+  const [patchingItem, setPatchingItem] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeSessions: 0,
@@ -47,13 +49,23 @@ export default function SystemSettings() {
     consensusPrice: 0,
     stakingAPY: 0,
     forceUpdate: false,
-    transferFee: 0.01,
-    withdrawFee: 0.02,
-    depositMobileFee: 0.02,
-    depositCardFee: 0.035,
-    exchangeFee: 0.001,
-    cardPaymentFee: 0.015,
+    // Crypto Fees
+    transferFee: 0.01,           // P2P Crypto Transfer
+    withdrawFee: 0.02,           // Crypto Withdrawal
+    depositCryptoFee: 0.01,      // Crypto Deposit
+    exchangeFee: 0.001,          // Crypto Swap/Exchange
+    // Fiat Fees
+    depositMobileFee: 0.02,      // Mobile Money Deposit
+    depositCardFee: 0.035,       // Card Deposit
+    withdrawMobileFee: 0.025,    // Mobile Money Withdrawal
+    withdrawBankFee: 0.02,       // Bank Withdrawal
+    cardPaymentFee: 0.015,       // Virtual Card Payment
+    // Payment Fees
+    merchantPaymentFee: 0.02,    // Merchant Payment
+    billPaymentFee: 0.015,       // Bill Payment
+    qrPaymentFee: 0.01,          // QR Code Payment
   });
+  const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const loadData = async () => {
     try {
       const res = await fetch("/api/admin/config");
@@ -141,6 +153,42 @@ export default function SystemSettings() {
       toast.error("Erreur de connexion au serveur");
     } finally {
       setBackupRunning(false);
+    }
+  };
+
+  const applyPatch = async (vulnName: string) => {
+    setPatchingItem(vulnName);
+    try {
+      const response = await fetch("/api/admin/system-optimizer/patch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vulnerabilityName: vulnName })
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Echec de l'application du patch");
+      }
+      
+      const result = await response.json();
+      
+      // Update the vulnerability status in the results
+      setOptimizationResults(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          vulnerabilities: prev.vulnerabilities.map(v => 
+            v.name === vulnName ? { ...v, status: 'fixed' as const } : v
+          ),
+          overallScore: result.newScore || prev.overallScore
+        };
+      });
+      
+      toast.success(`Patch applique: ${vulnName}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de l'application du patch");
+    } finally {
+      setPatchingItem(null);
     }
   };
 
@@ -306,28 +354,153 @@ export default function SystemSettings() {
               </div>
             </div>
             <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[3rem] space-y-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Repeat size={18} className="text-emerald-500" />
-                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">Fee Management Center</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Repeat size={18} className="text-emerald-500" />
+                  <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">Fee Management Center</h2>
+                </div>
+                <p className="text-[9px] text-emerald-400 font-black uppercase tracking-wide bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                  {Object.keys(config).filter(k => k.toLowerCase().includes('fee')).length} Types de frais
+                </p>
               </div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Tous les frais de transaction sont centralisés ici. Les valeurs représentent des pourcentages (ex: 0.02 = 2%).</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FeeInput icon={<ArrowUpDown size={14} />} label="Transfert P2P" sublabel="Envoi entre utilisateurs" value={config.transferFee} onChange={(v: number) => setConfig({ ...config, transferFee: v })} color="text-blue-400" />
-                <FeeInput icon={<ArrowUpFromLine size={14} />} label="Retrait" sublabel="Retrait vers mobile/banque" value={config.withdrawFee} onChange={(v: number) => setConfig({ ...config, withdrawFee: v })} color="text-orange-400" />
-                <FeeInput icon={<Smartphone size={14} />} label="Dépôt Mobile Money" sublabel="Dépôt via opérateur mobile" value={config.depositMobileFee} onChange={(v: number) => setConfig({ ...config, depositMobileFee: v })} color="text-green-400" />
-                <FeeInput icon={<CreditCard size={14} />} label="Dépôt Carte" sublabel="Dépôt par carte bancaire" value={config.depositCardFee} onChange={(v: number) => setConfig({ ...config, depositCardFee: v })} color="text-purple-400" />
-                <FeeInput icon={<Repeat size={14} />} label="Échange / Swap" sublabel="Conversion crypto/fiat" value={config.exchangeFee} onChange={(v: number) => setConfig({ ...config, exchangeFee: v })} color="text-cyan-400" />
-                <FeeInput icon={<CreditCard size={14} />} label="Paiement Carte Virtuelle" sublabel="Achats via carte PimPay" value={config.cardPaymentFee} onChange={(v: number) => setConfig({ ...config, cardPaymentFee: v })} color="text-pink-400" />
+              
+              {/* Fee Type Tabs */}
+              <div className="flex gap-2 p-1 bg-slate-900/50 rounded-2xl border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setFeeTab('crypto')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    feeTab === 'crypto' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-slate-500 hover:text-white'
+                  }`}
+                >
+                  <CircleDot size={12} />
+                  <span>Crypto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeTab('fiat')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    feeTab === 'fiat' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'text-slate-500 hover:text-white'
+                  }`}
+                >
+                  <Landmark size={12} />
+                  <span>Fiat</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeTab('payment')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    feeTab === 'payment' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-500 hover:text-white'
+                  }`}
+                >
+                  <CreditCard size={12} />
+                  <span>Paiements</span>
+                </button>
               </div>
-              <div className="bg-black/30 border border-white/5 rounded-2xl p-4">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">Aperçu des frais actifs</p>
-                <div className="grid grid-cols-3 gap-3">
-                  <FeePreviewChip label="P2P" value={config.transferFee} />
-                  <FeePreviewChip label="Retrait" value={config.withdrawFee} />
-                  <FeePreviewChip label="Dépôt Mob." value={config.depositMobileFee} />
-                  <FeePreviewChip label="Dépôt Card" value={config.depositCardFee} />
-                  <FeePreviewChip label="Swap" value={config.exchangeFee} />
-                  <FeePreviewChip label="Card Pay" value={config.cardPaymentFee} />
+
+              {/* Crypto Fees Tab */}
+              {feeTab === 'crypto' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wide">Frais sur transactions crypto (Pi, BTC, ETH...)</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FeeInput icon={<ArrowUpDown size={14} />} label="Transfert P2P Crypto" sublabel="Envoi crypto entre utilisateurs" value={config.transferFee} onChange={(v: number) => setConfig({ ...config, transferFee: v })} color="text-amber-400" />
+                    <FeeInput icon={<ArrowDownToLine size={14} />} label="Depot Crypto" sublabel="Reception de crypto externe" value={config.depositCryptoFee} onChange={(v: number) => setConfig({ ...config, depositCryptoFee: v })} color="text-green-400" />
+                    <FeeInput icon={<ArrowUpFromLine size={14} />} label="Retrait Crypto" sublabel="Envoi crypto vers wallet externe" value={config.withdrawFee} onChange={(v: number) => setConfig({ ...config, withdrawFee: v })} color="text-orange-400" />
+                    <FeeInput icon={<Repeat size={14} />} label="Swap / Exchange Crypto" sublabel="Conversion entre cryptos" value={config.exchangeFee} onChange={(v: number) => setConfig({ ...config, exchangeFee: v })} color="text-cyan-400" />
+                  </div>
+                  <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info size={12} className="text-amber-400" />
+                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Resume Crypto</p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <FeePreviewChip label="P2P" value={config.transferFee} color="amber" />
+                      <FeePreviewChip label="Depot" value={config.depositCryptoFee} color="green" />
+                      <FeePreviewChip label="Retrait" value={config.withdrawFee} color="orange" />
+                      <FeePreviewChip label="Swap" value={config.exchangeFee} color="cyan" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fiat Fees Tab */}
+              {feeTab === 'fiat' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wide">Frais sur transactions fiat (XAF, EUR, USD...)</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FeeInput icon={<Smartphone size={14} />} label="Depot Mobile Money" sublabel="Via Orange/MTN/Moov Money" value={config.depositMobileFee} onChange={(v: number) => setConfig({ ...config, depositMobileFee: v })} color="text-green-400" />
+                    <FeeInput icon={<CreditCard size={14} />} label="Depot Carte Bancaire" sublabel="Visa, Mastercard, etc." value={config.depositCardFee} onChange={(v: number) => setConfig({ ...config, depositCardFee: v })} color="text-purple-400" />
+                    <FeeInput icon={<Smartphone size={14} />} label="Retrait Mobile Money" sublabel="Vers numero mobile" value={config.withdrawMobileFee} onChange={(v: number) => setConfig({ ...config, withdrawMobileFee: v })} color="text-orange-400" />
+                    <FeeInput icon={<Landmark size={14} />} label="Retrait Bancaire" sublabel="Vers compte bancaire" value={config.withdrawBankFee} onChange={(v: number) => setConfig({ ...config, withdrawBankFee: v })} color="text-blue-400" />
+                  </div>
+                  <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info size={12} className="text-blue-400" />
+                      <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Resume Fiat</p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <FeePreviewChip label="Mob. Dep" value={config.depositMobileFee} color="green" />
+                      <FeePreviewChip label="Card Dep" value={config.depositCardFee} color="purple" />
+                      <FeePreviewChip label="Mob. Ret" value={config.withdrawMobileFee} color="orange" />
+                      <FeePreviewChip label="Bank Ret" value={config.withdrawBankFee} color="blue" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Fees Tab */}
+              {feeTab === 'payment' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wide">Frais sur paiements et achats</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FeeInput icon={<CreditCard size={14} />} label="Carte Virtuelle" sublabel="Achats avec carte PimPay" value={config.cardPaymentFee} onChange={(v: number) => setConfig({ ...config, cardPaymentFee: v })} color="text-pink-400" />
+                    <FeeInput icon={<Landmark size={14} />} label="Paiement Marchand" sublabel="Paiements aux commercants" value={config.merchantPaymentFee} onChange={(v: number) => setConfig({ ...config, merchantPaymentFee: v })} color="text-emerald-400" />
+                    <FeeInput icon={<Zap size={14} />} label="Paiement Factures" sublabel="Electricite, eau, internet..." value={config.billPaymentFee} onChange={(v: number) => setConfig({ ...config, billPaymentFee: v })} color="text-amber-400" />
+                    <FeeInput icon={<Eye size={14} />} label="Paiement QR Code" sublabel="Scan et paiement QR" value={config.qrPaymentFee} onChange={(v: number) => setConfig({ ...config, qrPaymentFee: v })} color="text-cyan-400" />
+                  </div>
+                  <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info size={12} className="text-emerald-400" />
+                      <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Resume Paiements</p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <FeePreviewChip label="Carte" value={config.cardPaymentFee} color="pink" />
+                      <FeePreviewChip label="Marchand" value={config.merchantPaymentFee} color="emerald" />
+                      <FeePreviewChip label="Factures" value={config.billPaymentFee} color="amber" />
+                      <FeePreviewChip label="QR" value={config.qrPaymentFee} color="cyan" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* All Fees Summary */}
+              <div className="bg-gradient-to-r from-slate-900/80 to-slate-800/50 border border-white/5 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tous les frais actifs</p>
+                  <span className="text-[8px] font-mono text-slate-500">Valeurs en %</span>
+                </div>
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                  <FeePreviewChip label="P2P Crypto" value={config.transferFee} color="amber" />
+                  <FeePreviewChip label="Dep. Crypto" value={config.depositCryptoFee} color="green" />
+                  <FeePreviewChip label="Ret. Crypto" value={config.withdrawFee} color="orange" />
+                  <FeePreviewChip label="Swap" value={config.exchangeFee} color="cyan" />
+                  <FeePreviewChip label="Dep. Mobile" value={config.depositMobileFee} color="green" />
+                  <FeePreviewChip label="Dep. Carte" value={config.depositCardFee} color="purple" />
+                  <FeePreviewChip label="Ret. Mobile" value={config.withdrawMobileFee} color="orange" />
+                  <FeePreviewChip label="Ret. Bank" value={config.withdrawBankFee} color="blue" />
+                  <FeePreviewChip label="Card Pay" value={config.cardPaymentFee} color="pink" />
+                  <FeePreviewChip label="Marchand" value={config.merchantPaymentFee} color="emerald" />
+                  <FeePreviewChip label="Factures" value={config.billPaymentFee} color="amber" />
+                  <FeePreviewChip label="QR Pay" value={config.qrPaymentFee} color="cyan" />
                 </div>
               </div>
             </div>
@@ -698,42 +871,100 @@ export default function SystemSettings() {
                 <div className="space-y-6 py-2">
                   {/* Vulnerabilities Section */}
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shield size={14} className="text-red-400" />
-                      <p className="text-[9px] font-black text-red-400 uppercase tracking-[3px]">Securite - Vulnerabilites</p>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Shield size={14} className="text-red-400" />
+                        <p className="text-[9px] font-black text-red-400 uppercase tracking-[3px]">Securite - Vulnerabilites</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-bold text-slate-500">
+                          {optimizationResults.vulnerabilities.filter(v => v.status === 'fixed').length}/{optimizationResults.vulnerabilities.length} corrigees
+                        </span>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       {optimizationResults.vulnerabilities.map((vuln, i) => (
-                        <div key={i} className={`bg-white/[0.03] border rounded-xl p-3 flex items-center justify-between transition-all ${
-                          vuln.status === 'fixed' ? 'border-emerald-500/30' : vuln.status === 'scanning' ? 'border-amber-500/30' : 'border-white/[0.03]'
+                        <div key={i} className={`bg-white/[0.03] border rounded-xl p-4 transition-all ${
+                          vuln.status === 'fixed' ? 'border-emerald-500/30' : vuln.status === 'scanning' ? 'border-amber-500/30' : 'border-red-500/20'
                         }`}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              vuln.severity === 'critical' ? 'bg-red-500/10' : vuln.severity === 'high' ? 'bg-orange-500/10' : 'bg-amber-500/10'
-                            }`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                vuln.severity === 'critical' ? 'bg-red-500/10' : vuln.severity === 'high' ? 'bg-orange-500/10' : vuln.severity === 'medium' ? 'bg-amber-500/10' : 'bg-slate-500/10'
+                              }`}>
+                                {vuln.status === 'fixed' ? (
+                                  <CheckCircle2 size={16} className="text-emerald-400" />
+                                ) : vuln.status === 'scanning' ? (
+                                  <Loader2 size={16} className="text-amber-400 animate-spin" />
+                                ) : (
+                                  <FileWarning size={16} className={
+                                    vuln.severity === 'critical' ? 'text-red-400' : vuln.severity === 'high' ? 'text-orange-400' : vuln.severity === 'medium' ? 'text-amber-400' : 'text-slate-400'
+                                  } />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-[10px] font-black text-white uppercase">{vuln.name}</p>
+                                  <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    vuln.severity === 'critical' ? 'bg-red-500/10 text-red-400' : 
+                                    vuln.severity === 'high' ? 'bg-orange-500/10 text-orange-400' : 
+                                    vuln.severity === 'medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-500/10 text-slate-400'
+                                  }`}>{vuln.severity}</span>
+                                  {vuln.category && (
+                                    <span className="text-[7px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">{vuln.category}</span>
+                                  )}
+                                </div>
+                                <p className="text-[8px] text-slate-500 font-bold mt-1">{vuln.description}</p>
+                                
+                                {/* Version info for packages */}
+                                {vuln.currentVersion && vuln.patchedVersion && vuln.status !== 'fixed' && (
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-[8px] font-mono text-red-400 bg-red-500/10 px-2 py-0.5 rounded">v{vuln.currentVersion}</span>
+                                    <ChevronRight size={10} className="text-slate-600" />
+                                    <span className="text-[8px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">{vuln.patchedVersion}</span>
+                                  </div>
+                                )}
+                                
+                                {/* Patch recommendation */}
+                                {vuln.patch && vuln.status !== 'fixed' && (
+                                  <div className="mt-2 p-2 bg-slate-900/50 rounded-lg border border-white/5">
+                                    <p className="text-[8px] font-bold text-amber-400 uppercase mb-1">Recommandation:</p>
+                                    <p className="text-[8px] text-slate-400 font-mono">{vuln.patch}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Status/Action buttons */}
+                            <div className="flex flex-col items-end gap-2 shrink-0">
                               {vuln.status === 'fixed' ? (
-                                <CheckCircle2 size={14} className="text-emerald-400" />
-                              ) : vuln.status === 'scanning' ? (
-                                <Loader2 size={14} className="text-amber-400 animate-spin" />
-                              ) : (
-                                <FileWarning size={14} className={
-                                  vuln.severity === 'critical' ? 'text-red-400' : vuln.severity === 'high' ? 'text-orange-400' : 'text-amber-400'
-                                } />
-                              )}
+                                <span className="text-[8px] font-black uppercase px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  Corrige
+                                </span>
+                              ) : vuln.status === 'pending' && vuln.category === 'package' ? (
+                                <button
+                                  onClick={() => applyPatch(vuln.name)}
+                                  disabled={patchingItem === vuln.name}
+                                  className="flex items-center gap-1.5 text-[8px] font-black uppercase px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {patchingItem === vuln.name ? (
+                                    <>
+                                      <Loader2 size={10} className="animate-spin" />
+                                      <span>Patching...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Wrench size={10} />
+                                      <span>Appliquer Patch</span>
+                                    </>
+                                  )}
+                                </button>
+                              ) : vuln.status === 'pending' ? (
+                                <span className="text-[8px] font-black uppercase px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  Action requise
+                                </span>
+                              ) : null}
                             </div>
-                            <div>
-                              <p className="text-[10px] font-black text-white uppercase">{vuln.name}</p>
-                              <p className="text-[8px] text-slate-500 font-bold">{vuln.description}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[7px] font-black uppercase px-2 py-1 rounded-full ${
-                              vuln.severity === 'critical' ? 'bg-red-500/10 text-red-400' : 
-                              vuln.severity === 'high' ? 'bg-orange-500/10 text-orange-400' : 'bg-amber-500/10 text-amber-400'
-                            }`}>{vuln.severity}</span>
-                            {vuln.status === 'fixed' && (
-                              <span className="text-[7px] font-black uppercase px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Corrige</span>
-                            )}
                           </div>
                         </div>
                       ))}
@@ -842,14 +1073,25 @@ function FeeInput({ icon, label, sublabel, value, onChange, color = "text-blue-4
     </div>
   );
 }
-function FeePreviewChip({ label, value }: { label: string; value: number }) {
+function FeePreviewChip({ label, value, color = "emerald" }: { label: string; value: number; color?: string }) {
+  const colorClasses: Record<string, string> = {
+    emerald: "text-emerald-400",
+    amber: "text-amber-400",
+    orange: "text-orange-400",
+    cyan: "text-cyan-400",
+    blue: "text-blue-400",
+    purple: "text-purple-400",
+    pink: "text-pink-400",
+    green: "text-green-400",
+    red: "text-red-400",
+  };
   return (
-    <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-3 py-2">
-      <span className="text-[8px] font-black text-slate-500 uppercase">{label}</span>
-      <span className="text-[10px] font-black text-emerald-400">{(value * 100).toFixed(1)}%</span>
-    </div>
+  <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-3 py-2">
+  <span className="text-[7px] font-black text-slate-500 uppercase truncate">{label}</span>
+  <span className={`text-[9px] font-black ${colorClasses[color] || colorClasses.emerald}`}>{(value * 100).toFixed(1)}%</span>
+  </div>
   );
-}
+  }
 function FinancialInput({ label, value, onChange, icon }: any) {
   return (
     <div className="space-y-2 group">
