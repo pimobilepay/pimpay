@@ -1,202 +1,168 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
-import {
-  CheckCircle2,
-  ArrowRight,
-  Receipt,
-  Wallet,
-  Loader2,
-  Copy,
-  Clock,
-  ShieldCheck,
-  Share2,
-  ArrowUpRight,
-  Banknote,
-  User,
-  ExternalLink,
-} from "lucide-react";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { CheckCircle2, ArrowRight, Receipt, Wallet, Loader2, Share2, Lock, Copy } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-function TransferSuccessContent() {
+function SuccessContent() {
   const searchParams = useSearchParams();
-
-  // Extraction des parametres
+  const router = useRouter();
+  
+  // Récupération des données depuis l'URL pour un affichage immédiat
   const ref = searchParams.get("ref");
-  const amountParam = searchParams.get("amount");
-  const nameParam = searchParams.get("name") || "Utilisateur";
-  const currencyParam = searchParams.get("currency") || "XAF";
+  const urlAmount = searchParams.get("amount");
+  const urlCurrency = searchParams.get("currency") || "XAF";
+  const urlName = searchParams.get("name") || "Utilisateur";
   const modeParam = searchParams.get("mode"); // "external" if blockchain withdraw
 
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!ref) {
-      setLoading(false);
-      return;
+  const fetchTx = useCallback(async () => {
+    if (!ref) { 
+      setLoading(false); 
+      return; 
     }
 
-    const fetchTx = async () => {
-      try {
-        const res = await fetch(`/api/transaction/detail?ref=${ref}`);
-        if (res.ok) {
-          const data = await res.json();
-          setTransaction(data);
-        }
-      } catch (error) {
-        console.error("Erreur fetch transaction:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      const res = await fetch(`/api/transaction/details?ref=${ref}`, {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache' }
+      });
 
-    fetchTx();
+      if (res.ok) {
+        const data = await res.json();
+        setTransaction(data);
+      }
+    } catch (e) {
+      console.error("Erreur sync:", e);
+    } finally {
+      setLoading(false);
+    }
   }, [ref]);
 
-  // Données finales
-  const amount = transaction?.amount ?? parseFloat(amountParam || "0");
-  const currency = (transaction?.currency || currencyParam).toUpperCase();
-  const reference = transaction?.reference || ref || "PIMPAY-TR-PENDING";
+  useEffect(() => { 
+    fetchTx(); 
+  }, [fetchTx]);
+
+  // --- LOGIQUE D'AFFICHAGE PRIORITAIRE ---
+  const PI_GCV_PRICE = 314159;
+  const currency = transaction?.currency || urlCurrency;
+  const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
   const isExternalMode = modeParam === "external";
-  const status = transaction?.status || (isExternalMode ? "PENDING" : "SUCCESS");
-  const blockchainTx = transaction?.blockchainTx || transaction?.metadata?.blockchainTx;
-  const beneficiary = transaction?.toUser?.username || transaction?.toUser?.name || nameParam;
 
-  // Configuration des Explorateurs selon la devise
-  const getBlockExplorer = (curr: string, txHash: string) => {
-    if (!txHash) return null;
-    switch (curr) {
-      case "PI": return `https://minepi.com/blockexplorer/tx/${txHash}`;
-      case "SDA": return `https://sidrascan.com/tx/${txHash}`;
-      case "BTC": return `https://blockchain.info/tx/${txHash}`;
-      case "USDT": return `https://tronscan.org/#/transaction/${txHash}`;
-      case "ETH": return `https://etherscan.io/tx/${txHash}`;
-      default: return null;
-    }
+  let amountDisplay = amount;
+  let amountUSD = 0;
+
+  if (currency === "PI") {
+    amountDisplay = amount;
+    amountUSD = amount * PI_GCV_PRICE;
+  } else if (currency === "XAF") {
+    amountDisplay = amount;
+    amountUSD = amount / 600;
+  } else {
+    amountDisplay = amount;
+    amountUSD = amount;
+  }
+
+  const reference = transaction?.reference || ref || "PIMPAY-TR";
+
+  const copyRef = () => {
+    navigator.clipboard.writeText(reference);
+    toast.success("Référence copiée !");
   };
 
-  const explorerUrl = getBlockExplorer(currency, blockchainTx);
-
-  const statusConfig: any = {
-    SUCCESS: { label: "Transféré", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    PENDING: { label: "En cours", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-    FAILED: { label: "Échec", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
-  };
-
-  const currentStatus = statusConfig[status] || statusConfig.SUCCESS;
-
-  return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center py-12 px-6 text-center relative overflow-hidden">
-      {/* Glow effect */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="animate-in fade-in zoom-in duration-700 w-full max-w-md relative z-10">
-        
-        {/* Badge Statut */}
-        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${currentStatus.bg} ${currentStatus.border} mb-8`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${currentStatus.color.replace('text', 'bg')} animate-pulse`} />
-          <span className={`text-[10px] font-black uppercase tracking-widest ${currentStatus.color}`}>
-            {currentStatus.label}
-          </span>
-        </div>
-
-        {/* Icône de succès */}
-        <div className="relative w-24 h-24 bg-white/5 border border-white/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-2xl">
-           <CheckCircle2 className="text-emerald-500" size={40} />
-        </div>
-
-        <h1 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">
-          {isExternalMode ? "Retrait Enregistre" : "Transfert Reussi"}
-        </h1>
-        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
-          {isExternalMode
-            ? "Votre retrait blockchain est en cours de traitement"
-            : "Fonds envoyes avec succes vers le destinataire"}
-        </p>
-
-        {/* Montant */}
-        <div className="mb-10">
-          <div className="flex items-baseline justify-center gap-2">
-            <span className="text-5xl font-black text-white tracking-tighter">{amount.toLocaleString()}</span>
-            <span className="text-xl font-black text-blue-500 italic">{currency}</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">Confirmation PimPay Network</p>
-        </div>
-
-        {/* Card Détails */}
-        <div className="bg-white/[0.03] border border-white/5 rounded-3xl overflow-hidden mb-8">
-          <div className="p-6 space-y-4">
-            <DetailRow icon={<User size={14}/>} label="Bénéficiaire" value={beneficiary} />
-            <DetailRow icon={<ShieldCheck size={14}/>} label="Référence" value={reference} isCopy />
-            <DetailRow icon={<Banknote size={14}/>} label="Méthode" value={`Portefeuille ${currency}`} />
-            <DetailRow icon={<Clock size={14}/>} label="Date" value={new Date().toLocaleDateString('fr-FR')} />
-            
-            {explorerUrl && (
-              <a 
-                href={explorerUrl} 
-                target="_blank" 
-                className="flex justify-between items-center pt-3 border-t border-white/5 group"
-              >
-                <div className="flex items-center gap-2">
-                  <ExternalLink size={14} className="text-blue-500" />
-                  <span className="text-[9px] font-black text-slate-500 uppercase">Blockchain</span>
-                </div>
-                <span className="text-[10px] font-bold text-blue-400 group-hover:underline">Vérifier l'envoi</span>
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-3">
-          <Link href="/dashboard" className="w-full h-16 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
-            <Wallet size={18} /> Retour au Portefeuille
-          </Link>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <button className="h-14 bg-white/5 border border-white/10 rounded-2xl font-black uppercase text-[10px] text-slate-400 flex items-center justify-center gap-2">
-              <Receipt size={16} /> Reçu
-            </button>
-            <button className="h-14 bg-white/5 border border-white/10 rounded-2xl font-black uppercase text-[10px] text-slate-400 flex items-center justify-center gap-2">
-              <Share2 size={16} /> Partager
-            </button>
-          </div>
-        </div>
+  if (loading && !urlAmount) return (
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="animate-spin text-blue-500 mb-4 mx-auto" size={40} />
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Chargement du reçu...</p>
       </div>
     </div>
   );
-}
-
-// Sous-composant pour les lignes de détails
-function DetailRow({ icon, label, value, isCopy = false }: any) {
-  const copy = () => {
-    navigator.clipboard.writeText(value);
-    toast.success("Copié !");
-  };
 
   return (
-    <div className="flex justify-between items-center">
-      <div className="flex items-center gap-2">
-        <span className="text-blue-500">{icon}</span>
-        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-between py-12 px-6 text-center font-sans overflow-hidden relative">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="flex flex-col items-center w-full animate-in fade-in slide-in-from-bottom-4 duration-1000 relative z-10">
+        <div className="w-20 h-20 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center border border-emerald-500/20 shadow-2xl mb-8">
+          <CheckCircle2 className="text-emerald-500" size={42} strokeWidth={2.5} />
+        </div>
+
+        <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
+          {isExternalMode ? "Retrait Enregistré" : "Transfert Réussi"}
+        </h1>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">
+          {isExternalMode ? "Retrait blockchain en traitement" : `Envoyé à ${urlName}`}
+        </p>
+
+        <div className="mt-10">
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-6xl font-black text-white tracking-tighter">
+              {currency === "PI" ? amountDisplay.toFixed(4) : amountDisplay.toLocaleString('fr-FR')}
+            </span>
+            <span className="text-xl font-bold text-blue-500">{currency}</span>
+          </div>
+          <p className="text-[11px] text-emerald-500/80 mt-3 font-black uppercase tracking-widest bg-emerald-500/5 py-1 px-3 rounded-full border border-emerald-500/10 inline-block">
+            ≈ ${amountUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+          </p>
+        </div>
       </div>
-      <span 
-        onClick={isCopy ? copy : undefined}
-        className={`text-[10px] font-bold text-white uppercase ${isCopy ? 'cursor-pointer hover:text-blue-400 transition-colors font-mono' : ''}`}
-      >
-        {isCopy ? `${value.slice(0, 12)}...` : value}
-      </span>
+
+      <div className="w-full max-w-sm space-y-4 relative z-10">
+        <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex items-center justify-between backdrop-blur-md">
+          <div className="text-left">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">ID Transaction</p>
+            <p className="text-sm font-mono font-bold text-white/90 truncate max-w-[200px]">{reference}</p>
+          </div>
+          <button onClick={copyRef} className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 active:scale-90 transition-all">
+            <Copy size={18} className="text-blue-400" />
+          </button>
+        </div>
+
+        <Link href={`/transfer/receipt?ref=${reference}&amount=${amount}&currency=${currency}&name=${encodeURIComponent(urlName)}`} className="block">
+          <button className="w-full h-16 bg-white text-[#020617] rounded-[2rem] font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-between px-8 hover:bg-slate-100 active:scale-[0.97] transition-all">
+            <div className="flex items-center gap-3"><Receipt size={20} /><span>Voir le reçu</span></div>
+            <ArrowRight size={20} />
+          </button>
+        </Link>
+
+        <div className="grid grid-cols-5 gap-3">
+          <Link href="/dashboard" className="col-span-4">
+            <button className="w-full h-16 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 shadow-2xl shadow-blue-900/40 hover:bg-blue-500 transition-all">
+              <Wallet size={20} /> Retour au Wallet
+            </button>
+          </Link>
+          <button
+            onClick={() => {
+              if(navigator.share) {
+                navigator.share({ title: 'PimPay Transfer', text: `Transfert de ${amountDisplay} ${currency} réussi vers ${urlName} !` });
+              } else { copyRef(); }
+            }}
+            className="col-span-1 h-16 bg-white/5 border border-white/10 text-white rounded-[2rem] flex items-center justify-center hover:bg-white/10 transition-all"
+          >
+            <Share2 size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center gap-2 opacity-20">
+        <div className="flex items-center gap-2">
+          <Lock size={12} />
+          <span className="text-[9px] font-black uppercase tracking-[0.4em]">Encrypted Ledger</span>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function TransferSuccessPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>}>
-      <TransferSuccessContent />
+    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={40} /></div>}>
+      <SuccessContent />
     </Suspense>
   );
 }
