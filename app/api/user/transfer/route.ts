@@ -9,12 +9,17 @@ import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { ethers } from "ethers";
 import { decrypt } from "@/lib/crypto";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 // Configuration RPC pour les blockchains supportées
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
   SIDRA: "https://node.sidrachain.com",
 };
+
+// Pi Network Horizon API (Mainnet)
+const PI_HORIZON_URL = "https://api.mainnet.minepi.com";
+const PI_NETWORK_PASSPHRASE = "Pi Network";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -225,7 +230,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Pour SDA/SIDRA, on execute le transfert blockchain immediatement
+        // Pour SDA/SIDRA et PI, on execute le transfert blockchain immediatement
         let blockchainTxHash: string | null = null;
         let txStatus = TransactionStatus.PENDING;
 
@@ -269,6 +274,104 @@ export async function POST(req: NextRequest) {
                 data: { balance: { increment: totalDebit } },
               });
               throw new Error(`Erreur blockchain: ${blockchainError.message || "Transaction echouee"}`);
+            }
+          }
+        }
+
+        // Pour PI Network, utiliser Stellar SDK
+        if (currency === "PI") {
+          // Validation de l'adresse Pi (format Stellar Ed25519)
+          if (!StellarSdk.StrKey.isValidEd25519PublicKey(recipientInput)) {
+            await tx.wallet.update({
+              where: { id: senderWallet.id },
+              data: { balance: { increment: totalDebit } },
+            });
+            throw new Error("Adresse Pi Network invalide. Verifiez le format.");
+          }
+
+          // Recuperer les cles Pi de l'expediteur
+          const senderUser = await tx.user.findUnique({
+            where: { id: senderId },
+            select: { 
+              stellarPrivateKey: true, 
+              xlmAddress: true,
+              walletAddress: true 
+            }
+          });
+
+          // Verifier si l'utilisateur a une cle privee configuree
+          if (!senderUser?.stellarPrivateKey) {
+            // Pas de cle privee = transaction PENDING pour traitement manuel/admin
+            console.log("[PI_TRANSFER] Cle privee non configuree, transaction en attente");
+          } else {
+            try {
+              // Dechiffrer la cle privee si elle est encryptee
+              let privateKey = senderUser.stellarPrivateKey;
+              if (privateKey.includes(':')) {
+                privateKey = decrypt(privateKey);
+              }
+
+              // Creer le keypair depuis la cle privee
+              const sourceKeypair = StellarSdk.Keypair.fromSecret(privateKey);
+              const sourcePublicKey = sourceKeypair.publicKey();
+
+              // Connexion au serveur Horizon Pi
+              const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
+              
+              // Charger le compte source
+              const sourceAccount = await server.loadAccount(sourcePublicKey);
+
+              // Construire la transaction
+              const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+                fee: StellarSdk.BASE_FEE,
+                networkPassphrase: PI_NETWORK_PASSPHRASE,
+              })
+                .addOperation(
+                  StellarSdk.Operation.payment({
+                    destination: recipientInput,
+                    asset: StellarSdk.Asset.native(), // Pi utilise l'asset natif
+                    amount: amount.toFixed(7), // Stellar utilise 7 decimales max
+                  })
+                )
+                .addMemo(StellarSdk.Memo.text(description.slice(0, 28) || "PimPay Transfer"))
+                .setTimeout(180) // 3 minutes timeout
+                .build();
+
+              // Signer la transaction
+              transaction.sign(sourceKeypair);
+
+              // Soumettre a la blockchain Pi
+              const result = await server.submitTransaction(transaction);
+              blockchainTxHash = result.hash;
+              txStatus = TransactionStatus.SUCCESS;
+
+              console.log("[PI_TRANSFER_SUCCESS] Hash:", blockchainTxHash);
+
+            } catch (piError: any) {
+              console.error("[PI_BLOCKCHAIN_ERROR]:", piError.message || piError);
+              
+              // Analyser l'erreur pour un message plus clair
+              let errorMsg = "Erreur lors du transfert Pi";
+              
+              if (piError?.response?.data?.extras?.result_codes) {
+                const codes = piError.response.data.extras.result_codes;
+                if (codes.operations?.includes("op_underfunded")) {
+                  errorMsg = "Solde insuffisant sur la blockchain Pi";
+                } else if (codes.operations?.includes("op_no_destination")) {
+                  errorMsg = "Le compte destinataire n'existe pas sur Pi Network";
+                } else if (codes.transaction === "tx_bad_auth") {
+                  errorMsg = "Erreur d'authentification blockchain";
+                }
+              } else if (piError.message?.includes("Network request failed")) {
+                errorMsg = "Impossible de se connecter au reseau Pi. Reessayez.";
+              }
+
+              // Rembourser l'utilisateur en cas d'echec
+              await tx.wallet.update({
+                where: { id: senderWallet.id },
+                data: { balance: { increment: totalDebit } },
+              });
+              throw new Error(errorMsg);
             }
           }
         }
