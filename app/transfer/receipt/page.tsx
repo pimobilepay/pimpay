@@ -102,8 +102,8 @@ function ReceiptContent() {
   const getBlockExplorer = (curr: string, txHash: string) => {
     if (!txHash) return null;
     switch (curr) {
-      case "PI": return `https://minepi.com/blockexplorer/tx/${txHash}`;
-      case "SDA": return `https://sidrascan.com/tx/${txHash}`;
+      case "PI": return `https://blockexplorer.minepi.com/tx/${txHash}`;
+      case "SDA": return `https://ledger.sidrachain.com/tx/${txHash}`;
       case "BTC": return `https://blockchain.info/tx/${txHash}`;
       case "USDT": return `https://tronscan.org/#/transaction/${txHash}`;
       case "ETH": return `https://etherscan.io/tx/${txHash}`;
