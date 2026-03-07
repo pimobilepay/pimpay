@@ -45,9 +45,18 @@ export async function POST(req: Request) {
       await tx.notification.create({
         data: {
           userId: userId,
-          title: "Retrait initié 🚀",
+          title: "Retrait initie !",
           message: `Votre demande de ${amountUSD}$ est en cours de traitement vers le ${phone}.`,
-          type: "info"
+          type: "PAYMENT_SENT",
+          metadata: JSON.stringify({
+            amount: amountUSD,
+            currency: "USD",
+            fee: feeAmount,
+            reference: transaction.reference,
+            method: "Mobile Money",
+            walletAddress: phone,
+            status: "PENDING",
+          }),
         }
       });
 

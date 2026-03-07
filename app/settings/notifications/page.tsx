@@ -32,6 +32,19 @@ interface Notification {
     toAmount?: number;
     rate?: number;
     reference?: string;
+    // Champs pour les transactions (depot, envoi, reception)
+    amount?: number;
+    currency?: string;
+    senderName?: string;
+    senderUsername?: string;
+    recipientName?: string;
+    recipientUsername?: string;
+    method?: string;
+    fee?: number;
+    status?: string;
+    transactionId?: string;
+    walletAddress?: string;
+    network?: string;
   };
 }
 
@@ -244,6 +257,11 @@ export default function NotificationsPage() {
                                <Globe size={10} /> {notif.metadata.ip}
                              </div>
                            )}
+                           {notif.metadata.location && (
+                             <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                               <MapPin size={10} /> {notif.metadata.location}
+                             </div>
+                           )}
                         </div>
                       )}
 
@@ -256,7 +274,7 @@ export default function NotificationsPage() {
                                 <ArrowUpRight size={10} className="text-rose-400" />
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Envoyé</span>
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Envoye</span>
                                 <p className="text-xs font-bold text-white">{notif.metadata.fromAmount} {notif.metadata.fromCurrency}</p>
                               </div>
                             </div>
@@ -280,6 +298,123 @@ export default function NotificationsPage() {
                           {notif.metadata.reference && (
                             <div className="text-[9px] text-slate-600 font-mono">
                               Ref: {notif.metadata.reference}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Métadonnées de paiement recu (depot/reception) */}
+                      {notif.metadata && (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") && (notif.metadata.amount || notif.metadata.senderName) && (
+                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-emerald-500/10">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                                <ArrowDownLeft size={14} className="text-emerald-400" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant recu</span>
+                                <p className="text-sm font-black text-emerald-400">
+                                  +{Number(notif.metadata.amount || 0).toLocaleString()} {notif.metadata.currency || "XAF"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {(notif.metadata.senderName || notif.metadata.senderUsername) && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-2 border-t border-white/5">
+                              <span className="text-slate-500">De:</span>
+                              <span className="font-bold text-white">{notif.metadata.senderName || notif.metadata.senderUsername}</span>
+                            </div>
+                          )}
+                          {notif.metadata.method && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <Info size={10} />
+                              <span>Methode: {notif.metadata.method}</span>
+                            </div>
+                          )}
+                          {(notif.metadata.reference || notif.metadata.transactionId) && (
+                            <div className="text-[9px] text-slate-600 font-mono">
+                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Métadonnées de paiement envoye (transfert/retrait) */}
+                      {notif.metadata && notif.type === "PAYMENT_SENT" && (notif.metadata.amount || notif.metadata.recipientName) && (
+                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-blue-500/10">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                                <ArrowUpRight size={14} className="text-blue-400" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant envoye</span>
+                                <p className="text-sm font-black text-blue-400">
+                                  -{Number(notif.metadata.amount || 0).toLocaleString()} {notif.metadata.currency || "XAF"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {(notif.metadata.recipientName || notif.metadata.recipientUsername) && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-2 border-t border-white/5">
+                              <span className="text-slate-500">Vers:</span>
+                              <span className="font-bold text-white">{notif.metadata.recipientName || notif.metadata.recipientUsername}</span>
+                            </div>
+                          )}
+                          {notif.metadata.walletAddress && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <Globe size={10} />
+                              <span className="font-mono truncate">{notif.metadata.walletAddress.slice(0, 12)}...{notif.metadata.walletAddress.slice(-8)}</span>
+                            </div>
+                          )}
+                          {notif.metadata.fee && notif.metadata.fee > 0 && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <Info size={10} />
+                              <span>Frais: {notif.metadata.fee} {notif.metadata.currency || "XAF"}</span>
+                            </div>
+                          )}
+                          {(notif.metadata.reference || notif.metadata.transactionId) && (
+                            <div className="text-[9px] text-slate-600 font-mono">
+                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Métadonnées generiques pour autres types avec metadata.amount */}
+                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT"].includes(notif.type) && notif.metadata.amount && (
+                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-white/5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-slate-500/20 rounded-xl flex items-center justify-center">
+                              <Info size={14} className="text-slate-400" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant</span>
+                              <p className="text-sm font-black text-white">
+                                {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "XAF"}
+                              </p>
+                            </div>
+                          </div>
+                          {notif.metadata.method && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-2 border-t border-white/5">
+                              <Info size={10} />
+                              <span>Methode: {notif.metadata.method}</span>
+                            </div>
+                          )}
+                          {notif.metadata.status && (
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                notif.metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
+                                notif.metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
+                                "bg-red-500/20 text-red-400"
+                              }`}>
+                                {notif.metadata.status}
+                              </span>
+                            </div>
+                          )}
+                          {(notif.metadata.reference || notif.metadata.transactionId) && (
+                            <div className="text-[9px] text-slate-600 font-mono">
+                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
                             </div>
                           )}
                         </div>

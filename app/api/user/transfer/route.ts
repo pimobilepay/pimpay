@@ -192,14 +192,44 @@ export async function POST(req: NextRequest) {
             })
             .catch(() => {});
 
-          // Notification for recipient
+          // Notification for recipient with full metadata
           await tx.notification
             .create({
               data: {
                 userId: recipientUser.id,
-                title: "Fonds recus",
-                message: `Vous avez recu ${amount.toLocaleString()} ${currency} d'un membre PimPay.`,
-                type: "payment_received",
+                title: "Paiement recu !",
+                message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName || "un utilisateur PimPay"}.`,
+                type: "PAYMENT_RECEIVED",
+                metadata: JSON.stringify({
+                  amount: amount,
+                  currency: currency,
+                  senderName: senderName,
+                  senderUsername: senderName,
+                  reference: transaction.reference,
+                  fee: 0,
+                  status: "SUCCESS",
+                }),
+              },
+            })
+            .catch(() => {});
+          
+          // Notification for sender
+          await tx.notification
+            .create({
+              data: {
+                userId: senderId,
+                title: "Transfert envoye !",
+                message: `Vous avez envoye ${amount.toLocaleString()} ${currency} a ${recipientUser.username || recipientUser.name || "un utilisateur"}.`,
+                type: "PAYMENT_SENT",
+                metadata: JSON.stringify({
+                  amount: amount,
+                  currency: currency,
+                  recipientName: recipientUser.name || recipientUser.username,
+                  recipientUsername: recipientUser.username,
+                  reference: transaction.reference,
+                  fee: fee,
+                  status: "SUCCESS",
+                }),
               },
             })
             .catch(() => {});

@@ -78,13 +78,21 @@ export async function POST(req: Request) {
         },
       });
 
-      // C. Création d'une notification pour l'utilisateur
+      // C. Création d'une notification pour l'utilisateur avec metadonnees
       await tx.notification.create({
         data: {
           userId: authUserId,
-          title: "Dépôt confirmé ✅",
-          message: `Votre compte a été crédité de ${netAmount} ${transaction.currency}.`,
-          type: "success"
+          title: "Depot recu !",
+          message: `Votre compte a ete credite de ${netAmount.toLocaleString()} ${transaction.currency}.`,
+          type: "SUCCESS",
+          metadata: JSON.stringify({
+            amount: netAmount,
+            currency: transaction.currency,
+            fee: fee,
+            reference: transaction.reference,
+            method: transaction.method || "Depot PimPay",
+            status: "SUCCESS",
+          }),
         }
       });
 
