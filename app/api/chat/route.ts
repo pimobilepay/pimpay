@@ -153,50 +153,126 @@ export async function POST(req: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// Elara keyword-based auto-reply helper
+// Elara keyword-based auto-reply helper with enhanced FAQ
 // ---------------------------------------------------------------------------
+interface FAQEntry {
+  keywords: string[];
+  response: string;
+  category: string;
+}
+
+const ELARA_FAQ: FAQEntry[] = [
+  // Depot
+  {
+    keywords: ["depot", "deposit", "deposer", "alimenter", "recharger", "ajouter argent"],
+    response: "Pour effectuer un depot:\n\n1. Allez dans **Portefeuille** > **Deposer**\n2. Choisissez votre methode: Mobile Money (Orange/MTN/Moov) ou Carte bancaire\n3. Entrez le montant et confirmez\n\nLe traitement est generalement effectue en moins de 5 minutes. Des frais de 2-3.5% s'appliquent selon la methode.",
+    category: "depot"
+  },
+  // Retrait
+  {
+    keywords: ["retrait", "withdraw", "retirer", "recuperer", "sortir argent"],
+    response: "Pour effectuer un retrait:\n\n1. Allez dans **Portefeuille** > **Retirer**\n2. Selectionnez la destination: Mobile Money ou Compte bancaire\n3. Entrez le montant (minimum 1.0 unite)\n4. Confirmez avec votre PIN\n\nLes retraits sont traites sous 15-30 minutes. Les frais varient de 2-2.5% selon la methode.",
+    category: "retrait"
+  },
+  // Swap/Exchange
+  {
+    keywords: ["swap", "echanger", "convertir", "conversion", "exchange", "changer"],
+    response: "Pour echanger vos devises:\n\n1. Allez dans **Swap**\n2. Selectionnez la devise source et destination\n3. Entrez le montant a echanger\n4. Verifiez le taux et les frais (0.1%)\n5. Confirmez l'echange\n\nLe taux est calcule en temps reel avec protection contre la volatilite.",
+    category: "swap"
+  },
+  // Carte virtuelle
+  {
+    keywords: ["carte", "card", "visa", "virtuelle", "paiement carte"],
+    response: "Concernant les cartes virtuelles PimPay:\n\n**4 types disponibles:**\n- CLASSIC: Limite 500$/mois\n- GOLD: Limite 2000$/mois\n- BUSINESS: Limite 10000$/mois\n- ULTRA: Limite illimitee\n\nPour generer une carte: Cartes > Creer une carte. Utilisable partout ou Visa est acceptee.",
+    category: "carte"
+  },
+  // KYC
+  {
+    keywords: ["kyc", "verification", "identite", "verifier", "document"],
+    response: "Pour la verification KYC:\n\n1. Allez dans **Profil** > **Verification**\n2. Uploadez votre piece d'identite (recto/verso)\n3. Prenez un selfie avec votre document\n4. Attendez la validation (< 24h)\n\n**Avantages:** Limites augmentees, acces a toutes les fonctionnalites.",
+    category: "kyc"
+  },
+  // Transfert
+  {
+    keywords: ["transfert", "envoyer", "transfer", "send", "p2p", "envoi"],
+    response: "Pour envoyer des fonds:\n\n**Transfert PimPay (P2P):**\n1. Allez dans **Envoyer**\n2. Entrez l'ID ou scannez le QR du destinataire\n3. Choisissez le montant et la devise\n4. Confirmez (frais: 1%)\n\n**Vers wallet externe:**\nAllez dans Portefeuille > Retirer vers wallet externe.",
+    category: "transfert"
+  },
+  // Solde
+  {
+    keywords: ["solde", "balance", "combien", "avoir", "montant"],
+    response: "Votre solde est visible sur votre tableau de bord principal. Pour voir le detail par devise, allez dans **Portefeuille**.\n\nVous pouvez consulter:\n- Solde total en FCFA\n- Solde par crypto (Pi, SDA, BTC...)\n- Historique des transactions",
+    category: "solde"
+  },
+  // Sidra
+  {
+    keywords: ["sidra", "sda", "sidra chain"],
+    response: "**Sidra Chain** est une blockchain conforme a la Charia integree dans PimPay.\n\n**Avantages:**\n- Frais de gaz quasi-nuls (~0.0001 SDA)\n- Transactions rapides\n- Compatible Halal\n\nVous pouvez stocker et echanger des SDA directement depuis votre portefeuille.",
+    category: "crypto"
+  },
+  // Pi Network
+  {
+    keywords: ["pi", "pioneer", "pi network", "pi coin"],
+    response: "**Pi Network** est integre a PimPay via le SDK v2.0.\n\n**Fonctionnalites:**\n- Gerer votre solde Pi\n- Faire des swaps Pi <-> autres devises\n- Transferts entre Pioneers\n- Paiements en Pi\n\nConnectez votre wallet Pi dans Parametres > Connexions.",
+    category: "crypto"
+  },
+  // Staking
+  {
+    keywords: ["staking", "stake", "apy", "recompenses"],
+    response: "Le **Staking** vous permet de bloquer des tokens pour recevoir des recompenses.\n\n**Comment ca marche:**\n1. Allez dans **Staking**\n2. Choisissez le token et la duree\n3. Verifiez le taux APY\n4. Confirmez le blocage\n\nLes recompenses sont calculees quotidiennement et creditees automatiquement.",
+    category: "staking"
+  },
+  // Frais
+  {
+    keywords: ["frais", "fees", "commission", "cout", "tarif"],
+    response: "**Grille tarifaire PimPay:**\n\n- Transfert P2P: 1%\n- Depot Mobile: 2%\n- Depot Carte: 3.5%\n- Retrait Mobile: 2.5%\n- Retrait Banque: 2%\n- Swap/Exchange: 0.1%\n- Carte virtuelle: 1.5%/transaction\n\nTous les frais sont affiches avant confirmation.",
+    category: "frais"
+  },
+  // Securite
+  {
+    keywords: ["securite", "security", "pin", "mot de passe", "proteger", "2fa"],
+    response: "**Securisez votre compte:**\n\n1. **PIN**: Definissez un code PIN 6 chiffres\n2. **2FA**: Activez l'authentification a deux facteurs\n3. **Biometrie**: Activez Face ID / Touch ID\n\nAllez dans **Parametres** > **Securite** pour configurer.",
+    category: "securite"
+  },
+  // Support
+  {
+    keywords: ["support", "agent", "humain", "parler", "contacter"],
+    response: "Je transfere votre demande a un agent du support PimPay. Un membre de notre equipe va vous repondre ici dans les plus brefs delais (generalement < 15 min pendant les heures ouvrables).\n\nEn attendant, puis-je vous aider avec autre chose ?",
+    category: "support"
+  },
+  // Remerciements
+  {
+    keywords: ["merci", "thanks", "ok", "d'accord", "parfait", "super", "genial"],
+    response: "Avec plaisir ! Je suis la pour vous aider. N'hesitez pas si vous avez d'autres questions - l'equipe PimPay et moi sommes a votre service 24/7.",
+    category: "politesse"
+  },
+  // Salutations
+  {
+    keywords: ["bonjour", "salut", "hello", "hi", "bonsoir", "coucou"],
+    response: "Bonjour ! Je suis **Elara**, votre assistante intelligente PimPay.\n\nComment puis-je vous aider aujourd'hui ? Vous pouvez me poser des questions sur:\n- Depots et retraits\n- Cartes virtuelles\n- Swaps et transferts\n- Verification KYC\n- Et bien plus !",
+    category: "politesse"
+  },
+  // Problemes
+  {
+    keywords: ["probleme", "erreur", "bug", "marche pas", "bloque", "echec", "impossible"],
+    response: "Je suis desolee pour ce desagrement. Pour mieux vous aider, pouvez-vous me preciser:\n\n1. **Quelle action** vous essayez de faire ?\n2. **Quel message d'erreur** s'affiche ?\n3. **Depuis quand** ce probleme persiste ?\n\nJe vais transmettre votre cas a un agent humain pour une resolution rapide.",
+    category: "support"
+  },
+];
+
 function getAutoReply(msg: string): string {
-  const low = msg.toLowerCase();
+  const low = msg.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  if (low.includes("depot") || low.includes("deposit") || low.includes("deposer"))
-    return "Pour effectuer un depot, rendez-vous dans Menu > Portefeuille > Deposer. Le traitement est generalement effectue en moins de 5 minutes.";
-
-  if (low.includes("retrait") || low.includes("withdraw") || low.includes("retirer"))
-    return "Les retraits sont traites sous 15 minutes. Le minimum est de 1.0 unite. Allez dans Portefeuille > Retirer pour commencer.";
-
-  if (low.includes("kyc") || low.includes("verification") || low.includes("identite"))
-    return "Pour le KYC, envoyez votre piece d'identite (recto/verso) et un selfie dans Profil > Verification. La validation prend generalement moins de 24h.";
-
-  if (low.includes("swap") || low.includes("echanger") || low.includes("convertir") || low.includes("conversion"))
-    return "Pour echanger vos devises, allez dans Swap. Le taux est calcule en temps reel avec protection contre la volatilite. Vous pouvez convertir entre toutes les devises supportees.";
-
-  if (low.includes("carte") || low.includes("card") || low.includes("visa"))
-    return "Pour generer une carte virtuelle, rendez-vous dans la section Cartes. 4 types disponibles : CLASSIC, GOLD, BUSINESS et ULTRA avec des limites differentes.";
-
-  if (low.includes("transfert") || low.includes("envoyer") || low.includes("transfer") || low.includes("send"))
-    return "Pour envoyer des fonds, allez dans Transfert. Vous pouvez envoyer vers un autre utilisateur PimPay ou vers un wallet externe. Les frais sont calcules de maniere transparente.";
-
-  if (low.includes("solde") || low.includes("balance") || low.includes("combien"))
-    return "Votre solde est visible sur votre tableau de bord principal. Pour voir le detail par devise, allez dans Portefeuille.";
-
-  if (low.includes("sidra") || low.includes("sda"))
-    return "Sidra Chain est une blockchain conforme a la Charia integree dans PimPay. Les frais de gaz sont quasi-nuls (~0.0001 SDA). Vous pouvez stocker et echanger des SDA directement.";
-
-  if (low.includes("pi") || low.includes("pioneer") || low.includes("pi network"))
-    return "PimPay est integre a Pi Network via le SDK v2.0. Vous pouvez gerer votre solde Pi, faire des swaps et des transferts entre Pioneers directement.";
-
-  if (low.includes("staking") || low.includes("stake"))
-    return "Le staking vous permet de bloquer des tokens pour recevoir des recompenses. Le taux APY est mis a jour regulierement. Rendez-vous dans la section Staking pour commencer.";
-
-  if (low.includes("merci") || low.includes("thanks") || low.includes("ok") || low.includes("d'accord"))
-    return "Avec plaisir ! N'hesitez pas si vous avez d'autres questions. L'equipe PimPay est la pour vous.";
-
-  if (low.includes("bonjour") || low.includes("salut") || low.includes("hello") || low.includes("hi"))
-    return "Bonjour ! Comment puis-je vous aider aujourd'hui ? Je suis Elara, votre assistante PimPay.";
-
-  if (low.includes("probleme") || low.includes("erreur") || low.includes("bug") || low.includes("marche pas"))
-    return "Je suis desolee pour ce desagrement. Pouvez-vous me decrire le probleme en detail ? Je vais transmettre votre cas a un agent humain pour une resolution rapide.";
+  // Find matching FAQ entry
+  for (const faq of ELARA_FAQ) {
+    for (const keyword of faq.keywords) {
+      const normalizedKeyword = keyword.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (low.includes(normalizedKeyword)) {
+        return faq.response;
+      }
+    }
+  }
 
   // Default — escalate to human agent
-  return "Je n'ai pas la reponse exacte a votre question. Un agent du support PimPay va vous repondre ici tres bientot. En attendant, n'hesitez pas a preciser votre demande.";
+  return "Je n'ai pas trouve de reponse precise a votre question dans ma base de connaissances.\n\nUn agent du support PimPay va vous repondre ici tres bientot (generalement < 15 min). En attendant, n'hesitez pas a preciser votre demande ou a poser une autre question !";
 }
