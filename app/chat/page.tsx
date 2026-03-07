@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft, Send, Sparkles, Plus, Clock,
   Loader2, MessageCircle, ChevronRight,
-  ShieldCheck, X, Paperclip, FileText, Image as ImageIcon
+  ShieldCheck, X, Paperclip, FileText, Image as ImageIcon,
+  Bot, Headphones, User, Zap, HelpCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
@@ -24,6 +25,85 @@ interface Ticket {
   messages: Message[];
 }
 
+// FAQ Questions frequentes avec reponses instantanees d'Elara
+const FAQ_ITEMS = [
+  { question: "Comment faire un depot ?", category: "depot" },
+  { question: "Comment retirer mes fonds ?", category: "retrait" },
+  { question: "Comment echanger/swap ?", category: "swap" },
+  { question: "Ma carte virtuelle", category: "carte" },
+  { question: "Verification KYC", category: "kyc" },
+  { question: "Transfert P2P", category: "transfert" },
+  { question: "Probleme technique", category: "probleme" },
+  { question: "Contacter le support", category: "support" },
+];
+
+// Composant Badge pour identifier l'expediteur
+function SenderBadge({ senderId }: { senderId: string }) {
+  const isElara = senderId === "ELARA_AI";
+  const isSupport = senderId === "SUPPORT";
+  
+  if (isElara) {
+    return (
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+          <Bot size={10} className="text-white" />
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Elara AI</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">IA</span>
+      </div>
+    );
+  }
+  
+  if (isSupport) {
+    return (
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+          <Headphones size={10} className="text-white" />
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PimPay</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">Agent</span>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
+// Composant pour afficher un message
+function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: boolean }) {
+  const isElara = msg.senderId === "ELARA_AI";
+  const isSupport = msg.senderId === "SUPPORT";
+  const isLeft = isElara || isSupport;
+  
+  return (
+    <div className={`flex ${isLeft ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+      <div className="max-w-[85%]">
+        {isLeft && <SenderBadge senderId={msg.senderId} />}
+        {!isLeft && isCurrentUser && (
+          <div className="flex items-center justify-end gap-1.5 mb-1.5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Vous</span>
+            <div className="w-5 h-5 rounded-lg bg-slate-700 flex items-center justify-center">
+              <User size={10} className="text-slate-300" />
+            </div>
+          </div>
+        )}
+        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+          isElara
+            ? "bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-slate-200 rounded-bl-none"
+            : isSupport
+              ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 text-slate-200 rounded-bl-none"
+              : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
+        }`}>
+          {msg.content}
+        </div>
+        <p className={`text-[9px] text-slate-600 mt-1 ${isLeft ? "ml-1" : "mr-1 text-right"}`}>
+          {new Date(msg.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -38,6 +118,8 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showFAQ, setShowFAQ] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -118,12 +200,20 @@ export default function ChatPage() {
       });
 
       if (res.ok) {
+        // Show typing indicator for Elara response
+        setIsTyping(true);
+        
+        // Simulate brief typing delay for natural feel
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
         const data = await res.json();
+        setIsTyping(false);
         setActiveTicket(data.ticket);
         fetchTickets();
       }
     } catch (err) {
       console.error("Failed to send message:", err);
+      setIsTyping(false);
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -193,49 +283,112 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
         {!activeTicket ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="w-20 h-20 rounded-3xl bg-blue-600/10 flex items-center justify-center mb-6 border border-blue-500/20">
-                <MessageCircle size={40} className="text-blue-500" />
+            {/* Elara Avatar */}
+            <div className="relative mb-6">
+              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-blue-500 via-violet-500 to-blue-600 flex items-center justify-center shadow-xl shadow-blue-500/30">
+                <Bot size={44} className="text-white" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center border-4 border-[#020617]">
+                <Zap size={14} className="text-white" />
+              </div>
             </div>
-            <h2 className="text-xl font-black mb-2">Bonjour !</h2>
-            <p className="text-xs text-slate-500 leading-relaxed max-w-[240px] mb-6">
-                Je suis Elara. Posez-moi une question pour commencer notre discussion.
+            
+            <h2 className="text-xl font-black mb-1">Bonjour ! Je suis Elara</h2>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-[260px] mb-6">
+              Votre assistante intelligente PimPay. Je peux repondre a vos questions instantanement ou vous connecter au support.
             </p>
-            <div className="flex flex-wrap justify-center gap-2 max-w-xs">
-              {["Comment faire un swap ?", "Probleme de retrait", "Ma carte virtuelle", "Verification KYC"].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => sendMessage(suggestion)}
-                  className="px-3 py-2 bg-white/[0.05] border border-white/10 rounded-xl text-xs text-slate-300 active:scale-95 transition-all hover:border-blue-500/30"
+            
+            {/* Badges de type */}
+            <div className="flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+                <Bot size={12} className="text-blue-400" />
+                <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">IA Elara</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                <Headphones size={12} className="text-emerald-400" />
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Support</span>
+              </div>
+            </div>
+            
+            {/* FAQ Section */}
+            <div className="w-full max-w-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Questions frequentes</p>
+                <button 
+                  onClick={() => setShowFAQ(!showFAQ)}
+                  className="text-[9px] font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                 >
-                  {suggestion}
+                  {showFAQ ? "Moins" : "Tout voir"}
+                  <ChevronRight size={12} className={`transition-transform ${showFAQ ? "rotate-90" : ""}`} />
                 </button>
-              ))}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                {(showFAQ ? FAQ_ITEMS : FAQ_ITEMS.slice(0, 4)).map((item) => (
+                  <button
+                    key={item.question}
+                    onClick={() => sendMessage(item.question)}
+                    className="p-3 bg-white/[0.03] border border-white/5 rounded-xl text-left active:scale-95 transition-all hover:border-blue-500/30 hover:bg-blue-500/5 group"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <HelpCircle size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
+                      <span className="text-[8px] font-black text-slate-600 uppercase tracking-wider group-hover:text-blue-400 transition-colors">FAQ</span>
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-300 leading-tight">{item.question}</p>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Direct Support Button */}
+              <button
+                onClick={() => sendMessage("Je souhaite parler a un agent du support PimPay")}
+                className="w-full mt-4 p-4 bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-all hover:border-emerald-500/40"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                    <Headphones size={18} className="text-emerald-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-black text-emerald-400">Contacter le Support</p>
+                    <p className="text-[10px] text-emerald-600">Parler a un agent humain</p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-emerald-500" />
+              </button>
             </div>
           </div>
         ) : (
-          activeTicket.messages.map((msg) => {
-            const isBot = msg.senderId === "ELARA_AI";
-            const isSupport = msg.senderId === "SUPPORT";
-            const isLeft = isBot || isSupport;
-            return (
-              <div key={msg.id} className={`flex ${isLeft ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2`}>
+          <>
+            {activeTicket.messages.map((msg) => (
+              <ChatMessage 
+                key={msg.id} 
+                msg={msg} 
+                isCurrentUser={msg.senderId !== "ELARA_AI" && msg.senderId !== "SUPPORT"} 
+              />
+            ))}
+            
+            {/* Typing Indicator */}
+            {isTyping && (
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="max-w-[85%]">
-                  {isLeft && (
-                    <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ml-1 ${isSupport ? "text-emerald-400" : "text-blue-400"}`}>
-                      {isSupport ? "Support PimPay" : "Elara AI"}
-                    </p>
-                  )}
-                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                    isLeft
-                      ? `border rounded-bl-none ${isSupport ? "bg-emerald-500/10 border-emerald-500/20 text-slate-200" : "bg-white/[0.05] border-white/10 text-slate-200"}`
-                      : "bg-blue-600 text-white rounded-br-none shadow-lg shadow-blue-600/20"
-                  }`}>
-                    {msg.content}
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+                      <Bot size={10} className="text-white" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Elara AI</span>
+                    <span className="text-[9px] text-blue-400/60 italic">ecrit...</span>
+                  </div>
+                  <div className="px-4 py-3 rounded-2xl rounded-bl-none bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
                   </div>
                 </div>
               </div>
-            );
-          })
+            )}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
