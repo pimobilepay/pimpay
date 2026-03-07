@@ -128,6 +128,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       title: t("sideMenu.account"),
       items: [
         { label: t("sideMenu.myProfile"), icon: <User size={20} className="text-slate-400" />, path: "/profile" },
+        { label: t("kyc.title"), icon: <ShieldCheck size={20} className="text-amber-400" />, path: "/settings/kyc" },
         { label: t("sideMenu.settings"), icon: <Settings size={20} className="text-slate-400" />, path: "/settings" },
       ]
     }
