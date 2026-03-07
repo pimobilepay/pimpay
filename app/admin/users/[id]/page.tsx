@@ -1,20 +1,26 @@
+// app/admin/users/[id]/page.tsx
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { AdminControlPanel } from "@/components/admin/AdminControlPanel";
+import { AdminControlPanel } from "@/components/admin/AdminControlPanel";               
 import { UserDetailHeader } from "./header";
-import { 
-  User, Mail, Phone, Globe, Calendar, Shield, 
-  CreditCard, Wallet, Clock, MapPin, CheckCircle2, 
-  XCircle, AlertTriangle, Activity, Hash
+import {
+  User, Mail, Phone, Globe, Calendar, Shield,
+  CreditCard, Wallet, Clock, MapPin, CheckCircle2,
+  Activity, Hash
 } from "lucide-react";
 
+// Note : Pas de "use client" ici. Prisma doit rester côté serveur.
+
 export default async function AdminUserPage({ params }: { params: { id: string } }) {
+  // Extraction correcte de l'ID avec await pour Next.js 15+
   const { id } = await params;
+
   const user = await prisma.user.findUnique({
     where: { id },
-    include: { 
+    include: {
       wallets: true,
-      transactions: {
+      // On récupère les transactions initiées par cet utilisateur
+      transactionsFrom: {
         take: 10,
         orderBy: { createdAt: 'desc' }
       }
@@ -37,9 +43,8 @@ export default async function AdminUserPage({ params }: { params: { id: string }
           <div className="absolute top-0 right-0 p-6 opacity-5">
             <User size={120} />
           </div>
-          
+
           <div className="flex items-start gap-5">
-            {/* Avatar */}
             <div className="relative shrink-0">
               {user.avatar ? (
                 <img
@@ -65,7 +70,6 @@ export default async function AdminUserPage({ params }: { params: { id: string }
               )}
             </div>
 
-            {/* Infos principales */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h2 className="text-xl font-black uppercase tracking-tight">
@@ -78,7 +82,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                 )}
               </div>
               <p className="text-[10px] text-slate-500 font-mono mb-3">ID: {user.id}</p>
-              
+
               <div className="flex flex-wrap gap-2">
                 <StatusBadge status={user.status} />
                 <span className="text-[8px] font-black px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 uppercase tracking-wider">
@@ -101,7 +105,6 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
         {/* INFORMATIONS DETAILLEES */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Contact & Identite */}
           <div className="bg-slate-900/40 border border-white/5 rounded-[2rem] p-5 space-y-4">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <User size={14} className="text-blue-500" /> Identite & Contact
@@ -113,7 +116,6 @@ export default async function AdminUserPage({ params }: { params: { id: string }
             <InfoRow icon={<Globe size={14} />} label="Pays" value={user.country || "Non specifie"} />
           </div>
 
-          {/* Securite & Acces */}
           <div className="bg-slate-900/40 border border-white/5 rounded-[2rem] p-5 space-y-4">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <Shield size={14} className="text-emerald-500" /> Securite & Acces
@@ -126,7 +128,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
           </div>
         </div>
 
-        {/* IDENTIFIANTS BLOCKCHAIN */}
+        {/* BLOCKCHAIN */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2rem] p-5 space-y-4">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
             <Activity size={14} className="text-amber-500" /> Identifiants Blockchain
@@ -160,14 +162,14 @@ export default async function AdminUserPage({ params }: { params: { id: string }
           </div>
         </div>
 
-        {/* TRANSACTIONS RECENTES */}
+        {/* TRANSACTIONS (Mappage sur transactionsFrom) */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2rem] p-5">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-4">
             <Activity size={14} className="text-purple-500" /> Transactions Recentes
           </h3>
-          {user.transactions && user.transactions.length > 0 ? (
+          {user.transactionsFrom && user.transactionsFrom.length > 0 ? (
             <div className="space-y-2">
-              {user.transactions.map((tx: any) => (
+              {user.transactionsFrom.map((tx) => (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl border border-white/5">
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
@@ -196,7 +198,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
           )}
         </div>
 
-        {/* PANNEAU DE CONTROLE ADMIN */}
+        {/* PANNEAU DE CONTROLE ADMIN (Composant Client séparé) */}
         <AdminControlPanel
           userId={user.id}
           userName={user.name || user.username || "Utilisateur"}
@@ -208,17 +210,18 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   );
 }
 
-function InfoRow({ icon, label, value, mono = false, highlight }: { 
-  icon: React.ReactNode; 
-  label: string; 
-  value: string; 
+// Composants utilitaires gardés dans le même fichier
+function InfoRow({ icon, label, value, mono = false, highlight }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
   mono?: boolean;
   highlight?: "success" | "warning" | "danger";
 }) {
-  const highlightClass = highlight === "success" ? "text-emerald-400" : 
-                         highlight === "warning" ? "text-amber-400" : 
+  const highlightClass = highlight === "success" ? "text-emerald-400" :
+                         highlight === "warning" ? "text-amber-400" :
                          highlight === "danger" ? "text-red-400" : "text-white";
-  
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -240,9 +243,7 @@ function StatusBadge({ status }: { status: string }) {
     FROZEN: { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/20" },
     PENDING: { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20" },
   };
-  
   const { bg, text, border } = config[status] || config.PENDING;
-  
   return (
     <span className={`text-[8px] font-black px-2.5 py-1 ${bg} ${text} rounded-full border ${border} uppercase tracking-wider`}>
       {status}
