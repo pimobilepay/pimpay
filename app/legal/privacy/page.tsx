@@ -23,19 +23,19 @@ export default function PolitiqueConfidentialite() {
       icon: <FileText size={16} />,
       title: "1. Introduction",
       content:
-        "Cette Politique de Confidentialite decrit comment PIMPAY collecte, utilise, protege et partage vos informations personnelles lorsque vous utilisez nos services numeriques. PimPay est une plateforme fintech multi-chaines integree aux ecosystemes Sidra Chain et Pi Network, operant en conformite avec les standards SMIIC, AAOIFI et les principes de la finance islamique.",
+        "Cette Politique de Confidentialité décrit comment PIMPAY collecte, utilise, protège et partage vos informations personnelles lorsque vous utilisez nos services numeriques. PimPay est une plateforme fintech web3  multi-chaines integrée aux écosystèmes Sidra Chain et Pi Network, opérant en conformité avec les standards SMIIC, AAOIFI et les principes de la finance islamique.",
     },
     {
       icon: <Database size={16} />,
-      title: "2. Informations collectees",
+      title: "2. Informations collectées",
       content:
-        "Nous collectons les categories de donnees suivantes :\n\n- Donnees d'identite : nom, prenom, date de naissance, nationalite, genre, adresse postale.\n- Donnees de contact : numero de telephone, adresse email.\n- Donnees KYC : type et numero de piece d'identite, dates de delivrance et d'expiration, pays d'emission, photo recto/verso du document, selfie de verification.\n- Donnees financieres : adresses de wallets (Pi, Sidra, USDT TRC20, Bitcoin), soldes, historique des transactions, beneficiaires enregistres.\n- Donnees techniques : adresse IP, modele d'appareil, navigateur, systeme d'exploitation, geolocalisation (ville, pays, coordonnees GPS), user-agent.\n- Donnees de session : tokens d'authentification, horodatage des connexions, tentatives de connexion echouees, derniere activite.",
+        "Nous collectons les catégories de données suivantes :\n\n- Données d'identité : nom, prénom, date de naissance, nationalité, genre, adresse postale.\n- Données de contact : numéro de téléphone, adresse email.\n- Données KYC : type et numéro de pièce d'identité, dates de délivrance et d'expiration, pays d'émission, photo recto/verso du document, selfie de vérification.\n- Données financières : adresses de wallets (Pi, Sidra, USDT TRC20, Bitcoin), soldes, historique des transactions, bénéficiaires enregistrés.\n- Données techniques : adresse IP, modèle d'appareil, navigateur, système d'exploitation, géolocalisation (ville, pays, coordonnées GPS), user-agent.\n- Données de session : tokens d'authentification, horodatage des connexions, tentatives de connexion échouées, dernière activité.",
     },
     {
       icon: <Eye size={16} />,
-      title: "3. Utilisation des donnees",
+      title: "3. Utilisation des données",
       content:
-        "Vos informations sont utilisees pour :\n\n- Assurer le fonctionnement securise du service et traiter vos transactions (TRANSFER, WITHDRAW, DEPOSIT, PAYMENT, EXCHANGE, STAKING_REWARD, AIRDROP, CARD_PURCHASE).\n- Verifier votre identite via le processus KYC (statuts : NONE, PENDING, VERIFIED, REJECTED, APPROVED).\n- Prevenir les fraudes grace au suivi des sessions, au journal de securite (SecurityLog) et au journal d'audit (AuditLog).\n- Calculer et afficher les frais de transaction de maniere transparente conformement au principe Anti-Gharar de la Sidra Chain.\n- Gerer vos wallets multi-devises (XAF, EUR, USD, CDF, Pi, Sidra).\n- Emettre et gerer vos cartes virtuelles (CLASSIC, GOLD, BUSINESS, ULTRA).\n- Envoyer des notifications liees a votre compte (transactions, securite, promotions).",
+        "Vos informations sont utilisées pour :\n\n- Assurer le fonctionnement sécurisé du service et traiter vos transactions (TRANSFER, WITHDRAW, DEPOSIT, PAYMENT, EXCHANGE, STAKING_REWARD, AIRDROP, CARD_PURCHASE).\n- Vérifier votre identité via le processus KYC (statuts : NONE, PENDING, VERIFIED, REJECTED, APPROVED).\n- Prevenir les fraudes grâce au suivi des sessions, au journal de securite (SecurityLog) et au journal d'audit (AuditLog).\n- Calculer et afficher les frais de transaction de maniere transparente conformement au principe Anti-Gharar de la Sidra Chain.\n- Gerer vos wallets multi-devises (XAF, EUR, USD, CDF, Pi, Sidra).\n- Emettre et gerer vos cartes virtuelles (CLASSIC, GOLD, BUSINESS, ULTRA).\n- Envoyer des notifications liees a votre compte (transactions, securite, promotions).",
     },
     {
       icon: <Users size={16} />,
@@ -69,15 +69,15 @@ export default function PolitiqueConfidentialite() {
     },
     {
       icon: <AlertTriangle size={16} />,
-      title: "9. Geo-restriction et conformite",
+      title: "9. Géo-restriction et conformité",
       content:
-        "PimPay applique un controle d'acces par juridiction pour respecter les lois bancaires locales :\n\n- Le service est geo-restreint aux juridictions autorisees.\n- L'acces est controle par adresse IP et geolocalisation de l'appareil.\n- Les devises disponibles dependent du pays de residence (XAF pour la zone CEMAC, EUR pour l'Europe, etc.).\n- La conformite avec les standards Basel III est assuree via des modules de reporting pour le suivi des ratios de liquidite.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque nouveau produit financier avant son lancement (Fatwa de conformite).",
+        "PimPay applique un contrôle d'accès par juridiction pour respecter les lois bancaires locales :\n\n- Le service est géo-restreint aux juridictions autorisées.\n- L'accès est contrôle par adresse IP et géolocalisation de l'appareil.\n- Les devises disponibles dépendent du pays de résidence (XAF pour la zone CEMAC, EUR pour l'Europe, etc.).\n- La conformité avec les standards Basel III est assurée via des modules de reporting pour le suivi des ratios de liquidité.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque nouveau produit financier avant son lancement (Fatwa de conformité).",
     },
     {
       icon: <ShieldCheck size={16} />,
       title: "10. Modifications de la politique",
       content:
-        "PimPay se reserve le droit de modifier cette politique de confidentialite a tout moment. Les utilisateurs seront notifies de tout changement significatif via le systeme de notifications in-app. La version en vigueur est toujours accessible depuis les parametres de l'application et la section Liens Utiles du Centre d'Aide. En continuant d'utiliser le service apres modification, vous acceptez les termes mis a jour.",
+        "PimPay se reserve le droit de modifier cette politique de confidentialite a tout moment. Les utilisateurs seront notifies de tout changement significatif via le système de notifications in-app. La version en vigueur est toujours accessible depuis les paramètres de l'application et la section Liens Utiles du Centre d'Aide. En continuant d'utiliser le service après modification, vous acceptez les termes mis a jour.",
     },
   ];
 
