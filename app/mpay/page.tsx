@@ -53,6 +53,8 @@ export default function MPayPage() {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [notifications, setNotifications] = useState(3);
   const [isOnline, setIsOnline] = useState(true);
+  const [userMerchantId, setUserMerchantId] = useState("");
+  const [userName, setUserName] = useState("");
 
   // Payment flow states
   const [merchantId, setMerchantId] = useState("");
@@ -65,8 +67,12 @@ export default function MPayPage() {
     fetch("/api/user/profile")
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.user?.balances) {
-          setUserBalance(data.user.balances.pi || 0);
+        if (data.success && data.user) {
+          setUserBalance(data.user.balances?.pi || 0);
+          // Generer l'ID marchand a partir de l'ID utilisateur
+          const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
+          setUserMerchantId(merchantCode);
+          setUserName(data.user.name || data.user.username || "Utilisateur");
         }
       })
       .catch(() => setUserBalance(0));
@@ -152,11 +158,21 @@ export default function MPayPage() {
           <button onClick={() => setActiveView("hub")} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-lg font-black uppercase tracking-tight">Recevoir</h1>
+          <div className="text-center">
+            <h1 className="text-lg font-black uppercase tracking-tight">Recevoir</h1>
+            <p className="text-[9px] font-bold text-blue-500 tracking-[3px] uppercase">Votre QR Code</p>
+          </div>
           <div className="w-11" />
         </header>
-        <div className="px-6 pt-4">
-          <ReceiveQR userIdentifier="PIMPAY-USER-001" />
+        <div className="px-6 pt-4 space-y-4">
+          {/* Nom de l'utilisateur */}
+          {userName && (
+            <div className="text-center">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Compte Marchand</p>
+              <p className="text-lg font-black text-white">{userName}</p>
+            </div>
+          )}
+          <ReceiveQR userIdentifier={userMerchantId || "Chargement..."} />
         </div>
       </div>
     );
