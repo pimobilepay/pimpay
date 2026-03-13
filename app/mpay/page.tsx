@@ -78,17 +78,49 @@ export default function MPayPage() {
       .catch(() => setUserBalance(0));
   }, []);
 
-  // Notification polling
+  // Real notification polling
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newNotif = Math.random() > 0.7;
-      if (newNotif) {
-        setNotifications(prev => prev + 1);
-        toast("Nouveau paiement recu", {
-          description: `+${(Math.random() * 10).toFixed(2)} Pi de ${MOCK_CONTACTS[Math.floor(Math.random() * MOCK_CONTACTS.length)].name}`,
-        });
+    let lastNotifId = sessionStorage.getItem("mpay_last_notif_id") || "";
+    
+    const checkNewNotifications = async () => {
+      try {
+        const res = await fetch("/api/transaction/notifications");
+        const data = await res.json();
+        
+        if (data.notifications && data.notifications.length > 0) {
+          const unreadPayments = data.notifications.filter(
+            (n: any) => !n.read && (n.type === "PAYMENT_RECEIVED" || n.type === "success")
+          );
+          
+          setNotifications(data.unreadCount || 0);
+          
+          // Show toast for new payment received
+          if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
+            const latest = unreadPayments[0];
+            lastNotifId = latest.id;
+            sessionStorage.setItem("mpay_last_notif_id", latest.id);
+            
+            toast.success("Paiement recu !", {
+              description: latest.message || `Vous avez recu un nouveau paiement`,
+              duration: 6000,
+              style: {
+                background: "rgba(16, 185, 129, 0.95)",
+                border: "1px solid rgba(52, 211, 153, 0.3)",
+                color: "#fff",
+              },
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Notification check error:", error);
       }
-    }, 15000);
+    };
+    
+    // Check immediately
+    checkNewNotifications();
+    
+    // Then poll every 10 seconds
+    const interval = setInterval(checkNewNotifications, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -406,13 +438,13 @@ export default function MPayPage() {
           </div>
         </div>
         <button
-          onClick={() => { setNotifications(0); router.push("/notifications"); }}
+          onClick={() => router.push("/mpay/notifications")}
           className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all relative"
         >
           <Bell size={20} />
           {notifications > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[#020617]">
-              {notifications}
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[#020617] animate-pulse">
+              {notifications > 9 ? "9+" : notifications}
             </span>
           )}
         </button>
