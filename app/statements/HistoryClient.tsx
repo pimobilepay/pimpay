@@ -1,22 +1,36 @@
 "use client";
-                                                                import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, Search, Download, ArrowUpRight, ArrowDownLeft,
-  Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap  } from "lucide-react";
+  Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, Bitcoin, DollarSign, Coins } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+
+// Types de devises disponibles
+const CURRENCY_FILTERS = [
+  { id: "all", label: "Tout", icon: null },
+  { id: "PI", label: "Pi", icon: "π" },
+  { id: "SDA", label: "SDA", icon: "S" },
+  { id: "BTC", label: "BTC", icon: "₿" },
+  { id: "XAF", label: "XAF", icon: "F" },
+  { id: "XOF", label: "XOF", icon: "F" },
+];
 
 export default function HistoryClient({ initialTransactions, stats, currentUserId }: any) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeService, setActiveService] = useState("all");
+  const [activeCurrency, setActiveCurrency] = useState("all");
 
   // Mapping des transactions avec détection automatique du type
-  const formattedTransactions = useMemo(() => {                     return initialTransactions.map((tx: any) => {                     const isIncome = tx.toUserId === currentUserId;
-                                                                      // Détection du type pour le filtrage et les icônes
+  const formattedTransactions = useMemo(() => {
+    return initialTransactions.map((tx: any) => {
+      const isIncome = tx.toUserId === currentUserId;
+      
+      // Détection du type pour le filtrage et les icônes
       let type = 'transfer';
       const purpose = (tx.purpose || "").toLowerCase();
       const description = (tx.description || "").toLowerCase();
@@ -25,12 +39,16 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       else if (purpose.includes('retrait') || purpose.includes('withdraw')) type = 'withdraw';
       else if (purpose.includes('dépôt') || purpose.includes('deposit')) type = 'deposit';
 
+      // Détection de la devise
+      const currency = (tx.currency || "XAF").toUpperCase();
+
       return {
         id: tx.id,
         reference: tx.reference || null,
         title: tx.description || tx.purpose || (isIncome ? "Réception" : "Envoi"),
         type: type,
         amount: tx.amount,
+        currency: currency,
         piAmount: tx.amount.toFixed(6),
         date: format(new Date(tx.createdAt), "d MMM, HH:mm", { locale: fr }),
         status: tx.status.toLowerCase() === 'completed' || tx.status.toLowerCase() === 'success' ? 'success' :
@@ -43,10 +61,11 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   const filteredTransactions = useMemo(() => {
     return formattedTransactions.filter((tx: any) => {
       const matchesService = activeService === "all" || tx.type === activeService;
+      const matchesCurrency = activeCurrency === "all" || tx.currency === activeCurrency;
       const matchesSearch = tx.title.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesService && matchesSearch;
+      return matchesService && matchesCurrency && matchesSearch;
     });
-  }, [activeService, searchQuery, formattedTransactions]);
+  }, [activeService, activeCurrency, searchQuery, formattedTransactions]);
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 font-sans selection:bg-blue-500/30">
@@ -104,21 +123,49 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           />
         </div>
 
-        {/* FILTRES PAR SERVICE */}
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {["all", "deposit", "withdraw", "transfer", "recharge"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setActiveService(s)}
-              className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 ${
-                activeService === s
-                  ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20"
-                  : "bg-slate-900/50 border-white/5 text-slate-500"
-              }`}
-            >
-              {s === 'all' ? 'Tout' : s === 'deposit' ? 'Dépôts' : s === 'withdraw' ? 'Retraits' : s === 'transfer' ? 'Transferts' : 'Recharges'}
-            </button>
-          ))}
+        {/* FILTRES PAR DEVISE */}
+        <div className="space-y-2">
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Filtrer par devise</h4>
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {CURRENCY_FILTERS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setActiveCurrency(c.id)}
+                className={`px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 flex items-center gap-2 ${
+                  activeCurrency === c.id
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-500 text-white shadow-lg shadow-blue-600/20"
+                    : "bg-slate-900/50 border-white/5 text-slate-500 hover:border-white/10"
+                }`}
+              >
+                {c.icon && (
+                  <span className={`text-xs ${activeCurrency === c.id ? "text-white" : "text-blue-400"}`}>
+                    {c.icon}
+                  </span>
+                )}
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* FILTRES PAR TYPE */}
+        <div className="space-y-2">
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Filtrer par type</h4>
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {["all", "deposit", "withdraw", "transfer", "recharge"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setActiveService(s)}
+                className={`px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 ${
+                  activeService === s
+                    ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20"
+                    : "bg-slate-900/50 border-white/5 text-slate-500 hover:border-white/10"
+                }`}
+              >
+                {s === 'all' ? 'Tout' : s === 'deposit' ? 'Depots' : s === 'withdraw' ? 'Retraits' : s === 'transfer' ? 'Transferts' : 'Recharges'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* LISTE DES TRANSACTIONS */}
@@ -200,11 +247,18 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
         </div>
         <div className="text-right">
           <p className={`text-lg font-black tracking-tighter ${tx.isIncome ? 'text-green-400' : 'text-white'}`}>
-            {tx.isIncome ? '+' : '-'}{tx.amount.toFixed(2)} $
+            {tx.isIncome ? '+' : '-'}{tx.amount.toFixed(2)} {tx.currency}
           </p>
-          <div className="flex items-center justify-end gap-1">
-             <Zap size={8} className="text-blue-500" />
-             <p className="text-[9px] font-black text-slate-400 uppercase">{tx.piAmount} π</p>
+          <div className="flex items-center justify-end gap-2">
+             <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${
+               tx.currency === 'PI' ? 'bg-amber-500/20 text-amber-400' :
+               tx.currency === 'SDA' ? 'bg-emerald-500/20 text-emerald-400' :
+               tx.currency === 'BTC' ? 'bg-orange-500/20 text-orange-400' :
+               tx.currency === 'XAF' || tx.currency === 'XOF' ? 'bg-blue-500/20 text-blue-400' :
+               'bg-slate-500/20 text-slate-400'
+             }`}>
+               {tx.currency === 'PI' ? 'π' : tx.currency === 'BTC' ? '₿' : tx.currency}
+             </span>
           </div>
         </div>
       </div>
