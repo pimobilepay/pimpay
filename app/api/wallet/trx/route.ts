@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import TronWeb from "tronweb";
 
 // Force la route à être calculée à chaque requête (indispensable pour les sessions)
@@ -9,14 +8,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     
-    if (!session?.user?.id) {
+    if (!session?.id) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.id },
       select: { usdtAddress: true }
     });
     
@@ -30,9 +29,9 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     
-    if (!session?.user?.id) {
+    if (!session?.id) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
@@ -40,7 +39,7 @@ export async function POST() {
     const account = await TronWeb.createAccount();
 
     const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: session.id },
       data: {
         usdtAddress: account.address.base58,
         usdtPrivateKey: account.privateKey
