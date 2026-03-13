@@ -30,7 +30,23 @@ function SummaryContent() {
     try {
       await new Promise(resolve => setTimeout(resolve, 3000));
       toast.success("Transaction validee !");
-      router.push("/airtime/success");
+      
+      // Generer une reference unique
+      const reference = `PIM-AIR-${Date.now().toString(36).toUpperCase()}`;
+      
+      // Passer les donnees a la page success
+      const successParams = new URLSearchParams({
+        ref: reference,
+        phone: data.phone,
+        operator: data.operator,
+        usd: data.usd,
+        pi: data.pi,
+        local: data.local,
+        currency: data.currency,
+        country: data.country,
+      });
+      
+      router.push(`/airtime/success?${successParams.toString()}`);
     } catch {
       toast.error("Echec de la transaction");
       router.push("/airtime/failed");
