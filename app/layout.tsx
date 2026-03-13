@@ -43,30 +43,6 @@ export default function RootLayout({
     >
       <head>
         <meta name="google" content="notranslate" />
-
-        {/* 1. SDK PI NETWORK - Chargement critique */}
-        <Script
-          src="https://sdk.minepi.com/pi-sdk.js"
-          strategy="beforeInteractive"
-        />
-
-        {/* L'initialisation du SDK Pi est geree par PiInitializer.tsx
-            pour eviter les doubles appels a Pi.init() */}
-
-        {/* Google Analytics */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-W8HP6W3DM4"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-W8HP6W3DM4');
-          `}
-        </Script>
-
         <script
           id="theme-strategy"
           dangerouslySetInnerHTML={{
@@ -83,6 +59,26 @@ export default function RootLayout({
       </head>
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
+        {/* SDK PI NETWORK - Chargement critique */}
+        <Script
+          src="https://sdk.minepi.com/pi-sdk.js"
+          strategy="beforeInteractive"
+        />
+
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-W8HP6W3DM4"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-W8HP6W3DM4');
+          `}
+        </Script>
+
         <LanguageProvider>
           <ThemeProvider>
             <PiInitializer />
