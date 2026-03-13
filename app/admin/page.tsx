@@ -84,6 +84,7 @@ export default function AdminDashboard() {
             { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
             { label: "Support", desc: "Tickets clients", icon: <Headphones size={20} />, path: "/admin/support", color: "rose" },
             { label: "Analytics", desc: "Statistiques", icon: <BarChart3 size={20} />, path: "/admin/analytics", color: "indigo" },
+            { label: "Tresorerie", desc: "Finances", icon: <Landmark size={20} />, path: "/admin/treasury", color: "amber" },
             { label: "Logs", desc: "Activite users", icon: <Eye size={20} />, path: "/admin/logs", color: "teal" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
           ].map((item) => {
@@ -223,6 +224,7 @@ export default function AdminDashboard() {
         <div className="space-y-3">
           {[
             { label: "Gestion Complete", desc: "Dashboard detaille avec controle total", icon: <Shield size={18} />, path: "/admin/dashboard", color: "blue" },
+            { label: "Tresorerie", desc: "Gestion des finances et flux", icon: <Landmark size={18} />, path: "/admin/treasury", color: "amber" },
             { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
             { label: "Logs Utilisateurs", desc: "Suivi d'activite en temps reel", icon: <Eye size={18} />, path: "/admin/logs", color: "blue" },
             { label: "Mode Rescue", desc: "Outils de recuperation d'urgence", icon: <AlertTriangle size={18} />, path: "/admin/rescue", color: "red" },
@@ -233,7 +235,7 @@ export default function AdminDashboard() {
               className="w-full flex items-center justify-between p-5 bg-slate-900/40 border border-white/5 rounded-[2rem] hover:bg-white/5 transition-all active:scale-[0.98] group"
             >
               <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-2xl ${item.color === 'blue' ? 'bg-blue-500/10 text-blue-400' : item.color === 'purple' ? 'bg-purple-500/10 text-purple-400' : 'bg-red-500/10 text-red-400'}`}>
+                <div className={`p-3 rounded-2xl ${item.color === 'blue' ? 'bg-blue-500/10 text-blue-400' : item.color === 'purple' ? 'bg-purple-500/10 text-purple-400' : item.color === 'amber' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>
                   {item.icon}
                 </div>
                 <div className="text-left">
