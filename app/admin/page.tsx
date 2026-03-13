@@ -134,7 +134,7 @@ export default function AdminDashboard() {
           <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Apercu Systeme</h2>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <StatCard title="Volume Total" value={`${stats?.totalVolume?.toLocaleString() || 0} XAF`} icon={<Landmark className="text-blue-500" />} trend="+12.5%" color="blue" />
+          <StatCard title="Volume Total" value={`$${stats?.totalVolume?.toLocaleString() || 0}`} icon={<Landmark className="text-blue-500" />} trend="+12.5%" color="blue" />
           <StatCard title="Utilisateurs" value={stats?.totalUsers || 0} icon={<Users className="text-purple-500" />} trend="+3.2%" color="purple" />
           <StatCard title="KYC en Attente" value={stats?.pendingKyc || 0} icon={<ShieldCheck className="text-amber-500" />} trend="Priorite" color="amber" />
           <StatCard title="Sante Systeme" value="99.9%" icon={<Zap className="text-emerald-500" />} trend="Stable" color="emerald" />
