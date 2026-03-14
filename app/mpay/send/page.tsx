@@ -10,44 +10,89 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-const CONTACTS = [
-  { id: "u1", name: "Amadou Diallo", username: "@amadou", avatar: "AD", lastSent: "5.0 Pi" },
-  { id: "u2", name: "Fatou Sow", username: "@fatou", avatar: "FS", lastSent: "12.0 Pi" },
-  { id: "u3", name: "Ibrahim Keita", username: "@ibrahim", avatar: "IK", lastSent: "3.5 Pi" },
-  { id: "u4", name: "Aissatou Ba", username: "@aissa", avatar: "AB", lastSent: "8.0 Pi" },
-  { id: "u5", name: "Moussa Traore", username: "@moussa", avatar: "MT", lastSent: "20.0 Pi" },
-  { id: "u6", name: "Mariama Diop", username: "@mariama", avatar: "MD", lastSent: null },
-  { id: "u7", name: "Ousmane Sy", username: "@ousmane", avatar: "OS", lastSent: null },
-];
+// Type for contacts from API
+interface P2PContact {
+  id: string;
+  contactId: string;
+  name: string;
+  username: string | null;
+  phone: string | null;
+  avatar: string | null;
+  initials: string;
+  nickname: string | null;
+  isFavorite: boolean;
+  lastTransaction: string | null;
+  transactionCount: number;
+}
 
 export default function P2PSendPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preSelectedTo = searchParams.get("to") || "";
 
-  const [step, setStep] = useState(preSelectedTo ? 2 : 1); // 1: select contact, 2: amount, 3: message, 4: confirm
-  const [searchQuery, setSearchQuery] = useState(preSelectedTo);
-  const [selectedContact, setSelectedContact] = useState<typeof CONTACTS[0] | null>(
-    preSelectedTo ? CONTACTS.find(c => c.username === preSelectedTo) || null : null
-  );
+  const [step, setStep] = useState(1); // 1: select contact, 2: amount, 3: message, 4: confirm
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contacts, setContacts] = useState<P2PContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
+  const [selectedContact, setSelectedContact] = useState<P2PContact | null>(null);
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [userBalance, setUserBalance] = useState(3141.59);
+  const [userBalance, setUserBalance] = useState(0);
 
+  // Fetch user balance
   useEffect(() => {
     fetch("/api/user/profile")
       .then(res => res.json())
-      .then(data => setUserBalance(data.balance || 0))
-      .catch(() => setUserBalance(3141.59));
+      .then(data => {
+        if (data.success && data.user) {
+          setUserBalance(data.user.balances?.pi || 0);
+        }
+      })
+      .catch(() => setUserBalance(0));
   }, []);
 
-  const filteredContacts = CONTACTS.filter(
+  // Fetch contacts from API
+  useEffect(() => {
+    const fetchContacts = async () => {
+      setContactsLoading(true);
+      try {
+        const res = await fetch("/api/mpay/contacts");
+        const data = await res.json();
+        if (data.success && data.contacts) {
+          setContacts(data.contacts);
+          
+          // If there's a preselected contact, find and select it
+          if (preSelectedTo) {
+            const found = data.contacts.find(
+              (c: P2PContact) => 
+                c.username === preSelectedTo || 
+                c.username === preSelectedTo.replace("@", "") ||
+                c.contactId === preSelectedTo
+            );
+            if (found) {
+              setSelectedContact(found);
+              setStep(2);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching contacts:", error);
+      } finally {
+        setContactsLoading(false);
+      }
+    };
+    fetchContacts();
+  }, [preSelectedTo]);
+
+const filteredContacts = contacts.filter(
     c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         c.username.toLowerCase().includes(searchQuery.toLowerCase())
+    (c.username && c.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (c.nickname && c.nickname.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (c.phone && c.phone.includes(searchQuery))
   );
 
-  const handleSelectContact = (contact: typeof CONTACTS[0]) => {
+  const handleSelectContact = (contact: P2PContact) => {
     setSelectedContact(contact);
     setStep(2);
   };
@@ -138,29 +183,56 @@ export default function P2PSendPage() {
               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">
                 {searchQuery ? `${filteredContacts.length} resultat(s)` : "Contacts recents"}
               </p>
-              <div className="space-y-2">
-                {filteredContacts.map((contact) => (
-                  <button
-                    key={contact.id}
-                    onClick={() => handleSelectContact(contact)}
-                    className="w-full flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.05] active:scale-[0.98] transition-all"
-                  >
-                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20">
-                      <span className="text-sm font-black text-cyan-400">{contact.avatar}</span>
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-black uppercase tracking-tight">{contact.name}</p>
-                      <p className="text-[10px] font-bold text-slate-500">{contact.username}</p>
-                    </div>
-                    {contact.lastSent && (
-                      <span className="text-[9px] font-bold text-slate-600 bg-white/5 px-3 py-1 rounded-full">
-                        {contact.lastSent}
-                      </span>
-                    )}
-                    <ChevronRight size={16} className="text-slate-600" />
-                  </button>
-                ))}
-              </div>
+              {contactsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-cyan-500 mb-3" size={24} />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Chargement des contacts...
+                  </span>
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Users size={32} className="text-slate-700 mb-3" />
+                  <p className="text-xs font-bold text-slate-500 mb-1">
+                    {searchQuery ? "Aucun resultat" : "Aucun contact"}
+                  </p>
+                  <p className="text-[10px] text-slate-600 text-center">
+                    {searchQuery
+                      ? "Essayez avec un autre terme"
+                      : "Ajoutez des contacts depuis la page contacts"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredContacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      onClick={() => handleSelectContact(contact)}
+                      className="w-full flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.05] active:scale-[0.98] transition-all"
+                    >
+                      <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden">
+                        {contact.avatar ? (
+                          <img src={contact.avatar} alt={contact.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-sm font-black text-cyan-400">{contact.initials}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-black uppercase tracking-tight">{contact.nickname || contact.name}</p>
+                        <p className="text-[10px] font-bold text-slate-500">
+                          {contact.username ? `@${contact.username.replace("@", "")}` : contact.phone || ""}
+                        </p>
+                      </div>
+                      {contact.transactionCount > 0 && (
+                        <span className="text-[9px] font-bold text-slate-600 bg-white/5 px-3 py-1 rounded-full">
+                          {contact.transactionCount} tx
+                        </span>
+                      )}
+                      <ChevronRight size={16} className="text-slate-600" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -170,12 +242,18 @@ export default function P2PSendPage() {
           <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
             {/* Contact Info */}
             <div className="flex items-center gap-4 p-4 bg-cyan-600/5 border border-cyan-500/20 rounded-2xl">
-              <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20">
-                <span className="text-sm font-black text-cyan-400">{selectedContact.avatar}</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden">
+                {selectedContact.avatar ? (
+                  <img src={selectedContact.avatar} alt={selectedContact.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm font-black text-cyan-400">{selectedContact.initials}</span>
+                )}
               </div>
               <div>
-                <p className="text-sm font-black uppercase tracking-tight">{selectedContact.name}</p>
-                <p className="text-[10px] font-bold text-cyan-500">{selectedContact.username}</p>
+                <p className="text-sm font-black uppercase tracking-tight">{selectedContact.nickname || selectedContact.name}</p>
+                <p className="text-[10px] font-bold text-cyan-500">
+                  {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || ""}
+                </p>
               </div>
             </div>
 
@@ -226,12 +304,18 @@ export default function P2PSendPage() {
             {/* Summary top */}
             <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20">
-                  <span className="text-[10px] font-black text-cyan-400">{selectedContact.avatar}</span>
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden">
+                  {selectedContact.avatar ? (
+                    <img src={selectedContact.avatar} alt={selectedContact.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] font-black text-cyan-400">{selectedContact.initials}</span>
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase">{selectedContact.name}</p>
-                  <p className="text-[9px] text-slate-500 font-bold">{selectedContact.username}</p>
+                  <p className="text-xs font-black uppercase">{selectedContact.nickname || selectedContact.name}</p>
+                  <p className="text-[9px] text-slate-500 font-bold">
+                    {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || ""}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
@@ -285,14 +369,16 @@ export default function P2PSendPage() {
                 <p className="text-3xl font-black">{amount} <span className="text-cyan-500">Pi</span></p>
               </div>
 
-              <div className="space-y-3">
+<div className="space-y-3">
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Destinataire</span>
-                  <span className="font-black text-xs text-cyan-400 uppercase">{selectedContact.name}</span>
+                  <span className="font-black text-xs text-cyan-400 uppercase">{selectedContact.nickname || selectedContact.name}</span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Username</span>
-                  <span className="font-black text-xs uppercase">{selectedContact.username}</span>
+                  <span className="font-black text-xs uppercase">
+                    {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || "-"}
+                  </span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Frais</span>

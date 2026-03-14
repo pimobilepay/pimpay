@@ -37,13 +37,20 @@ interface MapOfPiMerchant {
   tags: string[];
 }
 
-const MOCK_CONTACTS = [
-  { id: "u1", name: "Amadou", username: "@amadou", avatar: "AM" },
-  { id: "u2", name: "Fatou", username: "@fatou", avatar: "FA" },
-  { id: "u3", name: "Ibrahim", username: "@ibrahim", avatar: "IB" },
-  { id: "u4", name: "Aissatou", username: "@aissa", avatar: "AI" },
-  { id: "u5", name: "Moussa", username: "@moussa", avatar: "MO" },
-];
+// Type for P2P contacts from API
+interface P2PContact {
+  id: string;
+  contactId: string;
+  name: string;
+  username: string | null;
+  phone: string | null;
+  avatar: string | null;
+  initials: string;
+  nickname: string | null;
+  isFavorite: boolean;
+  lastTransaction: string | null;
+  transactionCount: number;
+}
 
 const MOCK_HISTORY = [
   { id: "tx1", type: "sent", to: "PimShop", amount: "2.5", date: "Aujourd'hui, 14:30", status: "success" },
@@ -74,6 +81,10 @@ export default function MPayPage() {
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [merchantsLoading, setMerchantsLoading] = useState(true);
   const [merchantSearch, setMerchantSearch] = useState("");
+
+  // P2P contacts state
+  const [p2pContacts, setP2pContacts] = useState<P2PContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
 
   // Payment flow states
   const [merchantId, setMerchantId] = useState("");
@@ -124,6 +135,25 @@ export default function MPayPage() {
   useEffect(() => {
     fetchMapOfPiMerchants();
   }, [fetchMapOfPiMerchants]);
+
+  // Fetch P2P contacts from API
+  useEffect(() => {
+    const fetchContacts = async () => {
+      setContactsLoading(true);
+      try {
+        const res = await fetch("/api/mpay/contacts");
+        const data = await res.json();
+        if (data.success && data.contacts) {
+          setP2pContacts(data.contacts);
+        }
+      } catch (error) {
+        console.error("Error fetching P2P contacts:", error);
+      } finally {
+        setContactsLoading(false);
+      }
+    };
+    fetchContacts();
+  }, []);
 
   // Real notification polling
   useEffect(() => {
@@ -649,7 +679,7 @@ export default function MPayPage() {
           )}
         </section>
 
-        {/* P2P CONTACTS */}
+{/* P2P CONTACTS */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -657,7 +687,7 @@ export default function MPayPage() {
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Contacts P2P</h2>
             </div>
             <button
-              onClick={() => router.push("/mpay/send")}
+              onClick={() => router.push("/mpay/contacts")}
               className="text-[9px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1"
             >
               Tout voir <ChevronRight size={12} />
@@ -673,18 +703,32 @@ export default function MPayPage() {
               </div>
               <span className="text-[8px] font-bold text-slate-600 uppercase">Nouveau</span>
             </button>
-            {MOCK_CONTACTS.map((contact) => (
-              <button
-                key={contact.id}
-                onClick={() => router.push(`/mpay/send?to=${contact.username}`)}
-                className="flex-shrink-0 flex flex-col items-center gap-2 group"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 group-active:scale-90 transition-all">
-                  <span className="text-xs font-black text-cyan-400">{contact.avatar}</span>
-                </div>
-                <span className="text-[8px] font-bold text-slate-500 uppercase">{contact.name}</span>
-              </button>
-            ))}
+            {contactsLoading ? (
+              <div className="flex items-center justify-center px-8">
+                <Loader2 className="animate-spin text-cyan-500" size={20} />
+              </div>
+            ) : p2pContacts.length === 0 ? (
+              <div className="flex items-center justify-center px-4">
+                <span className="text-[10px] font-bold text-slate-500">Aucun contact</span>
+              </div>
+            ) : (
+              p2pContacts.slice(0, 5).map((contact) => (
+                <button
+                  key={contact.id}
+                  onClick={() => router.push(`/mpay/send?to=${contact.username || contact.contactId}`)}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 group"
+                >
+                  <div className="w-14 h-14 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 group-active:scale-90 transition-all overflow-hidden">
+                    {contact.avatar ? (
+                      <img src={contact.avatar} alt={contact.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-black text-cyan-400">{contact.initials}</span>
+                    )}
+                  </div>
+                  <span className="text-[8px] font-bold text-slate-500 uppercase max-w-14 truncate">{contact.nickname || contact.name}</span>
+                </button>
+              ))
+            )}
           </div>
         </section>
 
