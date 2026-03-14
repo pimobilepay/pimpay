@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | string;
 
 interface Notification {
   id: string;
@@ -137,6 +137,10 @@ export default function NotificationsPage() {
       case "MERCHANT": return <Store className="text-amber-400" size={18} />;
       case "LOGIN": return <LogIn className="text-indigo-400" size={18} />;
       case "SYSTEM": return <Info className="text-blue-500" size={18} />;
+      case "KYC":
+      case "KYC_APPROVED": return <ShieldCheck className="text-emerald-400" size={18} />;
+      case "KYC_REJECTED": return <ShieldCheck className="text-rose-500" size={18} />;
+      case "KYC_PENDING": return <ShieldCheck className="text-amber-400" size={18} />;
       default: return <Bell className="text-slate-400" size={18} />;
     }
   };
@@ -147,12 +151,14 @@ export default function NotificationsPage() {
     { id: "SWAP", label: "Swaps" },
     { id: "LOGIN", label: "Sessions" },
     { id: "SECURITY", label: "Sécurité" },
+    { id: "KYC", label: "KYC" },
   ];
 
   const filteredNotifications = activeTab === "ALL"
     ? notifications
     : notifications.filter(n => {
         if (activeTab === "SUCCESS") return n.type === "SUCCESS" || n.type === "PAYMENT_RECEIVED";
+        if (activeTab === "KYC") return n.type === "KYC" || n.type === "KYC_APPROVED" || n.type === "KYC_REJECTED" || n.type === "KYC_PENDING";
         return n.type === activeTab;
       });
 
@@ -164,9 +170,9 @@ export default function NotificationsPage() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-xl font-black uppercase tracking-tighter italic">PimPay<span className="text-blue-500">.Alerts</span></h1>
-            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-[2px] mt-1">
-              {unreadCount > 0 ? `${unreadCount} non lues` : "Système à jour"}
+            <h1 className="text-lg font-black uppercase tracking-tight">Notifications</h1>
+            <p className="text-[9px] font-bold text-blue-500 uppercase tracking-[3px] mt-1">
+              {unreadCount > 0 ? `${unreadCount} non lues` : "Tout est lu"}
             </p>
           </div>
           <button onClick={() => fetchNotifications()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
@@ -376,6 +382,56 @@ export default function NotificationsPage() {
                           {(notif.metadata.reference || notif.metadata.transactionId) && (
                             <div className="text-[9px] text-slate-600 font-mono">
                               Ref: {notif.metadata.reference || notif.metadata.transactionId}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Métadonnées KYC */}
+                      {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (
+                        <div className={`mt-3 p-3 rounded-2xl space-y-2 border ${
+                          notif.type === "KYC_APPROVED" || (notif.type === "KYC" && notif.metadata?.status === "APPROVED")
+                            ? "bg-emerald-500/5 border-emerald-500/20"
+                            : notif.type === "KYC_REJECTED" || (notif.type === "KYC" && notif.metadata?.status === "REJECTED")
+                            ? "bg-rose-500/5 border-rose-500/20"
+                            : "bg-amber-500/5 border-amber-500/20"
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                              notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
+                                ? "bg-emerald-500/20"
+                                : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
+                                ? "bg-rose-500/20"
+                                : "bg-amber-500/20"
+                            }`}>
+                              <ShieldCheck size={16} className={
+                                notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
+                                  ? "text-emerald-400"
+                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
+                                  ? "text-rose-400"
+                                  : "text-amber-400"
+                              } />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Statut KYC</span>
+                              <p className={`text-xs font-black uppercase ${
+                                notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
+                                  ? "text-emerald-400"
+                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
+                                  ? "text-rose-400"
+                                  : "text-amber-400"
+                              }`}>
+                                {notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
+                                  ? "Verifie"
+                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
+                                  ? "Rejete"
+                                  : "En attente"}
+                              </p>
+                            </div>
+                          </div>
+                          {notif.metadata?.reference && (
+                            <div className="text-[9px] text-slate-600 font-mono pt-1 border-t border-white/5">
+                              Ref: {notif.metadata.reference}
                             </div>
                           )}
                         </div>
