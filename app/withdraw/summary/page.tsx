@@ -38,7 +38,26 @@ export default function SummaryPage() {
       });
 
       if (response.ok) {
-        router.push("/withdraw/success");
+        const result = await response.json();
+        const ref = result.reference || "";
+        const params = new URLSearchParams({
+          ref,
+          amount: data.amount,
+          currency: data.currency || "PI",
+          fiatAmount: String(data.fiatAmount || ""),
+          fiatCurrency: data.currency || "",
+          method: data.method || "",
+          country: data.country || "",
+        });
+        if (data.method === "mobile") {
+          params.set("provider", data.details?.provider || "");
+          params.set("phone", data.details?.phone || "");
+        } else {
+          params.set("bankName", data.details?.bankName || "");
+          params.set("accountName", data.details?.accountName || "");
+          params.set("accountNumber", data.details?.accountNumber || data.details?.iban || "");
+        }
+        router.push(`/withdraw/success?${params.toString()}`);
       } else {
         const err = await response.json().catch(() => ({}));
         toast.error(err.error || "Echec du retrait");
