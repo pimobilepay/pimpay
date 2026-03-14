@@ -16,14 +16,26 @@ import { toast } from "sonner";
 import { QRScanner } from "@/components/qr-scanner";
 import { ReceiveQR } from "@/components/receive-qr";
 
-// Mock data
-const MOCK_MERCHANTS = [
-  { id: "PIMPAY-SHOP01", name: "PimShop", category: "E-commerce", lastPaid: "2.5 Pi", avatar: "PS" },
-  { id: "PIMPAY-FOOD02", name: "PiFood", category: "Restaurant", lastPaid: "8.0 Pi", avatar: "PF" },
-  { id: "PIMPAY-TECH03", name: "TechPi", category: "Tech", lastPaid: "15.0 Pi", avatar: "TP" },
-  { id: "PIMPAY-MKT04", name: "PiMarket", category: "Supermarche", lastPaid: "5.2 Pi", avatar: "PM" },
-  { id: "PIMPAY-GAS05", name: "PiGas", category: "Carburant", lastPaid: "20.0 Pi", avatar: "PG" },
-];
+// Types for Map of Pi merchants
+interface MapOfPiMerchant {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  location: {
+    city: string;
+    country: string;
+    address: string;
+  };
+  rating: number;
+  reviewCount: number;
+  avatar: string;
+  piPaymentId: string;
+  verified: boolean;
+  distance?: number;
+  businessHours?: string;
+  tags: string[];
+}
 
 const MOCK_CONTACTS = [
   { id: "u1", name: "Amadou", username: "@amadou", avatar: "AM" },
@@ -56,6 +68,13 @@ export default function MPayPage() {
   const [userMerchantId, setUserMerchantId] = useState("");
   const [userName, setUserName] = useState("");
 
+  // Map of Pi merchants state
+  const [mapOfPiMerchants, setMapOfPiMerchants] = useState<MapOfPiMerchant[]>([]);
+  const [merchantCategories, setMerchantCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("Tous");
+  const [merchantsLoading, setMerchantsLoading] = useState(true);
+  const [merchantSearch, setMerchantSearch] = useState("");
+
   // Payment flow states
   const [merchantId, setMerchantId] = useState("");
   const [amount, setAmount] = useState("");
@@ -63,13 +82,13 @@ export default function MPayPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [txPriority, setTxPriority] = useState("fast");
 
+  // Fetch user profile
   useEffect(() => {
     fetch("/api/user/profile")
       .then(res => res.json())
       .then(data => {
         if (data.success && data.user) {
           setUserBalance(data.user.balances?.pi || 0);
-          // Generer l'ID marchand a partir de l'ID utilisateur
           const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
           setUserMerchantId(merchantCode);
           setUserName(data.user.name || data.user.username || "Utilisateur");
@@ -77,6 +96,34 @@ export default function MPayPage() {
       })
       .catch(() => setUserBalance(0));
   }, []);
+
+  // Fetch Map of Pi merchants
+  const fetchMapOfPiMerchants = useCallback(async () => {
+    setMerchantsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedCategory !== "Tous") params.append("category", selectedCategory);
+      if (merchantSearch) params.append("search", merchantSearch);
+      
+      const res = await fetch(`/api/mpay/mapofpi?${params.toString()}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        setMapOfPiMerchants(data.merchants || []);
+        setMerchantCategories(data.categories || []);
+        setIsOnline(true);
+      }
+    } catch (error) {
+      console.error("Error fetching Map of Pi merchants:", error);
+      setIsOnline(false);
+    } finally {
+      setMerchantsLoading(false);
+    }
+  }, [selectedCategory, merchantSearch]);
+
+  useEffect(() => {
+    fetchMapOfPiMerchants();
+  }, [fetchMapOfPiMerchants]);
 
   // Real notification polling
   useEffect(() => {
@@ -135,10 +182,13 @@ export default function MPayPage() {
     }
   }, []);
 
-  const handleMerchantTap = (id: string) => {
-    setMerchantId(id);
+  const handleMerchantTap = (merchant: MapOfPiMerchant) => {
+    setMerchantId(merchant.piPaymentId);
     setActiveView("pay-merchant");
     setPayStep(2);
+    toast.success(`Marchand: ${merchant.name}`, {
+      description: merchant.description,
+    });
   };
 
   const handlePayStep = () => {
@@ -505,34 +555,98 @@ export default function MPayPage() {
           </div>
         </section>
 
-        {/* FAVORITE MERCHANTS */}
+        {/* MAP OF PI MERCHANTS */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Star size={14} className="text-amber-500" />
-              <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Marchands recents</h2>
+              <Store size={14} className="text-amber-500" />
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Map of Pi</h2>
             </div>
-            <button className="text-[9px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1">
-              Tout voir <ChevronRight size={12} />
-            </button>
+            <a 
+              href="https://www.mapofpi.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[9px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1"
+            >
+              Ouvrir Map <ChevronRight size={12} />
+            </a>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
-            {MOCK_MERCHANTS.map((merchant) => (
+
+          {/* Category Filters */}
+          <div className="flex gap-2 overflow-x-auto pb-3 -mx-6 px-6 scrollbar-hide">
+            {merchantCategories.map((cat) => (
               <button
-                key={merchant.id}
-                onClick={() => handleMerchantTap(merchant.id)}
-                className="flex-shrink-0 w-[120px] bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-2.5 hover:bg-white/[0.06] active:scale-95 transition-all"
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`flex-shrink-0 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                  selectedCategory === cat
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                    : "bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10"
+                }`}
               >
-                <div className="w-11 h-11 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 rounded-xl flex items-center justify-center border border-blue-500/20">
-                  <span className="text-xs font-black text-blue-400">{merchant.avatar}</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-tight text-white">{merchant.name}</p>
-                  <p className="text-[8px] font-bold text-slate-600 uppercase">{merchant.category}</p>
-                </div>
+                {cat}
               </button>
             ))}
           </div>
+
+          {/* Merchants Grid */}
+          {merchantsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="animate-spin text-blue-500" size={24} />
+              <span className="ml-2 text-[10px] font-bold text-slate-500 uppercase">Chargement Map of Pi...</span>
+            </div>
+          ) : mapOfPiMerchants.length === 0 ? (
+            <div className="text-center py-8">
+              <Store size={32} className="mx-auto text-slate-600 mb-2" />
+              <p className="text-[10px] font-bold text-slate-500 uppercase">Aucun marchand trouve</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              {mapOfPiMerchants.slice(0, 6).map((merchant) => (
+                <button
+                  key={merchant.id}
+                  onClick={() => handleMerchantTap(merchant)}
+                  className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex flex-col items-start gap-2 hover:bg-white/[0.06] active:scale-[0.98] transition-all text-left"
+                >
+                  <div className="flex items-start justify-between w-full">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 rounded-xl flex items-center justify-center border border-blue-500/20">
+                      <span className="text-[10px] font-black text-blue-400">{merchant.avatar}</span>
+                    </div>
+                    {merchant.verified && (
+                      <div className="p-1 bg-emerald-500/20 rounded-lg">
+                        <CheckCircle2 size={10} className="text-emerald-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-full">
+                    <p className="text-[11px] font-black uppercase tracking-tight text-white truncate">{merchant.name}</p>
+                    <p className="text-[8px] font-bold text-blue-400 uppercase">{merchant.category}</p>
+                  </div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-1">
+                      <Star size={8} className="text-amber-400 fill-amber-400" />
+                      <span className="text-[8px] font-bold text-slate-400">{merchant.rating}</span>
+                      <span className="text-[7px] text-slate-600">({merchant.reviewCount})</span>
+                    </div>
+                    {merchant.distance && (
+                      <span className="text-[8px] font-bold text-slate-500">{merchant.distance.toFixed(1)} km</span>
+                    )}
+                  </div>
+                  <p className="text-[8px] text-slate-500 truncate w-full">{merchant.location.city}, {merchant.location.country}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* View All Button */}
+          {mapOfPiMerchants.length > 6 && (
+            <button 
+              onClick={() => toast.info("Voir tous les marchands Map of Pi")}
+              className="w-full mt-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-[9px] font-black text-slate-400 uppercase tracking-wider hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+            >
+              Voir les {mapOfPiMerchants.length} marchands <ChevronRight size={12} />
+            </button>
+          )}
         </section>
 
         {/* P2P CONTACTS */}
@@ -621,11 +735,16 @@ export default function MPayPage() {
         <div className="bg-slate-900/90 backdrop-blur-xl border border-white/5 py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-2xl">
           <div className="flex items-center gap-2.5 text-slate-400">
             <Activity size={14} className="text-blue-500" />
-            <span className="text-[8px] font-black uppercase tracking-widest">mPay Node Active</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">Map of Pi Connecte</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-            <span className="text-[8px] font-black text-emerald-500 uppercase">Online</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[8px] font-bold text-slate-600">{mapOfPiMerchants.length} marchands</span>
+            <div className="flex items-center gap-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-emerald-500 animate-ping" : "bg-red-500"}`} />
+              <span className={`text-[8px] font-black uppercase ${isOnline ? "text-emerald-500" : "text-red-500"}`}>
+                {isOnline ? "Online" : "Offline"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
