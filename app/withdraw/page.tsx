@@ -154,9 +154,11 @@ export default function WithdrawPage() {
         : { bankName: selectedBank || bankName, accountName, accountNumber, swift: swiftCode };
 
       const data = {
+        piAmount: piAmount,
         amount: piAmount,
         method,
-        currency: selectedCountry.currency,
+        currency: "PI",
+        fiatCurrency: selectedCountry.currency,
         details,
       };
 

@@ -42,10 +42,10 @@ export default function SummaryPage() {
         const ref = result.reference || "";
         const params = new URLSearchParams({
           ref,
-          amount: data.amount,
-          currency: data.currency || "PI",
+          amount: data.piAmount || data.amount,
+          currency: "PI",
           fiatAmount: String(data.fiatAmount || ""),
-          fiatCurrency: data.currency || "",
+          fiatCurrency: data.fiatCurrency || data.currency || "",
           method: data.method || "",
           country: data.country || "",
         });
@@ -119,19 +119,19 @@ export default function SummaryPage() {
             </div>
           )}
 
-          {/* Amount */}
+          {/* Amount in Pi */}
           <div className="flex justify-between border-b border-white/5 pb-4">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Montant</span>
-            <span className="text-xl font-black text-white">{data.amount} {data.currency === "PI" ? "\u03c0" : data.currency || "PI"}</span>
+            <span className="text-xl font-black text-white">{data.piAmount || data.amount} Pi</span>
           </div>
 
-          {/* Conversion */}
+          {/* Conversion to local currency */}
           <div className="flex justify-between border-b border-white/5 pb-4">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Conversion</span>
             <span className="text-xl font-black text-blue-400">
               {typeof data.fiatAmount === "number"
                 ? new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.fiatAmount)
-                : data.fiatAmount} {data.currency}
+                : data.fiatAmount} {data.fiatCurrency || data.currency}
             </span>
           </div>
 
