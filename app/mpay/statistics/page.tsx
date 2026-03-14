@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Loader2, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft, BarChart3, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -16,42 +16,135 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const pieData = [
-  { name: "Paiements envoyes", value: 300, color: "#3b82f6" },
-  { name: "Paiements recus", value: 500, color: "#10b981" },
-  { name: "Swaps", value: 973, color: "#6366f1" },
-  { name: "Recharge Mobile", value: 636, color: "#f59e0b" },
-];
-
-const barData = [
-  { name: "Lun", sent: 12, received: 8 },
-  { name: "Mar", sent: 19, received: 15 },
-  { name: "Mer", sent: 8, received: 22 },
-  { name: "Jeu", sent: 25, received: 12 },
-  { name: "Ven", sent: 14, received: 30 },
-  { name: "Sam", sent: 32, received: 18 },
-  { name: "Dim", sent: 10, received: 5 },
-];
-
-const recentTx = [
-  { type: "sent", name: "PimShop", amount: "2.5", time: "14:30" },
-  { type: "received", name: "Amadou", amount: "10.0", time: "12:15" },
-  { type: "sent", name: "PiFood", amount: "8.0", time: "20:45" },
-  { type: "received", name: "Ibrahim", amount: "25.0", time: "09:30" },
-];
+interface Transaction {
+  id: string;
+  reference: string;
+  amount: number;
+  fee: number;
+  type: string;
+  status: string;
+  createdAt: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUser?: { username: string; name: string };
+  toUser?: { username: string; name: string };
+}
 
 type Period = "jour" | "semaine" | "mois";
 
 export default function MPayStatisticsPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("semaine");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [userId, setUserId] = useState<string>("");
 
   useEffect(() => {
-    setMounted(true);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch user profile to get userId
+        const profileRes = await fetch("/api/user/profile");
+        const profileData = await profileRes.json();
+        if (profileData.success && profileData.user) {
+          setUserId(profileData.user.id);
+        }
+
+        // Fetch transactions
+        const txRes = await fetch("/api/transaction/history");
+        const txData = await txRes.json();
+        if (Array.isArray(txData)) {
+          setTransactions(txData);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
-  if (!mounted) {
+  // Calculate statistics from real data
+  const stats = useMemo(() => {
+    if (!userId || transactions.length === 0) {
+      return {
+        totalSent: 0,
+        totalReceived: 0,
+        txCount: 0,
+        recentTx: [],
+        pieData: [
+          { name: "Envoyes", value: 0, color: "#3b82f6" },
+          { name: "Recus", value: 0, color: "#10b981" },
+        ],
+        barData: [],
+      };
+    }
+
+    let totalSent = 0;
+    let totalReceived = 0;
+    const recentTx: { type: string; name: string; amount: string; time: string }[] = [];
+    const dayData: Record<string, { sent: number; received: number }> = {};
+    const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+    transactions.forEach((tx) => {
+      const isSent = tx.fromUserId === userId;
+      const amount = tx.amount || 0;
+      const date = new Date(tx.createdAt);
+      const dayName = dayNames[date.getDay()];
+
+      if (isSent) {
+        totalSent += amount;
+      } else {
+        totalReceived += amount;
+      }
+
+      // Build day data for bar chart
+      if (!dayData[dayName]) {
+        dayData[dayName] = { sent: 0, received: 0 };
+      }
+      if (isSent) {
+        dayData[dayName].sent += amount;
+      } else {
+        dayData[dayName].received += amount;
+      }
+
+      // Build recent transactions (first 4)
+      if (recentTx.length < 4) {
+        const contactName = isSent 
+          ? (tx.toUser?.name || tx.toUser?.username || "Utilisateur")
+          : (tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
+        recentTx.push({
+          type: isSent ? "sent" : "received",
+          name: contactName,
+          amount: amount.toFixed(1),
+          time: date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+        });
+      }
+    });
+
+    // Build bar data ordered by day
+    const orderedDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    const barData = orderedDays.map((day) => ({
+      name: day,
+      sent: Math.round(dayData[day]?.sent || 0),
+      received: Math.round(dayData[day]?.received || 0),
+    }));
+
+    return {
+      totalSent: Math.round(totalSent * 100) / 100,
+      totalReceived: Math.round(totalReceived * 100) / 100,
+      txCount: transactions.length,
+      recentTx,
+      pieData: [
+        { name: "Envoyes", value: Math.round(totalSent), color: "#3b82f6" },
+        { name: "Recus", value: Math.round(totalReceived), color: "#10b981" },
+      ],
+      barData,
+    };
+  }, [transactions, userId]);
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
@@ -59,7 +152,7 @@ export default function MPayStatisticsPage() {
     );
   }
 
-  const totalVolume = pieData.reduce((acc, item) => acc + item.value, 0);
+  const totalVolume = stats.pieData.reduce((acc, item) => acc + item.value, 0);
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans overflow-x-hidden">
@@ -102,8 +195,8 @@ export default function MPayStatisticsPage() {
               </div>
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Recu</span>
             </div>
-            <p className="text-2xl font-black tracking-tight">500 <span className="text-sm text-blue-500">Pi</span></p>
-            <p className="text-[9px] font-bold text-emerald-400 mt-1">+24% vs sem. derniere</p>
+            <p className="text-2xl font-black tracking-tight">{stats.totalReceived} <span className="text-sm text-blue-500">Pi</span></p>
+            <p className="text-[9px] font-bold text-emerald-400 mt-1">{stats.txCount} transactions</p>
           </div>
           <div className="bg-slate-900/40 border border-white/10 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -112,8 +205,8 @@ export default function MPayStatisticsPage() {
               </div>
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Envoye</span>
             </div>
-            <p className="text-2xl font-black tracking-tight">300 <span className="text-sm text-blue-500">Pi</span></p>
-            <p className="text-[9px] font-bold text-red-400 mt-1">-8% vs sem. derniere</p>
+            <p className="text-2xl font-black tracking-tight">{stats.totalSent} <span className="text-sm text-blue-500">Pi</span></p>
+            <p className="text-[9px] font-bold text-slate-400 mt-1">Total envoye</p>
           </div>
         </div>
 
@@ -135,7 +228,7 @@ export default function MPayStatisticsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={stats.pieData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -146,7 +239,7 @@ export default function MPayStatisticsPage() {
                     animationDuration={1200}
                     strokeWidth={0}
                   >
-                    {pieData.map((entry, index) => (
+                    {stats.pieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -163,20 +256,20 @@ export default function MPayStatisticsPage() {
               </ResponsiveContainer>
               {/* Center label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-black">{Math.round((500 / totalVolume) * 100)}%</span>
+                <span className="text-2xl font-black">{totalVolume > 0 ? Math.round((stats.totalReceived / totalVolume) * 100) : 0}%</span>
                 <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Recu</span>
               </div>
             </div>
 
             {/* Legend */}
             <div className="grid grid-cols-2 gap-2 w-full">
-              {pieData.map((item, i) => (
+              {stats.pieData.map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl">
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="text-[9px] font-bold text-slate-400">{item.name}</span>
                   </div>
-                  <span className="text-[10px] font-black">{item.value}</span>
+                  <span className="text-[10px] font-black">{item.value} Pi</span>
                 </div>
               ))}
             </div>
@@ -190,7 +283,7 @@ export default function MPayStatisticsPage() {
 
           <div className="w-full h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} barGap={2}>
+              <BarChart data={stats.barData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis
                   dataKey="name"
@@ -236,16 +329,18 @@ export default function MPayStatisticsPage() {
           <h2 className="text-sm font-black uppercase tracking-tight mb-4">Metriques Cles</h2>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Volume / Heure</p>
-              <p className="text-lg font-black text-emerald-400">+24%</p>
+              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Total Volume</p>
+              <p className="text-lg font-black text-emerald-400">{totalVolume} Pi</p>
             </div>
             <div className="text-center border-l border-white/5">
-              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Tx / Mois</p>
-              <p className="text-lg font-black text-blue-500">142</p>
+              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Transactions</p>
+              <p className="text-lg font-black text-blue-500">{stats.txCount}</p>
             </div>
             <div className="text-center border-l border-white/5">
-              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Net / Mois</p>
-              <p className="text-lg font-black text-emerald-400">+200 Pi</p>
+              <p className="text-[9px] font-black text-slate-600 uppercase tracking-tight mb-1">Net</p>
+              <p className={`text-lg font-black ${stats.totalReceived - stats.totalSent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {stats.totalReceived - stats.totalSent >= 0 ? "+" : ""}{(stats.totalReceived - stats.totalSent).toFixed(1)} Pi
+              </p>
             </div>
           </div>
         </section>
@@ -256,20 +351,26 @@ export default function MPayStatisticsPage() {
             <h2 className="text-sm font-black uppercase tracking-tight">Dernieres Transactions</h2>
           </div>
           <div className="divide-y divide-white/5">
-            {recentTx.map((tx, i) => (
-              <div key={i} className="flex items-center gap-4 px-6 py-4">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${tx.type === "sent" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                  {tx.type === "sent" ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-black uppercase tracking-tight">{tx.name}</p>
-                  <p className="text-[9px] font-bold text-slate-600">{tx.time}</p>
-                </div>
-                <p className={`text-sm font-black ${tx.type === "sent" ? "text-red-400" : "text-emerald-400"}`}>
-                  {tx.type === "sent" ? "-" : "+"}{tx.amount} Pi
-                </p>
+            {stats.recentTx.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Aucune transaction</p>
               </div>
-            ))}
+            ) : (
+              stats.recentTx.map((tx, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-4">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${tx.type === "sent" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                    {tx.type === "sent" ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black uppercase tracking-tight">{tx.name}</p>
+                    <p className="text-[9px] font-bold text-slate-600">{tx.time}</p>
+                  </div>
+                  <p className={`text-sm font-black ${tx.type === "sent" ? "text-red-400" : "text-emerald-400"}`}>
+                    {tx.type === "sent" ? "-" : "+"}{tx.amount} Pi
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </main>

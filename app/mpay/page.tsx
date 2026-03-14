@@ -52,16 +52,21 @@ interface P2PContact {
   transactionCount: number;
 }
 
-const MOCK_HISTORY = [
-  { id: "tx1", type: "sent", to: "PimShop", amount: "2.5", date: "Aujourd'hui, 14:30", status: "success" },
-  { id: "tx2", type: "received", from: "Amadou", amount: "10.0", date: "Aujourd'hui, 12:15", status: "success" },
-  { id: "tx3", type: "sent", to: "PiFood", amount: "8.0", date: "Hier, 20:45", status: "success" },
-  { id: "tx4", type: "sent", to: "Fatou", amount: "5.0", date: "Hier, 18:00", status: "success" },
-  { id: "tx5", type: "received", from: "Ibrahim", amount: "25.0", date: "12 Fev, 09:30", status: "success" },
-  { id: "tx6", type: "sent", to: "TechPi", amount: "15.0", date: "11 Fev, 16:20", status: "pending" },
-  { id: "tx7", type: "received", from: "PiMarket", amount: "3.2", date: "10 Fev, 11:00", status: "success" },
-  { id: "tx8", type: "sent", to: "Moussa", amount: "50.0", date: "9 Fev, 08:45", status: "failed" },
-];
+// Transaction history type from API
+interface TransactionHistory {
+  id: string;
+  reference: string;
+  amount: number;
+  fee: number;
+  type: string;
+  status: string;
+  description: string;
+  createdAt: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUser?: { username: string; name: string; avatar: string | null };
+  toUser?: { username: string; name: string; avatar: string | null };
+}
 
 type ActiveView = "hub" | "scanner" | "receive" | "pay-merchant";
 
@@ -86,6 +91,11 @@ export default function MPayPage() {
   const [p2pContacts, setP2pContacts] = useState<P2PContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(true);
 
+  // Transaction history state
+  const [transactions, setTransactions] = useState<TransactionHistory[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [userId, setUserId] = useState<string>("");
+
   // Payment flow states
   const [merchantId, setMerchantId] = useState("");
   const [amount, setAmount] = useState("");
@@ -103,9 +113,29 @@ export default function MPayPage() {
           const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
           setUserMerchantId(merchantCode);
           setUserName(data.user.name || data.user.username || "Utilisateur");
+          setUserId(data.user.id || "");
         }
       })
       .catch(() => setUserBalance(0));
+  }, []);
+
+  // Fetch transaction history
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setTransactionsLoading(true);
+      try {
+        const res = await fetch("/api/transaction/history");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setTransactions(data.slice(0, 10)); // Get last 10 transactions
+        }
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      } finally {
+        setTransactionsLoading(false);
+      }
+    };
+    fetchTransactions();
   }, []);
 
   // Fetch Map of Pi merchants
@@ -237,11 +267,30 @@ export default function MPayPage() {
   const executePayment = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      toast.success("Transaction mPay confirmee !");
-      router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=TX-${Math.random().toString(36).substring(2, 11).toUpperCase()}`);
-    } catch {
+      const res = await fetch("/api/mpay/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amount,
+          to: merchantId,
+          method: "wallet",
+          txid: `MPAY-${Date.now()}`
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success("Transaction mPay confirmee !");
+        router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
+      } else {
+        toast.error(data.message || "Echec de la transaction");
+        router.push(`/mpay/failed?reason=${encodeURIComponent(data.message || "Erreur inconnue")}`);
+      }
+    } catch (error: any) {
+      console.error("Payment error:", error);
       toast.error("Echec du consensus reseau");
+      router.push(`/mpay/failed?reason=${encodeURIComponent("Erreur de connexion")}`);
     } finally {
       setIsLoading(false);
     }
@@ -747,29 +796,56 @@ export default function MPayPage() {
             </button>
           </div>
           <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
-            {MOCK_HISTORY.map((tx) => (
-              <button
-                key={tx.id}
-                onClick={() => router.push(`/mpay/details?txid=${tx.id}&amount=${tx.amount}&to=${tx.type === "sent" ? tx.to : tx.from}&method=wallet`)}
-                className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "sent" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                  {tx.type === "sent" ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-xs font-black uppercase tracking-tight">{tx.type === "sent" ? tx.to : tx.from}</p>
-                  <p className="text-[9px] font-bold text-slate-600">{tx.date}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-sm font-black ${tx.type === "sent" ? "text-red-400" : "text-emerald-400"}`}>
-                    {tx.type === "sent" ? "-" : "+"}{tx.amount} Pi
-                  </p>
-                  <p className={`text-[8px] font-black uppercase ${tx.status === "success" ? "text-emerald-500/60" : tx.status === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
-                    {tx.status === "success" ? "Confirme" : tx.status === "pending" ? "En cours" : "Echoue"}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {transactionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="animate-spin text-blue-500" size={24} />
+                <span className="ml-2 text-[10px] font-bold text-slate-500 uppercase">Chargement...</span>
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Clock size={32} className="text-slate-700 mb-2" />
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Aucune transaction</p>
+                <p className="text-[9px] text-slate-600">Vos transactions mPay apparaitront ici</p>
+              </div>
+            ) : (
+              transactions.map((tx) => {
+                const isSent = tx.fromUserId === userId;
+                const displayName = isSent 
+                  ? (tx.toUser?.name || tx.toUser?.username || "Utilisateur")
+                  : (tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
+                const statusLower = tx.status.toLowerCase();
+                const formattedDate = new Date(tx.createdAt).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                });
+
+                return (
+                  <button
+                    key={tx.id}
+                    onClick={() => router.push(`/mpay/details?txid=${tx.reference}&amount=${tx.amount}&to=${displayName}&method=wallet`)}
+                    className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all"
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSent ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                      {isSent ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-xs font-black uppercase tracking-tight">{displayName}</p>
+                      <p className="text-[9px] font-bold text-slate-600">{formattedDate}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
+                        {isSent ? "-" : "+"}{tx.amount} Pi
+                      </p>
+                      <p className={`text-[8px] font-black uppercase ${statusLower === "success" ? "text-emerald-500/60" : statusLower === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
+                        {statusLower === "success" ? "Confirme" : statusLower === "pending" ? "En cours" : "Echoue"}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </section>
       </main>

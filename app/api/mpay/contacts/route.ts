@@ -1,19 +1,19 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET: Fetch user's P2P contacts
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const session = await auth() as any;
+    if (!session?.id) {
       return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
     // Fetch user's contacts with their details
     const contacts = await prisma.contact.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.id },
       include: {
         contact: {
           select: {
@@ -61,8 +61,8 @@ export async function GET() {
 // POST: Add a new P2P contact
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const session = await auth() as any;
+    if (!session?.id) {
       return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
           { username: identifier.replace("@", "") },
           { phone: identifier },
         ],
-        NOT: { id: session.user.id }
+        NOT: { id: session.id }
       }
     });
 
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     // Check if contact already exists
     const existingContact = await prisma.contact.findFirst({
       where: {
-        userId: session.user.id,
+        userId: session.id,
         contactId: targetUser.id,
       }
     });
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     // Create contact
     const newContact = await prisma.contact.create({
       data: {
-        userId: session.user.id,
+        userId: session.id,
         contactId: targetUser.id,
         nickname: nickname || null,
         isFavorite: false,
@@ -146,8 +146,8 @@ export async function POST(req: Request) {
 // PATCH: Update contact (toggle favorite, update nickname)
 export async function PATCH(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const session = await auth() as any;
+    if (!session?.id) {
       return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
@@ -161,7 +161,7 @@ export async function PATCH(req: Request) {
     const contact = await prisma.contact.findFirst({
       where: {
         id: contactId,
-        userId: session.user.id,
+        userId: session.id,
       }
     });
 
@@ -200,8 +200,8 @@ export async function PATCH(req: Request) {
 // DELETE: Remove a contact
 export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const session = await auth() as any;
+    if (!session?.id) {
       return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
@@ -215,7 +215,7 @@ export async function DELETE(req: Request) {
     const contact = await prisma.contact.findFirst({
       where: {
         id: contactId,
-        userId: session.user.id,
+        userId: session.id,
       }
     });
 

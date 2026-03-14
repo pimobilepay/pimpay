@@ -118,13 +118,35 @@ const filteredContacts = contacts.filter(
   };
 
   const handleConfirmSend = async () => {
+    if (!selectedContact) return;
+    
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success("Transfert envoye avec succes !");
-      router.push(`/mpay/success?amount=${amount}&to=${selectedContact?.name || "Contact"}&txid=P2P-${Math.random().toString(36).substring(2, 11).toUpperCase()}`);
-    } catch {
+      // Use the real transaction API
+      const res = await fetch("/api/transaction/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientId: selectedContact.contactId,
+          amount: parseFloat(amount),
+          description: message || `Transfert P2P a ${selectedContact.name}`
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success || data.data) {
+        const txRef = data.data?.reference || `P2P-${Date.now()}`;
+        toast.success("Transfert envoye avec succes !");
+        router.push(`/mpay/success?amount=${amount}&to=${selectedContact.name || "Contact"}&txid=${txRef}`);
+      } else {
+        toast.error(data.error || "Erreur lors du transfert");
+        router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
+      }
+    } catch (error: any) {
+      console.error("Transfer error:", error);
       toast.error("Erreur lors du transfert");
+      router.push(`/mpay/failed?reason=${encodeURIComponent("Erreur de connexion")}`);
     } finally {
       setIsLoading(false);
     }
