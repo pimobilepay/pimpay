@@ -81,17 +81,10 @@ export default function LoginPage() {
     }
   };
 
-  // Login Pi Browser utilisant le Hook stable avec verification prealable
+  // Login Pi Browser utilisant le Hook stable
   const handlePiBrowserLogin = async () => {
-    // Verification immediate si Pi Browser est disponible
-    if (typeof window !== "undefined" && !window.Pi) {
-      toast.error("Veuillez ouvrir PimPay depuis le Pi Browser pour utiliser cette fonctionnalite.", {
-        duration: 5000,
-      });
-      return;
-    }
-    
     try {
+      // Le hook gere l'attente du SDK et son initialisation
       const result = await loginWithPi();
       
       if (result && result.success) {

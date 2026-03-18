@@ -44,6 +44,32 @@ export const usePiAuth = () => {
   }, []);
 
   /**
+   * Attendre que le SDK Pi soit disponible et initialise
+   */
+  const waitForPiSDK = useCallback(async (maxWait = 5000): Promise<boolean> => {
+    const start = Date.now();
+    
+    while (Date.now() - start < maxWait) {
+      if (window.Pi) {
+        // SDK charge, on l'initialise si pas encore fait
+        if (!window.__PI_SDK_READY__) {
+          try {
+            window.Pi.init({ version: "2.0", sandbox: false });
+            window.__PI_SDK_READY__ = true;
+          } catch (e: any) {
+            // Deja initialise
+            window.__PI_SDK_READY__ = true;
+          }
+        }
+        return true;
+      }
+      // Attendre 100ms avant de reessayer
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false;
+  }, []);
+
+  /**
    * Authentification Pi Network synchronisee avec Prisma
    */
   const loginWithPi = useCallback(async () => {
@@ -51,25 +77,17 @@ export const usePiAuth = () => {
       return { success: false, error: "SSR non supporte" };
     }
 
-    if (!window.Pi) {
-      toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
-      return { success: false, error: "SDK Pi non disponible" };
-    }
-
-    // Attendre que le SDK soit pret (initialise par PiInitializer)
-    if (!window.__PI_SDK_READY__) {
-      try {
-        window.Pi.init({ version: "2.0", sandbox: false });
-        window.__PI_SDK_READY__ = true;
-      } catch (e: any) {
-        // Deja initialise, on continue
-        window.__PI_SDK_READY__ = true;
-      }
-    }
-
     setLoading(true);
 
     try {
+      // Attendre que le SDK soit charge et initialise (max 5s)
+      const sdkReady = await waitForPiSDK(5000);
+      
+      if (!sdkReady || !window.Pi) {
+        toast.error("Veuillez ouvrir PimPay via le Pi Browser.", { duration: 5000 });
+        return { success: false, error: "SDK Pi non disponible" };
+      }
+
       // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
       const scopes = ["username", "payments"];
       
