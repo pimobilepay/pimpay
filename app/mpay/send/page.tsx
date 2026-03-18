@@ -503,8 +503,8 @@ const filteredContacts = contacts.filter(
               </div>
             )}
 
-            {/* Search Error */}
-            {searchError && searchQuery.length >= 2 && (
+            {/* Search Error - Only show if NO user was found */}
+            {searchError && searchQuery.length >= 2 && !searchedUser && (
               <div className="animate-in fade-in duration-300 py-4 px-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
                 <p className="text-[10px] font-bold text-red-400 uppercase text-center">{searchError}</p>
               </div>

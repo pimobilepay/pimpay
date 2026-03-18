@@ -91,6 +91,20 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   // P2P contacts state
   const [p2pContacts, setP2pContacts] = useState<P2PContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(true);
+  const [recentP2PUsers, setRecentP2PUsers] = useState<{id: string; name: string; username: string | null; avatar: string | null; initials: string; lastUsed: number}[]>([]);
+
+  // Load recent P2P users from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("pimpay_recent_p2p_users");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setRecentP2PUsers(parsed.slice(0, 5));
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }, []);
 
   // Transaction history state
   const [transactions, setTransactions] = useState<TransactionHistory[]>([]);
@@ -747,6 +761,36 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
               Tout voir <ChevronRight size={12} />
             </button>
           </div>
+
+          {/* Recent P2P Users */}
+          {recentP2PUsers.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-3 flex items-center gap-1">
+                <Clock size={10} />
+                Recents
+              </p>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
+                {recentP2PUsers.map((recent) => (
+                  <button
+                    key={`recent-${recent.id}`}
+                    onClick={() => router.push(`/mpay/send?to=${recent.username || recent.id}`)}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 group"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-amber-600/20 to-orange-600/20 rounded-full flex items-center justify-center border border-amber-500/20 group-active:scale-90 transition-all overflow-hidden">
+                      {recent.avatar ? (
+                        <img src={recent.avatar} alt={recent.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] font-black text-amber-400">{recent.initials}</span>
+                      )}
+                    </div>
+                    <span className="text-[7px] font-bold text-slate-500 uppercase max-w-12 truncate">{recent.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Contacts List */}
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
             <button
               onClick={() => router.push("/mpay/send")}
@@ -785,6 +829,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                       });
                       recent = recent.slice(0, 5);
                       localStorage.setItem("pimpay_recent_p2p_users", JSON.stringify(recent));
+                      setRecentP2PUsers(recent);
                     } catch {}
                     router.push(`/mpay/send?to=${contact.username || contact.contactId}`);
                   }}

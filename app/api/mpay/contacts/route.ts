@@ -73,12 +73,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Identifiant requis" }, { status: 400 });
     }
 
-    // Find user by username or phone
+    // Find user by username, phone, or ID
     const targetUser = await prisma.user.findFirst({
       where: {
         OR: [
           { username: identifier.replace("@", "") },
           { phone: identifier },
+          { id: identifier },
         ],
         NOT: { id: session.id }
       }
