@@ -113,7 +113,7 @@ export default function AboutPage() {
         <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 relative">
           <Quote size={20} className="text-blue-500/30 absolute top-4 left-4" />
           <p className="text-sm text-slate-300 leading-relaxed italic pl-6">
-            {"\"Notre mission est de democratiser l'acces aux services financiers pour chaque Pioneer a travers le monde. PimPay n'est pas seulement une application, c'est un pont entre la Pi Network et l'economie reelle.\""}
+            {"\"Notre mission est de démocratiser l'accès aux services financiers pour chaque Pioneer à travers le monde. PimPay n'est pas seulement une application, c'est un pont entre la Pi Network et l'économie réelle.\""}
           </p>
         </div>
       </div>
@@ -128,7 +128,7 @@ export default function AboutPage() {
           </h3>
           <div className="bg-white/5 border border-white/10 rounded-[28px] p-6">
             <p className="text-sm text-slate-300 leading-relaxed">
-              Aimard Swana est un entrepreneur visionnaire passionne par la technologie blockchain et l'inclusion financiere. Ne avec la conviction que la finance doit etre accessible a tous, il a fonde PimPay pour offrir aux Pioneers du monde entier une plateforme de paiement securisee, rapide et intuitive.
+              Aimard Swana est un entrepreneur visionnaire passionné par la technologie blockchain et l'inclusion financière. Né avec la conviction que la finance doit être accessible à tous, il a fondé PimPay pour offrir aux Pioneers du monde entier une plateforme de paiement securisée, rapide et intuitive.
             </p>
           </div>
         </section>
@@ -148,7 +148,7 @@ export default function AboutPage() {
                 <span className="text-sm font-bold text-white">Vision</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed pl-11">
-                Faire de PimPay la premiere banque virtuelle mondiale basee sur Pi Network, accessible a chaque Pioneer, partout dans le monde.
+                Faire de PimPay la première banque virtuelle mondiale basee sur Pi Network, accessible a chaque Pioneer, partout dans le monde.
               </p>
             </div>
             <div className="p-5">
@@ -159,7 +159,7 @@ export default function AboutPage() {
                 <span className="text-sm font-bold text-white">Mission</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed pl-11">
-                Creer un ecosysteme financier complet permettant aux utilisateurs de deposer, envoyer, recevoir et echanger de la valeur en toute securite via la Pi Network.
+                Créer un écosystème financier complet permettant aux utilisateurs de déposer, envoyer, recevoir et échanger de la valeur en toute sécurité via la Pi Network.
               </p>
             </div>
           </div>
