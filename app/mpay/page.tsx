@@ -86,6 +86,7 @@ export default function MPayPage() {
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [merchantsLoading, setMerchantsLoading] = useState(true);
   const [merchantSearch, setMerchantSearch] = useState("");
+const [showAllMerchants, setShowAllMerchants] = useState(false);
 
   // P2P contacts state
   const [p2pContacts, setP2pContacts] = useState<P2PContact[]>([]);
@@ -681,7 +682,7 @@ export default function MPayPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 mt-3">
-              {mapOfPiMerchants.slice(0, 6).map((merchant) => (
+              {(showAllMerchants ? mapOfPiMerchants : mapOfPiMerchants.slice(0, 6)).map((merchant) => (
                 <button
                   key={merchant.id}
                   onClick={() => handleMerchantTap(merchant)}
@@ -720,10 +721,14 @@ export default function MPayPage() {
           {/* View All Button */}
           {mapOfPiMerchants.length > 6 && (
             <button 
-              onClick={() => toast.info("Voir tous les marchands Map of Pi")}
+              onClick={() => setShowAllMerchants(!showAllMerchants)}
               className="w-full mt-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-[9px] font-black text-slate-400 uppercase tracking-wider hover:bg-white/10 transition-all flex items-center justify-center gap-2"
             >
-              Voir les {mapOfPiMerchants.length} marchands <ChevronRight size={12} />
+              {showAllMerchants ? (
+                <>Voir moins <ChevronRight size={12} className="rotate-[-90deg]" /></>
+              ) : (
+                <>Voir les {mapOfPiMerchants.length} marchands <ChevronRight size={12} className="rotate-90" /></>
+              )}
             </button>
           )}
         </section>
