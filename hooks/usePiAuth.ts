@@ -64,6 +64,7 @@ export const usePiAuth = () => {
         window.__PI_SDK_READY__ = true;
       } catch {
         // Deja initialise, on continue
+        window.__PI_SDK_READY__ = true;
       }
     }
 
@@ -71,7 +72,14 @@ export const usePiAuth = () => {
 
     try {
       const scopes = ["username", "payments", "wallet_address"];
-      const auth = await window.Pi.authenticate(scopes, handleIncompletePayment);
+      
+      // Timeout de 30s pour l'authentification Pi
+      const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("timed out")), 30000)
+      );
+      
+      const auth = await Promise.race([authPromise, timeoutPromise]) as any;
 
       if (!auth || !auth.user) {
         throw new Error("Autorisation refusee par l'utilisateur.");

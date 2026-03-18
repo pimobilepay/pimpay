@@ -81,13 +81,21 @@ export default function LoginPage() {
     }
   };
 
-  // ✅ CORRECTION : Login Pi Browser utilisant le Hook stable
+  // Login Pi Browser utilisant le Hook stable avec verification prealable
   const handlePiBrowserLogin = async () => {
+    // Verification immediate si Pi Browser est disponible
+    if (typeof window !== "undefined" && !window.Pi) {
+      toast.error("Veuillez ouvrir PimPay depuis le Pi Browser pour utiliser cette fonctionnalite.", {
+        duration: 5000,
+      });
+      return;
+    }
+    
     try {
       const result = await loginWithPi();
       
       if (result && result.success) {
-        // Le cookie 'pi_session_token' est déjà posé par le hook !
+        // Le cookie 'pi_session_token' est deja pose par le hook !
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
         triggerSuccessTransition(result.user.role === "ADMIN" ? "/admin" : "/dashboard");
       }
