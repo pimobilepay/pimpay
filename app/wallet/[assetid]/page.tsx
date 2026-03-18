@@ -12,6 +12,7 @@ import { QRCodeSVG } from "qrcode.react";
 // Importation du scanner QR
 import { QRScanner } from "@/components/qr-scanner"; 
 import { toast } from "sonner";
+import { initPiSDK } from "@/lib/pi-sdk";
 
 /**
  * CONFIGURATION DES ACTIFS
@@ -243,8 +244,9 @@ export default function AssetDetailPage() {
   const [userId, setUserId] = useState("");
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
-  const [sendStatus, setSendStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [sendStatus, setSendStatus] = useState<"idle" | "loading" | "success" | "error" | "pending">("idle");
   const [sendTxHash, setSendTxHash] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
   const [balance, setBalance] = useState("0.00000000");
   const [address, setAddress] = useState("");
   const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
@@ -436,25 +438,42 @@ export default function AssetDetailPage() {
       {showSendModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
           <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
-            <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); }} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
+            <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); }} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
               <X size={20} />
             </button>
             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
             <h4 className="text-lg font-black text-white uppercase tracking-tight mb-5">{config.name}</h4>
-            {sendStatus === "success" ? (
+            {(sendStatus === "success" || sendStatus === "pending") ? (
               <div className="flex flex-col items-center py-4 text-center">
-                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4">
-                  <Check size={40} className="text-emerald-500" />
+                <div className={`w-16 h-16 ${sendStatus === "pending" ? "bg-amber-500/10" : "bg-emerald-500/10"} rounded-full flex items-center justify-center mb-4`}>
+                  {sendStatus === "pending" ? (
+                    <Clock size={40} className="text-amber-500" />
+                  ) : (
+                    <Check size={40} className="text-emerald-500" />
+                  )}
                 </div>
-                <p className="text-sm font-black text-white mb-1 uppercase">Transfert réussi</p>
-                <p className="text-[10px] text-slate-400 mb-4 font-medium uppercase tracking-tight">{sendAmount} {assetId} envoyés avec succès</p>
+                <p className="text-sm font-black text-white mb-1 uppercase">
+                  {sendStatus === "pending" ? "Transfert en cours" : "Transfert réussi"}
+                </p>
+                <p className="text-[10px] text-slate-400 mb-4 font-medium tracking-tight">
+                  {sendMessage || `${sendAmount} ${assetId} envoyés avec succès`}
+                </p>
                 {sendTxHash && (
-                  <a href={`${config.explorerBase}${sendTxHash}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 w-full">
                     <p className="text-[9px] font-mono text-slate-400 truncate flex-1">{sendTxHash}</p>
-                    <ExternalLink size={14} className="text-blue-500 shrink-0" />
-                  </a>
+                    {sendTxHash.startsWith("PIM-") ? (
+                      <Copy size={14} className="text-blue-500 shrink-0 cursor-pointer" onClick={() => {
+                        navigator.clipboard.writeText(sendTxHash);
+                        toast.success("Référence copiée");
+                      }} />
+                    ) : (
+                      <a href={`${config.explorerBase}${sendTxHash}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink size={14} className="text-blue-500 shrink-0" />
+                      </a>
+                    )}
+                  </div>
                 )}
-                <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); loadData(); }} className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all">Fermer</button>
+                <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); loadData(); }} className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all">Fermer</button>
               </div>
             ) : (
               <div className="space-y-4 text-left">
@@ -484,11 +503,91 @@ export default function AssetDetailPage() {
                     if (!sendAddress || !sendAmount) return;
                     if (parseFloat(sendAmount) > parseFloat(balance)) { toast.error("Solde insuffisant"); return; }
                     setSendStatus("loading");
+                    
                     try {
-                      const res = await fetch("/api/wallet/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), });
-                      const result = await res.json();
-                      if (res.ok) { setSendStatus("success"); setSendTxHash(result.hash || ""); } else { toast.error(result.error || "Erreur lors de l'envoi"); setSendStatus("idle"); }
-                    } catch { toast.error("Erreur réseau"); setSendStatus("idle"); }
+                      // Pour PI: utiliser le SDK Pi Network si disponible et adresse externe
+                      const isPiExternal = assetId === "PI" && sendAddress.startsWith("G") && sendAddress.length === 56;
+                      
+                      if (isPiExternal && typeof window !== "undefined" && window.Pi) {
+                        // Envoi via Pi SDK pour adresses externes
+                        initPiSDK();
+                        
+                        window.Pi.createPayment({
+                          amount: parseFloat(sendAmount),
+                          memo: `Envoi PimPay vers ${sendAddress.substring(0, 8)}...`,
+                          metadata: { 
+                            toAddress: sendAddress,
+                            app: "pimpay_wallet",
+                            type: "external_send"
+                          },
+                        }, {
+                          onReadyForServerApproval: async (paymentId: string) => {
+                            const res = await fetch("/api/payments/approve", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ 
+                                paymentId, 
+                                amount: parseFloat(sendAmount),
+                                toAddress: sendAddress,
+                                currency: "PI"
+                              }),
+                            });
+                            if (!res.ok) throw new Error("Approbation refusée");
+                            return res.json();
+                          },
+                          onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+                            const res = await fetch("/api/payments/complete", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ paymentId, txid }),
+                            });
+                            if (res.ok) {
+                              setSendStatus("success");
+                              setSendTxHash(txid);
+                              setSendMessage("Transaction Pi confirmée sur la blockchain");
+                              loadData();
+                            }
+                            return res.json();
+                          },
+                          onCancel: () => {
+                            toast.warning("Paiement annulé");
+                            setSendStatus("idle");
+                          },
+                          onError: (error: Error) => {
+                            console.error("Erreur Pi:", error);
+                            toast.error("Erreur lors du paiement Pi");
+                            setSendStatus("idle");
+                          },
+                        });
+                      } else {
+                        // Envoi standard via API (interne ou autres cryptos)
+                        const res = await fetch("/api/wallet/send", { 
+                          method: "POST", 
+                          headers: { "Content-Type": "application/json" }, 
+                          body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), 
+                        });
+                        const result = await res.json();
+                        
+                        if (res.ok) { 
+                          if (result.mode === "EXTERNAL") {
+                            // Transaction externe en attente de traitement
+                            setSendStatus("pending");
+                            setSendMessage("Transfert en cours de traitement. Vous recevrez une notification une fois terminé.");
+                          } else {
+                            setSendStatus("success"); 
+                            setSendMessage("Transfert instantané réussi");
+                          }
+                          setSendTxHash(result.reference || result.hash || ""); 
+                        } else { 
+                          toast.error(result.error || "Erreur lors de l'envoi"); 
+                          setSendStatus("idle"); 
+                        }
+                      }
+                    } catch (e: any) { 
+                      console.error("Send error:", e);
+                      toast.error(e?.message || "Erreur réseau"); 
+                      setSendStatus("idle"); 
+                    }
                   }} disabled={sendStatus === "loading" || !sendAddress || !sendAmount || parseFloat(sendAmount) > parseFloat(balance)} className="w-full py-4 bg-blue-600 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[11px] tracking-widest disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-blue-600/10 active:scale-95 hover:bg-blue-500">
                   {sendStatus === "loading" ? <Loader2 className="animate-spin" size={18} /> : <><Send size={16} /><span>Confirmer le transfert</span></>}
                 </button>

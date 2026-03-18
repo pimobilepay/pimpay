@@ -802,7 +802,10 @@ export default function SendPage() {
 
       {/* ── MODALES ──────────────────────────────────────────────────────────── */}
       {showQRScanner && (
-        <QRScanner onResult={handleQRResult} onClose={() => setShowQRScanner(false)} />
+        <QRScanner 
+          onResult={handleQRResult} 
+          onClose={() => setShowQRScanner(false)} 
+        />
       )}
 
       <BottomNav onMenuOpen={() => setIsMenuOpen(true)} />

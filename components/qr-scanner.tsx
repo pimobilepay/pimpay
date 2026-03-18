@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { X, Camera, ScanLine, FlashlightOff, Flashlight } from "lucide-react";
 
 interface QRScannerProps {
-  onClose: (data: string) => void;
+  onClose: (data?: string) => void;
+  onResult?: (data: string) => void;
 }
 
-export function QRScanner({ onClose }: QRScannerProps) {
+export function QRScanner({ onClose, onResult }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -49,9 +50,17 @@ export function QRScanner({ onClose }: QRScannerProps) {
       if (navigator.vibrate) navigator.vibrate(100);
 
       stopCamera();
-      setTimeout(() => onClose(data), 400);
+      // Call onResult if provided, otherwise pass data through onClose
+      setTimeout(() => {
+        if (onResult) {
+          onResult(data);
+          onClose();
+        } else {
+          onClose(data);
+        }
+      }, 400);
     },
-    [onClose, stopCamera]
+    [onClose, onResult, stopCamera]
   );
 
   // Scan loop utilisant BarcodeDetector (Chrome, Edge, Android) sinon canvas fallback
