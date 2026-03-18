@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft, Search, Send, Users, Delete,
   Loader2, ShieldCheck, Fingerprint, Zap,
   MessageSquare, CheckCircle2, ChevronRight,
-  User, X
+  User, X, UserPlus, Clock, Trash2
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -25,6 +25,43 @@ interface P2PContact {
   transactionCount: number;
 }
 
+// Type for searched user from API
+interface SearchedUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string | null;
+  avatar: string | null;
+  kycStatus: string;
+  sidraAddress?: string | null;
+  usdtAddress?: string | null;
+  walletAddress?: string | null;
+  isExternal: boolean;
+}
+
+// Type for recent users stored locally
+interface RecentUser {
+  id: string;
+  name: string;
+  username: string | null;
+  avatar: string | null;
+  initials: string;
+  lastUsed: number;
+}
+
+// Helper to get initials
+const getInitials = (name: string): string => {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
+
+// Local storage key for recent users
+const RECENT_USERS_KEY = "pimpay_recent_p2p_users";
+
 export default function P2PSendPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,6 +76,140 @@ export default function P2PSendPage() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
+
+  // New states for search and recent users
+  const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [addingToContacts, setAddingToContacts] = useState(false);
+
+  // Load recent users from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_USERS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setRecentUsers(parsed.slice(0, 5)); // Keep only last 5
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }, []);
+
+  // Save recent user to localStorage
+  const saveRecentUser = useCallback((user: RecentUser) => {
+    try {
+      const stored = localStorage.getItem(RECENT_USERS_KEY);
+      let recent: RecentUser[] = stored ? JSON.parse(stored) : [];
+      
+      // Remove if already exists
+      recent = recent.filter(r => r.id !== user.id);
+      
+      // Add to beginning
+      recent.unshift({ ...user, lastUsed: Date.now() });
+      
+      // Keep only last 5
+      recent = recent.slice(0, 5);
+      
+      localStorage.setItem(RECENT_USERS_KEY, JSON.stringify(recent));
+      setRecentUsers(recent);
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  // Remove recent user
+  const removeRecentUser = useCallback((userId: string) => {
+    try {
+      const stored = localStorage.getItem(RECENT_USERS_KEY);
+      let recent: RecentUser[] = stored ? JSON.parse(stored) : [];
+      recent = recent.filter(r => r.id !== userId);
+      localStorage.setItem(RECENT_USERS_KEY, JSON.stringify(recent));
+      setRecentUsers(recent);
+      toast.success("Utilisateur supprime des recents");
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  // Search user via API
+  const searchUser = useCallback(async (query: string) => {
+    if (!query.trim() || query.trim().length < 2) {
+      setSearchedUser(null);
+      setSearchError("");
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError("");
+    setSearchedUser(null);
+
+    try {
+      const res = await fetch(`/api/user/search?query=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+
+      if (res.ok && data.id) {
+        setSearchedUser(data);
+      } else if (res.status === 404) {
+        setSearchError("Utilisateur non trouve");
+      } else {
+        setSearchError(data.error || "Erreur de recherche");
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchError("Erreur de connexion");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        searchUser(searchQuery);
+      } else {
+        setSearchedUser(null);
+        setSearchError("");
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchUser]);
+
+  // Add searched user to contacts
+  const addToContacts = async (user: SearchedUser) => {
+    setAddingToContacts(true);
+    try {
+      const res = await fetch("/api/mpay/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: user.username || user.id,
+          nickname: null,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Contact ajoute avec succes");
+        // Refresh contacts
+        const contactsRes = await fetch("/api/mpay/contacts");
+        const contactsData = await contactsRes.json();
+        if (contactsData.success && contactsData.contacts) {
+          setContacts(contactsData.contacts);
+        }
+      } else {
+        toast.error(data.error || "Erreur lors de l'ajout");
+      }
+    } catch (error) {
+      console.error("Error adding contact:", error);
+      toast.error("Erreur lors de l'ajout du contact");
+    } finally {
+      setAddingToContacts(false);
+    }
+  };
 
   // Fetch user balance
   useEffect(() => {
@@ -94,6 +265,65 @@ const filteredContacts = contacts.filter(
 
   const handleSelectContact = (contact: P2PContact) => {
     setSelectedContact(contact);
+    // Save to recent users
+    saveRecentUser({
+      id: contact.contactId,
+      name: contact.name,
+      username: contact.username,
+      avatar: contact.avatar,
+      initials: contact.initials,
+      lastUsed: Date.now(),
+    });
+    setStep(2);
+  };
+
+  // Select searched user
+  const handleSelectSearchedUser = (user: SearchedUser) => {
+    const fullName = `${user.firstName} ${user.lastName}`.trim();
+    const contact: P2PContact = {
+      id: user.id,
+      contactId: user.id,
+      name: fullName || user.username || "Utilisateur",
+      username: user.username,
+      phone: null,
+      avatar: user.avatar,
+      initials: getInitials(fullName || user.username || "U"),
+      nickname: null,
+      isFavorite: false,
+      lastTransaction: null,
+      transactionCount: 0,
+    };
+    setSelectedContact(contact);
+    // Save to recent users
+    saveRecentUser({
+      id: user.id,
+      name: fullName || user.username || "Utilisateur",
+      username: user.username,
+      avatar: user.avatar,
+      initials: getInitials(fullName || user.username || "U"),
+      lastUsed: Date.now(),
+    });
+    setStep(2);
+  };
+
+  // Select recent user
+  const handleSelectRecentUser = (recent: RecentUser) => {
+    const contact: P2PContact = {
+      id: recent.id,
+      contactId: recent.id,
+      name: recent.name,
+      username: recent.username,
+      phone: null,
+      avatar: recent.avatar,
+      initials: recent.initials,
+      nickname: null,
+      isFavorite: false,
+      lastTransaction: null,
+      transactionCount: 0,
+    };
+    setSelectedContact(contact);
+    // Update last used
+    saveRecentUser(recent);
     setStep(2);
   };
 
@@ -192,18 +422,140 @@ const filteredContacts = contacts.filter(
               </div>
               <input
                 type="text"
-                placeholder="RECHERCHER PAR NOM OU @USERNAME"
+                placeholder="RECHERCHER PAR @USERNAME, EMAIL, TELEPHONE..."
                 className="bg-transparent flex-1 outline-none font-bold text-xs uppercase placeholder:text-slate-700"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
+              {isSearching && (
+                <div className="p-2">
+                  <Loader2 className="animate-spin text-cyan-500" size={16} />
+                </div>
+              )}
+              {searchQuery && !isSearching && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchedUser(null);
+                    setSearchError("");
+                  }}
+                  className="p-2 bg-white/5 rounded-xl text-slate-400 hover:bg-white/10"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
+
+            {/* Search Results from API */}
+            {searchedUser && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <CheckCircle2 size={12} />
+                  Utilisateur trouve
+                </p>
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
+                  <button
+                    onClick={() => handleSelectSearchedUser(searchedUser)}
+                    className="w-full flex items-center gap-4 hover:opacity-80 transition-all"
+                  >
+                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 rounded-full flex items-center justify-center border border-emerald-500/20 overflow-hidden">
+                      {searchedUser.avatar ? (
+                        <img src={searchedUser.avatar} alt={searchedUser.firstName} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-black text-emerald-400">
+                          {getInitials(`${searchedUser.firstName} ${searchedUser.lastName}`.trim() || searchedUser.username || "U")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-black uppercase tracking-tight">
+                        {searchedUser.firstName} {searchedUser.lastName}
+                      </p>
+                      {searchedUser.username && (
+                        <p className="text-[10px] font-bold text-cyan-500">@{searchedUser.username.replace("@", "")}</p>
+                      )}
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                        {searchedUser.isExternal ? "Adresse externe" : "Utilisateur PimPay"}
+                      </p>
+                    </div>
+                    <ChevronRight size={18} className="text-emerald-400" />
+                  </button>
+                  {/* Add to contacts button */}
+                  {!searchedUser.isExternal && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToContacts(searchedUser);
+                      }}
+                      disabled={addingToContacts}
+                      className="w-full mt-3 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-white/10 transition-all disabled:opacity-50"
+                    >
+                      {addingToContacts ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <UserPlus size={14} />
+                      )}
+                      Ajouter aux contacts
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Search Error */}
+            {searchError && searchQuery.length >= 2 && (
+              <div className="animate-in fade-in duration-300 py-4 px-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                <p className="text-[10px] font-bold text-red-400 uppercase text-center">{searchError}</p>
+              </div>
+            )}
+
+            {/* Recent Users */}
+            {!searchQuery && recentUsers.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                    <Clock size={12} />
+                    Utilisateurs recents
+                  </p>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
+                  {recentUsers.map((recent) => (
+                    <div key={recent.id} className="flex-shrink-0 relative group">
+                      <button
+                        onClick={() => handleSelectRecentUser(recent)}
+                        className="flex flex-col items-center gap-2"
+                      >
+                        <div className="w-14 h-14 bg-gradient-to-br from-slate-600/20 to-slate-500/20 rounded-full flex items-center justify-center border border-slate-500/20 group-hover:border-cyan-500/30 transition-all overflow-hidden">
+                          {recent.avatar ? (
+                            <img src={recent.avatar} alt={recent.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-black text-slate-400">{recent.initials}</span>
+                          )}
+                        </div>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase max-w-14 truncate">{recent.name}</span>
+                      </button>
+                      {/* Delete recent user */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeRecentUser(recent.id);
+                        }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500"
+                      >
+                        <X size={10} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Contacts */}
             <div>
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">
-                {searchQuery ? `${filteredContacts.length} resultat(s)` : "Contacts recents"}
+              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Users size={12} />
+                {searchQuery && !searchedUser ? `${filteredContacts.length} contact(s) correspondant(s)` : "Mes contacts"}
               </p>
               {contactsLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -216,11 +568,11 @@ const filteredContacts = contacts.filter(
                 <div className="flex flex-col items-center justify-center py-12">
                   <Users size={32} className="text-slate-700 mb-3" />
                   <p className="text-xs font-bold text-slate-500 mb-1">
-                    {searchQuery ? "Aucun resultat" : "Aucun contact"}
+                    {searchQuery ? "Aucun contact correspondant" : "Aucun contact"}
                   </p>
                   <p className="text-[10px] text-slate-600 text-center">
                     {searchQuery
-                      ? "Essayez avec un autre terme"
+                      ? "Utilisez la recherche ci-dessus pour trouver un utilisateur"
                       : "Ajoutez des contacts depuis la page contacts"}
                   </p>
                 </div>

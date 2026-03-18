@@ -764,7 +764,25 @@ export default function MPayPage() {
               p2pContacts.slice(0, 5).map((contact) => (
                 <button
                   key={contact.id}
-                  onClick={() => router.push(`/mpay/send?to=${contact.username || contact.contactId}`)}
+                  onClick={() => {
+                    // Save to recent users
+                    try {
+                      const stored = localStorage.getItem("pimpay_recent_p2p_users");
+                      let recent = stored ? JSON.parse(stored) : [];
+                      recent = recent.filter((r: any) => r.id !== contact.contactId);
+                      recent.unshift({
+                        id: contact.contactId,
+                        name: contact.name,
+                        username: contact.username,
+                        avatar: contact.avatar,
+                        initials: contact.initials,
+                        lastUsed: Date.now(),
+                      });
+                      recent = recent.slice(0, 5);
+                      localStorage.setItem("pimpay_recent_p2p_users", JSON.stringify(recent));
+                    } catch {}
+                    router.push(`/mpay/send?to=${contact.username || contact.contactId}`);
+                  }}
                   className="flex-shrink-0 flex flex-col items-center gap-2 group"
                 >
                   <div className="w-14 h-14 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 group-active:scale-90 transition-all overflow-hidden">

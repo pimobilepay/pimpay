@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft, Search, Users, Plus, Star, Trash2,
   Loader2, ChevronRight, Send, User, MoreVertical,
-  UserPlus, X, Check
+  UserPlus, X, Check, CheckCircle2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -23,6 +23,27 @@ interface P2PContact {
   transactionCount: number;
 }
 
+// Type for searched user from API
+interface SearchedUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string | null;
+  avatar: string | null;
+  kycStatus: string;
+  isExternal: boolean;
+}
+
+// Helper to get initials
+const getInitials = (name: string): string => {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 export default function P2PContactsPage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<P2PContact[]>([]);
@@ -33,6 +54,95 @@ export default function P2PContactsPage() {
   const [newContactNickname, setNewContactNickname] = useState("");
   const [addingContact, setAddingContact] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  // New states for API search
+  const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+
+  // Search user via API
+  const searchUserAPI = useCallback(async (query: string) => {
+    if (!query.trim() || query.trim().length < 2) {
+      setSearchedUser(null);
+      setSearchError("");
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError("");
+    setSearchedUser(null);
+
+    try {
+      const res = await fetch(`/api/user/search?query=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+
+      if (res.ok && data.id) {
+        // Check if already in contacts
+        const alreadyContact = contacts.some(c => c.contactId === data.id);
+        if (!alreadyContact) {
+          setSearchedUser(data);
+        } else {
+          setSearchError("Utilisateur deja dans vos contacts");
+        }
+      } else if (res.status === 404) {
+        setSearchError("Utilisateur non trouve");
+      } else {
+        setSearchError(data.error || "Erreur de recherche");
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchError("Erreur de connexion");
+    } finally {
+      setIsSearching(false);
+    }
+  }, [contacts]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        searchUserAPI(searchQuery);
+      } else {
+        setSearchedUser(null);
+        setSearchError("");
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchUserAPI]);
+
+  // Add searched user directly to contacts
+  const addSearchedUserToContacts = async () => {
+    if (!searchedUser) return;
+    
+    setAddingContact(true);
+    try {
+      const res = await fetch("/api/mpay/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: searchedUser.username || searchedUser.id,
+          nickname: null,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Contact ajoute avec succes");
+        setSearchedUser(null);
+        setSearchQuery("");
+        setSearchError("");
+        fetchContacts();
+      } else {
+        toast.error(data.error || "Erreur lors de l'ajout");
+      }
+    } catch (error) {
+      console.error("Error adding contact:", error);
+      toast.error("Erreur lors de l'ajout du contact");
+    } finally {
+      setAddingContact(false);
+    }
+  };
 
   // Fetch contacts from API
   useEffect(() => {
@@ -178,26 +288,85 @@ export default function P2PContactsPage() {
 
       <main className="px-6 pt-6 pb-32">
         {/* Search bar */}
-        <div className="bg-white/5 rounded-[2rem] p-2 flex items-center gap-2 border border-white/10 focus-within:border-cyan-500/50 transition-all mb-6">
+        <div className="bg-white/5 rounded-[2rem] p-2 flex items-center gap-2 border border-white/10 focus-within:border-cyan-500/50 transition-all mb-4">
           <div className="p-3 bg-white/5 rounded-xl text-slate-400">
             <Search size={18} />
           </div>
           <input
             type="text"
-            placeholder="RECHERCHER UN CONTACT..."
+            placeholder="RECHERCHER OU AJOUTER @USERNAME, EMAIL..."
             className="bg-transparent flex-1 outline-none font-bold text-xs uppercase placeholder:text-slate-700"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          {searchQuery && (
+          {isSearching && (
+            <div className="p-2">
+              <Loader2 className="animate-spin text-cyan-500" size={16} />
+            </div>
+          )}
+          {searchQuery && !isSearching && (
             <button
-              onClick={() => setSearchQuery("")}
+              onClick={() => {
+                setSearchQuery("");
+                setSearchedUser(null);
+                setSearchError("");
+              }}
               className="p-2 bg-white/5 rounded-xl text-slate-400 hover:bg-white/10"
             >
               <X size={16} />
             </button>
           )}
         </div>
+
+        {/* Search Result from API - Add new contact */}
+        {searchedUser && (
+          <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <CheckCircle2 size={12} />
+              Utilisateur trouve - Ajouter comme contact
+            </p>
+            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 rounded-full flex items-center justify-center border border-emerald-500/20 overflow-hidden">
+                  {searchedUser.avatar ? (
+                    <img src={searchedUser.avatar} alt={searchedUser.firstName} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-black text-emerald-400">
+                      {getInitials(`${searchedUser.firstName} ${searchedUser.lastName}`.trim() || searchedUser.username || "U")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-black uppercase tracking-tight">
+                    {searchedUser.firstName} {searchedUser.lastName}
+                  </p>
+                  {searchedUser.username && (
+                    <p className="text-[10px] font-bold text-cyan-500">@{searchedUser.username.replace("@", "")}</p>
+                  )}
+                </div>
+                <button
+                  onClick={addSearchedUserToContacts}
+                  disabled={addingContact}
+                  className="px-4 py-3 bg-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-emerald-700 transition-all disabled:opacity-50"
+                >
+                  {addingContact ? (
+                    <Loader2 className="animate-spin" size={14} />
+                  ) : (
+                    <UserPlus size={14} />
+                  )}
+                  Ajouter
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search Error */}
+        {searchError && searchQuery.length >= 2 && !searchedUser && (
+          <div className="mb-6 animate-in fade-in duration-300 py-3 px-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+            <p className="text-[10px] font-bold text-amber-400 uppercase text-center">{searchError}</p>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -402,21 +571,30 @@ function ContactCard({
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSend}
-            className="p-3 bg-cyan-600/20 rounded-xl text-cyan-400 hover:bg-cyan-600/30 transition-all"
-          >
-            <Send size={16} />
-          </button>
-          <button
-            onClick={onMenuToggle}
-            className="p-3 bg-white/5 rounded-xl text-slate-400 hover:bg-white/10 transition-all"
-          >
-            <MoreVertical size={16} />
-          </button>
-        </div>
+{/* Actions */}
+  <div className="flex items-center gap-2">
+  <button
+  onClick={onSend}
+  className="p-3 bg-cyan-600/20 rounded-xl text-cyan-400 hover:bg-cyan-600/30 transition-all"
+  title="Envoyer"
+  >
+  <Send size={16} />
+  </button>
+  <button
+  onClick={onDelete}
+  className="p-3 bg-red-500/10 rounded-xl text-red-400 hover:bg-red-500/20 transition-all"
+  title="Supprimer"
+  >
+  <Trash2 size={16} />
+  </button>
+  <button
+  onClick={onMenuToggle}
+  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:bg-white/10 transition-all"
+  title="Plus d'options"
+  >
+  <MoreVertical size={16} />
+  </button>
+  </div>
       </div>
 
       {/* Dropdown Menu */}
