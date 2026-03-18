@@ -83,6 +83,9 @@ export default function LoginPage() {
 
   // Login Pi Browser utilisant le Hook stable avec verification prealable
   const handlePiBrowserLogin = async () => {
+    console.log("[v0] handlePiBrowserLogin triggered");
+    console.log("[v0] window.Pi available:", typeof window !== "undefined" && !!window.Pi);
+    
     // Verification immediate si Pi Browser est disponible
     if (typeof window !== "undefined" && !window.Pi) {
       toast.error("Veuillez ouvrir PimPay depuis le Pi Browser pour utiliser cette fonctionnalite.", {
@@ -92,7 +95,9 @@ export default function LoginPage() {
     }
     
     try {
+      console.log("[v0] Calling loginWithPi...");
       const result = await loginWithPi();
+      console.log("[v0] loginWithPi result:", result);
       
       if (result && result.success) {
         // Le cookie 'pi_session_token' est deja pose par le hook !
@@ -100,7 +105,7 @@ export default function LoginPage() {
         triggerSuccessTransition(result.user.role === "ADMIN" ? "/admin" : "/dashboard");
       }
     } catch (error: any) {
-      console.error("Erreur Pi Login:", error);
+      console.error("[v0] Pi Login error:", error);
       toast.error(t("auth.login.piError"));
     }
   };

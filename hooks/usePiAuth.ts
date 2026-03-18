@@ -47,9 +47,14 @@ export const usePiAuth = () => {
    * Authentification Pi Network synchronisee avec Prisma
    */
   const loginWithPi = useCallback(async () => {
+    console.log("[v0] loginWithPi called");
+    
     if (typeof window === "undefined") {
+      console.log("[v0] SSR detected, aborting");
       return { success: false, error: "SSR non supporte" };
     }
+
+    console.log("[v0] window.Pi:", !!window.Pi, "ready:", !!window.__PI_SDK_READY__);
 
     if (!window.Pi) {
       toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
@@ -58,12 +63,13 @@ export const usePiAuth = () => {
 
     // Attendre que le SDK soit pret (initialise par PiInitializer)
     if (!window.__PI_SDK_READY__) {
-      // Attente courte si le SDK est present mais pas encore init
+      console.log("[v0] Initializing SDK manually");
       try {
         window.Pi.init({ version: "2.0", sandbox: false });
         window.__PI_SDK_READY__ = true;
-      } catch {
-        // Deja initialise, on continue
+        console.log("[v0] SDK initialized successfully");
+      } catch (e: any) {
+        console.log("[v0] SDK init error (probably already init):", e?.message);
         window.__PI_SDK_READY__ = true;
       }
     }
@@ -72,14 +78,16 @@ export const usePiAuth = () => {
 
     try {
       const scopes = ["username", "payments", "wallet_address"];
+      console.log("[v0] Calling Pi.authenticate with scopes:", scopes);
       
       // Timeout de 30s pour l'authentification Pi
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error("timed out")), 30000)
       );
       
-      const auth = await Promise.race([authPromise, timeoutPromise]) as any;
+      const auth = await Promise.race([authPromise, timeoutPromise]);
+      console.log("[v0] Pi.authenticate result:", auth ? "success" : "null", auth?.user?.uid);
 
       if (!auth || !auth.user) {
         throw new Error("Autorisation refusee par l'utilisateur.");
