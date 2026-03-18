@@ -505,83 +505,34 @@ export default function AssetDetailPage() {
                     setSendStatus("loading");
                     
                     try {
-                      // Pour PI: utiliser le SDK Pi Network si disponible et adresse externe
-                      const isPiExternal = assetId === "PI" && sendAddress.startsWith("G") && sendAddress.length === 56;
+                      // Tous les transferts passent par l'API /api/wallet/send
+                      // L'API gère les différences : interne vs externe, Pi vs autres cryptos
+                      const res = await fetch("/api/wallet/send", { 
+                        method: "POST", 
+                        headers: { "Content-Type": "application/json" }, 
+                        body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), 
+                      });
+                      const result = await res.json();
                       
-                      if (isPiExternal && typeof window !== "undefined" && window.Pi) {
-                        // Envoi via Pi SDK pour adresses externes
-                        initPiSDK();
-                        
-                        window.Pi.createPayment({
-                          amount: parseFloat(sendAmount),
-                          memo: `Envoi PimPay vers ${sendAddress.substring(0, 8)}...`,
-                          metadata: { 
-                            toAddress: sendAddress,
-                            app: "pimpay_wallet",
-                            type: "external_send"
-                          },
-                        }, {
-                          onReadyForServerApproval: async (paymentId: string) => {
-                            const res = await fetch("/api/payments/approve", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ 
-                                paymentId, 
-                                amount: parseFloat(sendAmount),
-                                toAddress: sendAddress,
-                                currency: "PI"
-                              }),
-                            });
-                            if (!res.ok) throw new Error("Approbation refusée");
-                            return res.json();
-                          },
-                          onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-                            const res = await fetch("/api/payments/complete", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ paymentId, txid }),
-                            });
-                            if (res.ok) {
-                              setSendStatus("success");
-                              setSendTxHash(txid);
-                              setSendMessage("Transaction Pi confirmée sur la blockchain");
-                              loadData();
-                            }
-                            return res.json();
-                          },
-                          onCancel: () => {
-                            toast.warning("Paiement annulé");
-                            setSendStatus("idle");
-                          },
-                          onError: (error: Error) => {
-                            console.error("Erreur Pi:", error);
-                            toast.error("Erreur lors du paiement Pi");
-                            setSendStatus("idle");
-                          },
-                        });
-                      } else {
-                        // Envoi standard via API (interne ou autres cryptos)
-                        const res = await fetch("/api/wallet/send", { 
-                          method: "POST", 
-                          headers: { "Content-Type": "application/json" }, 
-                          body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), 
-                        });
-                        const result = await res.json();
-                        
-                        if (res.ok) { 
-                          if (result.mode === "EXTERNAL") {
-                            // Transaction externe en attente de traitement
-                            setSendStatus("pending");
-                            setSendMessage("Transfert en cours de traitement. Vous recevrez une notification une fois terminé.");
-                          } else {
-                            setSendStatus("success"); 
-                            setSendMessage("Transfert instantané réussi");
-                          }
-                          setSendTxHash(result.reference || result.hash || ""); 
-                        } else { 
-                          toast.error(result.error || "Erreur lors de l'envoi"); 
-                          setSendStatus("idle"); 
+                      if (res.ok) { 
+                        // Déterminer le statut selon le type de transfert retourné par l'API
+                        if (result.mode === "INTERNAL") {
+                          // Transfert instantané entre membres PimPay
+                          setSendStatus("success"); 
+                          setSendMessage("Transfert instantané réussi vers PimPay");
+                          setSendTxHash(result.reference || "");
+                        } else {
+                          // Envoi vers adresse externe (en attente de traitement blockchain)
+                          setSendStatus("pending");
+                          setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. Transaction en attente de confirmation blockchain.`);
+                          setSendTxHash(result.reference || "");
+                          
+                          // Afficher un toast informatif
+                          toast.info("Vous recevrez une notification une fois la transaction confirmée sur la blockchain", { duration: 5000 });
                         }
+                      } else { 
+                        toast.error(result.error || "Erreur lors de l'envoi"); 
+                        setSendStatus("idle"); 
                       }
                     } catch (e: any) { 
                       console.error("Send error:", e);
@@ -598,13 +549,15 @@ export default function AssetDetailPage() {
       )}
 
       {showQRScanner && QRScanner && (
-        <QRScanner onClose={(data: string) => { 
-          setShowQRScanner(false); 
-          if (data && data.length > 0) { 
-            setSendAddress(data); 
-            toast.success("Adresse scannée avec succès"); 
-          } 
-        }} />
+        <QRScanner 
+          onResult={(data: string) => { 
+            if (data && data.length > 0) { 
+              setSendAddress(data); 
+              toast.success("Adresse scannée avec succès"); 
+            } 
+          }}
+          onClose={() => setShowQRScanner(false)} 
+        />
       )}
     </div>
   );

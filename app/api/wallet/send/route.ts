@@ -121,21 +121,24 @@ export async function POST(req: NextRequest) {
 
       // --- SCÉNARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
       else {
-        // Log de transaction PENDING (Le worker s'en chargera)
+        // Log de transaction SUCCESS (statut temporaire, le worker le changera si erreur)
+        // Le worker cherche les transactions WITHDRAW avec status SUCCESS et blockchainTx null
         const transaction = await tx.transaction.create({
           data: {
             reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
             amount,
             currency,
             type: TransactionType.WITHDRAW, // On marque ça comme un retrait
-            status: TransactionStatus.PENDING,
+            status: TransactionStatus.SUCCESS, // Worker cherche SUCCESS + blockchainTx null
+            statusClass: "QUEUED", // Utilisé par le worker pour le claim atomique
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
             description: `Retrait ${currency} vers adresse externe : ${recipientInput}`,
             metadata: {
               externalAddress: recipientInput,
               network: currency,
-              isBlockchainWithdraw: true
+              isBlockchainWithdraw: true,
+              requestedAt: new Date().toISOString()
             }
           }
         });

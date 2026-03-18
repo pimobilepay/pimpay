@@ -45,28 +45,90 @@ function getDetectedNetwork(job: WithdrawJob): string | null {
 }
 
 /**
- * Ici tu branches ton vrai broadcast blockchain.
- * DOIT retourner un hash/txid (string) si ok.
- *
- * Remarque: vu ton schema, tu stockes souvent les private keys sur User (usdtPrivateKey, stellarPrivateKey, etc.).
- * C'est sensible : idéalement, le worker utilise des clés hotwallet serveur, pas des clés user.
+ * Broadcast les retraits vers la blockchain appropriée
+ * Retourne un hash/txid (string) si ok
  */
 async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
   const address = getExternalAddress(job);
   if (!address) throw new Error("Missing externalAddress in metadata");
 
-  const network = getDetectedNetwork(job) || "UNKNOWN";
+  const currency = job.currency.toUpperCase();
+  
+  // Support pour Pi Network
+  if (currency === "PI") {
+    return await broadcastPiWithdraw(job, address);
+  }
 
-  // TODO: Brancher les SDK selon network/currency:
+  // TODO: Supporter d'autres blockchains:
   // - TRON (USDT TRC20): TronWeb + contrat USDT
   // - EVM (USDT-ERC20, ETH, BNB, etc.): ethers + RPC
   // - XRP: xrpl
-  // - STELLAR_LIKE (PI/XLM): stellar-sdk
+  // - STELLAR_LIKE (XLM): stellar-sdk
   // - BTC/LTC: lib bitcoin + node/third-party API
-  //
-  // Pour l’instant, on simule:
-  // return "0x...." / "TXID..." réel.
-  throw new Error(`Broadcast non implémenté (network=${network}, currency=${job.currency})`);
+  
+  throw new Error(`Broadcast non implémenté pour ${currency}`);
+}
+
+/**
+ * Broadcast Pi Network - Envoie des Pi vers une adresse externe via Horizon API
+ * Note: Cette fonction enregistre la transaction de retrait dans Horizon
+ * Le Pi Network validera la signature et confirmera la transaction
+ */
+async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
+  const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
+  const PI_API_KEY = process.env.PI_API_KEY;
+  const PI_MASTER_WALLET = process.env.PI_MASTER_WALLET_ADDRESS;
+
+  if (!PI_API_KEY || !PI_MASTER_WALLET) {
+    throw new Error("Configuration Pi Network manquante (PI_API_KEY ou PI_MASTER_WALLET_ADDRESS)");
+  }
+
+  // Valider l'adresse Pi (commence par G et 56 caractères)
+  if (!toAddress.startsWith("G") || toAddress.length !== 56) {
+    throw new Error(`Adresse Pi invalide: ${toAddress}`);
+  }
+
+  try {
+    // Créer une transaction de retrait Pi Network
+    // Ceci enregistre la transaction dans Horizon pour qu'elle soit traitée
+    const withdrawResponse = await fetch(`${PI_HORIZON_URL}/withdraw`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        to: toAddress,
+        amount: job.amount.toString(),
+        memo: job.reference,
+        metadata: {
+          fromUser: job.fromUserId,
+          timestamp: new Date().toISOString(),
+        }
+      })
+    });
+
+    if (!withdrawResponse.ok) {
+      const errorData = await withdrawResponse.json().catch(() => ({}));
+      throw new Error(`Horizon API error: ${errorData.error || withdrawResponse.statusText}`);
+    }
+
+    const result = await withdrawResponse.json();
+    
+    // Horizon retourne un transaction ID
+    if (!result.transactionHash && !result.hash && !result.id) {
+      throw new Error("Pas de transaction hash retourné par Horizon");
+    }
+
+    const txHash = result.transactionHash || result.hash || result.id;
+    console.log(`[PI_WITHDRAW] Transaction créée avec succès: ${txHash} pour ${job.amount} π vers ${toAddress}`);
+    
+    return txHash;
+
+  } catch (error: any) {
+    console.error(`[PI_WITHDRAW_ERROR] Broadcast échoué pour job ${job.id}:`, error.message);
+    throw new Error(`Impossible de broadcaster la transaction Pi: ${error.message}`);
+  }
 }
 
 /**
@@ -120,12 +182,16 @@ export async function POST(req: NextRequest) {
     const jobs = await prisma.transaction.findMany({
       where: {
         type: TransactionType.WITHDRAW,
-        status: TransactionStatus.SUCCESS,  // IMPORTANT: tes withdraw sont SUCCESS
+        status: TransactionStatus.SUCCESS,  // Transactions de retrait créées comme SUCCESS
         blockchainTx: null,                // pas encore broadcast
-        OR: [
-          { statusClass: null },
-          { statusClass: { in: ["QUEUED", "RETRY"] } },
-        ],
+        AND: [
+          {
+            OR: [
+              { statusClass: null },
+              { statusClass: { in: ["QUEUED", "RETRY"] } },
+            ]
+          }
+        ]
       },
       orderBy: { createdAt: "asc" },
       take: limit,
