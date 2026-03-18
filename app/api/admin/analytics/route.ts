@@ -67,12 +67,15 @@ export async function GET() {
         ORDER BY date ASC
       ` as Promise<{ date: Date; count: number; volume: number }[]>,
 
-      // Top countries
+      // Top countries from recent active users (last 30 days based on activity)
       prisma.$queryRaw`
-        SELECT "country", COUNT(*)::int as count
-        FROM "User"
-        WHERE "country" IS NOT NULL AND "country" != ''
-        GROUP BY "country"
+        SELECT u."country", COUNT(DISTINCT u.id)::int as count
+        FROM "User" u
+        INNER JOIN "UserActivity" ua ON u.id = ua."userId"
+        WHERE u."country" IS NOT NULL 
+          AND u."country" != ''
+          AND ua."createdAt" >= ${thirtyDaysAgo}
+        GROUP BY u."country"
         ORDER BY count DESC
         LIMIT 10
       ` as Promise<{ country: string; count: number }[]>,
@@ -129,6 +132,20 @@ export async function GET() {
     const userGrowth = newUsersYesterday > 0 ? Math.round(((newUsersToday - newUsersYesterday) / newUsersYesterday) * 100) : newUsersToday > 0 ? 100 : 0;
     const txGrowth = transactionsYesterday > 0 ? Math.round(((transactionsToday - transactionsYesterday) / transactionsYesterday) * 100) : transactionsToday > 0 ? 100 : 0;
 
+    // Fallback: if no recent activity countries, get all users' countries
+    let finalTopCountries = topCountries || [];
+    if (finalTopCountries.length === 0) {
+      const allUsersCountries = await prisma.$queryRaw`
+        SELECT "country", COUNT(*)::int as count
+        FROM "User"
+        WHERE "country" IS NOT NULL AND "country" != ''
+        GROUP BY "country"
+        ORDER BY count DESC
+        LIMIT 10
+      ` as { country: string; count: number }[];
+      finalTopCountries = allUsersCountries || [];
+    }
+
     return NextResponse.json({
       kpis: {
         totalUsers,
@@ -146,7 +163,7 @@ export async function GET() {
       roles,
       kyc,
       chartData,
-      topCountries: topCountries || [],
+      topCountries: finalTopCountries,
       recentSignups: recentSignups.map((u) => ({
         ...u,
         createdAt: u.createdAt.toISOString(),

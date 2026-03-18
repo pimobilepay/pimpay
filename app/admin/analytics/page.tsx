@@ -516,25 +516,45 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* TOP COUNTRIES */}
-        {topCountries.length > 0 && (
-          <div>
-            <SectionTitle>Top Pays</SectionTitle>
+        {/* TOP COUNTRIES - Recent Visitors */}
+        <div>
+          <SectionTitle>Pays des Visiteurs Recents</SectionTitle>
+          {topCountries.length > 0 ? (
             <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+              <p className="text-[9px] text-slate-500 mb-4">Base sur l&apos;activite des 30 derniers jours</p>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topCountries.slice(0, 8)} layout="vertical" barCategoryGap={6}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
                     <XAxis type="number" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="country" tick={{ fill: "#94a3b8", fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} width={60} />
+                    <YAxis type="category" dataKey="country" tick={{ fill: "#94a3b8", fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} width={80} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="count" name="Utilisateurs" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={14} />
+                    <Bar dataKey="count" name="Visiteurs Actifs" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              {/* Country list with counts */}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {topCountries.slice(0, 8).map((c, i) => (
+                  <div key={c.country} className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] rounded-xl">
+                    <span className="text-[10px] font-black text-slate-500 w-4">{i + 1}</span>
+                    <Globe size={12} className="text-blue-400" />
+                    <span className="text-[10px] font-bold text-white flex-1 truncate">{c.country}</span>
+                    <span className="text-[10px] font-black text-blue-400">{c.count}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-3">
+                <Globe size={20} className="text-slate-600" />
+              </div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucune donnee de pays</p>
+              <p className="text-[8px] text-slate-600 mt-1">Les pays des utilisateurs actifs apparaitront ici</p>
+            </div>
+          )}
+        </div>
 
         {/* GOOGLE ANALYTICS EMBED */}
         <div>
