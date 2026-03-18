@@ -75,7 +75,7 @@ export default function MPayPage() {
   const [activeView, setActiveView] = useState<ActiveView>("hub");
   const [userBalance, setUserBalance] = useState(0);
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications, setNotifications] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [userMerchantId, setUserMerchantId] = useState("");
   const [userName, setUserName] = useState("");
