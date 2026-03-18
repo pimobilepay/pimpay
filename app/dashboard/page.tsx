@@ -77,43 +77,47 @@ export default function UserDashboard() {
     XAF: 1 / 615,
   });
 
-  // KYC toast notification - show once after login
+  // KYC toast notification - show only once per status change, persisted in localStorage
   useEffect(() => {
-    if (data?.kycStatus && !sessionStorage.getItem("kyc_toast_shown")) {
-      const kycStatus = data.kycStatus;
-      
-      if (kycStatus === "VERIFIED") {
-        toast.success("Votre KYC a ete valide avec succes !", {
-          duration: 5000,
-          style: {
-            background: "rgba(22, 163, 74, 0.9)",
-            border: "1px solid rgba(34, 197, 94, 0.3)",
-            color: "#fff",
-          },
-        });
-      } else if (kycStatus === "APPROVED") {
-        toast.info("Votre KYC est approuve et en cours de traitement.", {
-          duration: 5000,
-          style: {
-            background: "rgba(59, 130, 246, 0.9)",
-            border: "1px solid rgba(96, 165, 250, 0.3)",
-            color: "#fff",
-          },
-        });
-      } else if (kycStatus === "REJECTED") {
-        toast.error("Votre KYC a ete rejete. Veuillez soumettre de nouveaux documents.", {
-          duration: 6000,
-          style: {
-            background: "rgba(220, 38, 38, 0.9)",
-            border: "1px solid rgba(248, 113, 113, 0.3)",
-            color: "#fff",
-          },
-        });
-      }
-      
-      sessionStorage.setItem("kyc_toast_shown", "true");
+    if (!data?.kycStatus || !data?.id) return;
+
+    const kycStatus = data.kycStatus;
+    // Clé unique par utilisateur + statut KYC pour ne jamais rejouer le même message
+    const storageKey = `kyc_toast_${data.id}_${kycStatus}`;
+
+    if (localStorage.getItem(storageKey)) return;
+
+    if (kycStatus === "VERIFIED") {
+      toast.success("Votre KYC a ete valide avec succes !", {
+        duration: 5000,
+        style: {
+          background: "rgba(22, 163, 74, 0.9)",
+          border: "1px solid rgba(34, 197, 94, 0.3)",
+          color: "#fff",
+        },
+      });
+    } else if (kycStatus === "APPROVED") {
+      toast.info("Votre KYC est approuve et en cours de traitement.", {
+        duration: 5000,
+        style: {
+          background: "rgba(59, 130, 246, 0.9)",
+          border: "1px solid rgba(96, 165, 250, 0.3)",
+          color: "#fff",
+        },
+      });
+    } else if (kycStatus === "REJECTED") {
+      toast.error("Votre KYC a ete rejete. Veuillez soumettre de nouveaux documents.", {
+        duration: 6000,
+        style: {
+          background: "rgba(220, 38, 38, 0.9)",
+          border: "1px solid rgba(248, 113, 113, 0.3)",
+          color: "#fff",
+        },
+      });
     }
-  }, [data?.kycStatus]);
+
+    localStorage.setItem(storageKey, "1");
+  }, [data?.kycStatus, data?.id]);
 
   useEffect(() => {
     setHasMounted(true);
