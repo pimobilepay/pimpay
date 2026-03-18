@@ -47,14 +47,9 @@ export const usePiAuth = () => {
    * Authentification Pi Network synchronisee avec Prisma
    */
   const loginWithPi = useCallback(async () => {
-    console.log("[v0] loginWithPi called");
-    
     if (typeof window === "undefined") {
-      console.log("[v0] SSR detected, aborting");
       return { success: false, error: "SSR non supporte" };
     }
-
-    console.log("[v0] window.Pi:", !!window.Pi, "ready:", !!window.__PI_SDK_READY__);
 
     if (!window.Pi) {
       toast.error("Veuillez ouvrir PimPay via le Pi Browser.");
@@ -63,13 +58,11 @@ export const usePiAuth = () => {
 
     // Attendre que le SDK soit pret (initialise par PiInitializer)
     if (!window.__PI_SDK_READY__) {
-      console.log("[v0] Initializing SDK manually");
       try {
         window.Pi.init({ version: "2.0", sandbox: false });
         window.__PI_SDK_READY__ = true;
-        console.log("[v0] SDK initialized successfully");
       } catch (e: any) {
-        console.log("[v0] SDK init error (probably already init):", e?.message);
+        // Deja initialise, on continue
         window.__PI_SDK_READY__ = true;
       }
     }
@@ -77,8 +70,8 @@ export const usePiAuth = () => {
     setLoading(true);
 
     try {
-      const scopes = ["username", "payments", "wallet_address"];
-      console.log("[v0] Calling Pi.authenticate with scopes:", scopes);
+      // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
+      const scopes = ["username", "payments"];
       
       // Timeout de 30s pour l'authentification Pi
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
@@ -87,7 +80,6 @@ export const usePiAuth = () => {
       );
       
       const auth = await Promise.race([authPromise, timeoutPromise]);
-      console.log("[v0] Pi.authenticate result:", auth ? "success" : "null", auth?.user?.uid);
 
       if (!auth || !auth.user) {
         throw new Error("Autorisation refusee par l'utilisateur.");
