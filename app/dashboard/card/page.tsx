@@ -206,15 +206,18 @@ export default function McardPage() {
     <div className="min-h-screen bg-[#020617] text-white font-sans overflow-x-hidden">
 
       {/* HEADER */}
-      <header className="px-6 pt-8 pb-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
+      <header className="px-6 pt-12 pb-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
         <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
           <ArrowLeft size={20} />
         </button>
-        <div className="flex items-center justify-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full ${isFrozen ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[2px]">
-            {isFrozen ? "Carte Gelee" : "Carte Active"}
-          </p>
+        <div className="text-center">
+          <h1 className="text-xl font-black uppercase tracking-tighter">M-Card</h1>
+          <div className="flex items-center justify-center gap-1.5 mt-0.5">
+            <div className={`w-1.5 h-1.5 rounded-full ${isFrozen ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[2px]">
+              {isFrozen ? "Carte Gelee" : "Carte Active"}
+            </p>
+          </div>
         </div>
         <button onClick={() => setActiveTab("settings")} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
           <Settings size={20} />
@@ -298,7 +301,7 @@ export default function McardPage() {
                   </div>
 
                   <div className="flex justify-between items-end">
-                    <p className="text-sm font-black uppercase tracking-wide">{cardHolder}</p>
+                    <p className="text-xs font-black uppercase tracking-widest opacity-80">{cardHolder}</p>
                     <div className="flex items-center">
                       <div className="w-8 h-8 rounded-full bg-[#eb001b]/80" />
                       <div className="w-8 h-8 rounded-full bg-[#f79e1b]/80 -ml-3" />
