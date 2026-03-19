@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, TransactionType } from "@prisma/client";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 /**
  * Sécurise l'accès : le worker doit envoyer le header:
@@ -70,62 +71,97 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
 }
 
 /**
- * Broadcast Pi Network - Envoie des Pi vers une adresse externe via Horizon API
- * Note: Cette fonction enregistre la transaction de retrait dans Horizon
- * Le Pi Network validera la signature et confirmera la transaction
+ * Broadcast Pi Network - Envoie des Pi vers une adresse externe via Stellar SDK
+ * Pi Network utilise le protocole Stellar, donc on utilise le SDK Stellar pour créer et signer la transaction
+ * 
+ * Flux:
+ * 1. Charger le compte source depuis Horizon
+ * 2. Créer une transaction avec une opération de paiement
+ * 3. Signer avec la clé secrète du master wallet
+ * 4. Soumettre à Horizon
  */
 async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
+  // Configuration Pi Network (utilise le protocole Stellar)
   const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
-  const PI_API_KEY = process.env.PI_API_KEY;
-  const PI_MASTER_WALLET = process.env.PI_MASTER_WALLET_ADDRESS;
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET; // Clé secrète du wallet master (S...)
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS; // Clé publique (G...)
+  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
 
-  if (!PI_API_KEY || !PI_MASTER_WALLET) {
-    throw new Error("Configuration Pi Network manquante (PI_API_KEY ou PI_MASTER_WALLET_ADDRESS)");
+  if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
+    throw new Error("Configuration Pi Network manquante (PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS)");
   }
 
-  // Valider l'adresse Pi (commence par G et 56 caractères)
-  if (!toAddress.startsWith("G") || toAddress.length !== 56) {
+  // Valider l'adresse de destination (format Stellar Ed25519)
+  if (!StellarSdk.StrKey.isValidEd25519PublicKey(toAddress)) {
     throw new Error(`Adresse Pi invalide: ${toAddress}`);
   }
 
   try {
-    // Créer une transaction de retrait Pi Network
-    // Ceci enregistre la transaction dans Horizon pour qu'elle soit traitée
-    const withdrawResponse = await fetch(`${PI_HORIZON_URL}/withdraw`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${PI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        to: toAddress,
-        amount: job.amount.toString(),
-        memo: job.reference,
-        metadata: {
-          fromUser: job.fromUserId,
-          timestamp: new Date().toISOString(),
-        }
-      })
-    });
-
-    if (!withdrawResponse.ok) {
-      const errorData = await withdrawResponse.json().catch(() => ({}));
-      throw new Error(`Horizon API error: ${errorData.error || withdrawResponse.statusText}`);
-    }
-
-    const result = await withdrawResponse.json();
+    // 1. Connexion au serveur Horizon Pi Network
+    const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL, { allowHttp: false });
     
-    // Horizon retourne un transaction ID
-    if (!result.transactionHash && !result.hash && !result.id) {
-      throw new Error("Pas de transaction hash retourné par Horizon");
+    // 2. Charger le compte source (Master Wallet PimPay)
+    const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
+    
+    // 3. Vérifier que le compte source a assez de fonds
+    const piBalance = sourceAccount.balances.find(
+      (b: any) => b.asset_type === "native" || (b.asset_code === "PI" && b.asset_type !== "native")
+    );
+    
+    if (!piBalance || parseFloat(piBalance.balance) < job.amount) {
+      throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI, Requis: ${job.amount} PI`);
     }
 
-    const txHash = result.transactionHash || result.hash || result.id;
-    console.log(`[PI_WITHDRAW] Transaction créée avec succès: ${txHash} pour ${job.amount} π vers ${toAddress}`);
+    // 4. Créer la transaction de paiement
+    // Pi Network utilise Pi comme asset natif (comme XLM sur Stellar public)
+    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: PI_NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: toAddress,
+          asset: StellarSdk.Asset.native(), // Pi est l'asset natif sur Pi Network
+          amount: job.amount.toFixed(7), // Stellar utilise 7 décimales max
+        })
+      )
+      .addMemo(StellarSdk.Memo.text(job.reference.substring(0, 28))) // Memo max 28 chars
+      .setTimeout(180) // 3 minutes timeout
+      .build();
+
+    // 5. Signer la transaction avec la clé secrète du Master Wallet
+    const sourceKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+    transaction.sign(sourceKeypair);
+
+    // 6. Soumettre la transaction à Horizon
+    const result = await server.submitTransaction(transaction);
+
+    if (!result.successful) {
+      throw new Error(`Transaction échouée: ${JSON.stringify(result.extras?.result_codes || result)}`);
+    }
+
+    const txHash = result.hash;
+    console.log(`[PI_WITHDRAW] Transaction soumise avec succès: ${txHash} pour ${job.amount} π vers ${toAddress}`);
     
     return txHash;
 
   } catch (error: any) {
+    // Gérer les erreurs spécifiques de Stellar/Horizon
+    if (error.response?.data?.extras?.result_codes) {
+      const codes = error.response.data.extras.result_codes;
+      console.error(`[PI_WITHDRAW_ERROR] Codes d'erreur Horizon:`, codes);
+      
+      if (codes.transaction === "tx_bad_seq") {
+        throw new Error("Erreur de séquence. Réessayez dans quelques secondes.");
+      }
+      if (codes.operations?.includes("op_underfunded")) {
+        throw new Error("Solde Master Wallet insuffisant pour ce retrait.");
+      }
+      if (codes.operations?.includes("op_no_destination")) {
+        throw new Error("Le compte destinataire n'existe pas sur Pi Network. L'utilisateur doit d'abord activer son wallet.");
+      }
+    }
+    
     console.error(`[PI_WITHDRAW_ERROR] Broadcast échoué pour job ${job.id}:`, error.message);
     throw new Error(`Impossible de broadcaster la transaction Pi: ${error.message}`);
   }
