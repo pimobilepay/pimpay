@@ -5,6 +5,19 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { ethers } from "ethers";
+import * as StellarSdk from "@stellar/stellar-sdk";
+import crypto from "node:crypto";
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
+
+// Fonction pour chiffrer les clés privées
+function encrypt(text: string): string {
+  const iv = crypto.randomBytes(12);
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+}
 
 const SIDRA_RPC = "https://rpc.sidrachain.com";
 
@@ -36,7 +49,7 @@ export async function GET() {
     }
 
     // --- Fetch user with wallets (only safe fields) ---
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         walletAddress: true,
@@ -51,6 +64,56 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
+    }
+
+    // --- Auto-générer l'adresse XLM/Stellar si elle n'existe pas ---
+    if (!user.xlmAddress) {
+      try {
+        const keypair = StellarSdk.Keypair.random();
+        const publicKey = keypair.publicKey();
+        const secretKey = keypair.secret();
+        const encryptedSecret = encrypt(secretKey);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              xlmAddress: publicKey,
+              stellarPrivateKey: encryptedSecret
+            }
+          });
+
+          await tx.wallet.upsert({
+            where: { userId_currency: { userId, currency: "XLM" } },
+            update: { depositMemo: publicKey },
+            create: {
+              userId,
+              currency: "XLM",
+              type: "CRYPTO",
+              balance: 0,
+              depositMemo: publicKey,
+            }
+          });
+        });
+
+        // Recharger l'utilisateur avec la nouvelle adresse
+        user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            walletAddress: true,
+            sidraAddress: true,
+            xrpAddress: true,
+            xlmAddress: true,
+            solAddress: true,
+            usdtAddress: true,
+            wallets: true,
+          }
+        }) as typeof user;
+
+        console.log("[BALANCE_API] Auto-generated XLM address:", publicKey);
+      } catch (xlmError) {
+        console.error("[BALANCE_API] Failed to auto-generate XLM address:", xlmError);
+      }
     }
 
     const usdtAddress = user.usdtAddress || "";

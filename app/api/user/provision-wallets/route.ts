@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from 'node:crypto';
+import * as StellarSdk from '@stellar/stellar-sdk';
 
 export const dynamic = 'force-dynamic';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!;
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
 
 // --- HELPERS DE SÉCURITÉ ---
 function encrypt(text: string): string {
@@ -16,16 +17,8 @@ function encrypt(text: string): string {
   return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
 }
 
-function toBase32(buffer: Buffer, length: number): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += alphabet[buffer[i % buffer.length] % 32];
-  }
-  return result;
-}
-
 // --- GÉNÉRATEURS ---
+// XRP: Génération simplifiée (pour demo - en production utiliser xrpl library)
 function createXrpKeys() {
   const seed = crypto.randomBytes(16);
   const alphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
@@ -39,11 +32,13 @@ function createXrpKeys() {
   return { addr, sec };
 }
 
+// Stellar/XLM: Utilisation du SDK officiel pour générer des clés valides
 function createStellarKeys() {
-  const raw = crypto.randomBytes(32);
-  const pub = 'G' + toBase32(crypto.createHash('sha256').update(raw).update('pub').digest(), 55);
-  const priv = 'S' + toBase32(crypto.createHash('sha256').update(raw).update('sec').digest(), 55);
-  return { pub, priv };
+  const keypair = StellarSdk.Keypair.random();
+  return {
+    pub: keypair.publicKey(),  // Commence par G, 56 caractères
+    priv: keypair.secret()     // Commence par S, 56 caractères
+  };
 }
 
 // --- LOGIQUE PRINCIPALE ---
