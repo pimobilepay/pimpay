@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { ethers } from "ethers";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { Keypair as SolanaKeypair } from "@solana/web3.js";
+import bs58 from "bs58";
 import crypto from "node:crypto";
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
@@ -113,6 +115,56 @@ export async function GET() {
         console.log("[BALANCE_API] Auto-generated XLM address:", publicKey);
       } catch (xlmError) {
         console.error("[BALANCE_API] Failed to auto-generate XLM address:", xlmError);
+      }
+    }
+
+    // --- Auto-générer l'adresse SOL/Solana si elle n'existe pas ---
+    if (!user.solAddress) {
+      try {
+        const keypair = SolanaKeypair.generate();
+        const publicKey = keypair.publicKey.toBase58(); // Adresse Solana (32-44 chars, Base58)
+        const secretKey = bs58.encode(keypair.secretKey); // Clé privée en Base58
+        const encryptedSecret = encrypt(secretKey);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              solAddress: publicKey,
+              solPrivateKey: encryptedSecret
+            }
+          });
+
+          await tx.wallet.upsert({
+            where: { userId_currency: { userId, currency: "SOL" } },
+            update: { depositMemo: publicKey },
+            create: {
+              userId,
+              currency: "SOL",
+              type: "CRYPTO",
+              balance: 0,
+              depositMemo: publicKey,
+            }
+          });
+        });
+
+        // Recharger l'utilisateur avec la nouvelle adresse
+        user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            walletAddress: true,
+            sidraAddress: true,
+            xrpAddress: true,
+            xlmAddress: true,
+            solAddress: true,
+            usdtAddress: true,
+            wallets: true,
+          }
+        }) as typeof user;
+
+        console.log("[BALANCE_API] Auto-generated SOL address:", publicKey);
+      } catch (solError) {
+        console.error("[BALANCE_API] Failed to auto-generate SOL address:", solError);
       }
     }
 
