@@ -58,8 +58,19 @@ const truncateAddress = (address: string, startLen = 6, endLen = 4): string => {
 // Fonction pour formater la description avec adresses tronquées
 const formatDescription = (description: string): string => {
   if (!description) return description;
+  
+  let result = description;
+  
   // Détecte les adresses Ethereum/Sidra (0x...) et les tronque
-  return description.replace(/0x[a-fA-F0-9]{40}/g, (addr) => truncateAddress(addr, 6, 4));
+  result = result.replace(/0x[a-fA-F0-9]{40}/g, (addr) => truncateAddress(addr, 6, 4));
+  
+  // Détecte les adresses Stellar/Pi Network (G..., 56 caractères) et les tronque
+  result = result.replace(/G[A-Z2-7]{55}/g, (addr) => truncateAddress(addr, 6, 4));
+  
+  // Détecte aussi les longues chaines alphanumeriques (>20 chars) qui ressemblent a des adresses
+  result = result.replace(/[A-Za-z0-9]{30,}/g, (addr) => truncateAddress(addr, 6, 4));
+  
+  return result;
 };
 
 export default function UserDashboard() {
