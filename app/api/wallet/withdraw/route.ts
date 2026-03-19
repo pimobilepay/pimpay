@@ -63,6 +63,7 @@ export async function POST(req: Request) {
       });
 
       // Créer la transaction de retrait
+      // Stocker l'adresse externe dans accountNumber ET metadata pour cohérence
       const withdrawTx = await tx.transaction.create({
         data: {
           reference: txRef,
@@ -75,7 +76,15 @@ export async function POST(req: Request) {
           fromUserId: userId,
           fromWalletId: wallet.id,
           description: `Retrait ${currency} vers ${address.substring(0, 10)}...`,
-          metadata: { destination: address, feeApplied: `${feePercent * 100}%` }
+          // Stocker l'adresse blockchain directement dans accountNumber pour l'admin
+          accountNumber: address,
+          metadata: { 
+            destination: address, 
+            externalAddress: address,
+            isBlockchainWithdraw: true,
+            network: currency.toUpperCase(),
+            feeApplied: `${feePercent * 100}%` 
+          }
         }
       });
 

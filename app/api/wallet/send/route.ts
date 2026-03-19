@@ -195,6 +195,8 @@ export async function POST(req: NextRequest) {
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
             description: `Retrait ${currency} vers adresse externe : ${recipientInput}`,
+            // IMPORTANT: Stocker l'adresse externe directement dans accountNumber pour l'affichage admin
+            accountNumber: recipientInput,
             metadata: {
               externalAddress: recipientInput,
               network: currency,

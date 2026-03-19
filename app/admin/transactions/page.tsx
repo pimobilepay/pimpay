@@ -25,6 +25,8 @@ interface Transaction {
   description?: string;
   accountNumber?: string;
   isBlockchainWithdraw?: boolean;
+  isMobileWithdraw?: boolean;
+  isBankWithdraw?: boolean;
   method?: string;
   blockchainTx?: string;
   fee?: number;
@@ -124,10 +126,10 @@ function TransactionDetailView({ tx, onClose }: { tx: Transaction; onClose: () =
             />
             {tx.accountNumber && (
               <DetailRow 
-                icon={tx.isBlockchainWithdraw ? <Globe size={16} /> : <Phone size={16} />} 
-                label="Compte / Adresse" 
+                icon={tx.isBlockchainWithdraw ? <Globe size={16} /> : tx.isBankWithdraw ? <Hash size={16} /> : <Phone size={16} />} 
+                label={tx.isBlockchainWithdraw ? "Adresse Blockchain" : tx.isBankWithdraw ? "IBAN / Compte" : "Telephone Beneficiaire"}
                 value={tx.accountNumber.length > 20 ? tx.accountNumber.slice(0, 20) + "..." : tx.accountNumber}
-                onCopy={() => copyToClipboard(tx.accountNumber || "", "Adresse")}
+                onCopy={() => copyToClipboard(tx.accountNumber || "", tx.isBlockchainWithdraw ? "Adresse" : "Compte")}
                 copyable
               />
             )}
@@ -330,12 +332,34 @@ export default function AdminTransactionsPage() {
                         <span className="ml-1 text-[10px] text-slate-500">{tx.currency}</span>
                       </td>
                       <td className="p-6">
-                        <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${tx.isBlockchainWithdraw ? 'text-blue-400' : 'text-amber-500'}`}>
-                          {tx.isBlockchainWithdraw ? <Globe size={12} /> : <Phone size={12} />}
-                          {tx.type} {tx.isBlockchainWithdraw ? `(${tx.method || tx.currency})` : ''}
+                        <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${
+                          tx.isBlockchainWithdraw 
+                            ? 'text-blue-400' 
+                            : tx.isBankWithdraw 
+                              ? 'text-indigo-400'
+                              : 'text-amber-500'
+                        }`}>
+                          {tx.isBlockchainWithdraw ? (
+                            <Globe size={12} />
+                          ) : tx.isBankWithdraw ? (
+                            <Hash size={12} />
+                          ) : (
+                            <Phone size={12} />
+                          )}
+                          {tx.type} {tx.isBlockchainWithdraw ? `(${tx.method || tx.currency})` : tx.method ? `(${tx.method})` : ''}
                         </div>
-                        <p className={`text-[9px] mt-1 font-mono ${tx.isBlockchainWithdraw ? 'text-blue-300/70' : 'text-amber-400/70'} break-all max-w-[200px]`}>
-                          {tx.accountNumber || 'PI_WALLET'}
+                        <p className={`text-[9px] mt-1 font-mono ${
+                          tx.isBlockchainWithdraw 
+                            ? 'text-blue-300/70' 
+                            : tx.isBankWithdraw 
+                              ? 'text-indigo-300/70'
+                              : 'text-amber-400/70'
+                        } break-all max-w-[200px]`}>
+                          {tx.isBlockchainWithdraw 
+                            ? (tx.accountNumber?.startsWith('G') || tx.accountNumber?.startsWith('0x') 
+                                ? `${tx.accountNumber.slice(0, 8)}...${tx.accountNumber.slice(-6)}` 
+                                : tx.accountNumber || 'Adresse Blockchain')
+                            : tx.accountNumber || 'Non spécifié'}
                         </p>
                       </td>
                       <td className="p-6">

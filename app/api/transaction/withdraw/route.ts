@@ -61,16 +61,25 @@ export async function POST(req: NextRequest) {
 
       // D. Préparation de la description selon la méthode
       let description = `Retrait ${method}`;
-      if (method === "mobile") description = `Retrait Mobile Money (${body.details?.provider})`;
-      if (method === "bank") description = `Retrait Bancaire (${body.details?.bankName})`;
+      let accountNumberValue: string | null = null;
+      
+      if (method === "mobile") {
+        description = `Retrait Mobile Money (${body.details?.provider})`;
+        // Stocker le numéro de téléphone du bénéficiaire
+        accountNumberValue = body.details?.phone || null;
+      } else if (method === "bank") {
+        description = `Retrait Bancaire (${body.details?.bankName})`;
+        // Stocker le numéro de compte bancaire
+        accountNumberValue = body.details?.accountNumber || body.details?.iban || null;
+      }
 
       // E. Créer la transaction de retrait (PENDING)
-      // Note: On utilise 'purpose' à la place de 'type' pour correspondre à ton schéma
+      // Note: On stocke accountNumber directement dans le champ DB pour faciliter l'affichage admin
       const transaction = await tx.transaction.create({
         data: {
           reference: `WTH-${Date.now()}-${userId.slice(0, 4)}`.toUpperCase(),
           amount: piAmount,
-          purpose: "WITHDRAWAL", 
+          type: "WITHDRAW",
           status: TransactionStatus.PENDING,
           fromUserId: userId,
           fromWalletId: userWallet.id,
@@ -78,6 +87,10 @@ export async function POST(req: NextRequest) {
           currency: "PI",
           destCurrency: targetCurrency,
           fee: conversion.fee / PI_CONSENSUS_RATE, // Frais convertis en PI
+          // Stocker directement le numéro de compte/téléphone dans le champ DB
+          accountNumber: accountNumberValue,
+          accountName: body.details?.accountName || null,
+          bankBic: body.details?.swift || null,
           metadata: {
             method: method, // "mobile" ou "bank"
             transferDetails: body.details,
