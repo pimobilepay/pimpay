@@ -52,6 +52,7 @@ function SuccessContent() {
   const currency = transaction?.currency || urlCurrency;
   const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
   const isExternalMode = modeParam === "external";
+  const isPiPending = currency === "PI" && isExternalMode; // Pi external withdrawals are pending
 
   let amountDisplay = amount;
   let amountUSD = 0;
@@ -88,16 +89,28 @@ function SuccessContent() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="flex flex-col items-center w-full animate-in fade-in slide-in-from-bottom-4 duration-1000 relative z-10">
-        <div className="w-20 h-20 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center border border-emerald-500/20 shadow-2xl mb-8">
-          <CheckCircle2 className="text-emerald-500" size={42} strokeWidth={2.5} />
+        <div className={`w-20 h-20 ${isPiPending ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'} rounded-[2.5rem] flex items-center justify-center border shadow-2xl mb-8`}>
+          {isPiPending ? (
+            <Loader2 className="text-amber-500 animate-spin" size={42} strokeWidth={2.5} />
+          ) : (
+            <CheckCircle2 className="text-emerald-500" size={42} strokeWidth={2.5} />
+          )}
         </div>
 
         <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
-          {isExternalMode ? "Retrait Enregistré" : "Transfert Réussi"}
+          {isPiPending ? "Retrait Pi en Attente" : isExternalMode ? "Retrait Enregistré" : "Transfert Réussi"}
         </h1>
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">
-          {isExternalMode ? "Retrait blockchain en traitement" : `Envoyé à ${urlName}`}
+          {isPiPending ? "Traitement sous 24-48h" : isExternalMode ? "Retrait blockchain en traitement" : `Envoyé à ${urlName}`}
         </p>
+        
+        {isPiPending && (
+          <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 max-w-xs">
+            <p className="text-amber-400 text-[10px] font-bold">
+              Les retraits Pi vers adresses externes sont traités manuellement par notre équipe. Vous recevrez une notification une fois le transfert effectué.
+            </p>
+          </div>
+        )}
 
         <div className="mt-10">
           <div className="flex items-baseline justify-center gap-2">
