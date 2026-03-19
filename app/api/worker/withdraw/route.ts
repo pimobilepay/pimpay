@@ -82,14 +82,26 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
  */
 async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
   // Configuration Pi Network (utilise le protocole Stellar)
-  const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
+  // TESTNET: https://api.testnet.minepi.com avec passphrase "Pi Testnet"
+  // MAINNET: https://api.mainnet.minepi.com avec passphrase "Pi Network"
+  const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com";
   const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET; // Clé secrète du wallet master (S...)
   const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS; // Clé publique (G...)
-  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
+  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
 
   if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
     throw new Error("Configuration Pi Network manquante (PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS)");
   }
+
+  // Log de debug pour vérifier la configuration testnet
+  console.log(`[PI_WITHDRAW] Configuration:`, {
+    horizonUrl: PI_HORIZON_URL,
+    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    masterAddress: PI_MASTER_ADDRESS.substring(0, 10) + "...",
+    destinationAddress: toAddress,
+    amount: job.amount,
+    isTestnet: PI_HORIZON_URL.includes("testnet") || PI_NETWORK_PASSPHRASE.includes("Testnet")
+  });
 
   // Valider l'adresse de destination (format Stellar Ed25519)
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(toAddress)) {
@@ -98,7 +110,7 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
 
   try {
     // 1. Connexion au serveur Horizon Pi Network
-    const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL, { allowHttp: false });
+    const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL, { allowHttp: PI_HORIZON_URL.includes("localhost") });
     
     // 2. Charger le compte source (Master Wallet PimPay)
     const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
