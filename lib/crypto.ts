@@ -15,12 +15,36 @@ export function encrypt(text: string): string {
 }
 
 export function decrypt(text: string): string {
-  if (!text || !text.includes(':')) return '';
-  const textParts = text.split(':');
-  const iv = Buffer.from(textParts.shift()!, 'hex');
-  const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-  const decipher = createDecipheriv(ALGORITHM, Buffer.from(SECRET_KEY), iv);
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
+  if (!text || !text.includes(':')) {
+    throw new Error('Texte chiffré invalide: format iv:data attendu');
+  }
+  
+  try {
+    const textParts = text.split(':');
+    if (textParts.length < 2) {
+      throw new Error('Texte chiffré invalide: IV manquant');
+    }
+    
+    const ivHex = textParts.shift()!;
+    const encryptedHex = textParts.join(':');
+    
+    // Valider le format de l'IV (doit être 32 caractères hex = 16 bytes)
+    if (!/^[a-f0-9]{32}$/i.test(ivHex)) {
+      throw new Error(`IV invalide: ${ivHex.length} caractères, 32 attendus`);
+    }
+    
+    const iv = Buffer.from(ivHex, 'hex');
+    const encryptedText = Buffer.from(encryptedHex, 'hex');
+    
+    if (iv.length !== IV_LENGTH) {
+      throw new Error(`IV length invalide: ${iv.length}, ${IV_LENGTH} attendu`);
+    }
+    
+    const decipher = createDecipheriv(ALGORITHM, Buffer.from(SECRET_KEY), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (error: any) {
+    throw new Error(`Décryption échouée: ${error.message}`);
+  }
 }

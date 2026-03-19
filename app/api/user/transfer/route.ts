@@ -149,8 +149,26 @@ export async function POST(req: NextRequest) {
       if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
         try {
           let privateKey = senderUser.sidraPrivateKey;
-          if (privateKey.includes(':')) privateKey = decrypt(privateKey);
+          
+          // Décryption sécurisée avec vérification
+          if (privateKey.includes(':')) {
+            try {
+              const decrypted = decrypt(privateKey);
+              if (decrypted && decrypted.length > 0) {
+                privateKey = decrypted;
+              }
+            } catch (decryptError: any) {
+              console.error("[v0] Decryption error for SDA key:", decryptError.message);
+              throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
+            }
+          }
+          
           if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+          
+          // Valider format clé EVM (64 caractères hex après 0x)
+          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+            throw new Error("Format de clé SDA/EVM invalide");
+          }
 
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
           const wallet = new ethers.Wallet(privateKey, provider);
@@ -158,13 +176,31 @@ export async function POST(req: NextRequest) {
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
           txStatus = TransactionStatus.SUCCESS;
-        } catch (e: any) { throw new Error(`Erreur blockchain Sidra: ${e.message}`); }
+        } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
       }
 
       if (currency === "PI" && senderUser?.stellarPrivateKey) {
         try {
           let privateKey = senderUser.stellarPrivateKey;
-          if (privateKey.includes(':')) privateKey = decrypt(privateKey);
+          
+          // Décryption sécurisée avec vérification
+          if (privateKey.includes(':')) {
+            try {
+              const decrypted = decrypt(privateKey);
+              if (decrypted && decrypted.length > 0) {
+                privateKey = decrypted;
+              }
+            } catch (decryptError: any) {
+              console.error("[v0] Decryption error for Pi key:", decryptError.message);
+              throw new Error(`Clé Pi invalide ou corrompue: ${decryptError.message}`);
+            }
+          }
+          
+          // Valider que c'est une clé Stellar valide (commence par S, 56 caractères)
+          if (!privateKey.startsWith('S') || privateKey.length !== 56) {
+            throw new Error("Format de clé Pi/Stellar invalide");
+          }
+          
           const sourceKeypair = StellarSdk.Keypair.fromSecret(privateKey);
           const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
           const sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
