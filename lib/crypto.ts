@@ -28,19 +28,25 @@ export function decrypt(text: string): string {
     const ivHex = textParts.shift()!;
     const encryptedHex = textParts.join(':');
     
-    // Valider le format de l'IV (doit être 32 caractères hex = 16 bytes)
-    if (!/^[a-f0-9]{32}$/i.test(ivHex)) {
-      throw new Error(`IV invalide: ${ivHex.length} caractères, 32 attendus`);
+    // Support pour deux formats d'IV: 16 bytes (32 hex chars) ou 12 bytes (24 hex chars) pour backward compatibility
+    const isValidIV = /^[a-f0-9]{24}$/i.test(ivHex) || /^[a-f0-9]{32}$/i.test(ivHex);
+    if (!isValidIV) {
+      throw new Error(`IV invalide: ${ivHex.length} caractères, 24 ou 32 attendus`);
     }
     
     const iv = Buffer.from(ivHex, 'hex');
     const encryptedText = Buffer.from(encryptedHex, 'hex');
     
-    if (iv.length !== IV_LENGTH) {
-      throw new Error(`IV length invalide: ${iv.length}, ${IV_LENGTH} attendu`);
+    // Pour les anciennes clés avec IV de 12 bytes, on doit utiliser le bon algo/IV
+    // AES-256-CBC doit avoir exactement 16 bytes IV, donc on pad les 12 bytes avec des zéros
+    let finalIv = iv;
+    if (iv.length === 12) {
+      // Padding avec des zéros pour atteindre 16 bytes
+      finalIv = Buffer.alloc(16);
+      iv.copy(finalIv);
     }
     
-    const decipher = createDecipheriv(ALGORITHM, Buffer.from(SECRET_KEY), iv);
+    const decipher = createDecipheriv(ALGORITHM, Buffer.from(SECRET_KEY), finalIv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
