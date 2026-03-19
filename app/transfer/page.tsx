@@ -365,7 +365,16 @@ export default function SendPage() {
           setRecipientData(data);
         } else if (isMountedRef.current) {
           // Détection adresse externe multi-réseau
-          const detected = detectExternalAddress(recipientId, selectedCurrency);
+          // Priorité: vérifier si c'est une adresse pour la devise sélectionnée
+          let detected = detectExternalAddress(recipientId, selectedCurrency);
+
+          // Si pas détecté avec la devise sélectionnée, essayer les autres devises
+          if (!detected && selectedCurrency !== "PI") {
+            detected = detectExternalAddress(recipientId, "PI");
+          }
+          if (!detected && selectedCurrency !== "SDA") {
+            detected = detectExternalAddress(recipientId, "SDA");
+          }
 
           if (detected) {
             setRecipientData({
@@ -399,7 +408,7 @@ export default function SendPage() {
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [recipientId, selectedCurrency]);
+  }, [recipientId, selectedCurrency, t]);
 
   // ── QR Scanner ────────────────────────────────────────────────────────────
   const handleQRResult = (data: string) => {
