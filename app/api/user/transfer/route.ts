@@ -175,14 +175,30 @@ export async function POST(req: NextRequest) {
         } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
       }
 
-      // Pour les transferts Pi externes: PimPay utilise un système de wallets internes
-      // Les retraits vers adresses externes sont traités manuellement par l'admin
+      // Pour les transferts Pi externes vers une adresse Stellar:
+      // Pi Network ne permet pas les transferts A2U automatiques vers des adresses externes
+      // Les retraits sont mis en PENDING pour traitement manuel par l'équipe PimPay
       if (currency === "PI") {
-        // Générer une référence de retrait Pi externe (traitement manuel)
-        blockchainTxHash = `PI_WITHDRAW_${Date.now()}_${nanoid(6)}`;
-        txStatus = TransactionStatus.SUCCESS;
-        // Note: Le retrait réel vers l'adresse Stellar sera traité par l'équipe PimPay
+        // Créer une demande de retrait en attente
+        blockchainTxHash = null; // Pas de tx blockchain tant que non traité
+        txStatus = TransactionStatus.PENDING;
+        
+        // Créer une notification admin pour le retrait
+        await tx.notification.create({
+          data: {
+            userId: senderId,
+            title: "Demande de retrait Pi en cours",
+            message: `Votre demande de retrait de ${amount} PI vers ${recipientInput.substring(0, 8)}...${recipientInput.substring(recipientInput.length - 4)} est en cours de traitement. Délai estimé: 24-48h.`,
+            type: "WITHDRAW_PENDING",
+            metadata: { amount, currency, toAddress: recipientInput },
+          },
+        }).catch(() => {});
       }
+
+      // Description adaptée selon la devise
+      const txDescription = currency === "PI" 
+        ? `Retrait PI vers adresse externe : ${recipientInput}` 
+        : (description || `Retrait ${currency} vers adresse externe : ${recipientInput}`);
 
       const transaction = await tx.transaction.create({
         data: {
@@ -193,7 +209,8 @@ export async function POST(req: NextRequest) {
           blockchainTx: blockchainTxHash,
           fromUserId: senderId,
           fromWalletId: updatedSender.id,
-          description: description || `Retrait ${currency} externe`,
+          description: txDescription,
+          metadata: currency === "PI" ? { toAddress: recipientInput, network: "Pi Network", pendingWithdrawal: true } : undefined,
         },
       });
 
