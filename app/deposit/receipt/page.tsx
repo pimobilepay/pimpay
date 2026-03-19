@@ -70,10 +70,24 @@ function DetailsContent() {
   );
 
   // --- LOGIQUE FINANCIÈRE PIMPAY ---
-  const isPi = transaction?.currency === "PI" || !transaction?.currency;
-  const amountPI = isPi ? (transaction?.amount || 0) : (transaction?.amount || 0) / PI_GCV_PRICE;
-  const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : (transaction?.amount || 0);
-  const feePI = transaction?.fee || (amountPI * 0.01); // 1% par défaut si non spécifié
+  const currency = transaction?.currency || "PI";
+  const isPi = currency === "PI";
+  const amount = transaction?.amount || 0;
+  
+  // Taux de conversion approximatifs pour différentes devises
+  const CURRENCY_RATES: Record<string, number> = {
+    PI: PI_GCV_PRICE,
+    SDA: 1.2,  // Sidra Chain
+    USDT: 1.0,
+    USDC: 1.0,
+    XAF: 1 / 615,
+    BTC: 65000,
+    ETH: 3500,
+  };
+  
+  const rateToUSD = CURRENCY_RATES[currency] || 1;
+  const amountUSD = amount * rateToUSD;
+  const fee = transaction?.fee || (amount * 0.01); // 1% par défaut si non spécifié
 
   // Use the transaction's reference, falling back to query params
   const displayRef = transaction?.reference || ref || txId || "transaction";
@@ -165,12 +179,12 @@ function DetailsContent() {
               <div className="flex flex-col items-center text-center">
                 <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Valeur Transactionnelle</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-white">{amountPI.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}</span>
-                  <span className="text-lg font-bold text-blue-500">PI</span>
+                  <span className="text-5xl font-black text-white">{amount.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}</span>
+                  <span className="text-lg font-bold text-blue-500">{currency}</span>
                 </div>
                 <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
                     <TrendingUp size={12} className="text-blue-400" />
-                    <span className="text-[10px] font-bold text-blue-400">≈ ${amountUSD.toLocaleString()} USD (GCV)</span>
+                    <span className="text-[10px] font-bold text-blue-400">≈ ${amountUSD.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USD</span>
                 </div>
               </div>
 
@@ -179,7 +193,7 @@ function DetailsContent() {
                 <DetailRow icon={<Hash />} label="ID Transaction" value={displayRef.slice(0, 18) + "..."} onCopy={() => {navigator.clipboard.writeText(displayRef); toast.success("ID Copié");}} copyable />
                 <DetailRow icon={<Calendar />} label="Date" value={transaction?.createdAt ? new Date(transaction.createdAt).toLocaleString("fr-FR") : "---"} />
                 <DetailRow icon={<Smartphone />} label="Méthode" value={transaction?.description || "Pi Wallet"} />
-                <DetailRow icon={<Banknote />} label="Frais Réseau" value={`${feePI.toFixed(4)} PI`} valueClassName="text-red-400" />
+                <DetailRow icon={<Banknote />} label="Frais Réseau" value={`${fee.toFixed(4)} ${currency}`} valueClassName="text-red-400" />
 
                 {transaction?.blockchainTx && (
                   <DetailRow
@@ -213,7 +227,7 @@ function DetailsContent() {
 
           <button
             onClick={() => {
-                if(navigator.share) navigator.share({ title: 'Reçu PimPay', text: `Transaction de ${amountPI} PI réussie.` });
+                if(navigator.share) navigator.share({ title: 'Reçu PimPay', text: `Transaction de ${amount} ${currency} réussie.` });
             }}
             className="w-16 h-16 bg-white/5 text-white rounded-2xl border border-white/10 flex items-center justify-center active:scale-90 transition-all"
           >
