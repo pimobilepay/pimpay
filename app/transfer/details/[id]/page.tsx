@@ -80,7 +80,7 @@ export default function TransactionDetailsPage() {
           {tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? <CheckCircle2 size={40} /> : <Clock size={40} />}
         </div>
         <h2 className="text-4xl font-black mb-1">
-          {isSent ? '-' : '+'}{tx.amount.toLocaleString()} <span className="text-xl italic text-blue-500">π</span>
+          {isSent ? '-' : '+'}{tx.amount.toLocaleString()} <span className="text-xl italic text-blue-500">{tx.currency || 'PI'}</span>
         </h2>
         <p className={`text-[10px] font-black uppercase tracking-widest ${
           tx.status === 'SUCCESS' || tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-amber-500'

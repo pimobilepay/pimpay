@@ -28,6 +28,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Données de transfert invalides" }, { status: 400 });
     }
 
+    // Validation d'adresse selon la devise
+    const validateAddress = (addr: string, curr: string): boolean => {
+      if (!addr || addr.length < 3) return false;
+      
+      // Pi Network: adresse Stellar (G... 56 chars) OU piUserId
+      if (curr === "PI") {
+        return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3; // piUserId peut être court
+      }
+      
+      // SDA/Sidra: adresse EVM (0x... 42 chars)
+      if (curr === "SDA" || curr === "SIDRA") {
+        return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // USDT TRC20: adresse TRON (T... 34 chars)
+      if (curr === "USDT") {
+        return /^T[a-zA-Z0-9]{33}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // Bitcoin: legacy/bech32
+      if (curr === "BTC") {
+        return /^[13bc1][a-km-zA-HJ-NP-Z1-9]{25,62}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // Ethereum & autres EVM
+      if (["ETH", "BNB", "USDC", "DAI", "BUSD"].includes(curr)) {
+        return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // Stellar/XLM
+      if (curr === "XLM") {
+        return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // XRP
+      if (curr === "XRP") {
+        return /^r[a-zA-Z0-9]{24,33}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // Solana
+      if (curr === "SOL") {
+        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr) || addr.length >= 3;
+      }
+      
+      // Par défaut: accepter si c'est >= 3 caractères (username, email)
+      return addr.length >= 3;
+    };
+
+    if (!validateAddress(recipientInput, currency)) {
+      return NextResponse.json({ 
+        error: `Adresse ${currency} invalide. Veuillez vérifier le format.` 
+      }, { status: 400 });
+    }
+
     // 2. TRANSACTION ATOMIQUE
     const result = await prisma.$transaction(async (tx) => {
       
@@ -44,18 +98,25 @@ export async function POST(req: NextRequest) {
       // On nettoie l'input si c'est un @username
       const cleanInput = recipientInput.startsWith('@') ? recipientInput.substring(1) : recipientInput;
 
+      // Déterminer si c'est une adresse Stellar/Pi (commence par G, 56 chars)
+      const isStellarAddress = /^G[A-Z2-7]{55}$/.test(cleanInput);
+      // Déterminer si c'est une adresse EVM/SDA (commence par 0x, 42 chars)
+      const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(cleanInput);
+
       const recipientUser = await tx.user.findFirst({
         where: {
           OR: [
             { username: { equals: cleanInput, mode: 'insensitive' } },
             { email: { equals: cleanInput, mode: 'insensitive' } },
-            { sidraAddress: cleanInput },
-            { walletAddress: cleanInput },
-            { piUserId: cleanInput },
-            { usdtAddress: cleanInput },
-            { solAddress: cleanInput },
-            { xrpAddress: cleanInput },
-            { xlmAddress: cleanInput }
+            { sidraAddress: { equals: cleanInput, mode: 'insensitive' } },
+            { walletAddress: { equals: cleanInput, mode: 'insensitive' } },
+            { piUserId: { equals: cleanInput, mode: 'insensitive' } },
+            { usdtAddress: { equals: cleanInput, mode: 'insensitive' } },
+            { solAddress: { equals: cleanInput, mode: 'insensitive' } },
+            { xrpAddress: { equals: cleanInput, mode: 'insensitive' } },
+            { xlmAddress: { equals: cleanInput, mode: 'insensitive' } },
+            ...(isStellarAddress ? [{ xlmAddress: cleanInput }] : []),
+            ...(isEvmAddress ? [{ sidraAddress: cleanInput }] : [])
           ]
         }
       });
