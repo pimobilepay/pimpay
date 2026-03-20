@@ -44,6 +44,12 @@ const LOGOS = {
   mpesa: "https://upload.wikimedia.org/wikipedia/en/archive/c/cc/20240725163256%21Vodafone_2017_logo.svg",
   telebirr: "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   vodacom: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
+  africell: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Africell_logo.svg/200px-Africell_logo.svg.png",
+  free: "https://upload.wikimedia.org/wikipedia/fr/thumb/4/4b/Free_logo.svg/200px-Free_logo.svg.png",
+  tigo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Tigo-logo.svg/200px-Tigo-logo.svg.png",
+  vodafone: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
+  opay: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/OPay_logo.svg/200px-OPay_logo.svg.png",
+  palmpay: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/PalmPay_logo.svg/200px-PalmPay_logo.svg.png",
 };
 
 // Logos banques
@@ -87,6 +93,8 @@ export const coreCountries: Country[] = [
     operators: [
       { id: "mtn_ng", name: "MTN MoMo", icon: LOGOS.mtn, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "airtel_ng", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "opay_ng", name: "OPay", icon: LOGOS.opay, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "palmpay_ng", name: "PalmPay", icon: LOGOS.palmpay, features: { cashIn: true, cashOut: true, airtime: true } },
     ],
   },
 {
@@ -282,6 +290,7 @@ export const coreCountries: Country[] = [
       { id: "vodacom", name: "M-Pesa", icon: LOGOS.mpesa, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "orange_cd", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "airtel_cd", name: "Airtel Money", icon: LOGOS.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "africell_cd", name: "Africell Money", icon: LOGOS.africell, features: { cashIn: true, cashOut: true, airtime: true } },
     ],
   },
   {
@@ -317,6 +326,7 @@ export const coreCountries: Country[] = [
     operators: [
       { id: "orange_sn", name: "Orange Money", icon: LOGOS.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "wave_sn", name: "Wave", icon: LOGOS.wave, features: { cashIn: true, cashOut: true, airtime: false } },
+      { id: "free_sn", name: "Free Money", icon: LOGOS.free, features: { cashIn: true, cashOut: true, airtime: true } },
     ],
   },
   {
