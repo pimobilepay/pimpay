@@ -7,13 +7,20 @@ import {
   Globe, ShieldCheck, BarChart3, RefreshCw, Loader2,
   UserPlus, ArrowUpRight, ArrowDownRight, X, LayoutGrid,
   Wallet, Headphones, Settings, Shield, Menu,
-  Eye, Monitor, Smartphone, Clock
+  Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, PieChart, Pie, Cell
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
 } from "recharts";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  ZoomableGroup
+} from "react-simple-maps";
 
 // --- TYPES ---
 type KPIs = {
@@ -49,12 +56,19 @@ type RecentUser = {
   createdAt: string;
 };
 
+type CountryData = {
+  country: string;
+  count: number;
+  activeCount: number;
+  newCount: number;
+};
+
 type AnalyticsData = {
   kpis: KPIs;
   roles: Record<string, number>;
   kyc: Record<string, number>;
   chartData: ChartPoint[];
-  topCountries: { country: string; count: number }[];
+  topCountries: CountryData[];
   recentSignups: RecentUser[];
 };
 
@@ -67,6 +81,78 @@ type OnlineUser = {
   device: string | null;
   lastSeen: string;
 };
+
+// Country coordinates for map markers
+const COUNTRY_COORDINATES: Record<string, [number, number]> = {
+  "France": [2.3522, 46.6034],
+  "Senegal": [-14.4524, 14.4974],
+  "Cameroun": [12.3547, 5.9631],
+  "Cameroon": [12.3547, 5.9631],
+  "Cote d'Ivoire": [-5.5471, 7.5399],
+  "Ivory Coast": [-5.5471, 7.5399],
+  "Mali": [-3.9962, 17.5707],
+  "Guinee": [-10.9408, 10.7672],
+  "Guinea": [-10.9408, 10.7672],
+  "Burkina Faso": [-1.5616, 12.2383],
+  "Togo": [1.1679, 8.6195],
+  "Benin": [2.3158, 9.3077],
+  "Niger": [9.0820, 17.6078],
+  "Congo": [15.8277, -0.2280],
+  "RDC": [21.7587, -4.0383],
+  "Gabon": [11.6094, -0.8037],
+  "Madagascar": [46.8691, -18.7669],
+  "Maroc": [-7.0926, 31.7917],
+  "Morocco": [-7.0926, 31.7917],
+  "Tunisie": [9.5375, 33.8869],
+  "Tunisia": [9.5375, 33.8869],
+  "Algerie": [1.6596, 28.0339],
+  "Algeria": [1.6596, 28.0339],
+  "USA": [-95.7129, 37.0902],
+  "United States": [-95.7129, 37.0902],
+  "Canada": [-106.3468, 56.1304],
+  "UK": [-3.4360, 55.3781],
+  "United Kingdom": [-3.4360, 55.3781],
+  "Germany": [10.4515, 51.1657],
+  "Allemagne": [10.4515, 51.1657],
+  "Belgium": [4.4699, 50.5039],
+  "Belgique": [4.4699, 50.5039],
+  "Switzerland": [8.2275, 46.8182],
+  "Suisse": [8.2275, 46.8182],
+  "Nigeria": [8.6753, 9.0820],
+  "Ghana": [-1.0232, 7.9465],
+  "Kenya": [37.9062, -0.0236],
+  "South Africa": [22.9375, -30.5595],
+  "Afrique du Sud": [22.9375, -30.5595],
+  "Spain": [-3.7038, 40.4168],
+  "Espagne": [-3.7038, 40.4168],
+  "Italy": [12.5674, 41.8719],
+  "Italie": [12.5674, 41.8719],
+  "Portugal": [-8.2245, 39.3999],
+  "Netherlands": [5.2913, 52.1326],
+  "Pays-Bas": [5.2913, 52.1326],
+  "Rwanda": [29.8739, -1.9403],
+  "Burundi": [29.9189, -3.3731],
+  "Tchad": [18.7322, 15.4542],
+  "Chad": [18.7322, 15.4542],
+  "Mauritanie": [-10.9408, 21.0079],
+  "Mauritania": [-10.9408, 21.0079],
+  "Centrafrique": [20.9394, 6.6111],
+  "Central African Republic": [20.9394, 6.6111],
+  "Haiti": [-72.2852, 18.9712],
+  "Haïti": [-72.2852, 18.9712],
+  "Brazil": [-51.9253, -14.2350],
+  "Bresil": [-51.9253, -14.2350],
+  "China": [104.1954, 35.8617],
+  "Chine": [104.1954, 35.8617],
+  "India": [78.9629, 20.5937],
+  "Inde": [78.9629, 20.5937],
+  "Japan": [138.2529, 36.2048],
+  "Japon": [138.2529, 36.2048],
+  "Australia": [133.7751, -25.2744],
+  "Australie": [133.7751, -25.2744],
+};
+
+const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 function formatTimeAgo(dateStr: string): string {
   const now = new Date();
@@ -173,6 +259,8 @@ export default function AdminAnalyticsPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
+  const [mapView, setMapView] = useState<"world" | "africa">("africa");
 
   const fetchAnalytics = async () => {
     try {
@@ -226,6 +314,26 @@ export default function AdminAnalyticsPage() {
       name, value, fill: KYC_COLORS[name] || "#64748b",
     }));
   }, [data]);
+
+  // Country markers for map
+  const countryMarkers = useMemo(() => {
+    if (!data?.topCountries) return [];
+    return data.topCountries
+      .filter(c => COUNTRY_COORDINATES[c.country])
+      .map(c => ({
+        ...c,
+        coordinates: COUNTRY_COORDINATES[c.country],
+      }));
+  }, [data]);
+
+  // Calculate total users by country
+  const totalCountryUsers = useMemo(() => {
+    return data?.topCountries?.reduce((sum, c) => sum + c.count, 0) || 0;
+  }, [data]);
+
+  // Map center based on view
+  const mapCenter = mapView === "africa" ? [10, 5] : [0, 20];
+  const mapZoom = mapView === "africa" ? 2.5 : 1;
 
   if (loading) {
     return (
@@ -340,6 +448,173 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
+        {/* WORLD MAP - Interactive */}
+        <div>
+          <SectionTitle>Repartition Geographique</SectionTitle>
+          <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
+            {/* Map view toggle */}
+            <div className="flex items-center justify-between p-4 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <Globe size={16} className="text-blue-400" />
+                <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                  {topCountries.length} Pays
+                </span>
+                <span className="text-[9px] text-slate-500">
+                  ({totalCountryUsers.toLocaleString("fr-FR")} utilisateurs)
+                </span>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setMapView("africa")}
+                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                    mapView === "africa"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Afrique
+                </button>
+                <button
+                  onClick={() => setMapView("world")}
+                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                    mapView === "world"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Monde
+                </button>
+              </div>
+            </div>
+            
+            {/* Map */}
+            <div className="h-64 bg-slate-950/50">
+              <ComposableMap
+                projection="geoMercator"
+                projectionConfig={{
+                  scale: mapView === "africa" ? 350 : 120,
+                  center: mapView === "africa" ? [15, 5] : [0, 20],
+                }}
+                style={{ width: "100%", height: "100%" }}
+              >
+                <Geographies geography={geoUrl}>
+                  {({ geographies }) =>
+                    geographies.map((geo) => (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        fill="#1e293b"
+                        stroke="#334155"
+                        strokeWidth={0.5}
+                        style={{
+                          default: { outline: "none" },
+                          hover: { fill: "#334155", outline: "none" },
+                          pressed: { outline: "none" },
+                        }}
+                      />
+                    ))
+                  }
+                </Geographies>
+                {countryMarkers.map((marker) => (
+                  <Marker
+                    key={marker.country}
+                    coordinates={marker.coordinates}
+                    onClick={() => setSelectedCountry(marker)}
+                  >
+                    <circle
+                      r={Math.min(Math.max(marker.count / 5, 4), 15)}
+                      fill="#3b82f6"
+                      fillOpacity={0.7}
+                      stroke="#60a5fa"
+                      strokeWidth={1.5}
+                      className="cursor-pointer hover:fill-opacity-100 transition-all"
+                    />
+                    <circle
+                      r={Math.min(Math.max(marker.count / 5, 4), 15)}
+                      fill="transparent"
+                      className="animate-ping"
+                      style={{ animationDuration: "3s" }}
+                    />
+                  </Marker>
+                ))}
+              </ComposableMap>
+            </div>
+
+            {/* Selected country detail */}
+            {selectedCountry && (
+              <div className="p-4 bg-blue-500/5 border-t border-blue-500/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                      <MapPin size={18} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{selectedCountry.country}</p>
+                      <p className="text-[9px] text-slate-500">
+                        {selectedCountry.count.toLocaleString("fr-FR")} utilisateurs
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedCountry(null)}
+                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  <div className="text-center p-2 bg-white/[0.02] rounded-xl">
+                    <p className="text-sm font-black text-blue-400">{selectedCountry.count}</p>
+                    <p className="text-[8px] text-slate-500 uppercase">Total</p>
+                  </div>
+                  <div className="text-center p-2 bg-white/[0.02] rounded-xl">
+                    <p className="text-sm font-black text-emerald-400">{selectedCountry.activeCount}</p>
+                    <p className="text-[8px] text-slate-500 uppercase">Actifs</p>
+                  </div>
+                  <div className="text-center p-2 bg-white/[0.02] rounded-xl">
+                    <p className="text-sm font-black text-amber-400">{selectedCountry.newCount}</p>
+                    <p className="text-[8px] text-slate-500 uppercase">Nouveaux</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Country list */}
+            <div className="p-4 space-y-2 max-h-60 overflow-y-auto">
+              {topCountries.map((c, i) => (
+                <button
+                  key={c.country}
+                  onClick={() => setSelectedCountry(c)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
+                    selectedCountry?.country === c.country
+                      ? "bg-blue-500/20 border border-blue-500/30"
+                      : "bg-white/[0.02] hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <span className="text-[10px] font-black text-slate-500 w-5">{i + 1}</span>
+                  <MapPin size={14} className="text-blue-400" />
+                  <span className="text-[11px] font-bold text-white flex-1 text-left truncate">{c.country}</span>
+                  <div className="flex items-center gap-3 text-right">
+                    <div>
+                      <p className="text-[10px] font-black text-blue-400">{c.count}</p>
+                      <p className="text-[7px] text-slate-600 uppercase">Total</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-400">{c.activeCount}</p>
+                      <p className="text-[7px] text-slate-600 uppercase">Actifs</p>
+                    </div>
+                    {c.newCount > 0 && (
+                      <div className="px-1.5 py-0.5 bg-amber-500/10 rounded">
+                        <p className="text-[8px] font-black text-amber-400">+{c.newCount}</p>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* ONLINE USERS - Real-time */}
         <div>
           <SectionTitle>
@@ -399,6 +674,38 @@ export default function AdminAnalyticsPage() {
               <p className="text-[8px] text-slate-600 mt-1">Les utilisateurs actifs apparaitront ici en temps reel</p>
             </div>
           )}
+        </div>
+
+        {/* PERFORMANCE METRICS */}
+        <div>
+          <SectionTitle>Metriques de Performance</SectionTitle>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center mb-3">
+                <Zap size={16} className="text-violet-400" />
+              </div>
+              <p className="text-lg font-black text-white">
+                {kpis.transactionsWeek > 0 ? Math.round(kpis.transactionsWeek / 7) : 0}
+              </p>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-1">TX/Jour</p>
+            </div>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-3">
+                <Target size={16} className="text-cyan-400" />
+              </div>
+              <p className="text-lg font-black text-white">
+                {kpis.totalUsers > 0 ? Math.round((kpis.activeUsers / kpis.totalUsers) * 100) : 0}%
+              </p>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-1">Taux Actif</p>
+            </div>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-pink-500/10 flex items-center justify-center mb-3">
+                <Globe size={16} className="text-pink-400" />
+              </div>
+              <p className="text-lg font-black text-white">{topCountries.length}</p>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-1">Pays</p>
+            </div>
+          </div>
         </div>
 
         {/* CHART - 30 Days */}
@@ -516,46 +823,6 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* TOP COUNTRIES - Recent Visitors */}
-        <div>
-          <SectionTitle>Pays des Visiteurs Recents</SectionTitle>
-          {topCountries.length > 0 ? (
-            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
-              <p className="text-[9px] text-slate-500 mb-4">Base sur l&apos;activite des 30 derniers jours</p>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topCountries.slice(0, 8)} layout="vertical" barCategoryGap={6}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                    <XAxis type="number" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="country" tick={{ fill: "#94a3b8", fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} width={80} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="count" name="Visiteurs Actifs" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Country list with counts */}
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {topCountries.slice(0, 8).map((c, i) => (
-                  <div key={c.country} className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] rounded-xl">
-                    <span className="text-[10px] font-black text-slate-500 w-4">{i + 1}</span>
-                    <Globe size={12} className="text-blue-400" />
-                    <span className="text-[10px] font-bold text-white flex-1 truncate">{c.country}</span>
-                    <span className="text-[10px] font-black text-blue-400">{c.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-3">
-                <Globe size={20} className="text-slate-600" />
-              </div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucune donnee de pays</p>
-              <p className="text-[8px] text-slate-600 mt-1">Les pays des utilisateurs actifs apparaitront ici</p>
-            </div>
-          )}
-        </div>
-
         {/* GOOGLE ANALYTICS EMBED */}
         <div>
           <SectionTitle>Google Analytics</SectionTitle>
@@ -595,7 +862,15 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black text-white truncate">{u.name || u.username || "Sans nom"}</p>
-                  <p className="text-[9px] text-slate-500 truncate">{u.email || "Pas d'email"}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[9px] text-slate-500 truncate">{u.email || "Pas d'email"}</p>
+                    {u.country && (
+                      <span className="text-[8px] text-blue-400 flex items-center gap-1">
+                        <MapPin size={8} />
+                        {u.country}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right shrink-0">
                   <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${

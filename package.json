@@ -97,6 +97,7 @@
     "react-hot-toast": "^2.6.0",
     "react-payment-icons": "^1.2.6",
     "react-resizable-panels": "^2.1.2",
+    "react-simple-maps": "^3.0.0",
     "recharts": "^2.12.7",
     "resend": "^6.6.0",
     "scmp": "^2.1.0",

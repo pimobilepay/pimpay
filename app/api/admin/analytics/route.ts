@@ -67,18 +67,20 @@ export async function GET() {
         ORDER BY date ASC
       ` as Promise<{ date: Date; count: number; volume: number }[]>,
 
-      // Top countries from recent active users (last 30 days based on activity)
+      // Top countries - combining all registered users and recent activity
       prisma.$queryRaw`
-        SELECT u."country", COUNT(DISTINCT u.id)::int as count
+        SELECT 
+          COALESCE(u."country", 'Non specifie') as country, 
+          COUNT(DISTINCT u.id)::int as count,
+          COUNT(DISTINCT CASE WHEN ua."createdAt" >= ${thirtyDaysAgo} THEN u.id END)::int as active_count,
+          COUNT(DISTINCT CASE WHEN u."createdAt" >= ${sevenDaysAgo} THEN u.id END)::int as new_count
         FROM "User" u
-        INNER JOIN "UserActivity" ua ON u.id = ua."userId"
-        WHERE u."country" IS NOT NULL 
-          AND u."country" != ''
-          AND ua."createdAt" >= ${thirtyDaysAgo}
+        LEFT JOIN "UserActivity" ua ON u.id = ua."userId"
+        WHERE u."country" IS NOT NULL AND u."country" != ''
         GROUP BY u."country"
         ORDER BY count DESC
-        LIMIT 10
-      ` as Promise<{ country: string; count: number }[]>,
+        LIMIT 20
+      ` as Promise<{ country: string; count: number; active_count: number; new_count: number }[]>,
 
       // KYC stats
       prisma.user.groupBy({ by: ["kycStatus"], _count: { id: true } }),
@@ -132,19 +134,13 @@ export async function GET() {
     const userGrowth = newUsersYesterday > 0 ? Math.round(((newUsersToday - newUsersYesterday) / newUsersYesterday) * 100) : newUsersToday > 0 ? 100 : 0;
     const txGrowth = transactionsYesterday > 0 ? Math.round(((transactionsToday - transactionsYesterday) / transactionsYesterday) * 100) : transactionsToday > 0 ? 100 : 0;
 
-    // Fallback: if no recent activity countries, get all users' countries
-    let finalTopCountries = topCountries || [];
-    if (finalTopCountries.length === 0) {
-      const allUsersCountries = await prisma.$queryRaw`
-        SELECT "country", COUNT(*)::int as count
-        FROM "User"
-        WHERE "country" IS NOT NULL AND "country" != ''
-        GROUP BY "country"
-        ORDER BY count DESC
-        LIMIT 10
-      ` as { country: string; count: number }[];
-      finalTopCountries = allUsersCountries || [];
-    }
+    // Process country data with additional metrics
+    const finalTopCountries = (topCountries || []).map(c => ({
+      country: c.country,
+      count: c.count,
+      activeCount: c.active_count || 0,
+      newCount: c.new_count || 0,
+    }));
 
     return NextResponse.json({
       kpis: {
