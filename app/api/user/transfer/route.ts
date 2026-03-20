@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
             name: true, 
             username: true, 
             sidraPrivateKey: true, 
-            stellarPrivateKey: true 
+            stellarPrivateKey: true,
+            piUserId: true // Pour le flux A2U Pi Network
         }
       });
 
@@ -217,7 +218,10 @@ export async function POST(req: NextRequest) {
             network: "Pi Network", 
             pendingWithdrawal: true,
             isBlockchainWithdraw: true,
-            requestedAt: new Date().toISOString()
+            requestedAt: new Date().toISOString(),
+            // Pour le flux A2U officiel Pi Network
+            ...(senderUser?.piUserId && { piUid: senderUser.piUserId }),
+            senderUsername: senderUser?.username
           } : {
             externalAddress: recipientInput,
             network: currency,

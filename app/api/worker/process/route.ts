@@ -130,95 +130,229 @@ async function processExternalTransfers() {
   return count;
 }
 
-// --- LOGIQUE PI (Master Wallet) ---
-// Pi Network utilise un modèle centralisé: les utilisateurs déposent sur le master wallet
-// et les retraits sont envoyés depuis le master wallet vers l'adresse externe
+// --- LOGIQUE PI A2U (App-to-User Payment) ---
+// Pi Network requiert un flux spécifique pour les paiements A2U:
+// 1. Créer le paiement via l'API Pi (avec l'UID de l'utilisateur)
+// 2. Soumettre la transaction blockchain avec le paymentIdentifier comme memo
+// 3. Compléter le paiement via l'API Pi
+//
+// IMPORTANT: Si l'utilisateur n'a pas de piUid stocké, on utilise le transfert direct
+// vers son adresse wallet (moins optimal mais fonctionne pour les wallets activés)
 async function sendPiFromMasterWallet(tx: any, dest: string): Promise<string> {
   const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
   const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
+  const PI_API_KEY = process.env.PI_API_KEY;
   
   if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
     throw new Error("Configuration Pi Network manquante: PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS");
   }
+  
+  // Récupérer les metadata de la transaction
+  const metadata = tx.metadata as any;
+  const userPiUid = metadata?.piUid; // UID Pi de l'utilisateur (si disponible)
+  
+  // Déterminer l'URL de l'API Pi (testnet ou mainnet)
+  const isTestnet = PI_NETWORK_PASSPHRASE.includes("Testnet");
+  const PI_API_URL = isTestnet 
+    ? "https://api.testnet.minepi.com" 
+    : "https://api.minepi.com";
+  
+  console.log(`[PI_A2U] Configuration:`, {
+    horizonUrl: RPC_URLS.PI,
+    apiUrl: PI_API_URL,
+    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    masterAddress: PI_MASTER_ADDRESS.substring(0, 10) + "...",
+    destination: dest,
+    userPiUid: userPiUid ? userPiUid.substring(0, 8) + "..." : "N/A",
+    amount: tx.amount,
+    isTestnet
+  });
+  
+  // Si on a l'UID Pi de l'utilisateur ET une API key, utiliser le flux A2U officiel
+  if (userPiUid && PI_API_KEY) {
+    return await sendPiA2UOfficial(tx, userPiUid, PI_API_KEY, PI_API_URL);
+  }
+  
+  // Sinon, utiliser le transfert direct vers l'adresse wallet
+  console.log(`[PI_A2U] Pas d'UID Pi ou d'API key, utilisation du transfert direct vers ${dest}`);
+  return await sendPiDirectTransfer(tx, dest);
+}
+
+// Flux A2U officiel via l'API Pi Network
+async function sendPiA2UOfficial(
+  tx: any, 
+  userUid: string, 
+  apiKey: string,
+  apiUrl: string
+): Promise<string> {
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
+  
+  // Étape 1: Créer le paiement via l'API Pi
+  console.log(`[PI_A2U] Étape 1: Création du paiement via API Pi...`);
+  
+  const createPaymentResponse = await fetch(`${apiUrl}/v2/payments`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      amount: Number(tx.amount),
+      memo: `PimPay: ${tx.reference || 'Retrait'}`,
+      metadata: { 
+        transactionId: tx.id,
+        reference: tx.reference,
+        platform: "PimPay"
+      },
+      uid: userUid
+    })
+  });
+  
+  if (!createPaymentResponse.ok) {
+    const errorData = await createPaymentResponse.text();
+    console.error(`[PI_A2U] Erreur création paiement:`, errorData);
+    throw new Error(`Erreur API Pi lors de la création du paiement: ${errorData}`);
+  }
+  
+  const paymentData = await createPaymentResponse.json();
+  const paymentIdentifier = paymentData.identifier;
+  const recipientAddress = paymentData.recipient;
+  
+  console.log(`[PI_A2U] Paiement créé:`, { 
+    paymentIdentifier, 
+    recipientAddress: recipientAddress?.substring(0, 10) + "..." 
+  });
+  
+  // Étape 2: Charger le compte et construire la transaction
+  console.log(`[PI_A2U] Étape 2: Construction de la transaction blockchain...`);
+  
+  const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
+    allowHttp: RPC_URLS.PI.includes("localhost") 
+  });
+  
+  const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
+  const baseFee = await server.fetchBaseFee();
+  
+  // Vérifier le solde
+  const piBalance = sourceAccount.balances.find((b: any) => b.asset_type === "native");
+  if (!piBalance || parseFloat(piBalance.balance) < tx.amount) {
+    throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI`);
+  }
+  
+  // Étape 3: Construire la transaction avec le paymentIdentifier comme MEMO (obligatoire!)
+  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: baseFee.toString(),
+    networkPassphrase: PI_NETWORK_PASSPHRASE,
+  })
+    .addOperation(
+      StellarSdk.Operation.payment({
+        destination: recipientAddress,
+        asset: StellarSdk.Asset.native(),
+        amount: tx.amount.toFixed(7),
+      })
+    )
+    // IMPORTANT: Le memo DOIT être le paymentIdentifier pour que Pi Network lie la transaction
+    .addMemo(StellarSdk.Memo.text(paymentIdentifier))
+    .setTimeout(180)
+    .build();
+  
+  // Étape 4: Signer la transaction
+  console.log(`[PI_A2U] Étape 4: Signature de la transaction...`);
+  const sourceKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+  transaction.sign(sourceKeypair);
+  
+  // Étape 5: Soumettre la transaction à la blockchain Pi
+  console.log(`[PI_A2U] Étape 5: Soumission à la blockchain Pi...`);
+  const submitResult = await server.submitTransaction(transaction);
+  
+  if (!submitResult.successful) {
+    throw new Error(`Transaction blockchain échouée: ${JSON.stringify(submitResult.extras?.result_codes)}`);
+  }
+  
+  const txid = submitResult.hash;
+  console.log(`[PI_A2U] Transaction soumise: ${txid}`);
+  
+  // Étape 6: Compléter le paiement via l'API Pi
+  console.log(`[PI_A2U] Étape 6: Complétion du paiement via API Pi...`);
+  
+  const completeResponse = await fetch(`${apiUrl}/v2/payments/${paymentIdentifier}/complete`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ txid })
+  });
+  
+  if (!completeResponse.ok) {
+    const errorData = await completeResponse.text();
+    console.error(`[PI_A2U] Erreur complétion paiement:`, errorData);
+    // La transaction blockchain est déjà soumise, on retourne quand même le hash
+    // mais on log l'erreur pour investigation
+  } else {
+    console.log(`[PI_A2U] Paiement complété avec succès!`);
+  }
+  
+  return txid;
+}
+
+// Transfert direct vers une adresse wallet (fallback si pas d'UID Pi)
+async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
   
   // Valider l'adresse de destination (format Stellar Ed25519)
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(dest)) {
     throw new Error(`Adresse Pi invalide: ${dest}`);
   }
   
-  console.log(`[PI_MASTER_WALLET] Configuration:`, {
-    horizonUrl: RPC_URLS.PI,
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
-    masterAddress: PI_MASTER_ADDRESS.substring(0, 10) + "...",
-    destination: dest,
-    amount: tx.amount,
-    isTestnet: RPC_URLS.PI.includes("testnet") || PI_NETWORK_PASSPHRASE.includes("Testnet")
+  const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
+    allowHttp: RPC_URLS.PI.includes("localhost") 
   });
   
-  try {
-    const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
-      allowHttp: RPC_URLS.PI.includes("localhost") 
-    });
-    
-    // Charger le compte master
-    const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
-    
-    // Vérifier le solde
-    const piBalance = sourceAccount.balances.find(
-      (b: any) => b.asset_type === "native"
-    );
-    
-    if (!piBalance || parseFloat(piBalance.balance) < tx.amount) {
-      throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI, Requis: ${tx.amount} PI`);
-    }
-    
-    // Construire la transaction
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: PI_NETWORK_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: dest,
-          asset: StellarSdk.Asset.native(),
-          amount: tx.amount.toFixed(7),
-        })
-      )
-      .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PimPay"))
-      .setTimeout(180)
-      .build();
-    
-    // Signer avec la clé secrète du master wallet
-    const sourceKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
-    transaction.sign(sourceKeypair);
-    
-    // Soumettre
-    const result = await server.submitTransaction(transaction);
-    
-    if (!result.successful) {
-      throw new Error(`Transaction échouée: ${JSON.stringify(result.extras?.result_codes || result)}`);
-    }
-    
-    console.log(`[PI_MASTER_WALLET] Transaction soumise avec succès: ${result.hash}`);
-    return result.hash;
-    
-  } catch (error: any) {
-    // Gestion des erreurs Horizon
-    if (error.response?.data?.extras?.result_codes) {
-      const codes = error.response.data.extras.result_codes;
-      console.error(`[PI_MASTER_WALLET_ERROR] Codes Horizon:`, codes);
-      
-      if (codes.operations?.includes("op_no_destination")) {
-        throw new Error("Le compte destinataire n'existe pas sur Pi Network. L'utilisateur doit d'abord activer son wallet.");
-      }
-      if (codes.operations?.includes("op_underfunded")) {
-        throw new Error("Solde Master Wallet insuffisant.");
-      }
-    }
-    
-    console.error(`[PI_MASTER_WALLET_ERROR]`, error.message);
-    throw new Error(`Erreur Pi Network: ${error.message}`);
+  // Charger le compte master
+  const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
+  
+  // Vérifier le solde
+  const piBalance = sourceAccount.balances.find((b: any) => b.asset_type === "native");
+  if (!piBalance || parseFloat(piBalance.balance) < tx.amount) {
+    throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI`);
   }
+  
+  // Construire la transaction
+  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: PI_NETWORK_PASSPHRASE,
+  })
+    .addOperation(
+      StellarSdk.Operation.payment({
+        destination: dest,
+        asset: StellarSdk.Asset.native(),
+        amount: tx.amount.toFixed(7),
+      })
+    )
+    .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PimPay"))
+    .setTimeout(180)
+    .build();
+  
+  // Signer avec la clé secrète du master wallet
+  const sourceKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+  transaction.sign(sourceKeypair);
+  
+  // Soumettre
+  const result = await server.submitTransaction(transaction);
+  
+  if (!result.successful) {
+    const codes = (result as any).extras?.result_codes;
+    if (codes?.operations?.includes("op_no_destination")) {
+      throw new Error("Le compte destinataire n'existe pas sur Pi Network. L'utilisateur doit d'abord activer son wallet Pi.");
+    }
+    throw new Error(`Transaction échouée: ${JSON.stringify(codes || result)}`);
+  }
+  
+  console.log(`[PI_DIRECT] Transaction soumise avec succès: ${result.hash}`);
+  return result.hash;
 }
 
 // --- LOGIQUE XRP ---

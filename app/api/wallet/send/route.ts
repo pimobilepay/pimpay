@@ -182,6 +182,12 @@ export async function POST(req: NextRequest) {
 
       // --- SCÉNARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
       else {
+        // Récupérer l'utilisateur pour obtenir son piUid (nécessaire pour A2U)
+        const senderUser = await tx.user.findUnique({
+          where: { id: senderId },
+          select: { piUserId: true, username: true }
+        });
+        
         // Log de transaction SUCCESS (statut temporaire, le worker le changera si erreur)
         // Le worker cherche les transactions WITHDRAW avec status SUCCESS et blockchainTx null
         const transaction = await tx.transaction.create({
@@ -201,7 +207,14 @@ export async function POST(req: NextRequest) {
               externalAddress: recipientInput,
               network: currency,
               isBlockchainWithdraw: true,
-              requestedAt: new Date().toISOString()
+              requestedAt: new Date().toISOString(),
+              // Pour Pi Network A2U: stocker l'UID Pi du destinataire si disponible
+              // Note: Pour les retraits vers l'adresse wallet de l'utilisateur, 
+              // on utilise son propre piUserId (il retire vers son propre wallet Pi)
+              ...(currency === "PI" && senderUser?.piUserId && {
+                piUid: senderUser.piUserId,
+                senderUsername: senderUser.username
+              })
             }
           }
         });
