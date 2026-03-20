@@ -18,10 +18,10 @@ const OP_LOGOS: Record<string, string> = {
   airtel:         "https://upload.wikimedia.org/wikipedia/commons/3/3a/Airtel_logo-01.png",
   moov:           "https://upload.wikimedia.org/wikipedia/fr/1/1d/Moov_Africa_logo.png",
   wave:           "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Wave_Logo_RGB.png/512px-Wave_Logo_RGB.png",
-  africell:       "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Africell_logo.svg/200px-Africell_logo.svg.png",
+  africell:       "https://upload.wikimedia.org/wikipedia/commons/9/99/Logoafricell.png",
   vodacom:        "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   vodafone:       "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
-  tigo:           "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Tigo-logo.svg/200px-Tigo-logo.svg.png",
+  tigo:           "https://upload.wikimedia.org/wikipedia/commons/4/47/Tigo.JPG",
   // East Africa
   mpesa:          "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/200px-M-PESA_LOGO-01.svg.png",
   telebirr:       "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",

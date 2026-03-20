@@ -47,9 +47,9 @@ const OP: Record<string, string> = {
   telebirr:     "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   vodacom:      "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   vodafone:     "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
-  africell:     "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Africell_logo.svg/200px-Africell_logo.svg.png",
+  africell:     "https://upload.wikimedia.org/wikipedia/commons/9/99/Logoafricell.png",
   free:         "https://upload.wikimedia.org/wikipedia/fr/thumb/4/4b/Free_logo.svg/200px-Free_logo.svg.png",
-  tigo:         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Tigo-logo.svg/200px-Tigo-logo.svg.png",
+  tigo:         "https://upload.wikimedia.org/wikipedia/commons/4/47/Tigo.JPG",
   opay:         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/OPay_logo.svg/200px-OPay_logo.svg.png",
   palmpay:      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/PalmPay_logo.svg/200px-PalmPay_logo.svg.png",
   kuda:         "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Kuda_Bank_logo.svg/200px-Kuda_Bank_logo.svg.png",
@@ -66,7 +66,7 @@ const OP: Record<string, string> = {
   areeba:       "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Areeba_logo.png/200px-Areeba_logo.png",
   express_union:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Express_Union_Logo.png/200px-Express_Union_Logo.png",
   yup:          "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/YUP_logo.png/200px-YUP_logo.png",
-  unitel:       "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Unitel_logo.svg/200px-Unitel_logo.svg.png",
+  unitel:       "https://fr.wikipedia.org/wiki/Unitel#/media/Fichier%3AUnitel_Logo_2005.svg",
   movicel:      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Movicel_logo.svg/200px-Movicel_logo.svg.png",
   multicaixa:   "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Multicaixa_logo.png/200px-Multicaixa_logo.png",
   telma:        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Telma_Mobile_logo.svg/200px-Telma_Mobile_logo.svg.png",
@@ -80,8 +80,8 @@ const OP: Record<string, string> = {
 // ---------------------------------------------------------------------------
 const BK: Record<string, string> = {
   // Global / Pan-African
-  ecobank:          "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Ecobank_logo.svg/200px-Ecobank_logo.svg.png",
-  uba:              "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/UBA_Group_Logo.svg/200px-UBA_Group_Logo.svg.png",
+  ecobank:          "https://www.expandgh.com/wp-content/uploads/2017/08/ecobank-mobiles.png",
+  uba:              "https://ynaija.com/wp-content/uploads/2023/09/IMG_7021-512x500.png",
   societe_generale: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg/200px-Soci%C3%A9t%C3%A9_G%C3%A9n%C3%A9rale.svg.png",
   bnp:              "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/BNP_Paribas.svg/200px-BNP_Paribas.svg.png",
   // West Africa
