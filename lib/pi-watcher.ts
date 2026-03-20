@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
-const PI_HORIZON_URL = "https://api.mainnet.minepi.com";
+// Utilise l'URL Horizon depuis les variables d'environnement (testnet ou mainnet)
+const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com";
 
 export async function watchDeposit(paymentId: string) {
   try {

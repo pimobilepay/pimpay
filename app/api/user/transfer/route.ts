@@ -176,19 +176,18 @@ export async function POST(req: NextRequest) {
       }
 
       // Pour les transferts Pi externes vers une adresse Stellar:
-      // Pi Network ne permet pas les transferts A2U automatiques vers des adresses externes
-      // Les retraits sont mis en PENDING pour traitement manuel par l'équipe PimPay
+      // Les retraits Pi sont traités automatiquement par le worker /api/worker/process
+      // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
       if (currency === "PI") {
-        // Créer une demande de retrait en attente
-        blockchainTxHash = null; // Pas de tx blockchain tant que non traité
-        txStatus = TransactionStatus.PENDING;
+        blockchainTxHash = null; // Sera rempli par le worker après broadcast
+        txStatus = TransactionStatus.SUCCESS; // SUCCESS + statusClass QUEUED = prêt pour le worker
         
-        // Créer une notification admin pour le retrait
+        // Créer une notification pour l'utilisateur
         await tx.notification.create({
           data: {
             userId: senderId,
-            title: "Demande de retrait Pi en cours",
-            message: `Votre demande de retrait de ${amount} PI vers ${recipientInput.substring(0, 8)}...${recipientInput.substring(recipientInput.length - 4)} est en cours de traitement. Délai estimé: 24-48h.`,
+            title: "Retrait Pi en cours de traitement",
+            message: `Votre retrait de ${amount} PI vers ${recipientInput.substring(0, 8)}...${recipientInput.substring(recipientInput.length - 4)} est en file d'attente. Le transfert sera effectué automatiquement.`,
             type: "WITHDRAW_PENDING",
             metadata: { amount, currency, toAddress: recipientInput },
           },
@@ -206,11 +205,25 @@ export async function POST(req: NextRequest) {
           amount, fee, netAmount: amount, currency,
           type: TransactionType.WITHDRAW,
           status: txStatus,
+          statusClass: "QUEUED", // Pour le worker de traitement blockchain
           blockchainTx: blockchainTxHash,
           fromUserId: senderId,
           fromWalletId: updatedSender.id,
           description: txDescription,
-          metadata: currency === "PI" ? { toAddress: recipientInput, network: "Pi Network", pendingWithdrawal: true } : undefined,
+          accountNumber: recipientInput, // Stocker l'adresse pour l'affichage admin
+          metadata: currency === "PI" ? { 
+            externalAddress: recipientInput, // Pour le worker
+            toAddress: recipientInput, 
+            network: "Pi Network", 
+            pendingWithdrawal: true,
+            isBlockchainWithdraw: true,
+            requestedAt: new Date().toISOString()
+          } : {
+            externalAddress: recipientInput,
+            network: currency,
+            isBlockchainWithdraw: true,
+            requestedAt: new Date().toISOString()
+          },
         },
       });
 
