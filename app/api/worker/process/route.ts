@@ -99,8 +99,15 @@ async function processExternalTransfers() {
   for (const tx of pendingTxs) {
     try {
       const metadata = tx.metadata as any;
-      const destination = metadata.externalAddress;
-      if (!destination) continue;
+      // L'adresse peut etre dans externalAddress ou destinationAddress ou accountNumber
+      const destination = metadata?.externalAddress || metadata?.destinationAddress || tx.accountNumber;
+      
+      console.log(`[v0] [WORKER] Traitement TX ${tx.reference}:`, { destination, currency: tx.currency, amount: tx.amount });
+      
+      if (!destination) {
+        console.log(`[v0] [WORKER] ERREUR: Pas d'adresse de destination pour ${tx.reference}`);
+        throw new Error("Pas d'adresse de destination trouvee");
+      }
 
       let hash = "";
 
@@ -129,6 +136,7 @@ async function processExternalTransfers() {
       }
 
       if (hash) {
+        console.log(`[v0] [WORKER] TX ${tx.reference} ENVOYEE avec hash:`, hash);
         await prisma.transaction.update({
           where: { id: tx.id },
           data: { 
@@ -136,10 +144,12 @@ async function processExternalTransfers() {
             status: TransactionStatus.SUCCESS 
           }
         });
+        console.log(`[v0] [WORKER] TX ${tx.reference} STATUS updated to SUCCESS with blockchain hash`);
         count++;
       }
     } catch (err: any) {
-      console.error(`Erreur sur TX ${tx.reference}:`, err?.message || err);
+      console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, err?.message || JSON.stringify(err));
+      console.error(`[v0] [WORKER] Stack:`, err?.stack);
       // Marquer la transaction comme FAILED apres une erreur pour eviter les boucles infinies
       await prisma.transaction.update({
         where: { id: tx.id },
@@ -148,10 +158,11 @@ async function processExternalTransfers() {
           metadata: {
             ...(tx.metadata as any),
             workerError: err?.message || "Erreur inconnue",
+            errorStack: err?.stack?.substring(0, 500) || "",
             failedAt: new Date().toISOString(),
           },
         },
-      }).catch(() => {});
+      }).catch((e) => console.error("[v0] [WORKER] Erreur update FAILED:", e.message));
     }
   }
   return count;
@@ -369,18 +380,34 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
   
   console.log(`[v0] [PI_DIRECT] Demarrage transfert direct`);
+  console.log(`[v0] [PI_DIRECT] Destination recue:`, { dest, type: typeof dest, length: dest?.length });
   console.log(`[v0] [PI_DIRECT] Config:`, {
     horizonUrl: RPC_URLS.PI,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
-    masterAddress: PI_MASTER_ADDRESS,
-    destination: dest,
-    amount: tx.amount
+    masterAddress: PI_MASTER_ADDRESS?.substring(0, 15) + "...",
+    destination: dest?.substring(0, 15) + "...",
+    amount: tx.amount,
+    masterSecretPresent: !!PI_MASTER_SECRET
   });
   
+  // Valider que destination est une adresse valide
+  if (!dest || typeof dest !== 'string' || dest.trim().length === 0) {
+    console.error(`[v0] [PI_DIRECT] Destination vide ou invalide:`, dest);
+    throw new Error(`Adresse de destination invalide: ${dest}`);
+  }
+  
+  const cleanDest = dest.trim();
+  
   // Valider l'adresse de destination (format Stellar Ed25519)
-  if (!StellarSdk.StrKey.isValidEd25519PublicKey(dest)) {
-    console.error(`[v0] [PI_DIRECT] Adresse invalide: ${dest}`);
-    throw new Error(`Adresse Pi invalide: ${dest}`);
+  if (!StellarSdk.StrKey.isValidEd25519PublicKey(cleanDest)) {
+    console.error(`[v0] [PI_DIRECT] Adresse invalide (pas du format Stellar):`, cleanDest);
+    console.error(`[v0] [PI_DIRECT] Details:`, {
+      input: cleanDest,
+      startsWithG: cleanDest.startsWith('G'),
+      length: cleanDest.length,
+      expectedLength: 56
+    });
+    throw new Error(`Adresse Pi invalide (format Stellar attendu): ${cleanDest}`);
   }
   
   const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
@@ -411,13 +438,20 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   
   // Construire la transaction
   console.log(`[v0] [PI_DIRECT] Construction de la transaction...`);
+  console.log(`[v0] [PI_DIRECT] Details transaction:`, {
+    destination: cleanDest,
+    amount: tx.amount.toFixed(7),
+    currency: tx.currency,
+    reference: tx.reference
+  });
+  
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
   })
     .addOperation(
       StellarSdk.Operation.payment({
-        destination: dest,
+        destination: cleanDest,
         asset: StellarSdk.Asset.native(),
         amount: tx.amount.toFixed(7),
       })

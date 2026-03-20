@@ -191,9 +191,11 @@ export async function POST(req: NextRequest) {
       return { type: 'INTERNAL', transaction };
       }
 
-      // --- SCÉNARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
+      // --- SCENARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
       else {
-        // Récupérer l'utilisateur pour obtenir son piUid (nécessaire pour A2U)
+        console.log("[v0] [WALLET_SEND] Transfert EXTERNE vers adresse:", recipientInput);
+        
+        // Recuperer l'utilisateur pour obtenir son piUid (necessaire pour A2U)
         const senderUser = await tx.user.findUnique({
           where: { id: senderId },
           select: { piUserId: true, username: true }
@@ -206,16 +208,18 @@ export async function POST(req: NextRequest) {
             reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
             amount,
             currency,
-            type: TransactionType.WITHDRAW, // On marque ça comme un retrait
+            type: TransactionType.WITHDRAW, // On marque ca comme un retrait
             status: TransactionStatus.SUCCESS, // Worker cherche SUCCESS + blockchainTx null
-            statusClass: "QUEUED", // Utilisé par le worker pour le claim atomique
+            statusClass: "QUEUED", // Utilise par le worker pour le claim atomique
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
             description: `Retrait ${currency} vers adresse externe : ${recipientInput}`,
             // IMPORTANT: Stocker l'adresse externe directement dans accountNumber pour l'affichage admin
             accountNumber: recipientInput,
             metadata: {
+              // CRUCIAL: L'adresse externe doit etre dans metadata pour que le worker puisse la recuperer
               externalAddress: recipientInput,
+              destinationAddress: recipientInput, // Alias pour compatibilite
               network: currency,
               isBlockchainWithdraw: true,
               requestedAt: new Date().toISOString(),
@@ -230,6 +234,7 @@ export async function POST(req: NextRequest) {
           }
         });
 
+        console.log("[v0] [WALLET_SEND] Transaction EXTERNE creee:", transaction.reference);
         return { type: 'EXTERNAL', transaction };
       }
 
