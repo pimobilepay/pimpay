@@ -53,7 +53,7 @@ const OP: Record<string, string> = {
   opay:         "https://upload.wikimedia.org/wikipedia/commons/c/cb/Opay_Digital_Services_Limited.png",
   palmpay:      "https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/z4x0x9sfkglbdwitqyfl?ik-sanitizeSvg=true",
   kuda:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRuLb2uzmNv3ppmEscXSZjF98IM7Y9NqRSlpw&s",
-  paga:         "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Paga_logo.png/200px-Paga_logo.png",
+  paga:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqPAPAbO45MAnmN3Zgq9kqg9B2Yw1ClZU-q49IeHIFkrN44eowFIC2PuRp&s=10",
   glo:          "https://upload.wikimedia.org/wikipedia/commons/8/86/Glo_button.png",
   "9mobile":    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/9mobile_logo.png/200px-9mobile_logo.png",
   gmoney:       "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/G-Money_logo.png/200px-G-Money_logo.png",
@@ -62,7 +62,7 @@ const OP: Record<string, string> = {
   coris:        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
   sama:         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sama_money_logo.png/200px-Sama_money_logo.png",
   celtiis:      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Celtiis_logo.png/200px-Celtiis_logo.png",
-  togocel:      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Togocel_logo.svg/200px-Togocel_logo.svg.png",
+  togocel:      "https://upload.wikimedia.org/wikipedia/commons/c/cc/Togocom_-_Yas_-_logo.jpg",
   areeba:       "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Areeba_logo.png/200px-Areeba_logo.png",
   express_union:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Express_Union_Logo.png/200px-Express_Union_Logo.png",
   yup:          "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/YUP_logo.png/200px-YUP_logo.png",
@@ -72,7 +72,7 @@ const OP: Record<string, string> = {
   telma:        "https://upload.wikimedia.org/wikipedia/commons/7/71/Telma-logo.jpg",
   revolut:      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
   inwi:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Inwi_logo.svg/200px-Inwi_logo.svg.png",
-  maroctelecom: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Maroc_Telecom_logo.svg/200px-Maroc_Telecom_logo.svg.png",
+  maroctelecom: "https://upload.wikimedia.org/wikipedia/commons/d/de/Maroc_Telecom_logo.png",
 };
 
 // ---------------------------------------------------------------------------
