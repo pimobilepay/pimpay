@@ -42,18 +42,117 @@ export const DEFAULT_CRYPTO_PRICES: Record<string, number> = {
   BUSD: 1,
 };
 
-/** Taux fiat par defaut (combien de X pour 1 USD) */
+/** Taux fiat par defaut (combien de X pour 1 USD) - MIS A JOUR AUTOMATIQUEMENT */
 export const FIAT_RATES: Record<string, number> = {
+  // Base
   USD: 1,
+  // Europe
   EUR: 0.92,
-  XAF: 615.0,
-  XOF: 615.0,
-  CDF: 2800.0,
-  NGN: 1550.0,
-  AED: 3.67,
+  GBP: 0.79,
+  CHF: 0.88,
+  PLN: 4.0,
+  SEK: 10.5,
+  NOK: 10.8,
+  DKK: 6.9,
+  CZK: 23.5,
+  HUF: 365,
+  RON: 4.6,
+  BGN: 1.8,
+  TRY: 32,
+  RUB: 92,
+  UAH: 41,
+  // Africa
+  XAF: 603,
+  XOF: 603,
+  NGN: 1580,
+  GHS: 15.5,
+  KES: 129,
+  ZAR: 18.5,
+  EGP: 49,
+  MAD: 10,
+  TND: 3.12,
+  CDF: 2800,
+  AOA: 850,
+  GNF: 8600,
+  UGX: 3700,
+  TZS: 2560,
+  RWF: 1280,
+  ETB: 57,
+  MGA: 4500,
+  ZMW: 26,
+  MZN: 64,
+  // Americas
+  CAD: 1.36,
+  MXN: 17.2,
+  BRL: 4.95,
+  ARS: 870,
+  CLP: 930,
+  COP: 3950,
+  PEN: 3.72,
+  HTG: 132,
+  DOP: 59,
+  JMD: 156,
+  // Asia & Oceania
   CNY: 7.24,
-  VND: 25450.0,
+  JPY: 154,
+  INR: 83.5,
+  KRW: 1340,
+  VND: 25450,
+  THB: 36,
+  IDR: 15800,
+  PHP: 57,
+  MYR: 4.7,
+  SGD: 1.35,
+  HKD: 7.82,
+  PKR: 280,
+  BDT: 110,
+  AED: 3.67,
+  SAR: 3.75,
+  AUD: 1.53,
+  NZD: 1.65,
 };
+
+// Cache for live rates
+let liveRatesCache: { rates: Record<string, number>; timestamp: number } | null = null;
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Fetch live exchange rates from API
+ */
+export async function fetchLiveRates(): Promise<Record<string, number>> {
+  const now = Date.now();
+  
+  // Return cached rates if still valid
+  if (liveRatesCache && now - liveRatesCache.timestamp < CACHE_TTL) {
+    return liveRatesCache.rates;
+  }
+  
+  try {
+    const response = await fetch('/api/exchange-rates');
+    if (!response.ok) throw new Error('Failed to fetch rates');
+    
+    const data = await response.json();
+    if (data.success && data.rates) {
+      liveRatesCache = { rates: data.rates, timestamp: now };
+      return data.rates;
+    }
+    throw new Error('Invalid response');
+  } catch (error) {
+    console.error('Failed to fetch live rates:', error);
+    return FIAT_RATES; // Fallback to static rates
+  }
+}
+
+/**
+ * Get the current rate for a currency (uses cached rates if available)
+ */
+export function getRate(currency: string): number {
+  const upperCurrency = currency.toUpperCase();
+  if (liveRatesCache?.rates[upperCurrency] !== undefined) {
+    return liveRatesCache.rates[upperCurrency];
+  }
+  return FIAT_RATES[upperCurrency] || 1;
+}
 
 /** Toutes les devises reconnues */
 export const CURRENCIES = {
