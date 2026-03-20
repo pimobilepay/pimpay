@@ -21,19 +21,31 @@ const RPC_URLS = {
 const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
 
 export async function GET(req: NextRequest) {
+  console.log(`[v0] [WORKER] Demarrage du worker process...`);
+  console.log(`[v0] [WORKER] Config Pi:`, {
+    PI_HORIZON_URL: process.env.PI_HORIZON_URL,
+    PI_NETWORK_PASSPHRASE: process.env.PI_NETWORK_PASSPHRASE,
+    PI_MASTER_WALLET_ADDRESS: process.env.PI_MASTER_WALLET_ADDRESS?.substring(0, 10) + "...",
+    PI_API_KEY_PRESENT: !!process.env.PI_API_KEY
+  });
+  
   try {
     const processed = await processExternalTransfers();
+    console.log(`[v0] [WORKER] Termine avec ${processed} transactions traitees`);
     return NextResponse.json({ 
       success: true, 
-      message: `Mission accomplie Chef ! ${processed} transactions envoyées. Le Praetor 600 est prêt ?` 
+      message: `Mission accomplie Chef ! ${processed} transactions envoyées.`,
+      processed
     });
   } catch (error: any) {
-    console.error("ERREUR WORKER:", error.message);
+    console.error("[v0] [WORKER] ERREUR:", error.message, error.stack);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
 async function processExternalTransfers() {
+  console.log(`[v0] [WORKER] Recherche des transactions en attente...`);
+  
   // On récupère les transactions de retrait externes prêtes à être traitées
   // /api/wallet/send crée les transactions avec:
   //   - status: SUCCESS (solde déjà débité)
@@ -66,6 +78,21 @@ async function processExternalTransfers() {
     take: 10,
     orderBy: { createdAt: "asc" },
   });
+
+  console.log(`[v0] [WORKER] ${pendingTxs.length} transaction(s) trouvee(s)`);
+  
+  if (pendingTxs.length > 0) {
+    console.log(`[v0] [WORKER] Transactions:`, pendingTxs.map(t => ({
+      id: t.id,
+      reference: t.reference,
+      currency: t.currency,
+      amount: t.amount,
+      status: t.status,
+      statusClass: t.statusClass,
+      blockchainTx: t.blockchainTx,
+      metadata: t.metadata
+    })));
+  }
 
   let count = 0;
 
@@ -151,11 +178,11 @@ async function sendPiFromMasterWallet(tx: any, dest: string): Promise<string> {
   const metadata = tx.metadata as any;
   const userPiUid = metadata?.piUid; // UID Pi de l'utilisateur (si disponible)
   
-  // Déterminer l'URL de l'API Pi (testnet ou mainnet)
+  // IMPORTANT: L'URL de l'API Pi est TOUJOURS api.minepi.com (meme en testnet)
+  // L'URL testnet (api.testnet.minepi.com) est UNIQUEMENT pour Horizon (blockchain)
+  // L'API de paiement utilise toujours le meme endpoint
   const isTestnet = PI_NETWORK_PASSPHRASE.includes("Testnet");
-  const PI_API_URL = isTestnet 
-    ? "https://api.testnet.minepi.com" 
-    : "https://api.minepi.com";
+  const PI_API_URL = "https://api.minepi.com"; // Toujours le meme endpoint
   
   console.log(`[PI_A2U] Configuration:`, {
     horizonUrl: RPC_URLS.PI,
@@ -189,7 +216,27 @@ async function sendPiA2UOfficial(
   const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
   
   // Étape 1: Créer le paiement via l'API Pi
-  console.log(`[PI_A2U] Étape 1: Création du paiement via API Pi...`);
+  console.log(`[v0] [PI_A2U] Étape 1: Création du paiement via API Pi...`);
+  console.log(`[v0] [PI_A2U] Request:`, {
+    url: `${apiUrl}/v2/payments`,
+    userUid: userUid,
+    amount: Number(tx.amount),
+    apiKeyPresent: !!apiKey,
+    apiKeyPrefix: apiKey?.substring(0, 8) + "..."
+  });
+  
+  const paymentBody = {
+    amount: Number(tx.amount),
+    memo: `PimPay: ${tx.reference || 'Retrait'}`,
+    metadata: { 
+      transactionId: tx.id,
+      reference: tx.reference,
+      platform: "PimPay"
+    },
+    uid: userUid
+  };
+  
+  console.log(`[v0] [PI_A2U] Payment body:`, JSON.stringify(paymentBody));
   
   const createPaymentResponse = await fetch(`${apiUrl}/v2/payments`, {
     method: 'POST',
@@ -197,25 +244,20 @@ async function sendPiA2UOfficial(
       'Authorization': `Key ${apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      amount: Number(tx.amount),
-      memo: `PimPay: ${tx.reference || 'Retrait'}`,
-      metadata: { 
-        transactionId: tx.id,
-        reference: tx.reference,
-        platform: "PimPay"
-      },
-      uid: userUid
-    })
+    body: JSON.stringify(paymentBody)
   });
+  
+  console.log(`[v0] [PI_A2U] Response status:`, createPaymentResponse.status);
   
   if (!createPaymentResponse.ok) {
     const errorData = await createPaymentResponse.text();
-    console.error(`[PI_A2U] Erreur création paiement:`, errorData);
-    throw new Error(`Erreur API Pi lors de la création du paiement: ${errorData}`);
+    console.error(`[v0] [PI_A2U] Erreur création paiement:`, errorData);
+    throw new Error(`Erreur API Pi (${createPaymentResponse.status}): ${errorData}`);
   }
   
   const paymentData = await createPaymentResponse.json();
+  console.log(`[v0] [PI_A2U] Payment data received:`, JSON.stringify(paymentData));
+  
   const paymentIdentifier = paymentData.identifier;
   const recipientAddress = paymentData.recipient;
   
@@ -264,14 +306,38 @@ async function sendPiA2UOfficial(
   
   // Étape 5: Soumettre la transaction à la blockchain Pi
   console.log(`[PI_A2U] Étape 5: Soumission à la blockchain Pi...`);
-  const submitResult = await server.submitTransaction(transaction);
+  
+  let submitResult: any;
+  try {
+    submitResult = await server.submitTransaction(transaction);
+  } catch (submitError: any) {
+    // Stellar SDK peut throw une exception meme si la transaction est soumise
+    console.error(`[PI_A2U] Erreur soumission:`, submitError.response?.data || submitError.message);
+    
+    if (submitError.response?.data?.extras?.result_codes) {
+      const codes = submitError.response.data.extras.result_codes;
+      if (codes.operations?.includes("op_no_destination")) {
+        throw new Error("Le compte destinataire n'existe pas. L'utilisateur doit activer son wallet Pi.");
+      }
+      if (codes.operations?.includes("op_underfunded")) {
+        throw new Error("Solde Master Wallet insuffisant.");
+      }
+      throw new Error(`Transaction echouee: ${JSON.stringify(codes)}`);
+    }
+    throw submitError;
+  }
   
   if (!submitResult.successful) {
     throw new Error(`Transaction blockchain échouée: ${JSON.stringify(submitResult.extras?.result_codes)}`);
   }
   
-  const txid = submitResult.hash;
-  console.log(`[PI_A2U] Transaction soumise: ${txid}`);
+  // Le txid peut etre dans .hash ou .id selon la version du SDK
+  const txid = submitResult.hash || submitResult.id;
+  console.log(`[PI_A2U] Transaction soumise avec succes:`, { 
+    hash: submitResult.hash, 
+    id: submitResult.id,
+    txid 
+  });
   
   // Étape 6: Compléter le paiement via l'API Pi
   console.log(`[PI_A2U] Étape 6: Complétion du paiement via API Pi...`);
@@ -302,8 +368,18 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
   const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
   
+  console.log(`[v0] [PI_DIRECT] Demarrage transfert direct`);
+  console.log(`[v0] [PI_DIRECT] Config:`, {
+    horizonUrl: RPC_URLS.PI,
+    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    masterAddress: PI_MASTER_ADDRESS,
+    destination: dest,
+    amount: tx.amount
+  });
+  
   // Valider l'adresse de destination (format Stellar Ed25519)
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(dest)) {
+    console.error(`[v0] [PI_DIRECT] Adresse invalide: ${dest}`);
     throw new Error(`Adresse Pi invalide: ${dest}`);
   }
   
@@ -312,15 +388,29 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   });
   
   // Charger le compte master
-  const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
+  console.log(`[v0] [PI_DIRECT] Chargement du compte master...`);
+  let sourceAccount;
+  try {
+    sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
+    console.log(`[v0] [PI_DIRECT] Compte master charge, sequence: ${sourceAccount.sequenceNumber()}`);
+  } catch (loadError: any) {
+    console.error(`[v0] [PI_DIRECT] Erreur chargement compte:`, loadError.message);
+    if (loadError.response?.status === 404) {
+      throw new Error(`Le compte master ${PI_MASTER_ADDRESS} n'existe pas sur ${RPC_URLS.PI}. Verifiez votre configuration.`);
+    }
+    throw loadError;
+  }
   
   // Vérifier le solde
   const piBalance = sourceAccount.balances.find((b: any) => b.asset_type === "native");
+  console.log(`[v0] [PI_DIRECT] Solde master:`, piBalance?.balance || "0");
+  
   if (!piBalance || parseFloat(piBalance.balance) < tx.amount) {
-    throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI`);
+    throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI, Requis: ${tx.amount} PI`);
   }
   
   // Construire la transaction
+  console.log(`[v0] [PI_DIRECT] Construction de la transaction...`);
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
@@ -337,21 +427,39 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
     .build();
   
   // Signer avec la clé secrète du master wallet
+  console.log(`[v0] [PI_DIRECT] Signature de la transaction...`);
   const sourceKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
   transaction.sign(sourceKeypair);
   
   // Soumettre
-  const result = await server.submitTransaction(transaction);
-  
-  if (!result.successful) {
-    const codes = (result as any).extras?.result_codes;
-    if (codes?.operations?.includes("op_no_destination")) {
-      throw new Error("Le compte destinataire n'existe pas sur Pi Network. L'utilisateur doit d'abord activer son wallet Pi.");
+  console.log(`[v0] [PI_DIRECT] Soumission de la transaction...`);
+  let result: any;
+  try {
+    result = await server.submitTransaction(transaction);
+    console.log(`[v0] [PI_DIRECT] Resultat:`, JSON.stringify(result));
+  } catch (submitError: any) {
+    console.error(`[v0] [PI_DIRECT] Erreur soumission:`, submitError.response?.data || submitError.message);
+    
+    const codes = submitError.response?.data?.extras?.result_codes;
+    if (codes) {
+      console.error(`[v0] [PI_DIRECT] Codes erreur:`, codes);
+      if (codes.operations?.includes("op_no_destination")) {
+        throw new Error("Le compte destinataire n'existe pas sur Pi Network. L'utilisateur doit d'abord activer son wallet Pi.");
+      }
+      if (codes.operations?.includes("op_underfunded")) {
+        throw new Error("Solde Master Wallet insuffisant.");
+      }
     }
-    throw new Error(`Transaction échouée: ${JSON.stringify(codes || result)}`);
+    throw new Error(`Transaction echouee: ${submitError.message}`);
   }
   
-  console.log(`[PI_DIRECT] Transaction soumise avec succès: ${result.hash}`);
+  if (!result.successful) {
+    const codes = result.extras?.result_codes;
+    console.error(`[v0] [PI_DIRECT] Transaction non reussie:`, codes);
+    throw new Error(`Transaction echouee: ${JSON.stringify(codes || result)}`);
+  }
+  
+  console.log(`[v0] [PI_DIRECT] Transaction soumise avec succes: ${result.hash}`);
   return result.hash;
 }
 
