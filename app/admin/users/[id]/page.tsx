@@ -151,7 +151,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
               <div key={wallet.id} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{wallet.currency}</p>
                 <p className="text-lg font-black text-white">
-                  {wallet.currency === "PI" ? "π " : wallet.currency === "XAF" ? "" : "$ "}
+                  {getCurrencySymbol(wallet.currency)}
                   {Number(wallet.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[8px] text-slate-600 font-mono mt-1">{wallet.type}</p>
@@ -208,6 +208,29 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       </div>
     </div>
   );
+}
+
+// Retourne le symbole ou préfixe approprié pour chaque devise/crypto
+function getCurrencySymbol(currency: string): string {
+  const symbols: Record<string, string> = {
+    PI:   "π ",
+    XAF:  "FCFA ",
+    XLM:  "XLM ",
+    SDA:  "SDA ",
+    DAI:  "DAI ",
+    XRP:  "XRP ",
+    USDC: "USDC ",
+    USDT: "USDT ",
+    BTC:  "BTC ",
+    BUSD: "BUSD ",
+    SOL:  "SOL ",
+    ETH:  "ETH ",
+    BNB:  "BNB ",
+    USD:  "$ ",
+    EUR:  "€ ",
+    GBP:  "£ ",
+  };
+  return symbols[currency.toUpperCase()] ?? `${currency} `;
 }
 
 // Composants utilitaires gardés dans le même fichier
