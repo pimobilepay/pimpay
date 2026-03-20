@@ -66,6 +66,33 @@ export default function SystemSettings() {
     qrPaymentFee: 0.01,          // QR Code Payment
   });
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
+  const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
+
+  const toggleMode = async (modeType: 'maintenanceMode' | 'comingSoonMode') => {
+    setTogglingMode(modeType);
+    const newValue = !config[modeType];
+    // Optimistic update
+    setConfig(prev => ({ ...prev, [modeType]: newValue }));
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "TOGGLE_MODE", modeType }),
+      });
+      if (!res.ok) throw new Error("Erreur serveur");
+      const updated = await res.json();
+      setConfig(prev => ({ ...prev, [modeType]: updated[modeType] }));
+      const label = modeType === 'maintenanceMode' ? 'Mode Maintenance' : 'Mode Coming Soon';
+      toast.success(`${label} ${updated[modeType] ? 'activé' : 'désactivé'}`);
+    } catch {
+      // Revert on failure
+      setConfig(prev => ({ ...prev, [modeType]: !newValue }));
+      toast.error("Erreur lors du changement de mode");
+    } finally {
+      setTogglingMode(null);
+    }
+  };
+
   const loadData = async () => {
     try {
       const res = await fetch("/api/admin/config");
@@ -329,26 +356,95 @@ export default function SystemSettings() {
         <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer ${config.maintenanceMode ? 'bg-rose-500/10 border-rose-500' : 'bg-white/[0.02] border-white/5'}`} onClick={() => setConfig({...config, maintenanceMode: !config.maintenanceMode})}>
-                <div className="flex items-center justify-between mb-4">
-                  <ShieldAlert className={config.maintenanceMode ? "text-rose-500" : "text-slate-600"} size={24} />
-                  <div className={`w-10 h-5 rounded-full relative transition-colors ${config.maintenanceMode ? 'bg-rose-500' : 'bg-slate-800'}`}>
-                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${config.maintenanceMode ? 'left-6' : 'left-1'}`} />
+              {/* MODE MAINTENANCE */}
+              <button
+                type="button"
+                disabled={togglingMode !== null}
+                onClick={() => toggleMode('maintenanceMode')}
+                className={`group relative p-6 rounded-[2.5rem] border-2 transition-all text-left w-full overflow-hidden
+                  ${config.maintenanceMode
+                    ? 'bg-rose-500/10 border-rose-500/70 shadow-[0_0_30px_rgba(239,68,68,0.15)]'
+                    : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'}
+                  ${togglingMode === 'maintenanceMode' ? 'opacity-70 cursor-wait' : 'cursor-pointer active:scale-[0.98]'}
+                `}
+              >
+                {config.maintenanceMode && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent pointer-events-none" />
+                )}
+                <div className="flex items-start justify-between mb-5">
+                  <div className={`p-2.5 rounded-2xl transition-colors ${config.maintenanceMode ? 'bg-rose-500/20' : 'bg-white/5'}`}>
+                    {togglingMode === 'maintenanceMode'
+                      ? <Loader2 size={20} className="text-rose-400 animate-spin" />
+                      : <ShieldAlert size={20} className={config.maintenanceMode ? "text-rose-400" : "text-slate-500"} />
+                    }
+                  </div>
+                  {/* Toggle Switch */}
+                  <div className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0
+                    ${config.maintenanceMode ? 'bg-rose-500' : 'bg-slate-700'}
+                  `}>
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300
+                      ${config.maintenanceMode ? 'left-7' : 'left-1'}
+                    `} />
                   </div>
                 </div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Mode Maintenance</h3>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">Verrouillage total du Mainnet</p>
-              </div>
-              <div className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer ${config.comingSoonMode ? 'bg-blue-500/10 border-blue-500' : 'bg-white/[0.02] border-white/5'}`} onClick={() => setConfig({...config, comingSoonMode: !config.comingSoonMode})}>
-                <div className="flex items-center justify-between mb-4">
-                  <Rocket className={config.comingSoonMode ? "text-blue-500" : "text-slate-600"} size={24} />
-                  <div className={`w-10 h-5 rounded-full relative transition-colors ${config.comingSoonMode ? 'bg-blue-500' : 'bg-slate-800'}`}>
-                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${config.comingSoonMode ? 'left-6' : 'left-1'}`} />
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Mode Maintenance</h3>
+                    {config.maintenanceMode && (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/30 text-[8px] font-black text-rose-400 uppercase tracking-wider">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Verrouillage total du Mainnet</p>
+                  {config.maintenanceMode && (
+                    <p className="text-[10px] text-rose-400/70 mt-2 font-medium">Le reseau est actuellement inaccessible aux utilisateurs.</p>
+                  )}
+                </div>
+              </button>
+
+              {/* MODE COMING SOON */}
+              <button
+                type="button"
+                disabled={togglingMode !== null}
+                onClick={() => toggleMode('comingSoonMode')}
+                className={`group relative p-6 rounded-[2.5rem] border-2 transition-all text-left w-full overflow-hidden
+                  ${config.comingSoonMode
+                    ? 'bg-blue-500/10 border-blue-500/70 shadow-[0_0_30px_rgba(59,130,246,0.15)]'
+                    : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'}
+                  ${togglingMode === 'comingSoonMode' ? 'opacity-70 cursor-wait' : 'cursor-pointer active:scale-[0.98]'}
+                `}
+              >
+                {config.comingSoonMode && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none" />
+                )}
+                <div className="flex items-start justify-between mb-5">
+                  <div className={`p-2.5 rounded-2xl transition-colors ${config.comingSoonMode ? 'bg-blue-500/20' : 'bg-white/5'}`}>
+                    {togglingMode === 'comingSoonMode'
+                      ? <Loader2 size={20} className="text-blue-400 animate-spin" />
+                      : <Rocket size={20} className={config.comingSoonMode ? "text-blue-400" : "text-slate-500"} />
+                    }
+                  </div>
+                  {/* Toggle Switch */}
+                  <div className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0
+                    ${config.comingSoonMode ? 'bg-blue-500' : 'bg-slate-700'}
+                  `}>
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300
+                      ${config.comingSoonMode ? 'left-7' : 'left-1'}
+                    `} />
                   </div>
                 </div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Mode Coming Soon</h3>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">Teasing des fonctionnalités</p>
-              </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Mode Coming Soon</h3>
+                    {config.comingSoonMode && (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-[8px] font-black text-blue-400 uppercase tracking-wider">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Teasing des fonctionnalites</p>
+                  {config.comingSoonMode && (
+                    <p className="text-[10px] text-blue-400/70 mt-2 font-medium">La page teaser est visible pour les utilisateurs.</p>
+                  )}
+                </div>
+              </button>
             </div>
             <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[3rem] space-y-6">
               <div className="flex items-center gap-3 mb-4">
