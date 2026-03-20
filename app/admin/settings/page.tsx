@@ -172,15 +172,35 @@ export default function SystemSettings() {
       
       const result = await response.json();
       
-      // Update the vulnerability status in the results
+      // Update the vulnerability status in the results and recalculate score
       setOptimizationResults(prev => {
         if (!prev) return prev;
+        
+        const updatedVulnerabilities = prev.vulnerabilities.map(v => 
+          v.name === vulnName ? { ...v, status: 'fixed' as const } : v
+        );
+        
+        // Recalculate score based on remaining unfixed vulnerabilities
+        let newScore = 100;
+        for (const vuln of updatedVulnerabilities) {
+          if (vuln.status !== 'fixed') {
+            switch (vuln.severity) {
+              case "critical": newScore -= 15; break;
+              case "high": newScore -= 10; break;
+              case "medium": newScore -= 5; break;
+              case "low": newScore -= 2; break;
+            }
+          }
+        }
+        // Add points for performance optimizations
+        const optimizedCount = prev.performance.filter(p => p.status === 'optimized').length;
+        newScore += Math.min(optimizedCount, 5);
+        newScore = Math.max(0, Math.min(100, newScore));
+        
         return {
           ...prev,
-          vulnerabilities: prev.vulnerabilities.map(v => 
-            v.name === vulnName ? { ...v, status: 'fixed' as const } : v
-          ),
-          overallScore: result.newScore || prev.overallScore
+          vulnerabilities: updatedVulnerabilities,
+          overallScore: result.newScore || newScore
         };
       });
       
@@ -804,19 +824,41 @@ export default function SystemSettings() {
               
               {/* Overall Score */}
               {optimizationResults?.scanComplete && (
-                <div className="mt-5 flex items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
+                <div className={`mt-5 flex items-center gap-4 rounded-2xl p-4 transition-all ${
+                  optimizationResults.overallScore >= 90 ? 'bg-emerald-500/10 border border-emerald-500/20' :
+                  optimizationResults.overallScore >= 70 ? 'bg-amber-500/10 border border-amber-500/20' :
+                  'bg-red-500/10 border border-red-500/20'
+                }`}>
                   <div className="relative w-16 h-16">
                     <svg className="w-full h-full transform -rotate-90">
                       <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" className="text-slate-800" />
-                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" className="text-emerald-500" strokeDasharray={`${(optimizationResults.overallScore / 100) * 175.9} 175.9`} strokeLinecap="round" />
+                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" className={`transition-all ${
+                        optimizationResults.overallScore >= 90 ? 'text-emerald-500' :
+                        optimizationResults.overallScore >= 70 ? 'text-amber-500' :
+                        'text-red-500'
+                      }`} strokeDasharray={`${(optimizationResults.overallScore / 100) * 175.9} 175.9`} strokeLinecap="round" />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg font-black text-emerald-400">{optimizationResults.overallScore}</span>
+                      <span className={`text-lg font-black transition-colors ${
+                        optimizationResults.overallScore >= 90 ? 'text-emerald-400' :
+                        optimizationResults.overallScore >= 70 ? 'text-amber-400' :
+                        'text-red-400'
+                      }`}>{optimizationResults.overallScore}</span>
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-black text-emerald-400 uppercase">Systeme Optimise</p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Toutes les vulnerabilites ont ete corrigees</p>
+                    <p className={`text-sm font-black uppercase transition-colors ${
+                      optimizationResults.overallScore >= 90 ? 'text-emerald-400' :
+                      optimizationResults.overallScore >= 70 ? 'text-amber-400' :
+                      'text-red-400'
+                    }`}>
+                      {optimizationResults.overallScore >= 90 ? 'Systeme Optimise' :
+                       optimizationResults.overallScore >= 70 ? 'Optimisation Partielle' :
+                       'Actions Requises'}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">
+                      {optimizationResults.vulnerabilities.filter(v => v.status === 'fixed').length}/{optimizationResults.vulnerabilities.length} vulnerabilites corrigees
+                    </p>
                   </div>
                 </div>
               )}
