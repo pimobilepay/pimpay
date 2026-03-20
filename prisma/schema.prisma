@@ -472,3 +472,31 @@ enum SupportStatus {
   IN_PROGRESS
   CLOSED
 }
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     LogLevel @default(INFO)
+  source    String   // ex: "API", "WORKER", "AUTH", "PAYMENT"
+  action    String   // ex: "TRANSFER_FAILED", "LOGIN_ERROR", "WORKER_TIMEOUT"
+  message   String
+  details   Json?    // stack trace, request data, etc.
+  ip        String?
+  userAgent String?
+  userId    String?  // optional link to user if relevant
+  requestId String?  // for tracing requests
+  duration  Int?     // execution time in ms
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([source])
+  @@index([createdAt])
+  @@index([userId])
+}
