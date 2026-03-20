@@ -21,67 +21,92 @@ export async function POST(req: NextRequest) {
     const { payload } = await jwtVerify(token, secret);
     const senderId = (payload.id || payload.userId) as string;
 
-    // 2. RÉCUPÉRATION ET VALIDATION
+    // 2. RECUPERATION ET VALIDATION
     const body = await req.json();
-    const { recipientEmail, amount, note } = body;
+    const { recipientEmail, recipientIdentifier, recipient: recipientInput, amount, note } = body;
+    const recipientId = recipientEmail || recipientIdentifier || recipientInput;
     const amountNum = parseFloat(amount);
 
-    if (!recipientEmail || isNaN(amountNum) || amountNum <= 0) {
-      return NextResponse.json({ error: "Données invalides" }, { status: 400 });
+    console.log("[v0] [TRANSFER] Params:", { senderId, recipientId, amount: amountNum });
+
+    if (!recipientId || isNaN(amountNum) || amountNum <= 0) {
+      console.log("[v0] [TRANSFER] Erreur: Donnees invalides");
+      return NextResponse.json({ error: "Donnees invalides" }, { status: 400 });
     }
 
     // 3. RECHERCHE DES ACTEURS ET DES WALLETS (Prisma Pluriel : wallets)
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        wallets: { where: { currency: "PI" }, take: 1 }
+      }
+    });
+
+    // Recherche du destinataire par email, username ou telephone
+    const cleanInput = recipientId.startsWith("@") ? recipientId.substring(1) : recipientId;
+    const recipient = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: cleanInput, mode: "insensitive" } },
+          { username: { equals: cleanInput, mode: "insensitive" } },
+          { phone: cleanInput },
+          { piUserId: cleanInput },
+        ]
+      },
       include: { wallets: { where: { currency: "PI" }, take: 1 } }
     });
 
-    const recipient = await prisma.user.findUnique({
-      where: { email: recipientEmail },
-      include: { wallets: { where: { currency: "PI" }, take: 1 } }
-    });
+    console.log("[v0] [TRANSFER] Expediteur:", sender?.id, "Destinataire:", recipient?.id);
 
     if (!sender || !sender.wallets[0]) {
-        return NextResponse.json({ error: "Expéditeur ou Wallet PI introuvable" }, { status: 404 });
+        console.log("[v0] [TRANSFER] Erreur: Expediteur ou Wallet PI introuvable");
+        return NextResponse.json({ error: "Expediteur ou Wallet PI introuvable" }, { status: 404 });
     }
-    if (!recipient || !recipient.wallets[0]) {
-        return NextResponse.json({ error: "Destinataire ou Wallet PI introuvable" }, { status: 404 });
+    if (!recipient) {
+        console.log("[v0] [TRANSFER] Erreur: Destinataire introuvable pour:", recipientId);
+        return NextResponse.json({ error: "Destinataire introuvable. Verifiez l'email, le username ou le telephone." }, { status: 404 });
     }
     if (sender.id === recipient.id) {
-        return NextResponse.json({ error: "Transfert vers soi-même interdit" }, { status: 400 });
+        console.log("[v0] [TRANSFER] Erreur: Auto-transfert");
+        return NextResponse.json({ error: "Transfert vers soi-meme interdit" }, { status: 400 });
     }
 
     const senderWallet = sender.wallets[0];
-    const recipientWallet = recipient.wallets[0];
 
     if (senderWallet.balance < amountNum) {
+      console.log("[v0] [TRANSFER] Erreur: Solde insuffisant", senderWallet.balance, "<", amountNum);
       return NextResponse.json({ error: "Solde insuffisant" }, { status: 400 });
     }
 
-    // 4. CALCULS (Conformité GCV) - Frais centralisés
+    // 4. CALCULS (Conformite GCV) - Frais centralises
     const feeConfig = await getFeeConfig();
-    const { feeAmount: transferFeeAmount, feeRate: transferFeeRate } = calculateFee(amountNum, feeConfig, "transfer");
-    const exchange = calculateExchangeWithFee(amountNum, "USD", feeConfig.exchangeFee);
+    const { feeAmount: transferFeeAmount } = calculateFee(amountNum, feeConfig, "transfer");
     const valueInUsd = amountNum * PI_CONSENSUS_RATE;
 
     // 5. TRANSACTION ATOMIQUE (Correction Erreurs Prisma)
     const transactionResult = await prisma.$transaction(async (tx) => {
-      // Débiter l'expéditeur
+      // Debiter l'expediteur
       await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: amountNum } }
       });
 
-      // Créditer le destinataire
-      await tx.wallet.update({
-        where: { id: recipientWallet.id },
-        data: { balance: { increment: amountNum } }
+      // Crediter le destinataire (UPSERT pour creer le wallet s'il n'existe pas)
+      const recipientWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: recipient.id, currency: "PI" } },
+        update: { balance: { increment: amountNum } },
+        create: { userId: recipient.id, currency: "PI", balance: amountNum, type: "PI" }
       });
+      
+      console.log("[v0] [TRANSFER] Wallet destinataire credite:", recipientWallet.id, "solde:", recipientWallet.balance);
 
-      // Création de la transaction avec REFERENCE OBLIGATOIRE
-      return await tx.transaction.create({
+      // Creation de la transaction avec REFERENCE OBLIGATOIRE
+      const transaction = await tx.transaction.create({
         data: {
-          // Génération d'une référence unique pour Pimpay
+          // Generation d'une reference unique pour Pimpay
           reference: `P2P-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: amountNum,
           netAmount: amountNum,
@@ -92,14 +117,29 @@ export async function POST(req: NextRequest) {
           toUserId: recipient.id,
           fromWalletId: senderWallet.id,
           toWalletId: recipientWallet.id,
-          description: note || "Transfert P2P", // 'description' est dans ton schéma
+          description: note || "Transfert P2P",
           fee: transferFeeAmount
         }
       });
+      
+      // Creer une notification pour le destinataire
+      await tx.notification.create({
+        data: {
+          userId: recipient.id,
+          title: "Paiement recu !",
+          message: `Vous avez recu ${amountNum.toLocaleString()} PI de ${sender.username || sender.name || 'un utilisateur PimPay'}.`,
+          type: "PAYMENT_RECEIVED",
+          metadata: { amount: amountNum, currency: "PI", reference: transaction.reference }
+        }
+      }).catch(() => {});
+      
+      return transaction;
     }, {
       maxWait: 10000,
       timeout: 30000,
     });
+    
+    console.log("[v0] [TRANSFER] Transaction REUSSIE:", transactionResult.reference);
 
     // 6. LOG DE SÉCURITÉ (AML)
     if (valueInUsd >= 10000) {
@@ -121,7 +161,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("TRANSFER_CRITICAL_ERROR:", error.message);
-    return NextResponse.json({ error: "Échec du transfert lors du traitement" }, { status: 500 });
+    console.error("[v0] [TRANSFER] ERREUR CRITIQUE:", error.message);
+    return NextResponse.json({ error: error.message || "Echec du transfert lors du traitement" }, { status: 500 });
   }
 }

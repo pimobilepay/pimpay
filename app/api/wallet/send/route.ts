@@ -8,11 +8,16 @@ import { nanoid } from 'nanoid';
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("[v0] [WALLET_SEND] Debut du traitement...");
+    
     const cookieStore = await cookies();
     const SECRET = process.env.JWT_SECRET;
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    if (!token || !SECRET) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    if (!token || !SECRET) {
+      console.log("[v0] [WALLET_SEND] Erreur: Non authentifie");
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
 
     // 1. AUTHENTIFICATION
     const secretKey = new TextEncoder().encode(SECRET);
@@ -21,11 +26,15 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const amount = parseFloat(body.amount);
-    const currency = (body.currency || "XAF").toUpperCase();
-    const recipientInput = (body.recipientIdentifier || body.address || "").trim();
+    const currency = (body.currency || "PI").toUpperCase();
+    // Support multiple input names: address, recipientIdentifier, recipient
+    const recipientInput = (body.address || body.recipientIdentifier || body.recipient || "").trim();
+
+    console.log("[v0] [WALLET_SEND] Params:", { amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
 
     if (!recipientInput || isNaN(amount) || amount <= 0) {
-      return NextResponse.json({ error: "Données de transfert invalides" }, { status: 400 });
+      console.log("[v0] [WALLET_SEND] Erreur: Donnees invalides", { recipientInput, amount });
+      return NextResponse.json({ error: "Donnees de transfert invalides" }, { status: 400 });
     }
 
     // Validation d'adresse selon la devise
@@ -127,9 +136,10 @@ export async function POST(req: NextRequest) {
         data: { balance: { decrement: amount } }
       });
 
-      // --- SCÉNARIO 1 : TRANSFERT INTERNE (ENTRE MEMBRES PIMPAY) ---
+      // --- SCENARIO 1 : TRANSFERT INTERNE (ENTRE MEMBRES PIMPAY) ---
       if (recipientUser) {
-        if (recipientUser.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer des fonds à vous-même.");
+        console.log("[v0] [WALLET_SEND] Transfert INTERNE vers:", recipientUser.id);
+        if (recipientUser.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer des fonds a vous-meme.");
 
         // Déterminer le type de wallet selon la monnaie
         const getWalletType = (curr: string): WalletType => {
@@ -175,10 +185,11 @@ export async function POST(req: NextRequest) {
             message: `Vous avez reçu ${amount} ${currency} de la part d'un membre PimPay.`,
             type: "payment_received"
           }
-        }).catch(() => {});
-
-        return { type: 'INTERNAL', transaction };
-      } 
+}).catch((e) => console.log("[v0] [WALLET_SEND] Erreur notification:", e.message));
+      
+      console.log("[v0] [WALLET_SEND] Transaction INTERNE REUSSIE:", transaction.reference);
+      return { type: 'INTERNAL', transaction };
+      }
 
       // --- SCÉNARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
       else {
@@ -222,17 +233,19 @@ export async function POST(req: NextRequest) {
         return { type: 'EXTERNAL', transaction };
       }
 
-    }, { maxWait: 10000, timeout: 30000 });
-
+}, { maxWait: 10000, timeout: 30000 });
+    
+    console.log("[v0] [WALLET_SEND] SUCCES:", { mode: result.type, reference: result.transaction.reference });
+    
     return NextResponse.json({
       success: true,
       mode: result.type,
-      message: result.type === 'INTERNAL' ? "Transfert instantané réussi" : "Retrait blockchain enregistré (en attente)",
+      message: result.type === 'INTERNAL' ? "Transfert instantane reussi" : "Retrait blockchain enregistre (en attente)",
       reference: result.transaction.reference
     });
 
   } catch (error: any) {
-    console.error("[SEND_ERROR]:", error.message);
+    console.error("[v0] [WALLET_SEND] ERREUR:", error.message);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

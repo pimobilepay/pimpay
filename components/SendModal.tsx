@@ -97,19 +97,19 @@ export default function SendModal({
   const getPlaceholder = () => {
     switch (config.group) {
       case "EVM":
-        return "Adresse commencant par 0x...";
+        return "Adresse 0x..., email ou @username";
       case "STELLAR":
-        return "Adresse commencant par G...";
+        return "Adresse G..., email ou @username";
       case "TRON":
-        return "Adresse commencant par T...";
+        return "Adresse T..., email ou @username";
       case "XRP":
-        return "Adresse commencant par r...";
+        return "Adresse r..., email ou @username";
       case "BTC":
-        return "Adresse commencant par bc1/1/3...";
+        return "Adresse bc1/1/3..., email ou @username";
       case "SOL":
-        return "Adresse Solana (Base58)...";
+        return "Adresse Solana, email ou @username";
       default:
-        return `Adresse ${currency}...`;
+        return `Adresse ${currency}, email ou @username`;
     }
   };
 

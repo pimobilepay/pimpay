@@ -422,7 +422,7 @@ const filteredContacts = contacts.filter(
               </div>
               <input
                 type="text"
-                placeholder="RECHERCHER PAR @USERNAME, EMAIL, TELEPHONE..."
+                placeholder="@username, email, telephone ou adresse G..."
                 className="bg-transparent flex-1 outline-none font-bold text-xs uppercase placeholder:text-slate-700"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

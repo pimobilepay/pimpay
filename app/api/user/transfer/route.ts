@@ -38,13 +38,21 @@ function isExternalAddress(identifier: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("[v0] [USER_TRANSFER] Debut du traitement...");
+    
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value ?? cookieStore.get("pimpay_token")?.value;
 
-    if (!token) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    if (!token) {
+      console.log("[v0] [USER_TRANSFER] Erreur: Pas de token");
+      return NextResponse.json({ error: "Session expiree" }, { status: 401 });
+    }
 
     const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
+    if (!SECRET) {
+      console.log("[v0] [USER_TRANSFER] Erreur: JWT_SECRET manquant");
+      return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
+    }
 
     const secretKey = new TextEncoder().encode(SECRET);
     const { payload } = await jwtVerify(token, secretKey);
@@ -52,12 +60,20 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const amount = parseFloat(body.amount);
-    const currency = (body.currency || "XAF").toUpperCase().trim();
-    const recipientInput = (body.recipientIdentifier || body.recipient || body.address || "").trim();
+    const currency = (body.currency || "PI").toUpperCase().trim();
+    const recipientInput = (body.recipientIdentifier || body.recipient || body.address || body.email || "").trim();
     const description = body.description || "";
 
-    if (!recipientInput) return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
-    if (isNaN(amount) || amount <= 0) return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    console.log("[v0] [USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
+
+    if (!recipientInput) {
+      console.log("[v0] [USER_TRANSFER] Erreur: Destinataire manquant");
+      return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
+    }
+    if (isNaN(amount) || amount <= 0) {
+      console.log("[v0] [USER_TRANSFER] Erreur: Montant invalide", amount);
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
 
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
@@ -85,6 +101,8 @@ export async function POST(req: NextRequest) {
       if (senderWallet.balance < totalDebit) throw new Error(`Solde insuffisant.`);
 
       const cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
+      console.log("[v0] [USER_TRANSFER] Recherche destinataire:", cleanInput);
+      
       const recipientUser = await tx.user.findFirst({
         where: {
           OR: [
@@ -93,9 +111,13 @@ export async function POST(req: NextRequest) {
             { phone: cleanInput },
             { sidraAddress: cleanInput },
             { walletAddress: cleanInput },
+            { xlmAddress: cleanInput },
+            { piUserId: cleanInput },
           ],
         },
       });
+      
+      console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 
       const updatedSender = await tx.wallet.update({
         where: { id: senderWallet.id },
@@ -103,11 +125,15 @@ export async function POST(req: NextRequest) {
       });
 
       if (recipientUser && recipientUser.id !== senderId) {
+        console.log("[v0] [USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
+        
         const toWallet = await tx.wallet.upsert({
           where: { userId_currency: { userId: recipientUser.id, currency } },
           update: { balance: { increment: amount } },
           create: { userId: recipientUser.id, currency, balance: amount, type: getWalletType(currency) },
         });
+        
+        console.log("[v0] [USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
 
         const transaction = await tx.transaction.create({
           data: {
@@ -122,17 +148,20 @@ export async function POST(req: NextRequest) {
             description: description || `Transfert interne vers @${recipientUser.username}`,
           },
         });
+        
+        console.log("[v0] [USER_TRANSFER] Transaction creee:", transaction.reference);
 
         await tx.notification.create({
           data: {
             userId: recipientUser.id,
-            title: "Paiement reçu !",
-            message: `Vous avez reçu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
+            title: "Paiement recu !",
+            message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
             type: "PAYMENT_RECEIVED",
             metadata: { amount, currency, senderName, reference: transaction.reference },
           },
-        }).catch(() => {});
+        }).catch((e) => console.log("[v0] [USER_TRANSFER] Erreur notification:", e.message));
 
+        console.log("[v0] [USER_TRANSFER] Transfert INTERNE REUSSI");
         return { type: "INTERNAL" as const, transaction };
       }
 
@@ -255,8 +284,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    console.log("[v0] [USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
     return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction });
   } catch (error: any) {
+    console.error("[v0] [USER_TRANSFER] ERREUR:", error.message);
     return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });
   }
 }
