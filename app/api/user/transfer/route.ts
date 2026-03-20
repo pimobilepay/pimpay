@@ -234,6 +234,27 @@ export async function POST(req: NextRequest) {
       return { type: "EXTERNAL" as const, transaction };
     }, { maxWait: 5000, timeout: 20000 });
 
+    // Si c'est un retrait externe Pi, declencher le worker automatiquement
+    if (result.type === "EXTERNAL" && result.transaction.currency === "PI") {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || "http://localhost:3000";
+      
+      // Appel asynchrone au worker (fire and forget)
+      fetch(`${baseUrl}/api/worker/process`, {
+        method: "GET",
+        headers: { 
+          "Authorization": `Bearer ${process.env.WORKER_SECRET || ""}`,
+          "x-internal-request": "true"
+        }
+      }).then(res => {
+        if (res.ok) console.log("[TRANSFER] Worker Pi declenche avec succes");
+        else console.error("[TRANSFER] Erreur worker:", res.status);
+      }).catch((err) => {
+        console.error("[TRANSFER] Erreur appel worker:", err.message);
+      });
+    }
+
     return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });
