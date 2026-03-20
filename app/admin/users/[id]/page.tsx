@@ -150,7 +150,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
             {user.wallets.length > 0 ? user.wallets.map((wallet) => (
               <div key={wallet.id} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{wallet.currency}</p>
-                <p className="text-lg font-black text-white">
+                <p className="text-sm font-black text-white">
                   {getCurrencySymbol(wallet.currency)}
                   {Number(wallet.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </p>
