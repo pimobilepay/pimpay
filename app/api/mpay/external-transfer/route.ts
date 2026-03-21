@@ -210,9 +210,36 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
     );
   }
 
-  // Construire la transaction
+  // Récupérer les frais de base actuels du réseau avec un multiplicateur de sécurité
+  let dynamicFee: string;
+  try {
+    const baseFee = await server.fetchBaseFee();
+    // Utiliser 3x les frais de base pour garantir la confirmation, minimum 5000 stroops
+    dynamicFee = String(Math.max(baseFee * 3, 5000));
+    await logSystemEvent({
+      level: "DEBUG",
+      source: "MPAY_EXTERNAL_TRANSFER",
+      action: "FEE_CALCULATED",
+      message: `Frais dynamiques calcules: ${dynamicFee} stroops (base: ${baseFee})`,
+      details: { baseFee, dynamicFee },
+      requestId,
+    });
+  } catch (feeError: any) {
+    // Fallback vers des frais fixes élevés si fetchBaseFee échoue
+    dynamicFee = "10000"; // 10000 stroops = 0.001 Pi
+    await logSystemEvent({
+      level: "WARN",
+      source: "MPAY_EXTERNAL_TRANSFER",
+      action: "FEE_FETCH_FAILED",
+      message: `Echec fetchBaseFee, utilisation fallback: ${dynamicFee} stroops`,
+      details: { error: feeError.message },
+      requestId,
+    });
+  }
+
+  // Construire la transaction avec les frais dynamiques
   const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
+    fee: dynamicFee,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
   })
     .addOperation(
