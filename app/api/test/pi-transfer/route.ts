@@ -227,9 +227,20 @@ export async function POST(req: NextRequest) {
     // Charger le compte source
     const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS!);
     
+    // Récupérer les frais dynamiques du réseau
+    let dynamicFee: string;
+    try {
+      const baseFee = await server.fetchBaseFee();
+      dynamicFee = String(Math.max(baseFee * 3, 5000));
+      console.log(`[v0] [PI_TEST] Frais dynamiques: ${dynamicFee} stroops (base: ${baseFee})`);
+    } catch (feeError: any) {
+      dynamicFee = "10000";
+      console.log(`[v0] [PI_TEST] Fallback frais: ${dynamicFee} stroops`);
+    }
+    
     // Construire la transaction
     const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: StellarSdk.BASE_FEE,
+      fee: dynamicFee,
       networkPassphrase: PI_NETWORK_PASSPHRASE,
     })
       .addOperation(

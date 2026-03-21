@@ -285,7 +285,18 @@ async function sendPiA2UOfficial(
   });
   
   const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
-  const baseFee = await server.fetchBaseFee();
+  
+  // Récupérer les frais dynamiques du réseau avec multiplicateur de sécurité
+  let dynamicFee: string;
+  try {
+    const baseFee = await server.fetchBaseFee();
+    // Utiliser 3x les frais de base pour garantir la confirmation, minimum 5000 stroops
+    dynamicFee = String(Math.max(baseFee * 3, 5000));
+    console.log(`[PI_A2U] Frais dynamiques: ${dynamicFee} stroops (base: ${baseFee})`);
+  } catch (feeError: any) {
+    dynamicFee = "10000";
+    console.log(`[PI_A2U] Fallback frais: ${dynamicFee} stroops`);
+  }
   
   // Vérifier le solde
   const piBalance = sourceAccount.balances.find((b: any) => b.asset_type === "native");
@@ -295,7 +306,7 @@ async function sendPiA2UOfficial(
   
   // Étape 3: Construire la transaction avec le paymentIdentifier comme MEMO (obligatoire!)
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: baseFee.toString(),
+    fee: dynamicFee,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
   })
     .addOperation(
@@ -436,6 +447,17 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
     throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI, Requis: ${tx.amount} PI`);
   }
   
+  // Récupérer les frais dynamiques du réseau
+  let dynamicFee: string;
+  try {
+    const baseFee = await server.fetchBaseFee();
+    dynamicFee = String(Math.max(baseFee * 3, 5000));
+    console.log(`[v0] [PI_DIRECT] Frais dynamiques: ${dynamicFee} stroops (base: ${baseFee})`);
+  } catch (feeError: any) {
+    dynamicFee = "10000";
+    console.log(`[v0] [PI_DIRECT] Fallback frais: ${dynamicFee} stroops`);
+  }
+
   // Construire la transaction
   console.log(`[v0] [PI_DIRECT] Construction de la transaction...`);
   console.log(`[v0] [PI_DIRECT] Details transaction:`, {
@@ -446,7 +468,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   });
   
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
+    fee: dynamicFee,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
   })
     .addOperation(

@@ -124,10 +124,23 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
       throw new Error(`Solde Master Wallet insuffisant. Disponible: ${piBalance?.balance || 0} PI, Requis: ${job.amount} PI`);
     }
 
-    // 4. Créer la transaction de paiement
+    // 4. Récupérer les frais dynamiques du réseau
+    let dynamicFee: string;
+    try {
+      const baseFee = await server.fetchBaseFee();
+      // Utiliser 3x les frais de base pour garantir la confirmation, minimum 5000 stroops
+      dynamicFee = String(Math.max(baseFee * 3, 5000));
+      console.log(`[PI_WITHDRAW] Frais dynamiques: ${dynamicFee} stroops (base: ${baseFee})`);
+    } catch (feeError: any) {
+      // Fallback vers des frais fixes élevés si fetchBaseFee échoue
+      dynamicFee = "10000";
+      console.log(`[PI_WITHDRAW] Fallback frais: ${dynamicFee} stroops`);
+    }
+
+    // 5. Créer la transaction de paiement
     // Pi Network utilise Pi comme asset natif (comme XLM sur Stellar public)
     const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: StellarSdk.BASE_FEE,
+      fee: dynamicFee,
       networkPassphrase: PI_NETWORK_PASSPHRASE,
     })
       .addOperation(
