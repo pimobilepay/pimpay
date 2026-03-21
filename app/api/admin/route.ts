@@ -251,6 +251,104 @@ export async function POST(req: NextRequest) {
         });
         break;
 
+      // AIRDROP INDIVIDUEL
+      case "AIRDROP": {
+        if (!userId || amount === undefined) return NextResponse.json({ error: "ID utilisateur et montant requis" }, { status: 400 });
+        const airdropAmount = parseFloat(amount.toString());
+        if (isNaN(airdropAmount) || airdropAmount <= 0) {
+          return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+        }
+        await prisma.$transaction([
+          prisma.wallet.upsert({
+            where: { userId_currency: { userId, currency: "PI" } },
+            update: { balance: { increment: airdropAmount } },
+            create: { userId, currency: "PI", balance: airdropAmount },
+          }),
+          prisma.transaction.create({
+            data: {
+              fromUserId: requester.id,
+              toUserId: userId,
+              amount: airdropAmount,
+              currency: "PI",
+              type: "AIRDROP",
+              status: "SUCCESS",
+              description: `Airdrop de ${airdropAmount} PI par l'admin`,
+              reference: `AIRDROP-${Date.now()}`
+            }
+          }),
+          prisma.notification.create({
+            data: {
+              userId,
+              title: "Airdrop Recu",
+              message: `Vous avez recu un airdrop de ${airdropAmount} PI de la part de PimPay.`,
+              type: "SUCCESS"
+            }
+          })
+        ]);
+        break;
+      }
+
+      // AIRDROP GLOBAL (tous les utilisateurs)
+      case "AIRDROP_ALL": {
+        if (amount === undefined) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
+        const globalAmount = parseFloat(amount.toString());
+        if (isNaN(globalAmount) || globalAmount <= 0) {
+          return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+        }
+        
+        // Recuperer tous les utilisateurs actifs
+        const allUsers = await prisma.user.findMany({
+          where: { status: UserStatus.ACTIVE },
+          select: { id: true }
+        });
+        
+        if (allUsers.length === 0) {
+          return NextResponse.json({ error: "Aucun utilisateur actif trouve" }, { status: 400 });
+        }
+        
+        // Creer les operations pour chaque utilisateur
+        const walletOps = allUsers.map(user => 
+          prisma.wallet.upsert({
+            where: { userId_currency: { userId: user.id, currency: "PI" } },
+            update: { balance: { increment: globalAmount } },
+            create: { userId: user.id, currency: "PI", balance: globalAmount },
+          })
+        );
+        
+        const notificationOps = allUsers.map(user =>
+          prisma.notification.create({
+            data: {
+              userId: user.id,
+              title: "Airdrop Global",
+              message: `Vous avez recu un airdrop global de ${globalAmount} PI de la part de PimPay.`,
+              type: "SUCCESS"
+            }
+          })
+        );
+        
+        // Executer toutes les operations en transaction
+        await prisma.$transaction([
+          ...walletOps,
+          ...notificationOps,
+          prisma.transaction.create({
+            data: {
+              fromUserId: requester.id,
+              amount: globalAmount * allUsers.length,
+              currency: "PI",
+              type: "AIRDROP",
+              status: "SUCCESS",
+              description: `Airdrop global de ${globalAmount} PI a ${allUsers.length} utilisateurs`,
+              reference: `AIRDROP-GLOBAL-${Date.now()}`
+            }
+          })
+        ]);
+        
+        return NextResponse.json({ 
+          success: true, 
+          message: `Airdrop de ${globalAmount} PI envoye a ${allUsers.length} utilisateurs` 
+        });
+      }
+
       // MAINTENANCE INDIVIDUELLE (Suspend l'utilisateur temporairement)
       case "USER_SPECIFIC_MAINTENANCE": {
         if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
