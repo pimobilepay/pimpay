@@ -38,6 +38,8 @@ interface SearchedUser {
   usdtAddress?: string | null;
   walletAddress?: string | null;
   isExternal: boolean;
+  // For external addresses, this stores the full address
+  fullExternalAddress?: string | null;
 }
 
 // Type for recent users stored locally
@@ -151,6 +153,10 @@ export default function P2PSendPage() {
       const data = await res.json();
 
       if (res.ok && data.id) {
+        // For external addresses, store the original query as the full address
+        if (data.isExternal) {
+          data.fullExternalAddress = query.trim();
+        }
         setSearchedUser(data);
       } else if (res.status === 404) {
         setSearchError("Utilisateur non trouve");
@@ -281,11 +287,21 @@ const filteredContacts = contacts.filter(
   // Select searched user
   const handleSelectSearchedUser = (user: SearchedUser) => {
     const fullName = `${user.firstName} ${user.lastName}`.trim();
+    
+    // For external addresses, use the full external address as contactId
+    // This ensures the correct address is sent to the API
+    // Priority: fullExternalAddress > walletAddress > id
+    const effectiveContactId = user.isExternal 
+      ? (user.fullExternalAddress || user.walletAddress || user.id)
+      : user.id;
+    
     const contact: P2PContact = {
       id: user.id,
-      contactId: user.id,
+      contactId: effectiveContactId,
       name: fullName || user.username || "Utilisateur",
-      username: user.username,
+      username: user.isExternal && user.fullExternalAddress 
+        ? user.fullExternalAddress 
+        : user.username,
       phone: null,
       avatar: user.avatar,
       initials: getInitials(fullName || user.username || "U"),
@@ -297,9 +313,11 @@ const filteredContacts = contacts.filter(
     setSelectedContact(contact);
     // Save to recent users
     saveRecentUser({
-      id: user.id,
+      id: effectiveContactId,
       name: fullName || user.username || "Utilisateur",
-      username: user.username,
+      username: user.isExternal && user.fullExternalAddress 
+        ? user.fullExternalAddress 
+        : user.username,
       avatar: user.avatar,
       initials: getInitials(fullName || user.username || "U"),
       lastUsed: Date.now(),
@@ -349,12 +367,11 @@ const filteredContacts = contacts.filter(
   };
 
   // Check if the selected contact is an external Pi wallet address
-  const isExternalPiAddress = selectedContact?.contactId === "external" && 
-    /^G[A-Z2-7]{55}$/.test(searchQuery || selectedContact?.username || "");
-  
-  const externalAddress = isExternalPiAddress 
-    ? (searchQuery || selectedContact?.username || "").replace("@", "")
-    : null;
+  // Now contactId contains the full address for external users
+  const isExternalPiAddress = selectedContact 
+    ? /^G[A-Z2-7]{55}$/.test(selectedContact.contactId) || 
+      /^G[A-Z2-7]{55}$/.test(selectedContact.username || "")
+    : false;
 
   const handleConfirmSend = async () => {
     if (!selectedContact) return;
@@ -362,12 +379,33 @@ const filteredContacts = contacts.filter(
     setIsLoading(true);
     try {
       // Determine if this is an external Pi wallet transfer
-      const isExternal = selectedContact.contactId === "external" || 
-        /^G[A-Z2-7]{55}$/.test(selectedContact.contactId);
+      // Check both contactId and username for Pi address format
+      const isPiAddressInContactId = /^G[A-Z2-7]{55}$/.test(selectedContact.contactId);
+      const isPiAddressInUsername = /^G[A-Z2-7]{55}$/.test(selectedContact.username || "");
+      const isExternal = isPiAddressInContactId || isPiAddressInUsername;
+      
+      console.log("[v0] Transfer debug:", {
+        contactId: selectedContact.contactId,
+        username: selectedContact.username,
+        isPiAddressInContactId,
+        isPiAddressInUsername,
+        isExternal
+      });
       
       if (isExternal) {
-        // Use the external transfer API for Pi wallet addresses
-        const externalAddr = externalAddress || selectedContact.contactId;
+        // Get the actual Pi address - prefer contactId, fallback to username
+        const externalAddr = isPiAddressInContactId 
+          ? selectedContact.contactId 
+          : (selectedContact.username || "");
+        
+        console.log("[v0] Sending external transfer to:", externalAddr);
+        
+        // Validate the address before sending
+        if (!externalAddr || !/^G[A-Z2-7]{55}$/.test(externalAddr)) {
+          toast.error("Adresse Pi invalide. Veuillez re-entrer l'adresse.");
+          setIsLoading(false);
+          return;
+        }
         
         const res = await fetch("/api/mpay/external-transfer", {
           method: "POST",
