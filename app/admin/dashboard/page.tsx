@@ -55,6 +55,7 @@ type ChartDataPoint = {
   entrant: number;
   sortant: number;
   exchange: number;
+  mpay: number;
   total: number;
 };
 
@@ -62,8 +63,10 @@ type ChartSummary = {
   totalEntrant: number;
   totalSortant: number;
   totalExchange: number;
+  totalMpay: number;
   totalVolume: number;
   transactionCount: number;
+  mpayCount: number;
 };
 
 type ServerStats = {
@@ -228,7 +231,7 @@ function DashboardContent() {
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalVolume: 0, transactionCount: 0 });
+  const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
   const [serverStats, setServerStats] = useState<ServerStats>(null);
   const [roleModalUser, setRoleModalUser] = useState<LedgerUser | null>(null);
   const [maintModalUser, setMaintModalUser] = useState<LedgerUser | null>(null);
@@ -457,53 +460,63 @@ function DashboardContent() {
                         <div className="h-52">
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="gradEntrant" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="gradSortant" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="gradExchange" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-                              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} axisLine={false} tickLine={false} />
-                              <YAxis tick={{ fontSize: 8, fill: '#475569' }} axisLine={false} tickLine={false} />
-                              <Tooltip
-                                contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', fontSize: '10px', fontWeight: 800 }}
-                                labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '8px', letterSpacing: '2px', marginBottom: '4px' }}
-                                itemStyle={{ fontWeight: 800 }}
-                              />
-                              <Area type="monotone" dataKey="entrant" stroke="#10b981" fill="url(#gradEntrant)" strokeWidth={2.5} name="Entrant" dot={false} />
-                              <Area type="monotone" dataKey="sortant" stroke="#f87171" fill="url(#gradSortant)" strokeWidth={2.5} name="Sortant" dot={false} />
-                              <Area type="monotone" dataKey="exchange" stroke="#3b82f6" fill="url(#gradExchange)" strokeWidth={2.5} name="Exchange" dot={false} />
+<defs>
+  <linearGradient id="gradEntrant" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+  </linearGradient>
+  <linearGradient id="gradSortant" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
+  <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
+  </linearGradient>
+  <linearGradient id="gradExchange" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+  </linearGradient>
+  <linearGradient id="gradMpay" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+  </linearGradient>
+  </defs>
+  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+  <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} axisLine={false} tickLine={false} />
+  <YAxis tick={{ fontSize: 8, fill: '#475569' }} axisLine={false} tickLine={false} />
+  <Tooltip
+  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', fontSize: '10px', fontWeight: 800 }}
+  labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '8px', letterSpacing: '2px', marginBottom: '4px' }}
+  itemStyle={{ fontWeight: 800 }}
+  />
+  <Area type="monotone" dataKey="entrant" stroke="#10b981" fill="url(#gradEntrant)" strokeWidth={2.5} name="Entrant" dot={false} />
+  <Area type="monotone" dataKey="sortant" stroke="#f87171" fill="url(#gradSortant)" strokeWidth={2.5} name="Sortant" dot={false} />
+  <Area type="monotone" dataKey="exchange" stroke="#3b82f6" fill="url(#gradExchange)" strokeWidth={2.5} name="Exchange" dot={false} />
+  <Area type="monotone" dataKey="mpay" stroke="#f59e0b" fill="url(#gradMpay)" strokeWidth={2.5} name="MPAY" dot={false} />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
-                        {/* Summary cards */}
-                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
-                          <div className="text-center">
-                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Entrant</p>
-                            <p className="text-sm font-black text-emerald-400">{chartSummary.totalEntrant.toLocaleString()}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Sortant</p>
-                            <p className="text-sm font-black text-red-400">{chartSummary.totalSortant.toLocaleString()}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Exchange</p>
-                            <p className="text-sm font-black text-blue-400">{chartSummary.totalExchange.toLocaleString()}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">TX Total</p>
-                            <p className="text-sm font-black text-white">{chartSummary.transactionCount}</p>
-                          </div>
-                        </div>
+{/* Summary cards */}
+  <div className="grid grid-cols-5 gap-2 pt-2 border-t border-white/5">
+  <div className="text-center">
+  <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Entrant</p>
+  <p className="text-sm font-black text-emerald-400">{chartSummary.totalEntrant.toLocaleString()}</p>
+  </div>
+  <div className="text-center">
+  <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Sortant</p>
+  <p className="text-sm font-black text-red-400">{chartSummary.totalSortant.toLocaleString()}</p>
+  </div>
+  <div className="text-center">
+  <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">Exchange</p>
+  <p className="text-sm font-black text-blue-400">{chartSummary.totalExchange.toLocaleString()}</p>
+  </div>
+  <div className="text-center">
+  <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">MPAY</p>
+  <p className="text-sm font-black text-amber-400">{chartSummary.totalMpay.toLocaleString()}</p>
+  <p className="text-[6px] text-amber-500/60">{chartSummary.mpayCount} tx</p>
+  </div>
+  <div className="text-center">
+  <p className="text-[7px] font-black text-slate-500 uppercase tracking-wider">TX Total</p>
+  <p className="text-sm font-black text-white">{chartSummary.transactionCount}</p>
+  </div>
+  </div>
                     </Card>
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
                         <p className="text-[10px] font-black uppercase text-blue-500 mb-4 tracking-widest">Logs Audit (Dernières Actions)</p>
