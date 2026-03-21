@@ -372,6 +372,13 @@ const filteredContacts = contacts.filter(
     ? /^G[A-Z2-7]{55}$/.test(selectedContact.contactId) || 
       /^G[A-Z2-7]{55}$/.test(selectedContact.username || "")
     : false;
+  
+  // Get the external address for display - check both contactId and username
+  const externalAddress = selectedContact && isExternalPiAddress
+    ? (/^G[A-Z2-7]{55}$/.test(selectedContact.contactId) 
+        ? selectedContact.contactId 
+        : selectedContact.username || "")
+    : null;
 
   const handleConfirmSend = async () => {
     if (!selectedContact) return;
