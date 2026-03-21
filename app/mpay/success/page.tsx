@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Home, Share2, Copy, Check, ExternalLink, ShieldCheck, Zap } from "lucide-react";
+import { CheckCircle2, Home, Share2, Copy, Check, ExternalLink, ShieldCheck, Zap, Globe } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -14,9 +14,15 @@ export default function PaymentSuccess() {
   const amount = params.get("amount") || "0";
   const to = params.get("to") || "Utilisateur PimPay";
   const txid = params.get("txid") || "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const isExternal = params.get("external") === "true";
+  const blockchainHash = params.get("hash") || "";
   const date = new Date().toLocaleString("fr-FR", {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
   });
+  
+  const explorerUrl = blockchainHash 
+    ? `https://pi-blockchain.net/tx/${blockchainHash}` 
+    : `https://pi-blockchain.net/search?q=${txid}`;
 
   useEffect(() => {
     const timer = setTimeout(() => setShowContent(true), 400);
@@ -34,7 +40,7 @@ export default function PaymentSuccess() {
     <main className="min-h-screen bg-[#020617] text-white font-sans selection:bg-blue-500/30">
       {/* Ambient success glow */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[70%] h-[40%] bg-emerald-500/8 blur-[150px] rounded-full animate-pulse" />
+        <div className={`absolute top-[-10%] left-1/2 -translate-x-1/2 w-[70%] h-[40%] blur-[150px] rounded-full animate-pulse ${isExternal ? 'bg-amber-500/8' : 'bg-emerald-500/8'}`} />
       </div>
 
       {/* Confetti-like particles */}
@@ -58,20 +64,20 @@ export default function PaymentSuccess() {
         {/* Success Animation */}
         <div className="flex flex-col items-center mb-10 animate-in zoom-in-50 duration-700">
           <div className="relative mb-6">
-            <div className="absolute -inset-6 bg-emerald-500/20 rounded-full blur-2xl animate-pulse" />
+            <div className={`absolute -inset-6 rounded-full blur-2xl animate-pulse ${isExternal ? 'bg-amber-500/20' : 'bg-emerald-500/20'}`} />
             <div className="relative w-24 h-24 rounded-full flex items-center justify-center">
               {/* Animated ring */}
               <svg className="absolute inset-0 w-full h-full" viewBox="0 0 96 96">
                 <circle
                   cx="48" cy="48" r="44"
                   fill="none"
-                  stroke="rgba(16, 185, 129, 0.15)"
+                  stroke={isExternal ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)"}
                   strokeWidth="3"
                 />
                 <circle
                   cx="48" cy="48" r="44"
                   fill="none"
-                  stroke="#10b981"
+                  stroke={isExternal ? "#f59e0b" : "#10b981"}
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeDasharray="276"
@@ -80,11 +86,19 @@ export default function PaymentSuccess() {
                   style={{ transformOrigin: "center" }}
                 />
               </svg>
-              <CheckCircle2 size={48} className="text-emerald-500 relative z-10" />
+              {isExternal ? (
+                <Globe size={48} className="text-amber-500 relative z-10" />
+              ) : (
+                <CheckCircle2 size={48} className="text-emerald-500 relative z-10" />
+              )}
             </div>
           </div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">Confirme</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] text-center">Transaction validee avec succes</p>
+          <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">
+            {isExternal ? 'Envoye' : 'Confirme'}
+          </h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] text-center">
+            {isExternal ? 'Transaction blockchain confirmee' : 'Transaction validee avec succes'}
+          </p>
         </div>
 
         {/* Receipt Card */}
@@ -116,17 +130,45 @@ export default function PaymentSuccess() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Statut</span>
-                  <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black px-3 py-1 rounded-full border border-emerald-500/20">CONFIRME</span>
+                  <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${isExternal ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
+                    {isExternal ? 'BLOCKCHAIN CONFIRME' : 'CONFIRME'}
+                  </span>
                 </div>
-                <div className="pt-4 border-t border-dashed border-white/10">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">ID Transaction</span>
-                  <button
-                    onClick={copyTxid}
-                    className="w-full flex items-center justify-between gap-2 bg-white/5 px-4 py-3 rounded-xl border border-white/5 hover:bg-white/10 transition-all"
-                  >
-                    <span className="text-[10px] font-mono text-slate-400 truncate">{txid}</span>
-                    {copied ? <Check size={14} className="text-emerald-500 shrink-0" /> : <Copy size={14} className="text-slate-500 shrink-0" />}
-                  </button>
+                {isExternal && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Type</span>
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+                      <Globe size={12} /> Pi Wallet Externe
+                    </span>
+                  </div>
+                )}
+                <div className="pt-4 border-t border-dashed border-white/10 space-y-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">ID Transaction</span>
+                    <button
+                      onClick={copyTxid}
+                      className="w-full flex items-center justify-between gap-2 bg-white/5 px-4 py-3 rounded-xl border border-white/5 hover:bg-white/10 transition-all"
+                    >
+                      <span className="text-[10px] font-mono text-slate-400 truncate">{txid}</span>
+                      {copied ? <Check size={14} className="text-emerald-500 shrink-0" /> : <Copy size={14} className="text-slate-500 shrink-0" />}
+                    </button>
+                  </div>
+                  {blockchainHash && (
+                    <div>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest block mb-2 flex items-center gap-1">
+                        <Globe size={10} /> Hash Blockchain
+                      </span>
+                      <a
+                        href={explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-between gap-2 bg-amber-500/5 px-4 py-3 rounded-xl border border-amber-500/20 hover:bg-amber-500/10 transition-all"
+                      >
+                        <span className="text-[9px] font-mono text-amber-400/80 truncate">{blockchainHash.slice(0, 16)}...{blockchainHash.slice(-8)}</span>
+                        <ExternalLink size={14} className="text-amber-500 shrink-0" />
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -137,10 +179,15 @@ export default function PaymentSuccess() {
                 <Share2 size={14} className="text-blue-500" />
                 Partager
               </button>
-              <button className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95">
-                <ExternalLink size={14} className="text-blue-500" />
-                Explorateur
-              </button>
+              <a 
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95"
+              >
+                <ExternalLink size={14} className={isExternal ? "text-amber-500" : "text-blue-500"} />
+                {isExternal ? 'Pi Explorer' : 'Explorateur'}
+              </a>
             </div>
 
             {/* Primary CTA */}

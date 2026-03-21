@@ -5,7 +5,8 @@ import {
   ArrowLeft, Search, Send, Users, Delete,
   Loader2, ShieldCheck, Fingerprint, Zap,
   MessageSquare, CheckCircle2, ChevronRight,
-  User, X, UserPlus, Clock, Trash2
+  User, X, UserPlus, Clock, Trash2,
+  AlertTriangle, ExternalLink, Globe
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -347,31 +348,70 @@ const filteredContacts = contacts.filter(
     setStep(3);
   };
 
+  // Check if the selected contact is an external Pi wallet address
+  const isExternalPiAddress = selectedContact?.contactId === "external" && 
+    /^G[A-Z2-7]{55}$/.test(searchQuery || selectedContact?.username || "");
+  
+  const externalAddress = isExternalPiAddress 
+    ? (searchQuery || selectedContact?.username || "").replace("@", "")
+    : null;
+
   const handleConfirmSend = async () => {
     if (!selectedContact) return;
     
     setIsLoading(true);
     try {
-      // Use the real transaction API
-      const res = await fetch("/api/transaction/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientId: selectedContact.contactId,
-          amount: parseFloat(amount),
-          description: message || `Transfert P2P a ${selectedContact.name}`
-        }),
-      });
+      // Determine if this is an external Pi wallet transfer
+      const isExternal = selectedContact.contactId === "external" || 
+        /^G[A-Z2-7]{55}$/.test(selectedContact.contactId);
       
-      const data = await res.json();
-      
-      if (data.success || data.data) {
-        const txRef = data.data?.reference || `P2P-${Date.now()}`;
-        toast.success("Transfert envoye avec succes !");
-        router.push(`/mpay/success?amount=${amount}&to=${selectedContact.name || "Contact"}&txid=${txRef}`);
+      if (isExternal) {
+        // Use the external transfer API for Pi wallet addresses
+        const externalAddr = externalAddress || selectedContact.contactId;
+        
+        const res = await fetch("/api/mpay/external-transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            destination: externalAddr,
+            amount: parseFloat(amount),
+            memo: message || `Retrait PimPay`
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          const txRef = data.data?.txid || `EXT-${Date.now()}`;
+          const blockchainHash = data.data?.blockchainTxHash;
+          toast.success("Transfert blockchain reussi !");
+          router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&hash=${blockchainHash || ""}`);
+        } else {
+          toast.error(data.error || "Erreur lors du transfert externe");
+          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur blockchain")}`);
+        }
       } else {
-        toast.error(data.error || "Erreur lors du transfert");
-        router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
+        // Use the internal P2P transfer API
+        const res = await fetch("/api/transaction/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipientId: selectedContact.contactId,
+            amount: parseFloat(amount),
+            description: message || `Transfert P2P a ${selectedContact.name}`
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (data.success || data.data) {
+          const txRef = data.data?.reference || `P2P-${Date.now()}`;
+          toast.success("Transfert envoye avec succes !");
+          router.push(`/mpay/success?amount=${amount}&to=${selectedContact.name || "Contact"}&txid=${txRef}`);
+        } else {
+          toast.error(data.error || "Erreur lors du transfert");
+          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
+        }
       }
     } catch (error: any) {
       console.error("Transfer error:", error);
@@ -450,18 +490,33 @@ const filteredContacts = contacts.filter(
             {/* Search Results from API */}
             {searchedUser && (
               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <CheckCircle2 size={12} />
-                  Utilisateur trouve
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${searchedUser.isExternal ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  {searchedUser.isExternal ? <Globe size={12} /> : <CheckCircle2 size={12} />}
+                  {searchedUser.isExternal ? 'Adresse Pi Wallet detectee' : 'Utilisateur trouve'}
                 </p>
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
+                <div className={`rounded-2xl p-4 ${searchedUser.isExternal ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-emerald-500/5 border border-emerald-500/20'}`}>
+                  {/* External address warning */}
+                  {searchedUser.isExternal && (
+                    <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+                      <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Transfert Blockchain</p>
+                        <p className="text-[9px] text-amber-400/80 leading-relaxed">
+                          Ce transfert sera effectue directement sur la blockchain Pi Network. 
+                          Verifiez bien l'adresse car les transactions sont irreversibles.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => handleSelectSearchedUser(searchedUser)}
                     className="w-full flex items-center gap-4 hover:opacity-80 transition-all"
                   >
-                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 rounded-full flex items-center justify-center border border-emerald-500/20 overflow-hidden">
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border overflow-hidden ${searchedUser.isExternal ? 'bg-gradient-to-br from-amber-600/20 to-orange-600/20 border-amber-500/20' : 'bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 border-emerald-500/20'}`}>
                       {searchedUser.avatar ? (
                         <img src={searchedUser.avatar} alt={searchedUser.firstName} className="w-full h-full object-cover" />
+                      ) : searchedUser.isExternal ? (
+                        <Globe size={20} className="text-amber-400" />
                       ) : (
                         <span className="text-sm font-black text-emerald-400">
                           {getInitials(`${searchedUser.firstName} ${searchedUser.lastName}`.trim() || searchedUser.username || "U")}
@@ -473,15 +528,17 @@ const filteredContacts = contacts.filter(
                         {searchedUser.firstName} {searchedUser.lastName}
                       </p>
                       {searchedUser.username && (
-                        <p className="text-[10px] font-bold text-cyan-500">@{searchedUser.username.replace("@", "")}</p>
+                        <p className={`text-[10px] font-bold ${searchedUser.isExternal ? 'text-amber-500 font-mono' : 'text-cyan-500'}`}>
+                          {searchedUser.isExternal ? searchedUser.username : `@${searchedUser.username.replace("@", "")}`}
+                        </p>
                       )}
                       <p className="text-[9px] font-bold text-slate-500 mt-0.5">
-                        {searchedUser.isExternal ? "Adresse externe" : "Utilisateur PimPay"}
+                        {searchedUser.isExternal ? `Pi Network ${searchedUser.lastName}` : "Utilisateur PimPay"}
                       </p>
                     </div>
-                    <ChevronRight size={18} className="text-emerald-400" />
+                    <ChevronRight size={18} className={searchedUser.isExternal ? 'text-amber-400' : 'text-emerald-400'} />
                   </button>
-                  {/* Add to contacts button */}
+                  {/* Add to contacts button - only for internal users */}
                   {!searchedUser.isExternal && (
                     <button
                       onClick={(e) => {
@@ -733,54 +790,100 @@ const filteredContacts = contacts.filter(
         {/* STEP 4: CONFIRM */}
         {step === 4 && selectedContact && (
           <div className="space-y-6 animate-in zoom-in-95 duration-500">
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-8 space-y-6 relative overflow-hidden backdrop-blur-xl">
+            {/* External transfer warning banner */}
+            {isExternalPiAddress && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide mb-1 flex items-center gap-2">
+                    <ExternalLink size={12} />
+                    Transfert vers Pi Wallet externe
+                  </p>
+                  <p className="text-[10px] text-amber-400/80 leading-relaxed">
+                    Ce transfert sera effectue sur la blockchain Pi Network. 
+                    Assurez-vous que l'adresse est correcte - les transactions blockchain sont irreversibles.
+                    Delai estime: 1-5 minutes.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className={`border rounded-[2rem] p-8 space-y-6 relative overflow-hidden backdrop-blur-xl ${isExternalPiAddress ? 'bg-amber-900/20 border-amber-500/20' : 'bg-slate-900/60 border-white/10'}`}>
               <div className="absolute top-0 right-0 p-8 opacity-5">
-                <ShieldCheck size={120} />
+                {isExternalPiAddress ? <Globe size={120} /> : <ShieldCheck size={120} />}
               </div>
 
               <div className="text-center mb-2">
-                <p className="text-[10px] font-black text-cyan-500 uppercase tracking-[3px] mb-2">Transfert P2P</p>
-                <p className="text-3xl font-black">{amount} <span className="text-cyan-500">Pi</span></p>
+                <p className={`text-[10px] font-black uppercase tracking-[3px] mb-2 ${isExternalPiAddress ? 'text-amber-500' : 'text-cyan-500'}`}>
+                  {isExternalPiAddress ? 'Retrait Blockchain Pi' : 'Transfert P2P'}
+                </p>
+                <p className="text-3xl font-black">{amount} <span className={isExternalPiAddress ? 'text-amber-500' : 'text-cyan-500'}>Pi</span></p>
               </div>
 
-<div className="space-y-3">
+              <div className="space-y-3">
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Destinataire</span>
-                  <span className="font-black text-xs text-cyan-400 uppercase">{selectedContact.nickname || selectedContact.name}</span>
-                </div>
-                <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Username</span>
-                  <span className="font-black text-xs uppercase">
-                    {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || "-"}
+                  <span className={`font-black text-xs uppercase ${isExternalPiAddress ? 'text-amber-400' : 'text-cyan-400'}`}>
+                    {isExternalPiAddress ? 'Pi Wallet Externe' : (selectedContact.nickname || selectedContact.name)}
                   </span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Frais</span>
-                  <span className="font-black text-xs text-emerald-400 uppercase">0.00 Pi</span>
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">
+                    {isExternalPiAddress ? 'Adresse' : 'Username'}
+                  </span>
+                  <span className={`font-black text-xs ${isExternalPiAddress ? 'font-mono text-[10px] text-amber-400/80' : 'uppercase'}`}>
+                    {isExternalPiAddress && externalAddress
+                      ? `${externalAddress.slice(0, 8)}...${externalAddress.slice(-8)}`
+                      : (selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || "-")
+                    }
+                  </span>
                 </div>
+                <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Frais reseau</span>
+                  <span className={`font-black text-xs uppercase ${isExternalPiAddress ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {isExternalPiAddress ? '~0.01 Pi' : '0.00 Pi'}
+                  </span>
+                </div>
+                {isExternalPiAddress && (
+                  <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Type</span>
+                    <span className="font-black text-xs text-amber-400 uppercase flex items-center gap-1">
+                      <Globe size={12} /> Blockchain Pi
+                    </span>
+                  </div>
+                )}
                 {message && (
                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest block mb-2">Message</span>
+                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest block mb-2">Memo</span>
                     <p className="text-xs font-medium text-slate-300">{message}</p>
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col items-center justify-center py-4 gap-3">
-                <div className="p-4 rounded-full bg-cyan-600/10 border border-cyan-500/20 text-cyan-500 animate-bounce">
+                <div className={`p-4 rounded-full border animate-bounce ${isExternalPiAddress ? 'bg-amber-600/10 border-amber-500/20 text-amber-500' : 'bg-cyan-600/10 border-cyan-500/20 text-cyan-500'}`}>
                   <Fingerprint size={32} />
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Confirmer le transfert</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  {isExternalPiAddress ? 'Confirmer le retrait' : 'Confirmer le transfert'}
+                </p>
               </div>
             </div>
 
             <button
               onClick={handleConfirmSend}
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm shadow-2xl shadow-cyan-600/40 flex items-center justify-center gap-4 active:scale-95 transition-all disabled:opacity-50"
+              className={`w-full p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm shadow-2xl flex items-center justify-center gap-4 active:scale-95 transition-all disabled:opacity-50 ${
+                isExternalPiAddress 
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 shadow-amber-600/40' 
+                  : 'bg-gradient-to-r from-cyan-600 to-blue-600 shadow-cyan-600/40'
+              }`}
             >
-              {isLoading ? <Loader2 className="animate-spin" /> : <Send size={18} />}
-              {isLoading ? "Envoi en cours..." : "Envoyer maintenant"}
+              {isLoading ? <Loader2 className="animate-spin" /> : (isExternalPiAddress ? <ExternalLink size={18} /> : <Send size={18} />)}
+              {isLoading 
+                ? (isExternalPiAddress ? "Traitement blockchain..." : "Envoi en cours...") 
+                : (isExternalPiAddress ? "Confirmer le retrait" : "Envoyer maintenant")
+              }
             </button>
           </div>
         )}
