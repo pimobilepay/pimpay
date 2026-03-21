@@ -405,6 +405,7 @@ const filteredContacts = contacts.filter(
         const res = await fetch("/api/mpay/external-transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             destination: externalAddr,
             amount: parseFloat(amount),
@@ -413,22 +414,25 @@ const filteredContacts = contacts.filter(
         });
         
         const data = await res.json();
+        console.log("[v0] External transfer response:", { status: res.status, data });
         
-        if (data.success) {
+        if (res.ok && data.success) {
           const txRef = data.data?.txid || `WD-${Date.now()}`;
           const status = data.data?.status || "BROADCASTED";
           const blockchainHash = data.data?.blockchainTxHash || "";
           toast.success(data.message || "Transfert Pi reussi !");
           router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
-          toast.error(data.error || "Erreur lors du retrait");
-          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur de retrait")}`);
+          const errorMsg = data.error || `Erreur ${res.status}`;
+          toast.error(errorMsg);
+          router.push(`/mpay/failed?reason=${encodeURIComponent(errorMsg)}`);
         }
       } else {
         // Use the internal P2P transfer API
         const res = await fetch("/api/transaction/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             recipientId: selectedContact.contactId,
             amount: parseFloat(amount),

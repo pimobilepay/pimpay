@@ -36,6 +36,8 @@ const PI_MASTER_SECRET     = process.env.PI_MASTER_WALLET_SECRET;
 async function piApi(endpoint: string, method: string, body?: unknown) {
   if (!PI_API_KEY) throw new Error("PI_API_KEY non configure");
 
+  console.log("[v0] Pi API call:", { endpoint, method, body });
+
   const res = await fetch(`${PI_API_URL}${endpoint}`, {
     method,
     headers: {
@@ -46,6 +48,8 @@ async function piApi(endpoint: string, method: string, body?: unknown) {
   });
 
   const json = await res.json().catch(() => ({}));
+  console.log("[v0] Pi API response:", { status: res.status, ok: res.ok, json });
+  
   if (!res.ok) {
     throw new Error(
       (json as any).error_message ||
@@ -161,6 +165,8 @@ export async function POST(req: NextRequest) {
 
   const { destination, amount, memo, uid } = body;
   const senderId = session.id;
+
+  console.log("[v0] External transfer request:", { destination, amount, memo, uid, senderId });
 
   // 2. Validation
   const amountNum = parseFloat(amount);
@@ -290,7 +296,12 @@ export async function POST(req: NextRequest) {
     }
   } catch (err: any) {
     transferError = err.message;
-    console.error("[EXTERNAL_TRANSFER] Erreur:", err);
+    console.log("[v0] Transfer error details:", {
+      message: err.message,
+      name: err.name,
+      stack: err.stack?.split('\n').slice(0, 3),
+      response: err.response?.data
+    });
   }
 
   // 7. Mettre a jour la transaction DB
