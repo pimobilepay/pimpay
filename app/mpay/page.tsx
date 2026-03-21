@@ -477,7 +477,11 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                   <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 mb-2 border border-blue-500/20">
                     <Cpu size={24} />
                   </div>
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{merchantId || "MARCHAND PIMPAY"}</span>
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest max-w-full truncate px-4">
+                    {merchantId && merchantId.length > 20 
+                      ? `${merchantId.slice(0, 8)}...${merchantId.slice(-8)}` 
+                      : (merchantId || "MARCHAND PIMPAY")}
+                  </span>
                 </div>
 
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant du Transfert</div>
@@ -553,8 +557,12 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
 
                 <div className="space-y-3">
                   <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Marchand</span>
-                    <span className="font-black text-xs text-blue-400 uppercase">{merchantId}</span>
+                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest flex-shrink-0">Marchand</span>
+                    <span className="font-black text-xs text-blue-400 uppercase truncate ml-2 max-w-[180px]">
+                      {merchantId && merchantId.length > 20 
+                        ? `${merchantId.slice(0, 8)}...${merchantId.slice(-8)}` 
+                        : merchantId}
+                    </span>
                   </div>
                   <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                     <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Protocole</span>

@@ -723,18 +723,22 @@ const filteredContacts = contacts.filter(
         {step === 2 && selectedContact && (
           <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
             {/* Contact Info */}
-            <div className="flex items-center gap-4 p-4 bg-cyan-600/5 border border-cyan-500/20 rounded-2xl">
-              <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden">
+            <div className="flex items-center gap-4 p-4 bg-cyan-600/5 border border-cyan-500/20 rounded-2xl overflow-hidden">
+              <div className="w-12 h-12 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden flex-shrink-0">
                 {selectedContact.avatar ? (
                   <img src={selectedContact.avatar} alt={selectedContact.name} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-sm font-black text-cyan-400">{selectedContact.initials}</span>
                 )}
               </div>
-              <div>
-                <p className="text-sm font-black uppercase tracking-tight">{selectedContact.nickname || selectedContact.name}</p>
-                <p className="text-[10px] font-bold text-cyan-500">
-                  {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || ""}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black uppercase tracking-tight truncate">{selectedContact.nickname || selectedContact.name}</p>
+                <p className="text-[10px] font-bold text-cyan-500 truncate">
+                  {selectedContact.username 
+                    ? (selectedContact.username.length > 24 
+                        ? `@${selectedContact.username.replace("@", "").slice(0, 8)}...${selectedContact.username.slice(-8)}` 
+                        : `@${selectedContact.username.replace("@", "")}`)
+                    : selectedContact.phone || ""}
                 </p>
               </div>
             </div>
@@ -784,23 +788,27 @@ const filteredContacts = contacts.filter(
         {step === 3 && selectedContact && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Summary top */}
-            <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden">
+            <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-full flex items-center justify-center border border-cyan-500/20 overflow-hidden flex-shrink-0">
                   {selectedContact.avatar ? (
                     <img src={selectedContact.avatar} alt={selectedContact.name} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-[10px] font-black text-cyan-400">{selectedContact.initials}</span>
                   )}
                 </div>
-                <div>
-                  <p className="text-xs font-black uppercase">{selectedContact.nickname || selectedContact.name}</p>
-                  <p className="text-[9px] text-slate-500 font-bold">
-                    {selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || ""}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black uppercase truncate">{selectedContact.nickname || selectedContact.name}</p>
+                  <p className="text-[9px] text-slate-500 font-bold truncate">
+                    {selectedContact.username 
+                      ? (selectedContact.username.length > 20 
+                          ? `@${selectedContact.username.replace("@", "").slice(0, 8)}...${selectedContact.username.slice(-6)}` 
+                          : `@${selectedContact.username.replace("@", "")}`)
+                      : selectedContact.phone || ""}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right flex-shrink-0 ml-2">
                 <p className="text-lg font-black">{amount} <span className="text-cyan-500">Pi</span></p>
               </div>
             </div>
