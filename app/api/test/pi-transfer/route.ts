@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
       success: true,
       hash: result.hash,
       message: `Transfert de ${amount} Pi vers ${destination} reussi!`,
-      explorerUrl: `https://pi-blockchain.net/tx/${result.hash}`
+      explorerUrl: `https://blockexplorer.minepi.com/tx/${result.hash}`
     });
     
   } catch (error: any) {

@@ -162,18 +162,14 @@ export async function POST(req: NextRequest) {
   const { destination, amount, memo, uid } = body;
   const senderId = session.id;
 
-  console.log("[EXTERNAL_TRANSFER] Request received:", { destination, amount, memo, uid });
-
   // 2. Validation
   const amountNum = parseFloat(amount);
   if (!destination || isNaN(amountNum) || amountNum <= 0) {
-    console.log("[EXTERNAL_TRANSFER] Invalid params:", { destination, amount, amountNum });
     return NextResponse.json({ success: false, error: "Parametres invalides" }, { status: 400 });
   }
 
   // Check if destination is the literal string "external" (bug from frontend)
   if (destination === "external" || destination === "External") {
-    console.log("[EXTERNAL_TRANSFER] Received 'external' as destination - frontend bug");
     return NextResponse.json({ 
       success: false, 
       error: "Adresse invalide. Veuillez re-entrer l'adresse Pi du destinataire." 

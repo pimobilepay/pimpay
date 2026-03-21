@@ -382,7 +382,7 @@ export default function WalletPage() {
               if (tx.type === "EXCHANGE" || tx.type === "SWAP") { txType = t("wallet.swapLabel"); TxIcon = ArrowLeftRight; iconBg = "bg-blue-500/10"; iconColor = "text-blue-400"; amountPrefix = ""; }
               else if (tx.isDebit === false) { txType = tx.type === "DEPOSIT" ? t("wallet.depositLabel") : t("wallet.received"); TxIcon = ArrowDownLeft; iconBg = "bg-emerald-500/10"; iconColor = "text-emerald-400"; amountPrefix = "+"; amountColor = "text-emerald-400"; }
               return (
-                <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer" onClick={() => { const hash = tx.blockchainTx || tx.externalId; if (hash) { const url = tx.currency === 'SDA' ? `https://ledger.sidrachain.com/tx/${hash}` : `https://minepi.com/blockexplorer/tx/${hash}`; window.open(url, '_blank'); } }}>
+                <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer" onClick={() => { const hash = tx.blockchainTx || tx.externalId; if (hash) { const url = tx.currency === 'SDA' ? `https://ledger.sidrachain.com/tx/${hash}` : `https://blockexplorer.minepi.com/tx/${hash}`; window.open(url, '_blank'); } }}>
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}><TxIcon size={18} className={iconColor} /></div>
                     <div>

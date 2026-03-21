@@ -38,7 +38,7 @@ const ASSET_CONFIG: Record<string, {
     accentBg: "bg-blue-500/10",
     accentBorder: "border-blue-500/20",
     explorerLabel: "Pi Explorer",
-    explorerBase: "https://minepi.com/blockexplorer/tx/",
+    explorerBase: "https://blockexplorer.minepi.com/tx/",
     decimals: 7,
   },
   SDA: {

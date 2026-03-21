@@ -23,8 +23,8 @@ export default function PaymentSuccess() {
   });
   
   const explorerUrl = blockchainHash 
-    ? `https://pi-blockchain.net/tx/${blockchainHash}` 
-    : `https://pi-blockchain.net/search?q=${txid}`;
+    ? `https://blockexplorer.minepi.com/tx/${blockchainHash}` 
+    : `https://blockexplorer.minepi.com/`;
 
   useEffect(() => {
     const timer = setTimeout(() => setShowContent(true), 400);

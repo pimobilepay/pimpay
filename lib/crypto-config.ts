@@ -32,7 +32,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     category: "CRYPTO",
     addressField: "xlmAddress",
     decimals: 8,
-    explorerBase: "https://minepi.com/blockexplorer/tx/",
+    explorerBase: "https://blockexplorer.minepi.com/tx/",
     accentColor: "text-indigo-400",
     defaultPrice: 314159,
   },

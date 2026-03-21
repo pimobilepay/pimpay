@@ -391,21 +391,9 @@ const filteredContacts = contacts.filter(
     
     setIsLoading(true);
     try {
-      // Use the already computed values for external Pi address detection
-      console.log("[v0] Transfer debug:", {
-        contactId: selectedContact.contactId,
-        username: selectedContact.username,
-        isPiAddressInContactId,
-        isPiAddressInUsername,
-        isExternalPiAddress,
-        externalAddress
-      });
-      
       if (isExternalPiAddress) {
         // Use the already computed externalAddress
         const externalAddr = externalAddress;
-        
-        console.log("[v0] Sending external transfer to:", externalAddr);
         
         // Validate the address before sending
         if (!externalAddr || !piAddressRegex.test(externalAddr)) {
