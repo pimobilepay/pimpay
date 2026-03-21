@@ -505,8 +505,42 @@ export default function AssetDetailPage() {
                     setSendStatus("loading");
                     
                     try {
-                      // Tous les transferts passent par l'API /api/wallet/send
-                      // L'API gère les différences : interne vs externe, Pi vs autres cryptos
+                      // Pour Pi Network, utiliser l'API mpay/external-transfer qui fait le broadcast blockchain direct
+                      if (assetId === "PI") {
+                        const res = await fetch("/api/mpay/external-transfer", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          credentials: "include",
+                          body: JSON.stringify({
+                            destination: sendAddress,
+                            amount: parseFloat(sendAmount),
+                            memo: `Retrait PimPay Wallet`,
+                          }),
+                        });
+                        const result = await res.json();
+                        
+                        if (res.ok && result.success) {
+                          const txHash = result.data?.blockchainTxHash || result.data?.txid || "";
+                          const status = result.data?.status || "BROADCASTED";
+                          
+                          if (status === "COMPLETED" || status === "BROADCASTED") {
+                            setSendStatus("success");
+                            setSendMessage(result.message || `${sendAmount} PI envoyés avec succès`);
+                            setSendTxHash(txHash);
+                            toast.success("Transfert Pi reussi !");
+                          } else {
+                            setSendStatus("pending");
+                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. En attente de confirmation.`);
+                            setSendTxHash(txHash || result.data?.txid || "");
+                          }
+                        } else {
+                          toast.error(result.error || "Erreur lors de l'envoi Pi");
+                          setSendStatus("idle");
+                        }
+                        return;
+                      }
+                      
+                      // Pour les autres cryptos, utiliser l'API /api/wallet/send
                       const res = await fetch("/api/wallet/send", { 
                         method: "POST", 
                         headers: { "Content-Type": "application/json" }, 
