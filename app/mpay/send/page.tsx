@@ -383,9 +383,10 @@ const filteredContacts = contacts.filter(
         
         if (data.success) {
           const txRef = data.data?.txid || `WD-${Date.now()}`;
-          const status = data.data?.status || "QUEUED";
-          toast.success(data.message || "Retrait en cours de traitement !");
-          router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}`);
+          const status = data.data?.status || "BROADCASTED";
+          const blockchainHash = data.data?.blockchainTxHash || "";
+          toast.success(data.message || "Transfert Pi reussi !");
+          router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
           toast.error(data.error || "Erreur lors du retrait");
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur de retrait")}`);
