@@ -29,7 +29,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ticket });
     }
 
-    // List tickets
     const tickets = await prisma.supportTicket.findMany({
       where: isAdmin ? {} : user?.id ? { userId: user.id } : { userId: null },
       orderBy: { createdAt: "desc" },
@@ -62,11 +61,9 @@ export async function POST(req: NextRequest) {
     const sanitizedMessage = message.trim();
     const isAdmin = user?.role === "ADMIN" || user?.role === "AGENT";
 
-    // ---- 1. Resolve or create ticket ----
     let ticket;
 
     if (!ticketId) {
-      // New ticket
       ticket = await prisma.supportTicket.create({
         data: {
           userId: user?.id || null,
@@ -80,7 +77,6 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
-      // Existing ticket — verify ownership (admin can access any)
       ticket = await prisma.supportTicket.findFirst({
         where: isAdmin
           ? { id: ticketId }
@@ -93,7 +89,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Ticket introuvable" }, { status: 404 });
       }
 
-      // Add user/admin message
       await prisma.message.create({
         data: {
           ticketId: ticket.id,
@@ -103,31 +98,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ---- 2. Elara AI auto-reply (only when the *user* writes, not admin) ----
+    // ---- 2. Elara AI Logic with Instant FAQ Priority ----
     if (!isAdmin) {
       const allMsgs = await prisma.message.findMany({
         where: { ticketId: ticket.id },
         orderBy: { createdAt: "asc" },
       });
 
-      // Count user messages (everything except ELARA_AI and SUPPORT)
       const userMsgs = allMsgs.filter(
         (m) => m.senderId !== "ELARA_AI" && m.senderId !== "SUPPORT"
       );
 
+      const faqResponse = getAutoReply(sanitizedMessage);
+      const isKnownQuestion = !faqResponse.includes("Je n'ai pas trouve de reponse precise");
+
       let elaraReply = "";
 
-      if (userMsgs.length === 1) {
-        elaraReply =
-          "Bonjour ! Je suis Elara, votre assistante PimPay. Pour mieux vous aider, pouvez-vous me donner votre **Nom complet** ?";
+      // Si c'est une question identifiée, on répond direct sans tunnel
+      if (isKnownQuestion) {
+        elaraReply = faqResponse;
+      } 
+      // Sinon, tunnel de collecte de données standard
+      else if (userMsgs.length === 1) {
+        elaraReply = "Bonjour ! Je suis Elara, votre assistante PimPay. Pour mieux vous aider, pouvez-vous me donner votre **Nom complet** ?";
       } else if (userMsgs.length === 2) {
-        elaraReply =
-          "Merci ! Quelle est votre **adresse email** pour le suivi de ce ticket ?";
+        elaraReply = "Merci ! Quelle est votre **adresse email** pour le suivi de ce ticket ?";
       } else if (userMsgs.length === 3) {
-        elaraReply =
-          "C'est note. Je transmets votre dossier au support PimPay. Comment puis-je vous aider en attendant ?";
+        elaraReply = "C'est note. Je transmets votre dossier au support PimPay. Comment puis-je vous aider en attendant ?";
       } else {
-        elaraReply = getAutoReply(sanitizedMessage);
+        elaraReply = faqResponse;
       }
 
       await prisma.message.create({
@@ -139,7 +138,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ---- 3. Return updated ticket ----
     const updated = await prisma.supportTicket.findUnique({
       where: { id: ticket.id },
       include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -153,7 +151,7 @@ export async function POST(req: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// Elara keyword-based auto-reply helper with enhanced FAQ
+// Elara FAQ — Updated with Visual Precisions (Congo-Brazza & DRC)
 // ---------------------------------------------------------------------------
 interface FAQEntry {
   keywords: string[];
@@ -162,108 +160,56 @@ interface FAQEntry {
 }
 
 const ELARA_FAQ: FAQEntry[] = [
-  // Depot
   {
     keywords: ["depot", "deposit", "deposer", "alimenter", "recharger", "ajouter argent"],
-    response: "Pour effectuer un depot:\n\n1. Allez dans **Portefeuille** > **Deposer**\n2. Choisissez votre methode: Mobile Money (Orange/MTN/Moov) ou Carte bancaire\n3. Entrez le montant et confirmez\n\nLe traitement est generalement effectue en moins de 5 minutes. Des frais de 2-3.5% s'appliquent selon la methode.",
+    response: "Pour alimenter votre compte PimPay :\n\n1. Allez sur la page **Depot**.\n2. Cliquez sur l'onglet **CRYPTO**.\n3. Utilisez l'option **PI NETWORK GCV BRIDGE** pour vos Pi (actuellement en Testnet).\n\n*Note : Les recharges directes via Mobile Money (MTN/Airtel) seront actives lors du passage au Mainnet.*",
     category: "depot"
   },
-  // Retrait
   {
     keywords: ["retrait", "withdraw", "retirer", "recuperer", "sortir argent"],
-    response: "Pour effectuer un retrait:\n\n1. Allez dans **Portefeuille** > **Retirer**\n2. Selectionnez la destination: Mobile Money ou Compte bancaire\n3. Entrez le montant (minimum 1.0 unite)\n4. Confirmez avec votre PIN\n\nLes retraits sont traites sous 15-30 minutes. Les frais varient de 2-2.5% selon la methode.",
+    response: "Pour effectuer un retrait sur **PimPay** :\n\n1. Allez sur la page **Retrait**.\n2. Choisissez l'onglet **MOBILE** (pour M-Pesa, Orange, Airtel, Africell) ou **VIREMENT BANCAIRE**.\n3. Entrez le numero beneficiaire et le montant en Pi.\n4. **Statut :** Les retraits s'operent sur le Testnet pour le moment. Le cash-out reel sera disponible au Mainnet.",
     category: "retrait"
   },
-  // Swap/Exchange
   {
-    keywords: ["swap", "echanger", "convertir", "conversion", "exchange", "changer"],
-    response: "Pour echanger vos devises:\n\n1. Allez dans **Swap**\n2. Selectionnez la devise source et destination\n3. Entrez le montant a echanger\n4. Verifiez le taux et les frais (0.1%)\n5. Confirmez l'echange\n\nLe taux est calcule en temps reel avec protection contre la volatilite.",
+    keywords: ["mpay", "m-pay", "map", "boutique", "magasin", "payer"],
+    response: "La page **MPay** est votre hub d'utilisation :\n\n- **Map of Pi :** Visualisez les commercants (Dakar, etc.) acceptant le Pi.\n- **Scanner/Payer :** Effectuez vos paiements marchands en un clic.\n- **P2P :** Retrouvez vos contacts recents pour des transferts rapides.",
+    category: "mpay"
+  },
+  {
+    keywords: ["swap", "echanger", "convertir", "conversion"],
+    response: "Pour echanger vos devises, allez dans **Swap**. Vous pouvez convertir vos Pi vers d'autres devises ou cryptos. Le taux est calcule en temps reel (0.1% de frais).",
     category: "swap"
   },
-  // Carte virtuelle
   {
-    keywords: ["carte", "card", "visa", "virtuelle", "paiement carte"],
-    response: "Concernant les cartes virtuelles PimPay:\n\n**4 types disponibles:**\n- CLASSIC: Limite 500$/mois\n- GOLD: Limite 2000$/mois\n- BUSINESS: Limite 10000$/mois\n- ULTRA: Limite illimitee\n\nPour generer une carte: Cartes > Creer une carte. Utilisable partout ou Visa est acceptee.",
+    keywords: ["carte", "card", "visa", "virtuelle"],
+    response: "Les cartes virtuelles PimPay (Classic, Gold, Business, Ultra) sont utilisables partout ou Visa est acceptee. Rendez-vous dans l'onglet **Card** de la page Depot pour voir les options bientot disponibles.",
     category: "carte"
   },
-  // KYC
   {
-    keywords: ["kyc", "verification", "identite", "verifier", "document"],
-    response: "Pour la verification KYC:\n\n1. Allez dans **Profil** > **Verification**\n2. Uploadez votre piece d'identite (recto/verso)\n3. Prenez un selfie avec votre document\n4. Attendez la validation (< 24h)\n\n**Avantages:** Limites augmentees, acces a toutes les fonctionnalites.",
+    keywords: ["kyc", "verification", "identite"],
+    response: "La validation KYC (< 24h) est necessaire pour augmenter vos limites de retrait. Allez dans **Profil** > **Verification** pour uploader vos documents.",
     category: "kyc"
   },
-  // Transfert
   {
-    keywords: ["transfert", "envoyer", "transfer", "send", "p2p", "envoi"],
-    response: "Pour envoyer des fonds:\n\n**Transfert PimPay (P2P):**\n1. Allez dans **Envoyer**\n2. Entrez l'ID ou scannez le QR du destinataire\n3. Choisissez le montant et la devise\n4. Confirmez (frais: 1%)\n\n**Vers wallet externe:**\nAllez dans Portefeuille > Retirer vers wallet externe.",
-    category: "transfert"
-  },
-  // Solde
-  {
-    keywords: ["solde", "balance", "combien", "avoir", "montant"],
-    response: "Votre solde est visible sur votre tableau de bord principal. Pour voir le detail par devise, allez dans **Portefeuille**.\n\nVous pouvez consulter:\n- Solde total en FCFA\n- Solde par crypto (Pi, SDA, BTC...)\n- Historique des transactions",
-    category: "solde"
-  },
-  // Sidra
-  {
-    keywords: ["sidra", "sda", "sidra chain"],
-    response: "**Sidra Chain** est une blockchain conforme a la Charia integree dans PimPay.\n\n**Avantages:**\n- Frais de gaz quasi-nuls (~0.0001 SDA)\n- Transactions rapides\n- Compatible Halal\n\nVous pouvez stocker et echanger des SDA directement depuis votre portefeuille.",
-    category: "crypto"
-  },
-  // Pi Network
-  {
-    keywords: ["pi", "pioneer", "pi network", "pi coin"],
-    response: "**Pi Network** est integre a PimPay via le SDK v2.0.\n\n**Fonctionnalites:**\n- Gerer votre solde Pi\n- Faire des swaps Pi <-> autres devises\n- Transferts entre Pioneers\n- Paiements en Pi\n\nConnectez votre wallet Pi dans Parametres > Connexions.",
-    category: "crypto"
-  },
-  // Staking
-  {
-    keywords: ["staking", "stake", "apy", "recompenses"],
-    response: "Le **Staking** vous permet de bloquer des tokens pour recevoir des recompenses.\n\n**Comment ca marche:**\n1. Allez dans **Staking**\n2. Choisissez le token et la duree\n3. Verifiez le taux APY\n4. Confirmez le blocage\n\nLes recompenses sont calculees quotidiennement et creditees automatiquement.",
-    category: "staking"
-  },
-  // Frais
-  {
-    keywords: ["frais", "fees", "commission", "cout", "tarif"],
-    response: "**Grille tarifaire PimPay:**\n\n- Transfert P2P: 1%\n- Depot Mobile: 2%\n- Depot Carte: 3.5%\n- Retrait Mobile: 2.5%\n- Retrait Banque: 2%\n- Swap/Exchange: 0.1%\n- Carte virtuelle: 1.5%/transaction\n\nTous les frais sont affiches avant confirmation.",
+    keywords: ["frais", "fees", "commission"],
+    response: "**Tarifs PimPay :**\n- Transfert P2P : 1%\n- Swap : 0.1%\n- Depot/Retrait : 2-3.5% selon l'operateur.\n\nTous les frais sont detailles avant chaque validation.",
     category: "frais"
   },
-  // Securite
   {
-    keywords: ["securite", "security", "pin", "mot de passe", "proteger", "2fa"],
-    response: "**Securisez votre compte:**\n\n1. **PIN**: Definissez un code PIN 6 chiffres\n2. **2FA**: Activez l'authentification a deux facteurs\n3. **Biometrie**: Activez Face ID / Touch ID\n\nAllez dans **Parametres** > **Securite** pour configurer.",
-    category: "securite"
-  },
-  // Support
-  {
-    keywords: ["support", "agent", "humain", "parler", "contacter"],
-    response: "Je transfere votre demande a un agent du support PimPay. Un membre de notre equipe va vous repondre ici dans les plus brefs delais (generalement < 15 min pendant les heures ouvrables).\n\nEn attendant, puis-je vous aider avec autre chose ?",
-    category: "support"
-  },
-  // Remerciements
-  {
-    keywords: ["merci", "thanks", "ok", "d'accord", "parfait", "super", "genial"],
+    keywords: ["merci", "thanks", "ok", "parfait", "super"],
     response: "Avec plaisir ! Je suis la pour vous aider. N'hesitez pas si vous avez d'autres questions - l'equipe PimPay et moi sommes a votre service 24/7.",
-    category: "politesse"
+    category: "politeness"
   },
-  // Salutations
   {
-    keywords: ["bonjour", "salut", "hello", "hi", "bonsoir", "coucou"],
-    response: "Bonjour ! Je suis **Elara**, votre assistante intelligente PimPay.\n\nComment puis-je vous aider aujourd'hui ? Vous pouvez me poser des questions sur:\n- Depots et retraits\n- Cartes virtuelles\n- Swaps et transferts\n- Verification KYC\n- Et bien plus !",
-    category: "politesse"
-  },
-  // Problemes
-  {
-    keywords: ["probleme", "erreur", "bug", "marche pas", "bloque", "echec", "impossible"],
-    response: "Je suis desolee pour ce desagrement. Pour mieux vous aider, pouvez-vous me preciser:\n\n1. **Quelle action** vous essayez de faire ?\n2. **Quel message d'erreur** s'affiche ?\n3. **Depuis quand** ce probleme persiste ?\n\nJe vais transmettre votre cas a un agent humain pour une resolution rapide.",
-    category: "support"
+    keywords: ["bonjour", "salut", "hello", "hi"],
+    response: "Bonjour ! Je suis **Elara**, votre assistante intelligente PimPay.\n\nComment puis-je vous aider aujourd'hui ? Je peux vous guider pour vos depots, retraits ou l'utilisation de MPay.",
+    category: "politeness"
   },
 ];
 
 function getAutoReply(msg: string): string {
   const low = msg.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  // Find matching FAQ entry
   for (const faq of ELARA_FAQ) {
     for (const keyword of faq.keywords) {
       const normalizedKeyword = keyword.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -273,6 +219,5 @@ function getAutoReply(msg: string): string {
     }
   }
 
-  // Default — escalate to human agent
-  return "Je n'ai pas trouve de reponse precise a votre question dans ma base de connaissances.\n\nUn agent du support PimPay va vous repondre ici tres bientot (generalement < 15 min). En attendant, n'hesitez pas a preciser votre demande ou a poser une autre question !";
+  return "Je n'ai pas trouve de reponse precise a votre question dans ma base de connaissances.\n\nUn agent du support PimPay va vous repondre ici tres bientot. En attendant, n'hesitez pas a preciser votre demande !";
 }
