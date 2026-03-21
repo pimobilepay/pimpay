@@ -45,19 +45,36 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Recherche du destinataire par email, username ou telephone
-    const cleanInput = recipientId.startsWith("@") ? recipientId.substring(1) : recipientId;
-    const recipient = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: { equals: cleanInput, mode: "insensitive" } },
-          { username: { equals: cleanInput, mode: "insensitive" } },
-          { phone: cleanInput },
-          { piUserId: cleanInput },
-        ]
-      },
-      include: { wallets: { where: { currency: "PI" }, take: 1 } }
-    });
+    // Recherche du destinataire par email, username, telephone ou code PIMPAY
+    let cleanInput = recipientId.startsWith("@") ? recipientId.substring(1) : recipientId;
+    
+    // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
+    let recipient = null;
+    if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
+      const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
+      recipient = await prisma.user.findFirst({
+        where: {
+          id: { startsWith: userIdPart }
+        },
+        include: { wallets: { where: { currency: "PI" }, take: 1 } }
+      });
+    }
+    
+    // Si pas trouve par PIMPAY, rechercher par autres identifiants
+    if (!recipient) {
+      recipient = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: cleanInput, mode: "insensitive" } },
+            { username: { equals: cleanInput, mode: "insensitive" } },
+            { phone: cleanInput },
+            { piUserId: cleanInput },
+            { id: cleanInput }, // Recherche directe par ID
+          ]
+        },
+        include: { wallets: { where: { currency: "PI" }, take: 1 } }
+      });
+    }
 
     console.log("[v0] [TRANSFER] Expediteur:", sender?.id, "Destinataire:", recipient?.id);
 

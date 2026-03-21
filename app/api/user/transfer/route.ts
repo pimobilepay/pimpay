@@ -100,22 +100,37 @@ export async function POST(req: NextRequest) {
       if (!senderWallet) throw new Error(`Vous n'avez pas de portefeuille ${currency}.`);
       if (senderWallet.balance < totalDebit) throw new Error(`Solde insuffisant.`);
 
-      const cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
+      let cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
       console.log("[v0] [USER_TRANSFER] Recherche destinataire:", cleanInput);
       
-      const recipientUser = await tx.user.findFirst({
-        where: {
-          OR: [
-            { username: { equals: cleanInput, mode: "insensitive" } },
-            { email: { equals: cleanInput, mode: "insensitive" } },
-            { phone: cleanInput },
-            { sidraAddress: cleanInput },
-            { walletAddress: cleanInput },
-            { xlmAddress: cleanInput },
-            { piUserId: cleanInput },
-          ],
-        },
-      });
+      // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
+      let recipientUser = null;
+      if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
+        const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
+        recipientUser = await tx.user.findFirst({
+          where: {
+            id: { startsWith: userIdPart }
+          }
+        });
+      }
+      
+      // Si pas trouve par PIMPAY, rechercher par autres identifiants
+      if (!recipientUser) {
+        recipientUser = await tx.user.findFirst({
+          where: {
+            OR: [
+              { username: { equals: cleanInput, mode: "insensitive" } },
+              { email: { equals: cleanInput, mode: "insensitive" } },
+              { phone: cleanInput },
+              { sidraAddress: cleanInput },
+              { walletAddress: cleanInput },
+              { xlmAddress: cleanInput },
+              { piUserId: cleanInput },
+              { id: cleanInput }, // Recherche directe par ID
+            ],
+          },
+        });
+      }
       
       console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 

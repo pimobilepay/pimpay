@@ -37,29 +37,56 @@ export async function GET(request: Request) {
     }
 
     // --- 1. RECHERCHE INTERNE (PimPay Database) ---
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: { equals: query, mode: 'insensitive' } },
-          { username: { equals: query, mode: 'insensitive' } },
-          { phone: query },
-          { sidraAddress: query },
-          { usdtAddress: query },
-          { walletAddress: query }
-        ]
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        username: true,
-        avatar: true,
-        kycStatus: true,
-        sidraAddress: true,
-        usdtAddress: true,
-        walletAddress: true
-      }
-    });
+    let user = null;
+    
+    // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
+    if (query.toUpperCase().startsWith("PIMPAY-")) {
+      const userIdPart = query.replace(/PIMPAY-/i, "").toLowerCase();
+      user = await prisma.user.findFirst({
+        where: {
+          id: { startsWith: userIdPart }
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          avatar: true,
+          kycStatus: true,
+          sidraAddress: true,
+          usdtAddress: true,
+          walletAddress: true
+        }
+      });
+    }
+    
+    // Si pas trouve par PIMPAY, rechercher par autres identifiants
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: query, mode: 'insensitive' } },
+            { username: { equals: query, mode: 'insensitive' } },
+            { phone: query },
+            { sidraAddress: query },
+            { usdtAddress: query },
+            { walletAddress: query },
+            { id: query } // Recherche directe par ID
+          ]
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          avatar: true,
+          kycStatus: true,
+          sidraAddress: true,
+          usdtAddress: true,
+          walletAddress: true
+        }
+      });
+    }
 
     if (user) {
       return NextResponse.json({
