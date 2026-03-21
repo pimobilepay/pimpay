@@ -16,6 +16,8 @@ export default function PaymentSuccess() {
   const txid = params.get("txid") || "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const isExternal = params.get("external") === "true";
   const blockchainHash = params.get("hash") || "";
+  const withdrawStatus = params.get("status") || ""; // QUEUED, PROCESSING, BROADCASTED
+  const isQueued = withdrawStatus === "QUEUED" || (isExternal && !blockchainHash);
   const date = new Date().toLocaleString("fr-FR", {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
   });
@@ -94,10 +96,12 @@ export default function PaymentSuccess() {
             </div>
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">
-            {isExternal ? 'Envoye' : 'Confirme'}
+            {isExternal ? (isQueued ? 'En Cours' : 'Envoye') : 'Confirme'}
           </h1>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] text-center">
-            {isExternal ? 'Transaction blockchain confirmee' : 'Transaction validee avec succes'}
+            {isExternal 
+              ? (isQueued ? 'Retrait en cours de traitement' : 'Transaction blockchain confirmee') 
+              : 'Transaction validee avec succes'}
           </p>
         </div>
 
@@ -130,10 +134,23 @@ export default function PaymentSuccess() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Statut</span>
-                  <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${isExternal ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
-                    {isExternal ? 'BLOCKCHAIN CONFIRME' : 'CONFIRME'}
+                  <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${
+                    isExternal 
+                      ? (isQueued ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20')
+                      : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  }`}>
+                    {isExternal 
+                      ? (isQueued ? 'EN COURS DE TRAITEMENT' : 'BLOCKCHAIN CONFIRME') 
+                      : 'CONFIRME'}
                   </span>
                 </div>
+                {isExternal && isQueued && (
+                  <div className="mt-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                    <p className="text-[10px] text-amber-400/80 leading-relaxed">
+                      Votre retrait est en file d'attente. Le transfert blockchain sera effectue automatiquement sous 1-5 minutes.
+                    </p>
+                  </div>
+                )}
                 {isExternal && (
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Type</span>

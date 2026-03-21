@@ -5,6 +5,7 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
+import { TransactionStatus, TransactionType } from '@prisma/client';
 
 /**
  * API pour les transferts Pi vers des adresses externes (Pi Wallet)
@@ -12,12 +13,13 @@ import { getFeeConfig, calculateFee } from '@/lib/fees';
  * POST /api/mpay/external-transfer
  * Body: { destination: string (Pi address), amount: number, memo?: string }
  * 
- * Cette API effectue un transfert blockchain reel vers une adresse Pi externe.
+ * Cette API cree une transaction de retrait qui sera traitee par le worker.
+ * Le worker effectuera le transfert blockchain vers l'adresse externe.
  */
 
 // Configuration Pi Network
-const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
-const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
+const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com";
+const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
 const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
 const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
 
@@ -62,21 +64,12 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 4. Verifier la configuration du serveur
-    if (!PI_MASTER_ADDRESS || !PI_MASTER_SECRET) {
-      console.error("[EXTERNAL_TRANSFER] Configuration Pi incomplete");
-      return NextResponse.json({ 
-        success: false, 
-        error: "Service de retrait temporairement indisponible. Configuration en attente." 
-      }, { status: 503 });
-    }
-
-    // 5. Calculer les frais
+    // 4. Calculer les frais
     const feeConfig = await getFeeConfig();
     // Les retraits externes ont des frais plus eleves (type "withdraw")
     const { feeAmount: fee, totalDebit: totalDeduction } = calculateFee(amountNum, feeConfig, "withdraw");
 
-    // 6. Verifier le solde de l'utilisateur
+    // 5. Verifier le solde de l'utilisateur
     const senderWallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId: senderId, currency: "PI" } }
     });
@@ -88,11 +81,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 7. Verifier que l'adresse de destination existe sur le reseau Pi
-    const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
-    
+    // 6. Optionnel: Verifier l'adresse de destination si Horizon est configure
+    // Ne pas bloquer si le serveur n'est pas accessible
+    let addressVerified = false;
     try {
+      const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
       await server.loadAccount(destination);
+      addressVerified = true;
+      console.log(`[EXTERNAL_TRANSFER] Adresse verifiee: ${destination}`);
     } catch (destError: any) {
       if (destError?.response?.status === 404) {
         return NextResponse.json({ 
@@ -100,170 +96,78 @@ export async function POST(req: NextRequest) {
           error: "L'adresse de destination n'existe pas sur le reseau Pi. Verifiez que le destinataire a active son wallet Pi." 
         }, { status: 400 });
       }
-      throw destError;
+      // Autres erreurs (connexion, etc.) - on continue quand meme
+      console.warn(`[EXTERNAL_TRANSFER] Verification Horizon non disponible:`, destError.message);
     }
 
-    // 8. Verifier le solde du wallet master
-    const masterAccount = await server.loadAccount(PI_MASTER_ADDRESS);
-    const masterBalance = masterAccount.balances.find((b: any) => b.asset_type === "native");
+    // 7. Creer la transaction de retrait en file d'attente (QUEUED pour le worker)
+    const txRef = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     
-    if (!masterBalance || parseFloat(masterBalance.balance) < amountNum + 0.01) {
-      console.error("[EXTERNAL_TRANSFER] Solde master insuffisant:", masterBalance?.balance);
-      return NextResponse.json({ 
-        success: false, 
-        error: "Service temporairement indisponible. Reserves insuffisantes." 
-      }, { status: 503 });
-    }
-
-    // 9. Creer l'enregistrement de transaction en PENDING
-    const txRef = `EXT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    
-    const pendingTransaction = await prisma.transaction.create({
-      data: {
-        reference: txRef,
-        amount: amountNum,
-        fee: fee,
-        netAmount: amountNum,
-        type: "WITHDRAW",
-        status: "PENDING",
-        description: memo || `Retrait vers Pi Wallet: ${destination.slice(0, 8)}...${destination.slice(-4)}`,
-        fromUserId: senderId,
-        toUserId: null,
-        fromWalletId: senderWallet.id,
-        toWalletId: null,
-        currency: "PI",
-        metadata: {
-          externalAddress: destination,
-          transferType: "PI_EXTERNAL",
-          horizon: PI_HORIZON_URL
-        }
-      }
-    });
-
-    // 10. Debiter le wallet de l'utilisateur
-    await prisma.wallet.update({
-      where: { id: senderWallet.id },
-      data: { balance: { decrement: totalDeduction } }
-    });
-
-    // 11. Construire et signer la transaction blockchain
-    let blockchainTxHash = null;
-    let blockchainError = null;
-
-    try {
-      console.log(`[EXTERNAL_TRANSFER] Construction de la transaction: ${amountNum} Pi vers ${destination}`);
-      
-      const transaction = new StellarSdk.TransactionBuilder(masterAccount, {
-        fee: StellarSdk.BASE_FEE,
-        networkPassphrase: PI_NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          StellarSdk.Operation.payment({
-            destination: destination,
-            asset: StellarSdk.Asset.native(),
-            amount: amountNum.toFixed(7),
-          })
-        )
-        .addMemo(StellarSdk.Memo.text(memo?.slice(0, 28) || "PimPay Withdraw"))
-        .setTimeout(180)
-        .build();
-
-      // Signer avec la cle master
-      const keypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
-      transaction.sign(keypair);
-
-      // Soumettre a la blockchain
-      console.log(`[EXTERNAL_TRANSFER] Soumission de la transaction...`);
-      const result = await server.submitTransaction(transaction);
-      
-      blockchainTxHash = result.hash;
-      console.log(`[EXTERNAL_TRANSFER] Transaction reussie! Hash: ${blockchainTxHash}`);
-
-    } catch (txError: any) {
-      console.error("[EXTERNAL_TRANSFER] Erreur blockchain:", txError);
-      blockchainError = txError.message;
-      
-      // Extraire les codes d'erreur Stellar si disponibles
-      const resultCodes = txError.response?.data?.extras?.result_codes;
-      if (resultCodes) {
-        console.error("[EXTERNAL_TRANSFER] Codes erreur Stellar:", resultCodes);
-        
-        if (resultCodes.operations?.includes("op_no_destination")) {
-          blockchainError = "Le compte de destination n'existe pas sur la blockchain Pi.";
-        } else if (resultCodes.operations?.includes("op_underfunded")) {
-          blockchainError = "Fonds insuffisants sur le wallet de reserve.";
-        }
-      }
-    }
-
-    // 12. Mettre a jour le statut de la transaction
-    if (blockchainTxHash) {
-      await prisma.transaction.update({
-        where: { id: pendingTransaction.id },
+    // Utiliser une transaction atomique pour debiter et creer l'enregistrement
+    const [withdrawTransaction] = await prisma.$transaction([
+      // Creer la transaction de retrait
+      prisma.transaction.create({
         data: {
-          status: "SUCCESS",
+          reference: txRef,
+          amount: amountNum,
+          fee: fee,
+          netAmount: amountNum,
+          type: TransactionType.WITHDRAW,
+          status: TransactionStatus.SUCCESS, // SUCCESS pour que le worker le traite
+          statusClass: "QUEUED", // En attente du worker pour le broadcast blockchain
+          description: memo || `Retrait vers Pi Wallet: ${destination.slice(0, 8)}...${destination.slice(-4)}`,
+          fromUserId: senderId,
+          toUserId: null,
+          fromWalletId: senderWallet.id,
+          toWalletId: null,
+          currency: "PI",
           metadata: {
             externalAddress: destination,
             transferType: "PI_EXTERNAL",
-            blockchainTxHash: blockchainTxHash,
-            completedAt: new Date().toISOString()
+            addressVerified: addressVerified,
+            network: PI_NETWORK_PASSPHRASE,
+            horizon: PI_HORIZON_URL,
+            queuedAt: new Date().toISOString()
           }
         }
-      });
+      }),
+      // Debiter le wallet de l'utilisateur
+      prisma.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: { decrement: totalDeduction } }
+      })
+    ]);
 
-      // Mettre a jour les stats globales
-      await prisma.systemConfig.upsert({
-        where: { id: "GLOBAL_CONFIG" },
-        update: {
-          totalVolumePi: { increment: amountNum },
-          totalProfit: { increment: fee }
-        },
-        create: {
-          id: "GLOBAL_CONFIG",
-          totalVolumePi: amountNum,
-          totalProfit: fee
-        }
-      }).catch(() => {});
+    console.log(`[EXTERNAL_TRANSFER] Transaction ${txRef} creee et mise en file d'attente`);
 
-      return NextResponse.json({
-        success: true,
-        message: "Transfert vers Pi Wallet reussi!",
-        data: {
-          txid: txRef,
-          blockchainTxHash: blockchainTxHash,
-          amount: amountNum,
-          fee: fee,
-          destination: destination,
-          explorerUrl: `https://pi-blockchain.net/tx/${blockchainTxHash}`
-        }
-      });
+    // Mettre a jour les stats globales
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
+      update: {
+        totalVolumePi: { increment: amountNum },
+        totalProfit: { increment: fee }
+      },
+      create: {
+        id: "GLOBAL_CONFIG",
+        totalVolumePi: amountNum,
+        totalProfit: fee
+      }
+    }).catch(() => {});
 
-    } else {
-      // Echec blockchain - rembourser l'utilisateur
-      await prisma.$transaction([
-        prisma.transaction.update({
-          where: { id: pendingTransaction.id },
-          data: {
-            status: "FAILED",
-            metadata: {
-              externalAddress: destination,
-              transferType: "PI_EXTERNAL",
-              error: blockchainError,
-              failedAt: new Date().toISOString()
-            }
-          }
-        }),
-        prisma.wallet.update({
-          where: { id: senderWallet.id },
-          data: { balance: { increment: totalDeduction } }
-        })
-      ]);
-
-      return NextResponse.json({
-        success: false,
-        error: blockchainError || "Echec de la transaction blockchain. Votre solde a ete restaure."
-      }, { status: 500 });
-    }
+    // Retourner succes - la transaction sera traitee par le worker
+    return NextResponse.json({
+      success: true,
+      message: "Retrait en cours de traitement. Le transfert blockchain sera effectue sous peu.",
+      data: {
+        txid: txRef,
+        status: "QUEUED",
+        amount: amountNum,
+        fee: fee,
+        destination: destination,
+        estimatedTime: "1-5 minutes",
+        note: "Le transfert blockchain est en cours de traitement par notre systeme."
+      }
+    });
 
   } catch (error: any) {
     console.error("[EXTERNAL_TRANSFER] Erreur inattendue:", error);

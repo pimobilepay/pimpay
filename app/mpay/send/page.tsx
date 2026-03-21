@@ -382,13 +382,13 @@ const filteredContacts = contacts.filter(
         const data = await res.json();
         
         if (data.success) {
-          const txRef = data.data?.txid || `EXT-${Date.now()}`;
-          const blockchainHash = data.data?.blockchainTxHash;
-          toast.success("Transfert blockchain reussi !");
-          router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&hash=${blockchainHash || ""}`);
+          const txRef = data.data?.txid || `WD-${Date.now()}`;
+          const status = data.data?.status || "QUEUED";
+          toast.success(data.message || "Retrait en cours de traitement !");
+          router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}`);
         } else {
-          toast.error(data.error || "Erreur lors du transfert externe");
-          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur blockchain")}`);
+          toast.error(data.error || "Erreur lors du retrait");
+          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur de retrait")}`);
         }
       } else {
         // Use the internal P2P transfer API
