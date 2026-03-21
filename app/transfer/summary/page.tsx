@@ -115,6 +115,45 @@ function SummaryContent() {
     }
     setIsLoading(true);
     try {
+      // Pour les transferts externes Pi, utiliser l'API mpay/external-transfer
+      // qui fait un broadcast direct sur la blockchain (comme mpay/send)
+      if (data.isExternal && data.currency === "PI") {
+        const response = await fetch("/api/mpay/external-transfer", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            destination: data.recipientId,
+            amount: data.amount,
+            memo: data.description || `Retrait PimPay`,
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.success) {
+          const txRef = result.data?.txid || `WD-${Date.now()}`;
+          const status = result.data?.status || "BROADCASTED";
+          const blockchainHash = result.data?.blockchainTxHash || "";
+          toast.success(result.message || "Transfert Pi reussi !");
+          const qs = new URLSearchParams({
+            amount: String(data.amount),
+            currency: data.currency,
+            name: data.name,
+            ref: txRef,
+            mode: "external",
+            status: status,
+          });
+          if (blockchainHash) qs.set("hash", blockchainHash);
+          router.push(`/transfer/success?${qs.toString()}`);
+        } else {
+          const errorMsg = result?.error || `Erreur ${response.status}`;
+          router.push(`/transfer/failed?error=${encodeURIComponent(errorMsg)}`);
+        }
+        return;
+      }
+
+      // Pour les transferts internes ou autres devises, utiliser l'API user/transfer
       const response = await fetch("/api/user/transfer", {
         method: "POST",
         headers: {
