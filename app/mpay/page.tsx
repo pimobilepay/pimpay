@@ -251,7 +251,13 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
       setMerchantId(data);
       setActiveView("pay-merchant");
       setPayStep(2);
-      toast.success("Marchand detecte: " + data);
+      // Detecter si c'est une adresse Pi externe
+      const piAddressRegex = /^G[A-Z0-9]{55}$/;
+      if (piAddressRegex.test(data)) {
+        toast.success("Adresse Pi detectee: " + data.slice(0, 8) + "..." + data.slice(-4));
+      } else {
+        toast.success("Marchand detecte: " + data);
+      }
     } else {
       setActiveView("hub");
     }
@@ -282,25 +288,58 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   const executePayment = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/mpay/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amount,
-          to: merchantId,
-          method: "wallet",
-          txid: `MPAY-${Date.now()}`
-        }),
-      });
+      // Detecter si c'est une adresse Pi externe (commence par G et fait 56 caracteres)
+      const piAddressRegex = /^G[A-Z0-9]{55}$/;
+      const isExternalPiAddress = piAddressRegex.test(merchantId);
       
-      const data = await res.json();
-      
-      if (data.success) {
-        toast.success("Transaction mPay confirmee !");
-        router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
+      if (isExternalPiAddress) {
+        // Utiliser l'API external-transfer pour les adresses Pi externes
+        const res = await fetch("/api/mpay/external-transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            destination: merchantId,
+            amount: parseFloat(amount),
+            memo: `Paiement mPay`
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          const txRef = data.data?.txid || `WD-${Date.now()}`;
+          const status = data.data?.status || "BROADCASTED";
+          const blockchainHash = data.data?.blockchainTxHash || "";
+          toast.success(data.message || "Transfert Pi reussi !");
+          router.push(`/mpay/success?amount=${amount}&to=${merchantId.slice(0, 8)}...${merchantId.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
+        } else {
+          const errorMsg = data.error || `Erreur ${res.status}`;
+          toast.error(errorMsg);
+          router.push(`/mpay/failed?reason=${encodeURIComponent(errorMsg)}`);
+        }
       } else {
-        toast.error(data.message || "Echec de la transaction");
-        router.push(`/mpay/failed?reason=${encodeURIComponent(data.message || "Erreur inconnue")}`);
+        // Utiliser l'API mpay/confirm pour les ID marchands PimPay
+        const res = await fetch("/api/mpay/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: amount,
+            to: merchantId,
+            method: "wallet",
+            txid: `MPAY-${Date.now()}`
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          toast.success("Transaction mPay confirmee !");
+          router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
+        } else {
+          toast.error(data.message || "Echec de la transaction");
+          router.push(`/mpay/failed?reason=${encodeURIComponent(data.message || "Erreur inconnue")}`);
+        }
       }
     } catch (error: any) {
       console.error("Payment error:", error);
@@ -418,10 +457,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                 </div>
                 <input
                   type="text"
-                  placeholder="ID MARCHAND"
-                  className="bg-transparent flex-1 outline-none font-black text-sm uppercase placeholder:text-slate-700"
+                  placeholder="ID MARCHAND ou ADRESSE Pi (G...)"
+                  className="bg-transparent flex-1 outline-none font-black text-[10px] uppercase placeholder:text-slate-700"
                   value={merchantId}
-                  onChange={(e) => setMerchantId(e.target.value)}
+                  onChange={(e) => setMerchantId(e.target.value.toUpperCase())}
                 />
                 <button onClick={handlePayStep} className="bg-blue-600 hover:bg-blue-700 p-4 rounded-2xl transition-all shadow-lg shadow-blue-600/20">
                   <Search size={20} className="text-white" />
