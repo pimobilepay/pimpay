@@ -368,16 +368,22 @@ const filteredContacts = contacts.filter(
 
   // Check if the selected contact is an external Pi wallet address
   // Now contactId contains the full address for external users
-  const isExternalPiAddress = selectedContact 
-    ? /^G[A-Z2-7]{55}$/.test(selectedContact.contactId) || 
-      /^G[A-Z2-7]{55}$/.test(selectedContact.username || "")
+  const piAddressRegex = /^G[A-Z2-7]{55}$/;
+  
+  const isPiAddressInContactId = selectedContact 
+    ? piAddressRegex.test(selectedContact.contactId) 
+    : false;
+  const isPiAddressInUsername = selectedContact 
+    ? piAddressRegex.test(selectedContact.username || "") 
     : false;
   
-  // Get the external address for display - check both contactId and username
+  const isExternalPiAddress = isPiAddressInContactId || isPiAddressInUsername;
+  
+  // Get the external address for display - prioritize contactId, then username
   const externalAddress = selectedContact && isExternalPiAddress
-    ? (/^G[A-Z2-7]{55}$/.test(selectedContact.contactId) 
+    ? (isPiAddressInContactId 
         ? selectedContact.contactId 
-        : selectedContact.username || "")
+        : (isPiAddressInUsername ? selectedContact.username : null))
     : null;
 
   const handleConfirmSend = async () => {
@@ -385,30 +391,24 @@ const filteredContacts = contacts.filter(
     
     setIsLoading(true);
     try {
-      // Determine if this is an external Pi wallet transfer
-      // Check both contactId and username for Pi address format
-      const isPiAddressInContactId = /^G[A-Z2-7]{55}$/.test(selectedContact.contactId);
-      const isPiAddressInUsername = /^G[A-Z2-7]{55}$/.test(selectedContact.username || "");
-      const isExternal = isPiAddressInContactId || isPiAddressInUsername;
-      
+      // Use the already computed values for external Pi address detection
       console.log("[v0] Transfer debug:", {
         contactId: selectedContact.contactId,
         username: selectedContact.username,
         isPiAddressInContactId,
         isPiAddressInUsername,
-        isExternal
+        isExternalPiAddress,
+        externalAddress
       });
       
-      if (isExternal) {
-        // Get the actual Pi address - prefer contactId, fallback to username
-        const externalAddr = isPiAddressInContactId 
-          ? selectedContact.contactId 
-          : (selectedContact.username || "");
+      if (isExternalPiAddress) {
+        // Use the already computed externalAddress
+        const externalAddr = externalAddress;
         
         console.log("[v0] Sending external transfer to:", externalAddr);
         
         // Validate the address before sending
-        if (!externalAddr || !/^G[A-Z2-7]{55}$/.test(externalAddr)) {
+        if (!externalAddr || !piAddressRegex.test(externalAddr)) {
           toast.error("Adresse Pi invalide. Veuillez re-entrer l'adresse.");
           setIsLoading(false);
           return;
@@ -877,8 +877,8 @@ const filteredContacts = contacts.filter(
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">
                     {isExternalPiAddress ? 'Adresse' : 'Username'}
                   </span>
-                  <span className={`font-black text-xs ${isExternalPiAddress ? 'font-mono text-[10px] text-amber-400/80' : 'uppercase'}`}>
-                    {isExternalPiAddress && externalAddress
+                  <span className={`font-black text-xs ${isExternalPiAddress && externalAddress ? 'font-mono text-[10px] text-amber-400/80' : 'uppercase'}`}>
+                    {isExternalPiAddress && externalAddress && externalAddress.length >= 16
                       ? `${externalAddress.slice(0, 8)}...${externalAddress.slice(-8)}`
                       : (selectedContact.username ? `@${selectedContact.username.replace("@", "")}` : selectedContact.phone || "-")
                     }
