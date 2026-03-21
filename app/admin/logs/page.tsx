@@ -620,6 +620,55 @@ export default function AdminLogsPage() {
               </div>
             )}
 
+            {/* QUICK FILTERS */}
+            <div>
+              <SectionTitle>Filtres Rapides</SectionTitle>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    setSourceFilter("MPAY_EXTERNAL_TRANSFER");
+                    setSystemPage(1);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                    sourceFilter === "MPAY_EXTERNAL_TRANSFER"
+                      ? "bg-amber-600 text-white"
+                      : "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                  }`}
+                >
+                  <Globe size={14} />
+                  Transferts Externes
+                </button>
+                <button
+                  onClick={() => {
+                    setLevelFilter("ERROR");
+                    setSystemPage(1);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                    levelFilter === "ERROR"
+                      ? "bg-red-600 text-white"
+                      : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                  }`}
+                >
+                  <AlertCircle size={14} />
+                  Erreurs
+                </button>
+                <button
+                  onClick={() => {
+                    setSourceFilter("PI_API");
+                    setSystemPage(1);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                    sourceFilter === "PI_API"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20"
+                  }`}
+                >
+                  <Server size={14} />
+                  API Pi Network
+                </button>
+              </div>
+            </div>
+
             {/* SYSTEM SEARCH & FILTERS */}
             <div>
               <div className="flex items-center gap-2">

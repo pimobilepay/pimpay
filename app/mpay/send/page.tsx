@@ -395,26 +395,39 @@ const filteredContacts = contacts.filter(
         // Use the already computed externalAddress
         const externalAddr = externalAddress;
         
+        console.log("[v0] External transfer debug:", {
+          selectedContact,
+          externalAddr,
+          isPiAddressInContactId,
+          isPiAddressInUsername,
+          contactId: selectedContact.contactId,
+          username: selectedContact.username,
+        });
+        
         // Validate the address before sending
         if (!externalAddr || !piAddressRegex.test(externalAddr)) {
+          console.log("[v0] Address validation failed:", { externalAddr, test: piAddressRegex.test(externalAddr || "") });
           toast.error("Adresse Pi invalide. Veuillez re-entrer l'adresse.");
           setIsLoading(false);
           return;
         }
         
+        const payload = {
+          destination: externalAddr,
+          amount: parseFloat(amount),
+          memo: message || `Retrait PimPay`
+        };
+        console.log("[v0] Sending payload:", payload);
+        
         const res = await fetch("/api/mpay/external-transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({
-            destination: externalAddr,
-            amount: parseFloat(amount),
-            memo: message || `Retrait PimPay`
-          }),
+          body: JSON.stringify(payload),
         });
         
         const data = await res.json();
-        console.log("[v0] External transfer response:", { status: res.status, data });
+        console.log("[v0] External transfer response:", { status: res.status, data, requestId: data.requestId });
         
         if (res.ok && data.success) {
           const txRef = data.data?.txid || `WD-${Date.now()}`;
