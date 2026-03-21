@@ -8,101 +8,114 @@ import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { TransactionStatus, TransactionType } from '@prisma/client';
 
 /**
- * API pour les transferts Pi vers des adresses externes (Pi Wallet)
- * 
- * Supporte deux modes:
- * 1. A2U (App-to-User) via Pi Platform API - utilise l'UID de l'utilisateur Pi
- * 2. Direct blockchain transfer - utilise l'adresse Stellar (G...)
- * 
  * POST /api/mpay/external-transfer
- * Body: { 
- *   destination: string (Pi address G... ou Pi UID),
- *   amount: number, 
- *   memo?: string,
- *   uid?: string (Pi User ID pour A2U)
- * }
+ *
+ * Transfert Pi vers un wallet externe en utilisant:
+ *   - Mode A2U  : uid fourni => Pi Platform API + blockchain broadcast
+ *   - Mode Direct: adresse G... fournie => blockchain broadcast direct
+ *
+ * Configuration requise (variables d'environnement):
+ *   PI_API_KEY              - Cle API Pi Developer Portal (Authorization: Key <PI_API_KEY>)
+ *   PI_MASTER_WALLET_ADDRESS - Adresse publique G... du wallet source
+ *   PI_MASTER_WALLET_SECRET  - Cle secrete S... du wallet source (NE PAS exposer cote client)
+ *   PI_HORIZON_URL          - (optionnel) Par defaut: https://api.mainnet.minepi.com
+ *   PI_NETWORK_PASSPHRASE   - (optionnel) Par defaut: "Pi Network"
  */
 
-// Configuration Pi Network
-const PI_API_URL = process.env.PI_API_URL || "https://api.minepi.com";
-const PI_API_KEY = process.env.PI_API_KEY;
-const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
+const PI_API_URL          = "https://api.minepi.com";
+const PI_HORIZON_URL      = process.env.PI_HORIZON_URL      || "https://api.mainnet.minepi.com";
 const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
-const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
-const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
 
-// Helper pour les appels a l'API Pi
-async function piApiRequest(endpoint: string, method: string = "GET", body?: any) {
-  if (!PI_API_KEY) {
-    throw new Error("PI_API_KEY non configure");
-  }
+const PI_API_KEY           = process.env.PI_API_KEY;
+const PI_MASTER_ADDRESS    = process.env.PI_MASTER_WALLET_ADDRESS;
+const PI_MASTER_SECRET     = process.env.PI_MASTER_WALLET_SECRET;
 
-  const response = await fetch(`${PI_API_URL}${endpoint}`, {
+// ---------------------------------------------------------------------------
+// Helper: appel API Pi Platform
+// ---------------------------------------------------------------------------
+async function piApi(endpoint: string, method: string, body?: unknown) {
+  if (!PI_API_KEY) throw new Error("PI_API_KEY non configure");
+
+  const res = await fetch(`${PI_API_URL}${endpoint}`, {
     method,
     headers: {
       "Authorization": `Key ${PI_API_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? JSON.stringify(body) : undefined,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Pi API error: ${response.status}`);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      (json as any).error_message ||
+      (json as any).message ||
+      `Pi API ${res.status}: ${JSON.stringify(json)}`
+    );
   }
-
-  return response.json();
+  return json;
 }
 
-// Fonction A2U: Cree un paiement via Pi Platform API
-async function createA2UPayment(uid: string, amount: number, memo: string, metadata: any) {
-  console.log(`[A2U] Creation paiement: ${amount} Pi vers UID ${uid}`);
-  
-  const paymentData = await piApiRequest("/v2/payments", "POST", {
-    payment: {
-      amount,
-      memo: memo.slice(0, 140),
-      metadata,
-      uid
-    }
+// ---------------------------------------------------------------------------
+// Etape 1 (A2U): creer un paiement sur la Pi Platform
+// Retourne: { paymentId, recipientAddress }
+// ---------------------------------------------------------------------------
+async function a2uCreate(uid: string, amount: number, memo: string, metadata: Record<string, unknown>) {
+  const data: any = await piApi("/v2/payments", "POST", {
+    payment: { amount, memo: memo.slice(0, 140), metadata, uid },
   });
-
   return {
-    paymentId: paymentData.identifier,
-    recipientAddress: paymentData.recipient_address,
-    amount: paymentData.amount
+    paymentId:        data.identifier        as string,
+    recipientAddress: data.recipient_address as string,
   };
 }
 
-// Fonction pour soumettre la transaction blockchain
-async function submitBlockchainTransaction(
-  recipientAddress: string,
-  amount: number,
-  memo: string
-): Promise<string> {
-  if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
-    throw new Error("Configuration Pi Master Wallet manquante");
+// ---------------------------------------------------------------------------
+// Etape 2: signer et broadcaster la transaction Stellar/Pi
+// Retourne: txHash (string)
+// ---------------------------------------------------------------------------
+async function broadcastPi(toAddress: string, amount: number, memo: string): Promise<string> {
+  if (!PI_MASTER_ADDRESS || !PI_MASTER_SECRET) {
+    throw new Error("PI_MASTER_WALLET_ADDRESS ou PI_MASTER_WALLET_SECRET non configure");
+  }
+
+  if (!StellarSdk.StrKey.isValidEd25519PublicKey(toAddress)) {
+    throw new Error(`Adresse Pi invalide: ${toAddress}`);
   }
 
   const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
-  
+
+  // Verifier que le compte destinataire existe
+  try {
+    await server.loadAccount(toAddress);
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      throw new Error(
+        "Le wallet Pi du destinataire n'est pas encore active. Il doit ouvrir son Pi Wallet au moins une fois."
+      );
+    }
+    throw e;
+  }
+
   // Charger le compte source
   const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
-  
-  // Verifier le solde
-  const piBalance = sourceAccount.balances.find((b: any) => b.asset_type === "native");
-  if (!piBalance || parseFloat(piBalance.balance) < amount + 0.01) {
-    throw new Error(`Solde Master Wallet insuffisant`);
+  const nativeBal = sourceAccount.balances.find((b: any) => b.asset_type === "native");
+  const available = parseFloat(nativeBal?.balance || "0");
+
+  if (available < amount + 0.01) {
+    throw new Error(
+      `Solde Master Wallet insuffisant: ${available} Pi disponible, ${amount} Pi requis.`
+    );
   }
 
   // Construire la transaction
-  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+  const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
   })
     .addOperation(
       StellarSdk.Operation.payment({
-        destination: recipientAddress,
+        destination: toAddress,
         asset: StellarSdk.Asset.native(),
         amount: amount.toFixed(7),
       })
@@ -111,309 +124,262 @@ async function submitBlockchainTransaction(
     .setTimeout(180)
     .build();
 
-  // Signer et soumettre
-  const keypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
-  transaction.sign(keypair);
+  tx.sign(StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET));
 
-  const result = await server.submitTransaction(transaction);
+  const result = await server.submitTransaction(tx);
+  if (!result.successful) {
+    const codes = (result as any).extras?.result_codes;
+    throw new Error(`Transaction rejetee: ${JSON.stringify(codes || result)}`);
+  }
+
   return result.hash;
 }
 
-// Completer le paiement A2U apres la soumission blockchain
-async function completeA2UPayment(paymentId: string, txHash: string) {
-  console.log(`[A2U] Completion paiement ${paymentId} avec hash ${txHash}`);
-  
-  return piApiRequest(`/v2/payments/${paymentId}/complete`, "POST", {
-    txid: txHash
-  });
+// ---------------------------------------------------------------------------
+// Etape 3 (A2U): notifier la Pi Platform que la transaction est confirmee
+// ---------------------------------------------------------------------------
+async function a2uComplete(paymentId: string, txHash: string) {
+  await piApi(`/v2/payments/${paymentId}/complete`, "POST", { txid: txHash });
 }
 
+// ---------------------------------------------------------------------------
+// Handler principal
+// ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
+  // 1. Auth
+  const session = await auth() as any;
+  if (!session?.id) {
+    return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
+  }
+
+  let body: any;
   try {
-    // 1. Authentification
-    const session = await auth() as any;
-    if (!session?.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Non autorise" 
-      }, { status: 401 });
-    }
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "Corps JSON invalide" }, { status: 400 });
+  }
 
-    const body = await req.json();
-    const { destination, amount, memo, uid } = body;
-    const senderId = session.id;
+  const { destination, amount, memo, uid } = body;
+  const senderId = session.id;
 
-    // 2. Validation de base
-    const amountNum = parseFloat(amount);
-    if (!destination || isNaN(amountNum) || amountNum <= 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Donnees invalides" 
-      }, { status: 400 });
-    }
+  // 2. Validation
+  const amountNum = parseFloat(amount);
+  if (!destination || isNaN(amountNum) || amountNum <= 0) {
+    return NextResponse.json({ success: false, error: "Parametres invalides" }, { status: 400 });
+  }
 
-    // 3. Determiner le type de transfert
-    const isPiAddress = /^G[A-Z2-7]{55}$/.test(destination);
-    const piUid = uid || (!isPiAddress ? destination : null);
-    
-    // Si ce n'est ni une adresse Pi ni un UID fourni
-    if (!isPiAddress && !piUid) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Format invalide. Fournissez une adresse Pi (G...) ou un UID Pi." 
-      }, { status: 400 });
-    }
+  const isPiAddress = /^G[A-Z2-7]{55}$/.test(destination);
+  // uid peut venir du body OU destination peut etre un UID Pi (non-adresse)
+  const piUid: string | null = uid || (!isPiAddress ? destination : null);
 
-    // 4. Verifier la configuration requise
-    const hasA2UConfig = !!PI_API_KEY;
-    const hasDirectConfig = !!(PI_MASTER_ADDRESS && PI_MASTER_SECRET);
-    
-    if (!hasA2UConfig && !hasDirectConfig) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Service de retrait non configure. Contactez l'administrateur." 
-      }, { status: 503 });
-    }
+  if (!isPiAddress && !piUid) {
+    return NextResponse.json(
+      { success: false, error: "Format invalide: fournissez une adresse Pi (G...) ou un UID Pi." },
+      { status: 400 }
+    );
+  }
 
-    // 5. Calculer les frais
+  // 3. Verifier la configuration
+  const canA2U    = !!PI_API_KEY && !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
+  const canDirect = !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
+
+  if (!canA2U && !canDirect) {
+    return NextResponse.json(
+      { success: false, error: "Service de retrait non configure (PI_API_KEY, PI_MASTER_WALLET_ADDRESS, PI_MASTER_WALLET_SECRET requis)." },
+      { status: 503 }
+    );
+  }
+
+  // 4. Frais et verification de solde
+  let fee = 0;
+  let totalDeduction = amountNum;
+  try {
     const feeConfig = await getFeeConfig();
-    const { feeAmount: fee, totalDebit: totalDeduction } = calculateFee(amountNum, feeConfig, "withdraw");
+    const calc = calculateFee(amountNum, feeConfig, "withdraw");
+    fee           = calc.feeAmount;
+    totalDeduction = calc.totalDebit;
+  } catch {
+    // si getFeeConfig echoue, on continue sans frais supplementaires
+  }
 
-    // 6. Verifier le solde de l'utilisateur
-    const senderWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId: senderId, currency: "PI" } }
+  const senderWallet = await prisma.wallet.findUnique({
+    where: { userId_currency: { userId: senderId, currency: "PI" } },
+  });
+
+  if (!senderWallet || senderWallet.balance < totalDeduction) {
+    return NextResponse.json(
+      { success: false, error: `Solde insuffisant. Requis: ${totalDeduction.toFixed(4)} Pi` },
+      { status: 400 }
+    );
+  }
+
+  // 5. Creer la transaction DB et debiter le wallet (atomique)
+  const txRef = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const memoText = memo || `Retrait PimPay ${txRef.slice(-8)}`;
+
+  const [dbTx] = await prisma.$transaction([
+    prisma.transaction.create({
+      data: {
+        reference:    txRef,
+        amount:       amountNum,
+        fee:          fee,
+        netAmount:    amountNum,
+        type:         TransactionType.WITHDRAW,
+        status:       TransactionStatus.PENDING,
+        statusClass:  "PROCESSING",
+        description:  `Retrait Pi: ${isPiAddress ? destination.slice(0, 10) + "..." : piUid}`,
+        fromUserId:   senderId,
+        toUserId:     null,
+        fromWalletId: senderWallet.id,
+        toWalletId:   null,
+        currency:     "PI",
+        metadata: {
+          externalAddress: isPiAddress ? destination : null,
+          piUid:           piUid,
+          transferType:    piUid && canA2U ? "A2U" : "DIRECT",
+          network:         PI_NETWORK_PASSPHRASE,
+          startedAt:       new Date().toISOString(),
+        },
+      },
+    }),
+    prisma.wallet.update({
+      where: { id: senderWallet.id },
+      data:  { balance: { decrement: totalDeduction } },
+    }),
+  ]);
+
+  // 6. Executer le transfert
+  let blockchainTxHash: string | null = null;
+  let piPaymentId:      string | null = null;
+  let recipientAddress:  string       = isPiAddress ? destination : "";
+  let transferError:    string | null = null;
+
+  try {
+    if (piUid && canA2U) {
+      // --- Mode A2U ---
+      // a) Creer le paiement sur la Pi Platform => recuperer l'adresse du destinataire
+      const a2u = await a2uCreate(
+        piUid,
+        amountNum,
+        memoText,
+        { pimpayRef: txRef, senderId }
+      );
+      piPaymentId      = a2u.paymentId;
+      recipientAddress = a2u.recipientAddress;
+
+      // b) Broadcaster la transaction blockchain
+      blockchainTxHash = await broadcastPi(recipientAddress, amountNum, memoText);
+
+      // c) Notifier la Pi Platform
+      await a2uComplete(piPaymentId, blockchainTxHash);
+
+    } else if (isPiAddress && canDirect) {
+      // --- Mode Direct ---
+      blockchainTxHash = await broadcastPi(destination, amountNum, memoText);
+
+    } else {
+      throw new Error("Mode de transfert non disponible avec la configuration actuelle.");
+    }
+  } catch (err: any) {
+    transferError = err.message;
+    console.error("[EXTERNAL_TRANSFER] Erreur:", err);
+  }
+
+  // 7. Mettre a jour la transaction DB
+  if (blockchainTxHash) {
+    // Succes
+    await prisma.transaction.update({
+      where: { id: dbTx.id },
+      data: {
+        status:      TransactionStatus.SUCCESS,
+        statusClass: "BROADCASTED",
+        blockchainTx: blockchainTxHash,
+        metadata: {
+          ...(dbTx.metadata as object),
+          piPaymentId,
+          recipientAddress,
+          blockchainTxHash,
+          completedAt: new Date().toISOString(),
+        },
+      },
     });
 
-    if (!senderWallet || senderWallet.balance < totalDeduction) {
-      return NextResponse.json({ 
-        success: false, 
-        error: `Solde insuffisant. Requis: ${totalDeduction.toFixed(4)} Pi (montant + frais)` 
-      }, { status: 400 });
-    }
+    // Stats globales
+    await prisma.systemConfig.upsert({
+      where:  { id: "GLOBAL_CONFIG" },
+      update: { totalVolumePi: { increment: amountNum }, totalProfit: { increment: fee } },
+      create: { id: "GLOBAL_CONFIG", totalVolumePi: amountNum, totalProfit: fee },
+    }).catch(() => {});
 
-    // 7. Creer la transaction en base
-    const txRef = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    
-    const [withdrawTransaction] = await prisma.$transaction([
-      prisma.transaction.create({
+    return NextResponse.json({
+      success: true,
+      message: "Transfert Pi reussi!",
+      data: {
+        txid:            txRef,
+        blockchainTxHash,
+        piPaymentId,
+        status:          "BROADCASTED",
+        amount:          amountNum,
+        fee,
+        destination:     recipientAddress || destination,
+        explorerUrl:     `https://blockexplorer.minepi.com/tx/${blockchainTxHash}`,
+      },
+    });
+  } else {
+    // Echec - rembourser
+    await prisma.$transaction([
+      prisma.transaction.update({
+        where: { id: dbTx.id },
         data: {
-          reference: txRef,
-          amount: amountNum,
-          fee: fee,
-          netAmount: amountNum,
-          type: TransactionType.WITHDRAW,
-          status: TransactionStatus.PENDING,
-          statusClass: "PROCESSING",
-          description: memo || `Retrait Pi: ${isPiAddress ? destination.slice(0, 8) + '...' : 'A2U'}`,
-          fromUserId: senderId,
-          toUserId: null,
-          fromWalletId: senderWallet.id,
-          toWalletId: null,
-          currency: "PI",
+          status:      TransactionStatus.FAILED,
+          statusClass: "FAILED",
           metadata: {
-            externalAddress: isPiAddress ? destination : null,
-            piUid: piUid,
-            transferType: piUid && hasA2UConfig ? "A2U" : "DIRECT",
-            network: PI_NETWORK_PASSPHRASE,
-            startedAt: new Date().toISOString()
-          }
-        }
+            ...(dbTx.metadata as object),
+            error:    transferError,
+            failedAt: new Date().toISOString(),
+          },
+        },
       }),
       prisma.wallet.update({
         where: { id: senderWallet.id },
-        data: { balance: { decrement: totalDeduction } }
-      })
+        data:  { balance: { increment: totalDeduction } },
+      }),
     ]);
 
-    // 8. Executer le transfert
-    let blockchainTxHash: string | null = null;
-    let piPaymentId: string | null = null;
-    let recipientAddress = isPiAddress ? destination : null;
-    let transferError: string | null = null;
-
-    try {
-      // Mode A2U: utilise l'API Pi Platform
-      if (piUid && hasA2UConfig) {
-        console.log(`[EXTERNAL_TRANSFER] Mode A2U pour UID: ${piUid}`);
-        
-        // Etape 1: Creer le paiement A2U
-        const a2uPayment = await createA2UPayment(
-          piUid,
-          amountNum,
-          memo || `Retrait PimPay ${txRef}`,
-          { pimpayRef: txRef, userId: senderId }
-        );
-        
-        piPaymentId = a2uPayment.paymentId;
-        recipientAddress = a2uPayment.recipientAddress;
-        
-        console.log(`[EXTERNAL_TRANSFER] A2U Payment cree: ${piPaymentId}, adresse: ${recipientAddress}`);
-        
-        // Etape 2: Soumettre la transaction blockchain
-        if (hasDirectConfig && recipientAddress) {
-          blockchainTxHash = await submitBlockchainTransaction(
-            recipientAddress,
-            amountNum,
-            memo?.slice(0, 28) || `PimPay ${txRef.slice(-8)}`
-          );
-          
-          console.log(`[EXTERNAL_TRANSFER] Transaction soumise: ${blockchainTxHash}`);
-          
-          // Etape 3: Completer le paiement A2U
-          await completeA2UPayment(piPaymentId, blockchainTxHash);
-          console.log(`[EXTERNAL_TRANSFER] Paiement A2U complete`);
-        } else {
-          throw new Error("Configuration Master Wallet requise pour A2U");
-        }
-      }
-      // Mode Direct: transfert blockchain direct
-      else if (isPiAddress && hasDirectConfig) {
-        console.log(`[EXTERNAL_TRANSFER] Mode Direct vers: ${destination}`);
-        
-        // Verifier que l'adresse existe
-        const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
-        try {
-          await server.loadAccount(destination);
-        } catch (e: any) {
-          if (e?.response?.status === 404) {
-            throw new Error("L'adresse de destination n'existe pas sur le reseau Pi.");
-          }
-          throw e;
-        }
-        
-        blockchainTxHash = await submitBlockchainTransaction(
-          destination,
-          amountNum,
-          memo?.slice(0, 28) || `PimPay ${txRef.slice(-8)}`
-        );
-        
-        console.log(`[EXTERNAL_TRANSFER] Transaction directe: ${blockchainTxHash}`);
-      }
-      else {
-        throw new Error("Mode de transfert non supporte avec la configuration actuelle");
-      }
-
-    } catch (error: any) {
-      transferError = error.message;
-      console.error(`[EXTERNAL_TRANSFER] Erreur:`, error);
-    }
-
-    // 9. Mettre a jour le statut de la transaction
-    if (blockchainTxHash) {
-      await prisma.transaction.update({
-        where: { id: withdrawTransaction.id },
-        data: {
-          status: TransactionStatus.SUCCESS,
-          statusClass: "BROADCASTED",
-          blockchainTx: blockchainTxHash,
-          metadata: {
-            ...(withdrawTransaction.metadata as any || {}),
-            piPaymentId,
-            recipientAddress,
-            blockchainTxHash,
-            completedAt: new Date().toISOString()
-          }
-        }
-      });
-
-      // Mettre a jour les stats globales
-      await prisma.systemConfig.upsert({
-        where: { id: "GLOBAL_CONFIG" },
-        update: {
-          totalVolumePi: { increment: amountNum },
-          totalProfit: { increment: fee }
-        },
-        create: {
-          id: "GLOBAL_CONFIG",
-          totalVolumePi: amountNum,
-          totalProfit: fee
-        }
-      }).catch(() => {});
-
-      return NextResponse.json({
-        success: true,
-        message: "Transfert Pi reussi!",
-        data: {
-          txid: txRef,
-          blockchainTxHash,
-          piPaymentId,
-          status: "BROADCASTED",
-          amount: amountNum,
-          fee,
-          destination: recipientAddress || destination,
-          explorerUrl: `https://blockexplorer.minepi.com/tx/${blockchainTxHash}`
-        }
-      });
-
-    } else {
-      // Echec - rembourser l'utilisateur
-      await prisma.$transaction([
-        prisma.transaction.update({
-          where: { id: withdrawTransaction.id },
-          data: {
-            status: TransactionStatus.FAILED,
-            statusClass: "FAILED",
-            metadata: {
-              ...(withdrawTransaction.metadata as any || {}),
-              error: transferError,
-              failedAt: new Date().toISOString()
-            }
-          }
-        }),
-        prisma.wallet.update({
-          where: { id: senderWallet.id },
-          data: { balance: { increment: totalDeduction } }
-        })
-      ]);
-
-      return NextResponse.json({
-        success: false,
-        error: transferError || "Echec du transfert. Votre solde a ete restaure."
-      }, { status: 500 });
-    }
-
-  } catch (error: any) {
-    console.error("[EXTERNAL_TRANSFER] Erreur inattendue:", error);
-    return NextResponse.json({
-      success: false,
-      error: error.message || "Erreur lors du transfert externe"
-    }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: transferError || "Echec du transfert. Votre solde a ete restaure." },
+      { status: 500 }
+    );
   }
 }
 
-// GET: Verifier le statut du service de retrait externe
+// ---------------------------------------------------------------------------
+// GET: statut du service de retrait
+// ---------------------------------------------------------------------------
 export async function GET() {
-  const hasA2UConfig = !!PI_API_KEY;
-  const hasDirectConfig = !!(PI_MASTER_ADDRESS && PI_MASTER_SECRET);
-  const isConfigured = hasA2UConfig || hasDirectConfig;
-  
-  let serverStatus = "unknown";
-  let masterBalance = null;
-  
-  if (hasDirectConfig) {
+  const configured = !!PI_API_KEY && !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
+  let masterBalance: string | null = null;
+
+  if (PI_MASTER_ADDRESS && PI_MASTER_SECRET) {
     try {
-      const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
-      const account = await server.loadAccount(PI_MASTER_ADDRESS!);
-      const nativeBalance = account.balances.find((b: any) => b.asset_type === "native");
-      masterBalance = nativeBalance?.balance;
-      serverStatus = "online";
+      const server  = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
+      const account = await server.loadAccount(PI_MASTER_ADDRESS);
+      const bal     = account.balances.find((b: any) => b.asset_type === "native");
+      masterBalance = bal?.balance ?? null;
     } catch {
-      serverStatus = "offline";
+      masterBalance = null;
     }
-  } else if (hasA2UConfig) {
-    serverStatus = "a2u_only";
   }
-  
+
   return NextResponse.json({
-    available: isConfigured,
-    status: serverStatus,
+    available:     configured,
+    network:       PI_NETWORK_PASSPHRASE?.includes("Testnet") ? "testnet" : "mainnet",
+    masterBalance,
     modes: {
-      a2u: hasA2UConfig,
-      direct: hasDirectConfig
+      a2u:    !!PI_API_KEY,
+      direct: !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET,
     },
-    network: PI_NETWORK_PASSPHRASE?.includes("Testnet") ? "testnet" : "mainnet",
-    minWithdraw: 1,
-    maxWithdraw: 10000,
-    estimatedTime: "1-3 minutes"
+    minWithdraw:   1,
+    estimatedTime: "1-3 minutes",
   });
 }

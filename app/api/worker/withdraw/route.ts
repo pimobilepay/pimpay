@@ -84,10 +84,10 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
   // Configuration Pi Network (utilise le protocole Stellar)
   // TESTNET: https://api.testnet.minepi.com avec passphrase "Pi Testnet"
   // MAINNET: https://api.mainnet.minepi.com avec passphrase "Pi Network"
-  const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com";
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET; // Clé secrète du wallet master (S...)
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS; // Clé publique (G...)
-  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
+  const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
+  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
 
   if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
     throw new Error("Configuration Pi Network manquante (PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS)");
