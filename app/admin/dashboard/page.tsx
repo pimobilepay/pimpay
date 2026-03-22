@@ -33,13 +33,21 @@ type LedgerUser = {
 type Transaction = {
   id: string;
   userId: string;
-  userName: string;
+  fromUser?: { firstName: string | null; lastName: string | null };
+  toUser?: { firstName: string | null; lastName: string | null };
   amount: number;
   currency: string;
+  type: string;
   method: string;
-  phoneNumber: string;
+  accountNumber: string;
+  isBlockchainWithdraw?: boolean;
+  isMobileWithdraw?: boolean;
+  isBankWithdraw?: boolean;
   status: string;
   createdAt: string;
+  description?: string | null;
+  blockchainTx?: string | null;
+  fee?: number;
 };
 
 type AuditLog = {
@@ -240,6 +248,7 @@ function DashboardContent() {
   const [sessionInfo, setSessionInfo] = useState<UserSessionInfo>(null);
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -572,29 +581,51 @@ function DashboardContent() {
                       {pendingTransactions.length === 0 ? (
                         <div className="p-10 border border-white/5 rounded-[2rem] text-center text-[10px] text-slate-500 font-bold uppercase">Aucune transaction en attente</div>
                       ) : (
-                        pendingTransactions.map(tx => (
-                          <Card key={`tx-${tx.id}`} className="bg-slate-900/40 border-white/5 rounded-[2rem] p-5 flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-black text-white uppercase">{tx.userName || 'Utilisateur Inconnu'}</p>
-                              <p className="text-[10px] text-emerald-500 font-bold">π {tx.amount.toLocaleString()}</p>
-                              <p className="text-[9px] text-slate-500 font-bold">{tx.method} {tx.phoneNumber !== 'Non spécifié' ? `- ${tx.phoneNumber}` : ''}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                onClick={() => handleAction(tx.userId, "VALIDATE_DEPOSIT", tx.amount, tx.currency, [], tx.id)}
-                                className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
-                              >
-                                <Check size={14} /> Confirmer
-                              </Button>
-                              <Button
-                                onClick={() => handleAction(tx.userId, "REJECT_DEPOSIT", tx.amount, "", [], tx.id)}
-                                className="h-10 bg-red-500/20 text-red-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
-                              >
-                                <X size={14} /> Rejeter
-                              </Button>
-                            </div>
-                          </Card>
-                        ))
+                        pendingTransactions.map(tx => {
+                          const user = tx.fromUser || tx.toUser;
+                          const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Utilisateur PimPay' : 'Utilisateur Inconnu';
+                          return (
+                            <Card 
+                              key={`tx-${tx.id}`} 
+                              className="bg-slate-900/40 border-white/5 rounded-[2rem] p-5 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                              onClick={() => setSelectedTx(tx)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-black text-white uppercase truncate">{userName}</p>
+                                  <p className="text-[10px] text-emerald-500 font-bold">{tx.currency === 'PI' ? 'π' : tx.currency} {tx.amount.toLocaleString()}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[9px] font-bold uppercase ${tx.isBlockchainWithdraw ? 'text-blue-400' : tx.isBankWithdraw ? 'text-indigo-400' : 'text-amber-400'}`}>
+                                      {tx.method}
+                                    </span>
+                                    {tx.accountNumber && tx.accountNumber !== 'Non spécifié' && (
+                                      <span className="text-[8px] text-slate-500 font-mono truncate max-w-[120px]">
+                                        {tx.accountNumber.length > 16 ? `${tx.accountNumber.slice(0, 8)}...${tx.accountNumber.slice(-6)}` : tx.accountNumber}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[8px] text-slate-600 font-mono mt-1">
+                                    {new Date(tx.createdAt).toLocaleString("fr-FR")}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
+                                  <Button
+                                    onClick={() => handleAction(tx.userId, "VALIDATE_DEPOSIT", tx.amount, tx.currency, [], tx.id)}
+                                    className="h-10 bg-emerald-500/20 text-emerald-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
+                                  >
+                                    <Check size={14} /> Ok
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleAction(tx.userId, "REJECT_DEPOSIT", tx.amount, "", [], tx.id)}
+                                    className="h-10 bg-red-500/20 text-red-500 rounded-xl px-4 text-[10px] font-black uppercase flex items-center gap-2"
+                                  >
+                                    <X size={14} />
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })
                       )}
                     </div>
                 </div>
@@ -1215,6 +1246,171 @@ function DashboardContent() {
           </div>
         </div>
       )}
+
+      {/* TRANSACTION DETAIL MODAL */}
+      {selectedTx && (() => {
+        const user = selectedTx.fromUser || selectedTx.toUser;
+        const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Utilisateur PimPay' : 'Utilisateur Inconnu';
+        const isSuccess = selectedTx.status === "SUCCESS";
+        const isPending = selectedTx.status === "PENDING";
+        const PI_GCV_PRICE = 314159;
+        const isPi = selectedTx.currency === "PI" || !selectedTx.currency;
+        const amountPI = isPi ? selectedTx.amount : selectedTx.amount / PI_GCV_PRICE;
+        const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : selectedTx.amount;
+        const feeAmount = selectedTx.fee || 0;
+
+        return (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={() => setSelectedTx(null)}>
+            <div className="w-full max-w-lg bg-[#020617] rounded-t-[2rem] sm:rounded-[2rem] max-h-[90vh] overflow-y-auto border border-white/10 animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${selectedTx.isBlockchainWithdraw ? 'bg-blue-500/10' : selectedTx.isBankWithdraw ? 'bg-indigo-500/10' : 'bg-amber-500/10'}`}>
+                    {selectedTx.isBlockchainWithdraw ? <Globe size={18} className="text-blue-400" /> : selectedTx.isBankWithdraw ? <Landmark size={18} className="text-indigo-400" /> : <Wallet size={18} className="text-amber-400" />}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black uppercase tracking-tight text-white">{selectedTx.type}</h2>
+                    <p className="text-[9px] text-slate-500 font-bold mt-0.5">REF-{selectedTx.id.slice(0, 10).toUpperCase()}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedTx(null)} className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all active:scale-90">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Status Bar */}
+              <div className={`py-3 px-6 flex items-center justify-between ${isSuccess ? 'bg-emerald-500/10' : isPending ? 'bg-amber-500/10' : 'bg-red-500/10'}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isPending ? "animate-pulse" : ""} ${isSuccess ? "bg-emerald-400" : isPending ? "bg-amber-400" : "bg-red-400"}`} />
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${isSuccess ? "text-emerald-400" : isPending ? "text-amber-400" : "text-red-400"}`}>
+                    {selectedTx.status}
+                  </span>
+                </div>
+                <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">
+                  {new Date(selectedTx.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Amount */}
+                <div className="flex flex-col items-center text-center">
+                  <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Montant</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black text-white">
+                      {selectedTx.amount < 0.01 && selectedTx.amount > 0 ? selectedTx.amount.toFixed(8) : selectedTx.amount.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}
+                    </span>
+                    <span className="text-lg font-bold text-blue-500">{selectedTx.currency || "PI"}</span>
+                  </div>
+                  {isPi && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
+                      <Activity size={12} className="text-blue-400" />
+                      <span className="text-[10px] font-bold text-blue-400">{"\u2248"} ${amountUSD.toLocaleString()} USD (GCV)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Grid */}
+                <div className="space-y-4 border-t border-white/5 pt-6">
+                  <div className="flex justify-between items-center group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-white/5 rounded-xl text-blue-500"><Hash size={16} /></div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">ID Transaction</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-white">{selectedTx.id.length > 18 ? selectedTx.id.slice(0, 18) + "..." : selectedTx.id}</span>
+                  </div>
+                  <div className="flex justify-between items-center group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-white/5 rounded-xl text-blue-500"><CalendarClock size={16} /></div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Date</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-white">{new Date(selectedTx.createdAt).toLocaleString("fr-FR")}</span>
+                  </div>
+                  <div className="flex justify-between items-center group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-white/5 rounded-xl text-blue-500"><Zap size={16} /></div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Methode</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-white">{selectedTx.method || selectedTx.description || "Wallet"}</span>
+                  </div>
+                  {feeAmount > 0 && (
+                    <div className="flex justify-between items-center group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white/5 rounded-xl text-red-500"><Percent size={16} /></div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Frais</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-red-400">{feeAmount.toFixed(4)} {selectedTx.currency || "PI"}</span>
+                    </div>
+                  )}
+                  {selectedTx.accountNumber && selectedTx.accountNumber !== "Non spécifié" && (
+                    <div className="flex justify-between items-center group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white/5 rounded-xl text-blue-500">{selectedTx.isBlockchainWithdraw ? <Globe size={16} /> : <CreditCard size={16} />}</div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Compte / Adresse</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-white font-mono">{selectedTx.accountNumber.length > 20 ? selectedTx.accountNumber.slice(0, 10) + "..." + selectedTx.accountNumber.slice(-6) : selectedTx.accountNumber}</span>
+                    </div>
+                  )}
+                  {selectedTx.blockchainTx && (
+                    <div className="flex justify-between items-center group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white/5 rounded-xl text-emerald-500"><ShieldCheck size={16} /></div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Blockchain Hash</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-blue-400 font-mono">{selectedTx.blockchainTx.slice(0, 12)}...</span>
+                    </div>
+                  )}
+                  {selectedTx.description && (
+                    <div className="flex justify-between items-center group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white/5 rounded-xl text-blue-500"><History size={16} /></div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-white">{selectedTx.description.length > 30 ? selectedTx.description.slice(0, 30) + "..." : selectedTx.description}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* User Info */}
+                <div className="border-t border-white/5 pt-6 space-y-4">
+                  <p className="text-[9px] font-black text-blue-500 uppercase tracking-[3px]">Initiateur</p>
+                  <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 text-[10px] font-black uppercase">
+                      {user?.firstName?.[0] || '?'}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-white">{userName}</p>
+                      <p className="text-[9px] text-slate-600 font-mono">{selectedTx.userId.slice(-12)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {isPending && (
+                  <div className="flex gap-3 pt-4 border-t border-white/5">
+                    <Button
+                      onClick={() => { handleAction(selectedTx.userId, "VALIDATE_DEPOSIT", selectedTx.amount, selectedTx.currency, [], selectedTx.id); setSelectedTx(null); }}
+                      className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                    >
+                      <Check size={16} /> Confirmer
+                    </Button>
+                    <Button
+                      onClick={() => { handleAction(selectedTx.userId, "REJECT_DEPOSIT", selectedTx.amount, "", [], selectedTx.id); setSelectedTx(null); }}
+                      className="flex-1 h-12 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                    >
+                      <X size={16} /> Rejeter
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
+                <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PimPay Admin Console</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* INDIVIDUAL MAINTENANCE MODAL */}
       {maintModalUser && (
