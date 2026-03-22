@@ -5,6 +5,13 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
+import { ethers } from "ethers";
+import { decrypt } from "@/lib/crypto";
+
+const RPC_URLS: Record<string, string> = {
+  SDA: "https://node.sidrachain.com",
+  SIDRA: "https://node.sidrachain.com",
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -195,37 +202,84 @@ export async function POST(req: NextRequest) {
       else {
         console.log("[v0] [WALLET_SEND] Transfert EXTERNE vers adresse:", recipientInput);
         
-        // Recuperer l'utilisateur pour obtenir son piUid (necessaire pour A2U)
+        // Recuperer l'utilisateur avec ses cles privees pour broadcast direct
         const senderUser = await tx.user.findUnique({
           where: { id: senderId },
-          select: { piUserId: true, username: true }
+          select: { 
+            piUserId: true, 
+            username: true,
+            sidraPrivateKey: true // Pour broadcast SDA direct
+          }
         });
+
+        let blockchainTxHash: string | null = null;
+        let txStatus = TransactionStatus.SUCCESS;
+
+        // --- BROADCAST DIRECT POUR SDA/SIDRA ---
+        if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
+          try {
+            let privateKey = senderUser.sidraPrivateKey;
+            
+            // Décryption sécurisée avec vérification
+            if (privateKey.includes(':')) {
+              try {
+                const decrypted = decrypt(privateKey);
+                if (decrypted && decrypted.length > 0) {
+                  privateKey = decrypted;
+                }
+              } catch (decryptError: any) {
+                console.error("[v0] [WALLET_SEND] Decryption error for SDA key:", decryptError.message);
+                throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
+              }
+            }
+            
+            if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+            
+            // Valider format clé EVM (64 caractères hex après 0x)
+            if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+              throw new Error("Format de clé SDA/EVM invalide");
+            }
+
+            console.log("[v0] [WALLET_SEND] Broadcasting SDA transaction to blockchain...");
+            const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
+            const wallet = new ethers.Wallet(privateKey, provider);
+            const txRes = await wallet.sendTransaction({ 
+              to: recipientInput, 
+              value: ethers.parseEther(amount.toString()) 
+            });
+            const receipt = await txRes.wait();
+            blockchainTxHash = receipt?.hash || txRes.hash;
+            txStatus = TransactionStatus.SUCCESS;
+            console.log("[v0] [WALLET_SEND] SDA transaction confirmed:", blockchainTxHash);
+          } catch (e: any) { 
+            console.error("[v0] [WALLET_SEND] SDA blockchain error:", e.message);
+            throw new Error(`Erreur blockchain SDA: ${e.message}`); 
+          }
+        }
         
-        // Log de transaction SUCCESS (statut temporaire, le worker le changera si erreur)
-        // Le worker cherche les transactions WITHDRAW avec status SUCCESS et blockchainTx null
+        // Log de transaction
         const transaction = await tx.transaction.create({
           data: {
             reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
             amount,
             currency,
-            type: TransactionType.WITHDRAW, // On marque ca comme un retrait
-            status: TransactionStatus.SUCCESS, // Worker cherche SUCCESS + blockchainTx null
-            statusClass: "QUEUED", // Utilise par le worker pour le claim atomique
+            type: TransactionType.WITHDRAW,
+            status: txStatus,
+            statusClass: blockchainTxHash ? undefined : "QUEUED", // QUEUED si pas encore broadcast
+            blockchainTx: blockchainTxHash, // Hash si broadcast direct
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
-            description: `Retrait ${currency} vers adresse externe : ${recipientInput}`,
-            // IMPORTANT: Stocker l'adresse externe directement dans accountNumber pour l'affichage admin
+            description: blockchainTxHash 
+              ? `Transfert ${currency} vers ${recipientInput.substring(0, 10)}...`
+              : `Retrait ${currency} vers adresse externe : ${recipientInput}`,
             accountNumber: recipientInput,
             metadata: {
-              // CRUCIAL: L'adresse externe doit etre dans metadata pour que le worker puisse la recuperer
               externalAddress: recipientInput,
-              destinationAddress: recipientInput, // Alias pour compatibilite
+              destinationAddress: recipientInput,
               network: currency,
               isBlockchainWithdraw: true,
               requestedAt: new Date().toISOString(),
-              // Pour Pi Network A2U: stocker l'UID Pi du destinataire si disponible
-              // Note: Pour les retraits vers l'adresse wallet de l'utilisateur, 
-              // on utilise son propre piUserId (il retire vers son propre wallet Pi)
+              ...(blockchainTxHash && { confirmedAt: new Date().toISOString() }),
               ...(currency === "PI" && senderUser?.piUserId && {
                 piUid: senderUser.piUserId,
                 senderUsername: senderUser.username
@@ -234,19 +288,25 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        console.log("[v0] [WALLET_SEND] Transaction EXTERNE creee:", transaction.reference);
-        return { type: 'EXTERNAL', transaction };
+        console.log("[v0] [WALLET_SEND] Transaction EXTERNE creee:", transaction.reference, blockchainTxHash ? `(broadcast: ${blockchainTxHash})` : "(queued)");
+        return { type: 'EXTERNAL', transaction, blockchainTx: blockchainTxHash };
       }
 
 }, { maxWait: 10000, timeout: 30000 });
     
-    console.log("[v0] [WALLET_SEND] SUCCES:", { mode: result.type, reference: result.transaction.reference });
+    console.log("[v0] [WALLET_SEND] SUCCES:", { mode: result.type, reference: result.transaction.reference, blockchainTx: result.blockchainTx });
+    
+    const isDirectBlockchainTransfer = result.type === 'EXTERNAL' && result.blockchainTx;
     
     return NextResponse.json({
       success: true,
       mode: result.type,
-      message: result.type === 'INTERNAL' ? "Transfert instantane reussi" : "Retrait blockchain enregistre (en attente)",
-      reference: result.transaction.reference
+      message: result.type === 'INTERNAL' 
+        ? "Transfert instantane reussi" 
+        : (isDirectBlockchainTransfer ? "Transfert blockchain confirme" : "Retrait blockchain enregistre (en attente)"),
+      reference: result.transaction.reference,
+      transaction: result.transaction,
+      blockchainTx: result.blockchainTx || null
     });
 
   } catch (error: any) {

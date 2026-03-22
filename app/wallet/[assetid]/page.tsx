@@ -540,29 +540,83 @@ export default function AssetDetailPage() {
                         return;
                       }
                       
-                      // Pour les autres cryptos, utiliser l'API /api/wallet/send
-                      const res = await fetch("/api/wallet/send", { 
+                      // Pour SDA/Sidra Chain, utiliser l'API /api/user/transfer qui broadcast directement sur la blockchain
+                      if (assetId === "SDA") {
+                        const res = await fetch("/api/user/transfer", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          credentials: "include",
+                          body: JSON.stringify({
+                            recipientIdentifier: sendAddress,
+                            amount: parseFloat(sendAmount),
+                            currency: "SDA",
+                            description: `Transfert SDA vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}`,
+                          }),
+                        });
+                        const result = await res.json();
+                        
+                        if (res.ok && result.success) {
+                          const txHash = result.transaction?.blockchainTx || "";
+                          
+                          if (result.mode === "INTERNAL") {
+                            setSendStatus("success");
+                            setSendMessage("Transfert instantané réussi vers PimPay");
+                            setSendTxHash(result.transaction?.reference || "");
+                            toast.success("Transfert SDA réussi !");
+                          } else if (txHash) {
+                            // Transaction blockchain confirmée
+                            setSendStatus("success");
+                            setSendMessage(`${sendAmount} SDA envoyés avec succès sur la Sidra Chain`);
+                            setSendTxHash(txHash);
+                            toast.success("Transfert SDA réussi !");
+                          } else {
+                            // Transfert externe en attente
+                            setSendStatus("pending");
+                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. En attente de confirmation.`);
+                            setSendTxHash(result.transaction?.reference || "");
+                          }
+                        } else {
+                          toast.error(result.error || "Erreur lors de l'envoi SDA");
+                          setSendStatus("idle");
+                        }
+                        return;
+                      }
+                      
+                      // Pour les autres cryptos, utiliser l'API /api/user/transfer (unifiée)
+                      const res = await fetch("/api/user/transfer", { 
                         method: "POST", 
                         headers: { "Content-Type": "application/json" }, 
-                        body: JSON.stringify({ address: sendAddress, amount: sendAmount, currency: assetId }), 
+                        body: JSON.stringify({ 
+                          recipientIdentifier: sendAddress, 
+                          amount: parseFloat(sendAmount), 
+                          currency: assetId,
+                          description: `Transfert ${assetId} vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}`
+                        }), 
                       });
                       const result = await res.json();
                       
-                      if (res.ok) { 
+                      if (res.ok && result.success) { 
                         // Déterminer le statut selon le type de transfert retourné par l'API
                         if (result.mode === "INTERNAL") {
                           // Transfert instantané entre membres PimPay
                           setSendStatus("success"); 
                           setSendMessage("Transfert instantané réussi vers PimPay");
-                          setSendTxHash(result.reference || "");
+                          setSendTxHash(result.transaction?.reference || "");
+                          toast.success(`Transfert ${assetId} réussi !`);
                         } else {
-                          // Envoi vers adresse externe (en attente de traitement blockchain)
-                          setSendStatus("pending");
-                          setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. Transaction en attente de confirmation blockchain.`);
-                          setSendTxHash(result.reference || "");
-                          
-                          // Afficher un toast informatif
-                          toast.info("Vous recevrez une notification une fois la transaction confirmée sur la blockchain", { duration: 5000 });
+                          // Envoi vers adresse externe
+                          const txHash = result.transaction?.blockchainTx;
+                          if (txHash) {
+                            setSendStatus("success");
+                            setSendMessage(`${sendAmount} ${assetId} envoyés avec succès`);
+                            setSendTxHash(txHash);
+                            toast.success(`Transfert ${assetId} réussi !`);
+                          } else {
+                            setSendStatus("pending");
+                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. Transaction en attente de confirmation blockchain.`);
+                            setSendTxHash(result.transaction?.reference || "");
+                            toast.info("Vous recevrez une notification une fois la transaction confirmée sur la blockchain", { duration: 5000 });
+                          }
                         }
                       } else { 
                         toast.error(result.error || "Erreur lors de l'envoi"); 
