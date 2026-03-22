@@ -32,7 +32,13 @@ interface Transaction {
   fee?: number;
 }
 
-function TransactionDetailView({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing }: { 
+  tx: Transaction; 
+  onClose: () => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  isProcessing: boolean;
+}) {
   const isPi = tx.currency === "PI" || !tx.currency;
   const amountPI = isPi ? tx.amount : tx.amount / PI_GCV_PRICE;
   const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : tx.amount;
@@ -47,8 +53,8 @@ function TransactionDetailView({ tx, onClose }: { tx: Transaction; onClose: () =
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
-      <div className="w-full max-w-lg bg-[#020617] rounded-t-[2rem] sm:rounded-[2rem] max-h-[90vh] overflow-y-auto border border-white/10">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={onClose}>
+      <div className="w-full max-w-lg bg-[#020617] rounded-t-[2rem] sm:rounded-[2rem] max-h-[90vh] overflow-y-auto border border-white/10 animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
           <h2 className="text-sm font-black uppercase tracking-tight text-white">Details Transaction</h2>
@@ -150,6 +156,28 @@ function TransactionDetailView({ tx, onClose }: { tx: Transaction; onClose: () =
               value={`${tx.fromUser?.firstName || tx.toUser?.firstName || 'User'} ${tx.fromUser?.lastName || tx.toUser?.lastName || ''}`}
             />
           </div>
+
+          {/* Action Buttons */}
+          {tx.status === "PENDING" && (
+            <div className="flex gap-3 pt-6 border-t border-white/5">
+              <button
+                onClick={() => onReject(tx.id)}
+                disabled={isProcessing}
+                className="flex-1 h-14 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
+              >
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={18} />}
+                Rejeter
+              </button>
+              <button
+                onClick={() => onApprove(tx.id)}
+                disabled={isProcessing}
+                className="flex-1 h-14 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
+              >
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={18} />}
+                Approuver
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -300,14 +328,15 @@ export default function AdminTransactionsPage() {
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Client</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Montant</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Type / Compte</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-500">Date</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500 text-center">Decision</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr><td colSpan={5} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
+                  <tr><td colSpan={6} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
                 ) : filteredTransactions.length === 0 ? (
-                  <tr><td colSpan={5} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
+                  <tr><td colSpan={6} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
                 ) : (
                   filteredTransactions.map((tx) => (
                     <tr 
@@ -363,6 +392,14 @@ export default function AdminTransactionsPage() {
                         </p>
                       </td>
                       <td className="p-6">
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {new Date(tx.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                        </div>
+                        <div className="text-[9px] text-slate-600 font-mono">
+                          {new Date(tx.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </td>
+                      <td className="p-6">
                         <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleAction(tx.id, 'reject')}
@@ -392,7 +429,13 @@ export default function AdminTransactionsPage() {
 
       {/* Transaction Detail Modal */}
       {selectedTx && (
-        <TransactionDetailView tx={selectedTx} onClose={() => setSelectedTx(null)} />
+        <TransactionDetailView 
+          tx={selectedTx} 
+          onClose={() => setSelectedTx(null)}
+          onApprove={(id) => handleAction(id, 'approve')}
+          onReject={(id) => handleAction(id, 'reject')}
+          isProcessing={!!isProcessing}
+        />
       )}
     </div>
   );
