@@ -247,7 +247,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
         </div>
         <div className="text-right">
           <p className={`text-lg font-black tracking-tighter ${tx.isIncome ? 'text-green-400' : 'text-white'}`}>
-            {tx.isIncome ? '+' : '-'}{tx.amount.toFixed(2)} {tx.currency}
+            {tx.isIncome ? '+' : '-'}{tx.currency === 'PI' && tx.amount < 0.01 ? tx.amount.toFixed(8) : tx.amount.toFixed(2)} {tx.currency}
           </p>
           <div className="flex items-center justify-end gap-2">
              <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${

@@ -217,7 +217,11 @@ function ReceiptContent() {
                 <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Montant Transféré</p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-5xl font-black text-white">
-                    {isPi ? amountDisplay.toFixed(4) : amountDisplay.toLocaleString('fr-FR')}
+                    {isPi 
+                      ? (amountDisplay < 0.0001 && amountDisplay > 0 
+                          ? amountDisplay.toFixed(8) 
+                          : amountDisplay.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 }))
+                      : amountDisplay.toLocaleString('fr-FR')}
                   </span>
                   <span className="text-lg font-bold text-blue-500">{currency}</span>
                 </div>
@@ -256,7 +260,7 @@ function ReceiptContent() {
                 <DetailRow 
                   icon={<Banknote />} 
                   label="Frais Réseau" 
-                  value={`${feeAmount.toFixed(isPi ? 4 : 2)} ${currency}`} 
+                  value={`${isPi && feeAmount < 0.0001 && feeAmount > 0 ? feeAmount.toFixed(8) : feeAmount.toFixed(isPi ? 4 : 2)} ${currency}`} 
                   valueClassName="text-red-400" 
                 />
 

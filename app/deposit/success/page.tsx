@@ -109,7 +109,11 @@ function SuccessContent() {
         <div className="mt-10">
           <div className="flex items-baseline justify-center gap-2">
             <span className="text-6xl font-black text-white tracking-tighter">
-              {currency === "PI" ? amountDisplay.toFixed(4) : amountDisplay.toLocaleString('fr-FR')}
+              {currency === "PI" 
+                ? (amountDisplay < 0.0001 && amountDisplay > 0 
+                    ? amountDisplay.toFixed(8) 
+                    : amountDisplay.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 }))
+                : amountDisplay.toLocaleString('fr-FR')}
             </span>
             <span className="text-xl font-bold text-blue-500">{currency}</span>
           </div>

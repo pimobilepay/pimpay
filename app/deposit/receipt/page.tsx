@@ -179,7 +179,11 @@ function DetailsContent() {
               <div className="flex flex-col items-center text-center">
                 <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Valeur Transactionnelle</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-white">{amount.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}</span>
+                  <span className="text-5xl font-black text-white">
+                    {amount < 0.0001 && amount > 0 
+                      ? amount.toFixed(8) 
+                      : amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
+                  </span>
                   <span className="text-lg font-bold text-blue-500">{currency}</span>
                 </div>
                 <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
@@ -193,7 +197,7 @@ function DetailsContent() {
                 <DetailRow icon={<Hash />} label="ID Transaction" value={displayRef.slice(0, 18) + "..."} onCopy={() => {navigator.clipboard.writeText(displayRef); toast.success("ID Copié");}} copyable />
                 <DetailRow icon={<Calendar />} label="Date" value={transaction?.createdAt ? new Date(transaction.createdAt).toLocaleString("fr-FR") : "---"} />
                 <DetailRow icon={<Smartphone />} label="Méthode" value={transaction?.description || "Pi Wallet"} />
-                <DetailRow icon={<Banknote />} label="Frais Réseau" value={`${fee.toFixed(4)} ${currency}`} valueClassName="text-red-400" />
+                <DetailRow icon={<Banknote />} label="Frais Réseau" value={`${fee < 0.0001 && fee > 0 ? fee.toFixed(8) : fee.toFixed(4)} ${currency}`} valueClassName="text-red-400" />
 
                 {transaction?.blockchainTx && (
                   <DetailRow
