@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// GET: Fetch user's P2P contacts from recent transactions
+// GET: Fetch user's P2P contacts from database or transactions
 export async function GET() {
   try {
     const session = await auth() as any;
@@ -11,7 +11,48 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
-    // Get contacts from recent transactions (sent to other users)
+    // Try to get saved contacts from P2PContact table
+    const savedContacts = await prisma.p2PContact.findMany({
+      where: { userId: session.id },
+      include: {
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            phone: true,
+            avatar: true,
+          }
+        }
+      },
+      orderBy: [{ isFavorite: "desc" }, { createdAt: "desc" }]
+    }) as any;
+
+    // Format saved contacts
+    const formattedSavedContacts = savedContacts.map((pc: any) => ({
+      id: pc.id,
+      contactId: pc.contactId,
+      name: pc.contact.name || pc.name,
+      username: pc.contact.username,
+      phone: pc.contact.phone,
+      avatar: pc.contact.avatar,
+      initials: getInitials(pc.contact.name || pc.name || "U"),
+      nickname: pc.nickname,
+      isFavorite: pc.isFavorite,
+      lastTransaction: null,
+      transactionCount: 0,
+    }));
+
+    if (formattedSavedContacts.length > 0) {
+      return NextResponse.json({
+        success: true,
+        contacts: formattedSavedContacts,
+        total: formattedSavedContacts.length,
+        favorites: formattedSavedContacts.filter((c: any) => c.isFavorite).length,
+      });
+    }
+
+    // Fallback: Get contacts from recent transactions
     const recentTransactions = await prisma.transaction.findMany({
       where: {
         fromUserId: session.id,
@@ -70,7 +111,7 @@ export async function GET() {
   }
 }
 
-// POST: Search and return user info (simulated contact add)
+// POST: Add or search user
 export async function POST(req: Request) {
   try {
     const session = await auth() as any;
@@ -108,19 +149,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Utilisateur introuvable" }, { status: 404 });
     }
 
+    // Check if already a contact
+    const existingContact = await prisma.p2PContact.findUnique({
+      where: {
+        userId_contactId: {
+          userId: session.id,
+          contactId: targetUser.id,
+        }
+      }
+    });
+
+    if (existingContact) {
+      return NextResponse.json({ success: false, error: "Deja dans vos contacts" }, { status: 400 });
+    }
+
+    // Create new contact
+    const newContact = await prisma.p2PContact.create({
+      data: {
+        userId: session.id,
+        contactId: targetUser.id,
+        name: targetUser.name || "Utilisateur",
+        nickname: nickname || null,
+        isFavorite: false,
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      message: "Contact trouve",
+      message: "Contact ajoute",
       contact: {
-        id: targetUser.id,
-        contactId: targetUser.id,
-        name: targetUser.name || nickname || "Utilisateur",
+        id: newContact.id,
+        contactId: newContact.contactId,
+        name: targetUser.name || newContact.name,
         username: targetUser.username,
         phone: targetUser.phone,
         avatar: targetUser.avatar,
-        initials: getInitials(targetUser.name || nickname || targetUser.username || "U"),
-        nickname: nickname || null,
-        isFavorite: false,
+        initials: getInitials(targetUser.name || targetUser.username || "U"),
+        nickname: newContact.nickname,
+        isFavorite: newContact.isFavorite,
       }
     });
   } catch (error) {
@@ -129,14 +195,81 @@ export async function POST(req: Request) {
   }
 }
 
-// PATCH: Not implemented (Contact model doesn't exist)
-export async function PATCH() {
-  return NextResponse.json({ success: false, error: "Non implemente" }, { status: 501 });
+// PATCH: Update contact (toggle favorite)
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth() as any;
+    if (!session?.id) {
+      return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { contactId, isFavorite } = body;
+
+    if (!contactId) {
+      return NextResponse.json({ success: false, error: "Contact ID requis" }, { status: 400 });
+    }
+
+    // Update contact
+    const updatedContact = await prisma.p2PContact.updateMany({
+      where: {
+        userId: session.id,
+        id: contactId,
+      },
+      data: {
+        isFavorite: isFavorite,
+      }
+    });
+
+    if (updatedContact.count === 0) {
+      return NextResponse.json({ success: false, error: "Contact non trouve" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: isFavorite ? "Ajoute aux favoris" : "Retire des favoris",
+    });
+  } catch (error) {
+    console.error("Error updating contact:", error);
+    return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 });
+  }
 }
 
-// DELETE: Not implemented (Contact model doesn't exist)
-export async function DELETE() {
-  return NextResponse.json({ success: false, error: "Non implemente" }, { status: 501 });
+// DELETE: Delete contact
+export async function DELETE(req: Request) {
+  try {
+    const session = await auth() as any;
+    if (!session?.id) {
+      return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const contactId = searchParams.get("id");
+
+    if (!contactId) {
+      return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 });
+    }
+
+    // Delete contact
+    const deletedContact = await prisma.p2PContact.deleteMany({
+      where: {
+        userId: session.id,
+        id: contactId,
+      }
+    });
+
+    if (deletedContact.count === 0) {
+      return NextResponse.json({ success: false, error: "Contact non trouve" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Contact supprime",
+    });
+  } catch (error) {
+    console.error("Error deleting contact:", error);
+    return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 });
+  }
 }
 
 function getInitials(name: string): string {
