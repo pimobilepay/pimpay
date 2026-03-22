@@ -93,7 +93,9 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
             <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Valeur Transactionnelle</p>
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-black text-white">
-                {amountPI.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
+                {amountPI < 0.0001 && amountPI > 0 
+                  ? amountPI.toFixed(8) 
+                  : amountPI.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
               </span>
               <span className="text-lg font-bold text-blue-500">PI</span>
             </div>
