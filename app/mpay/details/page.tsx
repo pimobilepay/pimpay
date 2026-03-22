@@ -14,7 +14,17 @@ export default function PaymentDetailsPage() {
   const searchParams = useSearchParams();
   const [copied, setCopied] = useState(false);
 
-  const amount = searchParams.get("amount") || "0.00";
+  const rawAmount = searchParams.get("amount") || "0.00";
+  // Formatage intelligent pour Pi avec petits montants
+  const formatPiAmount = (val: string) => {
+    const n = parseFloat(val);
+    if (isNaN(n)) return val;
+    if (n < 0.0001) {
+      return n.toFixed(10).replace(/0+$/, '').replace(/\.$/, '');
+    }
+    return n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+  };
+  const amount = formatPiAmount(rawAmount);
   const to = searchParams.get("to") || "Utilisateur PimPay";
   const txid = searchParams.get("txid") || "TX-PI-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const method = searchParams.get("method") || "wallet";

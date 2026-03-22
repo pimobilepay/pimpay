@@ -50,9 +50,14 @@ function ReceiptContent() {
   const formatAmount = () => {
     const n = parseFloat(amount);
     if (isNaN(n)) return amount;
-    return currency === "PI"
-      ? n.toFixed(4)
-      : new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2 }).format(n);
+    if (currency === "PI") {
+      // Affichage intelligent: plus de décimales pour petits montants
+      if (n < 0.0001) {
+        return n.toFixed(10).replace(/0+$/, '').replace(/\.$/, '');
+      }
+      return n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+    }
+    return new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2 }).format(n);
   };
 
   const formatFiat = () => {

@@ -702,7 +702,12 @@ export default function WithdrawPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-white">
-                          {log.amount} {log.currency || "PI"}
+                          {(log.currency === "PI" || !log.currency)
+                            ? (Number(log.amount) < 0.0001 
+                                ? Number(log.amount).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+                                : Number(log.amount).toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                            : Number(log.amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          } {log.currency || "PI"}
                         </p>
                         <p className={`text-[8px] font-black uppercase tracking-widest ${
                           log.status === "SUCCESS" || log.status === "SUCCESS"

@@ -209,7 +209,13 @@ export default function TransactionsPage() {
 
                 <div className="text-right">
                   <p className={`text-[13px] font-black ${details.prefix === '+' ? 'text-emerald-500' : 'text-white'}`}>
-                    {details.prefix}{tx.amount.toLocaleString(undefined, { minimumFractionDigits: tx.currency === 'BTC' ? 8 : 2 })} {tx.currency}
+                    {details.prefix}{
+                      (tx.currency === 'PI' || tx.currency === 'BTC')
+                        ? (Number(tx.amount) < 0.0001 
+                            ? Number(tx.amount).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+                            : Number(tx.amount).toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                        : tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                    } {tx.currency}
                   </p>
                   <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full mt-1.5 ${getStatusStyle(tx.status)}`}>
                     <span className="text-[8px] font-black uppercase tracking-tighter">{tx.status}</span>

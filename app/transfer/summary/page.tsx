@@ -238,11 +238,23 @@ function SummaryContent() {
           <div className="absolute top-0 right-0 p-4 opacity-10"><Send size={80} /></div>
           <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à envoyer</p>
           <div className="flex items-center justify-center gap-2">
-            <span className="text-5xl font-black tracking-tighter">{data.amount.toLocaleString()}</span>
+            <span className="text-5xl font-black tracking-tighter">
+              {data.currency === "PI" 
+                ? (data.amount < 0.0001 
+                    ? data.amount.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
+                    : data.amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                : data.amount.toLocaleString()}
+            </span>
             <span className="text-xl font-bold text-blue-500 uppercase">{data.currency}</span>
           </div>
           <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-            Solde disponible: {walletBalance !== null ? `${walletBalance.toLocaleString()} ${data.currency}` : "—"}
+            Solde disponible: {walletBalance !== null 
+              ? `${data.currency === "PI" 
+                  ? (walletBalance < 0.0001 
+                      ? walletBalance.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
+                      : walletBalance.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                  : walletBalance.toLocaleString()} ${data.currency}` 
+              : "—"}
           </p>
         </Card>
         <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6">
@@ -272,7 +284,13 @@ function SummaryContent() {
         <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6 space-y-5">
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">Montant</span>
-            <span className="text-white">{data.amount.toLocaleString()} {data.currency}</span>
+            <span className="text-white">
+              {data.currency === "PI" 
+                ? (data.amount < 0.0001 
+                    ? data.amount.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
+                    : data.amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                : data.amount.toLocaleString()} {data.currency}
+            </span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">Frais de réseau</span>
@@ -285,7 +303,11 @@ function SummaryContent() {
           <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-blue-400">Total à débiter</span>
             <span className={`text-lg ${isInsufficient ? "text-red-500" : "text-white"}`}>
-              {totalRequired.toLocaleString(undefined, { minimumFractionDigits: 2 })} {data.currency}
+              {data.currency === "PI" 
+                ? (totalRequired < 0.0001 
+                    ? totalRequired.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
+                    : totalRequired.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                : totalRequired.toLocaleString(undefined, { minimumFractionDigits: 2 })} {data.currency}
             </span>
           </div>
         </Card>
@@ -302,7 +324,11 @@ function SummaryContent() {
             </div>
             <span className="text-sm font-black text-white">
               {walletBalance !== null
-                ? `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${data.currency}`
+                ? `${data.currency === "PI" 
+                    ? (walletBalance < 0.0001 
+                        ? walletBalance.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
+                        : walletBalance.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
+                    : walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${data.currency}`
                 : "—"}
             </span>
           </div>

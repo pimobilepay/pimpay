@@ -520,9 +520,12 @@ export default function SendPage() {
                   <p className="text-xs text-slate-500">
                     {isLoadingWallets
                       ? t("transfer.loadingWallets")
-                      : `${currentWallet.balance.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })} ${t("transfer.availableSuffix")}`}
+                      : `${(selectedCurrency === "PI" && currentWallet.balance < 0.0001)
+                          ? Number(currentWallet.balance).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+                          : currentWallet.balance.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: selectedCurrency === "PI" ? 8 : 2,
+                            })} ${t("transfer.availableSuffix")}`}
                   </p>
                 </div>
               </div>
@@ -569,9 +572,12 @@ export default function SendPage() {
                             {w.currency}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {w.balance.toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                            })}{" "}
+                            {(w.currency === "PI" && w.balance < 0.0001)
+                              ? Number(w.balance).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+                              : w.balance.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: w.currency === "PI" ? 8 : 2,
+                                })}{" "}
                             {w.currency}
                           </p>
                         </div>
