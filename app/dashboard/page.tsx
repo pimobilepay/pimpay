@@ -317,6 +317,9 @@ export default function UserDashboard() {
           <a href="https://facebook.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
           <a href="https://x.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all"><Twitter size={20} /></a>
           <a href="https://youtube.com/@pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all"><Youtube size={20} /></a>
+          <a href="https://tiktok.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-label="TikTok"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.19 8.19 0 0 0 4.79 1.52V6.76a4.85 4.85 0 0 1-1.02-.07z"/></svg>
+          </a>
         </div>
         <div className="text-center"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p><p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p></div>
       </footer>
