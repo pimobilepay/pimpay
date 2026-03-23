@@ -29,9 +29,71 @@ const navItems = [
   { href: "/business/settings", label: "Parametres", icon: Settings },
 ];
 
-export function BusinessSidebar() {
+interface BusinessSidebarProps {
+  isMobile?: boolean;
+}
+
+export function BusinessSidebar({ isMobile = false }: BusinessSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  // For mobile, we don't want the fixed positioning or collapse functionality
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Company Badge */}
+        <div className="mx-4 mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-sm font-black text-emerald-500 uppercase">
+              EP
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-white">Entreprise Pro</p>
+                <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
+              <p className="text-[9px] font-bold text-emerald-500/70 uppercase tracking-wider">Compte verifie</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 px-3 flex-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
+                  isActive
+                    ? "bg-emerald-500/10 text-emerald-500"
+                    : "text-slate-500 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Balance Footer */}
+        <div className="border-t border-white/5 p-4 mt-auto">
+          <div className="rounded-2xl bg-slate-900/50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Solde Total</p>
+                <p className="text-lg font-black text-white">$247,850.00</p>
+              </div>
+              <Wallet className="h-5 w-5 text-emerald-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <aside

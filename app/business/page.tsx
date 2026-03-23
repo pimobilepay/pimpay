@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Select,
   SelectContent,
@@ -172,7 +172,7 @@ export default function BusinessDashboard() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <BusinessSidebar />
+            <BusinessSidebar isMobile />
           </div>
         </div>
       )}
