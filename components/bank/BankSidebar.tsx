@@ -17,7 +17,6 @@ import {
   Landmark,
   BadgeCheck,
   Lock,
-  Building,
   Users,
   AlertTriangle,
 } from "lucide-react";
@@ -34,10 +33,76 @@ const navItems = [
   { href: "/bank/settings", label: "Parametres", icon: Settings },
 ];
 
-export function BankSidebar() {
+interface BankSidebarProps {
+  isMobile?: boolean;
+}
+
+export function BankSidebar({ isMobile = false }: BankSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
+  // Mobile version - just navigation content without fixed wrapper
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Institution Badge */}
+        <div className="mx-4 mt-4 rounded-2xl bg-slate-800/50 border border-white/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 text-sm font-black text-white uppercase border border-white/10">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-white">Banque Centrale</p>
+                <BadgeCheck className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Acces securise</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 px-3 flex-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
+                  isActive
+                    ? "bg-white/10 text-white"
+                    : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                )}
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Security Footer */}
+        <div className="border-t border-white/5 p-4 mt-auto">
+          <div className="rounded-2xl bg-slate-900/50 p-4 border border-white/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Securite</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs font-bold text-emerald-500">Connexion chiffree</p>
+                </div>
+              </div>
+              <Shield className="h-5 w-5 text-slate-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop version with fixed positioning
   return (
     <aside
       className={cn(
