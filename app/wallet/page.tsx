@@ -1,8 +1,8 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  RefreshCcw, ArrowUpRight, ArrowLeftRight, History, X, Copy, Check, Download, ArrowDownLeft, Clock, Calendar, Facebook, Twitter, Youtube, Zap, Globe,
-  TrendingUp, TrendingDown, ChevronRight, Shield, Wallet
+  RefreshCcw, ArrowUpRight, ArrowLeftRight, History, X, Copy, Check, Download, ArrowDownLeft, Clock, Calendar, Facebook, Twitter, Youtube,
+  TrendingUp, TrendingDown, ChevronRight, Shield, Layers, BarChart3, Lock
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BottomNav } from "@/components/bottom-nav";
@@ -154,6 +154,7 @@ export default function WalletPage() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [recentTx, setRecentTx] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"assets" | "history">("assets");
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("Pioneer");
   const [piBalance, setPiBalance] = useState("0.00000000");
@@ -342,9 +343,30 @@ export default function WalletPage() {
           <QuickAction icon={<ArrowUpRight size={20} />} label={t("wallet.send")} onClick={() => setIsSendOpen(true)} />
           <QuickAction icon={<Download size={20} />} label={t("wallet.receive")} onClick={() => setSelectedAsset({ name: "Pi Network", symbol: "PI", address: addresses.PI, network: "Pi Mainnet" })} />
           <QuickAction icon={<ArrowLeftRight size={20} />} label={t("wallet.swap")} onClick={() => router.push('/wallet/swap')} />
-          <QuickAction icon={<History size={20} />} label={t("wallet.history")} onClick={() => router.push('/transactions')} />
+          <QuickAction icon={<Lock size={20} />} label="Staking" onClick={() => router.push('/wallet/staking')} />
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 p-1 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
+          <button
+            onClick={() => setActiveTab("assets")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === "assets" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
+          >
+            <Layers size={14} />
+            {t("wallet.yourAssets") || "Actifs"}
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === "history" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
+          >
+            <BarChart3 size={14} />
+            {t("wallet.recentActivity") || "Historique"}
+          </button>
+        </div>
+
+        {/* Assets Tab */}
+        {activeTab === "assets" && (
+        <div>
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
           <span className="text-[9px] font-bold text-slate-600">16 {t("wallet.assetsCount")}</span>
@@ -369,7 +391,11 @@ export default function WalletPage() {
           <AssetCard logo={<DaiLogo />} name="Dai" symbol="DAI" network="ERC20" balance={daiBalance} marketPrice={marketPrices.DAI} usdValue={parseFloat(daiBalance) * marketPrices.DAI} loading={loading} onClick={() => router.push('/wallet/dai')} />
           <AssetCard logo={<BusdLogo />} name="Binance USD" symbol="BUSD" network="BEP20" balance={busdBalance} marketPrice={marketPrices.BUSD} usdValue={parseFloat(busdBalance) * marketPrices.BUSD} loading={loading} onClick={() => router.push('/wallet/busd')} />
         </div>
+        </div>
+        )}
 
+        {/* History Tab */}
+        {activeTab === "history" && (
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4 px-1">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.recentActivity")}</h3>
@@ -401,6 +427,7 @@ export default function WalletPage() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-5 bg-[#020617] mt-6">
