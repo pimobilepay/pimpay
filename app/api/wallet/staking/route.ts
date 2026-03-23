@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 // Helper to get authenticated user ID
 async function getAuthenticatedUserId(): Promise<string | null> {
@@ -91,15 +92,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // Define pool configurations
+    // Define pool configurations (match IDs from staking page)
     const pools: Record<string, { apy: number; minAmount: number; currency: string }> = {
-      'pi-flexible': { apy: 8.5, minAmount: 10, currency: 'PI' },
-      'pi-locked': { apy: 14.2, minAmount: 50, currency: 'PI' },
+      'pi-flex': { apy: 8.5, minAmount: 1, currency: 'PI' },
+      'pi-locked': { apy: 14.2, minAmount: 10, currency: 'PI' },
       'sda-staking': { apy: 12.0, minAmount: 100, currency: 'SDA' }
     };
 
     const pool = pools[poolId];
     if (!pool) {
+      await logSystemEvent({
+        level: "WARN",
+        source: "STAKING",
+        action: "INVALID_POOL",
+        message: `Tentative de staking avec pool invalide: ${poolId}`,
+        userId,
+        details: { poolId, amount, currency }
+      });
       return NextResponse.json({ error: "Pool de staking invalide" }, { status: 400 });
     }
 
@@ -153,6 +162,23 @@ export async function POST(req: Request) {
       })
     ]);
 
+    // Log successful staking
+    await logSystemEvent({
+      level: "INFO",
+      source: "STAKING",
+      action: "STAKE_CREATED",
+      message: `Staking de ${amount} ${pool.currency} créé avec succès`,
+      userId,
+      details: { 
+        stakingId: staking.id, 
+        amount, 
+        currency: pool.currency, 
+        apy: pool.apy, 
+        poolId,
+        walletId: wallet.id 
+      }
+    });
+
     return NextResponse.json({
       success: true,
       message: "Staking créé avec succès",
@@ -168,6 +194,14 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("❌ [STAKING_CREATE_ERROR]:", error.message);
+    await logSystemEvent({
+      level: "ERROR",
+      source: "STAKING",
+      action: "STAKE_ERROR",
+      message: `Erreur création staking: ${error.message}`,
+      userId,
+      details: { error: error.message, stack: error.stack?.substring(0, 500) }
+    });
     return NextResponse.json({ error: "Impossible de créer le staking" }, { status: 500 });
   }
 }

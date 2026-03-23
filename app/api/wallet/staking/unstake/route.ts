@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 // Helper to get authenticated user ID
 async function getAuthenticatedUserId(): Promise<string | null> {
@@ -104,6 +105,23 @@ export async function POST(req: Request) {
       })
     ]);
 
+    // Log successful unstake
+    await logSystemEvent({
+      level: "INFO",
+      source: "STAKING",
+      action: "UNSTAKE_SUCCESS",
+      message: `Staking clôturé: ${staking.amount} ${currency} + ${finalRewards.toFixed(4)} récompenses`,
+      userId,
+      details: {
+        stakingId,
+        principal: staking.amount,
+        rewards: finalRewards,
+        total: totalAmount,
+        daysStaked,
+        apy: staking.apy
+      }
+    });
+
     return NextResponse.json({
       success: true,
       message: "Staking clôturé avec succès",
@@ -117,6 +135,14 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("❌ [UNSTAKE_ERROR]:", error.message);
+    await logSystemEvent({
+      level: "ERROR",
+      source: "STAKING",
+      action: "UNSTAKE_ERROR",
+      message: `Erreur unstake: ${error.message}`,
+      userId,
+      details: { stakingId: body?.stakingId, error: error.message }
+    });
     return NextResponse.json({ error: "Impossible de clôturer le staking" }, { status: 500 });
   }
 }
