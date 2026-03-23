@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   RefreshCcw, ArrowUpRight, ArrowLeftRight, History, X, Copy, Check, Download, ArrowDownLeft, Clock, Calendar, Facebook, Twitter, Youtube,
-  TrendingUp, TrendingDown, ChevronRight, Shield, Layers, BarChart3, Lock
+  TrendingUp, TrendingDown, ChevronRight, Shield, Layers, BarChart3, Lock, Music2
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BottomNav } from "@/components/bottom-nav";
@@ -432,9 +432,10 @@ export default function WalletPage() {
 
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-5 bg-[#020617] mt-6">
         <div className="flex items-center gap-5">
-          <a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors"><Facebook size={16} /></a>
-          <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-colors"><Twitter size={16} /></a>
-          <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-red-400 transition-colors"><Youtube size={16} /></a>
+<a href="https://www.facebook.com/profile.php?id=61583243122633" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors"><Facebook size={16} /></a>
+  <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-colors"><Twitter size={16} /></a>
+  <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-red-400 transition-colors"><Youtube size={16} /></a>
+  <a href="https://www.tiktok.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-pink-400 transition-colors"><Music2 size={16} /></a>
         </div>
         <div className="text-center">
           <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600">2026 PimPay Virtual Bank</p>
