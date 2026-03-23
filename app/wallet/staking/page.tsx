@@ -116,11 +116,29 @@ function StakeModal({
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const res = await fetch("/api/wallet/staking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: val,
+          currency: pool.symbol,
+          poolId: pool.id,
+          lockDays: pool.lockDays
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${val} ${pool.symbol} mis en staking avec succès !`);
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(data.error || "Erreur lors du staking");
+      }
+    } catch (err) {
+      toast.error("Erreur de connexion");
+    }
     setLoading(false);
-    toast.success(`${val} ${pool.symbol} mis en staking avec succès !`);
-    onSuccess();
-    onClose();
   };
 
   return (
@@ -218,9 +236,25 @@ export default function StakingPage() {
 
   const loadStakes = useCallback(async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    // Mock active stakes (to be replaced with real API)
-    setActiveStakes([]);
+    try {
+      const res = await fetch("/api/wallet/staking");
+      const data = await res.json();
+      if (data.success && data.stakings) {
+        setActiveStakes(data.stakings.map((s: any) => ({
+          id: s.id,
+          asset: "PI",
+          symbol: "PI",
+          amount: s.amount,
+          apy: s.apy,
+          startDate: s.startDate,
+          endDate: s.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          earned: s.rewardsEarned,
+          status: s.isActive ? "ACTIVE" : "COMPLETED"
+        })));
+      }
+    } catch (err) {
+      console.error("Error loading stakes:", err);
+    }
     setLoading(false);
   }, []);
 
@@ -441,6 +475,31 @@ export default function StakingPage() {
                         <p className="text-[11px] font-black text-white">{new Date(stake.endDate).toLocaleDateString('fr-FR')}</p>
                       </div>
                     </div>
+                    {stake.status === "ACTIVE" && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/wallet/staking/unstake", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ stakingId: stake.id })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              toast.success(`Staking clôturé ! +${data.details.rewards.toFixed(4)} ${stake.symbol} de récompenses`);
+                              loadStakes();
+                            } else {
+                              toast.error(data.error || "Erreur lors du retrait");
+                            }
+                          } catch (err) {
+                            toast.error("Erreur de connexion");
+                          }
+                        }}
+                        className="w-full mt-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-black text-red-400 uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        Retirer le staking
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
