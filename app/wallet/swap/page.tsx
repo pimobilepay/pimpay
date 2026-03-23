@@ -15,6 +15,8 @@ import {
   TrendingUp,
   Loader2,
   CheckCircle2,
+  Pencil,
+  Info,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -179,6 +181,9 @@ export default function WalletSwapPage() {
   const [toAsset, setToAsset] = useState<Asset>(ALL_ASSETS[18]); // XAF
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState(0);
+  const [slippage, setSlippage] = useState(1);
+  const [editingSlippage, setEditingSlippage] = useState(false);
+  const [slippageInput, setSlippageInput] = useState("1");
 
   /* ---------- FETCHERS ---------- */
 
@@ -391,6 +396,16 @@ export default function WalletSwapPage() {
     return rate.toFixed(4);
   };
 
+  const getMinimumReceived = () => {
+    if (toAmount <= 0) return "0.00";
+    const min = toAmount * (1 - slippage / 100);
+    if (["BTC", "PI", "ETH"].includes(toAsset.id)) return min.toFixed(8);
+    if (min < 0.01) return min.toFixed(6);
+    return min.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  };
+
+  const NETWORK_FEE = CRYPTO_IDS.includes(fromAsset.id) ? `0.01 ${fromAsset.symbol}` : "0.00";
+
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
   const selectedId = isSelecting === "from" ? fromAsset.id : toAsset.id;
@@ -559,15 +574,75 @@ export default function WalletSwapPage() {
             </div>
           </div>
 
-          {/* Rate info */}
-          <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-3 flex justify-between items-center text-[10px] font-bold">
-            <span className="text-slate-500 uppercase">Taux</span>
-            <span className="text-blue-400 italic bg-blue-500/10 px-2 py-1 rounded-md">
-              {"1 "}
-              {fromAsset.symbol}
-              {" = "}
-              {getExchangeRate()} {toAsset.symbol}
-            </span>
+          {/* Swap Details Panel */}
+          <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 space-y-3">
+            {/* Rate */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">Rate</span>
+              <span className="text-sm font-semibold text-white">
+                {"1 "}{fromAsset.symbol}{" = "}{getExchangeRate()}{" "}{toAsset.symbol}
+              </span>
+            </div>
+            {/* Network fee */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">Network fee</span>
+              <span className="text-sm font-semibold text-white">{NETWORK_FEE}</span>
+            </div>
+            {/* Slippage */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">Slippage</span>
+              {editingSlippage ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="50"
+                    step="0.1"
+                    value={slippageInput}
+                    onChange={(e) => setSlippageInput(e.target.value)}
+                    onBlur={() => {
+                      const val = parseFloat(slippageInput);
+                      if (!isNaN(val) && val > 0 && val <= 50) setSlippage(val);
+                      else setSlippageInput(String(slippage));
+                      setEditingSlippage(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const val = parseFloat(slippageInput);
+                        if (!isNaN(val) && val > 0 && val <= 50) setSlippage(val);
+                        else setSlippageInput(String(slippage));
+                        setEditingSlippage(false);
+                      }
+                    }}
+                    className="w-16 bg-white/10 border border-blue-500/40 rounded-lg px-2 py-1 text-sm font-semibold text-white text-right outline-none"
+                    autoFocus
+                  />
+                  <span className="text-sm font-semibold text-white">%</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setSlippageInput(String(slippage)); setEditingSlippage(true); }}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-white"
+                >
+                  {slippage}%
+                  <Pencil size={12} className="text-slate-400" />
+                </button>
+              )}
+            </div>
+            {/* Minimum received */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">Minimum received</span>
+              <span className="text-sm font-semibold text-white">
+                {getMinimumReceived()}{" "}{toAsset.symbol}
+              </span>
+            </div>
+            {/* Divider */}
+            <div className="h-px bg-white/5" />
+            {/* Pool fee note */}
+            <div className="flex items-center justify-center gap-1.5 pt-1">
+              <span className="text-xs text-slate-500">May include 0.3% pool fee</span>
+              <Info size={13} className="text-slate-500" />
+            </div>
           </div>
 
           {/* Action Button */}
@@ -769,19 +844,31 @@ export default function WalletSwapPage() {
 
               <div className="h-px bg-white/5 w-full" />
 
-              <div className="space-y-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <div className="flex justify-between">
-                  <span>Taux</span>
-                  <span>
-                    {"1 "}
-                    {fromAsset.symbol}
-                    {" = "}
-                    {getExchangeRate()} {toAsset.symbol}
+              <div className="space-y-3 text-xs font-medium text-slate-400">
+                <div className="flex justify-between items-center">
+                  <span>Rate</span>
+                  <span className="text-white font-semibold">
+                    {"1 "}{fromAsset.symbol}{" = "}{getExchangeRate()}{" "}{toAsset.symbol}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-green-500">Frais</span>
-                  <span className="text-green-500">{"0.00 %"}</span>
+                <div className="flex justify-between items-center">
+                  <span>Network fee</span>
+                  <span className="text-white font-semibold">{NETWORK_FEE}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Slippage</span>
+                  <span className="text-white font-semibold">{slippage}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Minimum received</span>
+                  <span className="text-white font-semibold">
+                    {getMinimumReceived()}{" "}{toAsset.symbol}
+                  </span>
+                </div>
+                <div className="h-px bg-white/5" />
+                <div className="flex items-center justify-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-slate-500">May include 0.3% pool fee</span>
+                  <Info size={13} className="text-slate-500" />
                 </div>
               </div>
             </div>
