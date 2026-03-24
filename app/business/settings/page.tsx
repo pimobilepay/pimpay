@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { BusinessSidebar } from "@/components/business/BusinessSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -47,26 +50,126 @@ import {
   Trash2,
   Link,
   FileText,
+  Loader2,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
-// Security sessions
-const activeSessions = [
-  { id: 1, device: "MacBook Pro - Chrome", location: "Kinshasa, RDC", lastActive: "Actuellement actif", current: true },
-  { id: 2, device: "iPhone 14 - Safari", location: "Kinshasa, RDC", lastActive: "Il y a 2 heures", current: false },
-  { id: 3, device: "Windows PC - Firefox", location: "Lubumbashi, RDC", lastActive: "Il y a 3 jours", current: false },
-];
+// Types for API response
+interface SessionData {
+  id: string;
+  device: string;
+  browser: string | null;
+  os: string | null;
+  location: string;
+  lastActive: string;
+  isCurrent: boolean;
+}
 
-// Connected services
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  twoFactorEnabled: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+interface BusinessData {
+  id: string;
+  name: string;
+  registrationNumber: string | null;
+  type: string;
+  category: string | null;
+  status: string;
+  description: string | null;
+  city: string | null;
+  country: string | null;
+  email: string;
+  phone: string | null;
+}
+
+interface SettingsResponse {
+  success: boolean;
+  data: {
+    user: UserData;
+    business: BusinessData | null;
+    sessions: SessionData[];
+  };
+}
+
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
+
+// Static connected services (can be made dynamic later)
 const connectedServices = [
-  { id: 1, name: "Google Workspace", status: "connected", icon: "G" },
-  { id: 2, name: "Microsoft 365", status: "connected", icon: "M" },
+  { id: 1, name: "Google Workspace", status: "disconnected", icon: "G" },
+  { id: 2, name: "Microsoft 365", status: "disconnected", icon: "M" },
   { id: 3, name: "Slack", status: "disconnected", icon: "S" },
-  { id: 4, name: "QuickBooks", status: "connected", icon: "Q" },
+  { id: 4, name: "QuickBooks", status: "disconnected", icon: "Q" },
 ];
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
+  
+  // Fetch settings data
+  const { data, error, isLoading, mutate } = useSWR<SettingsResponse>(
+    "/api/business/settings",
+    fetcher,
+    {
+      revalidateOnFocus: true,
+    }
+  );
+
+  const settingsData = data?.data;
+  const user = settingsData?.user;
+  const business = settingsData?.business;
+  const sessions = settingsData?.sessions || [];
+
+  // Form state for profile
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+    businessName: "",
+    businessDescription: "",
+    businessCategory: "",
+  });
+
+  // Password form state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  // Initialize form data when API data loads
+  useEffect(() => {
+    if (user && business) {
+      setFormData({
+        name: user.name || "",
+        phone: user.phone || "",
+        address: user.address || "",
+        city: user.city || "",
+        country: user.country || "",
+        businessName: business.name || "",
+        businessDescription: business.description || "",
+        businessCategory: business.category || "",
+      });
+      setTwoFactorEnabled(user.twoFactorEnabled || false);
+    }
+  }, [user, business]);
   
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -77,8 +180,221 @@ export default function SettingsPage() {
   const [marketingEmails, setMarketingEmails] = useState(false);
 
   // Security settings
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+
+  // Save profile changes
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/business/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Succes",
+          description: "Vos parametres ont ete mis a jour",
+        });
+        mutate();
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Une erreur est survenue",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les modifications",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Change password
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Les mots de passe ne correspondent pas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Erreur",
+        description: "Le mot de passe doit contenir au moins 6 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const response = await fetch("/api/business/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Succes",
+          description: "Votre mot de passe a ete mis a jour",
+        });
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Mot de passe actuel incorrect",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer le mot de passe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Revoke session
+  const handleRevokeSession = async (sessionId: string) => {
+    setRevokingSession(sessionId);
+    try {
+      const response = await fetch(`/api/business/settings?sessionId=${sessionId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Succes",
+          description: "Session revoquee",
+        });
+        mutate();
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Impossible de revoquer la session",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de revoquer la session",
+        variant: "destructive",
+      });
+    } finally {
+      setRevokingSession(null);
+    }
+  };
+
+  // Revoke all sessions
+  const handleRevokeAllSessions = async () => {
+    setRevokingSession("all");
+    try {
+      const response = await fetch("/api/business/settings?revokeAll=true", {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Succes",
+          description: "Toutes les autres sessions ont ete revoquees",
+        });
+        mutate();
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Impossible de revoquer les sessions",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de revoquer les sessions",
+        variant: "destructive",
+      });
+    } finally {
+      setRevokingSession(null);
+    }
+  };
+
+  // Toggle 2FA
+  const handleToggle2FA = async (enabled: boolean) => {
+    setTwoFactorEnabled(enabled);
+    try {
+      const response = await fetch("/api/business/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ twoFactorEnabled: enabled }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Succes",
+          description: enabled ? "2FA active" : "2FA desactive",
+        });
+      } else {
+        setTwoFactorEnabled(!enabled);
+        toast({
+          title: "Erreur",
+          description: result.error || "Impossible de modifier le 2FA",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      setTwoFactorEnabled(!enabled);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le 2FA",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Format date
+  const formatLastActive = (dateStr: string, isCurrent: boolean) => {
+    if (isCurrent) return "Actuellement actif";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const minutes = Math.floor(diff / (1000 * 60));
+    if (minutes < 60) return `Il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+    const days = Math.floor(hours / 24);
+    return `Il y a ${days} jour${days > 1 ? 's' : ''}`;
+  };
 
   return (
     <div className="flex min-h-screen bg-[#02040a]">
@@ -156,6 +472,27 @@ export default function SettingsPage() {
 
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
+            {/* Error State */}
+            {error && (
+              <Card className="bg-red-500/10 border-red-500/30 rounded-3xl">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-500/20 rounded-2xl">
+                      <AlertCircle className="h-6 w-6 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-red-400">Erreur de chargement</p>
+                      <p className="text-xs text-red-300/70 mt-1">Impossible de charger vos parametres</p>
+                    </div>
+                    <Button onClick={() => mutate()} className="bg-red-500 hover:bg-red-600 text-xs font-bold">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Reessayer
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
               <CardHeader>
                 <CardTitle className="text-lg font-black text-white">Informations de l&apos;Entreprise</CardTitle>
@@ -164,9 +501,13 @@ export default function SettingsPage() {
               <CardContent className="space-y-6">
                 {/* Logo Upload */}
                 <div className="flex items-center gap-6">
-                  <div className="w-24 h-24 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl font-black text-emerald-500">
-                    EP
-                  </div>
+                  {isLoading ? (
+                    <Skeleton className="w-24 h-24 rounded-2xl bg-slate-700" />
+                  ) : (
+                    <div className="w-24 h-24 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl font-black text-emerald-500">
+                      {business?.name?.substring(0, 2).toUpperCase() || "EP"}
+                    </div>
+                  )}
                   <div>
                     <Button variant="outline" className="border-white/10 text-xs font-bold mb-2">
                       <Upload className="h-4 w-4 mr-2" />
@@ -180,59 +521,113 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Nom de l&apos;entreprise</Label>
-                    <Input defaultValue="Entreprise Pro SARL" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Input 
+                        value={formData.businessName}
+                        onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                        className="bg-slate-800/50 border-white/10 rounded-xl" 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Numero RCCM</Label>
-                    <Input defaultValue="CD/KIN/RCCM/24-A-12345" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Input 
+                        value={business?.registrationNumber || ""}
+                        disabled
+                        className="bg-slate-800/50 border-white/10 rounded-xl opacity-50" 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Email professionnel</Label>
-                    <Input defaultValue="contact@entreprisepro.cd" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Input 
+                        value={user?.email || ""}
+                        disabled
+                        className="bg-slate-800/50 border-white/10 rounded-xl opacity-50" 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Telephone</Label>
-                    <Input defaultValue="+243 812 345 678" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Input 
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="bg-slate-800/50 border-white/10 rounded-xl" 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label className="text-slate-300 text-sm font-bold">Adresse</Label>
-                    <Textarea defaultValue="123 Avenue de la Paix, Gombe, Kinshasa, RDC" className="bg-slate-800/50 border-white/10 rounded-xl resize-none" rows={2} />
+                    {isLoading ? (
+                      <Skeleton className="h-20 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Textarea 
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        className="bg-slate-800/50 border-white/10 rounded-xl resize-none" 
+                        rows={2} 
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Secteur d&apos;activite</Label>
-                    <Select defaultValue="tech">
-                      <SelectTrigger className="bg-slate-800/50 border-white/10 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/10">
-                        <SelectItem value="tech">Technologie</SelectItem>
-                        <SelectItem value="finance">Finance</SelectItem>
-                        <SelectItem value="commerce">Commerce</SelectItem>
-                        <SelectItem value="services">Services</SelectItem>
-                        <SelectItem value="industrie">Industrie</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Select 
+                        value={formData.businessCategory || "tech"}
+                        onValueChange={(value) => setFormData({ ...formData, businessCategory: value })}
+                      >
+                        <SelectTrigger className="bg-slate-800/50 border-white/10 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-white/10">
+                          <SelectItem value="tech">Technologie</SelectItem>
+                          <SelectItem value="finance">Finance</SelectItem>
+                          <SelectItem value="commerce">Commerce</SelectItem>
+                          <SelectItem value="services">Services</SelectItem>
+                          <SelectItem value="industrie">Industrie</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-slate-300 text-sm font-bold">Taille de l&apos;entreprise</Label>
-                    <Select defaultValue="10-50">
-                      <SelectTrigger className="bg-slate-800/50 border-white/10 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/10">
-                        <SelectItem value="1-10">1-10 employes</SelectItem>
-                        <SelectItem value="10-50">10-50 employes</SelectItem>
-                        <SelectItem value="50-200">50-200 employes</SelectItem>
-                        <SelectItem value="200+">200+ employes</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-slate-300 text-sm font-bold">Ville</Label>
+                    {isLoading ? (
+                      <Skeleton className="h-10 w-full rounded-xl bg-slate-700" />
+                    ) : (
+                      <Input 
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="bg-slate-800/50 border-white/10 rounded-xl" 
+                      />
+                    )}
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-4">
-                  <Button className="bg-emerald-500 hover:bg-emerald-600 font-bold">
-                    <Save className="h-4 w-4 mr-2" />
-                    Enregistrer les modifications
+                  <Button 
+                    className="bg-emerald-500 hover:bg-emerald-600 font-bold"
+                    onClick={handleSaveProfile}
+                    disabled={isSaving || isLoading}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    {isSaving ? "Enregistrement..." : "Enregistrer les modifications"}
                   </Button>
                 </div>
               </CardContent>
@@ -244,20 +639,46 @@ export default function SettingsPage() {
                 <CardTitle className="text-lg font-black text-white">Statut du Compte</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl">
-                      <BadgeCheck className="h-6 w-6 text-emerald-500" />
+                {isLoading ? (
+                  <Skeleton className="h-20 w-full rounded-2xl bg-slate-700" />
+                ) : (
+                  <div className={`flex items-center justify-between p-4 rounded-2xl ${
+                    business?.status === "ACTIVE" 
+                      ? "bg-emerald-500/10 border border-emerald-500/20" 
+                      : "bg-amber-500/10 border border-amber-500/20"
+                  }`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${
+                        business?.status === "ACTIVE" ? "bg-emerald-500/20" : "bg-amber-500/20"
+                      }`}>
+                        {business?.status === "ACTIVE" ? (
+                          <BadgeCheck className="h-6 w-6 text-emerald-500" />
+                        ) : (
+                          <AlertCircle className="h-6 w-6 text-amber-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">
+                          {business?.status === "ACTIVE" ? "Compte Verifie" : 
+                           business?.status === "PENDING_VERIFICATION" ? "En attente de verification" :
+                           "Compte non verifie"}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {business?.status === "ACTIVE" 
+                            ? "Votre entreprise a ete verifiee avec succes" 
+                            : "Completez la verification de votre entreprise"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">Compte Verifie</p>
-                      <p className="text-xs text-slate-400">Votre entreprise a ete verifiee avec succes</p>
-                    </div>
+                    <Badge className={`font-bold ${
+                      business?.status === "ACTIVE" 
+                        ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/30" 
+                        : "bg-amber-500/20 text-amber-500 border-amber-500/30"
+                    }`}>
+                      {business?.type || "Business"}
+                    </Badge>
                   </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30 font-bold">
-                    Business Pro
-                  </Badge>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -274,7 +695,12 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label className="text-slate-300 text-sm font-bold">Mot de passe actuel</Label>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} className="bg-slate-800/50 border-white/10 rounded-xl pr-10" />
+                    <Input 
+                      type={showPassword ? "text" : "password"} 
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                      className="bg-slate-800/50 border-white/10 rounded-xl pr-10" 
+                    />
                     <button
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
@@ -286,16 +712,34 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Nouveau mot de passe</Label>
-                    <Input type="password" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    <Input 
+                      type="password" 
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      className="bg-slate-800/50 border-white/10 rounded-xl" 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-slate-300 text-sm font-bold">Confirmer le mot de passe</Label>
-                    <Input type="password" className="bg-slate-800/50 border-white/10 rounded-xl" />
+                    <Input 
+                      type="password" 
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      className="bg-slate-800/50 border-white/10 rounded-xl" 
+                    />
                   </div>
                 </div>
-                <Button className="bg-emerald-500 hover:bg-emerald-600 font-bold">
-                  <Key className="h-4 w-4 mr-2" />
-                  Mettre a jour le mot de passe
+                <Button 
+                  className="bg-emerald-500 hover:bg-emerald-600 font-bold"
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword}
+                >
+                  {isChangingPassword ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Key className="h-4 w-4 mr-2" />
+                  )}
+                  {isChangingPassword ? "Mise a jour..." : "Mettre a jour le mot de passe"}
                 </Button>
               </CardContent>
             </Card>
@@ -309,20 +753,24 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-500/10 rounded-xl">
-                      <Smartphone className="h-5 w-5 text-emerald-500" />
+                    <div className={`p-3 rounded-xl ${twoFactorEnabled ? "bg-emerald-500/10" : "bg-slate-700"}`}>
+                      <Smartphone className={`h-5 w-5 ${twoFactorEnabled ? "text-emerald-500" : "text-slate-400"}`} />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">Application d&apos;authentification</p>
                       <p className="text-xs text-slate-500">Google Authenticator, Authy, etc.</p>
                     </div>
                   </div>
-                  <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
+                  <Switch 
+                    checked={twoFactorEnabled} 
+                    onCheckedChange={handleToggle2FA}
+                    disabled={isLoading}
+                  />
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-500/10 rounded-xl">
-                      <Fingerprint className="h-5 w-5 text-blue-500" />
+                    <div className={`p-3 rounded-xl ${biometricEnabled ? "bg-blue-500/10" : "bg-slate-700"}`}>
+                      <Fingerprint className={`h-5 w-5 ${biometricEnabled ? "text-blue-500" : "text-slate-400"}`} />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">Authentification biometrique</p>
@@ -342,38 +790,80 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg font-black text-white">Sessions Actives</CardTitle>
                     <CardDescription className="text-slate-500">Gerez vos connexions actives</CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" className="border-red-500/30 text-red-500 hover:bg-red-500/10 text-xs font-bold">
-                    <LogOut className="h-4 w-4 mr-2" />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-red-500/30 text-red-500 hover:bg-red-500/10 text-xs font-bold"
+                    onClick={handleRevokeAllSessions}
+                    disabled={revokingSession === "all" || sessions.filter(s => !s.isCurrent).length === 0}
+                  >
+                    {revokingSession === "all" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <LogOut className="h-4 w-4 mr-2" />
+                    )}
                     Deconnecter tout
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {activeSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-xl ${session.current ? "bg-emerald-500/10" : "bg-slate-700"}`}>
-                        <Globe className={`h-5 w-5 ${session.current ? "text-emerald-500" : "text-slate-400"}`} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-white">{session.device}</p>
-                          {session.current && (
-                            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] font-bold">
-                              Actuel
-                            </Badge>
-                          )}
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <Skeleton className="w-10 h-10 rounded-xl bg-slate-700" />
+                        <div>
+                          <Skeleton className="h-4 w-40 mb-2 bg-slate-700" />
+                          <Skeleton className="h-3 w-32 bg-slate-700" />
                         </div>
-                        <p className="text-xs text-slate-500">{session.location} - {session.lastActive}</p>
                       </div>
+                      <Skeleton className="h-8 w-20 bg-slate-700" />
                     </div>
-                    {!session.current && (
-                      <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-500/10 text-xs font-bold">
-                        Revoquer
-                      </Button>
-                    )}
+                  ))
+                ) : sessions.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <Globe className="h-12 w-12 mx-auto mb-3 text-slate-600" />
+                    <p className="text-sm font-bold">Aucune session active</p>
                   </div>
-                ))}
+                ) : (
+                  sessions.map((session) => (
+                    <div key={session.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2 rounded-xl ${session.isCurrent ? "bg-emerald-500/10" : "bg-slate-700"}`}>
+                          <Globe className={`h-5 w-5 ${session.isCurrent ? "text-emerald-500" : "text-slate-400"}`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-white">{session.device}</p>
+                            {session.isCurrent && (
+                              <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] font-bold">
+                                Actuel
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            {session.location} - {formatLastActive(session.lastActive, session.isCurrent)}
+                          </p>
+                        </div>
+                      </div>
+                      {!session.isCurrent && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-500 hover:bg-red-500/10 text-xs font-bold"
+                          onClick={() => handleRevokeSession(session.id)}
+                          disabled={revokingSession === session.id}
+                        >
+                          {revokingSession === session.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Revoquer"
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </TabsContent>
