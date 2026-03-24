@@ -125,7 +125,7 @@ export default function LoginPage() {
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
         onSuccess={() => {
-          const destination = tempRole === "ADMIN" ? "/admin" : "/dashboard";
+          const destination = getRedirectPath(tempRole || "USER");
           triggerSuccessTransition(destination);
         }}
         userId={tempUserId}
