@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BankSidebar } from "@/components/bank/BankSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -37,28 +38,54 @@ import {
   TrendingDown,
 } from "lucide-react";
 
-// Mock alerts data
-const allAlerts = [
-  { id: "ALT001", type: "security", title: "Tentative de connexion suspecte", description: "5 tentatives echouees depuis IP 192.168.1.45", time: "Il y a 5 min", severity: "high", status: "open" },
-  { id: "ALT002", type: "transaction", title: "Transaction de haut montant", description: "Transfert de $500,000 necessitant approbation niveau 2", time: "Il y a 15 min", severity: "medium", status: "pending" },
-  { id: "ALT003", type: "compliance", title: "KYC en attente critique", description: "8 verifications depassent le delai de 48h", time: "Il y a 30 min", severity: "medium", status: "open" },
-  { id: "ALT004", type: "system", title: "Maintenance serveur programmee", description: "Mise a jour systeme prevue ce soir a 23h00", time: "Il y a 1h", severity: "low", status: "acknowledged" },
-  { id: "ALT005", type: "liquidity", title: "Seuil de reserve atteint", description: "Reserve Pi proche du minimum reglementaire (102%)", time: "Il y a 2h", severity: "high", status: "open" },
-  { id: "ALT006", type: "security", title: "Certificat SSL expire bientot", description: "Expiration dans 7 jours - Renouvellement requis", time: "Il y a 3h", severity: "medium", status: "acknowledged" },
-  { id: "ALT007", type: "transaction", title: "Pattern de fractionnement detecte", description: "Compte ACC-45678 - Multiple petites transactions", time: "Il y a 4h", severity: "high", status: "investigating" },
-  { id: "ALT008", type: "users", title: "Pic d'inscriptions inhabituel", description: "+200% d'inscriptions dans les dernieres 2h", time: "Il y a 5h", severity: "low", status: "resolved" },
-  { id: "ALT009", type: "compliance", title: "Document expire", description: "15 clients avec documents d'identite expires", time: "Il y a 6h", severity: "medium", status: "open" },
-  { id: "ALT010", type: "system", title: "Latence API elevee", description: "Temps de reponse moyen > 500ms", time: "Il y a 8h", severity: "medium", status: "resolved" },
-];
+// Types for alerts API response
+interface Alert {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  description: string;
+  time: string;
+  status: string;
+  ipAddress?: string;
+}
 
-// Alert statistics
-const alertStats = {
-  total: 45,
-  open: 12,
-  pending: 8,
-  resolved: 25,
-  highPriority: 5,
-};
+interface AlertStats {
+  total: number;
+  open: number;
+  pending: number;
+  resolved: number;
+  highPriority: number;
+}
+
+interface Pagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+interface ApiResponse {
+  alerts: Alert[];
+  pagination: Pagination;
+  statistics: AlertStats;
+}
+
+// Helper function to format relative time
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMinutes < 1) return "A l'instant";
+  if (diffMinutes < 60) return `Il y a ${diffMinutes} min`;
+  if (diffHours < 24) return `Il y a ${diffHours}h`;
+  if (diffDays < 7) return `Il y a ${diffDays}j`;
+  return date.toLocaleDateString("fr-FR");
+}
 
 export default function AlertsPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -66,6 +93,79 @@ export default function AlertsPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
+  const [page, setPage] = useState(1);
+
+  // API data state
+  const [data, setData] = useState<ApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch alerts from API
+  const fetchAlerts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "50",
+        ...(searchTerm && { search: searchTerm }),
+        ...(severityFilter !== "all" && { severity: severityFilter }),
+        ...(statusFilter !== "all" && { status: statusFilter }),
+        ...(activeTab !== "all" && { type: activeTab }),
+      });
+
+      const res = await fetch(`/api/bank/alerts?${params}`, { credentials: "include" });
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.error || "Erreur lors du chargement des alertes");
+
+      setData(result);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, searchTerm, severityFilter, statusFilter, activeTab]);
+
+  // Fetch on mount and when filters change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchAlerts();
+    }, searchTerm ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [fetchAlerts, searchTerm]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, severityFilter, statusFilter, activeTab]);
+
+  // Handle alert actions (resolve, acknowledge)
+  const handleAlertAction = async (alertId: string, action: string) => {
+    try {
+      const res = await fetch("/api/bank/alerts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ alertId, action }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur");
+      await fetchAlerts();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erreur lors de l'action");
+    }
+  };
+
+  // Mark all as read
+  const handleMarkAllRead = async () => {
+    // For now, refresh the list - in production, would call a dedicated endpoint
+    await fetchAlerts();
+  };
+
+  // Get data from API response
+  const alerts = data?.alerts || [];
+  const alertStats = data?.statistics || { total: 0, open: 0, pending: 0, resolved: 0, highPriority: 0 };
 
   const getAlertIcon = (type: string) => {
     switch (type) {
@@ -129,13 +229,8 @@ export default function AlertsPage() {
     }
   };
 
-  const filteredAlerts = allAlerts.filter(alert => {
-    const matchesSearch = alert.title.toLowerCase().includes(searchTerm.toLowerCase()) || alert.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSeverity = severityFilter === "all" || alert.severity === severityFilter;
-    const matchesStatus = statusFilter === "all" || alert.status === statusFilter;
-    const matchesTab = activeTab === "all" || alert.type === activeTab;
-    return matchesSearch && matchesSeverity && matchesStatus && matchesTab;
-  });
+  // Alerts are already filtered by the API, no need to filter again
+  const filteredAlerts = alerts;
 
   return (
     <div className="flex min-h-screen bg-[#02040a]">
@@ -187,7 +282,9 @@ export default function AlertsPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Centre d&apos;Alertes</h1>
-              {alertStats.highPriority > 0 && (
+              {loading ? (
+                <Skeleton className="h-5 w-20 bg-slate-700" />
+              ) : alertStats.highPriority > 0 && (
                 <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-bold animate-pulse">
                   <AlertTriangle className="h-3 w-3 mr-1" />
                   {alertStats.highPriority} Critiques
@@ -197,12 +294,18 @@ export default function AlertsPage() {
             <p className="text-sm text-slate-500">Surveillance et gestion des alertes systeme</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="border-white/10 text-xs font-bold">
+            <Button variant="outline" className="border-white/10 text-xs font-bold" onClick={handleMarkAllRead}>
               <BellOff className="h-4 w-4 mr-2" />
               Tout marquer lu
             </Button>
-            <Button variant="outline" size="icon" className="border-white/10 bg-slate-900/50">
-              <RefreshCw className="h-4 w-4 text-slate-400" />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="border-white/10 bg-slate-900/50"
+              onClick={fetchAlerts}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 text-slate-400 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
@@ -217,7 +320,11 @@ export default function AlertsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase">Total</p>
-                  <p className="text-xl font-black text-white">{alertStats.total}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-10 bg-slate-700 mt-0.5" />
+                  ) : (
+                    <p className="text-xl font-black text-white">{alertStats.total}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -231,7 +338,11 @@ export default function AlertsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase">Ouverts</p>
-                  <p className="text-xl font-black text-red-500">{alertStats.open}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-10 bg-red-900/50 mt-0.5" />
+                  ) : (
+                    <p className="text-xl font-black text-red-500">{alertStats.open}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -245,7 +356,11 @@ export default function AlertsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase">En attente</p>
-                  <p className="text-xl font-black text-amber-500">{alertStats.pending}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-10 bg-amber-900/50 mt-0.5" />
+                  ) : (
+                    <p className="text-xl font-black text-amber-500">{alertStats.pending}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -259,7 +374,11 @@ export default function AlertsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase">Resolus</p>
-                  <p className="text-xl font-black text-emerald-500">{alertStats.resolved}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-10 bg-emerald-900/50 mt-0.5" />
+                  ) : (
+                    <p className="text-xl font-black text-emerald-500">{alertStats.resolved}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -273,7 +392,11 @@ export default function AlertsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase">Critiques</p>
-                  <p className="text-xl font-black text-red-500">{alertStats.highPriority}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-10 bg-red-900/50 mt-0.5" />
+                  ) : (
+                    <p className="text-xl font-black text-red-500">{alertStats.highPriority}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -347,7 +470,41 @@ export default function AlertsPage() {
           </TabsList>
 
           <TabsContent value={activeTab} className="space-y-4">
-            {filteredAlerts.length === 0 ? (
+            {error ? (
+              <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
+                <CardContent className="p-8 text-center">
+                  <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                  <p className="text-red-400 font-bold">{error}</p>
+                  <Button variant="outline" size="sm" onClick={fetchAlerts} className="border-white/10 text-xs mt-4">
+                    Reessayer
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : loading ? (
+              // Loading skeletons
+              Array.from({ length: 5 }).map((_, i) => (
+                <Card key={i} className="bg-slate-900/50 border-white/5 rounded-3xl border-l-4 border-l-slate-700">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <Skeleton className="h-11 w-11 rounded-xl bg-slate-700" />
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Skeleton className="h-4 w-48 bg-slate-700" />
+                            <Skeleton className="h-5 w-16 bg-slate-700" />
+                          </div>
+                          <Skeleton className="h-3 w-64 bg-slate-700 mb-2" />
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-3 w-20 bg-slate-700" />
+                            <Skeleton className="h-5 w-16 bg-slate-700" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : filteredAlerts.length === 0 ? (
               <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
                 <CardContent className="p-8 text-center">
                   <Bell className="h-12 w-12 text-slate-600 mx-auto mb-4" />
@@ -370,10 +527,13 @@ export default function AlertsPage() {
                             {getSeverityBadge(alert.severity)}
                           </div>
                           <p className="text-xs text-slate-400">{alert.description}</p>
+                          {alert.ipAddress && (
+                            <p className="text-[10px] text-slate-500 mt-1">IP: {alert.ipAddress}</p>
+                          )}
                           <div className="flex items-center gap-3 mt-2">
                             <span className="text-[10px] text-slate-500 flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {alert.time}
+                              {formatRelativeTime(alert.time)}
                             </span>
                             {getStatusBadge(alert.status)}
                           </div>
@@ -384,7 +544,12 @@ export default function AlertsPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                         {alert.status !== "resolved" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500 hover:text-emerald-400">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-emerald-500 hover:text-emerald-400"
+                            onClick={() => handleAlertAction(alert.id, "resolve")}
+                          >
                             <CheckCircle2 className="h-4 w-4" />
                           </Button>
                         )}
