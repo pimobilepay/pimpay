@@ -66,8 +66,8 @@ export default function ContactsPage() {
     {
       icon: <Phone className="text-purple-400" size={20} />,
       label: "Ligne Prioritaire",
-      value: "+242 065 540 305",
-      link: "tel:+242065540305"
+      value: "+242 055 415 474",
+      link: "tel:+242055415474"
     }
   ];
 
