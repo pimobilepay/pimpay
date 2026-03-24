@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BusinessSidebar } from "@/components/business/BusinessSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -14,19 +15,15 @@ import {
 } from "@/components/ui/select";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
 } from "recharts";
 import {
   Building2,
@@ -36,64 +33,166 @@ import {
   RefreshCw,
   Download,
   FileText,
-  BarChart3,
-  PieChartIcon,
   Menu,
   X,
   Printer,
-  Mail,
   Share2,
   FileSpreadsheet,
 } from "lucide-react";
 
-// Revenue data
-const revenueData = [
-  { month: "Jan", recettes: 180000, depenses: 145000, profit: 35000 },
-  { month: "Fev", recettes: 195000, depenses: 160000, profit: 35000 },
-  { month: "Mar", recettes: 220000, depenses: 175000, profit: 45000 },
-  { month: "Avr", recettes: 210000, depenses: 165000, profit: 45000 },
-  { month: "Mai", recettes: 235000, depenses: 180000, profit: 55000 },
-  { month: "Jun", recettes: 250000, depenses: 190000, profit: 60000 },
-];
+// Types based on API response
+interface Summary {
+  totalRecettes: number;
+  totalDepenses: number;
+  totalProfit: number;
+  totalTransactions: number;
+  recettesChange: number;
+  depensesChange: number;
+  profitChange: number;
+  transactionsChange: number;
+}
 
-// Category expenses
-const categoryExpenses = [
-  { name: "Salaires", value: 55, amount: 128000, color: "#10b981" },
-  { name: "Fournisseurs", value: 25, amount: 58000, color: "#3b82f6" },
-  { name: "Operations", value: 12, amount: 28000, color: "#f59e0b" },
-  { name: "Marketing", value: 5, amount: 12000, color: "#8b5cf6" },
-  { name: "Autres", value: 3, amount: 7000, color: "#ec4899" },
-];
+interface RevenueData {
+  month: string;
+  recettes: number;
+  depenses: number;
+  profit: number;
+}
 
-// Top clients
-const topClients = [
-  { name: "Entreprise ABC", revenue: 125000, transactions: 15, growth: 12.5 },
-  { name: "Industries Co", revenue: 98000, transactions: 8, growth: 8.2 },
-  { name: "Startup Tech", revenue: 72000, transactions: 12, growth: 25.4 },
-  { name: "Client XYZ", revenue: 56000, transactions: 6, growth: -3.1 },
-  { name: "Groupe Delta", revenue: 45000, transactions: 4, growth: 15.8 },
-];
+interface ExpenseCategory {
+  name: string;
+  value: number;
+  amount: number;
+  color: string;
+}
 
-// Monthly comparison
-const monthlyComparison = [
-  { metric: "Chiffre d'affaires", current: 250000, previous: 220000, change: 13.6 },
-  { metric: "Depenses totales", current: 190000, previous: 175000, change: 8.6 },
-  { metric: "Profit net", current: 60000, previous: 45000, change: 33.3 },
-  { metric: "Transactions", current: 156, previous: 142, change: 9.9 },
-];
+interface TopClient {
+  rank: number;
+  name: string;
+  revenue: number;
+  transactions: number;
+  growth: number;
+}
 
-// Available reports
+interface ReportsData {
+  summary: Summary;
+  revenueData: RevenueData[];
+  expenseCategories: ExpenseCategory[];
+  topClients: TopClient[];
+  period: {
+    start: string;
+    end: string;
+    months: number;
+  };
+}
+
+// Static available reports (these would be saved reports in DB in production)
 const availableReports = [
-  { id: 1, name: "Rapport Financier Mensuel", type: "Finances", lastGenerated: "23 Mar 2026", format: "PDF" },
-  { id: 2, name: "Analyse des Depenses", type: "Depenses", lastGenerated: "22 Mar 2026", format: "Excel" },
-  { id: 3, name: "Rapport de Paie", type: "RH", lastGenerated: "01 Mar 2026", format: "PDF" },
-  { id: 4, name: "Flux de Tresorerie", type: "Tresorerie", lastGenerated: "20 Mar 2026", format: "PDF" },
-  { id: 5, name: "Performance Clients", type: "Ventes", lastGenerated: "15 Mar 2026", format: "Excel" },
+  { id: 1, name: "Rapport Financier Mensuel", type: "Finances", reportType: "financial", lastGenerated: "-", format: "PDF" },
+  { id: 2, name: "Rapport de Paie", type: "RH", reportType: "payroll", lastGenerated: "-", format: "PDF" },
 ];
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState("6m");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Real data state
+  const [data, setData] = useState<ReportsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+
+  // Fetch reports data
+  const fetchReportsData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/business/reports?period=${period}`, {
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors du chargement");
+      }
+      
+      setData(result.data);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    fetchReportsData();
+  }, [fetchReportsData]);
+
+  // Generate report
+  const generateReport = async (reportType: string) => {
+    try {
+      setGeneratingReport(reportType);
+      const response = await fetch("/api/business/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          reportType,
+          format: "json"
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors de la generation");
+      }
+      
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${reportType}-report-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erreur lors de la generation");
+    } finally {
+      setGeneratingReport(null);
+    }
+  };
+
+  // Metrics for cards
+  const metrics = data ? [
+    { 
+      metric: "Chiffre d'affaires", 
+      current: data.summary.totalRecettes, 
+      change: data.summary.recettesChange,
+      isHighlight: false
+    },
+    { 
+      metric: "Depenses totales", 
+      current: data.summary.totalDepenses, 
+      change: data.summary.depensesChange,
+      isHighlight: false
+    },
+    { 
+      metric: "Profit net", 
+      current: data.summary.totalProfit, 
+      change: data.summary.profitChange,
+      isHighlight: true
+    },
+    { 
+      metric: "Transactions", 
+      current: data.summary.totalTransactions, 
+      change: data.summary.transactionsChange,
+      isHighlight: false
+    },
+  ] : [];
 
   return (
     <div className="flex min-h-screen bg-[#02040a]">
@@ -159,47 +258,75 @@ export default function ReportsPage() {
                 <SelectItem value="1y">Cette annee</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="border-white/10 text-xs font-bold">
-              <Download className="h-4 w-4 mr-2" />
-              Exporter
-            </Button>
-            <Button variant="outline" size="icon" className="border-white/10 bg-slate-900/50">
-              <RefreshCw className="h-4 w-4 text-slate-400" />
+            <Button 
+              variant="outline" 
+              className="border-white/10 text-xs font-bold"
+              onClick={fetchReportsData}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualiser
             </Button>
           </div>
         </div>
 
+        {/* Error State */}
+        {error && (
+          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
+            <CardContent className="p-6">
+              <p className="text-red-400 text-sm">{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchReportsData} className="mt-2 border-red-500/30 text-red-400">
+                Reessayer
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {monthlyComparison.map((metric, index) => (
-            <Card key={index} className={`rounded-3xl ${
-              index === 2 ? "bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border-emerald-500/30" : "bg-slate-900/50 border-white/5"
-            }`}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${index === 2 ? "text-emerald-300/70" : "text-slate-500"}`}>
-                      {metric.metric}
-                    </p>
-                    <p className="text-2xl font-black text-white mt-1">
-                      {metric.metric.includes("Transactions") ? metric.current : `$${metric.current.toLocaleString()}`}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {metric.change > 0 ? (
-                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                      ) : (
-                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-                      )}
-                      <span className={`text-xs font-bold ${metric.change > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {metric.change > 0 ? "+" : ""}{metric.change}%
-                      </span>
-                      <span className="text-xs text-slate-500">vs mois dernier</span>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-3xl bg-slate-800" />
+            ))
+          ) : (
+            metrics.map((metric, index) => (
+              <Card key={index} className={`rounded-3xl ${
+                metric.isHighlight 
+                  ? "bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border-emerald-500/30" 
+                  : "bg-slate-900/50 border-white/5"
+              }`}>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${
+                        metric.isHighlight ? "text-emerald-300/70" : "text-slate-500"
+                      }`}>
+                        {metric.metric}
+                      </p>
+                      <p className="text-2xl font-black text-white mt-1">
+                        {metric.metric.includes("Transactions") 
+                          ? metric.current 
+                          : `$${metric.current.toLocaleString()}`}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        {metric.change >= 0 ? (
+                          <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                        )}
+                        <span className={`text-xs font-bold ${
+                          metric.change >= 0 ? "text-emerald-400" : "text-rose-400"
+                        }`}>
+                          {metric.change >= 0 ? "+" : ""}{metric.change}%
+                        </span>
+                        <span className="text-xs text-slate-500">vs periode prec.</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Charts Grid */}
@@ -211,7 +338,9 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-lg font-black text-white">Recettes vs Depenses</CardTitle>
-                    <CardDescription className="text-slate-500">Evolution sur 6 mois</CardDescription>
+                    <CardDescription className="text-slate-500">
+                      Evolution sur {data?.period.months || 6} mois
+                    </CardDescription>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -231,25 +360,35 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} />
-                      <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v/1000}k`} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#0f172a",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                        }}
-                        formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
-                      />
-                      <Bar dataKey="recettes" fill="#10b981" radius={[4, 4, 0, 0]} name="Recettes" />
-                      <Bar dataKey="depenses" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Depenses" />
-                      <Bar dataKey="profit" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Profit" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Skeleton className="w-full h-full rounded-2xl bg-slate-800" />
+                    </div>
+                  ) : data?.revenueData && data.revenueData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data.revenueData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} />
+                        <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v/1000}k`} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#0f172a",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                          formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
+                        />
+                        <Bar dataKey="recettes" fill="#10b981" radius={[4, 4, 0, 0]} name="Recettes" />
+                        <Bar dataKey="depenses" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Depenses" />
+                        <Bar dataKey="profit" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Profit" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-slate-500 text-sm">Aucune donnee disponible</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -262,48 +401,70 @@ export default function ReportsPage() {
               <CardDescription className="text-slate-500">Par categorie</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[180px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryExpenses}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {categoryExpenses.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#0f172a",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value: number, name: string, props: { payload: { amount: number } }) => [`$${props.payload.amount.toLocaleString()} (${value}%)`, name]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2">
-                {categoryExpenses.map((category) => (
-                  <div key={category.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                      <span className="text-xs font-bold text-slate-400">{category.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-black text-white">${(category.amount / 1000).toFixed(0)}k</span>
-                      <span className="text-[10px] text-slate-500 ml-2">({category.value}%)</span>
-                    </div>
+              {loading ? (
+                <>
+                  <Skeleton className="h-[180px] rounded-2xl bg-slate-800 mb-4" />
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-6 bg-slate-800" />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : data?.expenseCategories && data.expenseCategories.some(c => c.amount > 0) ? (
+                <>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={data.expenseCategories.filter(c => c.amount > 0)}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={75}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {data.expenseCategories.filter(c => c.amount > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#0f172a",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                          formatter={(value: number, name: string, props: { payload: ExpenseCategory }) => [
+                            `$${props.payload.amount.toLocaleString()} (${value}%)`, 
+                            props.payload.name
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2">
+                    {data.expenseCategories.map((category) => (
+                      <div key={category.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
+                          <span className="text-xs font-bold text-slate-400">{category.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black text-white">
+                            ${category.amount >= 1000 ? `${(category.amount / 1000).toFixed(0)}k` : category.amount}
+                          </span>
+                          <span className="text-[10px] text-slate-500 ml-2">({category.value}%)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-slate-500 text-sm">Aucune depense enregistree</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -318,38 +479,45 @@ export default function ReportsPage() {
                   <CardTitle className="text-lg font-black text-white">Top Clients</CardTitle>
                   <CardDescription className="text-slate-500">Par chiffre d&apos;affaires</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold">
-                  Voir tout
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {topClients.map((client, index) => (
-                <div key={index} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-sm font-black text-white">
-                      {index + 1}
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 rounded-2xl bg-slate-800" />
+                ))
+              ) : data?.topClients && data.topClients.length > 0 ? (
+                data.topClients.map((client) => (
+                  <div key={client.rank} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-sm font-black text-white">
+                        {client.rank}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{client.name}</p>
+                        <p className="text-[10px] text-slate-500">{client.transactions} transactions</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">{client.name}</p>
-                      <p className="text-[10px] text-slate-500">{client.transactions} transactions</p>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-white">${client.revenue.toLocaleString()}</p>
+                      <div className="flex items-center gap-1 justify-end">
+                        {client.growth >= 0 ? (
+                          <TrendingUp className="h-3 w-3 text-emerald-400" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-rose-400" />
+                        )}
+                        <span className={`text-[10px] font-bold ${client.growth >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {client.growth >= 0 ? "+" : ""}{client.growth}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-white">${client.revenue.toLocaleString()}</p>
-                    <div className="flex items-center gap-1 justify-end">
-                      {client.growth > 0 ? (
-                        <TrendingUp className="h-3 w-3 text-emerald-400" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 text-rose-400" />
-                      )}
-                      <span className={`text-[10px] font-bold ${client.growth > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {client.growth > 0 ? "+" : ""}{client.growth}%
-                      </span>
-                    </div>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-slate-500 text-sm">Aucun client trouve</p>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
 
@@ -361,10 +529,6 @@ export default function ReportsPage() {
                   <CardTitle className="text-lg font-black text-white">Rapports Disponibles</CardTitle>
                   <CardDescription className="text-slate-500">Telecharger ou partager</CardDescription>
                 </div>
-                <Button className="bg-emerald-500 hover:bg-emerald-600 text-xs font-bold">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Nouveau rapport
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -375,7 +539,7 @@ export default function ReportsPage() {
                       report.format === "PDF" ? "bg-red-500/10" : "bg-emerald-500/10"
                     }`}>
                       {report.format === "PDF" ? (
-                        <FileText className={`h-5 w-5 ${report.format === "PDF" ? "text-red-500" : "text-emerald-500"}`} />
+                        <FileText className="h-5 w-5 text-red-500" />
                       ) : (
                         <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
                       )}
@@ -386,13 +550,22 @@ export default function ReportsPage() {
                         <Badge className="bg-slate-800 text-slate-300 border-white/10 text-[9px] font-bold">
                           {report.type}
                         </Badge>
-                        <span className="text-[10px] text-slate-500">{report.lastGenerated}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                      <Download className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-slate-400 hover:text-white"
+                      onClick={() => generateReport(report.reportType)}
+                      disabled={generatingReport === report.reportType}
+                    >
+                      {generatingReport === report.reportType ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
                       <Printer className="h-4 w-4" />
