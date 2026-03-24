@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   User, ShieldCheck, CheckCircle2,
   Loader2, ArrowLeft, Delete, Lock,
-  XCircle, AlertCircle, Gift
+  XCircle, AlertCircle, Gift, Building2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -16,11 +16,14 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
+type SignupType = "user" | "business";
+
 export default function SignupPage() {
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
+  const [signupType, setSignupType] = useState<SignupType>("user");
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -225,12 +228,87 @@ export default function SignupPage() {
             </div>
           )}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-6">
-              <ShieldCheck className="w-10 h-10 text-blue-500" />
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 transition-all duration-300 ${
+              signupType === "business" 
+                ? "bg-amber-600/10 border border-amber-500/20"
+                : "bg-blue-600/10 border border-blue-500/20"
+            }`}>
+              {signupType === "business" ? (
+                <Building2 className="w-10 h-10 text-amber-500" />
+              ) : (
+                <ShieldCheck className="w-10 h-10 text-blue-500" />
+              )}
             </div>
-            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMPAY<span className="text-blue-500 not-italic">.</span></h1>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{t("extra.createAccount")}</p>
+            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">
+              PIMPAY<span className={`not-italic ${signupType === "business" ? "text-amber-500" : "text-blue-500"}`}>.</span>
+            </h1>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+              {signupType === "business" ? "Inscription Entreprise" : t("extra.createAccount")}
+            </p>
           </div>
+
+          {/* Selecteur de type d'inscription */}
+          <div className="flex gap-2 mb-6 p-1 bg-slate-950/50 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setSignupType("user")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${
+                signupType === "user"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Utilisateur</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSignupType("business")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${
+                signupType === "business"
+                  ? "bg-amber-600 text-white"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>Business</span>
+            </button>
+          </div>
+
+          {/* Redirection pour Business */}
+          {signupType === "business" ? (
+            <div className="space-y-6">
+              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+                <p className="text-xs text-amber-400 mb-3">
+                  L'inscription entreprise necessite des informations supplementaires pour la verification de votre business.
+                </p>
+                <ul className="text-[10px] text-slate-400 space-y-1.5 mb-4">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3 text-amber-500" />
+                    Informations de l'entreprise
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3 text-amber-500" />
+                    Documents legaux (RCCM, NIF)
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3 text-amber-500" />
+                    Coordonnees du representant
+                  </li>
+                </ul>
+              </div>
+              <Button
+                onClick={() => router.push("/auth/business-signup")}
+                className="w-full h-14 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-amber-900/20 active:scale-95 transition-all"
+              >
+                Continuer l'inscription Business
+              </Button>
+              <p className="text-center text-[11px] text-slate-500 uppercase font-bold tracking-widest">
+                Deja inscrit? <Link href="/auth/login" className="text-amber-500 ml-1">Se connecter</Link>
+              </p>
+            </div>
+          ) : (
+            <>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-1.5">
@@ -316,6 +394,8 @@ export default function SignupPage() {
           <p className="text-center mt-6 text-[11px] text-slate-500 uppercase font-bold tracking-widest">
             {t("extra.alreadyRegistered")} <Link href="/auth/login" className="text-blue-500 ml-1">{t("extra.loginLink")}</Link>
           </p>
+          </>
+          )}
         </Card>
       )}
 
