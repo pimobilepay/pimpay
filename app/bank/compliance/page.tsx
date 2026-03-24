@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
 import { BankSidebar } from "@/components/bank/BankSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -27,7 +30,6 @@ import {
   ShieldCheck,
   ShieldAlert,
   FileText,
-  Users,
   Landmark,
   Menu,
   X,
@@ -41,43 +43,208 @@ import {
   Building2,
   User,
   MoreHorizontal,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
-// Mock KYC verification requests
-const kycRequests = [
-  { id: "KYC001", name: "Pierre Mukendi", type: "Entreprise", document: "Registre Commerce", submitted: "2026-03-24 09:45", risk: "low", status: "pending" },
-  { id: "KYC002", name: "Marie Kabongo", type: "Particulier", document: "Carte Identite", submitted: "2026-03-24 08:30", risk: "medium", status: "pending" },
-  { id: "KYC003", name: "Societe Alpha SARL", type: "Entreprise", document: "Statuts", submitted: "2026-03-23 16:20", risk: "high", status: "review" },
-  { id: "KYC004", name: "David Tshimanga", type: "Particulier", document: "Passeport", submitted: "2026-03-23 14:15", risk: "low", status: "approved" },
-  { id: "KYC005", name: "Global Trade Ltd", type: "Entreprise", document: "Licence Import", submitted: "2026-03-23 11:00", risk: "medium", status: "pending" },
-  { id: "KYC006", name: "Jean Baptiste Lumu", type: "Particulier", document: "Permis Conduire", submitted: "2026-03-22 15:30", risk: "low", status: "approved" },
-  { id: "KYC007", name: "Mining Corp SA", type: "Entreprise", document: "Permis Exploitation", submitted: "2026-03-22 10:00", risk: "high", status: "rejected" },
-];
+// Types for API responses
+interface KycRequest {
+  id: string;
+  name: string;
+  email: string;
+  type: string;
+  status: string;
+  submitted: string;
+  lastUpdated: string;
+  risk: string;
+}
 
-// AML alerts
-const amlAlerts = [
-  { id: "AML001", account: "ACC-78945", type: "Transaction suspecte", amount: 150000, currency: "USD", date: "2026-03-24 11:20", severity: "high", status: "open" },
-  { id: "AML002", account: "ACC-12367", type: "Fractionnement", amount: 45000, currency: "EUR", date: "2026-03-24 09:15", severity: "medium", status: "investigating" },
-  { id: "AML003", account: "ACC-56234", type: "Pays a risque", amount: 250000, currency: "USD", date: "2026-03-23 16:45", severity: "high", status: "open" },
-  { id: "AML004", account: "ACC-89012", type: "Client PEP", amount: 80000, currency: "EUR", date: "2026-03-23 14:00", severity: "medium", status: "resolved" },
-  { id: "AML005", account: "ACC-34567", type: "Volume inhabituel", amount: 500000, currency: "USD", date: "2026-03-22 11:30", severity: "low", status: "resolved" },
-];
+interface AmlAlert {
+  id: string;
+  type: string;
+  details: string;
+  date: string;
+  severity: string;
+  status: string;
+}
 
-// Compliance statistics
-const complianceStats = {
-  kycPending: 12,
-  kycApproved: 1845,
-  kycRejected: 23,
-  amlOpen: 8,
-  amlResolved: 156,
-  riskScore: 72,
-};
+interface HighValueTransaction {
+  id: string;
+  account: string;
+  senderName: string;
+  amount: number;
+  currency: string;
+  date: string;
+  type: string;
+}
+
+interface KycResponse {
+  type: "kyc";
+  data: KycRequest[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  statistics: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    total: number;
+  };
+}
+
+interface AmlResponse {
+  type: "aml";
+  alerts: AmlAlert[];
+  highValueTransactions: HighValueTransaction[];
+  statistics: {
+    openAlerts: number;
+    highValueCount: number;
+  };
+}
+
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
 
 export default function CompliancePage() {
+  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("kyc");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch KYC data
+  const kycUrl = `/api/bank/compliance?tab=kyc&status=${statusFilter}&search=${debouncedSearch}`;
+  const { data: kycData, error: kycError, isLoading: kycLoading, mutate: mutateKyc } = useSWR<KycResponse>(
+    activeTab === "kyc" ? kycUrl : null,
+    fetcher,
+    { revalidateOnFocus: true }
+  );
+
+  // Fetch AML data
+  const { data: amlData, error: amlError, isLoading: amlLoading, mutate: mutateAml } = useSWR<AmlResponse>(
+    activeTab === "aml" ? "/api/bank/compliance?tab=aml" : null,
+    fetcher,
+    { revalidateOnFocus: true }
+  );
+
+  const kycRequests = kycData?.data || [];
+  const kycStats = kycData?.statistics || { pending: 0, approved: 0, rejected: 0, total: 0 };
+  const amlAlerts = amlData?.alerts || [];
+  const highValueTx = amlData?.highValueTransactions || [];
+  const amlStats = amlData?.statistics || { openAlerts: 0, highValueCount: 0 };
+
+  // Calculate risk score based on data
+  const riskScore = kycStats.total > 0 
+    ? Math.round(((kycStats.approved / kycStats.total) * 100)) 
+    : 0;
+
+  // Process KYC action
+  const handleKycAction = useCallback(async (targetId: string, action: "approve" | "reject" | "request_more_info") => {
+    setProcessingId(targetId);
+    try {
+      const response = await fetch("/api/bank/compliance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "kyc",
+          action,
+          targetId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Succes",
+          description: result.message,
+        });
+        mutateKyc();
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Une erreur est survenue",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de traiter la demande",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  }, [mutateKyc, toast]);
+
+  // Process AML action
+  const handleAmlAction = useCallback(async (alertId: string, action: "resolve" | "escalate" | "investigate") => {
+    setProcessingId(alertId);
+    try {
+      const response = await fetch("/api/bank/compliance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "aml",
+          action,
+          targetId: alertId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Succes",
+          description: result.message,
+        });
+        mutateAml();
+      } else {
+        toast({
+          title: "Erreur",
+          description: result.error || "Une erreur est survenue",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de traiter l'alerte",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  }, [mutateAml, toast]);
+
+  // Format date
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const isLoading = (activeTab === "kyc" && kycLoading) || (activeTab === "aml" && amlLoading);
+  const error = (activeTab === "kyc" && kycError) || (activeTab === "aml" && amlError);
 
   const getRiskBadge = (risk: string) => {
     switch (risk) {
