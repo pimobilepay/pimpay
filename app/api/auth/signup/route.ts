@@ -16,10 +16,19 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { fullName, username, email, phone, password, confirmPassword, referralCode } = body;
+    const { fullName, username, email, phone, password, confirmPassword, referralCode, role, businessInfo } = body;
 
     if (!fullName || !username || !email || !phone || !password) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
+    }
+
+    // Validate role (only USER or BUSINESS_ADMIN allowed from signup)
+    const allowedRoles = ["USER", "BUSINESS_ADMIN"];
+    const userRole = role && allowedRoles.includes(role) ? role : "USER";
+
+    // If BUSINESS_ADMIN, validate business info
+    if (userRole === "BUSINESS_ADMIN" && !businessInfo?.businessName) {
+      return NextResponse.json({ error: "Informations de l'entreprise requises" }, { status: 400 });
     }
 
     // Simple email format validation (no external verification)
@@ -68,7 +77,7 @@ export async function POST(req: Request) {
           phone: phone,
           password: hashedPassword,
           pin: hashedPin,
-          role: "USER",
+          role: userRole,
           status: "ACTIVE",
           kycStatus: "NONE",
           ...(referrerId ? { referredById: referrerId } : {}),
@@ -81,6 +90,59 @@ export async function POST(req: Request) {
           }
         }
       });
+
+      // If BUSINESS_ADMIN, create the business entity
+      let business = null;
+      if (userRole === "BUSINESS_ADMIN" && businessInfo) {
+        // Generate a unique registration number if not provided
+        const registrationNumber = businessInfo.rccm || `BUS-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        
+        // Map business type to enum
+        const businessTypeMap: { [key: string]: "SOLE_PROPRIETORSHIP" | "PARTNERSHIP" | "CORPORATION" | "LLC" | "COOPERATIVE" | "NGO" } = {
+          "EI": "SOLE_PROPRIETORSHIP",
+          "SARL": "LLC",
+          "SA": "CORPORATION",
+          "SAS": "CORPORATION",
+          "ASSOCIATION": "NGO",
+          "OTHER": "SOLE_PROPRIETORSHIP"
+        };
+
+        business = await tx.business.create({
+          data: {
+            name: businessInfo.businessName,
+            registrationNumber: registrationNumber,
+            type: businessTypeMap[businessInfo.businessType] || "SOLE_PROPRIETORSHIP",
+            status: "PENDING_VERIFICATION",
+            country: businessInfo.country || "CG",
+            city: businessInfo.city,
+            description: businessInfo.address,
+            email: email.toLowerCase(),
+            phone: phone,
+          }
+        });
+
+        // Create the business employee record for the representative
+        await tx.businessEmployee.create({
+          data: {
+            id: `BE-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            businessId: business.id,
+            firstName: fullName.split(' ')[0] || fullName,
+            lastName: fullName.split(' ').slice(1).join(' ') || '',
+            position: businessInfo.representativePosition || "Representant Legal",
+            isActive: true,
+          }
+        });
+
+        // Create USD wallet for business
+        await tx.wallet.create({
+          data: {
+            userId: user.id,
+            balance: 0,
+            currency: "USD",
+            type: "FIAT",
+          }
+        });
+      }
 
       // Grant referral bonus to referrer
       if (referrerId) {
