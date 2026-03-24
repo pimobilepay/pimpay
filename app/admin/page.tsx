@@ -87,6 +87,8 @@ export default function AdminDashboard() {
             { label: "Tresorerie", desc: "Finances", icon: <Landmark size={20} />, path: "/admin/treasury", color: "amber" },
             { label: "Logs", desc: "Activite users", icon: <Eye size={20} />, path: "/admin/logs", color: "teal" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
+            { label: "Banque", desc: "Portail bancaire", icon: <Landmark size={20} />, path: "/bank", color: "blue" },
+            { label: "Business", desc: "Portail entreprise", icon: <Globe size={20} />, path: "/business", color: "emerald" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
               blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
