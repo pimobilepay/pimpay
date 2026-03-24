@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import useSWR from "swr";
 import { BusinessSidebar } from "@/components/business/BusinessSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import {
   Select,
@@ -62,51 +64,125 @@ import {
   X,
 } from "lucide-react";
 
-// Mock data for treasury chart
-const treasuryData = [
-  { day: "01 Mar", entrant: 42000, sortant: 28000 },
-  { day: "05 Mar", entrant: 35000, sortant: 32000 },
-  { day: "10 Mar", entrant: 58000, sortant: 45000 },
-  { day: "15 Mar", entrant: 48000, sortant: 38000 },
-  { day: "20 Mar", entrant: 62000, sortant: 52000 },
-  { day: "25 Mar", entrant: 55000, sortant: 48000 },
-  { day: "30 Mar", entrant: 72000, sortant: 35000 },
-];
+// Types for API response
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  position: string | null;
+  salary: number | null;
+  isActive: boolean;
+}
 
-// Mock employees data
-const employees = [
-  { id: 1, name: "Jean-Pierre Mbote", role: "Developpeur Senior", salary: 3500, status: "active", avatar: "JP" },
-  { id: 2, name: "Marie Lukusa", role: "Designer UX", salary: 2800, status: "active", avatar: "ML" },
-  { id: 3, name: "Patrick Kalala", role: "Chef de Projet", salary: 4200, status: "active", avatar: "PK" },
-  { id: 4, name: "Esther Mbuyi", role: "Comptable", salary: 3000, status: "pending", avatar: "EM" },
-  { id: 5, name: "David Tshimanga", role: "Marketing", salary: 2600, status: "active", avatar: "DT" },
-  { id: 6, name: "Grace Kabongo", role: "Support Client", salary: 2200, status: "active", avatar: "GK" },
-];
+interface TransactionData {
+  id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  type: string;
+  status: string;
+  description: string | null;
+  createdAt: string;
+  isIncoming: boolean;
+  counterparty: string;
+}
 
-// Mock transactions data
-const transactions = [
-  { id: "TX001", recipient: "Fournisseur Alpha", amount: 15000, type: "Fournisseur", date: "2026-03-23", status: "completed" },
-  { id: "TX002", recipient: "Employes - Mars 2026", amount: 18300, type: "Salaire", date: "2026-03-22", status: "completed" },
-  { id: "TX003", recipient: "Location Bureaux", amount: 5000, type: "Fournisseur", date: "2026-03-20", status: "completed" },
-  { id: "TX004", recipient: "Client Entreprise B", amount: 25000, type: "Entrant", date: "2026-03-19", status: "completed" },
-  { id: "TX005", recipient: "Prime Trimestrielle", amount: 8500, type: "Salaire", date: "2026-03-18", status: "pending" },
-  { id: "TX006", recipient: "Equipements IT", amount: 7800, type: "Fournisseur", date: "2026-03-15", status: "failed" },
-];
+interface BusinessDashboardData {
+  success: boolean;
+  data: {
+    business: {
+      id: string;
+      name: string;
+      registrationNumber: string;
+      type: string;
+      status: string;
+      employeeCount: number;
+    } | null;
+    balances: {
+      usd: number;
+      pi: number;
+    };
+    stats: {
+      totalIncoming: number;
+      totalOutgoing: number;
+      netFlow: number;
+      pendingTransactions: number;
+      employeeCount: number;
+    };
+    recentTransactions: TransactionData[];
+    employees: Employee[];
+  };
+}
+
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
+
+// Generate chart data from transactions
+const generateChartData = (transactions: TransactionData[]) => {
+  const today = new Date();
+  const data = [];
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i * 5);
+    const dayStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    
+    // Calculate incoming and outgoing for this period
+    const periodStart = new Date(date);
+    periodStart.setDate(periodStart.getDate() - 5);
+    
+    const periodTransactions = transactions.filter(tx => {
+      const txDate = new Date(tx.createdAt);
+      return txDate >= periodStart && txDate <= date;
+    });
+    
+    const entrant = periodTransactions
+      .filter(tx => tx.isIncoming)
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    
+    const sortant = periodTransactions
+      .filter(tx => !tx.isIncoming)
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    
+    data.push({ day: dayStr, entrant, sortant });
+  }
+  
+  return data;
+};
 
 export default function BusinessDashboard() {
   const [period, setPeriod] = useState("30d");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [quickPayAmount, setQuickPayAmount] = useState("");
   const [quickPayRecipient, setQuickPayRecipient] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Fetch real data from API
+  const { data, error, isLoading, mutate } = useSWR<BusinessDashboardData>(
+    "/api/business/dashboard",
+    fetcher,
+    {
+      refreshInterval: 30000, // Refresh every 30 seconds
+      revalidateOnFocus: true,
+    }
+  );
+
+  const dashboardData = data?.data;
+  const employees = dashboardData?.employees || [];
+  const transactions = dashboardData?.recentTransactions || [];
+  const balances = dashboardData?.balances || { usd: 0, pi: 0 };
+  const stats = dashboardData?.stats || { totalIncoming: 0, totalOutgoing: 0, netFlow: 0, pendingTransactions: 0, employeeCount: 0 };
+  const business = dashboardData?.business;
+
+  // Generate chart data from real transactions
+  const treasuryData = useMemo(() => generateChartData(transactions), [transactions]);
+
   const totalSalary = useMemo(() => 
     employees.filter(e => selectedEmployees.includes(e.id) || selectedEmployees.length === 0)
-      .reduce((sum, e) => sum + e.salary, 0)
-  , [selectedEmployees]);
+      .reduce((sum, e) => sum + (e.salary || 0), 0)
+  , [selectedEmployees, employees]);
 
-  const toggleEmployee = (id: number) => {
+  const toggleEmployee = (id: string) => {
     setSelectedEmployees(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -121,29 +197,56 @@ export default function BusinessDashboard() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const statusLower = status.toLowerCase();
+    switch (statusLower) {
+      case "success":
       case "completed":
         return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Effectue</Badge>;
       case "pending":
         return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">En attente</Badge>;
       case "failed":
+      case "cancelled":
         return <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-bold">Echec</Badge>;
       default:
         return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 text-[10px] font-bold">{status}</Badge>;
     }
   };
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case "Salaire":
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[10px] font-bold">Salaire</Badge>;
-      case "Fournisseur":
-        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-[10px] font-bold">Fournisseur</Badge>;
-      case "Entrant":
-        return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Entrant</Badge>;
+  const getTypeBadge = (type: string, isIncoming?: boolean) => {
+    const typeLower = type.toLowerCase();
+    if (isIncoming) {
+      return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Entrant</Badge>;
+    }
+    switch (typeLower) {
+      case "transfer":
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[10px] font-bold">Transfert</Badge>;
+      case "payment":
+        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-[10px] font-bold">Paiement</Badge>;
+      case "withdraw":
+        return <Badge className="bg-rose-500/10 text-rose-500 border-rose-500/20 text-[10px] font-bold">Retrait</Badge>;
+      case "deposit":
+        return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Depot</Badge>;
       default:
         return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 text-[10px] font-bold">{type}</Badge>;
     }
+  };
+
+  const getBusinessStatusLabel = (status: string) => {
+    switch (status) {
+      case "ACTIVE": return "Verifie";
+      case "PENDING_VERIFICATION": return "En attente";
+      case "SUSPENDED": return "Suspendu";
+      case "INACTIVE": return "Inactif";
+      default: return status;
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   return (
@@ -191,6 +294,30 @@ export default function BusinessDashboard() {
           </div>
         </div>
 
+        {/* Error State */}
+        {error && (
+          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-500/20 rounded-2xl">
+                  <XCircle className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-400">Erreur de chargement</p>
+                  <p className="text-xs text-red-300/70 mt-1">Impossible de charger les donnees du tableau de bord. Veuillez reessayer.</p>
+                </div>
+                <Button 
+                  onClick={() => mutate()} 
+                  className="bg-red-500 hover:bg-red-600 text-xs font-bold"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reessayer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
@@ -210,8 +337,14 @@ export default function BusinessDashboard() {
                 <SelectItem value="1y">1 an</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" className="border-white/10 bg-slate-900/50">
-              <RefreshCw className="h-4 w-4 text-slate-400" />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="border-white/10 bg-slate-900/50"
+              onClick={() => mutate()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
@@ -224,10 +357,23 @@ export default function BusinessDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-emerald-300/70 uppercase tracking-wider">Solde Total USD</p>
-                  <p className="text-3xl font-black text-white mt-1">$247,850</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-32 mt-1 bg-emerald-500/20" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">${balances.usd.toLocaleString()}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
-                    <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-xs font-bold text-emerald-400">+12.5% ce mois</span>
+                    {stats.netFlow >= 0 ? (
+                      <>
+                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-400">+${stats.totalIncoming.toLocaleString()} ce mois</span>
+                      </>
+                    ) : (
+                      <>
+                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                        <span className="text-xs font-bold text-rose-400">-${Math.abs(stats.netFlow).toLocaleString()} ce mois</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="p-3 bg-emerald-500/20 rounded-2xl">
@@ -244,10 +390,18 @@ export default function BusinessDashboard() {
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Statut du Compte</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <BadgeCheck className="h-5 w-5 text-emerald-500" />
-                    <p className="text-lg font-black text-white">Verifie</p>
+                    {business?.status === "ACTIVE" ? (
+                      <BadgeCheck className="h-5 w-5 text-emerald-500" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-amber-500" />
+                    )}
+                    {isLoading ? (
+                      <Skeleton className="h-6 w-20 bg-slate-700" />
+                    ) : (
+                      <p className="text-lg font-black text-white">{business ? getBusinessStatusLabel(business.status) : "Non configure"}</p>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Entreprise Pro</p>
+                  <p className="text-xs text-slate-500 mt-1">{business?.name || "Entreprise"}</p>
                 </div>
                 <div className="p-3 bg-emerald-500/10 rounded-2xl">
                   <Building2 className="h-6 w-6 text-emerald-500" />
@@ -262,10 +416,14 @@ export default function BusinessDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Employes</p>
-                  <p className="text-3xl font-black text-white mt-1">{employees.length}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-12 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">{stats.employeeCount}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
-                    <UserPlus className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-bold text-blue-400">+2 ce mois</span>
+                    <Users className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs font-bold text-blue-400">{employees.length} actifs</span>
                   </div>
                 </div>
                 <div className="p-3 bg-blue-500/10 rounded-2xl">
@@ -281,10 +439,14 @@ export default function BusinessDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Paiements en attente</p>
-                  <p className="text-3xl font-black text-white mt-1">3</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-8 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">{stats.pendingTransactions}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Clock className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="text-xs font-bold text-amber-400">$8,500 total</span>
+                    <span className="text-xs font-bold text-amber-400">Sortant: ${stats.totalOutgoing.toLocaleString()}</span>
                   </div>
                 </div>
                 <div className="p-3 bg-amber-500/10 rounded-2xl">
@@ -392,38 +554,60 @@ export default function BusinessDashboard() {
 
                 {/* Employee List */}
                 <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2">
-                  {employees.filter(e => 
-                    e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    e.role.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).map((employee) => (
-                    <div
-                      key={employee.id}
-                      onClick={() => toggleEmployee(employee.id)}
-                      className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
-                        selectedEmployees.includes(employee.id)
-                          ? "bg-emerald-500/10 border-emerald-500/30"
-                          : "bg-slate-800/30 border-white/5 hover:border-white/10"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase ${
-                          selectedEmployees.includes(employee.id)
-                            ? "bg-emerald-500 text-white"
-                            : "bg-slate-700 text-slate-300"
-                        }`}>
-                          {employee.avatar}
+                  {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between p-4 rounded-2xl border bg-slate-800/30 border-white/5">
+                        <div className="flex items-center gap-4">
+                          <Skeleton className="w-10 h-10 rounded-xl bg-slate-700" />
+                          <div>
+                            <Skeleton className="h-4 w-32 mb-2 bg-slate-700" />
+                            <Skeleton className="h-3 w-20 bg-slate-700" />
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">{employee.name}</p>
-                          <p className="text-[11px] text-slate-500">{employee.role}</p>
-                        </div>
+                        <Skeleton className="h-5 w-16 bg-slate-700" />
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-white">${employee.salary.toLocaleString()}</p>
-                        <p className="text-[10px] text-emerald-500 font-bold uppercase">Mensuel</p>
-                      </div>
+                    ))
+                  ) : employees.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <Users className="h-12 w-12 mx-auto mb-3 text-slate-600" />
+                      <p className="text-sm font-bold">Aucun employe</p>
+                      <p className="text-xs mt-1">Ajoutez des employes pour commencer</p>
                     </div>
-                  ))}
+                  ) : (
+                    employees.filter(e => {
+                      const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
+                      const position = (e.position || '').toLowerCase();
+                      return fullName.includes(searchQuery.toLowerCase()) || position.includes(searchQuery.toLowerCase());
+                    }).map((employee) => (
+                      <div
+                        key={employee.id}
+                        onClick={() => toggleEmployee(employee.id)}
+                        className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
+                          selectedEmployees.includes(employee.id)
+                            ? "bg-emerald-500/10 border-emerald-500/30"
+                            : "bg-slate-800/30 border-white/5 hover:border-white/10"
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase ${
+                            selectedEmployees.includes(employee.id)
+                              ? "bg-emerald-500 text-white"
+                              : "bg-slate-700 text-slate-300"
+                          }`}>
+                            {employee.firstName.charAt(0)}{employee.lastName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">{employee.firstName} {employee.lastName}</p>
+                            <p className="text-[11px] text-slate-500">{employee.position || "Non defini"}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-white">${(employee.salary || 0).toLocaleString()}</p>
+                          <p className="text-[10px] text-emerald-500 font-bold uppercase">Mensuel</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Total */}
@@ -468,42 +652,63 @@ export default function BusinessDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {transactions.map((tx) => (
-                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-xl ${
-                                tx.type === "Entrant" ? "bg-emerald-500/10" : "bg-rose-500/10"
-                              }`}>
-                                {tx.type === "Entrant" ? (
-                                  <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
-                                ) : (
-                                  <ArrowUpRight className="h-4 w-4 text-rose-500" />
-                                )}
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-white">{tx.recipient}</p>
-                                <p className="text-[10px] text-slate-500 font-mono">{tx.id}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <p className={`text-sm font-black ${
-                              tx.type === "Entrant" ? "text-emerald-500" : "text-white"
-                            }`}>
-                              {tx.type === "Entrant" ? "+" : "-"}${tx.amount.toLocaleString()}
-                            </p>
-                          </TableCell>
-                          <TableCell>{getTypeBadge(tx.type)}</TableCell>
-                          <TableCell className="text-sm text-slate-400">{tx.date}</TableCell>
-                          <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4 text-slate-500" />
-                            </Button>
+                      {isLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                          <TableRow key={i} className="border-white/5">
+                            <TableCell><Skeleton className="h-10 w-40 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-24 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-8 w-8 bg-slate-700" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : transactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                            <Banknote className="h-12 w-12 mx-auto mb-3 text-slate-600" />
+                            <p className="text-sm font-bold">Aucune transaction</p>
+                            <p className="text-xs mt-1">Les transactions apparaitront ici</p>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        transactions.map((tx) => (
+                          <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-xl ${
+                                  tx.isIncoming ? "bg-emerald-500/10" : "bg-rose-500/10"
+                                }`}>
+                                  {tx.isIncoming ? (
+                                    <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
+                                  ) : (
+                                    <ArrowUpRight className="h-4 w-4 text-rose-500" />
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-white">{tx.counterparty}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono">{tx.reference}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className={`text-sm font-black ${
+                                tx.isIncoming ? "text-emerald-500" : "text-white"
+                              }`}>
+                                {tx.isIncoming ? "+" : "-"}${tx.amount.toLocaleString()}
+                              </p>
+                            </TableCell>
+                            <TableCell>{getTypeBadge(tx.type, tx.isIncoming)}</TableCell>
+                            <TableCell className="text-sm text-slate-400">{formatDate(tx.createdAt)}</TableCell>
+                            <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4 text-slate-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -622,46 +827,54 @@ export default function BusinessDashboard() {
                 <CardTitle className="text-lg font-black text-white">Activite Recente</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-emerald-500/10 rounded-xl mt-0.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <Skeleton className="w-9 h-9 rounded-xl bg-slate-700" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2 bg-slate-700" />
+                        <Skeleton className="h-3 w-24 bg-slate-700" />
+                      </div>
+                    </div>
+                  ))
+                ) : transactions.length === 0 ? (
+                  <div className="text-center py-4 text-slate-500">
+                    <p className="text-xs">Aucune activite recente</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Paiement effectue</p>
-                    <p className="text-xs text-slate-500">Salaires Mars - $18,300</p>
-                    <p className="text-[10px] text-slate-600 mt-1">Il y a 2 heures</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-500/10 rounded-xl mt-0.5">
-                    <UserPlus className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Nouvel employe</p>
-                    <p className="text-xs text-slate-500">Esther Mbuyi ajoutee</p>
-                    <p className="text-[10px] text-slate-600 mt-1">Il y a 5 heures</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-amber-500/10 rounded-xl mt-0.5">
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Paiement en attente</p>
-                    <p className="text-xs text-slate-500">Prime trimestrielle</p>
-                    <p className="text-[10px] text-slate-600 mt-1">Il y a 1 jour</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-red-500/10 rounded-xl mt-0.5">
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Paiement echoue</p>
-                    <p className="text-xs text-slate-500">Equipements IT - $7,800</p>
-                    <p className="text-[10px] text-slate-600 mt-1">Il y a 3 jours</p>
-                  </div>
-                </div>
+                ) : (
+                  transactions.slice(0, 4).map((tx) => {
+                    const getActivityIcon = () => {
+                      if (tx.status === 'PENDING') return { icon: AlertCircle, color: 'amber' };
+                      if (tx.status === 'FAILED' || tx.status === 'CANCELLED') return { icon: XCircle, color: 'red' };
+                      if (tx.isIncoming) return { icon: ArrowDownLeft, color: 'emerald' };
+                      return { icon: CheckCircle2, color: 'emerald' };
+                    };
+                    const { icon: Icon, color } = getActivityIcon();
+                    const timeAgo = (dateStr: string) => {
+                      const diff = Date.now() - new Date(dateStr).getTime();
+                      const hours = Math.floor(diff / (1000 * 60 * 60));
+                      if (hours < 1) return 'Il y a quelques minutes';
+                      if (hours < 24) return `Il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+                      const days = Math.floor(hours / 24);
+                      return `Il y a ${days} jour${days > 1 ? 's' : ''}`;
+                    };
+
+                    return (
+                      <div key={tx.id} className="flex items-start gap-3">
+                        <div className={`p-2 bg-${color}-500/10 rounded-xl mt-0.5`}>
+                          <Icon className={`h-4 w-4 text-${color}-500`} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">
+                            {tx.isIncoming ? 'Paiement recu' : tx.status === 'PENDING' ? 'Paiement en attente' : tx.status === 'FAILED' ? 'Paiement echoue' : 'Paiement effectue'}
+                          </p>
+                          <p className="text-xs text-slate-500">{tx.counterparty} - ${tx.amount.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-600 mt-1">{timeAgo(tx.createdAt)}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </CardContent>
             </Card>
           </div>
