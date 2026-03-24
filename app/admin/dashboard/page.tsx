@@ -21,7 +21,7 @@ type LedgerUser = {
   phone: string | null;
   country: string | null;
   status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'FROZEN' | 'SUSPENDED' | string;
-  role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT';
+  role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT' | 'BANK_ADMIN' | 'BUSINESS_ADMIN';
   autoApprove: boolean;
   wallets: { balance: number; currency: string }[];
   kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'APPROVED';
@@ -1045,10 +1045,10 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* ROLE SELECTOR MODAL */}
-      {roleModalUser && (
-        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setRoleModalUser(null)}>
-          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-sm space-y-5 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+{/* ROLE SELECTOR MODAL */}
+  {roleModalUser && (
+  <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setRoleModalUser(null)}>
+  <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-md space-y-5 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-blue-500 uppercase tracking-[3px]">Changer Role</p>
@@ -1059,25 +1059,47 @@ function DashboardContent() {
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
               Role actuel : <span className="text-white">{roleModalUser.role}</span>
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              {(["USER", "AGENT", "MERCHANT", "ADMIN"] as const).map(role => (
-                <button
-                  key={role}
-                  onClick={async () => {
-                    await handleAction(roleModalUser.id, "SET_ROLE", 0, role);
-                    setRoleModalUser(null);
-                  }}
-                  className={`p-4 rounded-2xl border text-center transition-all active:scale-95 ${
-                    roleModalUser.role === role
-                      ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
-                      : "bg-white/5 border-white/10 text-slate-400 hover:border-blue-500/50 hover:text-white"
-                  }`}
-                >
-                  <UserCog size={18} className={`mx-auto mb-2 ${roleModalUser.role === role ? "text-white" : "text-slate-500"}`} />
-                  <p className="text-[10px] font-black uppercase tracking-wider">{role}</p>
-                </button>
-              ))}
-            </div>
+<div className="grid grid-cols-3 gap-2">
+  {(["USER", "AGENT", "MERCHANT", "ADMIN", "BANK_ADMIN", "BUSINESS_ADMIN"] as const).map(role => {
+    const roleConfig = {
+      USER: { icon: Users, color: "blue", label: "Utilisateur" },
+      AGENT: { icon: Shield, color: "purple", label: "Agent" },
+      MERCHANT: { icon: ShoppingBag, color: "orange", label: "Marchand" },
+      ADMIN: { icon: ShieldCheck, color: "red", label: "Admin" },
+      BANK_ADMIN: { icon: Landmark, color: "emerald", label: "Bank Admin" },
+      BUSINESS_ADMIN: { icon: Zap, color: "amber", label: "Business Admin" },
+    };
+    const config = roleConfig[role];
+    const Icon = config.icon;
+    const isActive = roleModalUser.role === role;
+    const colorClasses = {
+      blue: isActive ? "bg-blue-600 border-blue-500 shadow-blue-500/20" : "hover:border-blue-500/50",
+      purple: isActive ? "bg-purple-600 border-purple-500 shadow-purple-500/20" : "hover:border-purple-500/50",
+      orange: isActive ? "bg-orange-600 border-orange-500 shadow-orange-500/20" : "hover:border-orange-500/50",
+      red: isActive ? "bg-red-600 border-red-500 shadow-red-500/20" : "hover:border-red-500/50",
+      emerald: isActive ? "bg-emerald-600 border-emerald-500 shadow-emerald-500/20" : "hover:border-emerald-500/50",
+      amber: isActive ? "bg-amber-600 border-amber-500 shadow-amber-500/20" : "hover:border-amber-500/50",
+    };
+    return (
+      <button
+        key={role}
+        onClick={async () => {
+          await handleAction(roleModalUser.id, "SET_ROLE", 0, role);
+          setRoleModalUser(null);
+        }}
+        className={`p-4 rounded-2xl border text-center transition-all active:scale-95 ${
+          isActive
+            ? `${colorClasses[config.color as keyof typeof colorClasses]} text-white shadow-lg`
+            : `bg-white/5 border-white/10 text-slate-400 ${colorClasses[config.color as keyof typeof colorClasses]} hover:text-white`
+        }`}
+      >
+        <Icon size={18} className={`mx-auto mb-2 ${isActive ? "text-white" : "text-slate-500"}`} />
+        <p className="text-[10px] font-black uppercase tracking-wider">{config.label}</p>
+        <p className="text-[7px] text-slate-500 mt-0.5 uppercase tracking-widest">{role}</p>
+      </button>
+    );
+  })}
+  </div>
           </div>
         </div>
       )}

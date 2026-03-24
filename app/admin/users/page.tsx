@@ -191,7 +191,12 @@ export default function AdminUsersPage() {
                       {user.email || user.phone || "Pas de contact"} {user.country ? `// ${user.country}` : ""}
                     </p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <span className="text-[9px] font-black text-blue-400 font-mono uppercase">
+                      <span className={`text-[9px] font-black font-mono uppercase ${
+                        user.role === "BANK_ADMIN" ? "text-emerald-400" :
+                        user.role === "BUSINESS_ADMIN" ? "text-amber-400" :
+                        user.role === "ADMIN" ? "text-red-400" :
+                        "text-blue-400"
+                      }`}>
                         {user.role} {`// \u03C0 ${piBalance.toLocaleString()}`}
                       </span>
                       <span className={`text-[7px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${
