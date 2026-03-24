@@ -107,11 +107,21 @@ export async function POST(req: NextRequest) {
     }
     // --- FIN DES CORRECTIONS ---
 
+    // Determiner la destination selon le role
+    const getRedirectPath = (role: string) => {
+      switch (role) {
+        case "ADMIN": return "/admin";
+        case "BANK_ADMIN": return "/bank";
+        case "BUSINESS_ADMIN": return "/business";
+        default: return "/dashboard";
+      }
+    };
+
     const response = NextResponse.json({
       success: true,
       message: "PIN validé",
       user: { id: user.id, role: user.role },
-      redirectTo: user.role === "ADMIN" ? "/admin" : "/dashboard"
+      redirectTo: getRedirectPath(user.role)
     });
 
     const isProduction = process.env.NODE_ENV === "production";
