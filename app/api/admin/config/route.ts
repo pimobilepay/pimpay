@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
 
     let logs: any[] = [];
     let isAdmin = false;
+    let isBankAdmin = false;
+    let isBusinessAdmin = false;
 
     try {
       // Check if the current user is admin (via JWT token in cookie or header)
@@ -72,10 +74,16 @@ export async function GET(req: NextRequest) {
           take: 10
         });
       } else {
-        // Fallback: check via verifyAuth if user has ADMIN role
+        // Fallback: check via verifyAuth for any admin role
         const userSession = await verifyAuth(req);
-        if (userSession && userSession.role === "ADMIN") {
-          isAdmin = true;
+        if (userSession) {
+          if (userSession.role === "ADMIN") {
+            isAdmin = true;
+          } else if (userSession.role === "BANK_ADMIN") {
+            isBankAdmin = true;
+          } else if (userSession.role === "BUSINESS_ADMIN") {
+            isBusinessAdmin = true;
+          }
         }
       }
     } catch (e) { isAdmin = false; }
@@ -84,6 +92,8 @@ export async function GET(req: NextRequest) {
       ...config, 
       auditLogs: logs, 
       isAdmin,
+      isBankAdmin,
+      isBusinessAdmin,
       stats: {
         totalUsers,
         activeSessions,

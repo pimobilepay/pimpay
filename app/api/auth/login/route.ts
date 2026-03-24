@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     if (!SECRET) return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
     const body = await req.json().catch(() => ({}));
-    const { email: identifier, password } = body;
+    const { email: identifier, password, loginType = "user" } = body;
     if (!identifier || !password) {
       return NextResponse.json({ error: "Identifiants requis" }, { status: 400 });
     }
@@ -31,6 +31,31 @@ export async function POST(req: Request) {
     // 2. VÉRIFICATION MOT DE PASSE
     if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
+    }
+
+    // 3. VALIDATION DU ROLE SELON LE TYPE DE CONNEXION
+    // L'ADMIN peut se connecter depuis n'importe quel onglet
+    const isAdmin = user.role === "ADMIN";
+    
+    if (!isAdmin) {
+      // Verification stricte du role selon l'onglet de connexion
+      if (loginType === "bank" && user.role !== "BANK_ADMIN") {
+        return NextResponse.json({ 
+          error: "Acces refuse. Ce portail est reserve aux administrateurs de la Banque Centrale." 
+        }, { status: 403 });
+      }
+      
+      if (loginType === "business" && user.role !== "BUSINESS_ADMIN") {
+        return NextResponse.json({ 
+          error: "Acces refuse. Ce portail est reserve aux administrateurs d'entreprises." 
+        }, { status: 403 });
+      }
+      
+      if (loginType === "user" && (user.role === "BANK_ADMIN" || user.role === "BUSINESS_ADMIN")) {
+        return NextResponse.json({ 
+          error: "Veuillez utiliser le portail correspondant a votre compte (Banque ou Business)." 
+        }, { status: 403 });
+      }
     }
 
     // --- RÉCUPÉRATION DES INFOS DE CONNEXION ---
