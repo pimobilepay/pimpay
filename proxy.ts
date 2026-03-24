@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import * as jose from "jose";
 
+// Fonction helper pour determiner la destination selon le role
+function getDestinationByRole(role: string): string {
+  switch (role) {
+    case "ADMIN":
+      return "/admin";
+    case "BANK_ADMIN":
+      return "/bank";
+    case "BUSINESS_ADMIN":
+      return "/business";
+    default:
+      return "/dashboard";
+  }
+}
+
 // Dans Next 16, la fonction exportée doit s'appeler 'proxy'
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -13,7 +27,7 @@ export async function proxy(req: NextRequest) {
   // 2. EXCLUSIONS (On laisse passer les fichiers statiques et l'auth)
   const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|css|js)$/);
   const isAuthApi = pathname.startsWith("/api/auth");
-  const isLoginPage = pathname === "/login" || pathname === "/";
+  const isLoginPage = pathname === "/login" || pathname === "/" || pathname === "/auth/login";
 
   if (isPublicAsset || isAuthApi) {
     return NextResponse.next();
@@ -44,21 +58,49 @@ export async function proxy(req: NextRequest) {
     userPayload = { id: piToken, role: "USER", isPi: true };
   }
 
-  // 5. REDIRECTIONS
-  const isAdmin = userPayload?.role === "ADMIN";
+  // 5. REDIRECTIONS BASÉES SUR LE RÔLE
+  const userRole = userPayload?.role;
+  const isAdmin = userRole === "ADMIN";
+  const isBankAdmin = userRole === "BANK_ADMIN";
+  const isBusinessAdmin = userRole === "BUSINESS_ADMIN";
 
+  // Redirection depuis la page de login si deja connecte
   if (userPayload && isLoginPage) {
-    const dest = isAdmin ? "/admin" : "/dashboard";
+    const dest = getDestinationByRole(userRole);
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
-  const isProtectedPath = pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname.startsWith("/transfer") || pathname.startsWith("/deposit") || pathname.startsWith("/settings") || pathname.startsWith("/profile");
+  // Protection des routes
+  const isProtectedPath = 
+    pathname.startsWith("/dashboard") || 
+    pathname.startsWith("/admin") || 
+    pathname.startsWith("/bank") || 
+    pathname.startsWith("/business") || 
+    pathname.startsWith("/transfer") || 
+    pathname.startsWith("/deposit") || 
+    pathname.startsWith("/settings") || 
+    pathname.startsWith("/profile");
+    
   if (!userPayload && isProtectedPath) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
+  // Protection route /admin - uniquement pour ADMIN
   if (pathname.startsWith("/admin") && !isAdmin) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    const dest = getDestinationByRole(userRole);
+    return NextResponse.redirect(new URL(dest, req.url));
+  }
+
+  // Protection route /bank - uniquement pour BANK_ADMIN et ADMIN
+  if (pathname.startsWith("/bank") && !isBankAdmin && !isAdmin) {
+    const dest = getDestinationByRole(userRole);
+    return NextResponse.redirect(new URL(dest, req.url));
+  }
+
+  // Protection route /business - uniquement pour BUSINESS_ADMIN et ADMIN
+  if (pathname.startsWith("/business") && !isBusinessAdmin && !isAdmin) {
+    const dest = getDestinationByRole(userRole);
+    return NextResponse.redirect(new URL(dest, req.url));
   }
 
   return NextResponse.next();
@@ -68,8 +110,11 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/admin/:path*",
+    "/bank/:path*",
+    "/business/:path*",
     "/login",
     "/",
+    "/auth/login",
     "/api/((?!auth).*)",
   ],
 };

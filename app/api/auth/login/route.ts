@@ -125,10 +125,20 @@ export async function POST(req: Request) {
       console.error("Session/Notif Error:", e); 
     }
 
+    // Determiner la destination selon le role
+    const getRedirectPath = (role: string) => {
+      switch (role) {
+        case "ADMIN": return "/admin";
+        case "BANK_ADMIN": return "/bank";
+        case "BUSINESS_ADMIN": return "/business";
+        default: return "/dashboard";
+      }
+    };
+
     const response = NextResponse.json({
       success: true,
       user: { id: user.id, username: user.username, role: user.role },
-      redirectTo: user.role === "ADMIN" ? "/admin" : "/dashboard",
+      redirectTo: getRedirectPath(user.role),
       token: token
     });
 

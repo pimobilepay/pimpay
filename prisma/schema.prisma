@@ -443,6 +443,349 @@ enum UserRole {
   USER
   MERCHANT
   AGENT
+  BANK_ADMIN
+  BUSINESS_ADMIN
+}
+
+// ==================== BANK INSTITUTION ====================
+
+enum BankStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_APPROVAL
+  INACTIVE
+}
+
+enum BankType {
+  CENTRAL_BANK
+  COMMERCIAL_BANK
+  MICROFINANCE
+  CREDIT_UNION
+}
+
+model Bank {
+  id                  String       @id @default(cuid())
+  name                String       @unique
+  code                String       @unique // Code bancaire unique (ex: BEAC, BGFI)
+  type                BankType     @default(COMMERCIAL_BANK)
+  status              BankStatus   @default(PENDING_APPROVAL)
+  
+  // Informations de contact
+  email               String?
+  phone               String?
+  address             String?
+  city                String?
+  country             String       @default("CG")
+  
+  // Informations legales
+  licenseNumber       String?      @unique
+  swiftCode           String?      @unique
+  registrationNumber  String?
+  
+  // Limites et configuration
+  dailyTransferLimit  Float        @default(100000000)
+  monthlyTransferLimit Float       @default(1000000000)
+  transactionFee      Float        @default(0.01)
+  
+  // Reserve et liquidite
+  reserveBalance      Float        @default(0)
+  minReserveRatio     Float        @default(0.15) // 15% minimum
+  
+  // Conformite
+  kycVerified         Boolean      @default(false)
+  amlCompliant        Boolean      @default(false)
+  lastAuditDate       DateTime?
+  
+  // Metadata
+  logoUrl             String?
+  description         String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  
+  // Relations
+  administrators      BankAdmin[]
+  interbankTransfers  InterbankTransfer[] @relation("from_bank")
+  receivedTransfers   InterbankTransfer[] @relation("to_bank")
+  complianceReports   BankComplianceReport[]
+  alerts              BankAlert[]
+
+  @@index([code])
+  @@index([status])
+}
+
+model BankAdmin {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  bankId      String
+  role        String   @default("OPERATOR") // OPERATOR, MANAGER, DIRECTOR
+  permissions String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  bank        Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@index([bankId])
+  @@index([userId])
+}
+
+model InterbankTransfer {
+  id              String            @id @default(cuid())
+  reference       String            @unique
+  fromBankId      String
+  toBankId        String
+  amount          Float
+  currency        String            @default("XAF")
+  fee             Float             @default(0)
+  status          TransactionStatus @default(PENDING)
+  type            String            @default("SWIFT") // SWIFT, RTGS, ACH
+  purpose         String?
+  description     String?
+  processedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  
+  fromBank        Bank              @relation("from_bank", fields: [fromBankId], references: [id])
+  toBank          Bank              @relation("to_bank", fields: [toBankId], references: [id])
+
+  @@index([fromBankId])
+  @@index([toBankId])
+  @@index([reference])
+}
+
+model BankComplianceReport {
+  id          String   @id @default(cuid())
+  bankId      String
+  type        String   // KYC_AUDIT, AML_REPORT, REGULATORY_FILING
+  period      String   // Q1_2026, MONTHLY_03_2026
+  status      String   @default("PENDING") // PENDING, SUBMITTED, APPROVED, REJECTED
+  findings    Json?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  bank        Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@index([bankId])
+  @@index([type])
+}
+
+model BankAlert {
+  id          String   @id @default(cuid())
+  bankId      String
+  type        String   // SECURITY, COMPLIANCE, TRANSACTION, SYSTEM
+  severity    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  isResolved  Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+  
+  bank        Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@index([bankId])
+  @@index([severity])
+  @@index([isResolved])
+}
+
+// ==================== BUSINESS INSTITUTION ====================
+
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  INACTIVE
+}
+
+enum BusinessType {
+  SOLE_PROPRIETORSHIP
+  PARTNERSHIP
+  CORPORATION
+  LLC
+  COOPERATIVE
+  NGO
+}
+
+enum BusinessCategory {
+  RETAIL
+  WHOLESALE
+  SERVICES
+  MANUFACTURING
+  TECHNOLOGY
+  HOSPITALITY
+  HEALTHCARE
+  EDUCATION
+  TRANSPORT
+  AGRICULTURE
+  OTHER
+}
+
+model Business {
+  id                  String           @id @default(cuid())
+  name                String
+  tradeName           String?          // Nom commercial
+  registrationNumber  String           @unique
+  taxId               String?          @unique
+  type                BusinessType     @default(SOLE_PROPRIETORSHIP)
+  category            BusinessCategory @default(OTHER)
+  status              BusinessStatus   @default(PENDING_VERIFICATION)
+  
+  // Informations de contact
+  email               String?
+  phone               String?
+  website             String?
+  address             String?
+  city                String?
+  country             String           @default("CG")
+  postalCode          String?
+  
+  // Informations bancaires
+  bankAccountNumber   String?
+  bankName            String?
+  bankCode            String?
+  
+  // Limites et configuration
+  dailyTransactionLimit  Float         @default(10000000)
+  monthlyTransactionLimit Float        @default(100000000)
+  paymentFeeRate      Float            @default(0.02) // 2%
+  
+  // Verification
+  isVerified          Boolean          @default(false)
+  verifiedAt          DateTime?
+  kycStatus           KycStatus        @default(NONE)
+  
+  // Documents
+  logoUrl             String?
+  documentUrls        String[]         @default([])
+  
+  // Stats
+  totalRevenue        Float            @default(0)
+  totalTransactions   Int              @default(0)
+  
+  // Metadata
+  description         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  
+  // Relations
+  administrators      BusinessAdmin[]
+  employees           BusinessEmployee[]
+  payments            BusinessPayment[]
+  invoices            BusinessInvoice[]
+  products            BusinessProduct[]
+
+  @@index([registrationNumber])
+  @@index([status])
+  @@index([category])
+}
+
+model BusinessAdmin {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  businessId  String
+  role        String   @default("MANAGER") // OWNER, MANAGER, ACCOUNTANT
+  permissions String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([userId])
+}
+
+model BusinessEmployee {
+  id          String   @id @default(cuid())
+  businessId  String
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  position    String?
+  department  String?
+  salary      Float?
+  hireDate    DateTime @default(now())
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model BusinessPayment {
+  id              String            @id @default(cuid())
+  reference       String            @unique
+  businessId      String
+  amount          Float
+  currency        String            @default("XAF")
+  fee             Float             @default(0)
+  status          TransactionStatus @default(PENDING)
+  type            String            @default("SALE") // SALE, REFUND, SUBSCRIPTION
+  customerName    String?
+  customerPhone   String?
+  customerEmail   String?
+  description     String?
+  metadata        Json?
+  processedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  
+  business        Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([reference])
+  @@index([status])
+}
+
+model BusinessInvoice {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  businessId      String
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+  customerAddress String?
+  items           Json     // Array of { description, quantity, unitPrice, total }
+  subtotal        Float
+  taxRate         Float    @default(0.18) // 18% TVA
+  taxAmount       Float
+  total           Float
+  status          String   @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED
+  dueDate         DateTime?
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([status])
+}
+
+model BusinessProduct {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  sku         String?
+  price       Float
+  currency    String   @default("XAF")
+  stock       Int      @default(0)
+  category    String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, sku])
+  @@index([businessId])
+  @@index([category])
 }
 
 enum UserStatus {
