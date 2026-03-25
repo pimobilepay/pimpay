@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
         case "ADMIN": return "/admin";
         case "BANK_ADMIN": return "/bank";
         case "BUSINESS_ADMIN": return "/business";
+        case "AGENT": return "/hub";
         default: return "/dashboard";
       }
     };
