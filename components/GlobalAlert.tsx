@@ -194,8 +194,8 @@ export default function GlobalAlert() {
   }
 
   // 3. ECRAN DE MAINTENANCE FINTECH WEB3
-  // Les admins (ADMIN, BANK_ADMIN, BUSINESS_ADMIN) peuvent naviguer librement pendant la maintenance
-  const canBypassMaintenance = config.isAdmin || config.isBankAdmin || config.isBusinessAdmin;
+  // Les admins (ADMIN, BANK_ADMIN, BUSINESS_ADMIN) et agents peuvent naviguer librement pendant la maintenance
+  const canBypassMaintenance = config.isAdmin || config.isBankAdmin || config.isBusinessAdmin || config.isAgent;
   if (config.maintenanceMode && !canBypassMaintenance) {
     return (
       <div className="fixed inset-0 z-[9999] bg-[#020617] flex items-center justify-center overflow-hidden">

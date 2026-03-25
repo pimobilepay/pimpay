@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
     let isAdmin = false;
     let isBankAdmin = false;
     let isBusinessAdmin = false;
+    let isAgent = false;
 
     try {
       // Check if the current user is admin (via JWT token in cookie or header)
@@ -83,6 +84,8 @@ export async function GET(req: NextRequest) {
             isBankAdmin = true;
           } else if (userSession.role === "BUSINESS_ADMIN") {
             isBusinessAdmin = true;
+          } else if (userSession.role === "AGENT") {
+            isAgent = true;
           }
         }
       }
@@ -94,6 +97,7 @@ export async function GET(req: NextRequest) {
       isAdmin,
       isBankAdmin,
       isBusinessAdmin,
+      isAgent,
       stats: {
         totalUsers,
         activeSessions,
