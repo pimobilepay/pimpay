@@ -56,6 +56,7 @@ export type FeeType =
   // Crypto
   | "transfer"
   | "withdraw"
+  | "deposit"
   | "deposit_crypto"
   | "exchange"
   // Fiat
@@ -169,6 +170,8 @@ export function getFeeRate(config: FeeConfig, type: FeeType): number {
       return config.transferFee;
     case "withdraw":
       return config.withdrawFee;
+    case "deposit":
+      return config.depositMobileFee; // Default deposit fee
     case "deposit_crypto":
       return config.depositCryptoFee;
     case "exchange":

@@ -7,7 +7,6 @@ import {
   QrCode,
   ShieldCheck,
   Wallet,
-  ArrowRightLeft,
   ArrowDownLeft,
   ArrowUpRight,
   Eye,
@@ -20,20 +19,29 @@ import {
   AlertCircle,
   Loader2,
   ChevronRight,
+  X,
+  Search,
+  User,
+  ArrowRightLeft,
+  RefreshCw
 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
+import useSWR from 'swr'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 // Types
 interface Transaction {
@@ -53,69 +61,45 @@ interface CommissionData {
   transactions: number
 }
 
-// Mock Data
-const commissionData: CommissionData[] = [
-  { day: 'Mon', commission: 12500, transactions: 45 },
-  { day: 'Tue', commission: 18200, transactions: 62 },
-  { day: 'Wed', commission: 15800, transactions: 53 },
-  { day: 'Thu', commission: 22400, transactions: 78 },
-  { day: 'Fri', commission: 28100, transactions: 95 },
-  { day: 'Sat', commission: 31500, transactions: 108 },
-  { day: 'Sun', commission: 24800, transactions: 82 },
-]
+interface Customer {
+  id: string
+  name: string
+  username: string
+  phone: string
+  avatar?: string
+  kycStatus: string
+}
 
-const recentTransactions: Transaction[] = [
-  {
-    id: '1',
-    type: 'cash-in',
-    amount: 150000,
-    currency: 'XAF',
-    status: 'success',
-    customer: 'Marie K.',
-    timestamp: '14:32',
-    reference: 'TXN-7842',
-  },
-  {
-    id: '2',
-    type: 'cash-out',
-    amount: 75000,
-    currency: 'XAF',
-    status: 'pending',
-    customer: 'Jean P.',
-    timestamp: '14:28',
-    reference: 'TXN-7841',
-  },
-  {
-    id: '3',
-    type: 'cash-in',
-    amount: 250000,
-    currency: 'XAF',
-    status: 'success',
-    customer: 'Amadou B.',
-    timestamp: '14:15',
-    reference: 'TXN-7840',
-  },
-  {
-    id: '4',
-    type: 'transfer',
-    amount: 45000,
-    currency: 'XAF',
-    status: 'issue',
-    customer: 'Sophie L.',
-    timestamp: '13:58',
-    reference: 'TXN-7839',
-  },
-  {
-    id: '5',
-    type: 'cash-out',
-    amount: 180000,
-    currency: 'XAF',
-    status: 'success',
-    customer: 'Paul M.',
-    timestamp: '13:45',
-    reference: 'TXN-7838',
-  },
-]
+interface DashboardData {
+  success: boolean
+  agent: {
+    id: string
+    name: string
+    kycStatus: string
+  }
+  floatBalance: number
+  piBalance: number
+  dailyEarnings: {
+    pi: number
+    xaf: number
+  }
+  liquidityHealth: number
+  dailyVolume: number
+  todayTransactionsCount: number
+  commissionData: CommissionData[]
+  recentTransactions: Transaction[]
+  weeklyGrowth: number
+}
+
+// Fetcher pour SWR
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error.error || 'Erreur de chargement')
+  }
+  return res.json()
+}
 
 // Components
 function LiquidityHealthIndicator({ health }: { health: number }) {
@@ -131,7 +115,7 @@ function LiquidityHealthIndicator({ health }: { health: number }) {
         <motion.div
           className={cn('h-full rounded-full', getColor())}
           initial={{ width: 0 }}
-          animate={{ width: `${health}%` }}
+          animate={{ width: `${Math.min(health, 100)}%` }}
           transition={{ duration: 1, ease: 'easeOut' }}
         />
       </div>
@@ -159,7 +143,7 @@ function StatusBadge({ status }: { status: Transaction['status'] }) {
     },
   }
 
-  const { icon: Icon, label, className } = config[status]
+  const { icon: Icon, label, className } = config[status] || config.pending
 
   return (
     <Badge variant="outline" className={cn('gap-1 font-medium', className)}>
@@ -185,7 +169,7 @@ function TransactionIcon({ type }: { type: Transaction['type'] }) {
     },
   }
 
-  const { icon: Icon, className } = config[type]
+  const { icon: Icon, className } = config[type] || config.transfer
 
   return (
     <div className={cn('p-2 rounded-xl', className)}>
@@ -216,14 +200,335 @@ function GlassCard({
   )
 }
 
+// Transaction Modal Component
+function TransactionModal({
+  isOpen,
+  onClose,
+  type,
+  onSuccess
+}: {
+  isOpen: boolean
+  onClose: () => void
+  type: 'cash-in' | 'cash-out'
+  onSuccess: () => void
+}) {
+  const [step, setStep] = React.useState<'search' | 'confirm'>('search')
+  const [searchQuery, setSearchQuery] = React.useState('')
+  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
+  const [amount, setAmount] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
+
+  // Recherche de clients
+  const { data: searchResults, isLoading: isSearching } = useSWR(
+    searchQuery.length >= 2 ? `/api/agent/customer?q=${encodeURIComponent(searchQuery)}` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  )
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setStep('confirm')
+    setSearchQuery('')
+  }
+
+  const handleSubmit = async () => {
+    if (!selectedCustomer || !amount) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const endpoint = type === 'cash-in' ? '/api/agent/cash-in' : '/api/agent/cash-out'
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          amount: parseFloat(amount),
+          currency: 'XAF'
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur lors de la transaction')
+      }
+
+      onSuccess()
+      handleClose()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleClose = () => {
+    setStep('search')
+    setSearchQuery('')
+    setSelectedCustomer(null)
+    setAmount('')
+    setError('')
+    onClose()
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {type === 'cash-in' ? (
+              <>
+                <ArrowDownLeft className="h-5 w-5 text-emerald-600" />
+                Cash-In
+              </>
+            ) : (
+              <>
+                <ArrowUpRight className="h-5 w-5 text-blue-600" />
+                Cash-Out
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 'search' 
+              ? 'Recherchez le client par nom, telephone ou username'
+              : `Confirmez le ${type === 'cash-in' ? 'depot' : 'retrait'} pour ${selectedCustomer?.name || selectedCustomer?.username}`
+            }
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 'search' ? (
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un client..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {isSearching && (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {searchResults?.customers && searchResults.customers.length > 0 && (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {searchResults.customers.map((customer: Customer) => (
+                  <button
+                    key={customer.id}
+                    onClick={() => handleSelectCustomer(customer)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors text-left"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{customer.name || customer.username}</p>
+                      <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">
+                      {customer.kycStatus}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {searchQuery.length >= 2 && searchResults?.customers?.length === 0 && (
+              <p className="text-center text-muted-foreground py-4">Aucun client trouve</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {selectedCustomer && (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted">
+                <div className="h-10 w-10 rounded-full bg-background flex items-center justify-center">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{selectedCustomer.name || selectedCustomer.username}</p>
+                  <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setStep('search')}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Montant (XAF)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="text-2xl font-bold h-14"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Annuler
+          </Button>
+          {step === 'confirm' && (
+            <Button
+              onClick={handleSubmit}
+              disabled={!amount || isLoading}
+              className={type === 'cash-in' 
+                ? 'bg-emerald-600 hover:bg-emerald-700' 
+                : 'bg-blue-600 hover:bg-blue-700'
+              }
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Confirmer {type === 'cash-in' ? 'le depot' : 'le retrait'}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// QR Scanner Modal
+function QRScannerModal({
+  isOpen,
+  onClose,
+  onCustomerFound
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onCustomerFound: (customer: Customer) => void
+}) {
+  const [manualCode, setManualCode] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
+
+  const handleManualSearch = async () => {
+    if (!manualCode) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch(`/api/agent/customer?q=${encodeURIComponent(manualCode)}`)
+      const data = await res.json()
+
+      if (!res.ok || !data.customers?.length) {
+        throw new Error('Client non trouve')
+      }
+
+      onCustomerFound(data.customers[0])
+      onClose()
+      setManualCode('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5" />
+            Scanner le QR Client
+          </DialogTitle>
+          <DialogDescription>
+            Scannez le code QR du client ou entrez son identifiant manuellement
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Placeholder pour le scanner QR */}
+          <div className="aspect-square bg-muted rounded-xl flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
+            <div className="text-center">
+              <QrCode className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">Camera QR Scanner</p>
+              <p className="text-xs text-muted-foreground mt-1">Fonctionnalite bientot disponible</p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-code">Identifiant client</Label>
+            <Input
+              id="manual-code"
+              placeholder="Username ou telephone"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-500">{error}</p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button onClick={handleManualSearch} disabled={!manualCode || isLoading}>
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Rechercher
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Main Component
 export default function PimPayHub() {
   const [safeMode, setSafeMode] = React.useState(false)
   const [selectedTransaction, setSelectedTransaction] = React.useState<string | null>(null)
+  const [cashInModalOpen, setCashInModalOpen] = React.useState(false)
+  const [cashOutModalOpen, setCashOutModalOpen] = React.useState(false)
+  const [qrScannerOpen, setQrScannerOpen] = React.useState(false)
 
-  const floatBalance = 2847500
-  const dailyEarnings = { pi: 15.8, xaf: 47400 }
-  const liquidityHealth = 87
+  // Fetch dashboard data
+  const { data, error, isLoading, mutate: refreshDashboard } = useSWR<DashboardData>(
+    '/api/agent/dashboard',
+    fetcher,
+    { 
+      refreshInterval: 30000, // Refresh every 30 seconds
+      revalidateOnFocus: true
+    }
+  )
+
+  const floatBalance = data?.floatBalance || 0
+  const dailyEarnings = data?.dailyEarnings || { pi: 0, xaf: 0 }
+  const liquidityHealth = data?.liquidityHealth || 0
+  const commissionData = data?.commissionData || []
+  const recentTransactions = data?.recentTransactions || []
+  const weeklyGrowth = data?.weeklyGrowth || 0
 
   const formatCurrency = (amount: number, currency: string = 'XAF') => {
     if (safeMode) return '******'
@@ -233,9 +538,33 @@ export default function PimPayHub() {
     }).format(amount) + ` ${currency}`
   }
 
+  const handleTransactionSuccess = () => {
+    refreshDashboard()
+  }
+
+  const handleQRCustomerFound = (customer: Customer) => {
+    // Could open cash-in or cash-out modal with pre-selected customer
+    setCashInModalOpen(true)
+  }
+
   // Compute chart colors in JavaScript for recharts
   const chartGreen = '#10b981'
-  const chartGreenFaded = 'rgba(16, 185, 129, 0.1)'
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-4">
+        <GlassCard className="p-6 max-w-md w-full text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Erreur de chargement</h2>
+          <p className="text-muted-foreground mb-4">{error.message}</p>
+          <Button onClick={() => refreshDashboard()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Reessayer
+          </Button>
+        </GlassCard>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -272,18 +601,29 @@ export default function PimPayHub() {
               </Badge>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSafeMode(!safeMode)}
-            className="rounded-xl"
-          >
-            {safeMode ? (
-              <EyeOff className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <Eye className="h-5 w-5 text-muted-foreground" />
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => refreshDashboard()}
+              className="rounded-xl"
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn('h-5 w-5 text-muted-foreground', isLoading && 'animate-spin')} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSafeMode(!safeMode)}
+              className="rounded-xl"
+            >
+              {safeMode ? (
+                <EyeOff className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <Eye className="h-5 w-5 text-muted-foreground" />
+              )}
+            </Button>
+          </div>
         </motion.header>
 
         {/* Liquidity Node */}
@@ -297,14 +637,23 @@ export default function PimPayHub() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-3xl font-bold tracking-tight text-foreground mt-1"
               >
-                {formatCurrency(floatBalance)}
+                {isLoading ? (
+                  <span className="inline-block w-32 h-8 bg-muted animate-pulse rounded" />
+                ) : (
+                  formatCurrency(floatBalance)
+                )}
               </motion.p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-1.5 text-emerald-600">
-                <TrendingUp className="h-4 w-4" />
-                <span className="text-sm font-semibold">+12.5%</span>
-              </div>
+              {weeklyGrowth !== 0 && (
+                <div className={cn(
+                  'flex items-center gap-1.5',
+                  weeklyGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'
+                )}>
+                  <TrendingUp className={cn('h-4 w-4', weeklyGrowth < 0 && 'rotate-180')} />
+                  <span className="text-sm font-semibold">{weeklyGrowth >= 0 ? '+' : ''}{weeklyGrowth}%</span>
+                </div>
+              )}
               <LiquidityHealthIndicator health={liquidityHealth} />
             </div>
           </div>
@@ -315,13 +664,21 @@ export default function PimPayHub() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Daily Earnings (Pi)</p>
               <p className="text-lg font-semibold text-foreground">
-                {safeMode ? '***' : dailyEarnings.pi} <span className="text-sm text-muted-foreground">Pi</span>
+                {isLoading ? (
+                  <span className="inline-block w-16 h-6 bg-muted animate-pulse rounded" />
+                ) : (
+                  <>{safeMode ? '***' : dailyEarnings.pi} <span className="text-sm text-muted-foreground">Pi</span></>
+                )}
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Daily Earnings (XAF)</p>
               <p className="text-lg font-semibold text-foreground">
-                {formatCurrency(dailyEarnings.xaf)}
+                {isLoading ? (
+                  <span className="inline-block w-20 h-6 bg-muted animate-pulse rounded" />
+                ) : (
+                  formatCurrency(dailyEarnings.xaf)
+                )}
               </p>
             </div>
           </div>
@@ -334,6 +691,7 @@ export default function PimPayHub() {
               <Button
                 className="w-full h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25 border-0"
                 size="lg"
+                onClick={() => setCashInModalOpen(true)}
               >
                 <div className="flex flex-col items-center gap-1">
                   <ArrowDownLeft className="h-5 w-5" />
@@ -345,6 +703,7 @@ export default function PimPayHub() {
               <Button
                 className="w-full h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 border-0"
                 size="lg"
+                onClick={() => setCashOutModalOpen(true)}
               >
                 <div className="flex flex-col items-center gap-1">
                   <ArrowUpRight className="h-5 w-5" />
@@ -358,6 +717,7 @@ export default function PimPayHub() {
             <Button
               className="w-full h-14 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 dark:from-white dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200 shadow-xl border-0"
               size="lg"
+              onClick={() => setQrScannerOpen(true)}
             >
               <QrCode className="h-5 w-5 mr-2" />
               <span className="font-semibold">Scan Customer QR</span>
@@ -374,54 +734,60 @@ export default function PimPayHub() {
             </div>
             <div className="flex items-center gap-1 text-emerald-600">
               <Activity className="h-4 w-4" />
-              <span className="text-sm font-semibold">+23%</span>
+              <span className="text-sm font-semibold">
+                {weeklyGrowth >= 0 ? '+' : ''}{weeklyGrowth}%
+              </span>
             </div>
           </div>
 
-          <ChartContainer
-            config={{
-              commission: {
-                label: 'Commission',
-                color: chartGreen,
-              },
-            }}
-            className="h-[140px] w-full"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={commissionData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                <defs>
-                  <linearGradient id="commissionGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={chartGreen} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={chartGreen} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="day"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  dy={10}
-                />
-                <YAxis hide />
-                <Tooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value, name) => (
-                        <span className="font-semibold">{Number(value).toLocaleString()} XAF</span>
-                      )}
-                    />
-                  }
-                />
-                <Area
-                  type="monotone"
-                  dataKey="commission"
-                  stroke={chartGreen}
-                  strokeWidth={2}
-                  fill="url(#commissionGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+          {isLoading ? (
+            <div className="h-[140px] w-full bg-muted animate-pulse rounded-xl" />
+          ) : (
+            <ChartContainer
+              config={{
+                commission: {
+                  label: 'Commission',
+                  color: chartGreen,
+                },
+              }}
+              className="h-[140px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={commissionData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                  <defs>
+                    <linearGradient id="commissionGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartGreen} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={chartGreen} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    dy={10}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => (
+                          <span className="font-semibold">{Number(value).toLocaleString()} XAF</span>
+                        )}
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="commission"
+                    stroke={chartGreen}
+                    strokeWidth={2}
+                    fill="url(#commissionGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          )}
         </GlassCard>
 
         {/* Operation Ledger */}
@@ -438,44 +804,58 @@ export default function PimPayHub() {
           </div>
 
           <div className="space-y-3">
-            <AnimatePresence>
-              {recentTransactions.map((tx, index) => (
-                <motion.div
-                  key={tx.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={() => setSelectedTransaction(selectedTransaction === tx.id ? null : tx.id)}
-                  className={cn(
-                    'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all',
-                    'hover:bg-slate-100/50 dark:hover:bg-slate-800/50',
-                    selectedTransaction === tx.id && 'bg-slate-100/80 dark:bg-slate-800/80'
-                  )}
-                >
-                  <TransactionIcon type={tx.type} />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-foreground truncate">{tx.customer}</p>
-                      <p className={cn(
-                        'font-semibold tabular-nums',
-                        tx.type === 'cash-in' ? 'text-emerald-600' : 'text-foreground'
-                      )}>
-                        {tx.type === 'cash-in' ? '+' : '-'}{formatCurrency(tx.amount)}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{tx.timestamp}</span>
-                        <span className="text-xs text-muted-foreground">|</span>
-                        <span className="text-xs text-muted-foreground font-mono">{tx.reference}</span>
-                      </div>
-                      <StatusBadge status={tx.status} />
-                    </div>
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <div className="h-10 w-10 bg-muted animate-pulse rounded-xl" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                    <div className="h-3 w-32 bg-muted animate-pulse rounded" />
                   </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                </div>
+              ))
+            ) : recentTransactions.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Aucune transaction recente</p>
+            ) : (
+              <AnimatePresence>
+                {recentTransactions.map((tx, index) => (
+                  <motion.div
+                    key={tx.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    onClick={() => setSelectedTransaction(selectedTransaction === tx.id ? null : tx.id)}
+                    className={cn(
+                      'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all',
+                      'hover:bg-slate-100/50 dark:hover:bg-slate-800/50',
+                      selectedTransaction === tx.id && 'bg-slate-100/80 dark:bg-slate-800/80'
+                    )}
+                  >
+                    <TransactionIcon type={tx.type} />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-foreground truncate">{tx.customer}</p>
+                        <p className={cn(
+                          'font-semibold tabular-nums',
+                          tx.type === 'cash-in' ? 'text-emerald-600' : 'text-foreground'
+                        )}>
+                          {tx.type === 'cash-in' ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{tx.timestamp}</span>
+                          <span className="text-xs text-muted-foreground">|</span>
+                          <span className="text-xs text-muted-foreground font-mono">{tx.reference}</span>
+                        </div>
+                        <StatusBadge status={tx.status} />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
           </div>
         </GlassCard>
 
@@ -535,6 +915,25 @@ export default function PimPayHub() {
           </p>
         </motion.footer>
       </div>
+
+      {/* Modals */}
+      <TransactionModal
+        isOpen={cashInModalOpen}
+        onClose={() => setCashInModalOpen(false)}
+        type="cash-in"
+        onSuccess={handleTransactionSuccess}
+      />
+      <TransactionModal
+        isOpen={cashOutModalOpen}
+        onClose={() => setCashOutModalOpen(false)}
+        type="cash-out"
+        onSuccess={handleTransactionSuccess}
+      />
+      <QRScannerModal
+        isOpen={qrScannerOpen}
+        onClose={() => setQrScannerOpen(false)}
+        onCustomerFound={handleQRCustomerFound}
+      />
     </div>
   )
 }
