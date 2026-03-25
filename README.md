@@ -44,7 +44,7 @@ PimPay évolue pour devenir une plateforme bancaire hybride et conforme :
 
 ### Sidra Chain
 
-La Sidra Chain est une blockchain conforme aux principes de la finance islamique :
+Sidra Chain est une blockchain conforme aux principes de la finance islamique :
 
 * **Mainnet RPC :** Connexion directe au noeud `node.sidrachain.com` via ethers.js.
 * **Frais de gaz quasi-nuls :** Environ 0.0001 SDR par transaction, bases sur les couts reels de l'infrastructure.
