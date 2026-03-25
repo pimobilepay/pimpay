@@ -11,6 +11,8 @@ function getDestinationByRole(role: string): string {
       return "/bank";
     case "BUSINESS_ADMIN":
       return "/business";
+    case "AGENT":
+      return "/hub";
     default:
       return "/dashboard";
   }
@@ -63,6 +65,7 @@ export async function proxy(req: NextRequest) {
   const isAdmin = userRole === "ADMIN";
   const isBankAdmin = userRole === "BANK_ADMIN";
   const isBusinessAdmin = userRole === "BUSINESS_ADMIN";
+  const isAgent = userRole === "AGENT";
 
   // Redirection depuis la page de login si deja connecte
   if (userPayload && isLoginPage) {
@@ -76,6 +79,7 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/admin") || 
     pathname.startsWith("/bank") || 
     pathname.startsWith("/business") || 
+    pathname.startsWith("/hub") || 
     pathname.startsWith("/transfer") || 
     pathname.startsWith("/deposit") || 
     pathname.startsWith("/settings") || 
@@ -103,6 +107,12 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
+  // Protection route /hub - uniquement pour AGENT et ADMIN
+  if (pathname.startsWith("/hub") && !isAgent && !isAdmin) {
+    const dest = getDestinationByRole(userRole);
+    return NextResponse.redirect(new URL(dest, req.url));
+  }
+
   return NextResponse.next();
 }
 
@@ -112,6 +122,7 @@ export const config = {
     "/admin/:path*",
     "/bank/:path*",
     "/business/:path*",
+    "/hub/:path*",
     "/login",
     "/",
     "/auth/login",
