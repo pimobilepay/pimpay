@@ -359,6 +359,14 @@ export default function PayrollPage() {
   // Process payroll payment
   const processPayroll = async () => {
     if (selectedEmployees.length === 0) return;
+    
+    // Only pay employees with salary > 0
+    const employeesToPay = employees.filter(e => selectedEmployees.includes(e.id) && (e.salary || 0) > 0);
+    if (employeesToPay.length === 0) {
+      alert("Aucun employe selectionne n'a de salaire defini");
+      return;
+    }
+
     try {
       setProcessing(true);
       const response = await fetch("/api/business/payroll", {
@@ -374,7 +382,10 @@ export default function PayrollPage() {
       if (!response.ok) throw new Error(result.error || "Erreur lors du paiement");
       await fetchPayrollData();
       setSelectedEmployees([]);
-      alert(`Paiement effectue! Reference: ${result.data.reference}`);
+      
+      // Show detailed result
+      const { successCount, pendingCount, amount, reference, message } = result.data;
+      alert(`${message}\n\nReference: ${reference}\nMontant total: $${amount.toFixed(2)}`);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Erreur lors du paiement");
     } finally {
