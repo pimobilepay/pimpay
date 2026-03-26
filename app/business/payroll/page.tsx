@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { BusinessSidebar } from "@/components/business/BusinessSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +31,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Users,
@@ -54,9 +64,10 @@ import {
   Trash2,
   History,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 
-// Types based on Prisma schema
+// Types
 interface Employee {
   id: string;
   firstName: string;
@@ -64,6 +75,10 @@ interface Employee {
   position: string | null;
   salary: number | null;
   isActive: boolean;
+  avatar: string | null;
+  userId: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
 interface PayrollHistory {
@@ -85,20 +100,64 @@ interface PayrollData {
   };
 }
 
+interface PlatformUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  username: string | null;
+  avatar: string | null;
+}
+
+function AvatarDisplay({ avatar, initials, size = "md", selected = false }: {
+  avatar: string | null;
+  initials: string;
+  size?: "sm" | "md" | "lg";
+  selected?: boolean;
+}) {
+  const sizeMap = {
+    sm: "w-8 h-8 text-[10px]",
+    md: "w-10 h-10 text-xs",
+    lg: "w-16 h-16 text-lg",
+  };
+  const cls = sizeMap[size];
+
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={initials}
+        className={`${cls} rounded-xl object-cover flex-shrink-0 ${selected ? "ring-2 ring-emerald-500" : ""}`}
+      />
+    );
+  }
+  return (
+    <div className={`${cls} rounded-xl flex items-center justify-center font-black uppercase flex-shrink-0 ${
+      selected ? "bg-emerald-500 text-white" : "bg-slate-700 text-slate-300"
+    }`}>
+      {initials}
+    </div>
+  );
+}
+
 export default function PayrollPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
-  
+
   // Real data state
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  
-  // New employee form state
+
+  // Add employee form
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<PlatformUser[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
   const [newEmployee, setNewEmployee] = useState({
     firstName: "",
     lastName: "",
@@ -106,45 +165,172 @@ export default function PayrollPage() {
     salary: "",
   });
   const [addingEmployee, setAddingEmployee] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Edit employee state
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", position: "", salary: "", isActive: true });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Delete employee state
+  const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingEmployee, setDeletingEmployee] = useState(false);
+
+  // Search platform users
+  const handleUserSearch = (query: string) => {
+    setUserSearchQuery(query);
+    setSelectedUser(null);
+
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (query.trim().length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setSearchingUsers(true);
+      try {
+        const res = await fetch(`/api/business/users/search?q=${encodeURIComponent(query)}`, {
+          credentials: "include",
+        });
+        const result = await res.json();
+        setUserSearchResults(result.users || []);
+      } catch {
+        setUserSearchResults([]);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 300);
+  };
+
+  // Select a platform user — auto-fill form
+  const handleSelectUser = (user: PlatformUser) => {
+    setSelectedUser(user);
+    const nameParts = (user.name || "").trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    setNewEmployee((prev) => ({
+      ...prev,
+      firstName,
+      lastName,
+    }));
+    setUserSearchQuery(user.name);
+    setUserSearchResults([]);
+  };
+
+  // Reset add form
+  const resetAddForm = () => {
+    setSelectedUser(null);
+    setUserSearchQuery("");
+    setUserSearchResults([]);
+    setNewEmployee({ firstName: "", lastName: "", position: "", salary: "" });
+  };
 
   // Add new employee
   const handleAddEmployee = async () => {
     if (!newEmployee.firstName || !newEmployee.lastName) return;
-    
+
     try {
       setAddingEmployee(true);
       const response = await fetch("/api/business/employees", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           firstName: newEmployee.firstName,
           lastName: newEmployee.lastName,
           position: newEmployee.position || null,
           salary: newEmployee.salary || null,
+          avatar: selectedUser?.avatar || null,
+          userId: selectedUser?.id || null,
+          email: selectedUser?.email || null,
+          phone: selectedUser?.phone || null,
         }),
       });
-      
+
       const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erreur lors de l'ajout");
-      }
-      
-      // Reset form and close dialog
-      setNewEmployee({ firstName: "", lastName: "", position: "", salary: "" });
+      if (!response.ok) throw new Error(result.error || "Erreur lors de l'ajout");
+
+      resetAddForm();
       setAddEmployeeOpen(false);
-      
-      // Refresh employee list
       await fetchPayrollData();
-      
-      alert("Employe ajoute avec succes!");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Erreur lors de l'ajout de l'employe");
     } finally {
       setAddingEmployee(false);
+    }
+  };
+
+  // Open edit dialog
+  const openEdit = (emp: Employee, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditEmployee(emp);
+    setEditForm({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      position: emp.position || "",
+      salary: emp.salary?.toString() || "",
+      isActive: emp.isActive,
+    });
+    setEditOpen(true);
+  };
+
+  // Save edit
+  const handleSaveEdit = async () => {
+    if (!editEmployee) return;
+    try {
+      setSavingEdit(true);
+      const res = await fetch("/api/business/employees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          employeeId: editEmployee.id,
+          firstName: editForm.firstName,
+          lastName: editForm.lastName,
+          position: editForm.position || null,
+          salary: editForm.salary || null,
+          isActive: editForm.isActive,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur");
+      setEditOpen(false);
+      await fetchPayrollData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erreur lors de la modification");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Open delete dialog
+  const openDelete = (emp: Employee, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteEmployee(emp);
+    setDeleteOpen(true);
+  };
+
+  // Confirm delete
+  const handleDelete = async () => {
+    if (!deleteEmployee) return;
+    try {
+      setDeletingEmployee(true);
+      const res = await fetch(`/api/business/employees?id=${deleteEmployee.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur");
+      setDeleteOpen(false);
+      await fetchPayrollData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erreur lors de la suppression");
+    } finally {
+      setDeletingEmployee(false);
     }
   };
 
@@ -153,18 +339,10 @@ export default function PayrollPage() {
     try {
       setLoading(true);
       const response = await fetch("/api/business/payroll", {
-        headers: {
-          "Content-Type": "application/json",
-        },
         credentials: "include",
       });
-      
       const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erreur lors du chargement");
-      }
-      
+      if (!response.ok) throw new Error(result.error || "Erreur lors du chargement");
       setData(result.data);
       setError(null);
     } catch (err: unknown) {
@@ -181,31 +359,22 @@ export default function PayrollPage() {
   // Process payroll payment
   const processPayroll = async () => {
     if (selectedEmployees.length === 0) return;
-    
     try {
       setProcessing(true);
       const response = await fetch("/api/business/payroll", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           employeeIds: selectedEmployees,
-          description: `Paiement salaires - ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`,
+          description: `Paiement salaires - ${new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
         }),
       });
-      
       const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erreur lors du paiement");
-      }
-      
-      // Refresh data and clear selection
+      if (!response.ok) throw new Error(result.error || "Erreur lors du paiement");
       await fetchPayrollData();
       setSelectedEmployees([]);
-      alert(`Paiement effectue avec succes! Reference: ${result.data.reference}`);
+      alert(`Paiement effectue! Reference: ${result.data.reference}`);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Erreur lors du paiement");
     } finally {
@@ -213,30 +382,34 @@ export default function PayrollPage() {
     }
   };
 
-  // Get employees from data or empty array
   const employees = data?.employees || [];
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter(e => {
+    return employees.filter((e) => {
       const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
       const position = (e.position || "").toLowerCase();
-      const matchesSearch = fullName.includes(searchQuery.toLowerCase()) ||
+      const matchesSearch =
+        fullName.includes(searchQuery.toLowerCase()) ||
         position.includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "all" || 
+      const matchesStatus =
+        statusFilter === "all" ||
         (statusFilter === "active" && e.isActive) ||
         (statusFilter === "pending" && !e.isActive);
       return matchesSearch && matchesStatus;
     });
   }, [employees, searchQuery, statusFilter]);
 
-  const totalSalary = useMemo(() => 
-    employees.filter(e => selectedEmployees.includes(e.id) || selectedEmployees.length === 0)
-      .reduce((sum, e) => sum + (e.salary || 0), 0)
-  , [employees, selectedEmployees]);
+  const totalSalary = useMemo(
+    () =>
+      employees
+        .filter((e) => selectedEmployees.includes(e.id) || selectedEmployees.length === 0)
+        .reduce((sum, e) => sum + (e.salary || 0), 0),
+    [employees, selectedEmployees]
+  );
 
   const toggleEmployee = (id: string) => {
-    setSelectedEmployees(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    setSelectedEmployees((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
@@ -244,7 +417,7 @@ export default function PayrollPage() {
     if (selectedEmployees.length === filteredEmployees.length) {
       setSelectedEmployees([]);
     } else {
-      setSelectedEmployees(filteredEmployees.map(e => e.id));
+      setSelectedEmployees(filteredEmployees.map((e) => e.id));
     }
   };
 
@@ -293,7 +466,7 @@ export default function PayrollPage() {
           </div>
         </div>
 
-        {/* Header */}
+        {/* Page Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Paie & Salaires</h1>
@@ -304,54 +477,136 @@ export default function PayrollPage() {
               <Download className="h-4 w-4 mr-2" />
               Exporter
             </Button>
-            <Dialog open={addEmployeeOpen} onOpenChange={setAddEmployeeOpen}>
+
+            {/* Add Employee Dialog */}
+            <Dialog open={addEmployeeOpen} onOpenChange={(open) => {
+              setAddEmployeeOpen(open);
+              if (!open) resetAddForm();
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-emerald-500 hover:bg-emerald-600 text-xs font-bold">
                   <UserPlus className="h-4 w-4 mr-2" />
                   Ajouter Employe
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-900 border-white/10">
+              <DialogContent className="bg-slate-900 border-white/10 max-w-lg">
                 <DialogHeader>
                   <DialogTitle className="text-white">Ajouter un Employe</DialogTitle>
-                  <DialogDescription className="text-slate-400">Remplissez les informations de l&apos;employe</DialogDescription>
+                  <DialogDescription className="text-slate-400">
+                    Recherchez un utilisateur existant sur la plateforme ou saisissez manuellement
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">Prenom</Label>
-                      <Input 
-                        className="bg-slate-800 border-white/10" 
+
+                <div className="space-y-4 py-2">
+                  {/* User search bar */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-300 text-xs font-bold uppercase tracking-wider">
+                      Rechercher un utilisateur
+                    </Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                      <Input
+                        className="bg-slate-800 border-white/10 pl-10 text-sm"
+                        placeholder="Nom, telephone, email..."
+                        value={userSearchQuery}
+                        onChange={(e) => handleUserSearch(e.target.value)}
+                      />
+                      {searchingUsers && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 animate-spin" />
+                      )}
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {userSearchResults.length > 0 && (
+                      <div className="rounded-xl border border-white/10 bg-slate-800 overflow-hidden divide-y divide-white/5">
+                        {userSearchResults.map((u) => {
+                          const initials = u.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2);
+                          return (
+                            <button
+                              key={u.id}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                              onClick={() => handleSelectUser(u)}
+                            >
+                              <AvatarDisplay avatar={u.avatar} initials={initials} size="sm" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-white truncate">{u.name}</p>
+                                <p className="text-[11px] text-slate-500 truncate">
+                                  {u.email}{u.phone ? ` · ${u.phone}` : ""}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Selected user preview */}
+                    {selectedUser && (
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <AvatarDisplay
+                          avatar={selectedUser.avatar}
+                          initials={selectedUser.name.slice(0, 2).toUpperCase()}
+                          size="lg"
+                          selected
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-white">{selectedUser.name}</p>
+                          <p className="text-xs text-slate-400 truncate">{selectedUser.email}</p>
+                          {selectedUser.phone && (
+                            <p className="text-xs text-slate-500">{selectedUser.phone}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => resetAddForm()}
+                          className="p-1 rounded-lg hover:bg-white/10 text-slate-400"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">Prenom</Label>
+                      <Input
+                        className="bg-slate-800 border-white/10"
                         placeholder="Jean"
                         value={newEmployee.firstName}
                         onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">Nom</Label>
-                      <Input 
-                        className="bg-slate-800 border-white/10" 
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">Nom</Label>
+                      <Input
+                        className="bg-slate-800 border-white/10"
                         placeholder="Dupont"
                         value={newEmployee.lastName}
                         onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">Poste</Label>
-                      <Input 
-                        className="bg-slate-800 border-white/10" 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">Poste</Label>
+                      <Input
+                        className="bg-slate-800 border-white/10"
                         placeholder="Developpeur"
                         value={newEmployee.position}
                         onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">Salaire (USD)</Label>
-                      <Input 
-                        className="bg-slate-800 border-white/10" 
-                        type="number" 
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">Salaire (USD)</Label>
+                      <Input
+                        className="bg-slate-800 border-white/10"
+                        type="number"
                         placeholder="0.00"
                         value={newEmployee.salary}
                         onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })}
@@ -359,16 +614,17 @@ export default function PayrollPage() {
                     </div>
                   </div>
                 </div>
+
                 <DialogFooter>
-                  <Button variant="outline" className="border-white/10" onClick={() => setAddEmployeeOpen(false)}>Annuler</Button>
-                  <Button 
+                  <Button variant="outline" className="border-white/10" onClick={() => setAddEmployeeOpen(false)}>
+                    Annuler
+                  </Button>
+                  <Button
                     className="bg-emerald-500 hover:bg-emerald-600"
                     onClick={handleAddEmployee}
                     disabled={addingEmployee || !newEmployee.firstName || !newEmployee.lastName}
                   >
-                    {addingEmployee ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : null}
+                    {addingEmployee ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     {addingEmployee ? "Ajout..." : "Ajouter"}
                   </Button>
                 </DialogFooter>
@@ -409,7 +665,9 @@ export default function PayrollPage() {
                   {loading ? (
                     <Skeleton className="h-9 w-24 mt-1 bg-emerald-500/20" />
                   ) : (
-                    <p className="text-3xl font-black text-white mt-1">${(data?.stats.totalMonthlySalary || 0).toLocaleString()}</p>
+                    <p className="text-3xl font-black text-white mt-1">
+                      ${(data?.stats.totalMonthlySalary || 0).toLocaleString()}
+                    </p>
                   )}
                   <p className="text-xs text-slate-500 mt-2">par mois</p>
                 </div>
@@ -447,7 +705,11 @@ export default function PayrollPage() {
                     <Skeleton className="h-7 w-28 mt-1 bg-slate-700" />
                   ) : data?.payrollHistory?.[0] ? (
                     <p className="text-xl font-black text-white mt-1">
-                      {new Date(data.payrollHistory[0].createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {new Date(data.payrollHistory[0].createdAt).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </p>
                   ) : (
                     <p className="text-xl font-black text-white mt-1">Aucune</p>
@@ -469,7 +731,7 @@ export default function PayrollPage() {
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Employee List - 2 columns */}
+          {/* Employee List */}
           <div className="xl:col-span-2">
             <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
               <CardHeader>
@@ -483,13 +745,13 @@ export default function PayrollPage() {
                       <Upload className="h-4 w-4 mr-2" />
                       Importer CSV
                     </Button>
-                    <Button 
+                    <Button
                       className="bg-emerald-500 hover:bg-emerald-600 text-xs font-bold"
                       disabled={selectedEmployees.length === 0 || processing}
                       onClick={processPayroll}
                     >
                       {processing ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
                         <Send className="h-4 w-4 mr-2" />
                       )}
@@ -510,13 +772,13 @@ export default function PayrollPage() {
                       className="pl-10 bg-slate-800/50 border-white/10 text-sm"
                     />
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="border-white/10 text-xs font-bold"
                     onClick={fetchPayrollData}
                     disabled={loading}
                   >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                     Actualiser
                   </Button>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -529,7 +791,12 @@ export default function PayrollPage() {
                       <SelectItem value="pending">En attente</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" size="sm" onClick={selectAllEmployees} className="border-white/10 text-xs font-bold whitespace-nowrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllEmployees}
+                    className="border-white/10 text-xs font-bold whitespace-nowrap"
+                  >
                     {selectedEmployees.length === filteredEmployees.length ? "Deselectionner" : "Tout selectionner"}
                   </Button>
                 </div>
@@ -548,7 +815,6 @@ export default function PayrollPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        // Loading skeleton
                         Array.from({ length: 5 }).map((_, i) => (
                           <TableRow key={i} className="border-white/5">
                             <TableCell>
@@ -585,27 +851,29 @@ export default function PayrollPage() {
                         filteredEmployees.map((employee) => {
                           const initials = `${employee.firstName.charAt(0)}${employee.lastName.charAt(0)}`.toUpperCase();
                           const fullName = `${employee.firstName} ${employee.lastName}`;
-                          
+                          const isSelected = selectedEmployees.includes(employee.id);
+
                           return (
-                            <TableRow 
-                              key={employee.id} 
+                            <TableRow
+                              key={employee.id}
                               className={`border-white/5 cursor-pointer transition-colors ${
-                                selectedEmployees.includes(employee.id) ? "bg-emerald-500/10" : "hover:bg-white/5"
+                                isSelected ? "bg-emerald-500/10" : "hover:bg-white/5"
                               }`}
                               onClick={() => toggleEmployee(employee.id)}
                             >
                               <TableCell>
                                 <div className="flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase ${
-                                    selectedEmployees.includes(employee.id)
-                                      ? "bg-emerald-500 text-white"
-                                      : "bg-slate-700 text-slate-300"
-                                  }`}>
-                                    {initials}
-                                  </div>
+                                  <AvatarDisplay
+                                    avatar={employee.avatar}
+                                    initials={initials}
+                                    size="md"
+                                    selected={isSelected}
+                                  />
                                   <div>
                                     <p className="text-sm font-bold text-white">{fullName}</p>
-                                    <p className="text-[11px] text-slate-500">{employee.position || "Non defini"}</p>
+                                    <p className="text-[11px] text-slate-500">
+                                      {employee.email || employee.phone || "Pas de contact"}
+                                    </p>
                                   </div>
                                 </div>
                               </TableCell>
@@ -615,24 +883,53 @@ export default function PayrollPage() {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                <p className="text-sm font-black text-white">${(employee.salary || 0).toLocaleString()}</p>
+                                <p className="text-sm font-black text-white">
+                                  ${(employee.salary || 0).toLocaleString()}
+                                </p>
                               </TableCell>
                               <TableCell>
                                 {employee.isActive ? (
-                                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Actif</Badge>
+                                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">
+                                    Actif
+                                  </Badge>
                                 ) : (
-                                  <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">Inactif</Badge>
+                                  <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">
+                                    Inactif
+                                  </Badge>
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                                    <Mail className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
+                                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                  {employee.email && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-slate-400 hover:text-white hover:bg-white/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.location.href = `mailto:${employee.email}`;
+                                      }}
+                                      title="Envoyer un email"
+                                    >
+                                      <Mail className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-white hover:bg-white/10"
+                                    onClick={(e) => openEdit(employee, e)}
+                                    title="Modifier"
+                                  >
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                                    onClick={(e) => openDelete(employee, e)}
+                                    title="Supprimer"
+                                  >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
@@ -650,7 +947,9 @@ export default function PayrollPage() {
                   <div className="mt-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-bold text-white">{selectedEmployees.length} employe(s) selectionne(s)</p>
+                        <p className="text-sm font-bold text-white">
+                          {selectedEmployees.length} employe(s) selectionne(s)
+                        </p>
                         <p className="text-xs text-slate-400">Pret pour paiement groupe</p>
                       </div>
                       <div className="text-right">
@@ -688,20 +987,26 @@ export default function PayrollPage() {
                         <p className="text-sm font-bold text-white truncate max-w-[150px]">
                           {payroll.description || payroll.reference}
                         </p>
-                        <Badge className={`text-[10px] font-bold ${
-                          payroll.status === "SUCCESS" 
-                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                            : payroll.status === "PENDING"
-                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                            : "bg-red-500/10 text-red-500 border-red-500/20"
-                        }`}>
+                        <Badge
+                          className={`text-[10px] font-bold ${
+                            payroll.status === "SUCCESS"
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                              : payroll.status === "PENDING"
+                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                              : "bg-red-500/10 text-red-500 border-red-500/20"
+                          }`}
+                        >
                           {payroll.status === "SUCCESS" && <CheckCircle2 className="h-3 w-3 mr-1" />}
                           {payroll.status === "SUCCESS" ? "Complete" : payroll.status}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-slate-500">
-                          {new Date(payroll.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {new Date(payroll.createdAt).toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </span>
                         <span className="font-bold text-white">${payroll.amount.toLocaleString()}</span>
                       </div>
@@ -742,6 +1047,126 @@ export default function PayrollPage() {
           </div>
         </div>
       </main>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-slate-900 border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Modifier l&apos;Employe</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Mettez a jour les informations de {editEmployee?.firstName} {editEmployee?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          {editEmployee && (
+            <div className="space-y-4 py-2">
+              {/* Avatar preview */}
+              {editEmployee.avatar && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-white/5">
+                  <AvatarDisplay
+                    avatar={editEmployee.avatar}
+                    initials={`${editEmployee.firstName[0]}${editEmployee.lastName[0]}`}
+                    size="md"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-white">{editEmployee.firstName} {editEmployee.lastName}</p>
+                    {editEmployee.email && <p className="text-xs text-slate-400">{editEmployee.email}</p>}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-slate-300 text-xs">Prenom</Label>
+                  <Input
+                    className="bg-slate-800 border-white/10"
+                    value={editForm.firstName}
+                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-slate-300 text-xs">Nom</Label>
+                  <Input
+                    className="bg-slate-800 border-white/10"
+                    value={editForm.lastName}
+                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-slate-300 text-xs">Poste</Label>
+                  <Input
+                    className="bg-slate-800 border-white/10"
+                    value={editForm.position}
+                    onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-slate-300 text-xs">Salaire (USD)</Label>
+                  <Input
+                    className="bg-slate-800 border-white/10"
+                    type="number"
+                    value={editForm.salary}
+                    onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-white/5">
+                <Label className="text-slate-300 text-sm flex-1">Statut actif</Label>
+                <button
+                  onClick={() => setEditForm({ ...editForm, isActive: !editForm.isActive })}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    editForm.isActive ? "bg-emerald-500" : "bg-slate-600"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-full bg-white mx-0.5 transition-transform ${
+                    editForm.isActive ? "translate-x-6" : "translate-x-0"
+                  }`} />
+                </button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10" onClick={() => setEditOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-emerald-500 hover:bg-emerald-600"
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+            >
+              {savingEdit ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {savingEdit ? "Enregistrement..." : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="bg-slate-900 border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Supprimer l&apos;employe ?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Voulez-vous vraiment supprimer{" "}
+              <span className="font-bold text-white">
+                {deleteEmployee?.firstName} {deleteEmployee?.lastName}
+              </span>{" "}
+              ? Cette action est irreversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-slate-300 bg-transparent">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={handleDelete}
+              disabled={deletingEmployee}
+            >
+              {deletingEmployee ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {deletingEmployee ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

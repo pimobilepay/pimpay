@@ -54,6 +54,10 @@ export async function GET(req: Request) {
           salary: emp.salary,
           isActive: emp.isActive,
           createdAt: emp.createdAt,
+          avatar: (emp as any).avatar || null,
+          userId: (emp as any).userId || null,
+          email: (emp as any).email || null,
+          phone: (emp as any).phone || null,
         })),
         stats: {
           total: business.BusinessEmployee.length,
@@ -82,7 +86,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { firstName, lastName, position, salary, email, phone, department } = body;
+    const { firstName, lastName, position, salary, email, phone, avatar, userId } = body;
 
     if (!firstName || !lastName) {
       return NextResponse.json({ error: "Nom et prenom requis" }, { status: 400 });
@@ -114,7 +118,11 @@ export async function POST(req: Request) {
         position: position || null,
         salary: salary ? parseFloat(salary) : null,
         isActive: true,
-      }
+        ...(avatar && { avatar }),
+        ...(userId && { userId }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+      } as any
     });
 
     return NextResponse.json({
@@ -127,6 +135,10 @@ export async function POST(req: Request) {
         salary: employee.salary,
         isActive: employee.isActive,
         createdAt: employee.createdAt,
+        avatar: (employee as any).avatar || null,
+        userId: (employee as any).userId || null,
+        email: (employee as any).email || null,
+        phone: (employee as any).phone || null,
       }
     }, { status: 201 });
 
