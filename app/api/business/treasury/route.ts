@@ -64,6 +64,16 @@ export async function GET(req: Request) {
     // Calculate daily cash flow
     const cashFlowByDay: { [key: string]: { entrant: number; sortant: number } } = {};
     
+    // Pre-fill all days in the period with zero values for continuous chart line
+    const dayCount = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
+    for (let i = dayCount - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      cashFlowByDay[key] = { entrant: 0, sortant: 0 };
+    }
+    
+    // Add transaction amounts to their respective days
     transactions.forEach(tx => {
       const day = tx.createdAt.toISOString().split('T')[0];
       if (!cashFlowByDay[day]) {
@@ -77,12 +87,14 @@ export async function GET(req: Request) {
       }
     });
 
-    // Convert to array for chart
-    const cashFlowData = Object.entries(cashFlowByDay).map(([day, data]) => ({
-      day: new Date(day).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-      entrant: Math.round(data.entrant * 100) / 100,
-      sortant: Math.round(data.sortant * 100) / 100,
-    }));
+    // Convert to array for chart, sorted chronologically
+    const cashFlowData = Object.entries(cashFlowByDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, data]) => ({
+        day: new Date(day).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+        entrant: Math.round(data.entrant * 100) / 100,
+        sortant: Math.round(data.sortant * 100) / 100,
+      }));
 
     // Calculate totals
     const totalEntrant = transactions

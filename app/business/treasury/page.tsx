@@ -352,8 +352,18 @@ export default function TreasuryPage() {
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v/1000}k`} />
+                        <XAxis 
+                          dataKey="day" 
+                          stroke="#64748b" 
+                          tick={{ fontSize: 10, fontWeight: 600 }} 
+                          interval="preserveStartEnd"
+                          minTickGap={30}
+                        />
+                        <YAxis 
+                          stroke="#64748b" 
+                          tick={{ fontSize: 10, fontWeight: 600 }} 
+                          tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                        />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: "#0f172a",
