@@ -97,6 +97,56 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  
+  // New employee form state
+  const [newEmployee, setNewEmployee] = useState({
+    firstName: "",
+    lastName: "",
+    position: "",
+    salary: "",
+  });
+  const [addingEmployee, setAddingEmployee] = useState(false);
+
+  // Add new employee
+  const handleAddEmployee = async () => {
+    if (!newEmployee.firstName || !newEmployee.lastName) return;
+    
+    try {
+      setAddingEmployee(true);
+      const response = await fetch("/api/business/employees", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          firstName: newEmployee.firstName,
+          lastName: newEmployee.lastName,
+          position: newEmployee.position || null,
+          salary: newEmployee.salary || null,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors de l'ajout");
+      }
+      
+      // Reset form and close dialog
+      setNewEmployee({ firstName: "", lastName: "", position: "", salary: "" });
+      setAddEmployeeOpen(false);
+      
+      // Refresh employee list
+      await fetchPayrollData();
+      
+      alert("Employe ajoute avec succes!");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erreur lors de l'ajout de l'employe");
+    } finally {
+      setAddingEmployee(false);
+    }
+  };
 
   // Fetch payroll data
   const fetchPayrollData = useCallback(async () => {
@@ -270,27 +320,57 @@ export default function PayrollPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-slate-300">Prenom</Label>
-                      <Input className="bg-slate-800 border-white/10" placeholder="Jean" />
+                      <Input 
+                        className="bg-slate-800 border-white/10" 
+                        placeholder="Jean"
+                        value={newEmployee.firstName}
+                        onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-slate-300">Nom</Label>
-                      <Input className="bg-slate-800 border-white/10" placeholder="Dupont" />
+                      <Input 
+                        className="bg-slate-800 border-white/10" 
+                        placeholder="Dupont"
+                        value={newEmployee.lastName}
+                        onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-slate-300">Poste</Label>
-                      <Input className="bg-slate-800 border-white/10" placeholder="Developpeur" />
+                      <Input 
+                        className="bg-slate-800 border-white/10" 
+                        placeholder="Developpeur"
+                        value={newEmployee.position}
+                        onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-slate-300">Salaire (USD)</Label>
-                      <Input className="bg-slate-800 border-white/10" type="number" placeholder="0.00" />
+                      <Input 
+                        className="bg-slate-800 border-white/10" 
+                        type="number" 
+                        placeholder="0.00"
+                        value={newEmployee.salary}
+                        onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })}
+                      />
                     </div>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" className="border-white/10" onClick={() => setAddEmployeeOpen(false)}>Annuler</Button>
-                  <Button className="bg-emerald-500 hover:bg-emerald-600">Ajouter</Button>
+                  <Button 
+                    className="bg-emerald-500 hover:bg-emerald-600"
+                    onClick={handleAddEmployee}
+                    disabled={addingEmployee || !newEmployee.firstName || !newEmployee.lastName}
+                  >
+                    {addingEmployee ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    {addingEmployee ? "Ajout..." : "Ajouter"}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

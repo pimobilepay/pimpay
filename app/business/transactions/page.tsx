@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { BusinessSidebar } from "@/components/business/BusinessSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -29,7 +30,6 @@ import {
   Calendar,
   RefreshCw,
   Download,
-  Filter,
   Menu,
   X,
   Eye,
@@ -40,23 +40,40 @@ import {
   XCircle,
   TrendingUp,
   ArrowRightLeft,
+  AlertCircle,
 } from "lucide-react";
 
-// Mock transactions data
-const transactions = [
-  { id: "TX001", reference: "TXN-2026-001234", recipient: "Fournisseur Alpha SARL", amount: 15000, type: "sortant", category: "Fournisseur", date: "2026-03-23", time: "14:30", status: "completed", description: "Paiement facture #FA-2026-089" },
-  { id: "TX002", reference: "TXN-2026-001233", recipient: "Employes - Mars 2026", amount: 23300, type: "sortant", category: "Salaire", date: "2026-03-22", time: "10:00", status: "completed", description: "Paie mensuelle Mars 2026" },
-  { id: "TX003", reference: "TXN-2026-001232", recipient: "Client Entreprise ABC", amount: 45000, type: "entrant", category: "Vente", date: "2026-03-21", time: "16:45", status: "completed", description: "Facture #CLI-2026-156" },
-  { id: "TX004", reference: "TXN-2026-001231", recipient: "Location Bureaux SCI", amount: 5000, type: "sortant", category: "Loyer", date: "2026-03-20", time: "08:00", status: "completed", description: "Loyer bureaux Mars 2026" },
-  { id: "TX005", reference: "TXN-2026-001230", recipient: "Client Entreprise XYZ", amount: 28000, type: "entrant", category: "Vente", date: "2026-03-19", time: "11:30", status: "completed", description: "Projet consultation" },
-  { id: "TX006", reference: "TXN-2026-001229", recipient: "Prime Trimestrielle", amount: 8500, type: "sortant", category: "Salaire", date: "2026-03-18", time: "14:00", status: "pending", description: "Primes Q1 2026" },
-  { id: "TX007", reference: "TXN-2026-001228", recipient: "Equipements IT Pro", amount: 7800, type: "sortant", category: "Fournisseur", date: "2026-03-17", time: "09:15", status: "failed", description: "Commande materiel informatique" },
-  { id: "TX008", reference: "TXN-2026-001227", recipient: "Services Cloud AWS", amount: 1250, type: "sortant", category: "Operations", date: "2026-03-16", time: "00:00", status: "completed", description: "Abonnement mensuel" },
-  { id: "TX009", reference: "TXN-2026-001226", recipient: "Client Startup Tech", amount: 18500, type: "entrant", category: "Vente", date: "2026-03-15", time: "15:20", status: "completed", description: "Developpement application" },
-  { id: "TX010", reference: "TXN-2026-001225", recipient: "Assurance Entreprise", amount: 2800, type: "sortant", category: "Operations", date: "2026-03-14", time: "10:00", status: "completed", description: "Assurance RC Pro" },
-  { id: "TX011", reference: "TXN-2026-001224", recipient: "Virement Interne", amount: 50000, type: "sortant", category: "Transfert", date: "2026-03-13", time: "09:00", status: "completed", description: "Vers compte reserve" },
-  { id: "TX012", reference: "TXN-2026-001223", recipient: "Client Industries Co", amount: 62000, type: "entrant", category: "Vente", date: "2026-03-12", time: "17:45", status: "completed", description: "Contrat maintenance" },
-];
+// Types for API response
+interface Transaction {
+  id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  type: string;
+  status: string;
+  description: string | null;
+  category: string;
+  createdAt: string;
+  isIncoming: boolean;
+  counterparty: string;
+}
+
+interface TransactionsData {
+  transactions: Transaction[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  stats: {
+    totalTransactions: number;
+    totalIncoming: number;
+    totalOutgoing: number;
+    netFlow: number;
+    pendingCount: number;
+  };
+}
 
 export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,32 +82,77 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState("30d");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Real data state
+  const [data, setData] = useState<TransactionsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch transactions data
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "20",
+        dateRange,
+        ...(typeFilter !== "all" && { type: typeFilter }),
+        ...(statusFilter !== "all" && { status: statusFilter === "completed" ? "SUCCESS" : statusFilter === "pending" ? "PENDING" : "FAILED" }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      
+      const response = await fetch(`/api/business/transactions?${params}`, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors du chargement");
+      }
+      
+      setData(result.data);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, dateRange, typeFilter, statusFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  // Get transactions from data
+  const transactions = data?.transactions || [];
+  const stats = data?.stats || { totalTransactions: 0, totalIncoming: 0, totalOutgoing: 0, pendingCount: 0 };
+  const pagination = data?.pagination || { page: 1, limit: 20, total: 0, totalPages: 1 };
+
+  // Filter transactions client-side for category (API doesn't support category filter)
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(tx => {
-      const matchesSearch = tx.recipient.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === "all" || tx.type === typeFilter;
-      const matchesCategory = categoryFilter === "all" || tx.category === categoryFilter;
-      const matchesStatus = statusFilter === "all" || tx.status === statusFilter;
-      return matchesSearch && matchesType && matchesCategory && matchesStatus;
-    });
-  }, [searchQuery, typeFilter, categoryFilter, statusFilter]);
+    if (categoryFilter === "all") return transactions;
+    return transactions.filter(tx => tx.category === categoryFilter);
+  }, [transactions, categoryFilter]);
 
-  const totalEntrant = transactions.filter(tx => tx.type === "entrant" && tx.status === "completed").reduce((sum, tx) => sum + tx.amount, 0);
-  const totalSortant = transactions.filter(tx => tx.type === "sortant" && tx.status === "completed").reduce((sum, tx) => sum + tx.amount, 0);
-  const pendingCount = transactions.filter(tx => tx.status === "pending").length;
-
-  const categories = [...new Set(transactions.map(tx => tx.category))];
+  // Get unique categories
+  const categories = useMemo(() => {
+    return [...new Set(transactions.map(tx => tx.category))];
+  }, [transactions]);
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
+    const normalizedStatus = status.toUpperCase();
+    switch (normalizedStatus) {
+      case "SUCCESS":
+      case "COMPLETED":
         return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold"><CheckCircle2 className="h-3 w-3 mr-1" />Effectue</Badge>;
-      case "pending":
+      case "PENDING":
         return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
-      case "failed":
+      case "FAILED":
         return <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-bold"><XCircle className="h-3 w-3 mr-1" />Echec</Badge>;
       default:
         return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 text-[10px] font-bold">{status}</Badge>;
@@ -105,8 +167,20 @@ export default function TransactionsPage() {
       "Loyer": "bg-amber-500/10 text-amber-500 border-amber-500/20",
       "Operations": "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
       "Transfert": "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+      "TRANSFER": "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+      "DEPOSIT": "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+      "WITHDRAWAL": "bg-rose-500/10 text-rose-500 border-rose-500/20",
+      "PAYMENT": "bg-blue-500/10 text-blue-500 border-blue-500/20",
     };
     return <Badge className={`${colors[category] || "bg-slate-500/10 text-slate-400 border-slate-500/20"} text-[10px] font-bold`}>{category}</Badge>;
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return {
+      date: date.toLocaleDateString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+      time: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    };
   };
 
   return (
@@ -161,7 +235,7 @@ export default function TransactionsPage() {
             <p className="text-sm text-slate-500 mt-1">Historique complet de vos mouvements financiers</p>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={dateRange} onValueChange={setDateRange}>
+            <Select value={dateRange} onValueChange={(value) => { setDateRange(value); setCurrentPage(1); }}>
               <SelectTrigger className="w-32 bg-slate-900/50 border-white/10 text-white text-xs font-bold">
                 <Calendar className="h-4 w-4 mr-2 text-slate-500" />
                 <SelectValue />
@@ -177,11 +251,38 @@ export default function TransactionsPage() {
               <Download className="h-4 w-4 mr-2" />
               Exporter
             </Button>
-            <Button variant="outline" size="icon" className="border-white/10 bg-slate-900/50">
-              <RefreshCw className="h-4 w-4 text-slate-400" />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="border-white/10 bg-slate-900/50"
+              onClick={fetchTransactions}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
+
+        {/* Error State */}
+        {error && (
+          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-500/20 rounded-2xl">
+                  <AlertCircle className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-400">Erreur de chargement</p>
+                  <p className="text-xs text-red-300/70 mt-1">{error}</p>
+                </div>
+                <Button onClick={fetchTransactions} className="bg-red-500 hover:bg-red-600 text-xs font-bold">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reessayer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -190,8 +291,12 @@ export default function TransactionsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Transactions</p>
-                  <p className="text-3xl font-black text-white mt-1">{transactions.length}</p>
-                  <p className="text-xs text-slate-500 mt-2">30 derniers jours</p>
+                  {loading ? (
+                    <Skeleton className="h-9 w-16 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">{stats.totalTransactions}</p>
+                  )}
+                  <p className="text-xs text-slate-500 mt-2">{dateRange === "7d" ? "7 derniers jours" : dateRange === "30d" ? "30 derniers jours" : dateRange === "90d" ? "90 derniers jours" : "Cette annee"}</p>
                 </div>
                 <div className="p-3 bg-slate-800/50 rounded-2xl">
                   <ArrowRightLeft className="h-6 w-6 text-slate-400" />
@@ -205,10 +310,14 @@ export default function TransactionsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-emerald-300/70 uppercase tracking-wider">Total Entrant</p>
-                  <p className="text-3xl font-black text-white mt-1">${totalEntrant.toLocaleString()}</p>
+                  {loading ? (
+                    <Skeleton className="h-9 w-24 mt-1 bg-emerald-500/20" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">${stats.totalIncoming.toLocaleString()}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-xs font-bold text-emerald-400">4 transactions</span>
+                    <span className="text-xs font-bold text-emerald-400">Revenus</span>
                   </div>
                 </div>
                 <div className="p-3 bg-emerald-500/20 rounded-2xl">
@@ -223,9 +332,13 @@ export default function TransactionsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-rose-300/70 uppercase tracking-wider">Total Sortant</p>
-                  <p className="text-3xl font-black text-white mt-1">${totalSortant.toLocaleString()}</p>
+                  {loading ? (
+                    <Skeleton className="h-9 w-24 mt-1 bg-rose-500/20" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">${stats.totalOutgoing.toLocaleString()}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs font-bold text-rose-400">8 transactions</span>
+                    <span className="text-xs font-bold text-rose-400">Depenses</span>
                   </div>
                 </div>
                 <div className="p-3 bg-rose-500/20 rounded-2xl">
@@ -240,7 +353,11 @@ export default function TransactionsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">En Attente</p>
-                  <p className="text-3xl font-black text-white mt-1">{pendingCount}</p>
+                  {loading ? (
+                    <Skeleton className="h-9 w-12 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mt-1">{stats.pendingCount}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Clock className="h-3.5 w-3.5 text-amber-400" />
                     <span className="text-xs font-bold text-amber-400">A traiter</span>
@@ -260,7 +377,9 @@ export default function TransactionsPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg font-black text-white">Historique des Transactions</CardTitle>
-                <CardDescription className="text-slate-500">{filteredTransactions.length} transactions trouvees</CardDescription>
+                <CardDescription className="text-slate-500">
+                  {loading ? "Chargement..." : `${filteredTransactions.length} transactions trouvees`}
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -272,11 +391,11 @@ export default function TransactionsPage() {
                 <Input
                   placeholder="Rechercher par reference, destinataire..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                   className="pl-10 bg-slate-800/50 border-white/10 text-sm"
                 />
               </div>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Select value={typeFilter} onValueChange={(value) => { setTypeFilter(value); setCurrentPage(1); }}>
                 <SelectTrigger className="w-36 bg-slate-800/50 border-white/10 text-xs font-bold">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
@@ -297,7 +416,7 @@ export default function TransactionsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1); }}>
                 <SelectTrigger className="w-36 bg-slate-800/50 border-white/10 text-xs font-bold">
                   <SelectValue placeholder="Statut" />
                 </SelectTrigger>
@@ -325,71 +444,121 @@ export default function TransactionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((tx) => (
-                    <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${tx.type === "entrant" ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
-                            {tx.type === "entrant" ? (
-                              <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" />
-                            ) : (
-                              <ArrowUpRight className="h-3.5 w-3.5 text-rose-500" />
-                            )}
+                  {loading ? (
+                    // Loading skeleton
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i} className="border-white/5">
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="w-8 h-8 rounded-lg bg-slate-700" />
+                            <Skeleton className="h-4 w-24 bg-slate-700" />
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-white font-mono">{tx.reference}</p>
+                        </TableCell>
+                        <TableCell><Skeleton className="h-4 w-32 bg-slate-700" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-16 bg-slate-700 rounded-full" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20 bg-slate-700" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 bg-slate-700" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-20 bg-slate-700 rounded-full" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-24 bg-slate-700 ml-auto" /></TableCell>
+                      </TableRow>
+                    ))
+                  ) : filteredTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-4 bg-slate-800/50 rounded-2xl">
+                            <ArrowRightLeft className="h-8 w-8 text-slate-500" />
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-bold text-white">{tx.recipient}</p>
-                          <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{tx.description}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getCategoryBadge(tx.category)}</TableCell>
-                      <TableCell>
-                        <p className={`text-sm font-black ${tx.type === "entrant" ? "text-emerald-400" : "text-white"}`}>
-                          {tx.type === "entrant" ? "+" : "-"}${tx.amount.toLocaleString()}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-xs font-bold text-white">{tx.date}</p>
-                          <p className="text-[10px] text-slate-500">{tx.time}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
+                          <p className="text-sm font-bold text-slate-400">Aucune transaction trouvee</p>
+                          <p className="text-xs text-slate-500">Les transactions apparaitront ici</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredTransactions.map((tx) => {
+                      const { date, time } = formatDate(tx.createdAt);
+                      const isIncoming = tx.isIncoming;
+                      return (
+                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded-lg ${isIncoming ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
+                                {isIncoming ? (
+                                  <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" />
+                                ) : (
+                                  <ArrowUpRight className="h-3.5 w-3.5 text-rose-500" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white font-mono">{tx.reference}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="text-sm font-bold text-white">{tx.counterparty}</p>
+                              <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{tx.description || "-"}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getCategoryBadge(tx.category)}</TableCell>
+                          <TableCell>
+                            <p className={`text-sm font-black ${isIncoming ? "text-emerald-400" : "text-white"}`}>
+                              {isIncoming ? "+" : "-"}${tx.amount.toLocaleString()}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="text-xs font-bold text-white">{date}</p>
+                              <p className="text-[10px] text-slate-500">{time}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>
 
             {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
-              <p className="text-xs text-slate-500">Affichage de 1 a {filteredTransactions.length} sur {transactions.length} transactions</p>
+              <p className="text-xs text-slate-500">
+                {loading ? "Chargement..." : `Affichage de ${((pagination.page - 1) * pagination.limit) + 1} a ${Math.min(pagination.page * pagination.limit, pagination.total)} sur ${pagination.total} transactions`}
+              </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold" disabled>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-white/10 text-xs font-bold" 
+                  disabled={currentPage === 1 || loading}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
                   Precedent
                 </Button>
                 <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold bg-emerald-500/10 text-emerald-500">
-                  1
+                  {currentPage}
                 </Button>
-                <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold" disabled>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-white/10 text-xs font-bold" 
+                  disabled={currentPage >= pagination.totalPages || loading}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                >
                   Suivant
                 </Button>
               </div>

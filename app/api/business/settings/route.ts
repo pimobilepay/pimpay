@@ -78,6 +78,7 @@ export async function GET(req: Request) {
           country: business.country,
           email: business.email,
           phone: business.phone,
+          logo: business.logo,
         } : null,
         sessions: sessions.map(s => ({
           id: s.id,

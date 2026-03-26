@@ -92,6 +92,7 @@ interface BusinessData {
   country: string | null;
   email: string;
   phone: string | null;
+  logo: string | null;
 }
 
 interface SettingsResponse {
@@ -168,6 +169,7 @@ export default function SettingsPage() {
         businessCategory: business.category || "",
       });
       setTwoFactorEnabled(user.twoFactorEnabled || false);
+      setLogoUrl(business.logo || null);
     }
   }, [user, business]);
   
@@ -182,6 +184,71 @@ export default function SettingsPage() {
   // Security settings
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+
+  // Logo upload state
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  // Handle logo upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez selectionner une image (JPG, PNG ou SVG)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Erreur",
+        description: "L'image ne doit pas depasser 2MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append('logo', file);
+
+      // Upload the file via business logo API
+      const uploadResponse = await fetch('/api/business/logo', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadResult.error || "Erreur lors de l'upload");
+      }
+
+      setLogoUrl(uploadResult.url);
+      toast({
+        title: "Succes",
+        description: "Le logo a ete mis a jour",
+      });
+      mutate();
+    } catch (error: unknown) {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de mettre a jour le logo",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
 
   // Save profile changes
   const handleSaveProfile = async () => {
@@ -503,15 +570,38 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-6">
                   {isLoading ? (
                     <Skeleton className="w-24 h-24 rounded-2xl bg-slate-700" />
+                  ) : logoUrl ? (
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo entreprise" 
+                      className="w-24 h-24 rounded-2xl object-cover"
+                    />
                   ) : (
                     <div className="w-24 h-24 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl font-black text-emerald-500">
                       {business?.name?.substring(0, 2).toUpperCase() || "EP"}
                     </div>
                   )}
                   <div>
-                    <Button variant="outline" className="border-white/10 text-xs font-bold mb-2">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Changer le logo
+                    <input
+                      type="file"
+                      id="logo-upload"
+                      accept="image/jpeg,image/png,image/svg+xml"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                      disabled={isUploadingLogo}
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="border-white/10 text-xs font-bold mb-2"
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      disabled={isUploadingLogo}
+                    >
+                      {isUploadingLogo ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-2" />
+                      )}
+                      {isUploadingLogo ? "Telechargement..." : "Changer le logo"}
                     </Button>
                     <p className="text-xs text-slate-500">JPG, PNG ou SVG. Max 2MB.</p>
                   </div>
