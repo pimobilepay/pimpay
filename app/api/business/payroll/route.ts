@@ -129,59 +129,138 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
+    // Get employees with their user accounts (only those linked to platform users)
+    const employeesWithUsers = await Promise.all(
+      (business.BusinessEmployee as any[]).map(async (emp) => {
+        if (!emp.userId) return { ...emp, userAccount: null, userWallet: null };
+        
+        const userAccount = await prisma.user.findUnique({
+          where: { id: emp.userId },
+          include: { wallets: true }
+        });
+        
+        const userWallet = userAccount?.wallets.find(w => w.currency === "USD");
+        return { ...emp, userAccount, userWallet };
+      })
+    );
+
     // Calculate total payment
     const totalAmount = business.BusinessEmployee.reduce((sum, e) => sum + (e.salary || 0), 0);
 
-    // Get USD wallet
+    if (totalAmount === 0) {
+      return NextResponse.json({ error: "Le montant total est de 0$" }, { status: 400 });
+    }
+
+    // Get USD wallet of business owner
     const usdWallet = user.wallets.find(w => w.currency === "USD");
     if (!usdWallet || usdWallet.balance < totalAmount) {
       return NextResponse.json({ 
-        error: `Solde insuffisant. Requis: $${totalAmount}, Disponible: $${usdWallet?.balance || 0}` 
+        error: `Solde insuffisant. Requis: $${totalAmount.toFixed(2)}, Disponible: $${(usdWallet?.balance || 0).toFixed(2)}` 
       }, { status: 400 });
     }
 
+    // Generate batch reference for this payroll
+    const batchReference = `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const paymentDate = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
     // Process payment in transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Deduct from wallet
+      // Deduct total from business owner wallet
       await tx.wallet.update({
         where: { id: usdWallet.id },
         data: { balance: { decrement: totalAmount } }
       });
 
-      // Create payroll transaction
-      const transaction = await tx.transaction.create({
-        data: {
-          reference: `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: totalAmount,
-          currency: "USD",
-          type: "TRANSFER",
-          status: "SUCCESS",
-          description: description || `Paiement salaires - ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`,
-          fromUserId: user.id,
-          fromWalletId: usdWallet.id,
-          metadata: {
-            type: "PAYROLL",
-            employeeCount: business.BusinessEmployee.length,
-            employees: business.BusinessEmployee.map(e => ({
-              id: e.id,
-              name: `${e.firstName} ${e.lastName}`,
-              amount: e.salary
-            }))
-          }
-        }
-      });
+      const paidEmployees: { id: string; name: string; amount: number; status: string }[] = [];
 
-      return transaction;
+      // Process each employee payment
+      for (const emp of employeesWithUsers) {
+        const salary = emp.salary || 0;
+        if (salary <= 0) continue;
+
+        const employeeName = `${emp.firstName} ${emp.lastName}`;
+
+        // If employee has a linked platform account with USD wallet, credit it
+        if (emp.userAccount && emp.userWallet) {
+          // Credit employee wallet
+          await tx.wallet.update({
+            where: { id: emp.userWallet.id },
+            data: { balance: { increment: salary } }
+          });
+
+          // Create transaction for this employee payment
+          await tx.transaction.create({
+            data: {
+              reference: `${batchReference}-${emp.id.slice(-6)}`,
+              amount: salary,
+              currency: "USD",
+              type: "TRANSFER",
+              status: "SUCCESS",
+              description: `Salaire de ${business.name} - ${paymentDate}`,
+              fromUserId: user.id,
+              fromWalletId: usdWallet.id,
+              toUserId: emp.userAccount.id,
+              toWalletId: emp.userWallet.id,
+              metadata: {
+                type: "SALARY",
+                batchReference,
+                businessId: business.id,
+                businessName: business.name,
+                employeeId: emp.id,
+                employeeName,
+                position: emp.position,
+              }
+            }
+          });
+
+          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "SUCCESS" });
+        } else {
+          // Employee not linked to platform - record as pending/manual
+          await tx.transaction.create({
+            data: {
+              reference: `${batchReference}-${emp.id.slice(-6)}`,
+              amount: salary,
+              currency: "USD",
+              type: "TRANSFER",
+              status: "PENDING",
+              description: `Salaire ${employeeName} (non lie) - ${paymentDate}`,
+              fromUserId: user.id,
+              fromWalletId: usdWallet.id,
+              metadata: {
+                type: "SALARY",
+                batchReference,
+                businessId: business.id,
+                businessName: business.name,
+                employeeId: emp.id,
+                employeeName,
+                position: emp.position,
+                note: "Employe non lie a un compte plateforme"
+              }
+            }
+          });
+
+          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "PENDING" });
+        }
+      }
+
+      return { batchReference, paidEmployees };
     });
+
+    const successCount = result.paidEmployees.filter(e => e.status === "SUCCESS").length;
+    const pendingCount = result.paidEmployees.filter(e => e.status === "PENDING").length;
 
     return NextResponse.json({
       success: true,
       data: {
-        transactionId: result.id,
-        reference: result.reference,
+        reference: result.batchReference,
         amount: totalAmount,
-        employeeCount: business.BusinessEmployee.length,
-        status: result.status,
+        employeeCount: result.paidEmployees.length,
+        successCount,
+        pendingCount,
+        employees: result.paidEmployees,
+        message: pendingCount > 0 
+          ? `${successCount} paiement(s) effectue(s), ${pendingCount} en attente (employes non lies)`
+          : `${successCount} paiement(s) effectue(s) avec succes`
       }
     });
 
