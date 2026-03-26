@@ -446,6 +446,7 @@ model Bank {
   description String?
   address     String?
   phone       String?
+  logo        String?
   BankAdmin   BankAdmin[]
   BankAlert   BankAlert[]
 }
