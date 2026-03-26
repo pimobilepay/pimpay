@@ -87,6 +87,12 @@ interface TransactionData {
   counterparty: string;
 }
 
+interface CashFlowPoint {
+  day: string;
+  entrant: number;
+  sortant: number;
+}
+
 interface BusinessDashboardData {
   success: boolean;
   data: {
@@ -109,45 +115,13 @@ interface BusinessDashboardData {
       pendingTransactions: number;
       employeeCount: number;
     };
+    cashFlowData: CashFlowPoint[];
     recentTransactions: TransactionData[];
     employees: Employee[];
   };
 }
 
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
-
-// Generate chart data from transactions
-const generateChartData = (transactions: TransactionData[]) => {
-  const today = new Date();
-  const data = [];
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i * 5);
-    const dayStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-    
-    // Calculate incoming and outgoing for this period
-    const periodStart = new Date(date);
-    periodStart.setDate(periodStart.getDate() - 5);
-    
-    const periodTransactions = transactions.filter(tx => {
-      const txDate = new Date(tx.createdAt);
-      return txDate >= periodStart && txDate <= date;
-    });
-    
-    const entrant = periodTransactions
-      .filter(tx => tx.isIncoming)
-      .reduce((sum, tx) => sum + tx.amount, 0);
-    
-    const sortant = periodTransactions
-      .filter(tx => !tx.isIncoming)
-      .reduce((sum, tx) => sum + tx.amount, 0);
-    
-    data.push({ day: dayStr, entrant, sortant });
-  }
-  
-  return data;
-};
 
 export default function BusinessDashboard() {
   const [period, setPeriod] = useState("30d");
@@ -174,8 +148,8 @@ export default function BusinessDashboard() {
   const stats = dashboardData?.stats || { totalIncoming: 0, totalOutgoing: 0, netFlow: 0, pendingTransactions: 0, employeeCount: 0 };
   const business = dashboardData?.business;
 
-  // Generate chart data from real transactions
-  const treasuryData = useMemo(() => generateChartData(transactions), [transactions]);
+  // Use chart data directly from API (pre-computed with all 30 days)
+  const treasuryData = useMemo(() => dashboardData?.cashFlowData || [], [dashboardData]);
 
   const totalSalary = useMemo(() => 
     employees.filter(e => selectedEmployees.includes(e.id) || selectedEmployees.length === 0)
@@ -483,34 +457,43 @@ export default function BusinessDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={treasuryData}>
-                      <defs>
-                        <linearGradient id="colorEntrant" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorSortant" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} />
-                      <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v/1000}k`} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#0f172a",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                        }}
-                        formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
-                      />
-                      <Area type="monotone" dataKey="entrant" stroke="#10b981" strokeWidth={2} fill="url(#colorEntrant)" name="Entrant" />
-                      <Area type="monotone" dataKey="sortant" stroke="#f43f5e" strokeWidth={2} fill="url(#colorSortant)" name="Sortant" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  {isLoading ? (
+                    <Skeleton className="h-full w-full rounded-2xl bg-slate-800" />
+                  ) : treasuryData.length === 0 || treasuryData.every(d => d.entrant === 0 && d.sortant === 0) ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                      <PiggyBank className="h-12 w-12 mb-3 opacity-50" />
+                      <p className="text-sm font-bold">Aucun flux sur les 30 derniers jours</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={treasuryData}>
+                        <defs>
+                          <linearGradient id="colorEntrant" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorSortant" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} interval="preserveStartEnd" />
+                        <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#0f172a",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                          formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
+                        />
+                        <Area type="monotone" dataKey="entrant" stroke="#10b981" strokeWidth={2} fill="url(#colorEntrant)" name="Entrant" />
+                        <Area type="monotone" dataKey="sortant" stroke="#f43f5e" strokeWidth={2} fill="url(#colorSortant)" name="Sortant" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </CardContent>
             </Card>

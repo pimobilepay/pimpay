@@ -74,8 +74,40 @@ export async function GET(req: Request) {
         ],
         createdAt: { gte: thirtyDaysAgo },
         status: "SUCCESS"
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Build daily cash flow for chart (last 30 days)
+    const cashFlowByDay: { [key: string]: { entrant: number; sortant: number } } = {};
+
+    // Pre-fill all 30 days with 0 so the chart has continuous data
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      cashFlowByDay[key] = { entrant: 0, sortant: 0 };
+    }
+
+    monthlyTransactions.forEach(tx => {
+      const key = tx.createdAt.toISOString().split('T')[0];
+      if (!cashFlowByDay[key]) {
+        cashFlowByDay[key] = { entrant: 0, sortant: 0 };
+      }
+      if (tx.toUserId === user.id) {
+        cashFlowByDay[key].entrant += tx.amount;
+      } else {
+        cashFlowByDay[key].sortant += tx.amount;
       }
     });
+
+    const cashFlowData = Object.entries(cashFlowByDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, data]) => ({
+        day: new Date(day).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+        entrant: Math.round(data.entrant * 100) / 100,
+        sortant: Math.round(data.sortant * 100) / 100,
+      }));
 
     const totalIncoming = monthlyTransactions
       .filter(tx => tx.toUserId === user.id)
@@ -117,6 +149,7 @@ export async function GET(req: Request) {
           pendingTransactions,
           employeeCount: business?.BusinessEmployee.length || 0,
         },
+        cashFlowData,
         recentTransactions: recentTransactions.map(tx => ({
           id: tx.id,
           reference: tx.reference,
