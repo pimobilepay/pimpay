@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
 import { BankSidebar } from "@/components/bank/BankSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -72,61 +74,121 @@ import {
   BadgeCheck,
 } from "lucide-react";
 
-// Mock data for transactions chart
-const transactionData = [
-  { name: "Lun", daily: 245000, weekly: 1800000 },
-  { name: "Mar", daily: 312000, weekly: 1850000 },
-  { name: "Mer", daily: 289000, weekly: 1920000 },
-  { name: "Jeu", daily: 378000, weekly: 2100000 },
-  { name: "Ven", daily: 425000, weekly: 2350000 },
-  { name: "Sam", daily: 198000, weekly: 2200000 },
-  { name: "Dim", daily: 156000, weekly: 2150000 },
-];
+// Types for API response
+interface DashboardStats {
+  totalDeposits: number;
+  availableReserves: number;
+  totalUsers: number;
+  activeUsers: number;
+  pendingKyc: number;
+  businessCount: number;
+  transactionVolume: number;
+  transactionCount: number;
+}
 
-// Mock KYC pending data
-const pendingKyc = [
-  { id: "KYC001", name: "Pierre Mukendi", type: "Entreprise", submitted: "2026-03-23 09:45", risk: "low" },
-  { id: "KYC002", name: "Marie Kabongo", type: "Particulier", submitted: "2026-03-23 08:30", risk: "medium" },
-  { id: "KYC003", name: "Societe Alpha SARL", type: "Entreprise", submitted: "2026-03-22 16:20", risk: "high" },
-  { id: "KYC004", name: "David Tshimanga", type: "Particulier", submitted: "2026-03-22 14:15", risk: "low" },
-  { id: "KYC005", name: "Global Trade Ltd", type: "Entreprise", submitted: "2026-03-22 11:00", risk: "medium" },
-];
+interface KycPendingItem {
+  id: string;
+  name: string;
+  email: string;
+  type: string;
+  submitted: string;
+}
 
-// Mock interbank transfers
-const interbankTransfers = [
-  { id: "IB001", institution: "Banque Centrale du Congo", amount: 5000000, type: "Sortant", status: "completed", date: "2026-03-23" },
-  { id: "IB002", institution: "Rawbank", amount: 2500000, type: "Entrant", status: "pending", date: "2026-03-23" },
-  { id: "IB003", institution: "FBN Bank", amount: 1800000, type: "Sortant", status: "completed", date: "2026-03-22" },
-  { id: "IB004", institution: "Equity BCDC", amount: 3200000, type: "Entrant", status: "completed", date: "2026-03-22" },
-];
+interface RecentTransaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  sender: string;
+  receiver: string;
+  createdAt: string;
+}
 
-// Mock system alerts
-const systemAlerts = [
-  { id: 1, type: "security", message: "Tentative de connexion suspecte detectee", time: "Il y a 5 min", severity: "high" },
-  { id: 2, type: "kyc", message: "5 verifications KYC en attente depuis plus de 24h", time: "Il y a 15 min", severity: "medium" },
-  { id: 3, type: "transaction", message: "Transaction de haut montant necessitant approbation", time: "Il y a 30 min", severity: "medium" },
-  { id: 4, type: "system", message: "Mise a jour systeme programmee ce soir", time: "Il y a 1h", severity: "low" },
-];
+interface BankDashboardData {
+  stats: DashboardStats;
+  recentTransactions: RecentTransaction[];
+  kycPendingList: KycPendingItem[];
+  recentAlerts: any[];
+  period: string;
+}
 
-// Mock chat messages
-const chatMessages = [
-  { id: 1, sender: "Support Admin", message: "Les nouvelles procedures de conformite sont en place.", time: "10:30", isAdmin: true },
-  { id: 2, sender: "Vous", message: "Merci, pouvez-vous confirmer les nouveaux seuils de verification?", time: "10:35", isAdmin: false },
-  { id: 3, sender: "Support Admin", message: "Les seuils ont ete mis a jour: 50K USD pour les entreprises, 10K USD pour les particuliers.", time: "10:38", isAdmin: true },
-];
+// Color mapping for pie chart
+const ASSET_COLORS: Record<string, string> = {
+  USD: "#10b981",
+  EUR: "#3b82f6",
+  PI: "#f59e0b",
+  XAF: "#8b5cf6",
+  default: "#6b7280",
+};
 
-// Asset distribution for pie chart
-const assetDistribution = [
-  { name: "USD", value: 45000000, color: "#10b981" },
-  { name: "EUR", value: 28000000, color: "#3b82f6" },
-  { name: "Pi", value: 15000000, color: "#f59e0b" },
-  { name: "Autres", value: 7000000, color: "#6b7280" },
-];
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
 
 export default function BankDashboard() {
   const [period, setPeriod] = useState("7d");
   const [chatMessage, setChatMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Fetch dashboard data
+  const { data, error, isLoading, mutate } = useSWR<BankDashboardData>(
+    `/api/bank/dashboard?period=${period}`,
+    fetcher,
+    {
+      refreshInterval: 30000,
+      revalidateOnFocus: true,
+    }
+  );
+
+  const stats = data?.stats || {
+    totalDeposits: 0,
+    availableReserves: 0,
+    totalUsers: 0,
+    activeUsers: 0,
+    pendingKyc: 0,
+    businessCount: 0,
+    transactionVolume: 0,
+    transactionCount: 0,
+  };
+  const kycPendingList = data?.kycPendingList || [];
+  const recentTransactions = data?.recentTransactions || [];
+  const recentAlerts = data?.recentAlerts || [];
+
+  // Compute chart data from transactions (simplified for demo)
+  const transactionData = [
+    { name: "Lun", daily: Math.round(stats.transactionVolume * 0.12), weekly: Math.round(stats.transactionVolume * 0.8) },
+    { name: "Mar", daily: Math.round(stats.transactionVolume * 0.15), weekly: Math.round(stats.transactionVolume * 0.82) },
+    { name: "Mer", daily: Math.round(stats.transactionVolume * 0.14), weekly: Math.round(stats.transactionVolume * 0.85) },
+    { name: "Jeu", daily: Math.round(stats.transactionVolume * 0.18), weekly: Math.round(stats.transactionVolume * 0.93) },
+    { name: "Ven", daily: Math.round(stats.transactionVolume * 0.20), weekly: Math.round(stats.transactionVolume * 1.0) },
+    { name: "Sam", daily: Math.round(stats.transactionVolume * 0.10), weekly: Math.round(stats.transactionVolume * 0.95) },
+    { name: "Dim", daily: Math.round(stats.transactionVolume * 0.08), weekly: Math.round(stats.transactionVolume * 0.92) },
+  ];
+
+  // Static asset distribution (would come from API in production)
+  const assetDistribution = [
+    { name: "USD", value: stats.totalDeposits * 0.48, color: ASSET_COLORS.USD },
+    { name: "EUR", value: stats.totalDeposits * 0.29, color: ASSET_COLORS.EUR },
+    { name: "Pi", value: stats.totalDeposits * 0.16, color: ASSET_COLORS.PI },
+    { name: "Autres", value: stats.totalDeposits * 0.07, color: ASSET_COLORS.default },
+  ];
+
+  // System alerts from recent audit logs
+  const systemAlerts = recentAlerts.map((alert: any, index: number) => ({
+    id: alert.id || index,
+    type: alert.action?.includes("SECURITY") ? "security" : 
+          alert.action?.includes("KYC") ? "kyc" : 
+          alert.action?.includes("TRANSACTION") ? "transaction" : "system",
+    message: alert.details || alert.action || "Alerte systeme",
+    time: new Date(alert.createdAt).toLocaleString("fr-FR"),
+    severity: alert.action?.includes("SUSPICIOUS") || alert.action?.includes("FRAUD") ? "high" : "medium",
+  })).slice(0, 4);
+
+  // Placeholder chat messages
+  const chatMessages = [
+    { id: 1, sender: "Support Admin", message: "Les nouvelles procedures de conformite sont en place.", time: "10:30", isAdmin: true },
+    { id: 2, sender: "Vous", message: "Merci, pouvez-vous confirmer les nouveaux seuils de verification?", time: "10:35", isAdmin: false },
+    { id: 3, sender: "Support Admin", message: "Les seuils ont ete mis a jour: 50K USD pour les entreprises, 10K USD pour les particuliers.", time: "10:38", isAdmin: true },
+  ];
 
   const getRiskBadge = (risk: string) => {
     switch (risk) {
@@ -253,11 +315,38 @@ export default function BankDashboard() {
                 <SelectItem value="90d">90 jours</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" className="border-white/10 bg-slate-900/50">
-              <RefreshCw className="h-4 w-4 text-slate-400" />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="border-white/10 bg-slate-900/50"
+              onClick={() => mutate()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
+
+        {/* Error State */}
+        {error && (
+          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-500/20 rounded-2xl">
+                  <XCircle className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-400">Erreur de chargement</p>
+                  <p className="text-xs text-red-300/70 mt-1">Impossible de charger les donnees. Verifiez vos permissions.</p>
+                </div>
+                <Button onClick={() => mutate()} className="bg-red-500 hover:bg-red-600 text-xs font-bold">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reessayer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -267,10 +356,18 @@ export default function BankDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Volume Total Depots</p>
-                  <p className="text-2xl lg:text-3xl font-black text-white mt-1">$95.2M</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-28 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-2xl lg:text-3xl font-black text-white mt-1">
+                      ${stats.totalDeposits >= 1000000 
+                        ? `${(stats.totalDeposits / 1000000).toFixed(1)}M` 
+                        : stats.totalDeposits.toLocaleString()}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-xs font-bold text-emerald-400">+8.3% vs sem. prec.</span>
+                    <span className="text-xs font-bold text-emerald-400">{stats.transactionCount} transactions</span>
                   </div>
                 </div>
                 <div className="p-3 bg-emerald-500/10 rounded-2xl">
@@ -286,10 +383,20 @@ export default function BankDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reserves Disponibles</p>
-                  <p className="text-2xl lg:text-3xl font-black text-white mt-1">$42.8M</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-28 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-2xl lg:text-3xl font-black text-white mt-1">
+                      ${stats.availableReserves >= 1000000 
+                        ? `${(stats.availableReserves / 1000000).toFixed(1)}M` 
+                        : stats.availableReserves.toLocaleString()}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Activity className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-bold text-blue-400">Ratio: 45.2%</span>
+                    <span className="text-xs font-bold text-blue-400">
+                      Ratio: {stats.totalDeposits > 0 ? ((stats.availableReserves / stats.totalDeposits) * 100).toFixed(1) : 0}%
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 bg-blue-500/10 rounded-2xl">
@@ -305,10 +412,14 @@ export default function BankDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Utilisateurs Actifs</p>
-                  <p className="text-2xl lg:text-3xl font-black text-white mt-1">28,459</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-20 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-2xl lg:text-3xl font-black text-white mt-1">{stats.activeUsers.toLocaleString()}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Users className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="text-xs font-bold text-slate-400">+342 aujourd&apos;hui</span>
+                    <span className="text-xs font-bold text-slate-400">sur {stats.totalUsers.toLocaleString()} total</span>
                   </div>
                 </div>
                 <div className="p-3 bg-slate-700/50 rounded-2xl">
@@ -324,7 +435,11 @@ export default function BankDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">KYC en Attente</p>
-                  <p className="text-2xl lg:text-3xl font-black text-amber-500 mt-1">{pendingKyc.length}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-9 w-12 mt-1 bg-slate-700" />
+                  ) : (
+                    <p className="text-2xl lg:text-3xl font-black text-amber-500 mt-1">{stats.pendingKyc}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Clock className="h-3.5 w-3.5 text-amber-400" />
                     <span className="text-xs font-bold text-amber-400">Action requise</span>
@@ -414,39 +529,60 @@ export default function BankDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pendingKyc.map((kyc) => (
-                        <TableRow key={kyc.id} className="border-white/5 hover:bg-white/5">
-                          <TableCell className="text-xs font-mono text-slate-400">{kyc.id}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 uppercase">
-                                {kyc.name.split(' ').map(n => n[0]).join('')}
-                              </div>
-                              <span className="text-sm font-bold text-white">{kyc.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-slate-800 text-slate-300 border-slate-700 text-[9px] font-bold">
-                              {kyc.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-slate-400">{kyc.submitted}</TableCell>
-                          <TableCell>{getRiskBadge(kyc.risk)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button size="sm" className="h-7 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-xs">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 text-red-500 hover:bg-red-500/10 text-xs">
-                                <XCircle className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 text-slate-400 text-xs">
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                      {isLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                          <TableRow key={i} className="border-white/5">
+                            <TableCell><Skeleton className="h-4 w-16 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-8 w-32 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-24 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-12 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-7 w-20 bg-slate-700" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : kycPendingList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                            Aucune verification KYC en attente
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        kycPendingList.map((kyc) => (
+                          <TableRow key={kyc.id} className="border-white/5 hover:bg-white/5">
+                            <TableCell className="text-xs font-mono text-slate-400">{kyc.id.slice(0, 8)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 uppercase">
+                                  {(kyc.name || kyc.email || "?").split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </div>
+                                <span className="text-sm font-bold text-white">{kyc.name || kyc.email}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-slate-800 text-slate-300 border-slate-700 text-[9px] font-bold">
+                                {kyc.type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-400">
+                              {new Date(kyc.submitted).toLocaleDateString("fr-FR")}
+                            </TableCell>
+                            <TableCell>{getRiskBadge("low")}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button size="sm" className="h-7 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-xs">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-red-500 hover:bg-red-500/10 text-xs">
+                                  <XCircle className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-slate-400 text-xs">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -480,42 +616,66 @@ export default function BankDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {interbankTransfers.map((transfer) => (
-                        <TableRow key={transfer.id} className="border-white/5 hover:bg-white/5">
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-slate-800 rounded-xl">
-                                <Landmark className="h-4 w-4 text-slate-400" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-white">{transfer.institution}</p>
-                                <p className="text-[10px] text-slate-500 font-mono">{transfer.id}</p>
-                              </div>
-                            </div>
+                      {isLoading ? (
+                        Array.from({ length: 4 }).map((_, i) => (
+                          <TableRow key={i} className="border-white/5">
+                            <TableCell><Skeleton className="h-10 w-40 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-20 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-16 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-20 bg-slate-700" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : recentTransactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                            Aucune transaction recente
                           </TableCell>
-                          <TableCell>
-                            <p className={`text-sm font-black ${
-                              transfer.type === "Entrant" ? "text-emerald-500" : "text-white"
-                            }`}>
-                              {transfer.type === "Entrant" ? "+" : "-"}${(transfer.amount / 1000000).toFixed(1)}M
-                            </p>
-                          </TableCell>
-                          <TableCell>
-                            <div className={`flex items-center gap-2 ${
-                              transfer.type === "Entrant" ? "text-emerald-500" : "text-rose-500"
-                            }`}>
-                              {transfer.type === "Entrant" ? (
-                                <ArrowDownLeft className="h-4 w-4" />
-                              ) : (
-                                <ArrowUpRight className="h-4 w-4" />
-                              )}
-                              <span className="text-xs font-bold">{transfer.type}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs text-slate-400">{transfer.date}</TableCell>
-                          <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        recentTransactions.slice(0, 5).map((tx) => (
+                          <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-slate-800 rounded-xl">
+                                  <Landmark className="h-4 w-4 text-slate-400" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-white">{tx.sender || tx.receiver}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono">{tx.id.slice(0, 8)}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className={`text-sm font-black ${
+                                tx.type === "DEPOSIT" ? "text-emerald-500" : "text-white"
+                              }`}>
+                                {tx.type === "DEPOSIT" ? "+" : "-"}${tx.amount >= 1000000 
+                                  ? `${(tx.amount / 1000000).toFixed(1)}M` 
+                                  : tx.amount.toLocaleString()}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <div className={`flex items-center gap-2 ${
+                                tx.type === "DEPOSIT" ? "text-emerald-500" : "text-rose-500"
+                              }`}>
+                                {tx.type === "DEPOSIT" ? (
+                                  <ArrowDownLeft className="h-4 w-4" />
+                                ) : (
+                                  <ArrowUpRight className="h-4 w-4" />
+                                )}
+                                <span className="text-xs font-bold">
+                                  {tx.type === "DEPOSIT" ? "Entrant" : "Sortant"}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-400">
+                              {new Date(tx.createdAt).toLocaleDateString("fr-FR")}
+                            </TableCell>
+                            <TableCell>{getStatusBadge(tx.status.toLowerCase())}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
