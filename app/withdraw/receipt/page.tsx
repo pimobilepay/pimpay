@@ -19,11 +19,13 @@ import {
   Activity,
   CheckCircle2,
   ArrowDownLeft,
+  Coins,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
+import { CRYPTO_ASSETS } from "@/lib/crypto-config";
 
 function ReceiptContent() {
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -42,21 +44,26 @@ function ReceiptContent() {
   const bankName      = searchParams.get("bankName") || "";
   const accountName   = searchParams.get("accountName") || "";
   const accountNumber = searchParams.get("accountNumber") || "";
+  const cryptoAddress = searchParams.get("cryptoAddress") || "";
 
   const [isExporting, setIsExporting] = useState(false);
 
   const isMobile = method === "mobile";
+  const isCrypto = method === "crypto";
 
   const formatAmount = () => {
     const n = parseFloat(amount);
     if (isNaN(n)) return amount;
-    if (currency === "PI") {
-      // Affichage intelligent: plus de décimales pour petits montants
-      if (n < 0.0001) {
-        return n.toFixed(10).replace(/0+$/, '').replace(/\.$/, '');
-      }
-      return n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+    
+    // For all crypto assets, show up to 8 decimals with smart formatting
+    if (isCrypto || currency === "PI" || CRYPTO_ASSETS[currency]) {
+      // Always show 8 decimals for crypto, removing trailing zeros
+      const decimals = CRYPTO_ASSETS[currency]?.decimals ?? 8;
+      const formatted = n.toFixed(Math.min(decimals, 8));
+      return formatted.replace(/0+$/, '').replace(/\.$/, '');
     }
+    
+    // For fiat amounts in mobile/bank transfers
     return new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2 }).format(n);
   };
 
@@ -163,13 +170,28 @@ function ReceiptContent() {
               <div className="space-y-5 border-t border-white/5 pt-8">
                 {/* Method */}
                 <DetailRow
-                  icon={isMobile ? <Smartphone size={14} /> : <Building2 size={14} />}
+                  icon={isCrypto ? <Coins size={14} /> : isMobile ? <Smartphone size={14} /> : <Building2 size={14} />}
                   label="Methode"
-                  value={isMobile ? "Mobile Money" : "Virement Bancaire"}
+                  value={isCrypto ? `Retrait Crypto — ${currency}` : isMobile ? "Mobile Money" : "Virement Bancaire"}
                 />
 
+                {/* Crypto address */}
+                {isCrypto && cryptoAddress && (
+                  <DetailRow
+                    icon={<Coins size={14} />}
+                    label={`${currency} Address`}
+                    value={cryptoAddress}
+                    valueClassName="font-mono text-blue-300"
+                    copyable
+                    onCopy={() => {
+                      navigator.clipboard.writeText(cryptoAddress);
+                      toast.success("Adresse copiee !");
+                    }}
+                  />
+                )}
+
                 {/* Country */}
-                {country && (
+                {country && !isCrypto && (
                   <DetailRow
                     icon={<Globe size={14} />}
                     label="Pays"
@@ -195,21 +217,21 @@ function ReceiptContent() {
                 )}
 
                 {/* Bank fields */}
-                {!isMobile && bankName && (
+                {!isMobile && !isCrypto && bankName && (
                   <DetailRow
                     icon={<Building2 size={14} />}
                     label="Banque"
                     value={bankName}
                   />
                 )}
-                {!isMobile && accountName && (
+                {!isMobile && !isCrypto && accountName && (
                   <DetailRow
                     icon={<ShieldCheck size={14} />}
                     label="Titulaire"
                     value={accountName}
                   />
                 )}
-                {!isMobile && accountNumber && (
+                {!isMobile && !isCrypto && accountNumber && (
                   <DetailRow
                     icon={<Banknote size={14} />}
                     label="IBAN / Compte"
@@ -250,9 +272,10 @@ function ReceiptContent() {
                 <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-start gap-3">
                   <Clock size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
                   <p className="text-[10px] font-bold text-amber-300/80 text-left leading-relaxed">
-                    Ce retrait est en attente de validation par l&apos;administration PimPay.
-                    Delai estime : <strong className="text-amber-300">15 min</strong> (Mobile) —{" "}
-                    <strong className="text-amber-300">48h</strong> (Banque).
+                    {isCrypto
+                      ? `Ce retrait crypto est en cours de traitement sur la blockchain ${CRYPTO_ASSETS[currency]?.network || currency}. Délai estimé : 1-5 minutes.`
+                      : `Ce retrait est en attente de validation par l'administration PimPay. Délai estimé : 15 min (Mobile) — 48h (Banque).`
+                    }
                   </p>
                 </div>
               </div>

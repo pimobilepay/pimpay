@@ -161,7 +161,14 @@ export default function WithdrawPage() {
         }
 
         toast.success("Retrait Pi initie avec succes!");
-        router.push(`/withdraw/success?ref=${data.reference || data.txHash}`);
+        const params = new URLSearchParams({
+          ref: data.reference || data.txHash || "",
+          amount: cryptoAmount,
+          currency: "PI",
+          method: "crypto",
+          cryptoAddress: cryptoAddress.substring(0, 20) + "...",
+        });
+        router.push(`/withdraw/success?${params.toString()}`);
       } else {
         // For other cryptos, use the wallet send/transfer API
         const res = await fetch("/api/wallet/send", {
@@ -182,7 +189,14 @@ export default function WithdrawPage() {
         }
 
         toast.success(`Retrait ${selectedCrypto} initie avec succes!`);
-        router.push(`/withdraw/success?ref=${data.reference || data.txHash}`);
+        const params = new URLSearchParams({
+          ref: data.reference || data.txHash || "",
+          amount: cryptoAmount,
+          currency: selectedCrypto,
+          method: "crypto",
+          cryptoAddress: cryptoAddress.substring(0, 20) + "...",
+        });
+        router.push(`/withdraw/success?${params.toString()}`);
       }
     } catch (err: any) {
       toast.error(err.message || "Erreur lors du retrait");

@@ -4,12 +4,13 @@ import { Suspense } from "react";
 import {
   CheckCircle2, ArrowRight, Receipt, Wallet, Loader2,
   Share2, Lock, Copy, Smartphone, Building2, ShieldCheck,
-  Clock, Activity
+  Clock, Activity, Coins
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { CRYPTO_ASSETS } from "@/lib/crypto-config";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -27,19 +28,24 @@ function SuccessContent() {
   const bankName    = searchParams.get("bankName") || "";
   const accountName = searchParams.get("accountName") || "";
   const accountNumber = searchParams.get("accountNumber") || "";
+  const cryptoAddress = searchParams.get("cryptoAddress") || "";
 
   const isMobile = method === "mobile";
+  const isCrypto = method === "crypto";
 
   const formatAmount = (val: string) => {
     const n = parseFloat(val);
     if (isNaN(n)) return val;
-    if (currency === "PI") {
-      // Affichage intelligent: plus de décimales pour petits montants
-      if (n < 0.0001) {
-        return n.toFixed(10).replace(/0+$/, '').replace(/\.$/, '');
-      }
-      return n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+    
+    // For all crypto assets, show up to 8 decimals with smart formatting
+    if (isCrypto || currency === "PI" || CRYPTO_ASSETS[currency]) {
+      // Always show 8 decimals for crypto, removing trailing zeros
+      const decimals = CRYPTO_ASSETS[currency]?.decimals ?? 8;
+      const formatted = n.toFixed(Math.min(decimals, 8));
+      return formatted.replace(/0+$/, '').replace(/\.$/, '');
     }
+    
+    // For fiat amounts in mobile/bank transfers
     return new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2 }).format(n);
   };
 
@@ -63,7 +69,9 @@ function SuccessContent() {
   if (fiatCurrency) receiptParams.set("fiatCurrency", fiatCurrency);
   if (method) receiptParams.set("method", method);
   if (country) receiptParams.set("country", country);
-  if (isMobile) {
+  if (isCrypto) {
+    if (cryptoAddress) receiptParams.set("cryptoAddress", cryptoAddress);
+  } else if (isMobile) {
     receiptParams.set("provider", provider);
     receiptParams.set("phone", phone);
   } else {
@@ -117,13 +125,15 @@ function SuccessContent() {
         {/* Method badge */}
         {method && (
           <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest mt-4 ${
-            isMobile
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-              : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+            isCrypto
+              ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+              : isMobile
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
           }`}>
-            {isMobile ? <Smartphone size={14} /> : <Building2 size={14} />}
-            {isMobile ? "Mobile Money" : "Virement Bancaire"}
-            {country ? ` — ${country}` : ""}
+            {isCrypto ? <Coins size={14} /> : isMobile ? <Smartphone size={14} /> : <Building2 size={14} />}
+            {isCrypto ? `Retrait Crypto — ${currency}` : isMobile ? "Mobile Money" : "Virement Bancaire"}
+            {country && !isCrypto ? ` — ${country}` : ""}
           </div>
         )}
       </motion.div>
@@ -136,7 +146,17 @@ function SuccessContent() {
         className="w-full max-w-sm relative z-10 space-y-3"
       >
         {/* Beneficiary detail */}
-        {isMobile ? (
+        {isCrypto ? (
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-left space-y-2">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse Crypto</p>
+            {cryptoAddress && (
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currency} Address</span>
+                <span className="text-[11px] font-mono font-bold text-slate-300 max-w-[180px] text-right">{cryptoAddress}</span>
+              </div>
+            )}
+          </div>
+        ) : isMobile ? (
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-left space-y-2">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Beneficiaire</p>
             {provider && (
@@ -180,8 +200,9 @@ function SuccessContent() {
         <div className="p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl flex items-center gap-3 text-left">
           <ShieldCheck size={18} className="text-blue-400 flex-shrink-0" />
           <p className="text-[10px] font-bold text-slate-400">
-            Delai estime : <span className="text-white">15 min (Mobile)</span> a{" "}
-            <span className="text-white">48h (Banque)</span>
+            Delai estime : <span className="text-white">
+              {isCrypto ? "1-5 minutes (Blockchain)" : isMobile ? "15 min (Mobile)" : "48h (Banque)"}
+            </span>
           </p>
         </div>
 
