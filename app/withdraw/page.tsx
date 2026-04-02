@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Smartphone, Building2, Clock,
+  ArrowLeft, Smartphone, Building2, Coins,
   ShieldCheck, CircleDot, ChevronDown, CheckCircle2,
   TrendingUp, Wallet as WalletIcon, Search, X,
   Globe, Activity, ArrowUpRight, ArrowDownLeft,
   CreditCard, Landmark, Copy, Info, ChevronRight,
-  AlertTriangle, Loader2
+  AlertTriangle, Loader2, Scan
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { countries, searchCountries, type Country, type Bank } from "@/lib/country-data";
@@ -19,12 +19,72 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import "flag-icons/css/flag-icons.min.css";
 
+// Crypto assets metadata
+const CRYPTO_ASSETS: Record<string, { symbol: string; network: string; color: string; logo: string; addressRegex?: RegExp }> = {
+  PI: {
+    symbol: "PI",
+    network: "Pi Network",
+    color: "text-yellow-400",
+    logo: "https://assets.coingecko.com/coins/images/28830/small/pi-network.png",
+    addressRegex: /^G[A-Z2-7]{55}$/,
+  },
+  XLM: {
+    symbol: "XLM",
+    network: "Stellar Network",
+    color: "text-indigo-400",
+    logo: "https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png",
+    addressRegex: /^G[A-Z2-7]{55}$/,
+  },
+  XRP: {
+    symbol: "XRP",
+    network: "XRP Ledger",
+    color: "text-sky-400",
+    logo: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+    addressRegex: /^r[a-zA-Z0-9]{24,33}$/,
+  },
+  USDT: {
+    symbol: "USDT",
+    network: "TRON TRC20",
+    color: "text-green-400",
+    logo: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+    addressRegex: /^T[a-zA-Z0-9]{33}$/,
+  },
+  BTC: {
+    symbol: "BTC",
+    network: "Bitcoin",
+    color: "text-orange-400",
+    logo: "https://assets.coingecko.com/coins/images/1/small/bitcoin.png",
+    addressRegex: /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,59}$/,
+  },
+  ETH: {
+    symbol: "ETH",
+    network: "Ethereum",
+    color: "text-violet-400",
+    logo: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+    addressRegex: /^0x[a-fA-F0-9]{40}$/,
+  },
+  SOL: {
+    symbol: "SOL",
+    network: "Solana",
+    color: "text-purple-400",
+    logo: "https://assets.coingecko.com/coins/images/4128/small/solana.png",
+    addressRegex: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+  },
+  SIDRA: {
+    symbol: "SIDRA",
+    network: "Sidra Chain",
+    color: "text-teal-400",
+    logo: "https://assets.coingecko.com/coins/images/36888/small/sidra.png",
+    addressRegex: /^0x[a-fA-F0-9]{40}$/,
+  },
+};
+
 export default function WithdrawPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"mobile" | "bank" | "logs">("mobile");
+  const [activeTab, setActiveTab] = useState<"mobile" | "bank" | "crypto">("mobile");
 
   // Common fields
   const [piAmount, setPiAmount] = useState("");
@@ -50,9 +110,14 @@ export default function WithdrawPage() {
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const walletRef = useRef<HTMLDivElement>(null);
 
-  // Transaction logs
-  const [logs, setLogs] = useState<any[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
+  // Crypto withdrawal fields
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [selectedCrypto, setSelectedCrypto] = useState("PI");
+  const [cryptoAmount, setCryptoAmount] = useState("");
+  const [cryptoMemo, setCryptoMemo] = useState("");
+  const [showCryptoSelector, setShowCryptoSelector] = useState(false);
+  const [isValidAddress, setIsValidAddress] = useState<boolean | null>(null);
+  const cryptoRef = useRef<HTMLDivElement>(null);
 
   // Loading & confirmation
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -66,16 +131,27 @@ export default function WithdrawPage() {
       if (walletRef.current && !walletRef.current.contains(event.target as Node)) {
         setShowWalletSelector(false);
       }
+      if (cryptoRef.current && !cryptoRef.current.contains(event.target as Node)) {
+        setShowCryptoSelector(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Validate crypto address when it changes
   useEffect(() => {
-    if (activeTab === "logs") {
-      fetchLogs();
+    if (!cryptoAddress || cryptoAddress.length < 10) {
+      setIsValidAddress(null);
+      return;
     }
-  }, [activeTab]);
+    const asset = CRYPTO_ASSETS[selectedCrypto];
+    if (asset?.addressRegex) {
+      setIsValidAddress(asset.addressRegex.test(cryptoAddress));
+    } else {
+      setIsValidAddress(cryptoAddress.length >= 20);
+    }
+  }, [cryptoAddress, selectedCrypto]);
 
   async function fetchWallets() {
     try {
@@ -92,19 +168,85 @@ export default function WithdrawPage() {
     }
   }
 
-  async function fetchLogs() {
-    setLogsLoading(true);
+  // Get current crypto wallet balance
+  const getCryptoWalletBalance = () => {
+    const wallet = wallets.find(w => w.currency === selectedCrypto);
+    return wallet?.balance || 0;
+  };
+
+  // Handle crypto withdrawal submission
+  async function handleCryptoWithdraw() {
+    if (!cryptoAddress || !cryptoAmount) {
+      toast.error("Veuillez remplir tous les champs");
+      return;
+    }
+
+    const amount = parseFloat(cryptoAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Montant invalide");
+      return;
+    }
+
+    const balance = getCryptoWalletBalance();
+    if (amount > balance) {
+      toast.error(`Solde insuffisant. Disponible: ${balance} ${selectedCrypto}`);
+      return;
+    }
+
+    if (isValidAddress === false) {
+      toast.error(`Adresse ${selectedCrypto} invalide`);
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      const res = await fetch("/api/transaction/withdraw");
-      if (res.ok) {
+      // For Pi Network, use the external-transfer API
+      if (selectedCrypto === "PI") {
+        const res = await fetch("/api/mpay/external-transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            destination: cryptoAddress,
+            amount: cryptoAmount,
+            memo: cryptoMemo || `Retrait PimPay`,
+          }),
+        });
+
         const data = await res.json();
-        setLogs(data.transactions || []);
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erreur lors du retrait");
+        }
+
+        toast.success("Retrait Pi initie avec succes!");
+        router.push(`/withdraw/success?ref=${data.reference || data.txHash}`);
+      } else {
+        // For other cryptos, use the wallet send/transfer API
+        const res = await fetch("/api/wallet/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currency: selectedCrypto,
+            toAddress: cryptoAddress,
+            amount: cryptoAmount,
+            memo: cryptoMemo,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erreur lors du retrait");
+        }
+
+        toast.success(`Retrait ${selectedCrypto} initie avec succes!`);
+        router.push(`/withdraw/success?ref=${data.reference || data.txHash}`);
       }
-    } catch {
-      // fallback mock data
-      setLogs([]);
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors du retrait");
     } finally {
-      setLogsLoading(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -269,7 +411,7 @@ export default function WithdrawPage() {
           {([
             { id: "mobile" as const, label: t("deposit.mobile"), icon: Smartphone },
             { id: "bank" as const, label: t("extra.bankTransfer"), icon: Building2 },
-            { id: "logs" as const, label: t("wallet.history"), icon: Clock },
+            { id: "crypto" as const, label: "Crypto", icon: Coins },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -659,80 +801,252 @@ export default function WithdrawPage() {
             </motion.div>
           )}
 
-          {/* ========================= LOGS TAB ========================= */}
-          {activeTab === "logs" && (
+          {/* ========================= CRYPTO TAB ========================= */}
+          {activeTab === "crypto" && (
             <motion.div
-              key="logs"
+              key="crypto"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
+              className="space-y-6"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock size={14} className="text-blue-500" />
-                  <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">{"Recent Withdrawals"}</h2>
+              {/* Crypto Selection Card */}
+              <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
+                {/* Crypto Selector */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Cryptomonnaie
+                  </label>
+                  <div className="relative" ref={cryptoRef}>
+                    <button
+                      onClick={() => setShowCryptoSelector(!showCryptoSelector)}
+                      className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 flex items-center justify-between hover:border-blue-500/30 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        {CRYPTO_ASSETS[selectedCrypto]?.logo && (
+                          <img
+                            src={CRYPTO_ASSETS[selectedCrypto].logo}
+                            alt={selectedCrypto}
+                            className="w-8 h-8 rounded-full"
+                            crossOrigin="anonymous"
+                          />
+                        )}
+                        <div className="text-left">
+                          <span className="text-xs font-black uppercase tracking-tight block">
+                            {CRYPTO_ASSETS[selectedCrypto]?.symbol || selectedCrypto}
+                          </span>
+                          <span className="text-[9px] font-bold text-blue-500">
+                            {CRYPTO_ASSETS[selectedCrypto]?.network || "Network"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-slate-400">
+                          {formatValue(getCryptoWalletBalance())} disponible
+                        </span>
+                        <ChevronDown size={16} className={`text-slate-500 transition-transform ${showCryptoSelector ? "rotate-180" : ""}`} />
+                      </div>
+                    </button>
+
+                    {/* Crypto Dropdown */}
+                    <AnimatePresence>
+                      {showCryptoSelector && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute top-full left-0 right-0 mt-2 bg-slate-900/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-2 z-50 max-h-64 overflow-y-auto"
+                        >
+                          {Object.entries(CRYPTO_ASSETS).map(([key, asset]) => {
+                            const wallet = wallets.find(w => w.currency === key);
+                            const balance = wallet?.balance || 0;
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => {
+                                  setSelectedCrypto(key);
+                                  setShowCryptoSelector(false);
+                                  setCryptoAddress("");
+                                  setCryptoAmount("");
+                                }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                                  selectedCrypto === key 
+                                    ? "bg-blue-600/20 border border-blue-500/30" 
+                                    : "hover:bg-white/5"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {asset.logo && (
+                                    <img src={asset.logo} alt={key} className="w-7 h-7 rounded-full" crossOrigin="anonymous" />
+                                  )}
+                                  <div className="text-left">
+                                    <span className="text-[11px] font-black uppercase block">{asset.symbol}</span>
+                                    <span className="text-[9px] text-slate-500">{asset.network}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`text-[10px] font-black ${balance > 0 ? "text-white" : "text-slate-600"}`}>
+                                    {balance > 0 ? formatValue(balance) : "0.00"}
+                                  </span>
+                                  {selectedCrypto === key && <CheckCircle2 size={14} className="text-blue-500 ml-2 inline" />}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
+
+                {/* Destination Address */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Adresse de destination
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={`Adresse ${CRYPTO_ASSETS[selectedCrypto]?.network || selectedCrypto}...`}
+                      value={cryptoAddress}
+                      onChange={(e) => setCryptoAddress(e.target.value.trim())}
+                      className={`w-full h-14 bg-slate-900/80 rounded-2xl border px-5 pr-12 text-xs font-mono font-bold outline-none transition-colors placeholder:text-slate-700 ${
+                        isValidAddress === true
+                          ? "border-emerald-500/50 focus:border-emerald-500"
+                          : isValidAddress === false
+                            ? "border-red-500/50 focus:border-red-500"
+                            : "border-white/10 focus:border-blue-500/50"
+                      }`}
+                    />
+                    {isValidAddress !== null && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                        {isValidAddress ? (
+                          <CheckCircle2 size={18} className="text-emerald-500" />
+                        ) : (
+                          <AlertTriangle size={18} className="text-red-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {isValidAddress === false && (
+                    <p className="text-[10px] text-red-400 font-bold ml-1">
+                      Adresse {selectedCrypto} invalide
+                    </p>
+                  )}
+                </div>
+
+                {/* Memo (optional for some chains) */}
+                {(selectedCrypto === "XLM" || selectedCrypto === "XRP" || selectedCrypto === "PI") && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Memo / Tag (optionnel)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Memo ou Destination Tag"
+                      value={cryptoMemo}
+                      onChange={(e) => setCryptoMemo(e.target.value)}
+                      className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-xs font-bold outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
+                    />
+                  </div>
+                )}
               </div>
 
-              {logsLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="animate-spin text-blue-500" size={24} />
-                </div>
-              ) : logs.length > 0 ? (
-                <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
-                  {logs.map((log: any, i: number) => (
-                    <div key={log.id || i} className="flex items-center gap-4 p-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        log.status === "SUCCESS" || log.status === "SUCCESS"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : log.status === "FAILED"
-                            ? "bg-red-500/10 text-red-400"
-                            : "bg-amber-500/10 text-amber-400"
-                      }`}>
-                        <ArrowUpRight size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black uppercase tracking-tight truncate">
-                          {log.description || log.method || "Retrait"}
-                        </p>
-                        <p className="text-[9px] font-bold text-slate-600">
-                          {log.createdAt ? new Date(log.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : ""}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-white">
-                          {(log.currency === "PI" || !log.currency)
-                            ? (Number(log.amount) < 0.0001 
-                                ? Number(log.amount).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
-                                : Number(log.amount).toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                            : Number(log.amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          } {log.currency || "PI"}
-                        </p>
-                        <p className={`text-[8px] font-black uppercase tracking-widest ${
-                          log.status === "SUCCESS" || log.status === "SUCCESS"
-                            ? "text-emerald-500/60"
-                            : log.status === "FAILED"
-                              ? "text-red-500/60"
-                              : "text-amber-500/60"
-                        }`}>
-                          {log.status === "SUCCESS" || log.status === "SUCCESS" ? "Confirme" : log.status === "FAILED" ? "Echoue" : "En cours"}
-                        </p>
-                      </div>
+              {/* Amount Card */}
+              <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Montant a retirer
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={cryptoAmount}
+                      onChange={(e) => setCryptoAmount(e.target.value)}
+                      className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black outline-none text-blue-500 placeholder:text-slate-800 focus:border-blue-500/50 transition-colors"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase">
+                      {selectedCrypto}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-12 text-center">
-                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock size={28} className="text-slate-600" />
                   </div>
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-1">Aucun retrait</p>
-                  <p className="text-[10px] text-slate-600 font-bold">
-                    {"Vos retraits apparaitront ici une fois effectues."}
-                  </p>
                 </div>
-              )}
+
+                {/* Quick Amounts */}
+                <div className="flex gap-2 flex-wrap">
+                  {["25%", "50%", "75%", "MAX"].map((pct) => {
+                    const balance = getCryptoWalletBalance();
+                    const percentage = pct === "MAX" ? 1 : parseInt(pct) / 100;
+                    const value = (balance * percentage).toFixed(selectedCrypto === "PI" ? 7 : 8);
+                    return (
+                      <button
+                        key={pct}
+                        onClick={() => setCryptoAmount(value)}
+                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all border ${
+                          cryptoAmount === value
+                            ? "bg-blue-600/20 border-blue-500/30 text-blue-400"
+                            : "bg-white/[0.03] border-white/5 text-slate-500 hover:border-white/10"
+                        }`}
+                      >
+                        {pct}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Balance Info */}
+                <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Solde disponible</span>
+                  <span className="text-sm font-black text-white">
+                    {formatValue(getCryptoWalletBalance())} {selectedCrypto}
+                  </span>
+                </div>
+
+                {/* Network Fee Info */}
+                <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                  <Info size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">
+                      {selectedCrypto === "PI" 
+                        ? "Les retraits Pi Network sont traites via la blockchain Pi. Temps de confirmation: 1-5 minutes."
+                        : `Les frais de reseau ${CRYPTO_ASSETS[selectedCrypto]?.network || selectedCrypto} seront deduits du montant envoye.`
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  onClick={handleCryptoWithdraw}
+                  disabled={
+                    isSubmitting || 
+                    !cryptoAddress || 
+                    !cryptoAmount || 
+                    isValidAddress === false ||
+                    parseFloat(cryptoAmount || "0") <= 0 ||
+                    parseFloat(cryptoAmount || "0") > getCryptoWalletBalance()
+                  }
+                  className={`w-full h-16 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                    !isSubmitting && cryptoAddress && cryptoAmount && isValidAddress !== false && parseFloat(cryptoAmount || "0") > 0 && parseFloat(cryptoAmount || "0") <= getCryptoWalletBalance()
+                      ? "bg-blue-600 text-white shadow-blue-600/20"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="animate-spin" size={20} />
+                      Traitement en cours...
+                    </>
+                  ) : parseFloat(cryptoAmount || "0") > getCryptoWalletBalance() ? (
+                    "Solde insuffisant"
+                  ) : (
+                    <>
+                      <ArrowUpRight size={18} />
+                      Retirer {selectedCrypto}
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
