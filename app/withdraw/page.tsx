@@ -362,7 +362,7 @@ export default function WithdrawPage() {
         </section>
 
         {/* TABS */}
-        <nav className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
+        <nav className="grid grid-cols-3 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">
           {([
             { id: "mobile" as const, label: t("deposit.mobile"), icon: Smartphone },
             { id: "bank" as const, label: t("extra.bankTransfer"), icon: Building2 },
@@ -371,7 +371,7 @@ export default function WithdrawPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
                 activeTab === tab.id
                   ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
                   : "text-slate-500 hover:text-slate-300"
