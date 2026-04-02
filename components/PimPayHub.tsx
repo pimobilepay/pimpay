@@ -42,6 +42,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { QRScanner } from '@/components/qr-scanner'
 
 // Types
 interface Transaction {
@@ -416,9 +417,37 @@ function QRScannerModal({
   onClose: () => void
   onCustomerFound: (customer: Customer) => void
 }) {
+  const [showScanner, setShowScanner] = React.useState(true)
   const [manualCode, setManualCode] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+
+  const handleQRResult = async (data: string) => {
+    if (!data) {
+      setShowScanner(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch(`/api/agent/customer?q=${encodeURIComponent(data)}`)
+      const apiData = await res.json()
+
+      if (!res.ok || !apiData.customers?.length) {
+        throw new Error('Client non trouve avec ce QR code')
+      }
+
+      onCustomerFound(apiData.customers[0])
+      handleClose()
+    } catch (err: any) {
+      setError(err.message)
+      setShowScanner(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleManualSearch = async () => {
     if (!manualCode) return
@@ -435,8 +464,7 @@ function QRScannerModal({
       }
 
       onCustomerFound(data.customers[0])
-      onClose()
-      setManualCode('')
+      handleClose()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -444,8 +472,30 @@ function QRScannerModal({
     }
   }
 
+  const handleClose = () => {
+    setShowScanner(true)
+    setManualCode('')
+    setError('')
+    onClose()
+  }
+
+  // Show fullscreen QR scanner if enabled
+  if (showScanner && isOpen) {
+    return (
+      <QRScanner
+        onClose={(data?: string) => {
+          if (data) {
+            handleQRResult(data)
+          } else {
+            setShowScanner(false)
+          }
+        }}
+      />
+    )
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -453,29 +503,11 @@ function QRScannerModal({
             Scanner le QR Client
           </DialogTitle>
           <DialogDescription>
-            Scannez le code QR du client ou entrez son identifiant manuellement
+            Entrez l&apos;identifiant du client ou utilisez le scanner
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Placeholder pour le scanner QR */}
-          <div className="aspect-square bg-muted rounded-xl flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
-            <div className="text-center">
-              <QrCode className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">Camera QR Scanner</p>
-              <p className="text-xs text-muted-foreground mt-1">Fonctionnalite bientot disponible</p>
-            </div>
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">ou</span>
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="manual-code">Identifiant client</Label>
             <Input
@@ -487,12 +519,32 @@ function QRScannerModal({
           </div>
 
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+              {error}
+            </p>
           )}
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+
+          <Button 
+            onClick={() => setShowScanner(true)}
+            variant="outline"
+            className="w-full"
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            Ouvrir le scanner
+          </Button>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={handleClose}>
             Annuler
           </Button>
           <Button onClick={handleManualSearch} disabled={!manualCode || isLoading}>
