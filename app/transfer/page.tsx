@@ -62,51 +62,51 @@ const STATIC_META: Record<
   PI: {
     symbol: "PI",
     network: "Pi Network",
-    color: "text-yellow-400",
-    logo: "https://assets.coingecko.com/coins/images/28830/small/pi-network.png",
+    color: "text-indigo-400",
+    logo: "/pi.png",
     addressType: "stellar",
   },
   // ── EVM / Sidra ───────────────────────────────────────────────────────────
-  SIDRA: {
-    symbol: "SIDRA",
+  SDA: {
+    symbol: "SDA",
     network: "Sidra Chain",
-    color: "text-teal-400",
-    logo: "https://assets.coingecko.com/coins/images/36888/small/sidra.png",
+    color: "text-amber-400",
+    logo: "/sda.png",
     addressType: "evm",
   },
   USDT: {
     symbol: "USDT",
     network: "TRON TRC20",
     color: "text-green-400",
-    logo: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+    logo: "/usdt.png",
     addressType: "tron",
   },
   "USDT-ERC20": {
     symbol: "USDT",
     network: "Ethereum ERC20",
     color: "text-green-400",
-    logo: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+    logo: "/usdt.png",
     addressType: "evm",
   },
   USDC: {
     symbol: "USDC",
     network: "Ethereum ERC20",
     color: "text-blue-400",
-    logo: "https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png",
+    logo: "/usdc.png",
     addressType: "evm",
   },
   BUSD: {
     symbol: "BUSD",
     network: "BNB Smart Chain",
     color: "text-yellow-300",
-    logo: "https://assets.coingecko.com/coins/images/9576/small/BUSD.png",
+    logo: "/busd.png",
     addressType: "evm",
   },
   DAI: {
     symbol: "DAI",
     network: "Ethereum ERC20",
     color: "text-amber-400",
-    logo: "https://assets.coingecko.com/coins/images/9956/small/Badge_Dai.png",
+    logo: "/dai.png",
     addressType: "evm",
   },
   // ── XRP Ledger ────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ const STATIC_META: Record<
     symbol: "XRP",
     network: "XRP Ledger",
     color: "text-sky-400",
-    logo: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+    logo: "/xrp.png",
     addressType: "xrp",
   },
   // ── Stellar ───────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ const STATIC_META: Record<
     symbol: "XLM",
     network: "Stellar Network",
     color: "text-indigo-400",
-    logo: "https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png",
+    logo: "/xlm.png",
     addressType: "stellar",
   },
   // ── Solana ────────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ const STATIC_META: Record<
     symbol: "SOL",
     network: "Solana",
     color: "text-purple-400",
-    logo: "https://assets.coingecko.com/coins/images/4128/small/solana.png",
+    logo: "/sol.png",
     addressType: "solana",
   },
   // ── Bitcoin ───────────────────────────────────────────────────────────────
@@ -138,15 +138,15 @@ const STATIC_META: Record<
     symbol: "BTC",
     network: "Bitcoin",
     color: "text-orange-400",
-    logo: "https://assets.coingecko.com/coins/images/1/small/bitcoin.png",
+    logo: "/btc.png",
     addressType: "bitcoin",
   },
   // ── Ethereum ──────────────────────────────────────────────────────────────
   ETH: {
     symbol: "ETH",
     network: "Ethereum",
-    color: "text-violet-400",
-    logo: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+    color: "text-sky-400",
+    logo: "/eth.png",
     addressType: "evm",
   },
   // ── BNB ───────────────────────────────────────────────────────────────────
@@ -154,15 +154,39 @@ const STATIC_META: Record<
     symbol: "BNB",
     network: "BNB Smart Chain",
     color: "text-yellow-400",
-    logo: "https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png",
+    logo: "/bnb.png",
     addressType: "evm",
   },
-  // ── Litecoin ──────────────────────────────────────────────────────────────
-  LTC: {
-    symbol: "LTC",
-    network: "Litecoin",
-    color: "text-gray-300",
-    logo: "https://assets.coingecko.com/coins/images/2/small/litecoin.png",
+  // ── TON ───────────────────────────────────────────────────────────────────
+  TON: {
+    symbol: "TON",
+    network: "TON Network",
+    color: "text-sky-300",
+    logo: "/ton.png",
+    addressType: "ton",
+  },
+  // ── TRON ──────────────────────────────────────────────────────────────────
+  TRX: {
+    symbol: "TRX",
+    network: "TRON",
+    color: "text-red-400",
+    logo: "/trx.png",
+    addressType: "tron",
+  },
+  // ── Cardano ───────────────────────────────────────────────────────────────
+  ADA: {
+    symbol: "ADA",
+    network: "Cardano",
+    color: "text-blue-400",
+    logo: "/ada.png",
+    addressType: "cardano",
+  },
+  // ── Dogecoin ──────────────────────────────────────────────────────────────
+  DOGE: {
+    symbol: "DOGE",
+    network: "Dogecoin",
+    color: "text-yellow-500",
+    logo: "/doge.png",
     addressType: "bitcoin",
   },
 };
@@ -269,6 +293,28 @@ function detectExternalAddress(
 // CONSTANTES UI
 // ─────────────────────────────────────────────────────────────────────────────
 const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
+
+// Ordre préféré des cryptos pour le dropdown (PI en premier)
+const TRANSFER_ASSET_ORDER = ["PI", "XAF", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON", "USDT", "USDC", "DAI", "BUSD", "LTC"];
+
+/** Trie les wallets: PI en premier, puis selon l'ordre prédéfini, puis les autres par solde décroissant */
+function sortWallets(wallets: WalletData[]): WalletData[] {
+  return [...wallets].sort((a, b) => {
+    const indexA = TRANSFER_ASSET_ORDER.indexOf(a.currency);
+    const indexB = TRANSFER_ASSET_ORDER.indexOf(b.currency);
+    
+    // Les deux sont dans l'ordre prédéfini
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    }
+    // Seulement A est dans l'ordre prédéfini
+    if (indexA !== -1) return -1;
+    // Seulement B est dans l'ordre prédéfini
+    if (indexB !== -1) return 1;
+    // Aucun n'est dans l'ordre prédéfini, trier par solde décroissant
+    return b.balance - a.balance;
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE COMPONENT
@@ -538,9 +584,9 @@ export default function SendPage() {
 
             {/* ── Dropdown portefeuilles ──────────────────────────────────── */}
             {showWalletPicker && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0c1629] border border-white/[0.06] rounded-2xl overflow-hidden z-20 shadow-2xl">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0c1629] border border-white/[0.06] rounded-2xl overflow-hidden z-20 shadow-2xl max-h-72 overflow-y-auto">
                 {wallets.length > 0 ? (
-                  wallets.map((w) => {
+                  sortWallets(wallets).map((w) => {
                     const meta = getCurrencyMeta(w.currency);
                     return (
                       <button
