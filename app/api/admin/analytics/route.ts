@@ -67,19 +67,18 @@ export async function GET() {
         ORDER BY date ASC
       ` as Promise<{ date: Date; count: number; volume: number }[]>,
 
-      // Top countries - combining all registered users and recent activity
+      // Top countries - combining all registered users and recent activity (no LIMIT to get all countries)
       prisma.$queryRaw`
         SELECT 
-          COALESCE(u."country", 'Non specifie') as country, 
+          TRIM(u."country") as country, 
           COUNT(DISTINCT u.id)::int as count,
           COUNT(DISTINCT CASE WHEN ua."createdAt" >= ${thirtyDaysAgo} THEN u.id END)::int as active_count,
           COUNT(DISTINCT CASE WHEN u."createdAt" >= ${sevenDaysAgo} THEN u.id END)::int as new_count
         FROM "User" u
         LEFT JOIN "UserActivity" ua ON u.id = ua."userId"
-        WHERE u."country" IS NOT NULL AND u."country" != ''
-        GROUP BY u."country"
+        WHERE u."country" IS NOT NULL AND TRIM(u."country") != ''
+        GROUP BY TRIM(u."country")
         ORDER BY count DESC
-        LIMIT 20
       ` as Promise<{ country: string; count: number; active_count: number; new_count: number }[]>,
 
       // KYC stats

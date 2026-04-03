@@ -83,74 +83,133 @@ type OnlineUser = {
 };
 
 // Country coordinates for map markers
-const COUNTRY_COORDINATES: Record<string, [number, number]> = {
-  "France": [2.3522, 46.6034],
-  "Senegal": [-14.4524, 14.4974],
-  "Cameroun": [12.3547, 5.9631],
-  "Cameroon": [12.3547, 5.9631],
-  "Cote d'Ivoire": [-5.5471, 7.5399],
-  "Ivory Coast": [-5.5471, 7.5399],
-  "Mali": [-3.9962, 17.5707],
-  "Guinee": [-10.9408, 10.7672],
-  "Guinea": [-10.9408, 10.7672],
-  "Burkina Faso": [-1.5616, 12.2383],
-  "Togo": [1.1679, 8.6195],
-  "Benin": [2.3158, 9.3077],
-  "Niger": [9.0820, 17.6078],
-  "Congo": [15.8277, -0.2280],
-  "RDC": [21.7587, -4.0383],
-  "Gabon": [11.6094, -0.8037],
-  "Madagascar": [46.8691, -18.7669],
-  "Maroc": [-7.0926, 31.7917],
-  "Morocco": [-7.0926, 31.7917],
-  "Tunisie": [9.5375, 33.8869],
-  "Tunisia": [9.5375, 33.8869],
-  "Algerie": [1.6596, 28.0339],
-  "Algeria": [1.6596, 28.0339],
-  "USA": [-95.7129, 37.0902],
-  "United States": [-95.7129, 37.0902],
-  "Canada": [-106.3468, 56.1304],
-  "UK": [-3.4360, 55.3781],
-  "United Kingdom": [-3.4360, 55.3781],
-  "Germany": [10.4515, 51.1657],
-  "Allemagne": [10.4515, 51.1657],
-  "Belgium": [4.4699, 50.5039],
-  "Belgique": [4.4699, 50.5039],
-  "Switzerland": [8.2275, 46.8182],
-  "Suisse": [8.2275, 46.8182],
-  "Nigeria": [8.6753, 9.0820],
-  "Ghana": [-1.0232, 7.9465],
-  "Kenya": [37.9062, -0.0236],
-  "South Africa": [22.9375, -30.5595],
-  "Afrique du Sud": [22.9375, -30.5595],
-  "Spain": [-3.7038, 40.4168],
-  "Espagne": [-3.7038, 40.4168],
-  "Italy": [12.5674, 41.8719],
-  "Italie": [12.5674, 41.8719],
-  "Portugal": [-8.2245, 39.3999],
-  "Netherlands": [5.2913, 52.1326],
-  "Pays-Bas": [5.2913, 52.1326],
-  "Rwanda": [29.8739, -1.9403],
-  "Burundi": [29.9189, -3.3731],
-  "Tchad": [18.7322, 15.4542],
-  "Chad": [18.7322, 15.4542],
-  "Mauritanie": [-10.9408, 21.0079],
-  "Mauritania": [-10.9408, 21.0079],
-  "Centrafrique": [20.9394, 6.6111],
-  "Central African Republic": [20.9394, 6.6111],
-  "Haiti": [-72.2852, 18.9712],
-  "Haïti": [-72.2852, 18.9712],
-  "Brazil": [-51.9253, -14.2350],
-  "Bresil": [-51.9253, -14.2350],
-  "China": [104.1954, 35.8617],
-  "Chine": [104.1954, 35.8617],
-  "India": [78.9629, 20.5937],
-  "Inde": [78.9629, 20.5937],
-  "Japan": [138.2529, 36.2048],
-  "Japon": [138.2529, 36.2048],
-  "Australia": [133.7751, -25.2744],
-  "Australie": [133.7751, -25.2744],
-};
+// Keys are normalized to lowercase-no-accent for fuzzy matching
+const COUNTRY_COORDINATES_RAW: Array<{ keys: string[]; coords: [number, number] }> = [
+  { keys: ["france"], coords: [2.3522, 46.6034] },
+  { keys: ["senegal", "sénégal"], coords: [-14.4524, 14.4974] },
+  { keys: ["cameroun", "cameroon", "cameroun"], coords: [12.3547, 5.9631] },
+  { keys: ["cote d'ivoire", "côte d'ivoire", "cote divoire", "ivory coast", "cote-d'ivoire"], coords: [-5.5471, 7.5399] },
+  { keys: ["mali"], coords: [-3.9962, 17.5707] },
+  { keys: ["guinee", "guinée", "guinea"], coords: [-10.9408, 10.7672] },
+  { keys: ["burkina faso", "burkina"], coords: [-1.5616, 12.2383] },
+  { keys: ["togo"], coords: [1.1679, 8.6195] },
+  { keys: ["benin", "bénin"], coords: [2.3158, 9.3077] },
+  { keys: ["niger"], coords: [9.0820, 17.6078] },
+  { keys: ["congo"], coords: [15.8277, -0.2280] },
+  { keys: ["rdc", "republique democratique du congo", "democratic republic of the congo", "dr congo"], coords: [21.7587, -4.0383] },
+  { keys: ["gabon"], coords: [11.6094, -0.8037] },
+  { keys: ["madagascar"], coords: [46.8691, -18.7669] },
+  { keys: ["maroc", "morocco"], coords: [-7.0926, 31.7917] },
+  { keys: ["tunisie", "tunisia"], coords: [9.5375, 33.8869] },
+  { keys: ["algerie", "algérie", "algeria"], coords: [1.6596, 28.0339] },
+  { keys: ["usa", "united states", "united states of america", "etats-unis", "états-unis"], coords: [-95.7129, 37.0902] },
+  { keys: ["canada"], coords: [-106.3468, 56.1304] },
+  { keys: ["uk", "united kingdom", "royaume-uni", "grande-bretagne"], coords: [-3.4360, 55.3781] },
+  { keys: ["germany", "allemagne"], coords: [10.4515, 51.1657] },
+  { keys: ["belgium", "belgique"], coords: [4.4699, 50.5039] },
+  { keys: ["switzerland", "suisse"], coords: [8.2275, 46.8182] },
+  { keys: ["nigeria"], coords: [8.6753, 9.0820] },
+  { keys: ["ghana"], coords: [-1.0232, 7.9465] },
+  { keys: ["kenya"], coords: [37.9062, -0.0236] },
+  { keys: ["south africa", "afrique du sud"], coords: [22.9375, -30.5595] },
+  { keys: ["spain", "espagne"], coords: [-3.7038, 40.4168] },
+  { keys: ["italy", "italie"], coords: [12.5674, 41.8719] },
+  { keys: ["portugal"], coords: [-8.2245, 39.3999] },
+  { keys: ["netherlands", "pays-bas", "pays bas"], coords: [5.2913, 52.1326] },
+  { keys: ["rwanda"], coords: [29.8739, -1.9403] },
+  { keys: ["burundi"], coords: [29.9189, -3.3731] },
+  { keys: ["tchad", "chad"], coords: [18.7322, 15.4542] },
+  { keys: ["mauritanie", "mauritania"], coords: [-10.9408, 21.0079] },
+  { keys: ["centrafrique", "central african republic", "republique centrafricaine"], coords: [20.9394, 6.6111] },
+  { keys: ["haiti", "haïti"], coords: [-72.2852, 18.9712] },
+  { keys: ["brazil", "bresil", "brésil"], coords: [-51.9253, -14.2350] },
+  { keys: ["china", "chine"], coords: [104.1954, 35.8617] },
+  { keys: ["india", "inde"], coords: [78.9629, 20.5937] },
+  { keys: ["japan", "japon"], coords: [138.2529, 36.2048] },
+  { keys: ["australia", "australie"], coords: [133.7751, -25.2744] },
+  { keys: ["ethiopia", "ethiopie", "éthiopie"], coords: [40.4897, 9.1450] },
+  { keys: ["tanzania", "tanzanie"], coords: [34.8888, -6.3690] },
+  { keys: ["mozambique"], coords: [35.5296, -18.6657] },
+  { keys: ["angola"], coords: [17.8739, -11.2027] },
+  { keys: ["zambia", "zambie"], coords: [27.8493, -13.1339] },
+  { keys: ["zimbabwe"], coords: [29.1549, -20.0004] },
+  { keys: ["uganda", "ouganda"], coords: [32.2903, 1.3733] },
+  { keys: ["ghana"], coords: [-1.0232, 7.9465] },
+  { keys: ["liberia"], coords: [-9.4295, 6.4281] },
+  { keys: ["sierra leone"], coords: [-11.7799, 8.4606] },
+  { keys: ["guinea-bissau", "guinee-bissau", "guinée-bissau"], coords: [-15.1804, 11.8037] },
+  { keys: ["equatorial guinea", "guinee equatoriale"], coords: [10.2679, 1.6508] },
+  { keys: ["cape verde", "cap vert"], coords: [-24.0132, 16.5388] },
+  { keys: ["comoros", "comores"], coords: [43.8722, -11.8751] },
+  { keys: ["djibouti"], coords: [42.5903, 11.8251] },
+  { keys: ["eritrea", "erythree"], coords: [39.7823, 15.1794] },
+  { keys: ["somalia", "somalie"], coords: [46.1996, 5.1521] },
+  { keys: ["sudan", "soudan"], coords: [30.2176, 12.8628] },
+  { keys: ["egypt", "egypte", "égypte"], coords: [30.8025, 26.8206] },
+  { keys: ["libya", "libye"], coords: [17.2283, 26.3351] },
+  { keys: ["namibia", "namibie"], coords: [18.4904, -22.9576] },
+  { keys: ["botswana"], coords: [24.6849, -22.3285] },
+  { keys: ["lesotho"], coords: [28.2336, -29.6100] },
+  { keys: ["swaziland", "eswatini"], coords: [31.4659, -26.5225] },
+  { keys: ["malawi"], coords: [34.3015, -13.2543] },
+  { keys: ["singapore", "singapour"], coords: [103.8198, 1.3521] },
+  { keys: ["malaysia", "malaisie"], coords: [109.6978, 4.2105] },
+  { keys: ["indonesia", "indonesie", "indonésie"], coords: [113.9213, -0.7893] },
+  { keys: ["philippines"], coords: [121.7740, 12.8797] },
+  { keys: ["vietnam", "viet nam"], coords: [108.2772, 14.0583] },
+  { keys: ["thailand", "thailande", "thaïlande"], coords: [100.9925, 15.8700] },
+  { keys: ["south korea", "coree du sud"], coords: [127.7669, 35.9078] },
+  { keys: ["pakistan"], coords: [69.3451, 30.3753] },
+  { keys: ["bangladesh"], coords: [90.3563, 23.6850] },
+  { keys: ["sri lanka"], coords: [80.7718, 7.8731] },
+  { keys: ["mexico", "mexique"], coords: [-102.5528, 23.6345] },
+  { keys: ["argentina", "argentine"], coords: [-63.6167, -38.4161] },
+  { keys: ["colombia", "colombie"], coords: [-74.2973, 4.5709] },
+  { keys: ["peru", "perou", "pérou"], coords: [-75.0152, -9.1900] },
+  { keys: ["chile", "chili"], coords: [-71.5430, -35.6751] },
+  { keys: ["venezuela"], coords: [-66.5897, 6.4238] },
+  { keys: ["ecuador", "equateur"], coords: [-78.1834, -1.8312] },
+  { keys: ["russia", "russie"], coords: [105.3188, 61.5240] },
+  { keys: ["ukraine"], coords: [31.1656, 48.3794] },
+  { keys: ["poland", "pologne"], coords: [19.1451, 51.9194] },
+  { keys: ["sweden", "suede", "suède"], coords: [18.6435, 60.1282] },
+  { keys: ["norway", "norvege", "norvège"], coords: [8.4689, 60.4720] },
+  { keys: ["denmark", "danemark"], coords: [9.5018, 56.2639] },
+  { keys: ["finland", "finlande"], coords: [25.7482, 61.9241] },
+  { keys: ["austria", "autriche"], coords: [14.5501, 47.5162] },
+  { keys: ["greece", "grece", "grèce"], coords: [21.8243, 39.0742] },
+  { keys: ["turkey", "turquie"], coords: [35.2433, 38.9637] },
+  { keys: ["israel"], coords: [34.8516, 31.0461] },
+  { keys: ["saudi arabia", "arabie saoudite"], coords: [45.0792, 23.8859] },
+  { keys: ["uae", "united arab emirates", "emirats arabes unis"], coords: [53.8478, 23.4241] },
+  { keys: ["qatar"], coords: [51.1839, 25.3548] },
+  { keys: ["kuwait", "koweit"], coords: [47.4818, 29.3117] },
+  { keys: ["iraq"], coords: [43.6793, 33.2232] },
+  { keys: ["iran"], coords: [53.6880, 32.4279] },
+];
+
+// Normalize a string for fuzzy matching: lowercase, remove accents, trim
+function normalizeCountry(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[''`]/g, "'")
+    .trim();
+}
+
+// Build a lookup map: normalized key → coordinates
+const COUNTRY_COORD_MAP = new Map<string, [number, number]>();
+for (const entry of COUNTRY_COORDINATES_RAW) {
+  for (const key of entry.keys) {
+    COUNTRY_COORD_MAP.set(normalizeCountry(key), entry.coords);
+  }
+}
+
+function getCountryCoords(country: string): [number, number] | null {
+  const norm = normalizeCountry(country);
+  return COUNTRY_COORD_MAP.get(norm) ?? null;
+}
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -319,11 +378,12 @@ export default function AdminAnalyticsPage() {
   const countryMarkers = useMemo(() => {
     if (!data?.topCountries) return [];
     return data.topCountries
-      .filter(c => COUNTRY_COORDINATES[c.country])
-      .map(c => ({
-        ...c,
-        coordinates: COUNTRY_COORDINATES[c.country],
-      }));
+      .map(c => {
+        const coords = getCountryCoords(c.country);
+        if (!coords) return null;
+        return { ...c, coordinates: coords };
+      })
+      .filter(Boolean) as Array<CountryData & { coordinates: [number, number] }>;
   }, [data]);
 
   // Calculate total users by country
@@ -592,7 +652,7 @@ export default function AdminAnalyticsPage() {
                   }`}
                 >
                   <span className="text-[10px] font-black text-slate-500 w-5">{i + 1}</span>
-                  <MapPin size={14} className="text-blue-400" />
+                  <MapPin size={14} className={getCountryCoords(c.country) ? "text-blue-400" : "text-slate-600"} />
                   <span className="text-[11px] font-bold text-white flex-1 text-left truncate">{c.country}</span>
                   <div className="flex items-center gap-3 text-right">
                     <div>
