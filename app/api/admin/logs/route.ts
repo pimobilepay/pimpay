@@ -22,30 +22,41 @@ export async function GET(req: NextRequest) {
       orderBy: {
         createdAt: 'desc'
       },
-      take: 20, // Augmenté un peu pour plus de visibilité
+      take: 50, // Augmenté pour plus de visibilité
       include: {
         // On récupère le nom de l'admin via la relation
         admin: {
           select: {
+            id: true,
             name: true,
-            email: true
+            email: true,
+            avatar: true,
+            username: true
           }
         },
         // On récupère l'email de la cible via la relation
         target: {
           select: {
-            email: true
+            id: true,
+            name: true,
+            email: true,
+            username: true
           }
         }
       }
     });
 
-    // 3. Formater les données pour le frontend (optionnel mais recommandé)
+    // 3. Formater les données pour le frontend avec détails complets
     const formattedLogs = logs.map(log => ({
       id: log.id,
-      adminName: log.admin?.name || "Système",
+      adminId: log.adminId || null,
+      adminName: log.adminName || log.admin?.name || log.admin?.username || "Système",
+      adminEmail: log.admin?.email || null,
+      adminAvatar: log.admin?.avatar || null,
       action: log.action,
-      targetEmail: log.target?.email || "N/A",
+      targetId: log.targetId || null,
+      targetEmail: log.target?.email || log.targetEmail || null,
+      targetName: log.target?.name || log.target?.username || null,
       createdAt: log.createdAt,
       details: log.details
     }));

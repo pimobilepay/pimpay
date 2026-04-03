@@ -52,9 +52,15 @@ type Transaction = {
 
 type AuditLog = {
   id: string;
+  adminId: string | null;
   adminName: string | null;
+  adminEmail: string | null;
+  adminAvatar: string | null;
   action: string;
+  targetId: string | null;
   targetEmail: string | null;
+  targetName: string | null;
+  details: string | null;
   createdAt: string;
 };
 
@@ -577,14 +583,50 @@ function DashboardContent() {
   </div>
                     </Card>
                     <Card className="bg-slate-900/40 border-white/5 rounded-[2.5rem] p-6">
-                        <p className="text-[10px] font-black uppercase text-blue-500 mb-4 tracking-widest">Logs Audit (Dernières Actions)</p>
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Logs Audit (Dernières Actions)</p>
+                          <button onClick={() => router.push('/admin/logs')} className="text-[8px] font-black text-slate-500 uppercase tracking-wider hover:text-blue-400 transition-colors">Voir tout</button>
+                        </div>
                         <div className="space-y-3">
-                            {logs.slice(0, 5).map(log => (
-                                <div key={log.id} className="flex justify-between items-center text-[9px] border-b border-white/5 pb-2">
-                                    <span className="font-black text-white uppercase">{log.action}</span>
-                                    <span className="text-slate-500 font-mono italic">{new Date(log.createdAt).toLocaleTimeString()}</span>
+                            {logs.slice(0, 8).map(log => (
+                                <div key={log.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-[8px] font-black uppercase">
+                                        {log.adminName?.[0] || 'S'}
+                                      </div>
+                                      <div>
+                                        <p className="text-[9px] font-black text-white uppercase">{log.adminName || 'Systeme'}</p>
+                                        {log.adminEmail && <p className="text-[7px] text-slate-500 font-mono">{log.adminEmail}</p>}
+                                      </div>
+                                    </div>
+                                    <span className="text-[7px] text-slate-600 font-mono">{new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${
+                                      log.action.includes('BAN') ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                      log.action.includes('RESET') ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                      log.action.includes('AIRDROP') ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                      log.action.includes('ROLE') ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                                      log.action.includes('BALANCE') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                      log.action.includes('MAINTENANCE') ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                                      'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    }`}>{log.action}</span>
+                                    {log.targetEmail && (
+                                      <span className="text-[7px] text-slate-500 font-mono truncate max-w-[120px]">→ {log.targetName || log.targetEmail}</span>
+                                    )}
+                                  </div>
+                                  {log.details && (
+                                    <p className="text-[7px] text-slate-600 font-mono truncate">{log.details}</p>
+                                  )}
                                 </div>
                             ))}
+                            {logs.length === 0 && (
+                              <div className="text-center py-6">
+                                <History size={20} className="text-slate-600 mx-auto mb-2" />
+                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucun log disponible</p>
+                              </div>
+                            )}
                         </div>
                     </Card>
                 </div>
