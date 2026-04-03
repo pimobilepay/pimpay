@@ -131,7 +131,7 @@ export default function AgentTransactionsPage() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
@@ -170,8 +170,8 @@ export default function AgentTransactionsPage() {
 
         {/* Filters */}
         <Card className="bg-slate-900/50 border-white/5 rounded-3xl mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row gap-4">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                 <Input
@@ -228,42 +228,44 @@ export default function AgentTransactionsPage() {
                 <p className="text-slate-500 font-medium">Aucune transaction trouvee</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/5">
-                      <TableHead className="text-slate-400 font-bold">Type</TableHead>
-                      <TableHead className="text-slate-400 font-bold">Client</TableHead>
-                      <TableHead className="text-slate-400 font-bold">Reference</TableHead>
-                      <TableHead className="text-slate-400 font-bold">Montant</TableHead>
-                      <TableHead className="text-slate-400 font-bold">Statut</TableHead>
-                      <TableHead className="text-slate-400 font-bold">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map((tx: any) => (
-                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 rounded-xl bg-slate-800">
-                              {getTypeIcon(tx.type)}
-                            </div>
-                            <span className="text-white text-sm font-medium capitalize">
-                              {tx.type.replace("-", " ")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-white font-medium">{tx.customer}</TableCell>
-                        <TableCell className="text-slate-400 font-mono text-xs">{tx.reference}</TableCell>
-                        <TableCell className={`font-bold ${tx.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
-                          {tx.type === "cash-in" ? "+" : "-"}{tx.amount.toLocaleString()} {tx.currency}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                        <TableCell className="text-slate-400 text-sm">{tx.timestamp}</TableCell>
+              <div className="-mx-4 overflow-x-auto sm:mx-0">
+                <div className="min-w-[580px] px-4 sm:px-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/5">
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Type</TableHead>
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Client</TableHead>
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Reference</TableHead>
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Montant</TableHead>
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Statut</TableHead>
+                        <TableHead className="text-slate-400 font-bold text-xs whitespace-nowrap">Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTransactions.map((tx: any) => (
+                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-xl bg-slate-800 shrink-0">
+                                {getTypeIcon(tx.type)}
+                              </div>
+                              <span className="text-white text-xs font-medium capitalize whitespace-nowrap">
+                                {tx.type.replace("-", " ")}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-white font-medium text-xs whitespace-nowrap py-3">{tx.customer}</TableCell>
+                          <TableCell className="text-slate-400 font-mono text-[11px] py-3">{tx.reference}</TableCell>
+                          <TableCell className={`font-bold text-xs whitespace-nowrap py-3 ${tx.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
+                            {tx.type === "cash-in" ? "+" : "-"}{tx.amount.toLocaleString()} {tx.currency}
+                          </TableCell>
+                          <TableCell className="py-3">{getStatusBadge(tx.status)}</TableCell>
+                          <TableCell className="text-slate-400 text-xs whitespace-nowrap py-3">{tx.timestamp}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </CardContent>
