@@ -157,14 +157,33 @@ export async function POST(req: Request) {
       body: JSON.stringify({ txid: txid || "" }),
     }).catch(e => console.warn("⚠️ Pi /complete auto-call skip"));
 
-    // 5. NOTIFICATION utilisateur pour confirmation instantanee
+    // 5. NOTIFICATION utilisateur pour confirmation instantanee avec metadonnees completes
     try {
+      const depositAmount = parseFloat(amount);
+      const fee = 0; // Frais Pi (modifiable si besoin)
+      const netAmount = depositAmount - fee;
+      
       await prisma.notification.create({
         data: {
           userId,
-          title: "Depot Pi approuve !",
-          message: `Votre depot de ${parseFloat(amount)} PI a ete credite automatiquement.`,
-          type: "SUCCESS",
+          title: result.isWithdraw ? "Retrait Pi approuve !" : "Depot Pi approuve !",
+          message: result.isWithdraw 
+            ? `Votre envoi de ${depositAmount} PI vers ${toAddress?.substring(0, 8)}... est en cours de traitement.`
+            : `Votre depot de ${depositAmount} PI a ete credite automatiquement.`,
+          type: result.isWithdraw ? "PAYMENT_SENT" : "SUCCESS",
+          metadata: JSON.stringify({
+            amount: netAmount,
+            currency: "PI",
+            fee: fee,
+            reference: result.transaction?.reference || `PI-${paymentId?.slice(-8)}`,
+            transactionId: result.transaction?.id,
+            method: "Pi Network",
+            status: "SUCCESS",
+            network: "Pi Mainnet",
+            walletAddress: toAddress || null,
+            blockchainTx: txid || null,
+            paymentId: paymentId,
+          }),
         }
       });
     } catch (_) { /* notification non-bloquante */ }
