@@ -15,6 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   History,
   Calendar,
   RefreshCw,
@@ -27,17 +33,48 @@ import {
   XCircle,
   Menu,
   X,
+  User,
+  Hash,
+  Banknote,
+  CalendarDays,
+  FileText,
+  Copy,
+  CheckCheck,
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+interface Transaction {
+  id: string;
+  type: "cash-in" | "cash-out" | "transfer";
+  amount: number;
+  currency: string;
+  status: "success" | "pending" | "issue";
+  customer: string;
+  timestamp: string;
+  reference: string;
+  source?: string;
+}
+
 export default function AgentHistoryPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [period, setPeriod] = useState("7d");
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data, isLoading, mutate } = useSWR("/api/agent/dashboard", fetcher);
 
-  const transactions = data?.recentTransactions || [];
+  // Filter to only show hub transactions (transactions initiated by the agent)
+  const allTransactions = data?.recentTransactions || [];
+  const transactions = allTransactions.filter((tx: Transaction) => 
+    tx.source === "hub" || tx.type === "cash-in" || tx.type === "cash-out"
+  );
+
+  const handleCopyReference = (reference: string) => {
+    navigator.clipboard.writeText(reference);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -78,6 +115,28 @@ export default function AgentHistoryPage() {
     }
   };
 
+  const getTypeName = (type: string) => {
+    switch (type) {
+      case "cash-in":
+        return "Depot";
+      case "cash-out":
+        return "Retrait";
+      default:
+        return "Transfert";
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "cash-in":
+        return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
+      case "cash-out":
+        return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      default:
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-[#02040a]">
       {/* Desktop Sidebar */}
@@ -106,8 +165,111 @@ export default function AgentHistoryPage() {
         </div>
       )}
 
+      {/* Transaction Details Modal */}
+      <Dialog open={!!selectedTransaction} onOpenChange={() => setSelectedTransaction(null)}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-md mx-4">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black flex items-center gap-2">
+              <FileText className="h-5 w-5 text-emerald-500" />
+              Details de la transaction
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedTransaction && (
+            <div className="space-y-4 mt-4">
+              {/* Type Badge */}
+              <div className="flex justify-center">
+                <Badge className={`${getTypeColor(selectedTransaction.type)} text-sm font-bold px-4 py-2`}>
+                  {getTypeIcon(selectedTransaction.type)}
+                  <span className="ml-2">{getTypeName(selectedTransaction.type)}</span>
+                </Badge>
+              </div>
+
+              {/* Amount */}
+              <div className="text-center py-4 bg-slate-800/50 rounded-2xl">
+                <p className="text-xs text-slate-500 uppercase font-bold mb-1">Montant</p>
+                <p className={`text-3xl font-black ${selectedTransaction.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
+                  {selectedTransaction.type === "cash-in" ? "+" : "-"}
+                  {selectedTransaction.amount.toLocaleString()} {selectedTransaction.currency}
+                </p>
+              </div>
+
+              {/* Details Grid */}
+              <div className="space-y-3">
+                {/* Client */}
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <User className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Client</span>
+                  </div>
+                  <span className="text-white font-bold">{selectedTransaction.customer}</span>
+                </div>
+
+                {/* Reference */}
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Hash className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Reference</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-mono text-sm">{selectedTransaction.reference}</span>
+                    <button 
+                      onClick={() => handleCopyReference(selectedTransaction.reference)}
+                      className="p-1 hover:bg-white/10 rounded"
+                    >
+                      {copied ? (
+                        <CheckCheck className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Copy className="h-4 w-4 text-slate-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Date/Time */}
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <CalendarDays className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Date & Heure</span>
+                  </div>
+                  <span className="text-white font-bold">{selectedTransaction.timestamp}</span>
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Banknote className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Statut</span>
+                  </div>
+                  {getStatusBadge(selectedTransaction.status)}
+                </div>
+
+                {/* Source */}
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <History className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Source</span>
+                  </div>
+                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs font-bold">
+                    PimPay Hub
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <Button 
+                onClick={() => setSelectedTransaction(null)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold mt-4"
+              >
+                Fermer
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
@@ -120,10 +282,10 @@ export default function AgentHistoryPage() {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Historique</h1>
-            <p className="text-sm text-slate-500 mt-1">Consultez l&apos;historique complet de vos activites</p>
+            <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Historique Hub</h1>
+            <p className="text-sm text-slate-500 mt-1">Historique des transactions effectuees via le Hub</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-32 bg-slate-900/50 border-white/10 text-white text-xs font-bold">
                 <Calendar className="h-4 w-4 mr-2 text-slate-500" />
@@ -155,6 +317,14 @@ export default function AgentHistoryPage() {
           </div>
         </div>
 
+        {/* Info Badge */}
+        <div className="mb-6">
+          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs font-bold">
+            <History className="h-3 w-3 mr-1" />
+            Affichage: Transactions Hub uniquement (Cash-In / Cash-Out)
+          </Badge>
+        </div>
+
         {/* Activity Timeline */}
         <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
           <CardHeader>
@@ -173,26 +343,31 @@ export default function AgentHistoryPage() {
             ) : transactions.length === 0 ? (
               <div className="text-center py-12">
                 <History className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-500 font-medium">Aucune activite recente</p>
+                <p className="text-slate-500 font-medium">Aucune activite Hub recente</p>
+                <p className="text-slate-600 text-sm mt-1">Les transactions effectuees via le Hub apparaitront ici</p>
               </div>
             ) : (
               <div className="relative">
                 <div className="absolute left-6 top-0 bottom-0 w-px bg-white/10" />
                 <div className="space-y-6">
-                  {transactions.map((tx: any, index: number) => (
-                    <div key={tx.id} className="relative flex gap-4 pl-12">
-                      <div className="absolute left-4 top-2 w-4 h-4 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center">
+                  {transactions.map((tx: Transaction) => (
+                    <div 
+                      key={tx.id} 
+                      className="relative flex gap-4 pl-12 cursor-pointer group"
+                      onClick={() => setSelectedTransaction(tx)}
+                    >
+                      <div className="absolute left-4 top-2 w-4 h-4 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       </div>
-                      <div className="flex-1 p-4 rounded-2xl bg-slate-800/50 hover:bg-slate-800 transition-colors">
+                      <div className="flex-1 p-4 rounded-2xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-transparent hover:border-emerald-500/20">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-slate-700">
+                            <div className="p-2 rounded-xl bg-slate-700 group-hover:bg-slate-600 transition-colors">
                               {getTypeIcon(tx.type)}
                             </div>
                             <div>
                               <p className="text-white font-bold">
-                                {tx.type === "cash-in" ? "Depot" : tx.type === "cash-out" ? "Retrait" : "Transfert"}
+                                {getTypeName(tx.type)}
                               </p>
                               <p className="text-sm text-slate-400">{tx.customer}</p>
                             </div>
@@ -205,9 +380,17 @@ export default function AgentHistoryPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                          <span className="text-xs text-slate-500 font-mono">{tx.reference}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-mono">{tx.reference}</span>
+                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold">
+                              HUB
+                            </Badge>
+                          </div>
                           {getStatusBadge(tx.status)}
                         </div>
+                        <p className="text-[10px] text-slate-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Cliquez pour voir les details
+                        </p>
                       </div>
                     </div>
                   ))}

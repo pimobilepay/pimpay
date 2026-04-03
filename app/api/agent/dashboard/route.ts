@@ -165,7 +165,9 @@ export async function GET(req: NextRequest) {
           hour: '2-digit', 
           minute: '2-digit' 
         }),
-        reference: tx.reference.slice(-8).toUpperCase()
+        reference: tx.reference.slice(-8).toUpperCase(),
+        source: (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAW') ? 'hub' : 'app',
+        createdAt: tx.createdAt
       };
     });
 
