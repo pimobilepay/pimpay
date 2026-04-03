@@ -136,7 +136,7 @@ export default function AgentSupportPage() {
               </div>
               <div>
                 <p className="text-white font-bold">Appeler</p>
-                <p className="text-sm text-slate-500">+237 6XX XXX XXX</p>
+                <p className="text-sm text-slate-500">+242 065 54 03 05</p>
               </div>
             </CardContent>
           </Card>
