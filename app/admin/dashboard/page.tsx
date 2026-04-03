@@ -145,7 +145,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
   const isPiUser = !!user.piUserId;
 
@@ -213,6 +213,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetPassword,
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
         }} title="Ajuster Balance" className="p-2 bg-green-500/10 text-green-500 rounded-xl shrink-0"><CreditCard size={14} /></button>
+        <button onClick={onResetBalance} title="Réinitialiser Solde" className="p-2 bg-red-500/10 text-red-500 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><Wallet size={14} /></button>
         <button onClick={onAirdrop} title="Airdrop" className="p-2 bg-amber-500/10 text-amber-500 rounded-xl shrink-0"><Gift size={14} /></button>
       </div>
     </div>
@@ -249,6 +250,17 @@ function DashboardContent() {
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  // 2FA Modal state for sensitive reset actions
+  const [twoFaModal, setTwoFaModal] = useState<{
+    open: boolean;
+    pendingAction: (() => void) | null;
+    title: string;
+    description: string;
+  }>({ open: false, pendingAction: null, title: "", description: "" });
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaLoading, setTwoFaLoading] = useState(false);
+  const [twoFaError, setTwoFaError] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
@@ -338,6 +350,42 @@ function DashboardContent() {
     }, 10000);
     return () => clearInterval(statsInterval);
   }, [isMounted]);
+
+  /**
+   * Ouvre le modal 2FA et exécute l'action uniquement après vérification TOTP réussie.
+   */
+  const requireTwoFa = (title: string, description: string, action: () => void) => {
+    setTwoFaCode("");
+    setTwoFaError("");
+    setTwoFaModal({ open: true, pendingAction: action, title, description });
+  };
+
+  const confirmTwoFa = async () => {
+    if (twoFaCode.length !== 6) return;
+    setTwoFaLoading(true);
+    setTwoFaError("");
+    try {
+      const res = await fetch("/api/admin/verify-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: twoFaCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTwoFaError(data.error || "Code incorrect");
+        setTwoFaLoading(false);
+        return;
+      }
+      // Code valide : fermer le modal et exécuter l'action
+      setTwoFaModal({ open: false, pendingAction: null, title: "", description: "" });
+      setTwoFaCode("");
+      twoFaModal.pendingAction?.();
+    } catch {
+      setTwoFaError("Erreur de connexion");
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
 
   const handleAction = async (userId: string | null, action: string, amount?: number, extraData?: string, userIds?: string[], transactionId?: string, newSecret?: string) => {
     try {
@@ -544,11 +592,30 @@ function DashboardContent() {
            {activeTab === "users" && (
                 <div className="space-y-4">
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl px-6 text-xs font-bold text-white outline-none focus:border-blue-500/50" placeholder="RECHERCHER UN UTILISATEUR..." />
+                    <button
+                      onClick={() => requireTwoFa(
+                        "Réinitialiser tous les soldes",
+                        "Cette action va remettre le solde de TOUS les utilisateurs à 0. Confirmez avec votre code Google Authenticator.",
+                        () => handleAction(null, "RESET_ALL_BALANCES")
+                      )}
+                      className="w-full h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between px-6 text-red-400 hover:bg-red-500/20 transition-colors active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Wallet size={16} className="shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Réinitialiser tous les soldes</span>
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-widest bg-red-500/20 px-2 py-1 rounded-full border border-red-500/30">Dangereux</span>
+                    </button>
                     {filteredUsers.map(user => (
                         <UserRow key={`user-${user.id}`} user={user}
                             isSelected={selectedUserIds.includes(user.id)}
                             onSelect={() => setSelectedUserIds(prev => prev.includes(user.id) ? prev.filter(i => i !== user.id) : [...prev, user.id])}
                             onUpdateBalance={(a:number) => handleAction(user.id, 'UPDATE_BALANCE', a)}
+                            onResetBalance={() => requireTwoFa(
+                              `Réinitialiser le solde de ${user.username || user.name}`,
+                              `Le solde de ${user.username || user.name} sera remis à 0. Confirmez avec votre code Google Authenticator.`,
+                              () => handleAction(user.id, 'RESET_USER_BALANCE')
+                            )}
                             onAirdrop={() => { const a = prompt("Airdrop (π):"); if(a) handleAction(user.id, 'AIRDROP', parseFloat(a)); }}
                             onBan={() => handleAction(user.id, user.status === 'BANNED' ? 'UNBAN' : 'BAN')}
                             onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, "", [], "", p); }}
@@ -1502,6 +1569,80 @@ function DashboardContent() {
       )}
 
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
+
+      {/* MODAL 2FA — Confirmation Google Authenticator */}
+      {twoFaModal.open && (
+        <div className="fixed inset-0 z-[300] flex items-end justify-center sm:items-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-0">
+              <div className="p-2.5 bg-red-500/10 rounded-2xl text-red-400">
+                <Shield size={20} />
+              </div>
+              <button
+                onClick={() => {
+                  setTwoFaModal({ open: false, pendingAction: null, title: "", description: "" });
+                  setTwoFaCode("");
+                  setTwoFaError("");
+                }}
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-slate-400 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 pt-4 pb-6 space-y-5">
+              <div>
+                <h3 className="text-base font-black text-white uppercase tracking-tight">{twoFaModal.title}</h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 leading-relaxed">{twoFaModal.description}</p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Code Google Authenticator</p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={twoFaCode}
+                  onChange={(e) => {
+                    setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setTwoFaError("");
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && twoFaCode.length === 6) confirmTwoFa(); }}
+                  placeholder="000 000"
+                  autoFocus
+                  className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-900/60 border border-white/10 rounded-2xl py-5 text-white placeholder:text-slate-700 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                />
+                {twoFaError && (
+                  <p className="text-[10px] font-bold text-red-400 text-center">{twoFaError}</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setTwoFaModal({ open: false, pendingAction: null, title: "", description: "" });
+                    setTwoFaCode("");
+                    setTwoFaError("");
+                  }}
+                  className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98]"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={confirmTwoFa}
+                  disabled={twoFaLoading || twoFaCode.length !== 6}
+                  className="flex-1 py-4 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {twoFaLoading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                  Confirmer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

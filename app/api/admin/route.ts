@@ -386,6 +386,58 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      // RÉINITIALISATION SOLDE INDIVIDUEL (un seul utilisateur)
+      case "RESET_USER_BALANCE": {
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.wallet.updateMany({
+          where: { userId },
+          data: { balance: 0 },
+        });
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "Solde Réinitialisé",
+            message: "Votre solde a été réinitialisé à 0 par l'administration.",
+            type: "WARNING"
+          }
+        });
+        break;
+      }
+
+      // RÉINITIALISATION DE TOUS LES SOLDES (tous les utilisateurs)
+      case "RESET_ALL_BALANCES": {
+        const allWalletUsers = await prisma.user.findMany({
+          select: { id: true }
+        });
+
+        if (allWalletUsers.length === 0) {
+          return NextResponse.json({ error: "Aucun utilisateur trouvé" }, { status: 400 });
+        }
+
+        // Remettre tous les wallets à 0
+        await prisma.wallet.updateMany({
+          data: { balance: 0 }
+        });
+
+        // Notifier tous les utilisateurs
+        const notifOps = allWalletUsers.map(u =>
+          prisma.notification.create({
+            data: {
+              userId: u.id,
+              title: "Solde Réinitialisé",
+              message: "Votre solde a été réinitialisé à 0 par l'administration PimPay.",
+              type: "WARNING"
+            }
+          })
+        );
+        await prisma.$transaction(notifOps);
+
+        return NextResponse.json({
+          success: true,
+          message: `Soldes de ${allWalletUsers.length} utilisateurs réinitialisés à 0`
+        });
+      }
+
       default:
         return NextResponse.json({ error: `Action '${action}' non supportée` }, { status: 400 });
     }
