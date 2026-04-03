@@ -1,8 +1,22 @@
 "use client";
 
-import { Bell, Check, Info, AlertTriangle, X, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
+
+interface NotificationMetadata {
+  amount?: number;
+  currency?: string;
+  fromAmount?: number;
+  toAmount?: number;
+  fromCurrency?: string;
+  toCurrency?: string;
+  location?: string;
+  reference?: string;
+  method?: string;
+  fee?: number;
+  network?: string;
+}
 
 interface Notification {
   id: string;
@@ -11,33 +25,88 @@ interface Notification {
   type: string;
   read: boolean;
   createdAt: string;
+  metadata?: NotificationMetadata;
+}
+
+// Helper pour afficher un toast enrichi selon le type de notification
+function showNotificationToast(notif: Notification) {
+  const meta = notif.metadata;
+  
+  if (notif.type === "SUCCESS" || notif.type === "PAYMENT_RECEIVED") {
+    toast.success(notif.title, {
+      description: meta?.amount 
+        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} credite` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "PAYMENT_SENT") {
+    toast.info(notif.title, {
+      description: meta?.amount 
+        ? `-${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} envoye` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "SWAP") {
+    toast.success(notif.title, {
+      description: meta?.fromAmount && meta?.toAmount 
+        ? `${meta.fromAmount} ${meta.fromCurrency} → ${Number(meta.toAmount).toLocaleString()} ${meta.toCurrency}` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "SECURITY" || notif.type === "LOGIN") {
+    toast.warning(notif.title, {
+      description: meta?.location ? `Connexion depuis ${meta.location}` : notif.message,
+      duration: 8000,
+    });
+  } else {
+    toast(notif.title, { description: notif.message, duration: 5000 });
+  }
 }
 
 export default function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const lastNotifIdRef = useRef<string | null>(null);
+  const isFirstFetch = useRef(true);
 
-  // RÉCUPÉRATION RÉELLE DES NOTIFICATIONS
-  const fetchNotifications = async () => {
+  // RÉCUPÉRATION RÉELLE DES NOTIFICATIONS avec detection de nouvelles
+  const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/notifications');
       const data = await res.json();
-      setNotifications(data);
+      const notifsArray = Array.isArray(data) ? data : [];
+      
+      // Detecter les nouvelles notifications pour afficher un toast instantane
+      if (!isFirstFetch.current && notifsArray.length > 0) {
+        const latestNotif = notifsArray[0];
+        if (lastNotifIdRef.current && latestNotif.id !== lastNotifIdRef.current && !latestNotif.read) {
+          // Nouvelle notification detectee - afficher un toast
+          showNotificationToast(latestNotif);
+        }
+      }
+      
+      // Mettre a jour la reference de la derniere notification
+      if (notifsArray.length > 0) {
+        lastNotifIdRef.current = notifsArray[0].id;
+      }
+      isFirstFetch.current = false;
+      
+      setNotifications(notifsArray);
     } catch (error) {
       console.error("Erreur notifications:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchNotifications();
-    // Optionnel : Polling toutes les 30 secondes pour les nouvelles alertes
-    const interval = setInterval(fetchNotifications, 30000);
+    // Polling rapide (5 secondes) pour des notifications quasi temps reel
+    const interval = setInterval(fetchNotifications, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications]);
 
   const markAsRead = async (id?: string) => {
     try {

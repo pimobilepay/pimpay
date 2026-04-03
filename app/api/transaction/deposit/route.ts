@@ -80,13 +80,24 @@ export async function POST(req: NextRequest) {
       data: { balance: { increment: finalAmount } }
     });
 
-    // 7. Notification de confirmation
+    // 7. Notification de confirmation avec metadonnees completes
     await prisma.notification.create({
       data: {
         userId,
-        title: "Dépôt réussi !",
-        message: `Votre compte a été crédité de ${finalAmount} ${currency}.`,
-        type: "SUCCESS"
+        title: "Depot reussi !",
+        message: `Votre compte a ete credite de ${finalAmount} ${currency}.`,
+        type: "SUCCESS",
+        metadata: JSON.stringify({
+          amount: finalAmount,
+          currency: currency,
+          fee: 0,
+          reference: deposit.reference,
+          transactionId: deposit.id,
+          method: provider || "Depot",
+          status: "SUCCESS",
+          network: provider === "PI" ? "Pi Network" : "Blockchain",
+          blockchainTx: externalRef,
+        }),
       }
     });
 

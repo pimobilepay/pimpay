@@ -65,13 +65,24 @@ export async function POST(request: Request) {
       return transaction;
     }, { maxWait: 10000, timeout: 30000 });
 
-    // Notification de confirmation
+    // Notification de confirmation avec metadonnees completes
     await prisma.notification.create({
       data: {
         userId: user.id,
         title: "Paiement recu !",
         message: `Votre compte a ete credite de ${finalAmount} PI.`,
-        type: "SUCCESS"
+        type: "SUCCESS",
+        metadata: JSON.stringify({
+          amount: finalAmount,
+          currency: "PI",
+          fee: 0,
+          reference: result.reference,
+          transactionId: result.id,
+          method: "Pi Network",
+          status: "SUCCESS",
+          network: "Pi Mainnet",
+          paymentId: paymentId,
+        }),
       }
     });
 

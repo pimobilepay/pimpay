@@ -58,13 +58,23 @@ export async function watchDeposit(paymentId: string) {
         }
       }),
 
-      // C. Notification système
+      // C. Notification systeme avec metadonnees completes
       prisma.notification.create({
         data: {
           userId: wallet.userId,
-          title: "Dépôt Confirmé ! 🚀",
-          message: `Votre compte Pimpay a été crédité de ${paymentData.amount} π.`,
-          type: "info", // Valeur par défaut de ton schéma
+          title: "Depot Pi approuve !",
+          message: `Votre depot de ${paymentData.amount} PI a ete credite automatiquement.`,
+          type: "SUCCESS",
+          metadata: JSON.stringify({
+            amount: parseFloat(paymentData.amount),
+            currency: "PI",
+            fee: 0,
+            reference: paymentId,
+            method: "Pi Network (Blockchain)",
+            status: "SUCCESS",
+            network: "Pi Mainnet",
+            memo: memo,
+          }),
         }
       })
     ]);

@@ -48,6 +48,41 @@ interface Notification {
   };
 }
 
+// Helper pour afficher un toast enrichi selon le type de notification
+function showNotificationToast(notif: Notification) {
+  const meta = notif.metadata;
+  
+  if (notif.type === "SUCCESS" || notif.type === "PAYMENT_RECEIVED") {
+    toast.success(notif.title, {
+      description: meta?.amount 
+        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} credite` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "PAYMENT_SENT") {
+    toast.info(notif.title, {
+      description: meta?.amount 
+        ? `-${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} envoye` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "SWAP") {
+    toast.success(notif.title, {
+      description: meta?.fromAmount && meta?.toAmount 
+        ? `${meta.fromAmount} ${meta.fromCurrency} → ${Number(meta.toAmount).toLocaleString()} ${meta.toCurrency}` 
+        : notif.message,
+      duration: 6000,
+    });
+  } else if (notif.type === "SECURITY" || notif.type === "LOGIN") {
+    toast.warning(notif.title, {
+      description: meta?.location ? `Connexion depuis ${meta.location}` : notif.message,
+      duration: 8000,
+    });
+  } else {
+    toast(notif.title, { description: notif.message, duration: 5000 });
+  }
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -55,6 +90,8 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
+  const lastNotifIdRef = useRef<string | null>(null);
+  const isFirstFetch = useRef(true);
 
   const [activeTab, setActiveTab] = useState<string>("ALL");
 
@@ -70,11 +107,24 @@ export default function NotificationsPage() {
       const data = await res.json();
       
       if (res.ok && isMounted.current) {
-        // CORRECTION : Ton API renvoie directement le tableau de notifications
         const notifsArray = Array.isArray(data) ? data : (data.notifications || []);
-        setNotifications(notifsArray);
         
-        // Calcul manuel du compteur pour être sûr de l'exactitude
+        // Detecter les nouvelles notifications pour afficher un toast instantane
+        if (!isFirstFetch.current && notifsArray.length > 0) {
+          const latestNotif = notifsArray[0];
+          if (lastNotifIdRef.current && latestNotif.id !== lastNotifIdRef.current && !latestNotif.read) {
+            // Nouvelle notification detectee - afficher un toast
+            showNotificationToast(latestNotif);
+          }
+        }
+        
+        // Mettre a jour la reference de la derniere notification
+        if (notifsArray.length > 0) {
+          lastNotifIdRef.current = notifsArray[0].id;
+        }
+        isFirstFetch.current = false;
+        
+        setNotifications(notifsArray);
         const unread = notifsArray.filter((n: Notification) => !n.read).length;
         setUnreadCount(unread);
       }
@@ -91,7 +141,8 @@ export default function NotificationsPage() {
   useEffect(() => {
     isMounted.current = true;
     fetchNotifications();
-    const interval = setInterval(() => fetchNotifications(true), 15000);
+    // Polling rapide (5 secondes) pour des notifications quasi temps reel
+    const interval = setInterval(() => fetchNotifications(true), 5000);
     return () => {
       isMounted.current = false;
       clearInterval(interval);

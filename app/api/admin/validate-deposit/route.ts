@@ -50,13 +50,23 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // C. Créer une notification de succès
+      // C. Créer une notification de succès avec metadonnees completes
       await tx.notification.create({
         data: {
           userId: userId,
-          title: "Dépôt validé !",
-          message: `Votre dépôt de ${finalAmount} π a été crédité sur votre compte.`,
-          type: "SUCCESS"
+          title: "Depot Pi approuve !",
+          message: `Votre depot de ${parseFloat(finalAmount)} PI a ete credite automatiquement.`,
+          type: "SUCCESS",
+          metadata: JSON.stringify({
+            amount: parseFloat(finalAmount),
+            currency: "PI",
+            fee: 0,
+            reference: transaction.reference || `DEP-${transactionId.slice(-8)}`,
+            transactionId: transactionId,
+            method: "Pi Network",
+            status: "SUCCESS",
+            network: "Pi Mainnet",
+          }),
         }
       });
 

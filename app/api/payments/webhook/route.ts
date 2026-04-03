@@ -76,13 +76,28 @@ export async function POST(req: Request) {
         })
       ]);
 
-      // C. Notification utilisateur
+      // C. Notification utilisateur avec metadonnees completes
       await prisma.notification.create({
         data: {
           userId: transaction.fromUserId || transaction.toUserId!,
-          title: "Paiement Reçu",
-          message: `Votre dépôt de ${amountReceived} ${conversion.currency} a été converti en ${conversion.piAmount} PI.`,
-          type: "PAYMENT_SUCCESS"
+          title: "Depot recu !",
+          message: `Votre depot de ${amountReceived} ${conversion.currency} a ete converti en ${conversion.piAmount} PI.`,
+          type: "SUCCESS",
+          metadata: JSON.stringify({
+            amount: conversion.piAmount,
+            currency: "PI",
+            fee: 0,
+            reference: transaction.reference || reference,
+            transactionId: transaction.id,
+            method: `Mobile Money (${conversion.currency})`,
+            status: "SUCCESS",
+            network: "PimPay",
+            fromAmount: amountReceived,
+            fromCurrency: conversion.currency,
+            toAmount: conversion.piAmount,
+            toCurrency: "PI",
+            rate: consensusPrice,
+          }),
         }
       });
 
