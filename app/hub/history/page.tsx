@@ -167,7 +167,7 @@ export default function AgentHistoryPage() {
 
       {/* Transaction Details Modal */}
       <Dialog open={!!selectedTransaction} onOpenChange={() => setSelectedTransaction(null)}>
-        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-md mx-4">
+        <DialogContent className="bg-slate-900 border-white/10 text-white w-[calc(100%-2rem)] max-w-md mx-auto rounded-2xl p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-black flex items-center gap-2">
               <FileText className="h-5 w-5 text-emerald-500" />
@@ -186,36 +186,36 @@ export default function AgentHistoryPage() {
               </div>
 
               {/* Amount */}
-              <div className="text-center py-4 bg-slate-800/50 rounded-2xl">
+              <div className="text-center py-4 bg-slate-800/50 rounded-2xl mx-1">
                 <p className="text-xs text-slate-500 uppercase font-bold mb-1">Montant</p>
-                <p className={`text-3xl font-black ${selectedTransaction.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
+                <p className={`text-2xl sm:text-3xl font-black ${selectedTransaction.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
                   {selectedTransaction.type === "cash-in" ? "+" : "-"}
                   {selectedTransaction.amount.toLocaleString()} {selectedTransaction.currency}
                 </p>
               </div>
 
               {/* Details Grid */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {/* Client */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <User className="h-4 w-4" />
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl mx-1">
+                  <div className="flex items-center gap-2 text-slate-400 min-w-0">
+                    <User className="h-4 w-4 shrink-0" />
                     <span className="text-xs font-bold uppercase">Client</span>
                   </div>
-                  <span className="text-white font-bold">{selectedTransaction.customer}</span>
+                  <span className="text-white font-bold text-sm">{selectedTransaction.customer}</span>
                 </div>
 
                 {/* Reference */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Hash className="h-4 w-4" />
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl mx-1">
+                  <div className="flex items-center gap-2 text-slate-400 min-w-0">
+                    <Hash className="h-4 w-4 shrink-0" />
                     <span className="text-xs font-bold uppercase">Reference</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-mono text-sm">{selectedTransaction.reference}</span>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <span className="text-white font-mono text-xs sm:text-sm">{selectedTransaction.reference}</span>
                     <button 
                       onClick={() => handleCopyReference(selectedTransaction.reference)}
-                      className="p-1 hover:bg-white/10 rounded"
+                      className="p-1 hover:bg-white/10 rounded shrink-0"
                     >
                       {copied ? (
                         <CheckCheck className="h-4 w-4 text-emerald-500" />
@@ -227,27 +227,27 @@ export default function AgentHistoryPage() {
                 </div>
 
                 {/* Date/Time */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <CalendarDays className="h-4 w-4" />
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl mx-1">
+                  <div className="flex items-center gap-2 text-slate-400 min-w-0">
+                    <CalendarDays className="h-4 w-4 shrink-0" />
                     <span className="text-xs font-bold uppercase">Date & Heure</span>
                   </div>
-                  <span className="text-white font-bold">{selectedTransaction.timestamp}</span>
+                  <span className="text-white font-bold text-sm">{selectedTransaction.timestamp}</span>
                 </div>
 
                 {/* Status */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Banknote className="h-4 w-4" />
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl mx-1">
+                  <div className="flex items-center gap-2 text-slate-400 min-w-0">
+                    <Banknote className="h-4 w-4 shrink-0" />
                     <span className="text-xs font-bold uppercase">Statut</span>
                   </div>
                   {getStatusBadge(selectedTransaction.status)}
                 </div>
 
                 {/* Source */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <History className="h-4 w-4" />
+                <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl mx-1">
+                  <div className="flex items-center gap-2 text-slate-400 min-w-0">
+                    <History className="h-4 w-4 shrink-0" />
                     <span className="text-xs font-bold uppercase">Source</span>
                   </div>
                   <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs font-bold">
@@ -259,7 +259,8 @@ export default function AgentHistoryPage() {
               {/* Close Button */}
               <Button 
                 onClick={() => setSelectedTransaction(null)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold mt-4"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold mt-4 mx-1"
+                style={{ width: 'calc(100% - 0.5rem)' }}
               >
                 Fermer
               </Button>
@@ -269,7 +270,7 @@ export default function AgentHistoryPage() {
       </Dialog>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
+      <main className="flex-1 lg:ml-64 px-4 py-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
@@ -348,45 +349,47 @@ export default function AgentHistoryPage() {
               </div>
             ) : (
               <div className="relative">
-                <div className="absolute left-6 top-0 bottom-0 w-px bg-white/10" />
-                <div className="space-y-6">
+                <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-white/10" />
+                <div className="space-y-4 sm:space-y-6">
                   {transactions.map((tx: Transaction) => (
                     <div 
                       key={tx.id} 
-                      className="relative flex gap-4 pl-12 cursor-pointer group"
+                      className="relative flex gap-3 sm:gap-4 pl-8 sm:pl-12 cursor-pointer group"
                       onClick={() => setSelectedTransaction(tx)}
                     >
-                      <div className="absolute left-4 top-2 w-4 h-4 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <div className="absolute left-2 sm:left-4 top-2 w-4 h-4 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       </div>
-                      <div className="flex-1 p-4 rounded-2xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-transparent hover:border-emerald-500/20">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-slate-700 group-hover:bg-slate-600 transition-colors">
+                      <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-transparent hover:border-emerald-500/20">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                            <div className="p-1.5 sm:p-2 rounded-xl bg-slate-700 group-hover:bg-slate-600 transition-colors shrink-0">
                               {getTypeIcon(tx.type)}
                             </div>
-                            <div>
-                              <p className="text-white font-bold">
+                            <div className="min-w-0">
+                              <p className="text-white font-bold text-sm sm:text-base">
                                 {getTypeName(tx.type)}
                               </p>
-                              <p className="text-sm text-slate-400">{tx.customer}</p>
+                              <p className="text-xs sm:text-sm text-slate-400 truncate">{tx.customer}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className={`font-bold ${tx.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
+                          <div className="text-right shrink-0">
+                            <p className={`font-bold text-sm sm:text-base ${tx.type === "cash-in" ? "text-emerald-500" : "text-white"}`}>
                               {tx.type === "cash-in" ? "+" : "-"}{tx.amount.toLocaleString()} {tx.currency}
                             </p>
-                            <p className="text-xs text-slate-500">{tx.timestamp}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-500">{tx.timestamp}</p>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-mono">{tx.reference}</span>
-                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold">
+                        <div className="flex items-center justify-between mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-white/5 gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <span className="text-[10px] sm:text-xs text-slate-500 font-mono truncate">{tx.reference}</span>
+                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[8px] sm:text-[9px] font-bold shrink-0">
                               HUB
                             </Badge>
                           </div>
-                          {getStatusBadge(tx.status)}
+                          <div className="shrink-0">
+                            {getStatusBadge(tx.status)}
+                          </div>
                         </div>
                         <p className="text-[10px] text-slate-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           Cliquez pour voir les details
