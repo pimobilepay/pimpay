@@ -243,6 +243,7 @@ function DashboardContent() {
   const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
   const [serverStats, setServerStats] = useState<ServerStats>(null);
   const [roleModalUser, setRoleModalUser] = useState<LedgerUser | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ user: LedgerUser; role: string } | null>(null);
   const [maintModalUser, setMaintModalUser] = useState<LedgerUser | null>(null);
   const [maintDate, setMaintDate] = useState("");
   const [maintTime, setMaintTime] = useState("");
@@ -610,7 +611,11 @@ function DashboardContent() {
                         <UserRow key={`user-${user.id}`} user={user}
                             isSelected={selectedUserIds.includes(user.id)}
                             onSelect={() => setSelectedUserIds(prev => prev.includes(user.id) ? prev.filter(i => i !== user.id) : [...prev, user.id])}
-                            onUpdateBalance={(a:number) => handleAction(user.id, 'UPDATE_BALANCE', a)}
+                            onUpdateBalance={(a:number) => requireTwoFa(
+                              `Ajuster le solde de ${user.username || user.name}`,
+                              `Le solde sera ajusté de ${a > 0 ? '+' : ''}${a} π. Confirmez avec votre code Google Authenticator.`,
+                              () => handleAction(user.id, 'UPDATE_BALANCE', a)
+                            )}
                             onResetBalance={() => requireTwoFa(
                               `Réinitialiser le solde de ${user.username || user.name}`,
                               `Le solde de ${user.username || user.name} sera remis à 0. Confirmez avec votre code Google Authenticator.`,
@@ -904,6 +909,47 @@ function DashboardContent() {
                         </div>
                         <ChevronRight size={20} className="text-blue-500 group-hover:translate-x-1 transition-transform" />
                     </Card>
+
+                    {/* Actions Rapides - Liens vers autres pages */}
+                    <div className="pt-4">
+                      <p className="text-[9px] font-black uppercase text-slate-500 mb-3 tracking-widest">Actions Rapides</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        
+                        <Card onClick={() => router.push('/hub')} className="bg-amber-500/10 border border-amber-500/20 rounded-[2rem] p-5 cursor-pointer hover:bg-amber-500/20 transition-all flex items-center justify-between group">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-amber-500 rounded-2xl text-white"><SmartphoneNfc size={18} /></div>
+                            <div>
+                              <p className="text-[10px] font-black text-white uppercase">PimPay Hub</p>
+                              <p className="text-[8px] font-bold text-amber-400 uppercase">Gestion des Agents</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} className="text-amber-500 group-hover:translate-x-1 transition-transform" />
+                        </Card>
+
+                        <Card onClick={() => router.push('/admin/rescue')} className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-5 cursor-pointer hover:bg-red-500/20 transition-all flex items-center justify-between group">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-red-500 rounded-2xl text-white"><Flame size={18} /></div>
+                            <div>
+                              <p className="text-[10px] font-black text-white uppercase">Rescue</p>
+                              <p className="text-[8px] font-bold text-red-400 uppercase">Recovery & Emergency Tools</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} className="text-red-500 group-hover:translate-x-1 transition-transform" />
+                        </Card>
+
+                        <Card onClick={() => router.push('/admin/messages')} className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] p-5 cursor-pointer hover:bg-emerald-500/20 transition-all flex items-center justify-between group">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-emerald-500 rounded-2xl text-white"><Send size={18} /></div>
+                            <div>
+                              <p className="text-[10px] font-black text-white uppercase">Messages</p>
+                              <p className="text-[8px] font-bold text-emerald-400 uppercase">Communication Utilisateurs</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} className="text-emerald-500 group-hover:translate-x-1 transition-transform" />
+                        </Card>
+
+                      </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -1150,9 +1196,13 @@ function DashboardContent() {
     return (
       <button
         key={role}
-        onClick={async () => {
-          await handleAction(roleModalUser.id, "SET_ROLE", 0, role);
+        onClick={() => {
           setRoleModalUser(null);
+          requireTwoFa(
+            `Changer le rôle de ${roleModalUser.username || roleModalUser.name}`,
+            `Le rôle sera changé de ${roleModalUser.role} vers ${role}. Confirmez avec votre code Google Authenticator.`,
+            () => handleAction(roleModalUser.id, "SET_ROLE", 0, role)
+          );
         }}
         className={`p-4 rounded-2xl border text-center transition-all active:scale-95 ${
           isActive
