@@ -66,7 +66,7 @@ export default function AgentHistoryPage() {
 
   // Filter to only show hub transactions (transactions initiated by the agent)
   const allTransactions = data?.recentTransactions || [];
-  const transactions = allTransactions.filter((tx: Transaction) =>
+  const transactions = allTransactions.filter((tx: Transaction) => 
     tx.source === "hub" || tx.type === "cash-in" || tx.type === "cash-out"
   );
 
@@ -174,7 +174,7 @@ export default function AgentHistoryPage() {
               Details de la transaction
             </DialogTitle>
           </DialogHeader>
-
+          
           {selectedTransaction && (
             <div className="space-y-4 mt-4">
               {/* Type Badge */}
@@ -213,7 +213,7 @@ export default function AgentHistoryPage() {
                   </div>
                   <div className="flex items-center gap-1 sm:gap-2">
                     <span className="text-white font-mono text-xs sm:text-sm">{selectedTransaction.reference}</span>
-                    <button
+                    <button 
                       onClick={() => handleCopyReference(selectedTransaction.reference)}
                       className="p-1 hover:bg-white/10 rounded shrink-0"
                     >
@@ -257,7 +257,7 @@ export default function AgentHistoryPage() {
               </div>
 
               {/* Close Button */}
-              <Button
+              <Button 
                 onClick={() => setSelectedTransaction(null)}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold mt-4 mx-1"
                 style={{ width: 'calc(100% - 0.5rem)' }}
@@ -319,7 +319,7 @@ export default function AgentHistoryPage() {
         </div>
 
         {/* Info Badge */}
-        <div className="mb-6">
+        <div className="mb-5">
           <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs font-bold">
             <History className="h-3 w-3 mr-1" />
             Affichage: Transactions Hub uniquement (Cash-In/Cash-Out)
@@ -351,9 +351,9 @@ export default function AgentHistoryPage() {
               <div className="relative">
                 <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-white/10" />
                 <div className="space-y-4 sm:space-y-6">
-                  {transactions.map((tx: Transaction, index: number) => (
-                    <div
-                      key={`${tx.id}-${index}`}
+                  {transactions.map((tx: Transaction) => (
+                    <div 
+                      key={tx.id} 
                       className="relative flex gap-3 sm:gap-4 pl-8 sm:pl-12 cursor-pointer group"
                       onClick={() => setSelectedTransaction(tx)}
                     >
