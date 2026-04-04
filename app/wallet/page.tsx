@@ -155,6 +155,7 @@ export default function WalletPage() {
   const [copied, setCopied] = useState(false);
   const [recentTx, setRecentTx] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"assets" | "history">("assets");
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("Pioneer");
   const [piBalance, setPiBalance] = useState("0.00000000");
@@ -408,7 +409,7 @@ export default function WalletPage() {
               if (tx.type === "EXCHANGE" || tx.type === "SWAP") { txType = t("wallet.swapLabel"); TxIcon = ArrowLeftRight; iconBg = "bg-blue-500/10"; iconColor = "text-blue-400"; amountPrefix = ""; }
               else if (tx.isDebit === false) { txType = tx.type === "DEPOSIT" ? t("wallet.depositLabel") : t("wallet.received"); TxIcon = ArrowDownLeft; iconBg = "bg-emerald-500/10"; iconColor = "text-emerald-400"; amountPrefix = "+"; amountColor = "text-emerald-400"; }
               return (
-                <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer" onClick={() => { const hash = tx.blockchainTx || tx.externalId; if (hash) { const url = tx.currency === 'SDA' ? `https://ledger.sidrachain.com/tx/${hash}` : `https://blockexplorer.minepi.com/tx/${hash}`; window.open(url, '_blank'); } }}>
+                <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]" onClick={() => setSelectedTransaction({ ...tx, txType, TxIcon, iconBg, iconColor, amountPrefix, amountColor, txDate })}>
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}><TxIcon size={18} className={iconColor} /></div>
                     <div>
@@ -465,6 +466,115 @@ export default function WalletPage() {
         </div>
       )}
       <SendModal isOpen={isSendOpen} onClose={() => setIsSendOpen(false)} balance={sdaBalance} onRefresh={loadWalletData} />
+      
+      {/* Transaction Detail Modal */}
+      {selectedTransaction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+          <div className="bg-[#0a0f1a] w-full max-w-sm rounded-3xl border border-white/10 overflow-hidden relative">
+            {/* Header */}
+            <div className="relative p-6 pb-8 text-center border-b border-white/5">
+              <button onClick={() => setSelectedTransaction(null)} className="absolute top-4 right-4 p-2 text-slate-500 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+              <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${selectedTransaction.iconBg}`}>
+                <selectedTransaction.TxIcon size={28} className={selectedTransaction.iconColor} />
+              </div>
+              <p className={`text-2xl font-black tracking-tight ${selectedTransaction.amountColor}`}>
+                {selectedTransaction.amountPrefix}{selectedTransaction.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} {selectedTransaction.currency}
+              </p>
+              <p className="text-[11px] font-bold text-slate-500 uppercase mt-1">{selectedTransaction.txType}</p>
+            </div>
+            
+            {/* Details */}
+            <div className="p-5 space-y-3">
+              <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Statut</span>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${selectedTransaction.status === 'SUCCESS' ? 'bg-emerald-500' : selectedTransaction.status === 'FAILED' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                  <span className={`text-[11px] font-black uppercase ${selectedTransaction.status === 'SUCCESS' ? 'text-emerald-400' : selectedTransaction.status === 'FAILED' ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {selectedTransaction.status === 'SUCCESS' ? 'Confirmé' : selectedTransaction.status === 'FAILED' ? 'Échoué' : 'En attente'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Date</span>
+                <span className="text-[11px] font-bold text-white">{selectedTransaction.txDate}</span>
+              </div>
+              
+              <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Type</span>
+                <span className="text-[11px] font-bold text-white uppercase">{selectedTransaction.type || selectedTransaction.txType}</span>
+              </div>
+              
+              <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Devise</span>
+                <span className="text-[11px] font-bold text-white">{selectedTransaction.currency}</span>
+              </div>
+              
+              {selectedTransaction.fee !== undefined && selectedTransaction.fee > 0 && (
+                <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Frais</span>
+                  <span className="text-[11px] font-bold text-white">{selectedTransaction.fee} {selectedTransaction.currency}</span>
+                </div>
+              )}
+              
+              {(selectedTransaction.blockchainTx || selectedTransaction.externalId) && (
+                <div className="p-3 bg-white/[0.03] rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block mb-2">ID Transaction</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-400 truncate flex-1">
+                      {selectedTransaction.blockchainTx || selectedTransaction.externalId}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedTransaction.blockchainTx || selectedTransaction.externalId);
+                        toast.success("ID copié");
+                      }}
+                      className="p-1.5 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      <Copy size={12} className="text-blue-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {selectedTransaction.description && (
+                <div className="p-3 bg-white/[0.03] rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Description</span>
+                  <span className="text-[11px] font-medium text-slate-300">{selectedTransaction.description}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Actions */}
+            <div className="p-5 pt-0 space-y-2">
+              {(selectedTransaction.blockchainTx || selectedTransaction.externalId) && (
+                <button
+                  onClick={() => {
+                    const hash = selectedTransaction.blockchainTx || selectedTransaction.externalId;
+                    const url = selectedTransaction.currency === 'SDA' 
+                      ? `https://ledger.sidrachain.com/tx/${hash}` 
+                      : `https://blockexplorer.minepi.com/tx/${hash}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase tracking-wide rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <ArrowUpRight size={14} />
+                  Voir sur l&apos;explorateur
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedTransaction(null)}
+                className="w-full py-3.5 bg-white/5 hover:bg-white/10 text-slate-400 text-[11px] font-black uppercase tracking-wide rounded-xl transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
     </div>
   );

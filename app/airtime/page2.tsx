@@ -169,37 +169,24 @@ export default function RechargePage() {
         {/* OPERATORS */}
         <section className="space-y-3">
           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Operateur</label>
-          {(selectedCountry?.operators || []).length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
-              {(selectedCountry?.operators || []).map((op) => (
-                <button
-                  key={op.id}
-                  onClick={() => setSelectedOperator(op.name)}
-                  className={`p-4 rounded-2xl border transition-all flex items-center gap-3 active:scale-95 ${
-                    op.name === selectedOperator
-                      ? "bg-blue-600/10 border-blue-500/30"
-                      : "bg-white/[0.03] border-white/5 hover:border-white/10"
-                  }`}
-                >
-                  <img
-                    src={op.icon}
-                    alt={op.name}
-                    className="w-8 h-8 rounded-lg object-contain bg-white/10 p-1"
-                    crossOrigin="anonymous"
-                  />
-                  <div className="text-left">
-                    <span className="text-[10px] font-black uppercase block">{op.name}</span>
-                    <span className="text-[7px] font-bold text-emerald-500 uppercase">Airtime</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
-              <Loader2 size={16} className="text-amber-400" />
-              <p className="text-[10px] font-bold text-amber-400">Aucun opérateur disponible pour ce pays</p>
-            </div>
-          )}
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+            {(selectedCountry?.operators || []).map((op) => (
+              <button
+                key={op.id}
+                onClick={() => setSelectedOperator(op.name)}
+                className={`flex-shrink-0 flex items-center gap-3 p-3 pr-5 rounded-2xl border transition-all active:scale-95 ${
+                  op.name === selectedOperator
+                    ? "bg-blue-600 border-blue-400 shadow-lg shadow-blue-600/20"
+                    : "bg-white/[0.03] border-white/5"
+                }`}
+              >
+                <div className="w-9 h-9 rounded-xl overflow-hidden bg-white/10 flex-shrink-0">
+                  <img src={op.icon} alt={op.name} className="w-full h-full object-cover" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-tighter whitespace-nowrap">{op.name}</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         {/* FORM */}
