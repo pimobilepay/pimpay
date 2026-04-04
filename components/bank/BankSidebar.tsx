@@ -19,14 +19,20 @@ import {
   Lock,
   Users,
   AlertTriangle,
+  Wallet,
+  HandCoins,
+  ClipboardList,
 } from "lucide-react";
 
 const navItems = [
   { href: "/bank", label: "Vue d'ensemble", icon: LayoutDashboard },
+  { href: "/bank/accounts", label: "Comptes Bancaires", icon: Wallet },
+  { href: "/bank/loans", label: "Prets et Credits", icon: HandCoins },
   { href: "/bank/liquidity", label: "Liquidite", icon: TrendingUp },
   { href: "/bank/compliance", label: "Conformite", icon: Shield },
   { href: "/bank/interbank", label: "Flux Interbancaires", icon: ArrowLeftRight },
   { href: "/bank/reports", label: "Rapports", icon: FileBarChart },
+  { href: "/bank/audit", label: "Audit & Journal", icon: ClipboardList },
   { href: "/bank/alerts", label: "Alertes", icon: AlertTriangle },
   { href: "/bank/users", label: "Utilisateurs", icon: Users },
   { href: "/bank/messages", label: "Messagerie", icon: MessageSquare },
