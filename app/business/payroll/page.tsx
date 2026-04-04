@@ -65,7 +65,11 @@ import {
   History,
   TrendingUp,
   Loader2,
+  Banknote,
+  User,
+  Briefcase,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // Types
 interface Employee {
@@ -257,8 +261,9 @@ export default function PayrollPage() {
       resetAddForm();
       setAddEmployeeOpen(false);
       await fetchPayrollData();
+      toast.success("Employe ajoute avec succes");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de l'ajout de l'employe");
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout de l'employe");
     } finally {
       setAddingEmployee(false);
     }
@@ -300,8 +305,9 @@ export default function PayrollPage() {
       if (!res.ok) throw new Error(result.error || "Erreur");
       setEditOpen(false);
       await fetchPayrollData();
+      toast.success("Employe modifie avec succes");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de la modification");
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la modification");
     } finally {
       setSavingEdit(false);
     }
@@ -327,8 +333,9 @@ export default function PayrollPage() {
       if (!res.ok) throw new Error(result.error || "Erreur");
       setDeleteOpen(false);
       await fetchPayrollData();
+      toast.success("Employe supprime avec succes");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de la suppression");
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la suppression");
     } finally {
       setDeletingEmployee(false);
     }
@@ -356,6 +363,16 @@ export default function PayrollPage() {
     fetchPayrollData();
   }, [fetchPayrollData]);
 
+  // State for payroll success dialog
+  const [payrollSuccess, setPayrollSuccess] = useState<{
+    show: boolean;
+    reference: string;
+    amount: number;
+    successCount: number;
+    pendingCount: number;
+    employees: Array<{ name: string; amount: number; status: string }>;
+  } | null>(null);
+
   // Process payroll payment
   const processPayroll = async () => {
     if (selectedEmployees.length === 0) return;
@@ -363,7 +380,7 @@ export default function PayrollPage() {
     // Only pay employees with salary > 0
     const employeesToPay = employees.filter(e => selectedEmployees.includes(e.id) && (e.salary || 0) > 0);
     if (employeesToPay.length === 0) {
-      alert("Aucun employe selectionne n'a de salaire defini");
+      toast.error("Aucun employe selectionne n'a de salaire defini");
       return;
     }
 
@@ -383,11 +400,69 @@ export default function PayrollPage() {
       await fetchPayrollData();
       setSelectedEmployees([]);
       
-      // Show detailed result
-      const { successCount, pendingCount, amount, reference, message } = result.data;
-      alert(`${message}\n\nReference: ${reference}\nMontant total: $${amount.toFixed(2)}`);
+      // Show detailed result with custom toast
+      const { successCount, pendingCount, amount, reference, employees: paidEmployees } = result.data;
+      
+      // Show success toast with detailed info
+      toast.custom((t) => (
+        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-2xl max-w-sm w-full">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-emerald-500/20 rounded-xl">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black text-white">Paiement effectue !</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {successCount} paiement(s) reussi(s){pendingCount > 0 ? `, ${pendingCount} en attente` : ""}
+              </p>
+              <div className="mt-3 p-3 bg-white/5 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Reference</span>
+                  <span className="text-xs font-mono text-slate-300">{reference}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Montant Total</span>
+                  <span className="text-sm font-black text-emerald-400">${amount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Employes</span>
+                  <span className="text-xs font-bold text-white">{paidEmployees.length}</span>
+                </div>
+              </div>
+              {paidEmployees.length > 0 && paidEmployees.length <= 3 && (
+                <div className="mt-2 space-y-1">
+                  {paidEmployees.map((emp: { name: string; amount: number; status: string }, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 truncate">{emp.name}</span>
+                      <span className={emp.status === "SUCCESS" ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                        ${emp.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <button 
+            onClick={() => toast.dismiss(t)}
+            className="absolute top-2 right-2 p-1 rounded-lg hover:bg-white/10 text-slate-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ), { duration: 8000 });
+
+      // Also show success dialog for more details
+      setPayrollSuccess({
+        show: true,
+        reference,
+        amount,
+        successCount,
+        pendingCount,
+        employees: paidEmployees,
+      });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors du paiement");
+      toast.error(err instanceof Error ? err.message : "Erreur lors du paiement");
     } finally {
       setProcessing(false);
     }
@@ -1178,6 +1253,116 @@ export default function PayrollPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Payroll Success Dialog */}
+      <Dialog open={payrollSuccess?.show || false} onOpenChange={(open) => !open && setPayrollSuccess(null)}>
+        <DialogContent className="bg-slate-900 border-emerald-500/30 max-w-md">
+          <DialogHeader className="text-center">
+            <div className="mx-auto mb-4 relative">
+              <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full" />
+              <div className="relative bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-3xl">
+                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+              </div>
+            </div>
+            <DialogTitle className="text-xl font-black text-white uppercase tracking-tight">
+              Paiement Effectue !
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Les salaires ont ete envoyes avec succes
+            </DialogDescription>
+          </DialogHeader>
+
+          {payrollSuccess && (
+            <div className="space-y-4 py-2">
+              {/* Summary Card */}
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Reference</span>
+                  <span className="text-xs font-mono text-slate-300">{payrollSuccess.reference}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Montant Total</span>
+                  <span className="text-lg font-black text-emerald-400">${payrollSuccess.amount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Statut</span>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">
+                      {payrollSuccess.successCount} Reussi(s)
+                    </Badge>
+                    {payrollSuccess.pendingCount > 0 && (
+                      <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">
+                        {payrollSuccess.pendingCount} En attente
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Employee List */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Employes payes</p>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                  {payrollSuccess.employees.map((emp, i) => (
+                    <div 
+                      key={i} 
+                      className={`flex items-center justify-between p-3 rounded-xl border ${
+                        emp.status === "SUCCESS" 
+                          ? "bg-emerald-500/5 border-emerald-500/20" 
+                          : "bg-amber-500/5 border-amber-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${
+                          emp.status === "SUCCESS" ? "bg-emerald-500/20" : "bg-amber-500/20"
+                        }`}>
+                          <User className={`h-3.5 w-3.5 ${
+                            emp.status === "SUCCESS" ? "text-emerald-500" : "text-amber-500"
+                          }`} />
+                        </div>
+                        <span className="text-sm font-bold text-white">{emp.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-black ${
+                          emp.status === "SUCCESS" ? "text-emerald-400" : "text-amber-400"
+                        }`}>
+                          ${emp.amount.toLocaleString()}
+                        </span>
+                        {emp.status === "SUCCESS" ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <Clock className="h-4 w-4 text-amber-500" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {payrollSuccess.pendingCount > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-200">
+                      {payrollSuccess.pendingCount} employe(s) n&apos;ont pas de compte PimPay lie. 
+                      Les fonds sont reserves et seront credites une fois leur compte connecte.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              className="w-full bg-emerald-500 hover:bg-emerald-600 font-bold"
+              onClick={() => setPayrollSuccess(null)}
+            >
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

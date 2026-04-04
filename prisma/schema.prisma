@@ -9,13 +9,13 @@ datasource db {
 }
 
 model User {
-  id                   String          @id @default(cuid())
-  phone                String?         @unique
-  email                String?         @unique
-  username             String?         @unique
+  id                   String           @id @default(cuid())
+  phone                String?          @unique
+  email                String?          @unique
+  username             String?          @unique
   password             String?
   pin                  String?
-  refreshToken         String?         @unique
+  refreshToken         String?          @unique
   firstName            String?
   lastName             String?
   name                 String?
@@ -36,23 +36,23 @@ model User {
   kycSubmittedAt       DateTime?
   kycVerifiedAt        DateTime?
   kycReason            String?
-  referralCode         String?         @unique @default(cuid())
+  referralCode         String?          @unique @default(cuid())
   referredById         String?
-  dailyLimit           Float           @default(1000)
-  monthlyLimit         Float           @default(10000)
-  role                 UserRole        @default(USER)
-  kycStatus            KycStatus       @default(NONE)
-  status               UserStatus      @default(ACTIVE)
-  autoApprove          Boolean         @default(false)
-  twoFactorEnabled     Boolean         @default(false)
+  dailyLimit           Float            @default(1000)
+  monthlyLimit         Float            @default(10000)
+  role                 UserRole         @default(USER)
+  kycStatus            KycStatus        @default(NONE)
+  status               UserStatus       @default(ACTIVE)
+  autoApprove          Boolean          @default(false)
+  twoFactorEnabled     Boolean          @default(false)
   twoFactorSecret      String?
-  failedLoginAttempts  Int             @default(0)
+  failedLoginAttempts  Int              @default(0)
   lastLoginAt          DateTime?
   lastLoginIp          String?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  walletAddress        String?         @unique
-  piUserId             String?         @unique
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  walletAddress        String?          @unique
+  piUserId             String?          @unique
   countryOfBirth       String?
   gender               String?
   idCountry            String?
@@ -64,41 +64,41 @@ model User {
   occupation           String?
   postalCode           String?
   provinceState        String?
-  sidraAddress         String?         @unique
+  sidraAddress         String?          @unique
   sidraPrivateKey      String?
   stellarPrivateKey    String?
   walletPrivateKey     String?
-  xlmAddress           String?         @unique
-  xrpAddress           String?         @unique
+  xlmAddress           String?          @unique
+  xrpAddress           String?          @unique
   xrpPrivateKey        String?
-  usdtAddress          String?         @unique
+  usdtAddress          String?          @unique
   usdtPrivateKey       String?
-  solAddress           String?         @unique
+  solAddress           String?          @unique
   solPrivateKey        String?
-  auditLogs            AuditLog[]      @relation("admin_actions")
-  targetLogs           AuditLog[]      @relation("target_user")
+  auditLogs            AuditLog[]       @relation("admin_actions")
+  targetLogs           AuditLog[]       @relation("target_user")
   beneficiaries        Beneficiary[]
-  merchantProfile      Merchant?       @relation("user_merchant")
+  creditScore          CreditScore?
+  loans                Loan[]
+  merchantProfile      Merchant?        @relation("user_merchant")
   notifications        Notification[]
-  p2pContactsAsContact P2PContact[]    @relation("contact_user")
-  p2pContactsOwned     P2PContact[]    @relation("contact_owner")
+  p2pContactsAsContact P2PContact[]     @relation("contact_user")
+  p2pContactsOwned     P2PContact[]     @relation("contact_owner")
   qrPayments           QRPayment[]
+  savingsAccounts      SavingsAccount[]
   securityLogs         SecurityLog[]
   sessions             Session[]
   stakings             Staking[]
   supportTickets       SupportTicket[]
   swapQuotes           SwapQuote[]
-  transactionsFrom     Transaction[]   @relation("tx_from_user")
-  transactionsTo       Transaction[]   @relation("tx_to_user")
-  referredBy           User?           @relation("Referrals", fields: [referredById], references: [id])
-  referrals            User[]          @relation("Referrals")
+  transactionsFrom     Transaction[]    @relation("tx_from_user")
+  transactionsTo       Transaction[]    @relation("tx_to_user")
+  referredBy           User?            @relation("Referrals", fields: [referredById], references: [id])
+  referrals            User[]           @relation("Referrals")
   userActivities       UserActivity[]
   vaults               Vault[]
   virtualCards         VirtualCard[]
   wallets              Wallet[]
-  loans                Loan[]
-  savingsAccounts      SavingsAccount[]
-  creditScore          CreditScore?
 }
 
 model P2PContact {
@@ -545,6 +545,104 @@ model BusinessInvoice {
   Business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model Loan {
+  id               String        @id @default(cuid())
+  reference        String        @unique
+  userId           String
+  type             LoanType      @default(PERSONAL)
+  amount           Float
+  interestRate     Float         @default(12.0)
+  term             Int
+  monthlyPayment   Float
+  totalPaid        Float         @default(0)
+  remainingBalance Float
+  status           LoanStatus    @default(PENDING)
+  purpose          String?
+  collateral       String?
+  guarantorName    String?
+  guarantorPhone   String?
+  guarantorAddress String?
+  creditScore      Int?
+  riskLevel        RiskLevel     @default(MEDIUM)
+  disbursedAt      DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  rejectedAt       DateTime?
+  rejectedReason   String?
+  nextPaymentDate  DateTime?
+  lastPaymentDate  DateTime?
+  missedPayments   Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments         LoanPayment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([reference])
+}
+
+model LoanPayment {
+  id            String        @id @default(cuid())
+  loanId        String
+  amount        Float
+  principal     Float
+  interest      Float
+  penalty       Float         @default(0)
+  status        PaymentStatus @default(PENDING)
+  dueDate       DateTime
+  paidAt        DateTime?
+  transactionId String?
+  createdAt     DateTime      @default(now())
+  loan          Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([dueDate])
+}
+
+model SavingsAccount {
+  id            String        @id @default(cuid())
+  userId        String
+  accountNumber String        @unique
+  type          SavingsType   @default(REGULAR)
+  balance       Float         @default(0)
+  interestRate  Float         @default(3.5)
+  currency      String        @default("XAF")
+  maturityDate  DateTime?
+  status        SavingsStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accountNumber])
+}
+
+model InterestRate {
+  id          String   @id @default(cuid())
+  type        String
+  minRate     Float
+  maxRate     Float
+  defaultRate Float
+  currency    String   @default("XAF")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CreditScore {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  score            Int       @default(500)
+  riskLevel        RiskLevel @default(MEDIUM)
+  lastCalculatedAt DateTime  @default(now())
+  factors          Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 enum CardType {
   CLASSIC
   GOLD
@@ -658,109 +756,6 @@ enum LogLevel {
   WARN
   ERROR
   FATAL
-}
-
-// ============= LOAN MANAGEMENT =============
-
-model Loan {
-  id               String          @id @default(cuid())
-  reference        String          @unique
-  userId           String
-  type             LoanType        @default(PERSONAL)
-  amount           Float
-  interestRate     Float           @default(12.0)
-  term             Int             // Duration in months
-  monthlyPayment   Float
-  totalPaid        Float           @default(0)
-  remainingBalance Float
-  status           LoanStatus      @default(PENDING)
-  purpose          String?
-  collateral       String?
-  guarantorName    String?
-  guarantorPhone   String?
-  guarantorAddress String?
-  creditScore      Int?
-  riskLevel        RiskLevel       @default(MEDIUM)
-  disbursedAt      DateTime?
-  approvedAt       DateTime?
-  approvedBy       String?
-  rejectedAt       DateTime?
-  rejectedReason   String?
-  nextPaymentDate  DateTime?
-  lastPaymentDate  DateTime?
-  missedPayments   Int             @default(0)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments         LoanPayment[]
-
-  @@index([userId])
-  @@index([status])
-  @@index([type])
-  @@index([reference])
-}
-
-model LoanPayment {
-  id            String        @id @default(cuid())
-  loanId        String
-  amount        Float
-  principal     Float
-  interest      Float
-  penalty       Float         @default(0)
-  status        PaymentStatus @default(PENDING)
-  dueDate       DateTime
-  paidAt        DateTime?
-  transactionId String?
-  createdAt     DateTime      @default(now())
-  loan          Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
-
-  @@index([loanId])
-  @@index([dueDate])
-}
-
-// Savings and Fixed Deposits for Financial Institutions
-model SavingsAccount {
-  id            String            @id @default(cuid())
-  userId        String
-  accountNumber String            @unique
-  type          SavingsType       @default(REGULAR)
-  balance       Float             @default(0)
-  interestRate  Float             @default(3.5)
-  currency      String            @default("XAF")
-  maturityDate  DateTime?
-  status        SavingsStatus     @default(ACTIVE)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([accountNumber])
-}
-
-// Interest Rate Configuration
-model InterestRate {
-  id          String   @id @default(cuid())
-  type        String   // LOAN_PERSONAL, LOAN_BUSINESS, SAVINGS_REGULAR, etc.
-  minRate     Float
-  maxRate     Float
-  defaultRate Float
-  currency    String   @default("XAF")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-// Credit Scoring
-model CreditScore {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  score            Int      @default(500)
-  riskLevel        RiskLevel @default(MEDIUM)
-  lastCalculatedAt DateTime @default(now())
-  factors          Json?    // Payment history, debt ratio, etc.
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum LoanType {

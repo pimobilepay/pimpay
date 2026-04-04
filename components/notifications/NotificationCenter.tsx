@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
+import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat, Banknote, DollarSign } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,16 @@ interface NotificationMetadata {
   method?: string;
   fee?: number;
   network?: string;
+  // Salary specific
+  senderName?: string;
+  businessId?: string;
+  position?: string;
+  paymentDate?: string;
+  employeeCount?: number;
+  successCount?: number;
+  pendingCount?: number;
+  type?: string;
+  status?: string;
 }
 
 interface Notification {
@@ -52,6 +62,22 @@ function showNotificationToast(notif: Notification) {
         ? `${meta.fromAmount} ${meta.fromCurrency} → ${Number(meta.toAmount).toLocaleString()} ${meta.toCurrency}` 
         : notif.message,
       duration: 6000,
+    });
+  } else if (notif.type === "SALARY" || meta?.type === "SALARY") {
+    // Notification de salaire recu
+    toast.success(notif.title, {
+      description: meta?.amount && meta?.senderName 
+        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"} de ${meta.senderName}` 
+        : notif.message,
+      duration: 8000,
+    });
+  } else if (meta?.type === "SALARY_BATCH") {
+    // Notification de paiement salaires envoye (business)
+    toast.success(notif.title, {
+      description: meta?.employeeCount 
+        ? `${meta.employeeCount} employe(s) payes pour ${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"}` 
+        : notif.message,
+      duration: 8000,
     });
   } else if (notif.type === "SECURITY" || notif.type === "LOGIN") {
     toast.warning(notif.title, {
@@ -161,10 +187,19 @@ export default function NotificationCenter() {
                   {!n.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />}
                   <div className="flex gap-3">
                     <div className={`p-2 rounded-lg h-fit ${
-                      n.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 
-                      n.type === 'error' ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-500'
+                      n.type === 'success' || n.type === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' : 
+                      n.type === 'error' ? 'bg-rose-500/10 text-rose-500' : 
+                      n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? 'bg-emerald-500/10 text-emerald-500' :
+                      n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? 'bg-amber-500/10 text-amber-500' :
+                      n.type === 'SWAP' ? 'bg-blue-500/10 text-blue-500' :
+                      'bg-blue-500/10 text-blue-500'
                     }`}>
-                      {n.type === 'success' ? <Check size={14} /> : n.type === 'error' ? <AlertTriangle size={14} /> : <Info size={14} />}
+                      {n.type === 'success' || n.type === 'SUCCESS' ? <Check size={14} /> : 
+                       n.type === 'error' ? <AlertTriangle size={14} /> : 
+                       n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? <Banknote size={14} /> :
+                       n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? <DollarSign size={14} /> :
+                       n.type === 'SWAP' ? <Repeat size={14} /> :
+                       <Info size={14} />}
                     </div>
                     <div className="flex-1">
                       <p className="text-[11px] font-black uppercase text-white tracking-tight">{n.title}</p>

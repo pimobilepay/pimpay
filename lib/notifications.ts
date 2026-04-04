@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-type NotificationType = "info" | "success" | "warning" | "error" | "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS";
+type NotificationType = "info" | "success" | "warning" | "error" | "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "SALARY";
 
 interface NotificationMetadata {
   // Transaction metadata

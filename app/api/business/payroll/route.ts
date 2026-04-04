@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { sendNotification } from "@/lib/notifications";
 
 // GET - Get payroll info and history
 export async function GET(req: Request) {
@@ -171,7 +172,7 @@ export async function POST(req: Request) {
         data: { balance: { decrement: totalAmount } }
       });
 
-      const paidEmployees: { id: string; name: string; amount: number; status: string }[] = [];
+      const paidEmployees: { id: string; name: string; amount: number; status: string; recipientId: string | null }[] = [];
 
       // Process each employee payment
       for (const emp of employeesWithUsers) {
@@ -188,10 +189,12 @@ export async function POST(req: Request) {
             data: { balance: { increment: salary } }
           });
 
+          const txReference = `${batchReference}-${emp.id.slice(-6)}`;
+
           // Create transaction for this employee payment
           await tx.transaction.create({
             data: {
-              reference: `${batchReference}-${emp.id.slice(-6)}`,
+              reference: txReference,
               amount: salary,
               currency: "USD",
               type: "TRANSFER",
@@ -213,7 +216,28 @@ export async function POST(req: Request) {
             }
           });
 
-          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "SUCCESS" });
+          // Create notification for the employee receiving salary
+          await tx.notification.create({
+            data: {
+              userId: emp.userAccount.id,
+              title: "Salaire recu !",
+              message: `Vous avez recu votre salaire de ${salary.toLocaleString()} USD de ${business.name}.`,
+              type: "PAYMENT_RECEIVED",
+              metadata: {
+                type: "SALARY",
+                amount: salary,
+                currency: "USD",
+                senderName: business.name,
+                businessId: business.id,
+                reference: txReference,
+                position: emp.position,
+                paymentDate,
+                status: "SUCCESS",
+              }
+            }
+          });
+
+          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "SUCCESS", recipientId: emp.userAccount.id });
         } else {
           // Employee not linked to platform - record as pending/manual
           await tx.transaction.create({
@@ -239,7 +263,7 @@ export async function POST(req: Request) {
             }
           });
 
-          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "PENDING" });
+          paidEmployees.push({ id: emp.id, name: employeeName, amount: salary, status: "PENDING", recipientId: null });
         }
       }
 
@@ -248,6 +272,25 @@ export async function POST(req: Request) {
 
     const successCount = result.paidEmployees.filter(e => e.status === "SUCCESS").length;
     const pendingCount = result.paidEmployees.filter(e => e.status === "PENDING").length;
+
+    // Create notification for the business owner (sender)
+    await sendNotification({
+      userId: user.id,
+      title: "Paiement salaires effectue !",
+      message: `Vous avez paye ${successCount} employe(s) pour un total de ${totalAmount.toLocaleString()} USD.${pendingCount > 0 ? ` ${pendingCount} paiement(s) en attente.` : ""}`,
+      type: "PAYMENT_SENT",
+      metadata: {
+        type: "SALARY_BATCH",
+        amount: totalAmount,
+        currency: "USD",
+        reference: result.batchReference,
+        employeeCount: result.paidEmployees.length,
+        successCount,
+        pendingCount,
+        employees: result.paidEmployees.map(e => ({ name: e.name, amount: e.amount, status: e.status })),
+        status: "SUCCESS",
+      }
+    });
 
     return NextResponse.json({
       success: true,
