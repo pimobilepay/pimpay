@@ -233,10 +233,10 @@ export async function POST(req: Request) {
       data: {
         action,
         adminId: access.session.id,
-        adminName: access.session.username,
-        targetId,
-        targetEmail,
-        details,
+        adminName: access.session.username || "System",
+        targetId: targetId || undefined,
+        targetEmail: targetEmail || undefined,
+        details: details || undefined,
       },
     });
 

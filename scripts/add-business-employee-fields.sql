@@ -1,4 +1,0 @@
-ALTER TABLE "BusinessEmployee" ADD COLUMN IF NOT EXISTS "avatar" TEXT;
-ALTER TABLE "BusinessEmployee" ADD COLUMN IF NOT EXISTS "userId" TEXT;
-ALTER TABLE "BusinessEmployee" ADD COLUMN IF NOT EXISTS "email" TEXT;
-ALTER TABLE "BusinessEmployee" ADD COLUMN IF NOT EXISTS "phone" TEXT;

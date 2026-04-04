@@ -613,11 +613,11 @@ export default function AccountsPage() {
                                     </div>
                                   )}
                                   <DialogFooter className="flex gap-2">
-                                    {selectedAccount?.frozenBalance > 0 ? (
+                                    {selectedAccount && selectedAccount.frozenBalance > 0 ? (
                                       <Button
                                         variant="outline"
                                         className="border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
-                                        onClick={() => handleAccountAction(selectedAccount.id, "unfreeze")}
+                                        onClick={() => selectedAccount && handleAccountAction(selectedAccount.id, "unfreeze")}
                                       >
                                         <Unlock className="h-4 w-4 mr-2" />
                                         Degeler les fonds

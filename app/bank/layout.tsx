@@ -11,8 +11,10 @@ export default function BankLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen w-full bg-[#02040a]">
-      {children}
+    <div className="min-h-screen w-full bg-[#02040a] overflow-x-hidden">
+      <div className="max-w-full">
+        {children}
+      </div>
     </div>
   );
 }

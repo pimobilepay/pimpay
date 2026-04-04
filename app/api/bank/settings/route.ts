@@ -5,14 +5,15 @@ import bcrypt from "bcryptjs";
 
 // Helper to check if user has bank admin access
 async function checkBankAccess(req: Request) {
-  const session = await verifyAuth(req);
+  const session = await verifyAuth(req as any);
   if (!session) {
     return { error: "Non autorise", status: 401 };
   }
   if (session.role !== "BANK_ADMIN" && session.role !== "ADMIN") {
     return { error: "Acces refuse. Portail reserve aux administrateurs de la Banque.", status: 403 };
   }
-  return { session };
+  // Normalize session to provide both id and userId
+  return { session: { ...session, userId: session.id } };
 }
 
 // GET - Get bank settings
@@ -149,9 +150,9 @@ export async function PUT(req: Request) {
         await prisma.auditLog.create({
           data: {
             action: "SECURITY_SETTINGS_UPDATED",
-            userId: access.session.userId,
+            adminId: access.session.id,
+            adminName: access.session.username,
             details: `Security settings updated: ${JSON.stringify(settings)}`,
-            ipAddress: req.headers.get("x-forwarded-for") || "unknown",
           },
         });
         updateResult = settings;
@@ -162,9 +163,9 @@ export async function PUT(req: Request) {
         await prisma.auditLog.create({
           data: {
             action: "NOTIFICATION_SETTINGS_UPDATED",
-            userId: access.session.userId,
+            adminId: access.session.id,
+            adminName: access.session.username,
             details: `Notification settings updated: ${JSON.stringify(settings)}`,
-            ipAddress: req.headers.get("x-forwarded-for") || "unknown",
           },
         });
         updateResult = settings;
@@ -175,9 +176,9 @@ export async function PUT(req: Request) {
         await prisma.auditLog.create({
           data: {
             action: "COMPLIANCE_SETTINGS_UPDATED",
-            userId: access.session.userId,
+            adminId: access.session.id,
+            adminName: access.session.username,
             details: `Compliance settings updated: ${JSON.stringify(settings)}`,
-            ipAddress: req.headers.get("x-forwarded-for") || "unknown",
           },
         });
         updateResult = settings;
@@ -229,9 +230,9 @@ export async function PUT(req: Request) {
         await prisma.auditLog.create({
           data: {
             action: "PASSWORD_CHANGED",
-            userId: access.session.userId,
+            adminId: access.session.id,
+            adminName: access.session.username,
             details: "User changed their password",
-            ipAddress: req.headers.get("x-forwarded-for") || "unknown",
           },
         });
 
@@ -272,9 +273,9 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           action: "API_KEY_GENERATED",
-          userId: access.session.userId,
+          adminId: access.session.id,
+          adminName: access.session.username,
           details: `Generated new ${keyType} API key`,
-          ipAddress: req.headers.get("x-forwarded-for") || "unknown",
         },
       });
 
@@ -297,9 +298,9 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           action: "SESSIONS_REVOKED",
-          userId: access.session.userId,
+          adminId: access.session.id,
+          adminName: access.session.username,
           details: "All other sessions revoked",
-          ipAddress: req.headers.get("x-forwarded-for") || "unknown",
         },
       });
 

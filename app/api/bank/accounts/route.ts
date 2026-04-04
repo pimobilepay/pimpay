@@ -227,8 +227,9 @@ export async function PUT(req: Request) {
       data: {
         action: logAction,
         adminId: access.session.id,
+        adminName: access.session.username,
         targetId: wallet.userId,
-        targetEmail: wallet.user.email,
+        targetEmail: wallet.user.email || undefined,
         details: `Action ${action} on wallet ${wallet.id} (${wallet.currency}). Amount: ${amount || "full"}`,
       },
     });
@@ -286,6 +287,7 @@ export async function POST(req: Request) {
       data: {
         action: "WALLET_CREATED",
         adminId: access.session.id,
+        adminName: access.session.username,
         targetId: userId,
         details: `Created ${currency} wallet for user ${userId}`,
       },

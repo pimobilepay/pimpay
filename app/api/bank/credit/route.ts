@@ -11,7 +11,7 @@ async function checkBankAccess(req: Request) {
   if (session.role !== "BANK_ADMIN" && session.role !== "ADMIN") {
     return { error: "Acces refuse. Portail reserve aux administrateurs de la Banque.", status: 403 };
   }
-  return { session };
+  return { session: { ...session, userId: session.id } };
 }
 
 // Calculate credit score based on various factors

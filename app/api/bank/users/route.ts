@@ -182,9 +182,10 @@ export async function POST(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: "USER_CREATED",
-        userId: access.session.userId,
+        adminId: access.session.id,
+        adminName: access.session.username,
+        targetEmail: user.email,
         details: `Created bank user: ${user.email}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
@@ -269,9 +270,11 @@ export async function PUT(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: logAction,
-        userId: access.session.userId,
+        adminId: access.session.id,
+        adminName: access.session.username,
+        targetId: userId,
+        targetEmail: user.email,
         details: `Action ${action} on user ${user.email}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 

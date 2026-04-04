@@ -237,8 +237,9 @@ export async function POST(req: Request) {
       data: {
         action: "LOAN_CREATED",
         adminId: access.session.id,
+        adminName: access.session.username,
         targetId: userId,
-        targetEmail: user.email,
+        targetEmail: user.email || undefined,
         details: `Created loan ${loan.reference} for ${amount} XAF`,
       },
     });
@@ -406,8 +407,9 @@ export async function PUT(req: Request) {
       data: {
         action: logAction,
         adminId: access.session.id,
+        adminName: access.session.username,
         targetId: loan.userId,
-        targetEmail: loan.user.email,
+        targetEmail: loan.user.email || undefined,
         details: `Action ${action} on loan ${loan.reference}${reason ? `. Reason: ${reason}` : ""}`,
       },
     });

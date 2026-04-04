@@ -4,14 +4,14 @@ import { verifyAuth } from "@/lib/auth";
 
 // Helper to check if user has bank admin access
 async function checkBankAccess(req: Request) {
-  const session = await verifyAuth(req);
+  const session = await verifyAuth(req as any);
   if (!session) {
     return { error: "Non autorise", status: 401 };
   }
   if (session.role !== "BANK_ADMIN" && session.role !== "ADMIN") {
     return { error: "Acces refuse. Portail reserve aux administrateurs de la Banque.", status: 403 };
   }
-  return { session };
+  return { session: { ...session, userId: session.id } };
 }
 
 // GET - Get reports list and report data
@@ -239,9 +239,9 @@ export async function POST(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: "REPORT_GENERATED",
-        userId: access.session.userId,
+        adminId: access.session.id,
+        adminName: access.session.username,
         details: `Generated ${type} report for period ${period || "current"}. Format: ${format || "PDF"}. Recipients: ${recipients?.length || 0}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
