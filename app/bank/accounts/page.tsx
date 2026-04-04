@@ -57,6 +57,7 @@ import {
   Snowflake,
   History,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface BankAccount {
   id: string;
@@ -102,10 +103,12 @@ export default function AccountsPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const params = new URLSearchParams({
         page: String(page),
         limit: "20",
@@ -116,16 +119,21 @@ export default function AccountsPage() {
       });
 
       const res = await fetch(`/api/bank/accounts?${params}`, { credentials: "include" });
+      
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({ error: "Erreur serveur" }));
+        throw new Error(result.error || "Erreur lors du chargement");
+      }
+      
       const result = await res.json();
 
-      if (!res.ok) throw new Error(result.error || "Erreur lors du chargement");
-
       setAccounts(result.accounts || []);
-      setStats(result.statistics);
-      setPagination(result.pagination);
-      setError(null);
+      setStats(result.statistics || null);
+      setPagination(result.pagination || null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
+      const errorMessage = err instanceof Error ? err.message : "Erreur inconnue";
+      setError(errorMessage);
+      setAccounts([]);
     } finally {
       setLoading(false);
     }
@@ -144,6 +152,7 @@ export default function AccountsPage() {
 
   const handleAccountAction = async (accountId: string, action: "freeze" | "unfreeze") => {
     try {
+      setActionLoading(true);
       const res = await fetch("/api/bank/accounts", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -152,10 +161,15 @@ export default function AccountsPage() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Erreur");
+      toast.success(action === "freeze" ? "Compte gele avec succes" : "Compte degele avec succes");
       await fetchAccounts();
       setDialogOpen(false);
+      setSelectedAccount(null);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de l'action");
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'action";
+      toast.error(errorMessage);
+    } finally {
+      setActionLoading(false);
     }
   };
 

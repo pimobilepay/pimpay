@@ -138,19 +138,42 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, email, phone, password, role, department } = body;
+    const { name, email, phone, password, role } = body;
 
     if (!name || !email || !password) {
-      return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
+      return NextResponse.json({ error: "Nom, email et mot de passe sont requis" }, { status: 400 });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: "Format d'email invalide" }, { status: 400 });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 6 caracteres" }, { status: 400 });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if email already exists
-    const existing = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+    const existing = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
     });
 
     if (existing) {
       return NextResponse.json({ error: "Cet email est deja utilise" }, { status: 400 });
+    }
+
+    // Generate unique username
+    let baseUsername = normalizedEmail.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase();
+    let username = baseUsername;
+    let counter = 1;
+    
+    while (await prisma.user.findFirst({ where: { username } })) {
+      username = `${baseUsername}${counter}`;
+      counter++;
     }
 
     // Hash password
@@ -159,10 +182,10 @@ export async function POST(req: Request) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
-        username: email.split("@")[0].toLowerCase(),
-        email: email.toLowerCase(),
-        phone,
+        name: name.trim(),
+        username,
+        email: normalizedEmail,
+        phone: phone?.trim() || null,
         password: hashedPassword,
         role: role || "BANK_ADMIN",
         status: "ACTIVE",
@@ -183,8 +206,8 @@ export async function POST(req: Request) {
       data: {
         action: "USER_CREATED",
         adminId: access.session.id,
-        adminName: access.session.username,
-        targetEmail: user.email,
+        adminName: access.session.username || "admin",
+        targetEmail: user.email || undefined,
         details: `Created bank user: ${user.email}`,
       },
     });
@@ -193,9 +216,24 @@ export async function POST(req: Request) {
       message: "Utilisateur cree avec succes",
       user,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Create bank user error:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    
+    // Handle Prisma unique constraint errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as { code: string; meta?: { target?: string[] } };
+      if (prismaError.code === 'P2002') {
+        const target = prismaError.meta?.target;
+        if (target?.includes('email')) {
+          return NextResponse.json({ error: "Cet email est deja utilise" }, { status: 400 });
+        }
+        if (target?.includes('username')) {
+          return NextResponse.json({ error: "Ce nom d'utilisateur est deja pris" }, { status: 400 });
+        }
+      }
+    }
+    
+    return NextResponse.json({ error: "Erreur lors de la creation de l'utilisateur" }, { status: 500 });
   }
 }
 

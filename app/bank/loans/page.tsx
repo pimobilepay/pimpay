@@ -300,19 +300,19 @@ export default function LoansPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                  <Banknote className="h-5 w-5 text-blue-500" />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
+                  <Banknote className="h-4 w-4 text-blue-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Total Decaisse</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Total Decaisse</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-24 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-16 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-blue-500">
+                    <p className="text-sm font-black text-blue-500 truncate">
                       {formatCurrency(stats?.totalDisbursed || 0)}
                     </p>
                   )}
@@ -321,18 +321,18 @@ export default function LoansPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/10 rounded-xl">
-                  <Calculator className="h-5 w-5 text-amber-500" />
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
+                  <Calculator className="h-4 w-4 text-amber-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Encours</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Encours</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-24 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-16 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-amber-500">
+                    <p className="text-sm font-black text-amber-500 truncate">
                       {formatCurrency(stats?.totalOutstanding || 0)}
                     </p>
                   )}
@@ -341,18 +341,18 @@ export default function LoansPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/10 rounded-xl">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Recouvre</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Recouvre</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-24 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-16 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-emerald-500">
+                    <p className="text-sm font-black text-emerald-500 truncate">
                       {formatCurrency(stats?.totalCollected || 0)}
                     </p>
                   )}
@@ -361,18 +361,18 @@ export default function LoansPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-red-500/10 rounded-xl">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-red-500/10 rounded-lg shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Taux defaut</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Taux Defaut</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-16 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-10 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-red-500">
+                    <p className="text-sm font-black text-red-500">
                       {(stats?.defaultRate || 0).toFixed(1)}%
                     </p>
                   )}
@@ -384,21 +384,21 @@ export default function LoansPage() {
 
         {/* Loan Type Distribution */}
         {stats?.byType && Object.keys(stats.byType).length > 0 && (
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl mb-8">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold text-white">Repartition par Type de Pret</CardTitle>
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl mb-6 overflow-hidden">
+            <CardHeader className="pb-2 px-4 pt-4">
+              <CardTitle className="text-xs font-bold text-white">Repartition par Type</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <CardContent className="px-4 pb-4">
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {Object.entries(stats.byType).map(([type, data]) => (
-                  <div key={type} className="bg-slate-800/50 rounded-2xl p-4 border border-white/5">
-                    <div className="flex items-center justify-between mb-3">
+                  <div key={type} className="bg-slate-800/50 rounded-xl p-3 border border-white/5 min-w-[120px] shrink-0">
+                    <div className="mb-2">
                       {getTypeBadge(type)}
                     </div>
-                    <p className="text-sm font-bold text-white mb-1">
+                    <p className="text-xs font-bold text-white truncate">
                       {formatCurrency(data.amount)}
                     </p>
-                    <p className="text-[10px] text-slate-500">{data.count} prets</p>
+                    <p className="text-[9px] text-slate-500">{data.count} prets</p>
                   </div>
                 ))}
               </div>
@@ -407,70 +407,72 @@ export default function LoansPage() {
         )}
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList className="bg-slate-900/50 border border-white/5 p-1 rounded-2xl">
-            <TabsTrigger value="all" className="rounded-xl text-xs font-bold data-[state=active]:bg-white/10">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
+          <TabsList className="bg-slate-900/50 border border-white/5 p-1 rounded-xl w-full flex overflow-x-auto">
+            <TabsTrigger value="all" className="rounded-lg text-[10px] font-bold data-[state=active]:bg-white/10 flex-1 min-w-0 px-2">
               Tous
             </TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-xl text-xs font-bold data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400">
+            <TabsTrigger value="pending" className="rounded-lg text-[10px] font-bold data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 flex-1 min-w-0 px-2">
               En attente ({stats?.byStatus?.PENDING || 0})
             </TabsTrigger>
-            <TabsTrigger value="active" className="rounded-xl text-xs font-bold data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400">
+            <TabsTrigger value="active" className="rounded-lg text-[10px] font-bold data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 flex-1 min-w-0 px-2">
               Actifs ({stats?.byStatus?.ACTIVE || 0})
             </TabsTrigger>
-            <TabsTrigger value="defaulted" className="rounded-xl text-xs font-bold data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400">
+            <TabsTrigger value="defaulted" className="rounded-lg text-[10px] font-bold data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400 flex-1 min-w-0 px-2">
               En defaut ({stats?.byStatus?.DEFAULTED || 0})
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {/* Loans Table */}
-        <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-          <CardHeader>
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+          <CardHeader className="px-4 py-3">
+            <div className="flex flex-col gap-3">
               <div>
-                <CardTitle className="text-lg font-black text-white">Liste des Prets</CardTitle>
-                <CardDescription className="text-slate-500">
-                  {pagination ? `Page ${pagination.page} sur ${pagination.totalPages} - ${pagination.total} prets` : "Chargement..."}
+                <CardTitle className="text-sm font-black text-white">Liste des Prets</CardTitle>
+                <CardDescription className="text-slate-500 text-xs">
+                  {pagination ? `${pagination.total} prets` : "Chargement..."}
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                   <Input
                     placeholder="Rechercher..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-48 bg-slate-800/50 border-white/10 text-white text-xs"
+                    className="pl-9 w-full bg-slate-800/50 border-white/10 text-white text-xs h-9"
                   />
                 </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-32 bg-slate-800/50 border-white/10 text-white text-xs font-bold">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10">
-                    <SelectItem value="all">Tous</SelectItem>
-                    <SelectItem value="PERSONAL">Personnel</SelectItem>
-                    <SelectItem value="BUSINESS">Entreprise</SelectItem>
-                    <SelectItem value="MORTGAGE">Immobilier</SelectItem>
-                    <SelectItem value="AUTO">Automobile</SelectItem>
-                    <SelectItem value="EDUCATION">Education</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32 bg-slate-800/50 border-white/10 text-white text-xs font-bold">
-                    <SelectValue placeholder="Statut" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10">
-                    <SelectItem value="all">Tous</SelectItem>
-                    <SelectItem value="PENDING">En attente</SelectItem>
-                    <SelectItem value="APPROVED">Approuve</SelectItem>
-                    <SelectItem value="ACTIVE">Actif</SelectItem>
-                    <SelectItem value="COMPLETED">Rembourse</SelectItem>
-                    <SelectItem value="DEFAULTED">Defaut</SelectItem>
-                    <SelectItem value="REJECTED">Rejete</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="flex-1 bg-slate-800/50 border-white/10 text-white text-xs font-bold h-9">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10">
+                      <SelectItem value="all">Tous types</SelectItem>
+                      <SelectItem value="PERSONAL">Personnel</SelectItem>
+                      <SelectItem value="BUSINESS">Entreprise</SelectItem>
+                      <SelectItem value="MORTGAGE">Immobilier</SelectItem>
+                      <SelectItem value="AUTO">Automobile</SelectItem>
+                      <SelectItem value="EDUCATION">Education</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="flex-1 bg-slate-800/50 border-white/10 text-white text-xs font-bold h-9">
+                      <SelectValue placeholder="Statut" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10">
+                      <SelectItem value="all">Tous statuts</SelectItem>
+                      <SelectItem value="PENDING">En attente</SelectItem>
+                      <SelectItem value="APPROVED">Approuve</SelectItem>
+                      <SelectItem value="ACTIVE">Actif</SelectItem>
+                      <SelectItem value="COMPLETED">Rembourse</SelectItem>
+                      <SelectItem value="DEFAULTED">Defaut</SelectItem>
+                      <SelectItem value="REJECTED">Rejete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>

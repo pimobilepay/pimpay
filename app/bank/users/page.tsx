@@ -229,22 +229,50 @@ export default function UsersPage() {
     }
   };
 
+  const [isCreating, setIsCreating] = useState(false);
+
   const handleCreateUser = async () => {
+    // Validation
+    if (!newUserForm.name.trim()) {
+      toast.error("Le nom est requis");
+      return;
+    }
+    if (!newUserForm.email.trim()) {
+      toast.error("L'email est requis");
+      return;
+    }
+    if (!newUserForm.password || newUserForm.password.length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caracteres");
+      return;
+    }
+
     try {
+      setIsCreating(true);
       const res = await fetch("/api/bank/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(newUserForm),
+        body: JSON.stringify({
+          name: newUserForm.name.trim(),
+          email: newUserForm.email.trim().toLowerCase(),
+          phone: newUserForm.phone.trim() || null,
+          role: newUserForm.role,
+          password: newUserForm.password,
+        }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Erreur");
+      if (!res.ok) {
+        throw new Error(result.error || "Erreur lors de la creation");
+      }
       toast.success("Utilisateur cree avec succes");
       setShowCreateDialog(false);
       setNewUserForm({ name: "", email: "", phone: "", role: "USER", password: "" });
       await fetchUsers();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la creation");
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la creation";
+      toast.error(errorMessage);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -1028,9 +1056,13 @@ export default function UsersPage() {
             <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-white/10 text-slate-400">
               Annuler
             </Button>
-            <Button onClick={handleCreateUser} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Creer
+            <Button onClick={handleCreateUser} disabled={isCreating} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {isCreating ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              {isCreating ? "Creation..." : "Creer"}
             </Button>
           </DialogFooter>
         </DialogContent>
