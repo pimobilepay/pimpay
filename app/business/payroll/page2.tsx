@@ -182,14 +182,6 @@ export default function PayrollPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
 
-  // Transaction detail state
-  const [selectedTransaction, setSelectedTransaction] = useState<PayrollHistory | null>(null);
-  const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
-
-  // Quick actions state
-  const [generatingReport, setGeneratingReport] = useState(false);
-  const [syncingData, setSyncingData] = useState(false);
-
   // Search platform users
   const handleUserSearch = (query: string) => {
     setUserSearchQuery(query);
@@ -326,83 +318,6 @@ export default function PayrollPage() {
     e.stopPropagation();
     setDeleteEmployee(emp);
     setDeleteOpen(true);
-  };
-
-  // Open transaction detail
-  const openTransactionDetail = (tx: PayrollHistory) => {
-    setSelectedTransaction(tx);
-    setTransactionDetailOpen(true);
-  };
-
-  // Generate payroll report
-  const generateReport = async () => {
-    try {
-      setGeneratingReport(true);
-      // Simulate generating report
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Create CSV content
-      const csvContent = [
-        ["Reference", "Description", "Montant", "Devise", "Statut", "Date"].join(","),
-        ...(data?.payrollHistory || []).map(tx => 
-          [tx.reference, tx.description || "N/A", tx.amount, tx.currency, tx.status, new Date(tx.createdAt).toLocaleDateString("fr-FR")].join(",")
-        )
-      ].join("\n");
-      
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `rapport-paie-${new Date().toISOString().split("T")[0]}.csv`;
-      link.click();
-      
-      toast.success("Rapport telecharge avec succes");
-    } catch {
-      toast.error("Erreur lors de la generation du rapport");
-    } finally {
-      setGeneratingReport(false);
-    }
-  };
-
-  // Sync data
-  const syncData = async () => {
-    try {
-      setSyncingData(true);
-      await fetchPayrollData();
-      toast.success("Donnees synchronisees avec succes");
-    } catch {
-      toast.error("Erreur lors de la synchronisation");
-    } finally {
-      setSyncingData(false);
-    }
-  };
-
-  // Generate pay slip
-  const generatePaySlip = async (employeeIds?: string[]) => {
-    const ids = employeeIds || selectedEmployees;
-    if (ids.length === 0) {
-      toast.error("Selectionnez au moins un employe");
-      return;
-    }
-    
-    const selectedEmps = employees.filter(e => ids.includes(e.id));
-    
-    // Create a simple pay slip PDF simulation
-    const paySlipContent = selectedEmps.map(emp => 
-      `FICHE DE PAIE\n` +
-      `=============\n` +
-      `Employe: ${emp.firstName} ${emp.lastName}\n` +
-      `Poste: ${emp.position || "N/A"}\n` +
-      `Salaire: $${(emp.salary || 0).toLocaleString()} USD\n` +
-      `Date: ${new Date().toLocaleDateString("fr-FR")}\n\n`
-    ).join("\n---\n\n");
-    
-    const blob = new Blob([paySlipContent], { type: "text/plain;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `fiches-paie-${new Date().toISOString().split("T")[0]}.txt`;
-    link.click();
-    
-    toast.success(`${selectedEmps.length} fiche(s) de paie generee(s)`);
   };
 
   // Confirm delete
@@ -1153,11 +1068,7 @@ export default function PayrollPage() {
                   ))
                 ) : data?.payrollHistory && data.payrollHistory.length > 0 ? (
                   data.payrollHistory.map((payroll) => (
-                    <div 
-                      key={payroll.id} 
-                      className="p-4 rounded-2xl bg-slate-800/30 border border-white/5 cursor-pointer hover:bg-slate-800/50 hover:border-white/10 transition-all"
-                      onClick={() => openTransactionDetail(payroll)}
-                    >
+                    <div key={payroll.id} className="p-4 rounded-2xl bg-slate-800/30 border border-white/5">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-bold text-white truncate max-w-[150px]">
                           {payroll.description || payroll.reference}
@@ -1201,48 +1112,21 @@ export default function PayrollPage() {
                 <CardTitle className="text-lg font-black text-white">Actions Rapides</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-white/10 text-sm font-bold hover:bg-emerald-500/10 hover:border-emerald-500/30"
-                  onClick={() => generatePaySlip()}
-                  disabled={selectedEmployees.length === 0}
-                >
+                <Button variant="outline" className="w-full justify-start border-white/10 text-sm font-bold">
                   <FileSpreadsheet className="h-4 w-4 mr-3 text-emerald-500" />
-                  Generer Fiche de Paie {selectedEmployees.length > 0 && `(${selectedEmployees.length})`}
+                  Generer Fiche de Paie
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-white/10 text-sm font-bold hover:bg-blue-500/10 hover:border-blue-500/30"
-                  onClick={generateReport}
-                  disabled={generatingReport || !data?.payrollHistory?.length}
-                >
-                  {generatingReport ? (
-                    <Loader2 className="h-4 w-4 mr-3 text-blue-500 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-3 text-blue-500" />
-                  )}
-                  {generatingReport ? "Generation..." : "Telecharger Rapport"}
+                <Button variant="outline" className="w-full justify-start border-white/10 text-sm font-bold">
+                  <Download className="h-4 w-4 mr-3 text-blue-500" />
+                  Telecharger Rapport
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-white/10 text-sm font-bold hover:bg-purple-500/10 hover:border-purple-500/30"
-                  onClick={() => toast.info("Fonctionnalite a venir: Planification automatique des paies")}
-                >
+                <Button variant="outline" className="w-full justify-start border-white/10 text-sm font-bold">
                   <Calendar className="h-4 w-4 mr-3 text-purple-500" />
                   Planifier Paie Auto
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-white/10 text-sm font-bold hover:bg-amber-500/10 hover:border-amber-500/30"
-                  onClick={syncData}
-                  disabled={syncingData}
-                >
-                  {syncingData ? (
-                    <Loader2 className="h-4 w-4 mr-3 text-amber-500 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-3 text-amber-500" />
-                  )}
-                  {syncingData ? "Synchronisation..." : "Synchroniser Donnees"}
+                <Button variant="outline" className="w-full justify-start border-white/10 text-sm font-bold">
+                  <RefreshCw className="h-4 w-4 mr-3 text-amber-500" />
+                  Synchroniser Donnees
                 </Button>
               </CardContent>
             </Card>
@@ -1473,155 +1357,6 @@ export default function PayrollPage() {
             <Button
               className="w-full bg-emerald-500 hover:bg-emerald-600 font-bold"
               onClick={() => setPayrollSuccess(null)}
-            >
-              Fermer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Transaction Detail Dialog */}
-      <Dialog open={transactionDetailOpen} onOpenChange={setTransactionDetailOpen}>
-        <DialogContent className="bg-slate-900 border-white/10 max-w-md">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 relative">
-              <div className={`absolute inset-0 blur-2xl rounded-full ${
-                selectedTransaction?.status === "SUCCESS" ? "bg-emerald-500/20" :
-                selectedTransaction?.status === "PENDING" ? "bg-amber-500/20" : "bg-red-500/20"
-              }`} />
-              <div className={`relative p-4 rounded-3xl border ${
-                selectedTransaction?.status === "SUCCESS" 
-                  ? "bg-emerald-500/10 border-emerald-500/20" 
-                  : selectedTransaction?.status === "PENDING"
-                  ? "bg-amber-500/10 border-amber-500/20"
-                  : "bg-red-500/10 border-red-500/20"
-              }`}>
-                {selectedTransaction?.status === "SUCCESS" ? (
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                ) : selectedTransaction?.status === "PENDING" ? (
-                  <Clock className="h-10 w-10 text-amber-500" />
-                ) : (
-                  <AlertCircle className="h-10 w-10 text-red-500" />
-                )}
-              </div>
-            </div>
-            <DialogTitle className="text-xl font-black text-white uppercase tracking-tight">
-              Details de la Transaction
-            </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {selectedTransaction?.description || "Paiement de salaire"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedTransaction && (
-            <div className="space-y-4 py-2">
-              {/* Amount Card */}
-              <div className="p-5 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 rounded-2xl border border-emerald-500/20 text-center">
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Montant</p>
-                <p className="text-3xl font-black text-emerald-400">
-                  ${selectedTransaction.amount.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">{selectedTransaction.currency}</p>
-              </div>
-
-              {/* Details Grid */}
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Reference</span>
-                  <span className="text-xs font-mono text-slate-300 bg-slate-800 px-2 py-1 rounded-lg">
-                    {selectedTransaction.reference}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Statut</span>
-                  <Badge className={`text-[10px] font-bold ${
-                    selectedTransaction.status === "SUCCESS" 
-                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
-                      : selectedTransaction.status === "PENDING"
-                      ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                      : "bg-red-500/10 text-red-500 border-red-500/20"
-                  }`}>
-                    {selectedTransaction.status === "SUCCESS" && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    {selectedTransaction.status === "PENDING" && <Clock className="h-3 w-3 mr-1" />}
-                    {selectedTransaction.status === "SUCCESS" ? "Complete" : 
-                     selectedTransaction.status === "PENDING" ? "En attente" : 
-                     selectedTransaction.status}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Date</span>
-                  <span className="text-xs font-bold text-white">
-                    {new Date(selectedTransaction.createdAt).toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Heure</span>
-                  <span className="text-xs font-bold text-white">
-                    {new Date(selectedTransaction.createdAt).toLocaleTimeString("fr-FR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                {selectedTransaction.description && (
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Description</span>
-                    <span className="text-xs text-slate-300 text-right max-w-[180px]">
-                      {selectedTransaction.description}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1 border-white/10 text-xs font-bold hover:bg-white/5"
-                  onClick={() => {
-                    navigator.clipboard.writeText(selectedTransaction.reference);
-                    toast.success("Reference copiee");
-                  }}
-                >
-                  Copier Reference
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="flex-1 border-white/10 text-xs font-bold hover:bg-white/5"
-                  onClick={() => {
-                    // Generate a simple receipt
-                    const receipt = `RECU DE PAIEMENT\n` +
-                      `================\n\n` +
-                      `Reference: ${selectedTransaction.reference}\n` +
-                      `Montant: $${selectedTransaction.amount.toLocaleString()} ${selectedTransaction.currency}\n` +
-                      `Statut: ${selectedTransaction.status}\n` +
-                      `Date: ${new Date(selectedTransaction.createdAt).toLocaleString("fr-FR")}\n` +
-                      `Description: ${selectedTransaction.description || "N/A"}\n`;
-                    
-                    const blob = new Blob([receipt], { type: "text/plain;charset=utf-8;" });
-                    const link = document.createElement("a");
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `recu-${selectedTransaction.reference}.txt`;
-                    link.click();
-                    
-                    toast.success("Recu telecharge");
-                  }}
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Recu
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              className="w-full bg-slate-800 hover:bg-slate-700 font-bold"
-              onClick={() => setTransactionDetailOpen(false)}
             >
               Fermer
             </Button>
