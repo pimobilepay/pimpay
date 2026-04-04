@@ -6,7 +6,9 @@ import {
   Globe,
   MapPin,
   Clock,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
@@ -81,24 +83,38 @@ export default async function SessionsPage() {
   });
 
   return (
-    <div className="min-h-[100dvh] bg-[#020617] text-white p-6 pb-32 font-sans overflow-y-auto">
-      <div className="max-w-md mx-auto">
-
-        {/* HEADER */}
-        <div className="flex flex-col items-center text-center mb-8 pt-6">
-          <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-4 border border-blue-500/30">
-            <ShieldCheck className="text-blue-500" size={24} />
+    <div className="min-h-[100dvh] bg-[#020617] text-white font-sans overflow-y-auto">
+      {/* NAVIGATION BAR */}
+      <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-xl border-b border-white/5">
+        <div className="flex items-center justify-between px-4 py-4 max-w-md mx-auto">
+          <Link 
+            href="/dashboard/settings" 
+            className="w-10 h-10 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-colors"
+          >
+            <ArrowLeft size={20} className="text-white" />
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/30">
+              <ShieldCheck className="text-blue-500" size={20} />
+            </div>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter">
+              PimPay<span className="text-blue-500">Security</span>
+            </h1>
           </div>
-          <h1 className="text-xl font-black uppercase italic tracking-tighter">
-            PimPay<span className="text-blue-500">Security</span>
-          </h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1">
+          <div className="w-10" /> {/* Spacer for centering */}
+        </div>
+      </div>
+      
+      <div className="p-6 pb-32 max-w-md mx-auto">
+
+        {/* DEVICE COUNT & LOGOUT BUTTON */}
+        <div className="flex flex-col items-center text-center mb-8 pt-4">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
               {sessions.length} APPAREIL{sessions.length > 1 ? 'S' : ''} ACTIF{sessions.length > 1 ? 'S' : ''}
           </p>
-        </div>
-
-        <div className="flex justify-center mb-10">
-          <LogoutOthersButton />
+          <div className="mt-6">
+            <LogoutOthersButton />
+          </div>
         </div>
 
         <div className="space-y-4">
