@@ -106,20 +106,21 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
       )}
     >
       {/* Logo Section */}
-      <div className="flex h-16 items-center justify-center border-b border-white/5 px-4">
+      <div className="flex h-16 items-center justify-between border-b border-white/5 px-4">
         {!collapsed && (
-          <div className="flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 border border-white/10">
+              <Wallet className="h-5 w-5 text-white" />
+            </div>
             <div>
-              <h1 className="text-sm font-black text-white tracking-tight text-center">PIMPAY</h1>
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest text-center">Agent Hub</p>
+              <h1 className="text-sm font-black text-white tracking-tight">PIMPAY</h1>
+              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Agent Hub</p>
             </div>
           </div>
         )}
         {collapsed && (
-          <div className="flex items-center justify-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-              <Wallet className="h-5 w-5 text-white" />
-            </div>
+          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 border border-white/10">
+            <Wallet className="h-5 w-5 text-white" />
           </div>
         )}
       </div>
