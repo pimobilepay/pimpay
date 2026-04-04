@@ -96,6 +96,9 @@ model User {
   vaults               Vault[]
   virtualCards         VirtualCard[]
   wallets              Wallet[]
+  loans                Loan[]
+  savingsAccounts      SavingsAccount[]
+  creditScore          CreditScore?
 }
 
 model P2PContact {
@@ -655,4 +658,157 @@ enum LogLevel {
   WARN
   ERROR
   FATAL
+}
+
+// ============= LOAN MANAGEMENT =============
+
+model Loan {
+  id               String          @id @default(cuid())
+  reference        String          @unique
+  userId           String
+  type             LoanType        @default(PERSONAL)
+  amount           Float
+  interestRate     Float           @default(12.0)
+  term             Int             // Duration in months
+  monthlyPayment   Float
+  totalPaid        Float           @default(0)
+  remainingBalance Float
+  status           LoanStatus      @default(PENDING)
+  purpose          String?
+  collateral       String?
+  guarantorName    String?
+  guarantorPhone   String?
+  guarantorAddress String?
+  creditScore      Int?
+  riskLevel        RiskLevel       @default(MEDIUM)
+  disbursedAt      DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  rejectedAt       DateTime?
+  rejectedReason   String?
+  nextPaymentDate  DateTime?
+  lastPaymentDate  DateTime?
+  missedPayments   Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments         LoanPayment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([reference])
+}
+
+model LoanPayment {
+  id            String        @id @default(cuid())
+  loanId        String
+  amount        Float
+  principal     Float
+  interest      Float
+  penalty       Float         @default(0)
+  status        PaymentStatus @default(PENDING)
+  dueDate       DateTime
+  paidAt        DateTime?
+  transactionId String?
+  createdAt     DateTime      @default(now())
+  loan          Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([dueDate])
+}
+
+// Savings and Fixed Deposits for Financial Institutions
+model SavingsAccount {
+  id            String            @id @default(cuid())
+  userId        String
+  accountNumber String            @unique
+  type          SavingsType       @default(REGULAR)
+  balance       Float             @default(0)
+  interestRate  Float             @default(3.5)
+  currency      String            @default("XAF")
+  maturityDate  DateTime?
+  status        SavingsStatus     @default(ACTIVE)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accountNumber])
+}
+
+// Interest Rate Configuration
+model InterestRate {
+  id          String   @id @default(cuid())
+  type        String   // LOAN_PERSONAL, LOAN_BUSINESS, SAVINGS_REGULAR, etc.
+  minRate     Float
+  maxRate     Float
+  defaultRate Float
+  currency    String   @default("XAF")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Credit Scoring
+model CreditScore {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  score            Int      @default(500)
+  riskLevel        RiskLevel @default(MEDIUM)
+  lastCalculatedAt DateTime @default(now())
+  factors          Json?    // Payment history, debt ratio, etc.
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum LoanType {
+  PERSONAL
+  BUSINESS
+  MORTGAGE
+  AUTO
+  EDUCATION
+  AGRICULTURE
+  EMERGENCY
+}
+
+enum LoanStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  LATE
+  MISSED
+  PARTIAL
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum SavingsType {
+  REGULAR
+  FIXED_DEPOSIT
+  RECURRING
+  GOAL_BASED
+}
+
+enum SavingsStatus {
+  ACTIVE
+  MATURED
+  CLOSED
+  FROZEN
 }
