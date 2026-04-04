@@ -462,8 +462,8 @@ export default function WithdrawPage() {
                 {/* Phone */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("transfer.beneficiary")}</label>
-                  <div className="flex gap-2">
-                    <div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center gap-2">
+                  <div className="flex gap-2 w-full overflow-hidden">
+                    <div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center gap-2 shrink-0">
                       <span className={`fi fi-${selectedCountry.code.toLowerCase()} rounded-sm`} />
                       <span className="text-xs font-black text-blue-500">{selectedCountry.dialCode}</span>
                     </div>
@@ -472,7 +472,7 @@ export default function WithdrawPage() {
                       placeholder="Ex: 812345678"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="flex-1 h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-sm font-black outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
+                      className="flex-1 min-w-0 h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-sm font-black outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
                     />
                   </div>
                 </div>
