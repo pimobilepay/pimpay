@@ -40,13 +40,6 @@ const KNOWN_VULNERABILITIES: Record<string, {
   description: string;
   advisory: string;
 }> = {
-  "resend": {
-    severity: "high",
-    vulnerableVersions: "<4.0.0",
-    patchedVersion: ">=4.0.0",
-    description: "Vulnerabilite mailparser via resend (GHSA-7gmj-h9xc-mcxc)",
-    advisory: "GHSA-7gmj-h9xc-mcxc"
-  },
   "@tootallnate/once": {
     severity: "low",
     vulnerableVersions: "<3.0.1",

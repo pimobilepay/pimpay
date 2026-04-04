@@ -2,14 +2,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
-import { Resend } from "resend";
 
 export async function GET(req: NextRequest) {
   try {
-    // --- SÉCURITÉ BUILD (RESEND) ---
-    // On n'initialise Resend qu'à l'intérieur de la fonction pour éviter le crash au build
-    const apiKey = process.env.RESEND_API_KEY;
-    const resend = apiKey ? new Resend(apiKey) : null;
 
     // 1. DOUBLE VÉRIFICATION DE SÉCURITÉ (ADMIN OU CRON)
     const authHeader = req.headers.get('authorization');
@@ -73,46 +68,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4. ENVOI DE L'EMAIL (Sécurisé)
-    const shouldSendEmail = isCron || req.nextUrl.searchParams.get("sendEmail") === "true";
-
-    if (shouldSendEmail && resend && process.env.ADMIN_EMAIL) {
-      await resend.emails.send({
-        from: "PimPay Security <onboarding@resend.dev>",
-        to: process.env.ADMIN_EMAIL as string,
-        subject: `🛡️ Rapport & Backup PimPay - ${new Date().toLocaleDateString()}`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 15px;">
-            <h2 style="color: #2563eb; text-align: center;">Système Core Snapshot</h2>
-            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin: 20px 0;">
-              <table style="width: 100%; font-size: 15px;">
-                <tr><td>👥 Utilisateurs :</td><td style="text-align: right; font-weight: bold;">${totalUsers}</td></tr>
-                <tr><td>💰 Prix GCV :</td><td style="text-align: right; font-weight: bold;">$${gcvPrice}</td></tr>
-                <tr><td>🛠️ Maintenance :</td><td style="text-align: right; font-weight: bold;">${maintenanceStatus}</td></tr>
-                <tr><td>🚀 Version :</td><td style="text-align: right; font-weight: bold;">v${appVersion}</td></tr>
-              </table>
-            </div>
-            <p style="font-size: 11px; color: #999; text-align: center;">Fichier JSON attaché pour restauration.</p>
-          </div>
-        `,
-        attachments: [
-          {
-            filename: `backup_core_${new Date().getTime()}.json`,
-            content: Buffer.from(backupString),
-          },
-        ],
-      });
-    }
-
-    // 5. LOG DE L'ACTION
+    // 4. LOG DE L'ACTION
     await prisma.auditLog.create({
       data: {
         adminId: isCron ? null : (adminPayload?.id || null),
         adminName: isCron ? "Auto-Protect" : (adminPayload?.id ? "System Admin" : "Unknown"),
         action: "DATABASE_BACKUP",
         details: isCron
-          ? "Cron Job : Backup + Stats Graphique + Email."
-          : `Manuel ${shouldSendEmail ? '+ Email' : ''}.`,
+          ? "Cron Job : Backup + Stats Graphique."
+          : "Manuel.",
         targetId: null, 
       }
     });

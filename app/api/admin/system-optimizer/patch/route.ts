@@ -17,10 +17,6 @@ const PACKAGE_PATCHES: Record<string, {
   patchedVersion: string;
   overrideValue: string;
 }> = {
-  "resend": {
-    patchedVersion: "4.0.0",
-    overrideValue: ">=4.0.0"
-  },
   "@tootallnate/once": {
     patchedVersion: "3.0.1",
     overrideValue: ">=3.0.1"
