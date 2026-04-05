@@ -134,6 +134,24 @@ export default function AccountsPage() {
       const errorMessage = err instanceof Error ? err.message : "Erreur inconnue";
       setError(errorMessage);
       setAccounts([]);
+      
+      // Log error to admin logs API
+      try {
+        await fetch("/api/admin/system-logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            level: "ERROR",
+            source: "BANK_ACCOUNTS_PAGE",
+            action: "FETCH_ACCOUNTS",
+            message: errorMessage,
+            details: { page, searchTerm, currencyFilter, typeFilter, sortBy },
+          }),
+        });
+      } catch {
+        // Silent fail for logging
+      }
     } finally {
       setLoading(false);
     }

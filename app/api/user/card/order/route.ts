@@ -5,10 +5,16 @@ import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const CARD_CONFIG: any = {
-  PLATINIUM: { price: 10, daily: 1000, years: 3, prismaType: "CLASSIC" },
-  PREMIUM: { price: 25, daily: 2500, years: 5, prismaType: "GOLD" },
-  GOLD: { price: 50, daily: 5000, years: 10, prismaType: "GOLD" },
-  ULTRA: { price: 100, daily: 999999, years: 15, prismaType: "ULTRA" },
+  // MASTERCARD
+  PLATINIUM: { price: 10, daily: 1000, years: 3, prismaType: "CLASSIC", brand: "MASTERCARD" },
+  PREMIUM: { price: 25, daily: 2500, years: 5, prismaType: "GOLD", brand: "MASTERCARD" },
+  GOLD: { price: 50, daily: 5000, years: 10, prismaType: "GOLD", brand: "MASTERCARD" },
+  ULTRA: { price: 100, daily: 999999, years: 15, prismaType: "ULTRA", brand: "MASTERCARD" },
+  // VISA
+  VISA_CLASSIC: { price: 15, daily: 1500, years: 3, prismaType: "CLASSIC", brand: "VISA" },
+  VISA_GOLD: { price: 35, daily: 3000, years: 5, prismaType: "GOLD", brand: "VISA" },
+  VISA_PLATINUM: { price: 75, daily: 10000, years: 10, prismaType: "BUSINESS", brand: "VISA" },
+  VISA_INFINITE: { price: 150, daily: 999999, years: 15, prismaType: "ULTRA", brand: "VISA" },
 };
 
 // Allowed currencies per card (all support USD + EUR)
@@ -92,7 +98,9 @@ export async function POST(req: NextRequest) {
       });
 
       // Génération numéro de carte et titulaire
-      const cardNum = "4492" + Math.floor(100000000000 + Math.random() * 899999999999).toString();
+      // Visa cards start with 4, Mastercard starts with 5
+      const cardPrefix = config.brand === "VISA" ? "4" : "5";
+      const cardNum = cardPrefix + Math.floor(100000000000000 + Math.random() * 899999999999999).toString().slice(0, 15);
       const holderName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim().toUpperCase() || user?.username?.toUpperCase() || "PI PIONEER";
 
       // Création physique de la carte
@@ -104,7 +112,7 @@ export async function POST(req: NextRequest) {
           holder: holderName,
           exp: expiryDate,
           type: config.prismaType,
-          brand: tier === "ULTRA" ? "MASTERCARD" : "VISA",
+          brand: config.brand,
           dailyLimit: config.daily,
           isFrozen: false,
           allowedCurrencies: ALLOWED_CURRENCIES

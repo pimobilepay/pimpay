@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { logApiError, logSystemEvent } from "@/lib/systemLogger";
 
 // Helper to check if user has bank admin access
 async function checkBankAccess(req: Request) {
@@ -144,9 +145,15 @@ export async function GET(req: Request) {
         byType: typeStats.reduce((acc, t) => ({ ...acc, [t.type]: t._count }), {}),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Bank accounts error:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    await logApiError("BANK_ACCOUNTS_API", "GET_ACCOUNTS", error, {
+      requestId: `BA-${Date.now()}`,
+    });
+    return NextResponse.json({ 
+      error: "Erreur serveur", 
+      details: process.env.NODE_ENV === "development" ? error?.message : undefined 
+    }, { status: 500 });
   }
 }
 
@@ -242,9 +249,15 @@ export async function PUT(req: Request) {
         frozenBalance: updatedWallet.frozenBalance,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update account error:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    await logApiError("BANK_ACCOUNTS_API", "UPDATE_ACCOUNT", error, {
+      requestId: `BA-UPD-${Date.now()}`,
+    });
+    return NextResponse.json({ 
+      error: "Erreur serveur",
+      details: process.env.NODE_ENV === "development" ? error?.message : undefined
+    }, { status: 500 });
   }
 }
 
@@ -297,8 +310,14 @@ export async function POST(req: Request) {
       message: "Compte cree avec succes",
       account: wallet,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create account error:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    await logApiError("BANK_ACCOUNTS_API", "CREATE_ACCOUNT", error, {
+      requestId: `BA-CRT-${Date.now()}`,
+    });
+    return NextResponse.json({ 
+      error: "Erreur serveur",
+      details: process.env.NODE_ENV === "development" ? error?.message : undefined
+    }, { status: 500 });
   }
 }
