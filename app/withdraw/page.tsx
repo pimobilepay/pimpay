@@ -984,6 +984,33 @@ export default function WithdrawPage() {
                   </span>
                 </div>
 
+                {/* Transaction Details */}
+                {parseFloat(cryptoAmount || "0") > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
+                  >
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
+                      <span>Montant saisi</span>
+                      <span className="text-white">{parseFloat(cryptoAmount).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)} {selectedCrypto}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
+                      <span>Frais reseau (0.5%)</span>
+                      <span>- {(parseFloat(cryptoAmount) * 0.005).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)} {selectedCrypto}</span>
+                    </div>
+                    <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                      <div>
+                        <span className="text-[9px] font-black text-emerald-500 uppercase block">Vous recevrez</span>
+                        <span className={`text-xl font-black ${CRYPTO_ASSETS[selectedCrypto]?.accentColor || "text-white"}`}>
+                          {(parseFloat(cryptoAmount) * 0.995).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)}
+                        </span>
+                      </div>
+                      <span className="text-sm font-black text-slate-400">{selectedCrypto}</span>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Network Fee Info */}
                 <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
                   <Info size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />

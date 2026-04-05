@@ -42,7 +42,7 @@ export default function DepositPage() {
       <header className="px-6 pt-10 pb-6 flex items-center justify-between sticky top-0 bg-[#020617]/90 backdrop-blur-xl z-30 border-b border-white/5">
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-transform"><ArrowLeft size={20} /></button>
-          <div><h1 className="text-xl font-black tracking-tighter uppercase leading-none">{t("deposit.title")}</h1><div className="flex items-center gap-2 mt-1"><CircleDot size={8} className="text-blue-500 animate-pulse" /><span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">PimPay Secure Node</span></div></div>
+          <div><h1 className="text-xl font-black tracking-tighter uppercase leading-none">{t("deposit.title")}</h1><div className="flex items-center gap-2 mt-1"><CircleDot size={8} className="text-blue-500 animate-pulse" /><span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Inflow</span></div></div>
         </div>
         <button onClick={() => window.location.reload()}><RefreshCcw size={18} className="text-slate-500 hover:text-blue-400 transition-colors" /></button>
       </header>
@@ -116,6 +116,32 @@ export default function DepositPage() {
             </div>
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Montant USD</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-blue-500 outline-none placeholder:text-slate-800 focus:border-blue-500/50 transition-colors" /></div>
+                
+                {/* Fee Details */}
+                {parseFloat(amount) > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
+                  >
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
+                      <span>Montant saisi</span>
+                      <span className="text-white">$ {parseFloat(amount).toLocaleString()} USD</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
+                      <span>Frais PimPay (1%)</span>
+                      <span>- $ {feesCalculation.fee}</span>
+                    </div>
+                    <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                      <div>
+                        <span className="text-[9px] font-black text-emerald-500 uppercase block">Vous recevrez</span>
+                        <span className="text-2xl font-black text-white">$ {(parseFloat(amount) - parseFloat(feesCalculation.fee)).toFixed(2)}</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-400">USD</span>
+                    </div>
+                  </motion.div>
+                )}
+
                 <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || !phoneNumber} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "GÉNÉRER LE RÉCAPITULATIF"}</button>
             </div>
           </motion.div>
@@ -129,7 +155,11 @@ export default function DepositPage() {
               <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Montant saisi</span><span className="text-white">${parseFloat(amount).toLocaleString()} USD</span></div>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">1 Pi = $314,159</span></div>
-                <div className="border-t border-white/5 pt-3 flex justify-between text-[12px] font-black uppercase"><span>Équivalent Pi</span><span className="text-emerald-400">{feesCalculation.piEquivalent} Pi</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>Frais PimPay (1%)</span><span>- {(parseFloat(feesCalculation.piEquivalent) * 0.01).toFixed(7)} Pi</span></div>
+                <div className="border-t border-white/5 pt-3 space-y-2">
+                  <div className="flex justify-between text-[10px] font-black uppercase text-slate-500"><span>Pi requis</span><span className="text-white">{feesCalculation.piEquivalent} Pi</span></div>
+                  <div className="flex justify-between text-[12px] font-black uppercase"><span className="text-emerald-500">Vous recevrez</span><span className="text-emerald-400">{(parseFloat(feesCalculation.piEquivalent) * 0.99).toFixed(7)} Pi</span></div>
+                </div>
               </div>
             )}
             <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "VÉRIFIER LE DÉPÔT"}</button>
