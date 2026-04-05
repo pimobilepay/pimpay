@@ -53,8 +53,8 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
 
             if (item.special) {
               return (
-                <Link key={`nav-${idx}`} href={item.href} className="flex flex-col items-center justify-center -mt-6">
-                  <div className={`w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all duration-300 active:scale-90 ${isActive ? "bg-gradient-to-br from-blue-500 to-blue-700 shadow-[0_0_30px_rgba(37,99,235,0.7)] border-2 border-white/30" : "bg-gradient-to-br from-slate-700 to-slate-900 border-2 border-blue-500/30 hover:border-blue-500/60 shadow-[0_0_20px_rgba(37,99,235,0.3)]"}`}>
+                <Link key={`nav-${idx}`} href={item.href} className="relative flex items-center justify-center min-w-[75px]">
+                  <div className={`absolute top-1/2 -translate-y-1/2 w-[63px] h-[63px] rounded-full flex flex-col items-center justify-center transition-all duration-300 active:scale-90 ${isActive ? "bg-gradient-to-br from-blue-500 to-blue-700 shadow-[0_0_30px_rgba(37,99,235,0.7)] border-2 border-white/30" : "bg-gradient-to-br from-slate-700 to-slate-900 border-2 border-blue-500/30 hover:border-blue-500/60 shadow-[0_0_20px_rgba(37,99,235,0.3)]"}`}>
                     <Icon className={`h-6 w-6 ${isActive ? "text-white" : "text-blue-400"}`} />
                     <span className={`text-[8px] font-black uppercase leading-none mt-0.5 ${isActive ? "text-white" : "text-blue-400"}`}>MPAY</span>
                   </div>
