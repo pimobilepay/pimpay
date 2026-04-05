@@ -99,7 +99,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     {
       title: t("sideMenu.pimpayServices"),
       items: [
-        { label: t("sideMenu.mpay"), icon: <div className="flex flex-col items-center justify-center"><Smartphone size={14} className="text-blue-500" /><span className="text-[6px] font-black text-blue-500 uppercase tracking-tight mt-0.5">MPAY</span></div>, path: "/mpay" },
+        { label: t("sideMenu.mpay"), icon: <Smartphone size={20} className="text-blue-500" />, path: "/mpay" },
         { label: t("sideMenu.swap"), icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
         { label: t("sideMenu.virtualCard"), icon: <CreditCard size={20} className="text-pink-400" />, path: "/dashboard/card" },
         { label: t("sideMenu.mobileRecharge"), icon: <Smartphone size={20} className="text-orange-400" />, path: "/airtime" },

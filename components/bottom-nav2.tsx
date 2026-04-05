@@ -53,11 +53,11 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
 
             if (item.special) {
               return (
-                <Link key={`nav-${idx}`} href={item.href} className="flex flex-col items-center justify-center -mt-6">
-                  <div className={`w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all duration-300 active:scale-90 ${isActive ? "bg-gradient-to-br from-blue-500 to-blue-700 shadow-[0_0_30px_rgba(37,99,235,0.7)] border-2 border-white/30" : "bg-gradient-to-br from-slate-700 to-slate-900 border-2 border-blue-500/30 hover:border-blue-500/60 shadow-[0_0_20px_rgba(37,99,235,0.3)]"}`}>
+                <Link key={`nav-${idx}`} href={item.href} className="flex flex-col items-center -mt-8">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 ${isActive ? "bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.6)] border-2 border-white/20" : "bg-slate-800 border border-white/10 hover:bg-slate-700"}`}>
                     <Icon className={`h-6 w-6 ${isActive ? "text-white" : "text-blue-400"}`} />
-                    <span className={`text-[8px] font-black uppercase leading-none mt-0.5 ${isActive ? "text-white" : "text-blue-400"}`}>MPAY</span>
                   </div>
+                  <span className={`text-[9px] font-bold mt-1 uppercase tracking-tighter ${isActive ? "text-blue-400" : "text-slate-500"}`}>{item.label}</span>
                 </Link>
               );
             }
