@@ -255,7 +255,7 @@ export default function UserDashboard() {
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
           <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"><Bell size={20} />{unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>}</button>
 
-          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-11 h-11 rounded-2xl bg-white/5 text-slate-400 overflow-hidden flex items-center justify-center">{data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={20} />}</button>
+          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400 overflow-hidden">{data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover" /> : <User size={20} />}</button>
 
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
