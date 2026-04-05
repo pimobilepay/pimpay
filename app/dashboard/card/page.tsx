@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft, CreditCard, ShieldCheck,
   Lock, Eye, EyeOff, Settings,
-  Plus, History, Info, Sparkles,
+  Plus, History, Info,
   ChevronRight, Copy, CheckCircle2,
-  Zap, Ban, Globe, Wifi, RefreshCw,
+  Ban, Globe, Wifi, RefreshCw,
   ArrowUpRight, ArrowDownLeft, Wallet,
   DollarSign, Activity, Fingerprint, Loader2, Euro
 } from "lucide-react";
@@ -248,13 +248,10 @@ export default function McardPage() {
                 </div>
 
                 <div className="h-full flex flex-col justify-between relative z-10">
+                  {/* Header */}
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">PimPay Virtual</p>
-                      <div className="flex items-center gap-2">
-                        <Zap size={14} className="text-amber-400 fill-amber-400" />
-                        <span className="font-black italic tracking-tighter text-lg">M-CARD</span>
-                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Wifi size={18} className="text-white/40 rotate-90" />
@@ -262,18 +259,8 @@ export default function McardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-9 bg-gradient-to-br from-amber-200 to-amber-500 rounded-md">
-                      <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
-                        {[...Array(6)].map((_, i) => (
-                          <div key={i} className="bg-black/20 rounded-[1px]" />
-                        ))}
-                      </div>
-                    </div>
-                    <Wifi size={20} className="rotate-90 text-white/40" />
-                  </div>
-
-                  <div className="space-y-3">
+                  {/* Card Number - Centered */}
+                  <div className="flex-1 flex items-center justify-center">
                     <button
                       onClick={() => copyToClipboard(cardNumber, "Numero")}
                       className="flex items-center gap-2 group"
@@ -283,28 +270,37 @@ export default function McardPage() {
                       </p>
                       <Copy size={14} className="text-white/30 group-hover:text-white/60 transition-colors" />
                     </button>
-
-                    <div className="flex gap-8">
-                      <div>
-                        <p className="text-[8px] font-black text-white/40 uppercase mb-0.5">{"Valide jusqu'au"}</p>
-                        <p className="text-sm font-black tracking-widest">{showDetails ? cardExpiry : "••/••"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-white/40 uppercase mb-0.5">CVV</p>
-                        <p className="text-sm font-black tracking-widest">{showDetails ? cardCvv : "•••"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-white/40 uppercase mb-0.5">Type</p>
-                        <p className="text-sm font-black tracking-widest">DEBIT</p>
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="flex justify-between items-end">
-                    <p className="text-xs font-black uppercase tracking-widest opacity-80">{cardHolder}</p>
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#eb001b]/80" />
-                      <div className="w-8 h-8 rounded-full bg-[#f79e1b]/80 -ml-3" />
+                  {/* Bottom Section - Details + Holder Name */}
+                  <div className="space-y-1 mt-auto">
+                    <div className="flex gap-6">
+                      <div>
+                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">{"Valide jusqu'au"}</p>
+                        <p className="text-xs font-bold tracking-widest">{showDetails ? cardExpiry : "••/••"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">CVV</p>
+                        <p className="text-xs font-bold tracking-widest">{showDetails ? cardCvv : "•••"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">Type</p>
+                        <p className="text-xs font-bold tracking-widest">DEBIT</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-end pt-1">
+                      <div>
+                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">Titulaire</p>
+                        <p className="text-xs font-black uppercase tracking-widest opacity-80">{cardHolder}</p>
+                      </div>
+                      {cardBrand === "VISA" ? (
+                        <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                      ) : (
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#eb001b]/80" />
+                          <div className="w-8 h-8 rounded-full bg-[#f79e1b]/80 -ml-3" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -351,10 +347,14 @@ export default function McardPage() {
 
                     <div className="flex justify-between items-center">
                       <p className="text-[7px] text-white/20">{"Propriete de PimPay. Usage personnel uniquement."}</p>
-                      <div className="flex items-center opacity-50">
-                        <div className="w-5 h-5 rounded-full bg-[#eb001b]/80" />
-                        <div className="w-5 h-5 rounded-full bg-[#f79e1b]/80 -ml-2" />
-                      </div>
+                      {cardBrand === "VISA" ? (
+                        <span className="text-lg font-black italic text-white/50 tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                      ) : (
+                        <div className="flex items-center opacity-50">
+                          <div className="w-5 h-5 rounded-full bg-[#eb001b]/80" />
+                          <div className="w-5 h-5 rounded-full bg-[#f79e1b]/80 -ml-2" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

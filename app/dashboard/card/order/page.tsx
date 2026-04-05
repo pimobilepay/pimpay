@@ -27,8 +27,9 @@ import { toast } from "sonner";
 
 const PI_RATE_GCV = 314159;
 
-// Tier IDs must match the API CARD_CONFIG keys: PLATINIUM, PREMIUM, GOLD, ULTRA
+// Tier IDs must match the API CARD_CONFIG keys: PLATINIUM, PREMIUM, GOLD, ULTRA, VISA_CLASSIC, VISA_GOLD, VISA_PLATINUM, VISA_INFINITE
 const CARD_TIERS = [
+  // MASTERCARD
   {
     id: "PLATINIUM",
     tier: "Mastercard Blue",
@@ -90,6 +91,71 @@ const CARD_TIERS = [
     accentBg: "bg-white/10",
     features: ["Cashback 10%", "Conciergerie VIP", "Lounge illimite"],
     maintenance: "$10/mois",
+    rechargeRate: "0.5%",
+    withdrawRate: "0%",
+  },
+  // VISA
+  {
+    id: "VISA_CLASSIC",
+    tier: "Visa Classic",
+    brand: "VISA",
+    price: 15,
+    limit: "1,500",
+    monthlyLimit: "10,000",
+    gradient: "from-[#1a1f71] via-[#2d3a8c] to-[#0d1137]",
+    border: "border-indigo-500/30",
+    accent: "text-indigo-400",
+    accentBg: "bg-indigo-500/20",
+    features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
+    maintenance: "$1.5/mois",
+    rechargeRate: "2%",
+    withdrawRate: "1.5%",
+  },
+  {
+    id: "VISA_GOLD",
+    tier: "Visa Gold",
+    brand: "VISA",
+    price: 35,
+    limit: "3,000",
+    monthlyLimit: "75,000",
+    gradient: "from-[#854d0e] via-[#a16207] to-[#713f12]",
+    border: "border-yellow-600/40",
+    accent: "text-yellow-500",
+    accentBg: "bg-yellow-500/20",
+    features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
+    maintenance: "$3/mois",
+    rechargeRate: "1.5%",
+    withdrawRate: "1%",
+  },
+  {
+    id: "VISA_PLATINUM",
+    tier: "Visa Platinum",
+    brand: "VISA",
+    price: 75,
+    limit: "10,000",
+    monthlyLimit: "300,000",
+    gradient: "from-[#374151] via-[#6b7280] to-[#1f2937]",
+    border: "border-gray-400/40",
+    accent: "text-gray-300",
+    accentBg: "bg-gray-400/20",
+    features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
+    maintenance: "$7/mois",
+    rechargeRate: "1%",
+    withdrawRate: "0.5%",
+  },
+  {
+    id: "VISA_INFINITE",
+    tier: "Visa Infinite",
+    brand: "VISA",
+    price: 150,
+    limit: "Illimite",
+    monthlyLimit: "Illimite",
+    gradient: "from-[#0c0a09] via-[#1c1917] to-[#0a0a0a]",
+    border: "border-white/30",
+    accent: "text-white",
+    accentBg: "bg-white/10",
+    features: ["Cashback 10%", "Conciergerie VIP", "Lounge illimite"],
+    maintenance: "$15/mois",
     rechargeRate: "0.5%",
     withdrawRate: "0%",
   },
@@ -198,27 +264,21 @@ export default function CardOrderPage() {
               <div className="relative h-full p-6 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-black tracking-[0.2em] text-white/50 uppercase">Virtual Debit</span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <Zap size={14} className="text-amber-400 fill-amber-400" />
-                      <span className="text-lg font-black italic tracking-tighter">PimPay</span>
+                    <span className="text-[10px] font-black tracking-[0.2em] text-white/50 uppercase">PimPay Virtual</span>
+                  </div>
+                  {selectedCard.brand === "VISA" ? (
+                    <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                  ) : (
+                    <div className="flex items-center">
+                      <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
+                      <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
                     </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
-                    <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
-                  </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-9 bg-gradient-to-br from-amber-200 to-amber-500 rounded-md">
-                    <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
-                      {[...Array(6)].map((_, i) => (
-                        <div key={i} className="bg-black/20 rounded-[1px]" />
-                      ))}
-                    </div>
-                  </div>
-                  <Wifi size={20} className="rotate-90 text-white/40" />
+                <div className="flex items-center gap-2">
+                  <Wifi size={18} className="rotate-90 text-white/40" />
+                  <Globe size={18} className="text-white/30" />
                 </div>
 
                 <div className="space-y-1">
@@ -227,6 +287,18 @@ export default function CardOrderPage() {
                     <p className="text-xs font-black uppercase text-white/50">Nom du titulaire</p>
                     <p className="text-xs font-mono text-white/50">{"••/••"}</p>
                   </div>
+                </div>
+
+                <div className="flex justify-between items-end">
+                  <p className="text-[9px] font-black uppercase text-white/40 tracking-widest">{selectedCard.tier}</p>
+                  {selectedCard.brand === "VISA" ? (
+                    <span className="text-sm font-black italic text-white/50">VISA</span>
+                  ) : (
+                    <div className="flex items-center opacity-50">
+                      <div className="w-5 h-5 bg-[#eb001b] rounded-full" />
+                      <div className="w-5 h-5 bg-[#f79e1b] rounded-full -ml-2" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
