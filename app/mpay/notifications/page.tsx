@@ -6,7 +6,7 @@ import {
   ArrowLeft, Bell, Check, CheckCheck, Trash2, 
   ArrowDownLeft, ArrowUpRight, Shield, Loader2,
   RefreshCw, Filter, Clock, Zap, AlertCircle,
-  ChevronRight, Wallet, X
+  ChevronRight, Wallet, X, TrendingUp, Coins, Gift
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -25,10 +25,19 @@ interface Notification {
     from?: string;
     to?: string;
     txId?: string;
+    // Staking specific
+    stakingAmount?: number;
+    rewardAmount?: number;
+    apy?: number;
+    duration?: string;
+    stakingId?: string;
+    stakingStatus?: string;
+    unlockDate?: string;
+    type?: string;
   };
 }
 
-type FilterType = "all" | "payment" | "security" | "unread";
+type FilterType = "all" | "payment" | "security" | "unread" | "staking";
 
 export default function MPayNotificationsPage() {
   const router = useRouter();
@@ -144,11 +153,12 @@ export default function MPayNotificationsPage() {
     if (activeFilter === "unread") return !n.read;
     if (activeFilter === "payment") return n.type === "PAYMENT_RECEIVED" || n.type === "PAYMENT_SENT" || n.type === "success";
     if (activeFilter === "security") return n.type === "SECURITY" || n.type === "LOGIN";
+    if (activeFilter === "staking") return n.type === "STAKING" || n.type === "STAKING_REWARD" || n.type === "STAKING_UNSTAKE" || n.metadata?.type === "STAKING" || n.metadata?.type === "UNSTAKE";
     return true;
   });
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (type: string, metadata?: Notification["metadata"]) => {
     switch (type) {
       case "PAYMENT_RECEIVED":
       case "success":
@@ -158,13 +168,20 @@ export default function MPayNotificationsPage() {
       case "SECURITY":
       case "LOGIN":
         return <Shield size={18} className="text-amber-400" />;
+      case "STAKING":
+      case "STAKING_REWARD":
+        return <TrendingUp size={18} className="text-purple-400" />;
+      case "STAKING_UNSTAKE":
+        return <Coins size={18} className="text-orange-400" />;
       default:
+        if (metadata?.type === "STAKING") return <TrendingUp size={18} className="text-purple-400" />;
+        if (metadata?.type === "UNSTAKE") return <Coins size={18} className="text-orange-400" />;
         return <Bell size={18} className="text-blue-400" />;
     }
   };
 
   // Get background color based on type
-  const getNotificationBg = (type: string, read: boolean) => {
+  const getNotificationBg = (type: string, read: boolean, metadata?: Notification["metadata"]) => {
     if (read) return "bg-white/[0.02]";
     switch (type) {
       case "PAYMENT_RECEIVED":
@@ -175,7 +192,14 @@ export default function MPayNotificationsPage() {
       case "SECURITY":
       case "LOGIN":
         return "bg-amber-500/5 border-l-2 border-l-amber-500";
+      case "STAKING":
+      case "STAKING_REWARD":
+        return "bg-purple-500/5 border-l-2 border-l-purple-500";
+      case "STAKING_UNSTAKE":
+        return "bg-orange-500/5 border-l-2 border-l-orange-500";
       default:
+        if (metadata?.type === "STAKING") return "bg-purple-500/5 border-l-2 border-l-purple-500";
+        if (metadata?.type === "UNSTAKE") return "bg-orange-500/5 border-l-2 border-l-orange-500";
         return "bg-blue-500/5 border-l-2 border-l-blue-500";
     }
   };
@@ -212,6 +236,7 @@ export default function MPayNotificationsPage() {
             { id: "all", label: "Tout", icon: Bell },
             { id: "unread", label: "Non lues", icon: AlertCircle },
             { id: "payment", label: "Paiements", icon: Wallet },
+            { id: "staking", label: "Staking", icon: TrendingUp },
             { id: "security", label: "Securite", icon: Shield },
           ].map((filter) => (
             <button
@@ -264,7 +289,7 @@ export default function MPayNotificationsPage() {
             {filteredNotifications.map((notif) => (
               <div
                 key={notif.id}
-                className={`relative rounded-2xl border border-white/10 overflow-hidden transition-all ${getNotificationBg(notif.type, notif.read)}`}
+                className={`relative rounded-2xl border border-white/10 overflow-hidden transition-all ${getNotificationBg(notif.type, notif.read, notif.metadata)}`}
               >
                 <button
                   onClick={() => {
@@ -281,9 +306,11 @@ export default function MPayNotificationsPage() {
                     notif.type === "PAYMENT_RECEIVED" || notif.type === "success" ? "bg-emerald-500/10" :
                     notif.type === "PAYMENT_SENT" ? "bg-red-500/10" :
                     notif.type === "SECURITY" || notif.type === "LOGIN" ? "bg-amber-500/10" :
+                    notif.type === "STAKING" || notif.type === "STAKING_REWARD" || notif.metadata?.type === "STAKING" ? "bg-purple-500/10" :
+                    notif.type === "STAKING_UNSTAKE" || notif.metadata?.type === "UNSTAKE" ? "bg-orange-500/10" :
                     "bg-blue-500/10"
                   }`}>
-                    {getNotificationIcon(notif.type)}
+                    {getNotificationIcon(notif.type, notif.metadata)}
                   </div>
 
                   {/* Content */}
@@ -301,7 +328,7 @@ export default function MPayNotificationsPage() {
                     </p>
                     
                     {/* Amount if payment */}
-                    {notif.metadata?.amount && (
+                    {notif.metadata?.amount && !notif.metadata?.stakingAmount && !notif.metadata?.rewardAmount && (
                       <div className={`mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black ${
                         notif.type === "PAYMENT_RECEIVED" || notif.type === "success" 
                           ? "bg-emerald-500/10 text-emerald-400" 
@@ -310,6 +337,43 @@ export default function MPayNotificationsPage() {
                         <Zap size={10} />
                         {notif.type === "PAYMENT_RECEIVED" || notif.type === "success" ? "+" : "-"}
                         {notif.metadata.amount} {notif.metadata.currency || "Pi"}
+                      </div>
+                    )}
+
+                    {/* Staking details */}
+                    {(notif.metadata?.stakingAmount || notif.metadata?.rewardAmount) && (
+                      <div className="mt-2 space-y-1.5">
+                        {notif.metadata?.stakingAmount && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-purple-500/10 text-purple-400">
+                            <TrendingUp size={10} />
+                            {notif.metadata.stakingAmount} {notif.metadata.currency || "PI"} stake
+                          </div>
+                        )}
+                        {notif.metadata?.rewardAmount && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-400 ml-1">
+                            <Gift size={10} />
+                            +{notif.metadata.rewardAmount} {notif.metadata.currency || "PI"} recompense
+                          </div>
+                        )}
+                        {notif.metadata?.apy && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-blue-500/10 text-blue-400 ml-1">
+                            {notif.metadata.apy}% APY
+                          </div>
+                        )}
+                        {notif.metadata?.duration && (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-slate-500/10 text-slate-400 ml-1">
+                            <Clock size={10} />
+                            {notif.metadata.duration}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Unstake details */}
+                    {(notif.type === "STAKING_UNSTAKE" || notif.metadata?.type === "UNSTAKE") && notif.metadata?.amount && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-orange-500/10 text-orange-400">
+                        <Coins size={10} />
+                        {notif.metadata.amount} {notif.metadata.currency || "PI"} debloques
                       </div>
                     )}
 

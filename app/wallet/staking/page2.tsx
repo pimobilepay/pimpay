@@ -475,15 +475,6 @@ export default function StakingPage() {
                         <p className="text-[11px] font-black text-white">{new Date(stake.endDate).toLocaleDateString('fr-FR')}</p>
                       </div>
                     </div>
-                    {/* Early withdrawal warning */}
-                    {stake.status === "ACTIVE" && new Date(stake.endDate) > new Date() && (
-                      <div className="mt-3 flex items-start gap-2 p-2 bg-yellow-500/5 border border-yellow-500/10 rounded-lg">
-                        <Info size={12} className="text-yellow-500 shrink-0 mt-0.5" />
-                        <p className="text-[9px] text-yellow-500/80 leading-relaxed">
-                          Retrait anticipé: pénalité de 50% sur les récompenses
-                        </p>
-                      </div>
-                    )}
                     {stake.status === "ACTIVE" && (
                       <button
                         onClick={async () => {
@@ -495,18 +486,7 @@ export default function StakingPage() {
                             });
                             const data = await res.json();
                             if (data.success) {
-                              const details = data.details;
-                              if (details.isEarlyWithdrawal) {
-                                toast.success(
-                                  `Retrait anticipé effectué ! Principal: ${details.principal.toFixed(2)} ${details.currency}, Récompenses: +${details.rewards.toFixed(4)} ${details.currency} (pénalité: ${details.penalty.toFixed(4)} ${details.currency})`,
-                                  { duration: 6000 }
-                                );
-                              } else {
-                                toast.success(
-                                  `Staking clôturé ! +${details.rewards.toFixed(4)} ${stake.symbol} de récompenses après ${details.daysStaked} jours`,
-                                  { duration: 5000 }
-                                );
-                              }
+                              toast.success(`Staking clôturé ! +${data.details.rewards.toFixed(4)} ${stake.symbol} de récompenses`);
                               loadStakes();
                             } else {
                               toast.error(data.error || "Erreur lors du retrait");

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat, Banknote, DollarSign } from "lucide-react";
+import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat, Banknote, DollarSign, TrendingUp, Coins, Gift } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -26,6 +26,14 @@ interface NotificationMetadata {
   pendingCount?: number;
   type?: string;
   status?: string;
+  // Staking specific
+  stakingAmount?: number;
+  rewardAmount?: number;
+  apy?: number;
+  duration?: string;
+  stakingId?: string;
+  stakingStatus?: string;
+  unlockDate?: string;
 }
 
 interface Notification {
@@ -83,6 +91,24 @@ function showNotificationToast(notif: Notification) {
     toast.warning(notif.title, {
       description: meta?.location ? `Connexion depuis ${meta.location}` : notif.message,
       duration: 8000,
+    });
+  } else if (notif.type === "STAKING" || notif.type === "STAKING_REWARD" || meta?.type === "STAKING") {
+    // Notification de staking
+    toast.success(notif.title, {
+      description: meta?.stakingAmount 
+        ? `${Number(meta.stakingAmount).toLocaleString()} ${meta.currency || "PI"} stake a ${meta.apy || 0}% APY` 
+        : meta?.rewardAmount 
+          ? `+${Number(meta.rewardAmount).toLocaleString()} ${meta.currency || "PI"} de recompense`
+          : notif.message,
+      duration: 8000,
+    });
+  } else if (notif.type === "STAKING_UNSTAKE" || meta?.type === "UNSTAKE") {
+    // Notification de unstaking
+    toast.info(notif.title, {
+      description: meta?.amount 
+        ? `${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} debloques` 
+        : notif.message,
+      duration: 6000,
     });
   } else {
     toast(notif.title, { description: notif.message, duration: 5000 });
@@ -192,6 +218,8 @@ export default function NotificationCenter() {
                       n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? 'bg-emerald-500/10 text-emerald-500' :
                       n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? 'bg-amber-500/10 text-amber-500' :
                       n.type === 'SWAP' ? 'bg-blue-500/10 text-blue-500' :
+                      n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' ? 'bg-purple-500/10 text-purple-500' :
+                      n.type === 'STAKING_UNSTAKE' || (n.metadata as NotificationMetadata)?.type === 'UNSTAKE' ? 'bg-orange-500/10 text-orange-500' :
                       'bg-blue-500/10 text-blue-500'
                     }`}>
                       {n.type === 'success' || n.type === 'SUCCESS' ? <Check size={14} /> : 
@@ -199,6 +227,8 @@ export default function NotificationCenter() {
                        n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? <Banknote size={14} /> :
                        n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? <DollarSign size={14} /> :
                        n.type === 'SWAP' ? <Repeat size={14} /> :
+                       n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' ? <TrendingUp size={14} /> :
+                       n.type === 'STAKING_UNSTAKE' || (n.metadata as NotificationMetadata)?.type === 'UNSTAKE' ? <Coins size={14} /> :
                        <Info size={14} />}
                     </div>
                     <div className="flex-1">

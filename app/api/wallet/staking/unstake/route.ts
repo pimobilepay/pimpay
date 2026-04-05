@@ -49,18 +49,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Staking non trouvé ou déjà clôturé" }, { status: 404 });
     }
 
-    // Check if locked staking has ended
-    if (staking.endDate && new Date() < staking.endDate) {
-      const daysLeft = Math.ceil((staking.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      return NextResponse.json({ 
-        error: `Staking verrouillé. ${daysLeft} jours restants.` 
-      }, { status: 400 });
-    }
-
-    // Calculate final rewards (prorated based on time staked)
+    // Calculate days staked and check if early withdrawal
     const daysStaked = Math.floor((Date.now() - staking.startDate.getTime()) / (1000 * 60 * 60 * 24));
     const dailyRate = staking.apy / 365 / 100;
-    const finalRewards = staking.amount * dailyRate * daysStaked;
+    let finalRewards = staking.amount * dailyRate * daysStaked;
+    
+    // Early withdrawal penalty: 50% of earned rewards if withdrawn before end date
+    const isEarlyWithdrawal = staking.endDate && new Date() < staking.endDate;
+    let penalty = 0;
+    
+    if (isEarlyWithdrawal) {
+      penalty = finalRewards * 0.5; // 50% penalty on rewards for early withdrawal
+      finalRewards = finalRewards - penalty;
+    }
+    
     const totalAmount = staking.amount + finalRewards;
 
     // Determine currency based on staking (we'll assume PI for now, could be enhanced)
@@ -116,33 +118,72 @@ export async function POST(req: Request) {
         stakingId,
         principal: staking.amount,
         rewards: finalRewards,
+        penalty,
         total: totalAmount,
         daysStaked,
-        apy: staking.apy
+        apy: staking.apy,
+        isEarlyWithdrawal
       }
+    });
+
+    // Create notification with full details (like swap does)
+    const notificationMessage = isEarlyWithdrawal
+      ? `Retrait anticipé : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de récompenses (pénalité: ${penalty.toFixed(4)} ${currency})`
+      : `Staking clôturé : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de récompenses après ${daysStaked} jours`;
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: isEarlyWithdrawal ? "Retrait anticipé effectué !" : "Staking clôturé !",
+        message: notificationMessage,
+        type: "STAKING",
+        metadata: {
+          stakingId,
+          principal: staking.amount,
+          rewards: finalRewards,
+          penalty,
+          total: totalAmount,
+          daysStaked,
+          apy: staking.apy,
+          currency,
+          isEarlyWithdrawal,
+          reference: `UNSTK-${Date.now()}`
+        }
+      }
+    }).catch((err) => {
+      console.error("Failed to create notification:", err);
     });
 
     return NextResponse.json({
       success: true,
-      message: "Staking clôturé avec succès",
+      message: isEarlyWithdrawal 
+        ? "Retrait anticipé effectué avec pénalité de 50% sur les récompenses" 
+        : "Staking clôturé avec succès",
       details: {
         principal: staking.amount,
         rewards: finalRewards,
+        penalty,
         total: totalAmount,
-        daysStaked
+        daysStaked,
+        apy: staking.apy,
+        currency,
+        isEarlyWithdrawal
       }
     });
 
   } catch (error: any) {
     console.error("❌ [UNSTAKE_ERROR]:", error.message);
-    await logSystemEvent({
-      level: "ERROR",
-      source: "STAKING",
-      action: "UNSTAKE_ERROR",
-      message: `Erreur unstake: ${error.message}`,
-      userId,
-      details: { stakingId: body?.stakingId, error: error.message }
-    });
+    try {
+      await logSystemEvent({
+        level: "ERROR",
+        source: "STAKING",
+        action: "UNSTAKE_ERROR",
+        message: `Erreur unstake: ${error.message}`,
+        details: { error: error.message }
+      });
+    } catch {
+      // Ignore logging errors
+    }
     return NextResponse.json({ error: "Impossible de clôturer le staking" }, { status: 500 });
   }
 }

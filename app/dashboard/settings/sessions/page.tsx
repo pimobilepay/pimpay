@@ -88,7 +88,7 @@ export default async function SessionsPage() {
       <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center justify-between px-4 py-4 max-w-md mx-auto">
           <Link 
-            href="/dashboard/settings" 
+            href="/settings" 
             className="w-10 h-10 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-colors"
           >
             <ArrowLeft size={20} className="text-white" />
@@ -107,12 +107,19 @@ export default async function SessionsPage() {
       
       <div className="p-6 pb-32 max-w-md mx-auto">
 
-        {/* DEVICE COUNT & LOGOUT BUTTON */}
-        <div className="flex flex-col items-center text-center mb-8 pt-4">
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-              {sessions.length} APPAREIL{sessions.length > 1 ? 'S' : ''} ACTIF{sessions.length > 1 ? 'S' : ''}
+        {/* DESCRIPTION & DEVICE COUNT */}
+        <div className="flex flex-col items-center text-center mb-6">
+          <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-xs">
+            Consultez et gérez tous les appareils connectés à votre compte PimPay. Révoquez les sessions suspectes pour protéger votre compte.
           </p>
-          <div className="mt-6">
+          
+          <div className="mt-4 px-4 py-2 bg-slate-800/50 rounded-full border border-white/5">
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.15em]">
+              {sessions.length} APPAREIL{sessions.length > 1 ? 'S' : ''} CONNECTÉ{sessions.length > 1 ? 'S' : ''}
+            </p>
+          </div>
+          
+          <div className="mt-4">
             <LogoutOthersButton />
           </div>
         </div>

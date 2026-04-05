@@ -179,6 +179,34 @@ export async function POST(req: Request) {
       }
     });
 
+    // Create notification with full details (like swap does)
+    const endDateFormatted = endDate 
+      ? new Date(endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+      : 'Flexible';
+    
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Staking activé !",
+        message: `Vous avez mis ${amount} ${pool.currency} en staking à ${pool.apy}% APY. Fin prévue: ${endDateFormatted}`,
+        type: "STAKING",
+        metadata: {
+          stakingId: staking.id,
+          amount,
+          currency: pool.currency,
+          apy: pool.apy,
+          poolId,
+          lockDays: lockDays || 0,
+          startDate: staking.startDate,
+          endDate: staking.endDate,
+          estimatedAnnualReward: amount * pool.apy / 100,
+          reference: `STK-${staking.id.substring(0, 8)}`
+        }
+      }
+    }).catch((err) => {
+      console.error("Failed to create notification:", err);
+    });
+
     return NextResponse.json({
       success: true,
       message: "Staking créé avec succès",
@@ -188,20 +216,25 @@ export async function POST(req: Request) {
         apy: staking.apy,
         startDate: staking.startDate,
         endDate: staking.endDate,
-        estimatedAnnualReward: amount * pool.apy / 100
+        estimatedAnnualReward: amount * pool.apy / 100,
+        currency: pool.currency,
+        lockDays: lockDays || 0
       }
     });
 
   } catch (error: any) {
     console.error("❌ [STAKING_CREATE_ERROR]:", error.message);
-    await logSystemEvent({
-      level: "ERROR",
-      source: "STAKING",
-      action: "STAKE_ERROR",
-      message: `Erreur création staking: ${error.message}`,
-      userId,
-      details: { error: error.message, stack: error.stack?.substring(0, 500) }
-    });
+    try {
+      await logSystemEvent({
+        level: "ERROR",
+        source: "STAKING",
+        action: "STAKE_ERROR",
+        message: `Erreur création staking: ${error.message}`,
+        details: { error: error.message, stack: error.stack?.substring(0, 500) }
+      });
+    } catch {
+      // Ignore logging errors
+    }
     return NextResponse.json({ error: "Impossible de créer le staking" }, { status: 500 });
   }
 }

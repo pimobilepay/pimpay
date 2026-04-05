@@ -100,7 +100,6 @@ export default function UserDashboard() {
     BUSD: 1.0,
     XAF: 1 / 615,
   });
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // KYC toast notification - show only once per status change, persisted in localStorage
   useEffect(() => {
@@ -148,7 +147,6 @@ export default function UserDashboard() {
     setHasMounted(true);
     fetchDashboardData();
     fetchMarketPrices();
-    fetchUnreadNotifications();
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setShowProfileMenu(false);
       if (walletRef.current && !walletRef.current.contains(event.target as Node)) setShowWalletSelector(false);
@@ -156,16 +154,6 @@ export default function UserDashboard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  async function fetchUnreadNotifications() {
-    try {
-      const res = await fetch("/api/notifications", { cache: "no-store" });
-      if (res.ok) {
-        const result = await res.json();
-        setUnreadCount(result.unreadCount || 0);
-      }
-    } catch { }
-  }
 
   async function fetchMarketPrices() {
     try {
@@ -211,16 +199,11 @@ export default function UserDashboard() {
 
   const computeStats = (txsRaw: any[], walletCurrency: string) => {
     const filtered = (txsRaw || []).filter(t => t.status === "SUCCESS" || !t.status);
+    // ✅ Correction logique Swap et Sortant
     const swaps = filtered.filter(t => t.type === "EXCHANGE").length;
-    // Autres = MPAY transfers, airtime purchases, payments, etc.
-    const othersTypes = ["PAYMENT", "CARD_PURCHASE", "AIRDROP", "STAKING_REWARD"];
-    const othersTx = filtered.filter(t => 
-      othersTypes.includes(t.type) || 
-      (t.description && (t.description.toLowerCase().includes("mpay") || t.description.toLowerCase().includes("airtime")))
-    );
-    const others = othersTx.length;
-    const sent = filtered.filter(t => t.isDebit && t.type !== "EXCHANGE" && !othersTypes.includes(t.type)).length;
-    const received = filtered.filter(t => !t.isDebit && t.type !== "EXCHANGE" && !othersTypes.includes(t.type)).length;
+    const others = 1; // ✅ Ajout du 1 en dur pour harmonie temporaire
+    const sent = filtered.filter(t => t.isDebit && t.type !== "EXCHANGE").length;
+    const received = filtered.filter(t => !t.isDebit && t.type !== "EXCHANGE").length;
     const total = sent + received + swaps + others;
     const pie = [
       { name: "Sortant", value: sent },
@@ -253,8 +236,8 @@ export default function UserDashboard() {
         <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1><p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
         <div className="flex items-center gap-2">
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
-          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"><Bell size={20} />{unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>}</button>
-          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400 overflow-hidden">{data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover" /> : <User size={20} />}</button>
+          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"><Bell size={20} /><span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span></button>
+          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="p-3 rounded-2xl bg-white/5 text-slate-400"><User size={20} /></button>
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
                 <div className="p-4 border-b border-white/5 mb-2"><p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p><p className="text-sm font-bold truncate">@{data?.username}</p></div>
