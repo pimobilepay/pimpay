@@ -65,9 +65,33 @@ export default function MPayStatisticsPage() {
     fetchData();
   }, []);
 
+  // Filter transactions by period
+  const filteredTransactions = useMemo(() => {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (period) {
+      case "jour":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case "semaine":
+        const dayOfWeek = now.getDay();
+        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday as start of week
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+        break;
+      case "mois":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      default:
+        startDate = new Date(0);
+    }
+
+    return transactions.filter((tx) => new Date(tx.createdAt) >= startDate);
+  }, [transactions, period]);
+
   // Calculate statistics from real data
   const stats = useMemo(() => {
-    if (!userId || transactions.length === 0) {
+    if (!userId || filteredTransactions.length === 0) {
       return {
         totalSent: 0,
         totalReceived: 0,
@@ -87,7 +111,7 @@ export default function MPayStatisticsPage() {
     const dayData: Record<string, { sent: number; received: number }> = {};
     const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
-    transactions.forEach((tx) => {
+    filteredTransactions.forEach((tx) => {
       const isSent = tx.fromUserId === userId;
       const amount = tx.amount || 0;
       const date = new Date(tx.createdAt);
@@ -142,7 +166,7 @@ export default function MPayStatisticsPage() {
       ],
       barData,
     };
-  }, [transactions, userId]);
+  }, [filteredTransactions, userId]);
 
   if (loading) {
     return (
