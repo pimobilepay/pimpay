@@ -347,73 +347,37 @@ export default function AuditPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                  <FileText className="h-5 w-5 text-blue-500" />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
+                  <FileText className="h-4 w-4 text-blue-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Logs Audit</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Logs Audit</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-16 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-12 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-blue-500">{stats?.totalAuditLogs || 0}</p>
+                    <p className="text-sm font-black text-blue-500">{stats?.totalAuditLogs || 0}</p>
                   )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/10 rounded-xl">
-                  <Server className="h-5 w-5 text-emerald-500" />
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
+                  <Activity className="h-4 w-4 text-amber-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Logs Systeme</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Activite 24h</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-16 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-12 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-emerald-500">{stats?.totalSystemLogs || 0}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/10 rounded-xl">
-                  <Activity className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Activite 24h</p>
-                  {loading ? (
-                    <Skeleton className="h-6 w-16 bg-slate-700 mt-1" />
-                  ) : (
-                    <p className="text-lg font-black text-amber-500">{stats?.recentActivity || 0}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-red-500/10 rounded-xl">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Erreurs Critiques</p>
-                  {loading ? (
-                    <Skeleton className="h-6 w-12 bg-slate-700 mt-1" />
-                  ) : (
-                    <p className="text-lg font-black text-red-500">{stats?.criticalErrors || 0}</p>
+                    <p className="text-sm font-black text-amber-500">{stats?.recentActivity || 0}</p>
                   )}
                 </div>
               </div>
@@ -423,17 +387,17 @@ export default function AuditPage() {
 
         {/* Action Distribution */}
         {stats?.byAction && Object.keys(stats.byAction).length > 0 && (
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl mb-8">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold text-white">Distribution des Actions</CardTitle>
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl mb-6 overflow-hidden">
+            <CardHeader className="pb-2 px-4 pt-4">
+              <CardTitle className="text-xs font-bold text-white">Distribution des Actions</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                {Object.entries(stats.byAction).slice(0, 10).map(([action, count]) => (
-                  <div key={action} className="flex items-center gap-2 bg-slate-800/50 rounded-xl px-3 py-2 border border-white/5">
+            <CardContent className="px-4 pb-4">
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                {Object.entries(stats.byAction).slice(0, 8).map(([action, count]) => (
+                  <div key={action} className="flex items-center gap-1.5 bg-slate-800/50 rounded-lg px-2 py-1.5 border border-white/5 shrink-0">
                     {getActionIcon(action)}
-                    <span className="text-xs text-slate-400">{action}</span>
-                    <Badge className="bg-slate-700/50 text-slate-300 text-[10px]">{count}</Badge>
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{action.replace(/_/g, " ")}</span>
+                    <Badge className="bg-slate-700/50 text-slate-300 text-[9px] px-1.5">{count}</Badge>
                   </div>
                 ))}
               </div>
