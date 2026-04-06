@@ -157,6 +157,23 @@ export default function UserDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Real-time notification polling (like mpay page)
+  useEffect(() => {
+    const checkNotifications = async () => {
+      try {
+        const res = await fetch("/api/notifications", { cache: "no-store" });
+        if (res.ok) {
+          const result = await res.json();
+          setUnreadCount(result.unreadCount || 0);
+        }
+      } catch { }
+    };
+    
+    // Poll every 10 seconds for real-time updates
+    const interval = setInterval(checkNotifications, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   async function fetchUnreadNotifications() {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
@@ -211,16 +228,46 @@ export default function UserDashboard() {
 
   const computeStats = (txsRaw: any[], walletCurrency: string) => {
     const filtered = (txsRaw || []).filter(t => t.status === "SUCCESS" || !t.status);
-    const swaps = filtered.filter(t => t.type === "EXCHANGE").length;
-    // Autres = MPAY transfers, airtime purchases, payments, etc.
-    const othersTypes = ["PAYMENT", "CARD_PURCHASE", "AIRDROP", "STAKING_REWARD"];
+    
+    // Swap types
+    const swapTypes = ["EXCHANGE", "SWAP"];
+    const swaps = filtered.filter(t => swapTypes.includes(t.type)).length;
+    
+    // Others = MPAY transfers, airtime purchases, payments, staking, deposits, withdrawals, etc.
+    const othersTypes = [
+      "PAYMENT", "CARD_PURCHASE", "AIRDROP", "STAKING_REWARD", "STAKING",
+      "MPAY", "AIRTIME", "BILL_PAYMENT", "MERCHANT_PAYMENT", "FEE",
+      "BONUS", "REFERRAL", "CASHBACK", "REWARD"
+    ];
+    
     const othersTx = filtered.filter(t => 
       othersTypes.includes(t.type) || 
-      (t.description && (t.description.toLowerCase().includes("mpay") || t.description.toLowerCase().includes("airtime")))
+      (t.description && (
+        t.description.toLowerCase().includes("mpay") || 
+        t.description.toLowerCase().includes("airtime") ||
+        t.description.toLowerCase().includes("staking") ||
+        t.description.toLowerCase().includes("bonus") ||
+        t.description.toLowerCase().includes("parrainage")
+      ))
     );
     const others = othersTx.length;
-    const sent = filtered.filter(t => t.isDebit && t.type !== "EXCHANGE" && !othersTypes.includes(t.type)).length;
-    const received = filtered.filter(t => !t.isDebit && t.type !== "EXCHANGE" && !othersTypes.includes(t.type)).length;
+    
+    // Main transaction types (excluding swaps and others)
+    const mainTypes = ["TRANSFER", "DEPOSIT", "WITHDRAW"];
+    const sent = filtered.filter(t => 
+      (t.isDebit || t.type === "WITHDRAW" || t.type === "TRANSFER") && 
+      !swapTypes.includes(t.type) && 
+      !othersTypes.includes(t.type) &&
+      (mainTypes.includes(t.type) || t.isDebit)
+    ).length;
+    
+    const received = filtered.filter(t => 
+      (!t.isDebit || t.type === "DEPOSIT") && 
+      !swapTypes.includes(t.type) && 
+      !othersTypes.includes(t.type) &&
+      (mainTypes.includes(t.type) || !t.isDebit)
+    ).length;
+    
     const total = sent + received + swaps + others;
     const pie = [
       { name: "Sortant", value: sent },
@@ -253,7 +300,14 @@ export default function UserDashboard() {
         <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1><p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
         <div className="flex items-center gap-2">
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
-          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"><Bell size={20} />{unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#020617]"></span>}</button>
+          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative">
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-black text-white px-1">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
 
           <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-11 h-11 rounded-2xl bg-white/5 text-slate-400 overflow-hidden flex items-center justify-center">{data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={20} />}</button>
 
