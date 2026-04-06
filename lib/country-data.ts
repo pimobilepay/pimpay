@@ -672,13 +672,16 @@ export const worldCountries: Country[] = [
       { name: "National Bank of Egypt", bic: "NBEGEGCX", swift: "NBEGEGCX", logo: BK.nbe },
       { name: "CIB Egypt",              bic: "CIBEEGCX", swift: "CIBEEGCX", logo: BK.cib_eg },
     ], operators: [] },
-  { name: "Madagascar",code: "MG", flag: "MG", currency: "MGA", currencySymbol: "Ar",  piToLocalRate: 4500,  dialCode: "+261", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Madagascar",code: "MG", flag: "MG", currency: "MGA", currencySymbol: "Ar",  piToLocalRate: 4500,  dialCode: "+261", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "BOA Madagascar", bic: "BOAFMGMG", swift: "BOAFMGMG", logo: BK.boa },
+      { name: "BFV Societe Generale", bic: "BFVAMGMG", swift: "BFVAMGMG", logo: BK.societe_generale },
+      { name: "BNI Madagascar", bic: "BNIAMGMG", swift: "BNIAMGMG" },
     ],
     operators: [
       { id: "orange_mg", name: "Orange Money", icon: OP.orange, features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "telma_mg",  name: "MVola (Telma)",icon: OP.telma,  features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel_mg", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
     ] },
   { name: "Togo",      code: "TG", flag: "TG", currency: "XOF", currencySymbol: "FCFA",piToLocalRate: 605.5, dialCode: "+228", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
     banks: [

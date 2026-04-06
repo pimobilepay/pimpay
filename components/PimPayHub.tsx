@@ -85,6 +85,7 @@ interface DashboardData {
   dailyEarnings: {
     pi: number
     xaf: number
+    usd?: number
   }
   liquidityHealth: number
   dailyVolume: number
@@ -249,7 +250,7 @@ function TransactionModal({
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           amount: parseFloat(amount),
-          currency: 'XAF'
+          currency: 'USD'
         })
       })
 
@@ -365,7 +366,7 @@ function TransactionModal({
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="amount">Montant (XAF)</Label>
+              <Label htmlFor="amount">Montant (USD)</Label>
               <Input
                 id="amount"
                 type="number"
@@ -585,7 +586,7 @@ export default function PimPayHub() {
   const recentTransactions = data?.recentTransactions || []
   const weeklyGrowth = data?.weeklyGrowth || 0
 
-  const formatCurrency = (amount: number, currency: string = 'XAF') => {
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
     if (safeMode) return '******'
     return new Intl.NumberFormat('fr-CM', {
       style: 'decimal',
@@ -767,12 +768,12 @@ export default function PimPayHub() {
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Daily Earnings (XAF)</p>
+                  <p className="text-xs text-muted-foreground">Daily Earnings (USD)</p>
                   <p className="text-lg font-semibold text-foreground">
                     {isLoading ? (
                       <span className="inline-block w-20 h-6 bg-muted animate-pulse rounded" />
                     ) : (
-                      formatCurrency(dailyEarnings.xaf)
+                      formatCurrency(dailyEarnings.usd || dailyEarnings.xaf || 0)
                     )}
                   </p>
                 </div>
@@ -867,7 +868,7 @@ export default function PimPayHub() {
                         content={
                           <ChartTooltipContent
                             formatter={(value) => (
-                              <span className="font-semibold">{Number(value).toLocaleString()} XAF</span>
+                              <span className="font-semibold">{Number(value).toLocaleString()} USD</span>
                             )}
                           />
                         }

@@ -57,6 +57,7 @@ export default function NotificationsPage() {
   const isMounted = useRef(true);
 
   const [activeTab, setActiveTab] = useState<string>("ALL");
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const fetchNotifications = useCallback(async (showSilent = false) => {
     if (!showSilent) setIsRefreshing(true);
@@ -162,8 +163,233 @@ export default function NotificationsPage() {
         return n.type === activeTab;
       });
 
+  // Notification Detail Modal
+  const NotificationDetailModal = ({ notification, onClose }: { notification: Notification; onClose: () => void }) => {
+    const metadata = notification.metadata;
+    
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+        <motion.div
+          initial={{ opacity: 0, y: 100 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 100 }}
+          className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 bg-slate-900 border border-white/10 rounded-[2rem] overflow-hidden max-h-[85vh] overflow-y-auto"
+        >
+          {/* Header */}
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-white/5 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center",
+                  notification.read ? "bg-slate-800" : "bg-blue-600/20"
+                )}>
+                  {getIcon(notification.type)}
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-tight">{notification.title}</h2>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                    {new Date(notification.createdAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10">
+                <ArrowLeft size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-6">
+            {/* Message */}
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Message</p>
+              <p className="text-sm text-white leading-relaxed">{notification.message}</p>
+            </div>
+
+            {/* Transaction Details for Payment */}
+            {metadata && (notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (
+              <div className="space-y-4">
+                {metadata.amount && (
+                  <div className={`rounded-2xl p-4 border ${
+                    notification.type === "PAYMENT_SENT" 
+                      ? "bg-blue-500/5 border-blue-500/20" 
+                      : "bg-emerald-500/5 border-emerald-500/20"
+                  }`}>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant</p>
+                    <p className={`text-2xl font-black ${
+                      notification.type === "PAYMENT_SENT" ? "text-blue-400" : "text-emerald-400"
+                    }`}>
+                      {notification.type === "PAYMENT_SENT" ? "-" : "+"}{Number(metadata.amount).toLocaleString()} {metadata.currency || "PI"}
+                    </p>
+                  </div>
+                )}
+
+                {(metadata.senderName || metadata.senderUsername) && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Expediteur</p>
+                    <p className="text-sm font-bold text-white">{metadata.senderName || metadata.senderUsername}</p>
+                  </div>
+                )}
+
+                {(metadata.recipientName || metadata.recipientUsername) && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Destinataire</p>
+                    <p className="text-sm font-bold text-white">{metadata.recipientName || metadata.recipientUsername}</p>
+                  </div>
+                )}
+
+                {metadata.method && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Methode</p>
+                    <p className="text-sm font-bold text-white">{metadata.method}</p>
+                  </div>
+                )}
+
+                {metadata.network && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Reseau</p>
+                    <p className="text-sm font-bold text-white">{metadata.network}</p>
+                  </div>
+                )}
+
+                {metadata.walletAddress && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Adresse Wallet</p>
+                    <p className="text-xs font-mono text-slate-300 break-all">{metadata.walletAddress}</p>
+                  </div>
+                )}
+
+                {metadata.fee && metadata.fee > 0 && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Frais</p>
+                    <p className="text-sm font-bold text-amber-400">{metadata.fee} {metadata.currency || "PI"}</p>
+                  </div>
+                )}
+
+                {metadata.status && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Statut</p>
+                    <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                      metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
+                      metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
+                      "bg-red-500/20 text-red-400"
+                    }`}>
+                      {metadata.status}
+                    </span>
+                  </div>
+                )}
+
+                {(metadata.reference || metadata.transactionId) && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Reference</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.reference || metadata.transactionId}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Swap Details */}
+            {metadata && notification.type === "SWAP" && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Envoye</p>
+                      <p className="text-lg font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
+                    </div>
+                    <Repeat size={20} className="text-slate-600" />
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recu</p>
+                      <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {metadata.rate && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Taux de change</p>
+                    <p className="text-sm font-bold text-white">1 {metadata.fromCurrency} = {Number(metadata.rate).toFixed(4)} {metadata.toCurrency}</p>
+                  </div>
+                )}
+
+                {metadata.reference && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Reference</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.reference}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Session/Security Details */}
+            {metadata && (notification.type === "LOGIN" || notification.type === "SECURITY") && (
+              <div className="space-y-4">
+                {metadata.device && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Appareil</p>
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.device}</p>
+                    </div>
+                  </div>
+                )}
+
+                {metadata.ip && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Adresse IP</p>
+                    <div className="flex items-center gap-2">
+                      <Globe size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.ip}</p>
+                    </div>
+                  </div>
+                )}
+
+                {metadata.location && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Localisation</p>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.location}</p>
+                    </div>
+                  </div>
+                )}
+
+                {metadata.os && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Systeme</p>
+                    <p className="text-sm font-bold text-white">{metadata.os} {metadata.browser ? `- ${metadata.browser}` : ''}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Delete Button */}
+            <button 
+              onClick={() => { deleteNotif(notification.id); onClose(); }}
+              className="w-full py-4 bg-red-500/10 text-red-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Trash2 size={16} />
+              Supprimer cette notification
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
+      {/* Notification Detail Modal */}
+      <AnimatePresence>
+        {selectedNotification && (
+          <NotificationDetailModal 
+            notification={selectedNotification} 
+            onClose={() => setSelectedNotification(null)} 
+          />
+        )}
+      </AnimatePresence>
+
       <header className="px-6 pt-12 pb-4 sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
@@ -223,11 +449,12 @@ export default function NotificationsPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, x: -20 }}
+                  onClick={() => setSelectedNotification(notif)}
                   className={cn(
-                    "relative p-5 rounded-[30px] border transition-all",
+                    "relative p-5 rounded-[30px] border transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]",
                     notif.read
-                      ? "bg-slate-900/30 border-white/5 opacity-70"
-                      : "bg-gradient-to-br from-blue-600/10 to-slate-900/50 border-blue-500/20 shadow-lg"
+                      ? "bg-slate-900/30 border-white/5 opacity-70 hover:opacity-90"
+                      : "bg-gradient-to-br from-blue-600/10 to-slate-900/50 border-blue-500/20 shadow-lg hover:border-blue-500/40"
                   )}
                 >
                   <div className="flex gap-4">

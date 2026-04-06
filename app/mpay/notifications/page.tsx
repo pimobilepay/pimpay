@@ -6,8 +6,10 @@ import {
   ArrowLeft, Bell, Check, CheckCheck, Trash2, 
   ArrowDownLeft, ArrowUpRight, Shield, Loader2,
   RefreshCw, Filter, Clock, Zap, AlertCircle,
-  ChevronRight, Wallet, X, TrendingUp, Coins, Gift
+  ChevronRight, Wallet, X, TrendingUp, Coins, Gift,
+  Repeat, Smartphone, Globe, MapPin, Info
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -46,6 +48,7 @@ export default function MPayNotificationsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (showRefresh = false) => {
@@ -204,8 +207,181 @@ export default function MPayNotificationsPage() {
     }
   };
 
+  // Notification Detail Modal Component
+  const NotificationDetailModal = ({ notification, onClose }: { notification: Notification; onClose: () => void }) => {
+    const metadata = notification.metadata;
+    
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+        <motion.div
+          initial={{ opacity: 0, y: 100 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 100 }}
+          className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 bg-slate-900 border border-white/10 rounded-[2rem] overflow-hidden max-h-[85vh] overflow-y-auto"
+        >
+          {/* Header */}
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-white/5 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                  notification.type === "PAYMENT_RECEIVED" || notification.type === "success" ? "bg-emerald-500/10" :
+                  notification.type === "PAYMENT_SENT" ? "bg-red-500/10" :
+                  notification.type === "STAKING" || notification.type === "STAKING_REWARD" ? "bg-purple-500/10" :
+                  "bg-blue-500/10"
+                }`}>
+                  {getNotificationIcon(notification.type, notification.metadata)}
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-tight">{notification.title}</h2>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
+                  </p>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-6">
+            {/* Message */}
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Message</p>
+              <p className="text-sm text-white leading-relaxed">{notification.message}</p>
+            </div>
+
+            {/* Transaction Details for Payment */}
+            {metadata && (notification.type === "PAYMENT_RECEIVED" || notification.type === "success" || notification.type === "PAYMENT_SENT") && (
+              <div className="space-y-4">
+                {metadata.amount && !metadata.stakingAmount && (
+                  <div className={`rounded-2xl p-4 border ${
+                    notification.type === "PAYMENT_SENT" 
+                      ? "bg-red-500/5 border-red-500/20" 
+                      : "bg-emerald-500/5 border-emerald-500/20"
+                  }`}>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant</p>
+                    <p className={`text-2xl font-black ${
+                      notification.type === "PAYMENT_SENT" ? "text-red-400" : "text-emerald-400"
+                    }`}>
+                      {notification.type === "PAYMENT_SENT" ? "-" : "+"}{Number(metadata.amount).toLocaleString()} {metadata.currency || "Pi"}
+                    </p>
+                  </div>
+                )}
+
+                {metadata.from && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Expediteur</p>
+                    <p className="text-sm font-bold text-white">{metadata.from}</p>
+                  </div>
+                )}
+
+                {metadata.to && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Destinataire</p>
+                    <p className="text-sm font-bold text-white">{metadata.to}</p>
+                  </div>
+                )}
+
+                {metadata.txId && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Transaction ID</p>
+                    <p className="text-xs font-mono text-slate-300 break-all">{metadata.txId}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Staking Details */}
+            {metadata && (notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || metadata.type === "STAKING" || metadata.type === "UNSTAKE") && (
+              <div className="space-y-4">
+                {metadata.stakingAmount && (
+                  <div className="bg-purple-500/5 rounded-2xl p-4 border border-purple-500/20">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant Stake</p>
+                    <p className="text-2xl font-black text-purple-400">{metadata.stakingAmount} {metadata.currency || "PI"}</p>
+                  </div>
+                )}
+
+                {metadata.rewardAmount && (
+                  <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Recompense</p>
+                    <p className="text-2xl font-black text-emerald-400">+{metadata.rewardAmount} {metadata.currency || "PI"}</p>
+                  </div>
+                )}
+
+                {metadata.apy && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">APY</p>
+                    <p className="text-lg font-black text-blue-400">{metadata.apy}%</p>
+                  </div>
+                )}
+
+                {metadata.duration && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Duree</p>
+                    <p className="text-sm font-bold text-white">{metadata.duration}</p>
+                  </div>
+                )}
+
+                {metadata.unlockDate && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Date de deblocage</p>
+                    <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                )}
+
+                {metadata.stakingId && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">ID Staking</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.stakingId}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Security Details */}
+            {(notification.type === "SECURITY" || notification.type === "LOGIN") && (
+              <div className="space-y-4">
+                <div className="bg-amber-500/5 rounded-2xl p-4 border border-amber-500/20">
+                  <div className="flex items-center gap-3">
+                    <Shield size={20} className="text-amber-400" />
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Alerte Securite</p>
+                      <p className="text-sm font-bold text-amber-400">{notification.type === "LOGIN" ? "Nouvelle connexion" : "Alerte de securite"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Button */}
+            <button 
+              onClick={() => { deleteNotification(notification.id); onClose(); }}
+              className="w-full py-4 bg-red-500/10 text-red-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Trash2 size={16} />
+              Supprimer cette notification
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans">
+      {/* Notification Detail Modal */}
+      <AnimatePresence>
+        {selectedNotification && (
+          <NotificationDetailModal 
+            notification={selectedNotification} 
+            onClose={() => setSelectedNotification(null)} 
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="px-6 pt-12 pb-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
         <button 
@@ -294,10 +470,8 @@ export default function MPayNotificationsPage() {
                 <button
                   onClick={() => {
                     if (!notif.read) markAsRead(notif.id);
-                    // Navigate to transaction details if it's a payment
-                    if (notif.metadata?.txId) {
-                      router.push(`/mpay/details?txid=${notif.metadata.txId}`);
-                    }
+                    // Open notification detail modal
+                    setSelectedNotification(notif);
                   }}
                   className="w-full p-4 flex items-start gap-4 text-left hover:bg-white/[0.03] transition-all"
                 >

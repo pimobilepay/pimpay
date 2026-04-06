@@ -162,10 +162,11 @@ export async function POST(req: Request) {
         });
 
         // Log de transaction uniquement si la difference est positive (depot)
+        const txReference = `SDA-DEP-${nanoid(10).toUpperCase()}`;
         if (diff > 0) {
           await tx.transaction.create({
             data: {
-              reference: `SDA-DEP-${nanoid(10).toUpperCase()}`,
+              reference: txReference,
               amount: Math.abs(diff),
               currency: "SDA",
               type: TransactionType.DEPOSIT,
@@ -181,12 +182,36 @@ export async function POST(req: Request) {
               } as Prisma.JsonObject,
             },
           });
+
+          // Notification detaillee pour le depot Sidra (comme les swaps)
+          await tx.notification.create({
+            data: {
+              userId,
+              title: "Depot Sidra Chain recu !",
+              message: `Vous avez recu ${diff.toFixed(4)} SDA depuis la blockchain Sidra Chain.`,
+              type: "SUCCESS",
+              read: false,
+              metadata: JSON.stringify({
+                amount: diff,
+                currency: "SDA",
+                method: "SIDRA_CHAIN",
+                reference: txReference,
+                status: "SUCCESS",
+                network: "Sidra Chain",
+                previousBalance: currentBalance,
+                newBalance: blockchainBalance!,
+                syncType: "AUTOMATIC_BLOCKCHAIN",
+                source: "SIDRA_CHAIN",
+              }),
+            },
+          });
         }
 
         return {
           updated: true,
           total: updatedWallet.balance,
           added: diff,
+          reference: diff > 0 ? txReference : null,
         };
       },
       {
