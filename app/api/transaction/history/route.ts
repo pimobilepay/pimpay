@@ -82,6 +82,37 @@ export async function GET() {
         }
       }
 
+      // Special handling for blockchain deposits (SIDRA, PI, etc.)
+      if (tx.type === "DEPOSIT" && !tx.fromUserId) {
+        // Determine the blockchain name based on currency or description
+        if (tx.currency === "SDA" || tx.description?.toLowerCase().includes("sidra")) {
+          fromDisplayName = "Sidra Chain";
+        } else if (tx.currency === "PI" || tx.description?.toLowerCase().includes("pi network")) {
+          fromDisplayName = "Pi Network";
+        } else if (tx.currency === "XRP") {
+          fromDisplayName = "XRP Ledger";
+        } else if (tx.currency === "BTC") {
+          fromDisplayName = "Bitcoin Network";
+        } else if (tx.currency === "ETH") {
+          fromDisplayName = "Ethereum Network";
+        } else if (tx.currency === "USDT" || tx.currency === "USDC" || tx.currency === "DAI" || tx.currency === "BUSD") {
+          fromDisplayName = "Depot Stablecoin";
+        } else {
+          fromDisplayName = "Depot Blockchain";
+        }
+      }
+
+      // Special handling for withdrawals
+      if (tx.type === "WITHDRAW" && !tx.toUserId) {
+        if (tx.currency === "SDA") {
+          toDisplayName = "Sidra Chain";
+        } else if (tx.currency === "PI") {
+          toDisplayName = "Pi Network";
+        } else {
+          toDisplayName = "Retrait Externe";
+        }
+      }
+
       return {
         ...tx,
         fromUser: tx.fromUser ? { ...tx.fromUser, displayName: fromDisplayName } : { displayName: fromDisplayName },

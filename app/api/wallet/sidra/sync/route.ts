@@ -139,7 +139,10 @@ export async function POST(req: Request) {
             toWalletId: wallet.id,
             currency: "SDA",
             type: TransactionType.DEPOSIT,
-            description: { contains: "Synchronisation" },
+            OR: [
+              { description: { contains: "Synchronisation" } },
+              { description: { contains: "Depot Sidra Chain" } },
+            ],
             createdAt: { gte: new Date(Date.now() - 30 * 1000) },
           },
         });
@@ -162,18 +165,19 @@ export async function POST(req: Request) {
         if (diff > 0) {
           await tx.transaction.create({
             data: {
-              reference: `SDA-SYNC-${nanoid(10).toUpperCase()}`,
+              reference: `SDA-DEP-${nanoid(10).toUpperCase()}`,
               amount: Math.abs(diff),
               currency: "SDA",
               type: TransactionType.DEPOSIT,
               status: TransactionStatus.SUCCESS,
-              description: `Synchronisation Sidra Chain (${diff > 0 ? "+" : ""}${diff})`,
+              description: `Depot Sidra Chain (+${diff.toFixed(4)} SDA)`,
               toUserId: userId,
               toWalletId: updatedWallet.id,
               metadata: {
                 blockchainBalance: blockchainBalance!,
                 previousBalance: currentBalance,
                 syncType: "AUTOMATIC_BLOCKCHAIN",
+                source: "SIDRA_CHAIN",
               } as Prisma.JsonObject,
             },
           });
