@@ -23,7 +23,7 @@ const CRYPTO_LIST = [
 /* ---------- FALLBACK FIAT RATES (units per 1 USD) ---------- */
 const FALLBACK_FIAT: Record<string, number> = {
   USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800,
-  NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450,
+  NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500,
 };
 
 const PI_GCV = 314159;
@@ -101,7 +101,7 @@ function convertViaUsd(
 function getWalletType(currency: string): WalletType {
   if (currency === "SDA") return WalletType.SIDRA;
   if (currency === "PI") return WalletType.PI;
-  if (["XAF", "XOF", "USD", "EUR", "CDF", "NGN", "AED", "CNY", "VND"].includes(currency))
+  if (["XAF", "XOF", "USD", "EUR", "CDF", "NGN", "AED", "CNY", "VND", "MGA"].includes(currency))
     return WalletType.FIAT;
   return WalletType.CRYPTO;
 }

@@ -64,6 +64,7 @@ const ALL_ASSETS: Asset[] = [
   { id: "CDF", name: "Franc Congolais", symbol: "CDF", color: "#0284c7", category: "fiat", flag: "CD", network: "PimPay" },
   { id: "NGN", name: "Naira Nigerian", symbol: "NGN", color: "#16a34a", category: "fiat", flag: "NG", network: "PimPay" },
   { id: "AED", name: "Dirham Emirats", symbol: "AED", color: "#dc2626", category: "fiat", flag: "AE", network: "PimPay" },
+  { id: "MGA", name: "Ariary Malgache", symbol: "MGA", color: "#059669", category: "fiat", flag: "MG", network: "PimPay" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -173,6 +174,7 @@ export default function WalletSwapPage() {
     CDF: 2800,
     NGN: 1550,
     AED: 3.67,
+    MGA: 4500,
   });
 
   const [balances, setBalances] = useState<Record<string, string>>({});
@@ -223,6 +225,7 @@ export default function WalletSwapPage() {
         CDF: fiatData?.rates?.CDF || prev.CDF,
         NGN: fiatData?.rates?.NGN || prev.NGN,
         AED: fiatData?.rates?.AED || prev.AED,
+        MGA: fiatData?.rates?.MGA || prev.MGA,
       }));
     } catch {
       // fallback prices already set

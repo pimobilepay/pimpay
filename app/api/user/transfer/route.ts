@@ -18,7 +18,7 @@ const RPC_URLS: Record<string, string> = {
 function getWalletType(currency: string): WalletType {
   if (currency === "PI") return WalletType.PI;
   if (currency === "SDA") return WalletType.SIDRA;
-  if (["XAF", "XOF", "USD", "EUR", "CDF", "NGN", "AED", "CNY", "VND"].includes(currency))
+  if (["XAF", "XOF", "USD", "EUR", "CDF", "NGN", "AED", "CNY", "VND", "MGA"].includes(currency))
     return WalletType.FIAT;
   return WalletType.CRYPTO;
 }

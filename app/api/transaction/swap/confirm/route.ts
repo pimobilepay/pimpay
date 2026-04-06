@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       const getWalletType = (curr: string) => {
         if (curr === "SDA") return "SIDRA" as const;
         if (curr === "PI") return "PI" as const;
-        if (["XAF","XOF","USD","EUR","CDF","NGN","AED","CNY","VND"].includes(curr)) return "FIAT" as const;
+        if (["XAF","XOF","USD","EUR","CDF","NGN","AED","CNY","VND","MGA"].includes(curr)) return "FIAT" as const;
         return "CRYPTO" as const;
       };
 

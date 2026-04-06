@@ -183,6 +183,7 @@ export const CURRENCIES = {
   AED: "AED",
   CNY: "CNY",
   VND: "VND",
+  MGA: "MGA",
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -311,6 +312,7 @@ const LOCALES: Record<string, string> = {
   VND: "vi-VN",
   CDF: "fr-CD",
   AED: "ar-AE",
+  MGA: "fr-MG",
 };
 
 /**

@@ -1330,17 +1330,19 @@ function DashboardContent() {
                 <p className="text-[9px] font-black text-blue-400 uppercase tracking-[2px]">Fiat Balances</p>
               </div>
               <div className="space-y-2">
-                {balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())).length > 0 ? (
-                  balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())).map((wallet: any) => (
+                {balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())).length > 0 ? (
+                  balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-blue-500/20 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] ${
                           wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "bg-green-500/20 text-green-400" :
+                          wallet.currency.toUpperCase() === "MGA" ? "bg-teal-500/20 text-teal-400" :
                           wallet.currency.toUpperCase() === "EUR" ? "bg-blue-500/20 text-blue-400" :
                           wallet.currency.toUpperCase() === "USD" ? "bg-emerald-500/20 text-emerald-400" :
                           "bg-purple-500/20 text-purple-400"
                         }`}>
                           {wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "F" :
+                           wallet.currency.toUpperCase() === "MGA" ? "Ar" :
                            wallet.currency.toUpperCase() === "EUR" ? "€" :
                            wallet.currency.toUpperCase() === "USD" ? "$" :
                            wallet.currency.toUpperCase() === "GBP" ? "£" : wallet.currency.substring(0, 2)}
@@ -1366,7 +1368,7 @@ function DashboardContent() {
 
             {/* Other Balances */}
             {balanceModalUser.wallets?.filter((w: any) => 
-              !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())
+              !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())
             ).length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -1375,7 +1377,7 @@ function DashboardContent() {
                 </div>
                 <div className="space-y-2">
                   {balanceModalUser.wallets?.filter((w: any) => 
-                    !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN"].includes(w.currency.toUpperCase())
+                    !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())
                   ).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3">
                       <div className="flex items-center gap-3">
