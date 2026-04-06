@@ -130,17 +130,87 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
-    // Get employees with their user accounts (only those linked to platform users)
+    // Get employees with their user accounts (try multiple ways to find their PimPay account)
     const employeesWithUsers = await Promise.all(
       (business.BusinessEmployee as any[]).map(async (emp) => {
-        if (!emp.userId) return { ...emp, userAccount: null, userWallet: null };
-        
-        const userAccount = await prisma.user.findUnique({
-          where: { id: emp.userId },
-          include: { wallets: true }
-        });
-        
-        const userWallet = userAccount?.wallets.find(w => w.currency === "USD");
+        let userAccount = null;
+        let userWallet = null;
+
+        // 1. First try by direct userId link
+        if (emp.userId) {
+          userAccount = await prisma.user.findUnique({
+            where: { id: emp.userId },
+            include: { wallets: true }
+          });
+        }
+
+        // 2. If no userId or user not found, try by email
+        if (!userAccount && emp.email) {
+          userAccount = await prisma.user.findFirst({
+            where: { 
+              OR: [
+                { email: emp.email },
+                { email: emp.email.toLowerCase() }
+              ]
+            },
+            include: { wallets: true }
+          });
+          
+          // If found by email, update the employee record with the userId for future payments
+          if (userAccount) {
+            await prisma.businessEmployee.update({
+              where: { id: emp.id },
+              data: { userId: userAccount.id }
+            });
+          }
+        }
+
+        // 3. If still not found, try by phone number
+        if (!userAccount && emp.phone) {
+          const cleanPhone = emp.phone.replace(/\D/g, '');
+          userAccount = await prisma.user.findFirst({
+            where: { 
+              OR: [
+                { phone: emp.phone },
+                { phone: cleanPhone },
+                { phone: { contains: cleanPhone.slice(-9) } }
+              ]
+            },
+            include: { wallets: true }
+          });
+          
+          // If found by phone, update the employee record with the userId
+          if (userAccount) {
+            await prisma.businessEmployee.update({
+              where: { id: emp.id },
+              data: { userId: userAccount.id }
+            });
+          }
+        }
+
+        // 4. Try by name matching as a last resort (first + last name)
+        if (!userAccount) {
+          const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+          userAccount = await prisma.user.findFirst({
+            where: { 
+              name: { equals: fullName, mode: 'insensitive' }
+            },
+            include: { wallets: true }
+          });
+          
+          // If found by name, update the employee record
+          if (userAccount) {
+            await prisma.businessEmployee.update({
+              where: { id: emp.id },
+              data: { userId: userAccount.id }
+            });
+          }
+        }
+
+        if (userAccount) {
+          userWallet = userAccount.wallets.find((w: { currency: string }) => w.currency === "USD");
+        }
+
         return { ...emp, userAccount, userWallet };
       })
     );
@@ -181,11 +251,24 @@ export async function POST(req: Request) {
 
         const employeeName = `${emp.firstName} ${emp.lastName}`;
 
-        // If employee has a linked platform account with USD wallet, credit it
-        if (emp.userAccount && emp.userWallet) {
+        // If employee has a linked platform account, credit their wallet
+        if (emp.userAccount) {
+          let employeeWallet = emp.userWallet;
+
+          // If user exists but doesn't have a USD wallet, create one
+          if (!employeeWallet) {
+            employeeWallet = await tx.wallet.create({
+              data: {
+                userId: emp.userAccount.id,
+                currency: "USD",
+                balance: 0,
+              }
+            });
+          }
+
           // Credit employee wallet
           await tx.wallet.update({
-            where: { id: emp.userWallet.id },
+            where: { id: employeeWallet.id },
             data: { balance: { increment: salary } }
           });
 
@@ -203,7 +286,7 @@ export async function POST(req: Request) {
               fromUserId: user.id,
               fromWalletId: usdWallet.id,
               toUserId: emp.userAccount.id,
-              toWalletId: emp.userWallet.id,
+              toWalletId: employeeWallet.id,
               metadata: {
                 type: "SALARY",
                 batchReference,
