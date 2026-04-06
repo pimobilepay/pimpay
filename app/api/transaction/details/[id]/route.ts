@@ -5,54 +5,94 @@ import { auth } from "@/lib/auth";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // On force le type 'any' temporairement pour passer outre la validation stricte 
-    // si le type de retour d'auth() n'est pas encore parfaitement synchronisé.
     const session = await auth() as any;
 
-    // CORRECTION : Accès direct à session.id (et non session.user.id)
     if (!session?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     const transaction = await prisma.transaction.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         fromUser: { 
           select: { 
+            id: true,
             name: true, 
             username: true, 
             avatar: true, 
-            walletAddress: true 
+            walletAddress: true,
+            phone: true,
+            email: true
           } 
         },
         toUser: { 
           select: { 
+            id: true,
             name: true, 
             username: true, 
             avatar: true, 
-            walletAddress: true 
+            walletAddress: true,
+            phone: true,
+            email: true
           } 
         },
       }
     });
 
     if (!transaction) {
-      return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // CORRECTION : Sécurité basée sur session.id et session.role
     const isSender = transaction.fromUserId === session.id;
     const isReceiver = transaction.toUserId === session.id;
     const isAdmin = session.role === "ADMIN";
 
     if (!isSender && !isReceiver && !isAdmin) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+      return NextResponse.json({ success: false, error: "Acces refuse" }, { status: 403 });
     }
 
-    return NextResponse.json(transaction);
+    // Get display names
+    let fromDisplayName = "Utilisateur inconnu";
+    if (transaction.fromUser) {
+      fromDisplayName = transaction.fromUser.name || transaction.fromUser.username || transaction.fromUser.phone || transaction.fromUser.email?.split('@')[0] || "Utilisateur";
+    }
+
+    let toDisplayName = "Utilisateur inconnu";
+    if (transaction.toUser) {
+      toDisplayName = transaction.toUser.name || transaction.toUser.username || transaction.toUser.phone || transaction.toUser.email?.split('@')[0] || "Utilisateur";
+    }
+
+    // Check metadata for additional info
+    const metadata = transaction.metadata as any;
+    if (metadata) {
+      if (metadata.recipientName) toDisplayName = metadata.recipientName;
+      if (metadata.senderName) fromDisplayName = metadata.senderName;
+      if (metadata.businessName) {
+        if (transaction.fromUserId === session.id) {
+          toDisplayName = metadata.businessName;
+        } else {
+          fromDisplayName = metadata.businessName;
+        }
+      }
+      if (metadata.employeeName) toDisplayName = metadata.employeeName;
+    }
+
+    const formattedTransaction = {
+      ...transaction,
+      fromUser: transaction.fromUser 
+        ? { ...transaction.fromUser, displayName: fromDisplayName } 
+        : { displayName: fromDisplayName },
+      toUser: transaction.toUser 
+        ? { ...transaction.toUser, displayName: toDisplayName } 
+        : { displayName: toDisplayName },
+    };
+
+    return NextResponse.json({ success: true, transaction: formattedTransaction });
   } catch (error: any) {
     console.error("TRANSACTION_DETAILS_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

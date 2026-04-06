@@ -26,23 +26,71 @@ export async function GET() {
       include: {
         fromUser: { 
           select: { 
+            id: true,
             username: true, 
             name: true, 
-            avatar: true 
+            avatar: true,
+            phone: true,
+            email: true
           } 
         },
         toUser: { 
           select: { 
+            id: true,
             username: true, 
             name: true, 
-            avatar: true 
+            avatar: true,
+            phone: true,
+            email: true
           } 
         }
       }
     });
 
+    // Format transactions with proper display names
+    const formattedTransactions = transactions.map((tx) => {
+      // Get display name for fromUser
+      let fromDisplayName = "Utilisateur inconnu";
+      if (tx.fromUser) {
+        fromDisplayName = tx.fromUser.name || tx.fromUser.username || tx.fromUser.phone || tx.fromUser.email?.split('@')[0] || "Utilisateur";
+      }
+      
+      // Get display name for toUser
+      let toDisplayName = "Utilisateur inconnu";
+      if (tx.toUser) {
+        toDisplayName = tx.toUser.name || tx.toUser.username || tx.toUser.phone || tx.toUser.email?.split('@')[0] || "Utilisateur";
+      }
+
+      // Check metadata for additional recipient info (for transfers to external addresses or businesses)
+      const metadata = tx.metadata as any;
+      if (metadata) {
+        if (metadata.recipientName) {
+          toDisplayName = metadata.recipientName;
+        }
+        if (metadata.senderName) {
+          fromDisplayName = metadata.senderName;
+        }
+        if (metadata.businessName) {
+          if (tx.fromUserId === session.id) {
+            toDisplayName = metadata.businessName;
+          } else {
+            fromDisplayName = metadata.businessName;
+          }
+        }
+        if (metadata.employeeName) {
+          toDisplayName = metadata.employeeName;
+        }
+      }
+
+      return {
+        ...tx,
+        fromUser: tx.fromUser ? { ...tx.fromUser, displayName: fromDisplayName } : { displayName: fromDisplayName },
+        toUser: tx.toUser ? { ...tx.toUser, displayName: toDisplayName } : { displayName: toDisplayName },
+      };
+    });
+
     // Retourne les transactions trouvées
-    return NextResponse.json(transactions);
+    return NextResponse.json(formattedTransactions);
     
   } catch (error: any) {
     console.error("HISTORY_ERROR:", error);

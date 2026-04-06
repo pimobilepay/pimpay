@@ -925,9 +925,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             ) : (
               transactions.map((tx) => {
                 const isSent = tx.fromUserId === userId;
+                // Use displayName from API which properly resolves user names from multiple sources
                 const displayName = isSent 
-                  ? (tx.toUser?.name || tx.toUser?.username || "Utilisateur")
-                  : (tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
+                  ? ((tx.toUser as any)?.displayName || tx.toUser?.name || tx.toUser?.username || "Utilisateur")
+                  : ((tx.fromUser as any)?.displayName || tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
                 const statusLower = tx.status.toLowerCase();
                 const formattedDate = new Date(tx.createdAt).toLocaleDateString("fr-FR", {
                   day: "numeric",
@@ -939,7 +940,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                 return (
                   <button
                     key={tx.id}
-                    onClick={() => router.push(`/mpay/details?txid=${tx.reference}&amount=${tx.amount}&to=${displayName}&method=wallet`)}
+                    onClick={() => router.push(`/mpay/transaction/${tx.id}`)}
                     className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all"
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSent ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
