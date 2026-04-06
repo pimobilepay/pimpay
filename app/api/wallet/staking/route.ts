@@ -184,23 +184,32 @@ export async function POST(req: Request) {
       ? new Date(endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
       : 'Flexible';
     
+    const durationLabel = lockDays 
+      ? `${lockDays} jours` 
+      : 'Flexible';
+    
     await prisma.notification.create({
       data: {
         userId,
-        title: "Staking activé !",
-        message: `Vous avez mis ${amount} ${pool.currency} en staking à ${pool.apy}% APY. Fin prévue: ${endDateFormatted}`,
+        title: "Staking active !",
+        message: `Vous avez mis ${amount} ${pool.currency} en staking a ${pool.apy}% APY. Fin prevue: ${endDateFormatted}`,
         type: "STAKING",
         metadata: {
+          type: "STAKING",
           stakingId: staking.id,
+          stakingAmount: amount,
           amount,
           currency: pool.currency,
           apy: pool.apy,
           poolId,
           lockDays: lockDays || 0,
-          startDate: staking.startDate,
-          endDate: staking.endDate,
+          duration: durationLabel,
+          startDate: staking.startDate.toISOString(),
+          endDate: staking.endDate?.toISOString() || null,
+          unlockDate: endDateFormatted,
           estimatedAnnualReward: amount * pool.apy / 100,
-          reference: `STK-${staking.id.substring(0, 8)}`
+          reference: `STK-${staking.id.substring(0, 8)}`,
+          stakingStatus: "ACTIVE"
         }
       }
     }).catch((err) => {

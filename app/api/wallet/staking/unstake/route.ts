@@ -128,25 +128,31 @@ export async function POST(req: Request) {
 
     // Create notification with full details (like swap does)
     const notificationMessage = isEarlyWithdrawal
-      ? `Retrait anticipé : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de récompenses (pénalité: ${penalty.toFixed(4)} ${currency})`
-      : `Staking clôturé : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de récompenses après ${daysStaked} jours`;
+      ? `Retrait anticipe : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de recompenses (penalite: ${penalty.toFixed(4)} ${currency})`
+      : `Staking cloture : ${staking.amount.toFixed(2)} ${currency} + ${finalRewards.toFixed(4)} ${currency} de recompenses apres ${daysStaked} jours`;
 
     await prisma.notification.create({
       data: {
         userId,
-        title: isEarlyWithdrawal ? "Retrait anticipé effectué !" : "Staking clôturé !",
+        title: isEarlyWithdrawal ? "Retrait anticipe effectue !" : "Staking cloture !",
         message: notificationMessage,
-        type: "STAKING",
+        type: "STAKING_UNSTAKE",
         metadata: {
+          type: "UNSTAKE",
           stakingId,
+          stakingAmount: staking.amount,
+          rewardAmount: finalRewards,
+          amount: totalAmount,
           principal: staking.amount,
           rewards: finalRewards,
           penalty,
           total: totalAmount,
           daysStaked,
+          duration: `${daysStaked} jours`,
           apy: staking.apy,
           currency,
           isEarlyWithdrawal,
+          stakingStatus: "COMPLETED",
           reference: `UNSTK-${Date.now()}`
         }
       }
