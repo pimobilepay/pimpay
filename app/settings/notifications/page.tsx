@@ -116,6 +116,22 @@ export default function NotificationsPage() {
     }
   };
 
+  const markAsRead = async (id: string) => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (e) {
+      console.error("Erreur marquage comme lu:", e);
+    }
+  };
+
   const deleteNotif = async (id: string) => {
     try {
       const res = await fetch(`/api/notifications?id=${id}`, { method: "DELETE" });
@@ -449,7 +465,10 @@ export default function NotificationsPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, x: -20 }}
-                  onClick={() => setSelectedNotification(notif)}
+                  onClick={() => {
+                    if (!notif.read) markAsRead(notif.id);
+                    setSelectedNotification(notif);
+                  }}
                   className={cn(
                     "relative p-5 rounded-[30px] border transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]",
                     notif.read
