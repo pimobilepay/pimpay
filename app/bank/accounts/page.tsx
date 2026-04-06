@@ -279,61 +279,41 @@ export default function AccountsPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/10 rounded-xl">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Solde Total</p>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Solde Total</p>
                   {loading ? (
-                    <Skeleton className="h-6 w-24 bg-slate-700 mt-1" />
+                    <Skeleton className="h-5 w-20 bg-slate-700 mt-0.5" />
                   ) : (
-                    <p className="text-lg font-black text-emerald-500">
-                      {formatCurrency(stats?.totalBalance || 0, "XAF")}
+                    <p className="text-sm font-black text-emerald-500 truncate">
+                      {formatCurrency(stats?.totalBalance || 0, "$US")}
                     </p>
                   )}
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                  <Wallet className="h-5 w-5 text-blue-500" />
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
+                  <Snowflake className="h-4 w-4 text-amber-500" />
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Comptes Actifs</p>
-                  {loading ? <Skeleton className="h-6 w-16 bg-slate-700 mt-1" /> : <p className="text-lg font-black text-blue-500">{stats?.totalAccounts || 0}</p>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/10 rounded-xl">
-                  <Snowflake className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Fonds Geles</p>
-                  {loading ? <Skeleton className="h-6 w-20 bg-slate-700 mt-1" /> : <p className="text-lg font-black text-amber-500">{formatCurrency(stats?.totalFrozen || 0, "XAF")}</p>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-slate-500/10 rounded-xl">
-                  <PiggyBank className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Devises</p>
-                  {loading ? <Skeleton className="h-6 w-12 bg-slate-700 mt-1" /> : <p className="text-lg font-black text-slate-300">{Object.keys(stats?.byCurrency || {}).length}</p>}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Fonds Geles</p>
+                  {loading ? (
+                    <Skeleton className="h-5 w-20 bg-slate-700 mt-0.5" />
+                  ) : (
+                    <p className="text-sm font-black text-amber-500 truncate">
+                      {formatCurrency(stats?.totalFrozen || 0, "$US")}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -341,20 +321,20 @@ export default function AccountsPage() {
         </div>
 
         {stats?.byCurrency && Object.keys(stats.byCurrency).length > 0 && (
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl mb-8">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold text-white">Repartition par Devise</CardTitle>
+          <Card className="bg-slate-900/50 border-white/5 rounded-2xl mb-6 overflow-hidden">
+            <CardHeader className="pb-2 px-4 pt-4">
+              <CardTitle className="text-xs font-bold text-white">Repartition par Devise</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CardContent className="px-4 pb-4">
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {Object.entries(stats.byCurrency).map(([currency, data]) => (
-                  <div key={currency} className="bg-slate-800/50 rounded-2xl p-4 border border-white/5">
-                    <div className="flex items-center justify-between mb-3">
-                      <Badge className="bg-slate-700/50 text-slate-300 border-slate-600 text-[10px] font-bold">{currency}</Badge>
-                      <span className="text-[10px] text-slate-500">{data.count} comptes</span>
+                  <div key={currency} className="bg-slate-800/50 rounded-xl p-3 border border-white/5 min-w-[110px] shrink-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge className="bg-slate-700/50 text-slate-300 border-slate-600 text-[9px] font-bold px-1.5">{currency}</Badge>
+                      <span className="text-[9px] text-slate-500">{data.count}</span>
                     </div>
-                    <p className="text-sm font-bold text-white mb-2">{formatCurrency(data.balance, currency)}</p>
-                    <Progress value={(data.balance / (stats?.totalBalance || 1)) * 100} className="h-1.5 bg-slate-700" />
+                    <p className="text-xs font-bold text-white mb-1.5 truncate">{formatCurrency(data.balance, currency)}</p>
+                    <Progress value={(data.balance / (stats?.totalBalance || 1)) * 100} className="h-1 bg-slate-700" />
                   </div>
                 ))}
               </div>
