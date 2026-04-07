@@ -128,7 +128,7 @@ const spaceStyles = `
 
   /* ── PIMPAY LOGO ── */
   .pimpay-logo {
-    font-size: 3rem; font-weight: 900; letter-spacing: 0.3em;
+    font-size: 3.5rem; font-weight: 900; letter-spacing: 0.3em;
     color: #fff; position: relative; display: inline-block;
     text-shadow: 0 0 20px rgba(6,182,212,0.5), 0 0 40px rgba(6,182,212,0.2);
     animation: logoGlow 4s ease-in-out infinite;
@@ -160,8 +160,8 @@ const spaceStyles = `
 
   /* ── CORE SYSTEM typing ── */
   .core-system {
-    font-size: 0.7rem; letter-spacing: 0.5em; color: rgba(6,182,212,0.7);
-    text-transform: uppercase; margin-top: 4px;
+    font-size: 0.75rem; letter-spacing: 0.5em; color: rgba(6,182,212,0.7);
+    text-transform: uppercase; margin-top: 8px;
     overflow: hidden; white-space: nowrap;
     border-right: 2px solid rgba(6,182,212,0.5);
     width: 0; animation: typeIn 2s steps(12) 1s forwards, blink 0.8s step-end infinite 3s;
@@ -178,12 +178,12 @@ const spaceStyles = `
     position: relative; z-index: 10;
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-radius: 14px; padding: 20px 24px;
-    max-width: 500px; width: 90%; margin: 0 auto;
+    border-radius: 16px; padding: 32px;
+    max-width: 520px; width: 90%; margin: 0 auto;
     box-shadow: 0 0 30px rgba(6,182,212,0.08), 0 8px 32px rgba(0,0,0,0.4);
   }
   .glass-card::before {
-    content: ''; position: absolute; inset: -1px; border-radius: 15px; z-index: -1;
+    content: ''; position: absolute; inset: -1px; border-radius: 17px; z-index: -1;
     background: conic-gradient(from 0deg, rgba(6,182,212,0.3), rgba(59,130,246,0.1), transparent, rgba(6,182,212,0.2), rgba(59,130,246,0.3), transparent, rgba(6,182,212,0.3));
     animation: borderSpin 6s linear infinite;
   }
@@ -194,7 +194,7 @@ const spaceStyles = `
   /* ── STATUS BADGE ── */
   .status-badge {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 4px 14px; border-radius: 999px; font-size: 0.7rem;
+    padding: 6px 16px; border-radius: 999px; font-size: 0.75rem;
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
     background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.25);
     color: #22d3ee;
@@ -210,13 +210,13 @@ const spaceStyles = `
 
   /* ── COUNTDOWN BLOCKS ── */
   .countdown-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-    margin: 12px 0;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin: 20px 0;
   }
   .countdown-block {
-    text-align: center; padding: 10px 4px;
+    text-align: center; padding: 14px 8px;
     background: rgba(6,182,212,0.05); border: 1px solid rgba(6,182,212,0.15);
-    border-radius: 8px; position: relative; overflow: hidden;
+    border-radius: 10px; position: relative; overflow: hidden;
   }
   .countdown-block::after {
     content: ''; position: absolute; inset: 0;
@@ -224,13 +224,13 @@ const spaceStyles = `
     pointer-events: none;
   }
   .countdown-value {
-    font-size: 1.5rem; font-weight: 800; color: #fff;
+    font-size: 1.75rem; font-weight: 800; color: #fff;
     text-shadow: 0 0 12px rgba(6,182,212,0.4);
     font-variant-numeric: tabular-nums;
   }
   .countdown-label {
-    font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.15em;
-    color: rgba(6,182,212,0.6); margin-top: 2px;
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em;
+    color: rgba(6,182,212,0.6); margin-top: 4px;
   }
   .countdown-block.seconds .countdown-value {
     animation: secondPulse 1s ease-in-out infinite;
@@ -242,8 +242,8 @@ const spaceStyles = `
 
   /* ── FUTURISTIC PROGRESS BAR ── */
   .progress-container {
-    position: relative; height: 5px; border-radius: 3px;
-    background: rgba(6,182,212,0.08); margin: 12px 0 6px; overflow: hidden;
+    position: relative; height: 6px; border-radius: 3px;
+    background: rgba(6,182,212,0.08); margin: 20px 0; overflow: hidden;
   }
   .progress-fill {
     height: 100%; border-radius: 3px; position: relative;
@@ -258,7 +258,7 @@ const spaceStyles = `
   }
   .progress-fill::after {
     content: ''; position: absolute; right: -2px; top: -4px;
-    width: 12px; height: 12px; border-radius: 50%;
+    width: 14px; height: 14px; border-radius: 50%;
     background: #22d3ee; filter: blur(4px);
     animation: progressGlow 1.5s ease-in-out infinite;
   }
@@ -282,39 +282,20 @@ const spaceStyles = `
     flex: 1; border-right: 1px solid rgba(2,6,23,0.4);
   }
 
-  /* ── PROGRESSION STEPS ── */
-  .steps-row {
-    display: flex; justify-content: space-between; gap: 4px;
-    margin: 6px 0 0; padding: 0;
+  /* ── HUD INDICATORS ── */
+  .hud-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 24px;
   }
-  .step-item {
-    font-size: 0.55rem; letter-spacing: 0.02em;
-    color: rgba(100,116,139,0.45);
-    transition: color 0.4s ease;
-    white-space: nowrap;
+  .hud-item {
+    text-align: center; font-size: 0.65rem; letter-spacing: 0.08em;
+    color: rgba(6,182,212,0.6); text-transform: uppercase;
+    padding: 8px 4px;
+    border: 1px solid rgba(6,182,212,0.08); border-radius: 6px;
+    background: rgba(6,182,212,0.02);
   }
-  .step-item.step-done {
-    color: #10b981;
-  }
-  .step-item.step-active {
-    color: #10b981;
-    animation: stepPulse 1.5s ease-in-out infinite;
-  }
-  @keyframes stepPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.45; }
-  }
-
-  /* ── HUD INDICATORS (grey / discrete) ── */
-  .hud-row {
-    display: flex; justify-content: center; gap: 16px;
-    margin-top: 10px;
-  }
-  .hud-tag {
-    font-size: 0.55rem; letter-spacing: 0.06em;
-    color: rgba(100,116,139,0.4);
-    text-transform: uppercase;
-  }
+  .hud-item .hud-label { color: rgba(255,255,255,0.4); margin-bottom: 4px; font-size: 0.55rem; }
+  .hud-item .hud-value { color: #22d3ee; font-weight: 600; font-size: 0.7rem; }
+  .hud-bracket { color: rgba(6,182,212,0.3); }
 
   /* ── SCAN LINE ── */
   .scan-line {
@@ -331,7 +312,7 @@ const spaceStyles = `
   /* ── LOCK ICON GLOW ── */
   .lock-glow {
     display: flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 10px;
+    width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 16px;
     background: rgba(6,182,212,0.08);
     border: 1px solid rgba(6,182,212,0.2);
     animation: lockPulse 3s ease-in-out infinite;
@@ -343,35 +324,25 @@ const spaceStyles = `
 
   /* ── TEXT STYLES ── */
   .maintenance-title {
-    font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 4px;
+    font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 6px;
   }
   .maintenance-desc {
-    font-size: 0.75rem; color: rgba(255,255,255,0.5); line-height: 1.4;
+    font-size: 0.8rem; color: rgba(255,255,255,0.5); line-height: 1.5;
   }
   .maintenance-reason {
-    font-size: 0.7rem; color: rgba(6,182,212,0.5); margin-top: 2px;
+    font-size: 0.75rem; color: rgba(6,182,212,0.5); margin-top: 4px;
     font-style: italic;
   }
-
-  /* ── END DATE (prominent) ── */
   .end-date {
-    font-size: 0.8rem; color: #22d3ee; margin-top: 12px;
-    text-align: center; font-weight: 600;
-    padding: 8px 12px; border-radius: 8px;
-    background: rgba(6,182,212,0.06);
-    border: 1px solid rgba(6,182,212,0.15);
-  }
-  .end-date-label {
-    font-size: 0.6rem; color: rgba(6,182,212,0.5);
-    text-transform: uppercase; letter-spacing: 0.1em;
-    margin-bottom: 2px;
+    font-size: 0.7rem; color: rgba(6,182,212,0.5); margin-top: 16px;
+    text-align: center;
   }
 
   /* ── RESUMING OVERLAY ── */
   .resuming-overlay {
     position: absolute; inset: 0; z-index: 20;
     background: rgba(2,6,23,0.85); backdrop-filter: blur(6px);
-    border-radius: 14px; display: flex; flex-direction: column;
+    border-radius: 16px; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px;
   }
   .resuming-spinner {
@@ -440,10 +411,10 @@ const spaceStyles = `
 
   /* ── RESPONSIVE ── */
   @media (max-width: 480px) {
-    .pimpay-logo { font-size: 2rem; }
-    .glass-card { padding: 16px 14px; }
-    .countdown-value { font-size: 1.2rem; }
-    .steps-row { flex-wrap: wrap; justify-content: center; }
+    .pimpay-logo { font-size: 2.2rem; }
+    .glass-card { padding: 24px 18px; }
+    .countdown-value { font-size: 1.3rem; }
+    .hud-grid { grid-template-columns: 1fr; }
   }
 `;
 
@@ -492,23 +463,6 @@ function generateParticles(count: number) {
 
 const STARS = generateStars(40);
 const PARTICLES = generateParticles(35);
-
-/* ──────────────────────────────────────────────
-   Progression steps helper
-   ────────────────────────────────────────────── */
-const PROGRESS_STEPS: { label: string; from: number; to: number }[] = [
-  { label: "Initialisation du système…", from: 0, to: 20 },
-  { label: "Synchronisation des données…", from: 20, to: 40 },
-  { label: "Optimisation du réseau…", from: 40, to: 60 },
-  { label: "Mise à jour de sécurité…", from: 60, to: 80 },
-  { label: "Finalisation…", from: 80, to: 100 },
-];
-
-function getStepClass(progress: number, step: { from: number; to: number }) {
-  if (progress >= step.to) return "step-item step-done";
-  if (progress >= step.from) return "step-item step-active";
-  return "step-item";
-}
 
 /* ──────────────────────────────────────────────
    Component
@@ -784,7 +738,7 @@ export default function GlobalAlert() {
             />
           ))}
 
-          {/* ── Centered content — fits 100vh ── */}
+          {/* ── Centered content ── */}
           <div
             style={{
               position: "relative",
@@ -793,21 +747,19 @@ export default function GlobalAlert() {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              height: "100vh",
-              maxHeight: "100vh",
-              padding: "16px",
-              gap: "20px",
-              overflow: "hidden",
+              minHeight: "100vh",
+              padding: "24px",
+              gap: "32px",
             }}
           >
             {/* ── PIMPAY Logo ── */}
-            <div style={{ textAlign: "center", flexShrink: 0 }}>
+            <div style={{ textAlign: "center" }}>
               <div className="pimpay-logo logo-glitch">PIMPAY</div>
               <div className="core-system">CORE SYSTEM</div>
             </div>
 
             {/* ── Glass Card ── */}
-            <div className="glass-card" style={{ position: "relative", flexShrink: 0 }}>
+            <div className="glass-card" style={{ position: "relative" }}>
               {/* Resuming overlay */}
               {isResuming && (
                 <div className="resuming-overlay">
@@ -826,7 +778,7 @@ export default function GlobalAlert() {
               )}
 
               {/* Status badge */}
-              <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
                 <div className="status-badge">
                   <span className="status-dot" />
                   {maintenanceExpired
@@ -837,13 +789,13 @@ export default function GlobalAlert() {
 
               {/* Lock icon */}
               <div className="lock-glow">
-                <Lock size={20} color="#22d3ee" />
+                <Lock size={24} color="#22d3ee" />
               </div>
 
-              {/* Title — MAINTENANCE EN COURS... */}
+              {/* Title & description */}
               <div style={{ textAlign: "center" }}>
                 <div className="maintenance-title">
-                  MAINTENANCE EN COURS...
+                  Système en maintenance
                 </div>
                 <div className="maintenance-desc">
                   {config.maintenanceMessage ||
@@ -896,29 +848,58 @@ export default function GlobalAlert() {
                 </div>
               </div>
 
-              {/* Progression steps (green as they activate) */}
-              <div className="steps-row">
-                {PROGRESS_STEPS.map((step, i) => (
-                  <span key={i} className={getStepClass(progress, step)}>
-                    {step.label}
-                  </span>
-                ))}
+              {/* Progress label */}
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: "0.7rem",
+                  color: "rgba(6,182,212,0.5)",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Progression : {Math.round(progress)}%
               </div>
 
-              {/* End date — always visible, prominent */}
+              {/* HUD indicators */}
+              <div className="hud-grid">
+                <div className="hud-item">
+                  <div className="hud-label">
+                    <Cpu size={10} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
+                    Système
+                  </div>
+                  <div className="hud-value">
+                    <span className="hud-bracket">[</span> EN COURS{" "}
+                    <span className="hud-bracket">]</span>
+                  </div>
+                </div>
+                <div className="hud-item">
+                  <div className="hud-label">
+                    <Shield size={10} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
+                    Sécurité
+                  </div>
+                  <div className="hud-value">
+                    <span className="hud-bracket">[</span> ACTIF{" "}
+                    <span className="hud-bracket">]</span>
+                  </div>
+                </div>
+                <div className="hud-item">
+                  <div className="hud-label">
+                    <Activity size={10} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
+                    Réseau
+                  </div>
+                  <div className="hud-value">
+                    <span className="hud-bracket">[</span> STABLE{" "}
+                    <span className="hud-bracket">]</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* End date */}
               {formattedEndDate && (
                 <div className="end-date">
-                  <div className="end-date-label">Fin estimée</div>
-                  {formattedEndDate}
+                  Fin estimée : {formattedEndDate}
                 </div>
               )}
-
-              {/* HUD indicators — grey / discrete */}
-              <div className="hud-row">
-                <span className="hud-tag">Nodes:SYNC</span>
-                <span className="hud-tag">Ledger:OK</span>
-                <span className="hud-tag">Network:LIVE</span>
-              </div>
             </div>
           </div>
         </div>
