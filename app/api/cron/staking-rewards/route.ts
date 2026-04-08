@@ -14,6 +14,13 @@ export async function GET(req: Request) {
 
     for (const stake of stakings) {
       const reward = (stake.amount * stake.apy) / 100 / 365; // Gain journalier
+      const newTotalRewards = (stake.rewardsEarned || 0) + reward;
+      const currency = stake.currency || 'PI';
+      
+      // Calculer la date de fin si elle existe
+      const endDate = stake.endDate 
+        ? new Date(stake.endDate).toLocaleDateString('fr-FR')
+        : null;
       
       await prisma.$transaction([
         prisma.staking.update({
@@ -23,9 +30,21 @@ export async function GET(req: Request) {
         prisma.notification.create({
           data: {
             userId: stake.userId,
-            title: "Récompense de Staking 💰",
-            message: `Vous avez gagné ${reward.toFixed(4)} Pi aujourd'hui.`,
-            type: "success"
+            title: "Recompense de Staking",
+            message: `Vous avez gagne +${reward.toFixed(6)} ${currency} aujourd'hui sur votre staking de ${stake.amount.toLocaleString()} ${currency} a ${stake.apy}% APY. Total cumule: ${newTotalRewards.toFixed(6)} ${currency}.`,
+            type: "STAKING_REWARD",
+            metadata: JSON.stringify({
+              type: "STAKING_REWARD",
+              stakingId: stake.id,
+              stakingAmount: stake.amount,
+              rewardAmount: reward,
+              totalRewards: newTotalRewards,
+              apy: stake.apy,
+              currency: currency,
+              stakingStatus: "ACTIVE",
+              unlockDate: endDate,
+              dailyReward: reward,
+            })
           }
         })
       ]);

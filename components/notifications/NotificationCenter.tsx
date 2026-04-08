@@ -29,6 +29,8 @@ interface NotificationMetadata {
   // Staking specific
   stakingAmount?: number;
   rewardAmount?: number;
+  totalRewards?: number;
+  dailyReward?: number;
   apy?: number;
   duration?: string;
   stakingId?: string;
@@ -92,14 +94,25 @@ function showNotificationToast(notif: Notification) {
       description: meta?.location ? `Connexion depuis ${meta.location}` : notif.message,
       duration: 8000,
     });
-  } else if (notif.type === "STAKING" || notif.type === "STAKING_REWARD" || meta?.type === "STAKING") {
-    // Notification de staking
+  } else if (notif.type === "STAKING" || notif.type === "STAKING_REWARD" || meta?.type === "STAKING" || meta?.type === "STAKING_REWARD") {
+    // Notification de staking - afficher les details complets
+    let description = notif.message;
+    
+    if (meta?.type === "STAKING_REWARD" || notif.type === "STAKING_REWARD") {
+      // Recompense de staking avec details complets
+      const rewardAmt = Number(meta?.rewardAmount || 0).toFixed(6);
+      const stakingAmt = Number(meta?.stakingAmount || 0).toLocaleString();
+      const totalRewards = Number(meta?.totalRewards || 0).toFixed(6);
+      const currency = meta?.currency || "PI";
+      const apy = meta?.apy || 0;
+      
+      description = `+${rewardAmt} ${currency} gagne aujourd'hui | Staking: ${stakingAmt} ${currency} @ ${apy}% APY | Total cumule: ${totalRewards} ${currency}`;
+    } else if (meta?.stakingAmount) {
+      description = `${Number(meta.stakingAmount).toLocaleString()} ${meta.currency || "PI"} stake a ${meta.apy || 0}% APY`;
+    }
+    
     toast.success(notif.title, {
-      description: meta?.stakingAmount 
-        ? `${Number(meta.stakingAmount).toLocaleString()} ${meta.currency || "PI"} stake a ${meta.apy || 0}% APY` 
-        : meta?.rewardAmount 
-          ? `+${Number(meta.rewardAmount).toLocaleString()} ${meta.currency || "PI"} de recompense`
-          : notif.message,
+      description,
       duration: 8000,
     });
   } else if (notif.type === "STAKING_UNSTAKE" || meta?.type === "UNSTAKE") {
@@ -218,7 +231,7 @@ export default function NotificationCenter() {
                       n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? 'bg-emerald-500/10 text-emerald-500' :
                       n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? 'bg-amber-500/10 text-amber-500' :
                       n.type === 'SWAP' ? 'bg-blue-500/10 text-blue-500' :
-                      n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' ? 'bg-purple-500/10 text-purple-500' :
+                      n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' || (n.metadata as NotificationMetadata)?.type === 'STAKING_REWARD' ? 'bg-purple-500/10 text-purple-500' :
                       n.type === 'STAKING_UNSTAKE' || (n.metadata as NotificationMetadata)?.type === 'UNSTAKE' ? 'bg-orange-500/10 text-orange-500' :
                       'bg-blue-500/10 text-blue-500'
                     }`}>
@@ -227,13 +240,43 @@ export default function NotificationCenter() {
                        n.type === 'PAYMENT_RECEIVED' || n.type === 'SALARY' || (n.metadata as NotificationMetadata)?.type === 'SALARY' ? <Banknote size={14} /> :
                        n.type === 'PAYMENT_SENT' || (n.metadata as NotificationMetadata)?.type === 'SALARY_BATCH' ? <DollarSign size={14} /> :
                        n.type === 'SWAP' ? <Repeat size={14} /> :
-                       n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' ? <TrendingUp size={14} /> :
+                       n.type === 'STAKING' || n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING' || (n.metadata as NotificationMetadata)?.type === 'STAKING_REWARD' ? <TrendingUp size={14} /> :
                        n.type === 'STAKING_UNSTAKE' || (n.metadata as NotificationMetadata)?.type === 'UNSTAKE' ? <Coins size={14} /> :
                        <Info size={14} />}
                     </div>
                     <div className="flex-1">
                       <p className="text-[11px] font-black uppercase text-white tracking-tight">{n.title}</p>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-relaxed line-clamp-2">{n.message}</p>
+                      
+                      {/* Affichage enrichi pour les notifications de staking */}
+                      {(n.type === 'STAKING_REWARD' || (n.metadata as NotificationMetadata)?.type === 'STAKING_REWARD') && (n.metadata as NotificationMetadata)?.rewardAmount ? (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-black text-emerald-400">
+                              +{Number((n.metadata as NotificationMetadata)?.rewardAmount || 0).toFixed(6)} {(n.metadata as NotificationMetadata)?.currency || 'PI'}
+                            </span>
+                            <span className="text-[9px] text-slate-500">gagne aujourd&apos;hui</span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">
+                            <span className="text-slate-500">
+                              Staking: <span className="text-white font-bold">{Number((n.metadata as NotificationMetadata)?.stakingAmount || 0).toLocaleString()} {(n.metadata as NotificationMetadata)?.currency || 'PI'}</span>
+                            </span>
+                            <span className="text-slate-500">
+                              APY: <span className="text-purple-400 font-bold">{(n.metadata as NotificationMetadata)?.apy || 0}%</span>
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-500">
+                            Total cumule: <span className="text-emerald-400 font-bold">{Number((n.metadata as NotificationMetadata)?.totalRewards || 0).toFixed(6)} {(n.metadata as NotificationMetadata)?.currency || 'PI'}</span>
+                          </div>
+                          {(n.metadata as NotificationMetadata)?.unlockDate && (
+                            <div className="text-[9px] text-slate-600">
+                              Deblocage: {(n.metadata as NotificationMetadata)?.unlockDate}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 mt-1 leading-relaxed line-clamp-2">{n.message}</p>
+                      )}
+                      
                       <p className="text-[8px] text-slate-600 font-bold uppercase mt-2 italic tracking-tighter">
                         {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
