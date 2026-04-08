@@ -236,11 +236,16 @@ export default async function SessionsPage() {
                     />
 
                     <div className="min-w-0 flex-1">
-                      {/* Device name + current badge */}
+                      {/* Device name + current badge + flag */}
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[14px] font-semibold tracking-tight text-white">
                           {session.deviceName || "Appareil inconnu"}
                         </span>
+
+                        {/* Country flag - displayed more prominently */}
+                        {session.country && (
+                          <CountryFlag countryCode={session.country} />
+                        )}
 
                         {isCurrent && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 ring-1 ring-emerald-500/20">
@@ -256,11 +261,24 @@ export default async function SessionsPage() {
                         )}
                       </div>
 
-                      {/* Browser / OS */}
-                      <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                        {session.browser || "Navigateur inconnu"} &middot;{" "}
-                        {session.os || "OS inconnu"}
-                      </p>
+                      {/* Browser / OS / Device Type */}
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
+                        <span className="truncate">
+                          {session.browser || "Navigateur inconnu"}
+                        </span>
+                        <span>&middot;</span>
+                        <span className="truncate">
+                          {session.os || "OS inconnu"}
+                        </span>
+                        {session.deviceType && (
+                          <>
+                            <span>&middot;</span>
+                            <span className="truncate capitalize">
+                              {session.deviceType}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Revoke button (not for current session) */}
@@ -277,13 +295,25 @@ export default async function SessionsPage() {
                       <span>{session.ip || "IP inconnue"}</span>
                     </div>
 
-                    {/* Location */}
+                    {/* Location with flag */}
                     {(session.city || session.country) && (
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                         <MapPin size={12} strokeWidth={1.8} className="shrink-0" />
-                        <CountryFlag countryCode={session.country} />
+                        {session.country && (
+                          <span
+                            className={`fi fi-${session.country.toLowerCase()}`}
+                            style={{
+                              display: "inline-block",
+                              width: "18px",
+                              height: "14px",
+                              borderRadius: "2px",
+                              boxShadow: "0 0 0 1px rgba(255,255,255,0.1)",
+                            }}
+                            title={session.country.toUpperCase()}
+                          />
+                        )}
                         <span>
-                          {[session.city, session.country]
+                          {[session.city, session.region, session.country]
                             .filter(Boolean)
                             .join(", ")}
                         </span>
