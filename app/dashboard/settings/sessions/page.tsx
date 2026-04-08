@@ -1,218 +1,337 @@
+// ============================================================================
+// SessionsPage.tsx — PimPay Security · Sessions Management
+// Next.js App Router Server Component (RSC)
+// Redesigned with a polished, professional dark UI
+// ============================================================================
+
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import {
-  ShieldCheck,
-  Monitor,
-  Smartphone,
-  Globe,
-  MapPin,
-  Clock,
-  ArrowLeft,
-} from "lucide-react";
-import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Smartphone,
+  Monitor,
+  Globe,
+  Clock,
+  MapPin,
+  Wifi,
+  Fingerprint,
+  AlertTriangle,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
 import RevokeSessionButton from "@/components/sessions/RevokeSessionButton";
-import { cookies } from "next/headers";
-import * as jose from "jose";
 import "flag-icons/css/flag-icons.min.css";
 
-/**
- * Helper pour le drapeau - Version "Square/Rect" sans cercle
- */
-const CountryFlag = ({ countryCode }: { countryCode: string | null | undefined }) => {
-  const code = countryCode?.toLowerCase() || "cg";
+// ============================================================================
+// Country Flag — renders a flag-icons sprite for a given country code
+// ============================================================================
+
+function CountryFlag({ countryCode }: { countryCode: string | null }) {
+  if (!countryCode) return null;
+  const code = countryCode.toLowerCase();
   return (
-    <span 
-      className={`fi fi-${code} shadow-sm`} 
-      style={{ 
-        borderRadius: '1px', // Presque carré, très pro
-        width: '18px', 
-        height: '13px',
-        display: 'inline-block' 
-      }} 
+    <span
+      className={`fi fi-${code}`}
+      style={{"display":"inline-block","width":"16px","height":"12px","borderRadius":"2px","boxShadow":"0 0 0 1px rgba(255,255,255,0.08)"}}
+      title={countryCode.toUpperCase()}
     />
   );
-};
+}
 
-async function getAuthenticatedUser() {
+// ============================================================================
+// Device icon helper — returns the appropriate Lucide icon per device type
+// ============================================================================
+
+function DeviceIcon({
+  deviceType,
+  isCurrent,
+}: {
+  deviceType: string | null;
+  isCurrent: boolean;
+}) {
+  const Icon = deviceType === "mobile" ? Smartphone : Monitor;
+  return (
+    <div
+      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+        isCurrent
+          ? "bg-blue-600/15 text-blue-400 shadow-lg shadow-blue-600/25"
+          : "bg-white/[0.04] text-slate-500"
+      }`}
+    >
+      <Icon size={18} strokeWidth={1.8} />
+    </div>
+  );
+}
+
+// ============================================================================
+// Unauthenticated state — shown when there is no valid JWT
+// ============================================================================
+
+function UnauthenticatedState() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#020617] px-4 antialiased">
+      <div className="w-full max-w-sm rounded-3xl border border-white/[0.06] bg-white/[0.02] p-8 text-center backdrop-blur-xl">
+        {/* Icon */}
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/10">
+          <ShieldCheck size={24} className="text-blue-400" strokeWidth={1.6} />
+        </div>
+
+        {/* Text */}
+        <h2 className="text-[17px] font-bold tracking-tight text-white">
+          Session expirée
+        </h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+          Votre session a expiré ou vous n&apos;êtes pas connecté. Veuillez vous
+          reconnecter pour accéder à cette page.
+        </p>
+
+        {/* Reconnect button */}
+        <Link
+          href="/login"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[13px] font-semibold text-white transition-colors hover:bg-blue-500"
+        >
+          Se reconnecter
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main page component
+// ============================================================================
+
+export default async function SessionsPage() {
+  // --------------------------------------------------------------------------
+  // Auth — read JWT from cookies and verify
+  // --------------------------------------------------------------------------
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
 
-  if (!token) return null;
+  if (!token) return <UnauthenticatedState />;
+
+  let userId: string;
 
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
-
-    return await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, username: true, role: true }
-    });
-  } catch (error) {
-    return null;
-  }
-}
-
-export default async function SessionsPage() {
-  const user = await getAuthenticatedUser();
-  const cookieStore = await cookies(); 
-  const currentToken = cookieStore.get("token")?.value;
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-center">
-        <div className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/10 max-w-xs w-full">
-          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <ShieldCheck size={32} />
-          </div>
-          <h2 className="text-xl font-black text-white uppercase italic">Accès Refusé</h2>
-          <p className="text-slate-500 text-xs mt-2 font-bold uppercase tracking-tighter">Session expirée.</p>
-        </div>
-      </div>
-    );
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+    const { payload } = await jwtVerify(token, secret);
+    userId = payload.sub as string;
+  } catch {
+    return <UnauthenticatedState />;
   }
 
+  // --------------------------------------------------------------------------
+  // Data — fetch all sessions for this user, most recent first
+  // --------------------------------------------------------------------------
   const sessions = await prisma.session.findMany({
-    where: {
-        userId: user.id,
-        isActive: true
-    },
-    orderBy: { lastActiveAt: 'desc' },
+    where: { userId },
+    orderBy: { lastActiveAt: "desc" },
   });
 
+  // Identify the current session by matching the token
+  const currentSession = sessions.find((s) => s.token === token);
+
   return (
-    <div className="min-h-[100dvh] bg-[#020617] text-white font-sans overflow-y-auto">
-      {/* NAVIGATION BAR */}
-      <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-xl border-b border-white/5">
-        <div className="flex items-center justify-between px-4 py-4 max-w-md mx-auto">
-          <Link 
-            href="/settings" 
-            className="w-10 h-10 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-colors"
-          >
-            <ArrowLeft size={20} className="text-white" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/30">
-              <ShieldCheck className="text-blue-500" size={20} />
-            </div>
-            <h1 className="text-xl font-black uppercase italic tracking-tighter">
-              PimPay<span className="text-blue-500">Security</span>
-            </h1>
-          </div>
-          <div className="w-10" /> {/* Spacer for centering */}
-        </div>
-      </div>
-      
-      <div className="p-6 pb-32 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#020617] antialiased">
+      {/* ================================================================== */}
+      {/* HEADER — sticky navigation bar                                     */}
+      {/* ================================================================== */}
+      <header className="sticky top-0 z-50 flex h-16 items-center border-b border-white/[0.04] bg-[#020617]/90 px-4 backdrop-blur-2xl">
+        {/* Back button */}
+        <Link
+          href="/security"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.05] text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft size={16} strokeWidth={2} />
+        </Link>
 
-        {/* DESCRIPTION & DEVICE COUNT */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-xs">
-            Consultez et gérez tous les appareils connectés à votre compte PimPay. Révoquez les sessions suspectes pour protéger votre compte.
+        {/* Brand */}
+        <div className="ml-3.5 flex items-center gap-2">
+          <span className="text-[15px] font-bold tracking-tight text-white">
+            PimPay Security
+          </span>
+          <span className="text-[11px] text-slate-600">&middot;</span>
+          <span className="text-[11px] font-medium text-slate-500">
+            Sessions
+          </span>
+        </div>
+      </header>
+
+      {/* ================================================================== */}
+      {/* CONTENT                                                            */}
+      {/* ================================================================== */}
+      <main className="mx-auto max-w-lg px-4 pb-12 pt-8">
+        {/* ---------------------------------------------------------------- */}
+        {/* HERO SECTION — title, description, counter                       */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mb-8">
+          {/* Fingerprint icon */}
+          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/10">
+            <Fingerprint size={20} className="text-blue-400" strokeWidth={1.6} />
+          </div>
+
+          <h1 className="text-[22px] font-bold tracking-tight text-white">
+            Appareils connectés
+          </h1>
+
+          <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
+            Gérez les sessions actives associées à votre compte. Révoquez
+            l&apos;accès pour tout appareil que vous ne reconnaissez pas.
           </p>
-          
-          <div className="mt-4 px-4 py-2 bg-slate-800/50 rounded-full border border-white/5">
-            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.15em]">
-              {sessions.length} APPAREIL{sessions.length > 1 ? 'S' : ''} CONNECTÉ{sessions.length > 1 ? 'S' : ''}
-            </p>
+
+          {/* Session counter pill */}
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 ring-1 ring-white/[0.06]">
+            <Wifi size={12} className="text-blue-400" strokeWidth={2} />
+            <span className="text-[11px] font-semibold text-slate-400">
+              {sessions.length} session{sessions.length !== 1 && "s"} active
+              {sessions.length !== 1 && "s"}
+            </span>
           </div>
-          
-          <div className="mt-4">
-            <LogoutOthersButton />
-          </div>
-        </div>
+        </section>
 
-        <div className="space-y-4">
-          {sessions.length === 0 ? (
-            <div className="p-10 text-center bg-white/5 rounded-[2rem] border border-dashed border-white/10 text-slate-500">
-              Aucune session active.
-            </div>
-          ) : (
-            sessions.map((session) => {
-              const isCurrent = session.token === currentToken;
-              const isMobile = session.deviceName?.toLowerCase().includes("android") ||
-                               session.deviceName?.toLowerCase().includes("iphone") ||
-                               session.userAgent?.toLowerCase().includes("mobile");
+        {/* ---------------------------------------------------------------- */}
+        {/* SESSION CARDS                                                    */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="flex flex-col gap-3.5">
+          {sessions.map((session) => {
+            const isCurrent = session.id === currentSession?.id;
 
-              return (
-                <div
-                  key={session.id}
-                  className={`p-5 rounded-[2.5rem] border transition-all duration-300 ${
-                    isCurrent
-                    ? 'bg-blue-600/10 border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.1)]'
-                    : 'bg-slate-900/40 border-white/5'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                      isCurrent ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      {isMobile ? <Smartphone size={24} /> : <Monitor size={24} />}
-                    </div>
+            return (
+              <div
+                key={session.id}
+                className={`relative rounded-2xl p-4 transition-colors ${
+                  isCurrent
+                    ? "bg-gradient-to-b from-blue-600/[0.06] to-transparent ring-1 ring-blue-500/20"
+                    : "bg-white/[0.02] ring-1 ring-white/[0.06] hover:ring-white/[0.08]"
+                }`}
+              >
+                {/* Top row — device icon, name, badge, revoke */}
+                <div className="flex items-start gap-3.5">
+                  <DeviceIcon
+                    deviceType={session.deviceType}
+                    isCurrent={isCurrent}
+                  />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="font-black text-[13px] truncate uppercase tracking-tight">
-                          {session.deviceName || "Appareil Inconnu"}
-                        </span>
-                        {isCurrent && (
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-500 text-[8px] font-black uppercase rounded-md border border-emerald-500/20">
-                            Actuel
+                  <div className="min-w-0 flex-1">
+                    {/* Device name + current badge */}
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[14px] font-semibold tracking-tight text-white">
+                        {session.deviceName || "Appareil inconnu"}
+                      </span>
+
+                      {isCurrent && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 ring-1 ring-emerald-500/20">
+                          {/* Pulsing green dot */}
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                           </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                          <Globe size={12} className="text-blue-500" />
-                          {session.ip} <span className="text-slate-700">•</span> {session.browser || "Browser"}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                          {/* Drapeau carré ajusté */}
-                          <div className="flex items-center">
-                            <CountryFlag countryCode={session.country} />
-                          </div>
-                          <span className="ml-1">{session.city || "Oyo"}, {session.countryName || "Congo"}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-                          <Clock size={12} className="text-slate-600" />
-                          {formatDistanceToNow(new Date(session.lastActiveAt), {
-                            addSuffix: true,
-                            locale: fr
-                          })}
-                        </div>
-                      </div>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                            Actif
+                          </span>
+                        </span>
+                      )}
                     </div>
 
-                    {!isCurrent && (
-                      <div className="self-center">
-                        <RevokeSessionButton sessionId={session.id} />
-                      </div>
-                    )}
+                    {/* Browser / OS */}
+                    <p className="mt-0.5 truncate text-[12px] text-slate-500">
+                      {session.browser || "Navigateur inconnu"} &middot;{" "}
+                      {session.os || "OS inconnu"}
+                    </p>
+                  </div>
+
+                  {/* Revoke button (not for current session) */}
+                  {!isCurrent && (
+                    <RevokeSessionButton sessionId={session.id} />
+                  )}
+                </div>
+
+                {/* -------------------------------------------------------- */}
+                {/* Meta rows — IP, location, last active                    */}
+                {/* -------------------------------------------------------- */}
+                <div className="mt-3.5 flex flex-col gap-1.5 border-t border-white/[0.04] pt-3.5">
+                  {/* IP address */}
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <Globe size={12} strokeWidth={1.8} className="shrink-0" />
+                    <span>{session.ip || "IP inconnue"}</span>
+                  </div>
+
+                  {/* Location */}
+                  {(session.city || session.country) && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <MapPin
+                        size={12}
+                        strokeWidth={1.8}
+                        className="shrink-0"
+                      />
+                      <CountryFlag countryCode={session.countryCode} />
+                      <span>
+                        {[session.city, session.country]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Last active */}
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <Clock size={12} strokeWidth={1.8} className="shrink-0" />
+                    <span>
+                      {isCurrent ? "Actif \u00b7 " : ""}
+                      {formatDistanceToNow(new Date(session.lastActiveAt), {
+                        addSuffix: true,
+                        locale: fr,
+                      })}
+                    </span>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              </div>
+            );
+          })}
+        </section>
 
-        {/* SECURITY NOTE */}
-        <div className="mt-8 p-6 bg-slate-900/50 rounded-[2.5rem] border border-white/5 flex gap-4 items-start">
-          <div className="p-3 bg-blue-600/10 rounded-2xl text-blue-500">
-            <ShieldCheck size={20} />
+        {/* ---------------------------------------------------------------- */}
+        {/* LOGOUT ALL OTHER SESSIONS                                       */}
+        {/* ---------------------------------------------------------------- */}
+        {sessions.length > 1 && (
+          <div className="mt-6 flex justify-center">
+            <LogoutOthersButton />
           </div>
-          <div>
-            <h4 className="text-[11px] font-black text-white uppercase tracking-widest">Contrôle de sécurité</h4>
-            <p className="text-[10px] text-slate-500 mt-2 leading-relaxed font-bold uppercase italic">
-              Si un accès ne provient pas de vous, révoquez-le et sécurisez votre compte PimPay immédiatement.
-            </p>
+        )}
+
+        {/* ---------------------------------------------------------------- */}
+        {/* SECURITY TIP                                                    */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mt-8">
+          <div className="rounded-2xl border border-white/[0.04] bg-white/[0.02] p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                <AlertTriangle
+                  size={14}
+                  className="text-amber-400"
+                  strokeWidth={2}
+                />
+              </div>
+              <div>
+                <h3 className="text-[12px] font-bold tracking-tight text-white">
+                  Conseil de sécurité
+                </h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                  Si vous ne reconnaissez pas un appareil, révoquez
+                  immédiatement la session et changez votre mot de passe. Activez
+                  l&apos;authentification à deux facteurs pour une protection
+                  renforcée.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
