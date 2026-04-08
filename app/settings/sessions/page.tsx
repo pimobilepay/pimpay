@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import * as jose from "jose";
 import { prisma } from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -20,7 +20,6 @@ import {
   Wifi,
   Fingerprint,
   AlertTriangle,
-  LogOut,
   ShieldCheck,
 } from "lucide-react";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
@@ -31,13 +30,19 @@ import "flag-icons/css/flag-icons.min.css";
 // Country Flag — renders a flag-icons sprite for a given country code
 // ============================================================================
 
-function CountryFlag({ countryCode }: { countryCode: string | null }) {
+function CountryFlag({ countryCode }: { countryCode: string | null | undefined }) {
   if (!countryCode) return null;
   const code = countryCode.toLowerCase();
   return (
     <span
       className={`fi fi-${code}`}
-      style={{"display":"inline-block","width":"16px","height":"12px","borderRadius":"2px","boxShadow":"0 0 0 1px rgba(255,255,255,0.08)"}}
+      style={{
+        display: "inline-block",
+        width: "16px",
+        height: "12px",
+        borderRadius: "2px",
+        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
+      }}
       title={countryCode.toUpperCase()}
     />
   );
@@ -48,13 +53,20 @@ function CountryFlag({ countryCode }: { countryCode: string | null }) {
 // ============================================================================
 
 function DeviceIcon({
-  deviceType,
+  deviceName,
+  userAgent,
   isCurrent,
 }: {
-  deviceType: string | null;
+  deviceName: string | null | undefined;
+  userAgent: string | null | undefined;
   isCurrent: boolean;
 }) {
-  const Icon = deviceType === "mobile" ? Smartphone : Monitor;
+  const isMobile =
+    deviceName?.toLowerCase().includes("android") ||
+    deviceName?.toLowerCase().includes("iphone") ||
+    userAgent?.toLowerCase().includes("mobile");
+
+  const Icon = isMobile ? Smartphone : Monitor;
   return (
     <div
       className={`flex h-10 w-10 items-center justify-center rounded-xl ${
@@ -108,33 +120,33 @@ function UnauthenticatedState() {
 
 export default async function SessionsPage() {
   // --------------------------------------------------------------------------
-  // Auth — read JWT from cookies and verify
+  // Auth — read JWT from cookies and verify (using page2.tsx logic)
   // --------------------------------------------------------------------------
   const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
+  const currentToken = cookieStore.get("token")?.value;
 
-  if (!token) return <UnauthenticatedState />;
+  if (!currentToken) return <UnauthenticatedState />;
 
   let userId: string;
 
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-    const { payload } = await jwtVerify(token, secret);
-    userId = payload.sub as string;
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jose.jwtVerify(currentToken, secret);
+    userId = payload.id as string;
   } catch {
     return <UnauthenticatedState />;
   }
 
   // --------------------------------------------------------------------------
-  // Data — fetch all sessions for this user, most recent first
+  // Data — fetch all active sessions for this user, most recent first
   // --------------------------------------------------------------------------
   const sessions = await prisma.session.findMany({
-    where: { userId },
+    where: {
+      userId,
+      isActive: true,
+    },
     orderBy: { lastActiveAt: "desc" },
   });
-
-  // Identify the current session by matching the token
-  const currentSession = sessions.find((s) => s.token === token);
 
   return (
     <div className="min-h-screen bg-[#020617] antialiased">
@@ -142,9 +154,9 @@ export default async function SessionsPage() {
       {/* HEADER — sticky navigation bar                                     */}
       {/* ================================================================== */}
       <header className="sticky top-0 z-50 flex h-16 items-center border-b border-white/[0.04] bg-[#020617]/90 px-4 backdrop-blur-2xl">
-        {/* Back button */}
+        {/* Back button - corrigé pour pointer vers /settings */}
         <Link
-          href="/security"
+          href="/settings"
           className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.05] text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white"
         >
           <ArrowLeft size={16} strokeWidth={2} />
@@ -198,101 +210,102 @@ export default async function SessionsPage() {
         {/* SESSION CARDS                                                    */}
         {/* ---------------------------------------------------------------- */}
         <section className="flex flex-col gap-3.5">
-          {sessions.map((session) => {
-            const isCurrent = session.id === currentSession?.id;
+          {sessions.length === 0 ? (
+            <div className="p-10 text-center bg-white/[0.02] rounded-2xl border border-dashed border-white/10 text-slate-500">
+              Aucune session active.
+            </div>
+          ) : (
+            sessions.map((session) => {
+              const isCurrent = session.token === currentToken;
 
-            return (
-              <div
-                key={session.id}
-                className={`relative rounded-2xl p-4 transition-colors ${
-                  isCurrent
-                    ? "bg-gradient-to-b from-blue-600/[0.06] to-transparent ring-1 ring-blue-500/20"
-                    : "bg-white/[0.02] ring-1 ring-white/[0.06] hover:ring-white/[0.08]"
-                }`}
-              >
-                {/* Top row — device icon, name, badge, revoke */}
-                <div className="flex items-start gap-3.5">
-                  <DeviceIcon
-                    deviceType={session.deviceType}
-                    isCurrent={isCurrent}
-                  />
+              return (
+                <div
+                  key={session.id}
+                  className={`relative rounded-2xl p-4 transition-colors ${
+                    isCurrent
+                      ? "bg-gradient-to-b from-blue-600/[0.06] to-transparent ring-1 ring-blue-500/20"
+                      : "bg-white/[0.02] ring-1 ring-white/[0.06] hover:ring-white/[0.08]"
+                  }`}
+                >
+                  {/* Top row — device icon, name, badge, revoke */}
+                  <div className="flex items-start gap-3.5">
+                    <DeviceIcon
+                      deviceName={session.deviceName}
+                      userAgent={session.userAgent}
+                      isCurrent={isCurrent}
+                    />
 
-                  <div className="min-w-0 flex-1">
-                    {/* Device name + current badge */}
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[14px] font-semibold tracking-tight text-white">
-                        {session.deviceName || "Appareil inconnu"}
-                      </span>
-
-                      {isCurrent && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 ring-1 ring-emerald-500/20">
-                          {/* Pulsing green dot */}
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          </span>
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
-                            Actif
-                          </span>
+                    <div className="min-w-0 flex-1">
+                      {/* Device name + current badge */}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[14px] font-semibold tracking-tight text-white">
+                          {session.deviceName || "Appareil inconnu"}
                         </span>
-                      )}
+
+                        {isCurrent && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 ring-1 ring-emerald-500/20">
+                            {/* Pulsing green dot */}
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                              Actif
+                            </span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Browser / OS */}
+                      <p className="mt-0.5 truncate text-[12px] text-slate-500">
+                        {session.browser || "Navigateur inconnu"} &middot;{" "}
+                        {session.os || "OS inconnu"}
+                      </p>
                     </div>
 
-                    {/* Browser / OS */}
-                    <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                      {session.browser || "Navigateur inconnu"} &middot;{" "}
-                      {session.os || "OS inconnu"}
-                    </p>
+                    {/* Revoke button (not for current session) */}
+                    {!isCurrent && <RevokeSessionButton sessionId={session.id} />}
                   </div>
 
-                  {/* Revoke button (not for current session) */}
-                  {!isCurrent && (
-                    <RevokeSessionButton sessionId={session.id} />
-                  )}
-                </div>
-
-                {/* -------------------------------------------------------- */}
-                {/* Meta rows — IP, location, last active                    */}
-                {/* -------------------------------------------------------- */}
-                <div className="mt-3.5 flex flex-col gap-1.5 border-t border-white/[0.04] pt-3.5">
-                  {/* IP address */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <Globe size={12} strokeWidth={1.8} className="shrink-0" />
-                    <span>{session.ip || "IP inconnue"}</span>
-                  </div>
-
-                  {/* Location */}
-                  {(session.city || session.country) && (
+                  {/* -------------------------------------------------------- */}
+                  {/* Meta rows — IP, location, last active                    */}
+                  {/* -------------------------------------------------------- */}
+                  <div className="mt-3.5 flex flex-col gap-1.5 border-t border-white/[0.04] pt-3.5">
+                    {/* IP address */}
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                      <MapPin
-                        size={12}
-                        strokeWidth={1.8}
-                        className="shrink-0"
-                      />
-                      <CountryFlag countryCode={session.countryCode} />
+                      <Globe size={12} strokeWidth={1.8} className="shrink-0" />
+                      <span>{session.ip || "IP inconnue"}</span>
+                    </div>
+
+                    {/* Location */}
+                    {(session.city || session.country) && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                        <MapPin size={12} strokeWidth={1.8} className="shrink-0" />
+                        <CountryFlag countryCode={session.country} />
+                        <span>
+                          {[session.city, session.country]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Last active */}
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <Clock size={12} strokeWidth={1.8} className="shrink-0" />
                       <span>
-                        {[session.city, session.country]
-                          .filter(Boolean)
-                          .join(", ")}
+                        {isCurrent ? "Actif \u00b7 " : ""}
+                        {formatDistanceToNow(new Date(session.lastActiveAt), {
+                          addSuffix: true,
+                          locale: fr,
+                        })}
                       </span>
                     </div>
-                  )}
-
-                  {/* Last active */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <Clock size={12} strokeWidth={1.8} className="shrink-0" />
-                    <span>
-                      {isCurrent ? "Actif \u00b7 " : ""}
-                      {formatDistanceToNow(new Date(session.lastActiveAt), {
-                        addSuffix: true,
-                        locale: fr,
-                      })}
-                    </span>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </section>
 
         {/* ---------------------------------------------------------------- */}
