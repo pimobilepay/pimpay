@@ -1,490 +1,565 @@
-"use client";                                  
-import { useState, useEffect, useCallback } from "react";
-import { BankSidebar } from "@/components/bank/BankSidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
-import {
-  Wallet,
-  Landmark,
-  Menu,
-  X,
-  RefreshCw,
-  Search,
-  TrendingUp,
-  TrendingDown,
-  Eye,
-  Ban,
-  Unlock,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  ArrowUpRight,
-  ArrowDownLeft,
-  DollarSign,
-  PiggyBank,
-  CreditCard,
-  CircleDollarSign,
-  Snowflake,
-  History,
-} from "lucide-react";
-import { toast } from "sonner";
+'use client';
 
-interface BankAccount {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  currency: string;
-  type: string;
-  balance: number;
-  frozenBalance: number;
-  createdAt: string;
-  lastActivity: string;
-  transactionCount: number;
+import { useState } from 'react';
+import { Plus, Eye, Edit, Trash2, MoreHorizontal, TrendingUp, Wallet, CheckCircle, Copy, Search, Filter, Download } from 'lucide-react';
+
+const GOLD = '#C8A961';
+
+const accountTypes = [
+  { key: 'ALL', label: 'Tous' },
+  { key: 'CACC', label: 'Courants' },
+  { key: 'BIZZ', label: 'Business' },
+  { key: 'SVGS', label: 'Épargne' },
+  { key: 'EWLT', label: 'E-Wallet' },
+  { key: 'CWLT', label: 'Crypto' },
+  { key: 'PIWT', label: 'Pi' },
+  { key: 'NSVR', label: 'Nostro/Vostro' },
+];
+
+const statusColors: Record<string, string> = {
+  ACTIF: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+  INACTIF: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
+  SUSPENDU: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  EN_ATTENTE: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
+};
+
+const typeColors: Record<string, string> = {
+  CACC: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+  BIZZ: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+  SVGS: 'bg-teal-500/20 text-teal-300 border border-teal-500/30',
+  EWLT: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+  CWLT: 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30',
+  PIWT: 'bg-pink-500/20 text-pink-300 border border-pink-500/30',
+  NSVR: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+};
+
+const typeLabels: Record<string, string> = {
+  CACC: 'Courant',
+  BIZZ: 'Business',
+  SVGS: 'Épargne',
+  EWLT: 'E-Wallet',
+  CWLT: 'Crypto',
+  PIWT: 'Pi',
+  NSVR: 'Nostro/Vostro',
+};
+
+const mockAccounts = [
+  {
+    id: '1',
+    accountNumber: 'PP-001-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0001 012',
+    name: 'Jean-Pierre Mbeki',
+    type: 'CACC',
+    currency: 'XAF',
+    availableBalance: 4_850_000,
+    accountingBalance: 5_100_000,
+    pendingBalance: 250_000,
+    status: 'ACTIF',
+  },
+  {
+    id: '2',
+    accountNumber: 'PP-002-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0002 034',
+    name: 'Société Générale CM',
+    type: 'BIZZ',
+    currency: 'XAF',
+    availableBalance: 125_750_000,
+    accountingBalance: 130_000_000,
+    pendingBalance: 4_250_000,
+    status: 'ACTIF',
+  },
+  {
+    id: '3',
+    accountNumber: 'PP-003-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0003 056',
+    name: 'Marie Ngo Bassa',
+    type: 'SVGS',
+    currency: 'XAF',
+    availableBalance: 2_300_000,
+    accountingBalance: 2_300_000,
+    pendingBalance: 0,
+    status: 'ACTIF',
+  },
+  {
+    id: '4',
+    accountNumber: 'PP-004-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0004 078',
+    name: 'Alain Fotso',
+    type: 'EWLT',
+    currency: 'XAF',
+    availableBalance: 150_000,
+    accountingBalance: 150_000,
+    pendingBalance: 0,
+    status: 'ACTIF',
+  },
+  {
+    id: '5',
+    accountNumber: 'PP-005-2024-BTC',
+    iban: 'N/A',
+    name: 'Crypto Holdings CM',
+    type: 'CWLT',
+    currency: 'BTC',
+    availableBalance: 0.45,
+    accountingBalance: 0.50,
+    pendingBalance: 0.05,
+    status: 'ACTIF',
+  },
+  {
+    id: '6',
+    accountNumber: 'PP-006-2024-PI',
+    iban: 'N/A',
+    name: 'Pierre Kamga',
+    type: 'PIWT',
+    currency: 'PI',
+    availableBalance: 12_500,
+    accountingBalance: 12_500,
+    pendingBalance: 0,
+    status: 'EN_ATTENTE',
+  },
+  {
+    id: '7',
+    accountNumber: 'PP-007-2024-EUR',
+    iban: 'FR76 3000 6000 0112 3456 7890 189',
+    name: 'Banque Centrale CA',
+    type: 'NSVR',
+    currency: 'EUR',
+    availableBalance: 500_000,
+    accountingBalance: 500_000,
+    pendingBalance: 0,
+    status: 'ACTIF',
+  },
+  {
+    id: '8',
+    accountNumber: 'PP-008-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0008 112',
+    name: 'Emmanuel Tchinda',
+    type: 'CACC',
+    currency: 'XAF',
+    availableBalance: 890_000,
+    accountingBalance: 900_000,
+    pendingBalance: 10_000,
+    status: 'SUSPENDU',
+  },
+  {
+    id: '9',
+    accountNumber: 'PP-009-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0009 134',
+    name: 'Yves Kouam Enterprises',
+    type: 'BIZZ',
+    currency: 'XAF',
+    availableBalance: 45_200_000,
+    accountingBalance: 46_000_000,
+    pendingBalance: 800_000,
+    status: 'ACTIF',
+  },
+  {
+    id: '10',
+    accountNumber: 'PP-010-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0010 156',
+    name: 'Fatima Aboubakar',
+    type: 'SVGS',
+    currency: 'XAF',
+    availableBalance: 7_500_000,
+    accountingBalance: 7_500_000,
+    pendingBalance: 0,
+    status: 'ACTIF',
+  },
+  {
+    id: '11',
+    accountNumber: 'PP-011-2024-XAF',
+    iban: 'CM21 1000 2000 0010 0120 0011 178',
+    name: 'Georges Essomba',
+    type: 'EWLT',
+    currency: 'XAF',
+    availableBalance: 75_000,
+    accountingBalance: 75_000,
+    pendingBalance: 0,
+    status: 'INACTIF',
+  },
+  {
+    id: '12',
+    accountNumber: 'PP-012-2024-ETH',
+    iban: 'N/A',
+    name: 'DeFi Investments CM',
+    type: 'CWLT',
+    currency: 'ETH',
+    availableBalance: 3.25,
+    accountingBalance: 3.50,
+    pendingBalance: 0.25,
+    status: 'ACTIF',
+  },
+];
+
+function formatBalance(amount: number, currency: string): string {
+  if (['BTC', 'ETH', 'PI'].includes(currency)) {
+    return `${amount.toFixed(currency === 'PI' ? 0 : 4)} ${currency}`;
+  }
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: currency === 'XAF' ? 'XAF' : currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-interface AccountStats {
-  totalAccounts: number;
-  totalBalance: number;
-  totalFrozen: number;
-  byCurrency: Record<string, { count: number; balance: number }>;
-  byType: Record<string, number>;
-}
-
-interface Pagination {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+function formatXAF(amount: number): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XAF',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 export default function AccountsPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currencyFilter, setCurrencyFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("balance");
-  const [page, setPage] = useState(1);
-  const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
 
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [stats, setStats] = useState<AccountStats | null>(null);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  const filteredAccounts = mockAccounts.filter((acc) => {
+    const matchesTab = activeTab === 'ALL' || acc.type === activeTab;
+    const matchesSearch =
+      searchQuery === '' ||
+      acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.accountNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.iban.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "20",
-        sortBy,
-        ...(searchTerm && { search: searchTerm }),
-        ...(currencyFilter !== "all" && { currency: currencyFilter }),
-        ...(typeFilter !== "all" && { type: typeFilter }),
-      });
+  const totalAccounts = mockAccounts.length;
+  const activeAccounts = mockAccounts.filter((a) => a.status === 'ACTIF').length;
+  const totalXAFBalance = mockAccounts
+    .filter((a) => a.currency === 'XAF')
+    .reduce((sum, a) => sum + a.accountingBalance, 0);
 
-      const res = await fetch(`/api/bank/accounts?${params}`, { credentials: "include" });
-
-      if (!res.ok) {
-        const result = await res.json().catch(() => ({ error: "Erreur serveur" }));
-        throw new Error(result.error || "Erreur lors du chargement");
-      }
-
-      const result = await res.json();
-
-      setAccounts(result.accounts || []);
-      setStats(result.statistics || null);
-      setPagination(result.pagination || null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur inconnue";
-      setError(errorMessage);
-      setAccounts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, searchTerm, currencyFilter, typeFilter, sortBy]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchAccounts();
-    }, searchTerm ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [fetchAccounts, searchTerm]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, currencyFilter, typeFilter, sortBy]);
-
-  const handleAccountAction = async (accountId: string, action: "freeze" | "unfreeze") => {
-    try {
-      setActionLoading(true);
-      const res = await fetch("/api/bank/accounts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ accountId, action }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Erreur");
-      toast.success(action === "freeze" ? "Compte gele avec succes" : "Compte degele avec succes");
-      await fetchAccounts();
-      setDialogOpen(false);
-      setSelectedAccount(null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'action";
-      toast.error(errorMessage);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ✅ CORRECTION: Sécurisation du formatage pour éviter les crashs Intl
-  const formatCurrency = (amount: number = 0, currency: string = "USD") => {
-    try {
-      const displayCurrency = (currency === "XAF" || currency === "PI" || currency === "SDA") ? "USD" : currency;
-      const formatted = new Intl.NumberFormat("fr-FR", {
-        style: "currency",
-        currency: displayCurrency,
-        minimumFractionDigits: 2,
-      }).format(amount || 0);
-      
-      return formatted.replace("US$", currency).replace("USD", currency);
-    } catch (e) {
-      return `${(amount || 0).toFixed(2)} ${currency}`;
-    }
-  };
-
-  const getTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      FIAT: "Monnaie Fiduciaire",
-      PI: "Pi Network",
-      CRYPTO: "Crypto",
-      SIDRA: "Sidra Chain",
-    };
-    return types[type] || type;
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "FIAT": return <DollarSign className="h-4 w-4" />;
-      case "PI": return <CircleDollarSign className="h-4 w-4" />;
-      case "CRYPTO": return <CreditCard className="h-4 w-4" />;
-      case "SIDRA": return <PiggyBank className="h-4 w-4" />;
-      default: return <Wallet className="h-4 w-4" />;
-    }
-  };
-
-  const getInitials = (name: string = "") => {
-    if (!name) return "??";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
-    <div className="flex min-h-screen bg-[#02040a]">
-      <div className="hidden lg:block">
-        <BankSidebar />
+    <div className="min-h-screen bg-[#0A0D14] text-white p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Comptes</h1>
+          <p className="text-gray-400 text-sm mt-1">Gérez tous les comptes bancaires de la plateforme</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 transition-colors text-sm"
+          >
+            <Download size={16} />
+            Exporter
+          </button>
+          <button
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all hover:brightness-110 active:scale-95"
+            style={{ backgroundColor: GOLD, color: '#0A0D14' }}
+          >
+            <Plus size={16} />
+            Nouveau Compte
+          </button>
+        </div>
       </div>
 
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-64 bg-slate-950 border-r border-white/5 overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10">
-                  <Landmark className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-sm font-black text-white">PIMPAY</h1>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">Institution</p>
-                </div>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <BankSidebar isMobile />
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${GOLD}20` }}>
+            <Wallet size={22} style={{ color: GOLD }} />
           </div>
-        </div>
-      )}
-
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
-        <div className="flex items-center justify-between mb-6 lg:hidden">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10">
-            <Landmark className="h-5 w-5 text-white" />
-          </div>
-        </div>
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Comptes Bancaires</h1>
-              <Badge className="bg-slate-800 text-slate-300 border-slate-700 text-[9px] font-bold">
-                <Wallet className="h-3 w-3 mr-1" />
-                {loading ? "..." : stats?.totalAccounts ?? 0} comptes
-              </Badge>
-            </div>
-            <p className="text-sm text-slate-500">Gestion des soldes et comptes utilisateurs</p>
+            <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Comptes</p>
+            <p className="text-2xl font-bold text-white mt-0.5">{totalAccounts}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tous types confondus</p>
           </div>
-          <Button
-            variant="outline"
-            className="border-white/10 bg-slate-900/50 text-slate-400 hover:text-white text-xs font-bold"
-            onClick={fetchAccounts}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Actualiser
-          </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0">
-                  <TrendingUp className="h-4 w-4 text-emerald-500" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Solde Total</p>
-                  {loading ? (
-                    <Skeleton className="h-5 w-20 bg-slate-700 mt-0.5" />
-                  ) : (
-                    <p className="text-sm font-black text-emerald-500 truncate">
-                      {formatCurrency(stats?.totalBalance || 0, "$US")}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-900/50 border-white/5 rounded-2xl">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
-                  <Snowflake className="h-4 w-4 text-amber-500" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[8px] font-bold text-slate-500 uppercase truncate">Fonds Geles</p>
-                  {loading ? (
-                    <Skeleton className="h-5 w-20 bg-slate-700 mt-0.5" />
-                  ) : (
-                    <p className="text-sm font-black text-amber-500 truncate">
-                      {formatCurrency(stats?.totalFrozen || 0, "$US")}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${GOLD}20` }}>
+            <TrendingUp size={22} style={{ color: GOLD }} />
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Solde Total XAF</p>
+            <p className="text-2xl font-bold text-white mt-0.5">{formatXAF(totalXAFBalance)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Comptes en XAF uniquement</p>
+          </div>
         </div>
 
-        {stats?.byCurrency && Object.keys(stats.byCurrency).length > 0 && (
-          <Card className="bg-slate-900/50 border-white/5 rounded-2xl mb-6 overflow-hidden">
-            <CardHeader className="pb-2 px-4 pt-4">
-              <CardTitle className="text-xs font-bold text-white">Repartition par Devise</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-                {Object.entries(stats.byCurrency).map(([currency, data]) => (
-                  <div key={currency} className="bg-slate-800/50 rounded-xl p-3 border border-white/5 min-w-[110px] shrink-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge className="bg-slate-700/50 text-slate-300 border-slate-600 text-[9px] font-bold px-1.5">{currency}</Badge>
-                      <span className="text-[9px] text-slate-500">{data.count}</span>
-                    </div>
-                    <p className="text-xs font-bold text-white mb-1.5 truncate">{formatCurrency(data.balance, currency)}</p>
-                    <Progress value={(data.balance / (stats?.totalBalance || 1)) * 100} className="h-1 bg-slate-700" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-          <CardHeader>
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-lg font-black text-white">Liste des Comptes</CardTitle>
-                <CardDescription className="text-slate-500">
-                  {pagination ? `Page ${pagination.page} sur ${pagination.totalPages} - ${pagination.total} comptes` : "Chargement..."}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-48 bg-slate-800/50 border-white/10 text-white text-xs" />
-                </div>
-                <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-                  <SelectTrigger className="w-28 bg-slate-800/50 border-white/10 text-white text-xs font-bold">
-                    <SelectValue placeholder="Devise" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10 text-white">
-                    <SelectItem value="all">Toutes</SelectItem>
-                    <SelectItem value="XAF">XAF</SelectItem>
-                    <SelectItem value="PI">PI</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-32 bg-slate-800/50 border-white/10 text-white text-xs font-bold">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10 text-white">
-                    <SelectItem value="all">Tous</SelectItem>
-                    <SelectItem value="FIAT">Fiduciaire</SelectItem>
-                    <SelectItem value="PI">Pi Network</SelectItem>
-                    <SelectItem value="CRYPTO">Crypto</SelectItem>
-                    <SelectItem value="SIDRA">Sidra</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-                <AlertCircle className="h-8 w-8 text-red-500" />
-                <p className="text-red-400 text-sm">{error}</p>
-                <Button variant="outline" size="sm" onClick={fetchAccounts} className="border-white/10 text-xs">Reessayer</Button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/5 hover:bg-transparent uppercase">
-                      <TableHead className="text-[10px] font-bold text-slate-500">Titulaire</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500">Type</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500">Devise</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500 text-right">Solde</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500 text-right">Gele</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500">Activite</TableHead>
-                      <TableHead className="text-[10px] font-bold text-slate-500 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={i} className="border-white/5 hover:bg-transparent">
-                          <TableCell colSpan={7}><Skeleton className="h-12 w-full bg-slate-800/50" /></TableCell>
-                        </TableRow>
-                      ))
-                    ) : accounts.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-12 text-slate-500 text-xs font-bold uppercase">Aucun compte trouve</TableCell>
-                      </TableRow>
-                    ) : (
-                      accounts.map((account) => (
-                        <TableRow key={account.id} className="border-white/5 hover:bg-white/[0.02]">
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-9 w-9 border border-white/5">
-                                <AvatarFallback className="bg-slate-800 text-white text-[10px] font-black">{getInitials(account.userName)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="text-xs font-bold text-white">{account.userName}</p>
-                                <p className="text-[10px] text-slate-500">{account.userEmail}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-slate-800 rounded-lg text-slate-400">{getTypeIcon(account.type)}</div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">{getTypeLabel(account.type)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell><Badge className="bg-slate-800/50 text-slate-300 border-slate-700 text-[10px] font-bold">{account.currency}</Badge></TableCell>
-                          <TableCell className="text-right text-xs font-black text-white">{formatCurrency(account.balance, account.currency)}</TableCell>
-                          <TableCell className="text-right text-xs font-black text-amber-500">{formatCurrency(account.frozenBalance, account.currency)}</TableCell>
-                          <TableCell className="text-[10px] font-bold text-slate-500 uppercase">{new Date(account.lastActivity || account.createdAt).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white" onClick={() => { setSelectedAccount(account); setDialogOpen(true); }}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            {pagination && pagination.totalPages > 1 && (
-              <div className="flex items-center justify-end gap-2 mt-4">
-                <Button variant="outline" size="icon" className="h-8 w-8 border-white/10" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button>
-                <span className="text-xs text-white font-bold">{page} / {pagination.totalPages}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8 border-white/10" disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </main>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-slate-900 border-white/10 text-white rounded-[32px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Gestion du Compte</DialogTitle>
-            <DialogDescription className="text-slate-500 text-xs">Actions disponibles pour {selectedAccount?.userName}</DialogDescription>
-          </DialogHeader>
-          <div className="bg-slate-800/50 p-4 rounded-2xl border border-white/5 my-4">
-            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Solde Actuel</p>
-            <p className="text-2xl font-black text-white">{formatCurrency(selectedAccount?.balance || 0, selectedAccount?.currency || "USD")}</p>
+        <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-500/20">
+            <CheckCircle size={22} className="text-emerald-400" />
           </div>
-          <DialogFooter>
-            <Button 
-              className={`w-full font-bold rounded-xl ${selectedAccount?.frozenBalance === 0 ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
-              onClick={() => selectedAccount && handleAccountAction(selectedAccount.id, selectedAccount.frozenBalance === 0 ? "freeze" : "unfreeze")}
-              disabled={actionLoading}
+          <div>
+            <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Comptes Actifs</p>
+            <p className="text-2xl font-bold text-white mt-0.5">{activeAccounts}</p>
+            <p className="text-xs text-emerald-400 mt-0.5">{Math.round((activeAccounts / totalAccounts) * 100)}% du total</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs & Filters */}
+      <div className="bg-[#111827] border border-gray-800 rounded-xl overflow-hidden">
+        {/* Tab Bar */}
+        <div className="flex items-center border-b border-gray-800 overflow-x-auto scrollbar-hide">
+          {accountTypes.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === tab.key
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
             >
-              {actionLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : selectedAccount?.frozenBalance === 0 ? <Ban className="h-4 w-4 mr-2" /> : <Unlock className="h-4 w-4 mr-2" />}
-              {selectedAccount?.frozenBalance === 0 ? "Geler le compte" : "Degeler le compte"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {tab.label}
+              {activeTab === tab.key && (
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
+                  style={{ backgroundColor: GOLD }}
+                />
+              )}
+              {tab.key !== 'ALL' && (
+                <span
+                  className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-700/60 text-gray-400"
+                >
+                  {mockAccounts.filter((a) => a.type === tab.key).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="flex items-center gap-3 p-4 border-b border-gray-800">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, numéro de compte ou IBAN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-800/50 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-600 transition-colors"
+            />
+          </div>
+          <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors text-sm">
+            <Filter size={15} />
+            Filtres
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-800">
+                {['N° Compte', 'IBAN', 'Nom', 'Type', 'Devise', 'Solde Disponible', 'Solde Comptable', 'En Attente', 'Statut', 'Actions'].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAccounts.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-16 text-gray-500">
+                    <Wallet size={40} className="mx-auto mb-3 opacity-30" />
+                    <p>Aucun compte trouvé</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredAccounts.map((acc, idx) => (
+                  <tr
+                    key={acc.id}
+                    className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
+                      idx % 2 === 0 ? 'bg-transparent' : 'bg-gray-900/20'
+                    }`}
+                  >
+                    {/* Account Number */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-mono text-white">{acc.accountNumber}</span>
+                        <button
+                          onClick={() => handleCopy(acc.accountNumber, `acc-${acc.id}`)}
+                          className="text-gray-600 hover:text-gray-300 transition-colors"
+                          title="Copier"
+                        >
+                          {copiedId === `acc-${acc.id}` ? (
+                            <CheckCircle size={13} className="text-emerald-400" />
+                          ) : (
+                            <Copy size={13} />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* IBAN */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-mono text-gray-400 truncate max-w-[160px]" title={acc.iban}>
+                          {acc.iban}
+                        </span>
+                        {acc.iban !== 'N/A' && (
+                          <button
+                            onClick={() => handleCopy(acc.iban, `iban-${acc.id}`)}
+                            className="text-gray-600 hover:text-gray-300 transition-colors flex-shrink-0"
+                            title="Copier IBAN"
+                          >
+                            {copiedId === `iban-${acc.id}` ? (
+                              <CheckCircle size={13} className="text-emerald-400" />
+                            ) : (
+                              <Copy size={13} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Name */}
+                    <td className="px-4 py-3.5">
+                      <span className="text-sm font-medium text-white whitespace-nowrap">{acc.name}</span>
+                    </td>
+
+                    {/* Type Badge */}
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${typeColors[acc.type]}`}
+                      >
+                        {typeLabels[acc.type]}
+                      </span>
+                    </td>
+
+                    {/* Currency */}
+                    <td className="px-4 py-3.5">
+                      <span className="text-sm font-mono font-semibold" style={{ color: GOLD }}>
+                        {acc.currency}
+                      </span>
+                    </td>
+
+                    {/* Available Balance */}
+                    <td className="px-4 py-3.5">
+                      <span className="text-sm font-semibold text-emerald-400">
+                        {formatBalance(acc.availableBalance, acc.currency)}
+                      </span>
+                    </td>
+
+                    {/* Accounting Balance */}
+                    <td className="px-4 py-3.5">
+                      <span className="text-sm font-medium text-white">
+                        {formatBalance(acc.accountingBalance, acc.currency)}
+                      </span>
+                    </td>
+
+                    {/* Pending Balance */}
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`text-sm font-medium ${
+                          acc.pendingBalance > 0 ? 'text-yellow-400' : 'text-gray-600'
+                        }`}
+                      >
+                        {formatBalance(acc.pendingBalance, acc.currency)}
+                      </span>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[acc.status]}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            acc.status === 'ACTIF'
+                              ? 'bg-emerald-400'
+                              : acc.status === 'SUSPENDU'
+                              ? 'bg-red-400'
+                              : acc.status === 'EN_ATTENTE'
+                              ? 'bg-yellow-400'
+                              : 'bg-gray-400'
+                          }`}
+                        />
+                        {acc.status === 'ACTIF'
+                          ? 'Actif'
+                          : acc.status === 'SUSPENDU'
+                          ? 'Suspendu'
+                          : acc.status === 'EN_ATTENTE'
+                          ? 'En attente'
+                          : 'Inactif'}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+                          title="Voir"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+                          title="Modifier"
+                        >
+                          <Edit size={15} />
+                        </button>
+                        <button
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                        <button
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+                          title="Plus"
+                        >
+                          <MoreHorizontal size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Table Footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-800">
+          <p className="text-sm text-gray-500">
+            Affichage de{' '}
+            <span className="text-white font-medium">{filteredAccounts.length}</span>{' '}
+            sur{' '}
+            <span className="text-white font-medium">{mockAccounts.length}</span>{' '}
+            comptes
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              disabled
+              className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-800 disabled:opacity-40 cursor-default"
+            >
+              Précédent
+            </button>
+            <span
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+              style={{ color: GOLD, borderColor: `${GOLD}40`, backgroundColor: `${GOLD}15` }}
+            >
+              1
+            </span>
+            <button
+              disabled
+              className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-800 disabled:opacity-40 cursor-default"
+            >
+              Suivant
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
