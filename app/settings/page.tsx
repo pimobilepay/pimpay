@@ -141,7 +141,7 @@ export default function SettingsPage() {
           label: "Historique de Connexion",
           desc: "Vérifier les activités récentes",
           color: "text-rose-400",
-          path: "/dashboard/settings/sessions"
+          path: "/settings/sessions"
         },
       ]
     },
