@@ -11,13 +11,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    // Get transactions from the last 7 days grouped by type and day
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Get the days parameter from query string (default to 7)
+    const { searchParams } = new URL(req.url);
+    const days = parseInt(searchParams.get("days") || "7", 10);
+    const validDays = [7, 30, 90].includes(days) ? days : 7;
+
+    // Get transactions from the last N days grouped by type and day
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - validDays);
 
     const transactions = await prisma.transaction.findMany({
       where: {
-        createdAt: { gte: sevenDaysAgo },
+        createdAt: { gte: startDate },
         status: { in: ["SUCCESS", "SUCCESS"] },
       },
       select: {
@@ -31,17 +36,19 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "asc" },
     });
 
-    // Group by day
-    const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-    const chartMap: Record<string, { day: string; entrant: number; sortant: number; exchange: number; mpay: number; total: number }> = {};
+    // Group by day - use date format for display
+    const chartMap: Record<string, { day: string; date: string; entrant: number; sortant: number; exchange: number; mpay: number; total: number }> = {};
 
-    // Initialize last 7 days
-    for (let i = 6; i >= 0; i--) {
+    // Initialize last N days
+    for (let i = validDays - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const key = date.toISOString().split("T")[0];
+      // Format date as DD/MM for display
+      const dayStr = date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
       chartMap[key] = {
-        day: dayNames[date.getDay()],
+        day: dayStr,
+        date: key,
         entrant: 0,
         sortant: 0,
         exchange: 0,
@@ -119,16 +126,21 @@ export async function GET(req: NextRequest) {
         mpayCount,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("CHART_DATA_ERROR:", error);
     // Return fallback empty data
-    const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+    const { searchParams } = new URL(req.url);
+    const days = parseInt(searchParams.get("days") || "7", 10);
+    const validDays = [7, 30, 90].includes(days) ? days : 7;
+    
     const fallback = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = validDays - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
+      const dayStr = date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
       fallback.push({
-        day: dayNames[date.getDay()],
+        day: dayStr,
+        date: date.toISOString().split("T")[0],
         entrant: 0,
         sortant: 0,
         exchange: 0,

@@ -66,6 +66,7 @@ type AuditLog = {
 
 type ChartDataPoint = {
   day: string;
+  date?: string;
   entrant: number;
   sortant: number;
   exchange: number;
@@ -257,6 +258,7 @@ function DashboardContent() {
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
 
   // Live chart states
   const [liveIndicator, setLiveIndicator] = useState(true);
@@ -674,7 +676,13 @@ function DashboardContent() {
   </linearGradient>
   </defs>
   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-  <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} axisLine={false} tickLine={false} />
+  <XAxis 
+    dataKey="day" 
+    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} 
+    axisLine={false} 
+    tickLine={false} 
+    interval={chartPeriod === 7 ? 0 : chartPeriod === 30 ? 4 : 14}
+  />
   <YAxis tick={{ fontSize: 8, fill: '#475569' }} axisLine={false} tickLine={false} />
   <Tooltip
   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', fontSize: '10px', fontWeight: 800 }}
@@ -720,7 +728,11 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-3">
                             {logs.slice(0, 8).map(log => (
-                                <div key={log.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 space-y-2">
+                                <div 
+                                  key={log.id} 
+                                  className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 space-y-2 cursor-pointer hover:bg-white/[0.04] hover:border-blue-500/20 transition-all active:scale-[0.99]"
+                                  onClick={() => setSelectedAuditLog(log)}
+                                >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-[8px] font-black uppercase">
@@ -731,7 +743,10 @@ function DashboardContent() {
                                         {log.adminEmail && <p className="text-[7px] text-slate-500 font-mono">{log.adminEmail}</p>}
                                       </div>
                                     </div>
-                                    <span className="text-[7px] text-slate-600 font-mono">{new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[7px] text-slate-600 font-mono">{new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                      <ChevronRight size={12} className="text-slate-600" />
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${
@@ -1796,6 +1811,128 @@ function DashboardContent() {
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
 
       {/* MODAL 2FA — Confirmation Google Authenticator */}
+      {/* Audit Log Detail Modal */}
+      {selectedAuditLog && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setSelectedAuditLog(null)}>
+          <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 rounded-2xl text-blue-400">
+                  <History size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">Detail Log Audit</h3>
+                  <p className="text-[9px] text-slate-500 font-mono">{selectedAuditLog.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAuditLog(null)}
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-slate-400 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Admin Info */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Administrateur</p>
+                <div className="flex items-center gap-3">
+                  {selectedAuditLog.adminAvatar ? (
+                    <img src={selectedAuditLog.adminAvatar} alt="" className="w-10 h-10 rounded-xl object-cover border border-white/10" crossOrigin="anonymous" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 text-sm font-black uppercase">
+                      {selectedAuditLog.adminName?.[0] || 'S'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-black text-white uppercase">{selectedAuditLog.adminName || 'Systeme'}</p>
+                    {selectedAuditLog.adminEmail && <p className="text-[10px] text-slate-500 font-mono">{selectedAuditLog.adminEmail}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Info */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Action Effectuee</p>
+                <span className={`inline-block text-[10px] font-black uppercase px-3 py-1.5 rounded-full tracking-wider ${
+                  selectedAuditLog.action.includes('BAN') ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                  selectedAuditLog.action.includes('RESET') ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                  selectedAuditLog.action.includes('AIRDROP') ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                  selectedAuditLog.action.includes('ROLE') ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                  selectedAuditLog.action.includes('BALANCE') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                  selectedAuditLog.action.includes('MAINTENANCE') ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                  'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                }`}>{selectedAuditLog.action}</span>
+              </div>
+
+              {/* Target Info */}
+              {(selectedAuditLog.targetId || selectedAuditLog.targetEmail || selectedAuditLog.targetName) && (
+                <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                  <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Cible</p>
+                  <div className="space-y-2">
+                    {selectedAuditLog.targetName && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-500 uppercase">Nom:</span>
+                        <span className="text-xs font-bold text-white">{selectedAuditLog.targetName}</span>
+                      </div>
+                    )}
+                    {selectedAuditLog.targetEmail && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-500 uppercase">Email:</span>
+                        <span className="text-xs font-mono text-slate-300">{selectedAuditLog.targetEmail}</span>
+                      </div>
+                    )}
+                    {selectedAuditLog.targetId && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-500 uppercase">ID:</span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded-lg">{selectedAuditLog.targetId}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Details */}
+              {selectedAuditLog.details && (
+                <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                  <p className="text-[8px] font-black text-purple-400 uppercase tracking-widest">Details</p>
+                  <p className="text-xs text-slate-300 font-mono bg-slate-800/50 p-3 rounded-xl leading-relaxed break-all">{selectedAuditLog.details}</p>
+                </div>
+              )}
+
+              {/* Timestamp */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Horodatage</p>
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-slate-500" />
+                  <span className="text-sm font-bold text-white">{new Date(selectedAuditLog.createdAt).toLocaleString('fr-FR', { 
+                    day: '2-digit', 
+                    month: 'long', 
+                    year: 'numeric',
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-2">
+              <button
+                onClick={() => setSelectedAuditLog(null)}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98]"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {twoFaModal.open && (
         <div className="fixed inset-0 z-[300] flex items-end justify-center sm:items-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
