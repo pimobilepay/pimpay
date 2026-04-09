@@ -9,7 +9,7 @@ import {
   BarChart3, ArrowLeft, History, Eye
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 
 export default function AdminDashboard() {
@@ -151,43 +151,54 @@ export default function AdminDashboard() {
             <TrendingUp size={80} />
           </div>
           
-          <div className="flex justify-between items-center mb-8 relative z-10">
+          <div className="flex justify-between items-center mb-6 relative z-10">
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Analyse des Flux</h3>
               <p className="text-[9px] text-slate-600 uppercase mt-1">7 derniers jours</p>
-            </div>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase">
-                <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" /> Entrees
-              </div>
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase">
-                <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" /> Sorties
-              </div>
             </div>
           </div>
 
           <div className="h-64 w-full relative z-10">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length > 0 ? chartData : defaultChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorEntree" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorSortie" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="10 10" stroke="#ffffff05" vertical={false} />
-                <XAxis dataKey="name" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontWeight: 'bold' }} dy={10} />
-                <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '16px', fontSize: '10px', backdropFilter: 'blur(10px)' }} 
+              <BarChart data={chartData.length > 0 ? chartData : defaultChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#475569" 
+                  fontSize={10} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#64748b', fontWeight: 700 }} 
+                  dy={8} 
                 />
-                <Area type="monotone" dataKey="entrees" stroke="#3b82f6" fillOpacity={1} fill="url(#colorEntree)" strokeWidth={3} animationDuration={2000} />
-                <Area type="monotone" dataKey="sorties" stroke="#f43f5e" fill="url(#colorSortie)" strokeWidth={2} strokeDasharray="5 5" animationDuration={2500} />
-              </AreaChart>
+                <YAxis 
+                  stroke="#475569" 
+                  fontSize={9} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#64748b' }}
+                  tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
+                  width={45}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    borderRadius: '16px', 
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backdropFilter: 'blur(10px)' 
+                  }}
+                  labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '9px', letterSpacing: '1px', marginBottom: '6px', fontWeight: 800 }}
+                  cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                />
+                <Legend 
+                  formatter={(value) => <span style={{ color: '#9ca3af', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{value}</span>}
+                  wrapperStyle={{ paddingTop: '16px' }}
+                />
+                <Bar dataKey="entrees" name="Entrees" fill="#3b82f6" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="sorties" name="Sorties" fill="#f43f5e" stackId="a" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
