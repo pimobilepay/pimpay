@@ -8,7 +8,7 @@ import {                                                LogOut, Shield, Users, Z
   CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight,
   Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor
 } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
 // --- TYPES ---
 type LedgerUser = {
@@ -647,53 +647,46 @@ function DashboardContent() {
                           </div>
                         </div>
                         
-                        {/* Legend */}
-                        <div className="flex items-center justify-center gap-4 sm:gap-6">
-                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Entrant</span></div>
-                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Sortant</span></div>
-                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Exchange</span></div>
-                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">MPAY</span></div>
-                        </div>
-                        <div className="h-52">
+                        <div className="h-56">
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-<defs>
-  <linearGradient id="gradEntrant" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-  </linearGradient>
-  <linearGradient id="gradSortant" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
-  <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
-  </linearGradient>
-  <linearGradient id="gradExchange" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-  </linearGradient>
-  <linearGradient id="gradMpay" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-  </linearGradient>
-  </defs>
-  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-  <XAxis 
-    dataKey="day" 
-    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} 
-    axisLine={false} 
-    tickLine={false} 
-    interval={chartPeriod === 7 ? 0 : chartPeriod === 30 ? 4 : 14}
-  />
-  <YAxis tick={{ fontSize: 8, fill: '#475569' }} axisLine={false} tickLine={false} />
-  <Tooltip
-  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', fontSize: '10px', fontWeight: 800 }}
-  labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '8px', letterSpacing: '2px', marginBottom: '4px' }}
-  itemStyle={{ fontWeight: 800 }}
-  />
-  <Area type="monotone" dataKey="entrant" stroke="#10b981" fill="url(#gradEntrant)" strokeWidth={2.5} name="Entrant" dot={false} />
-  <Area type="monotone" dataKey="sortant" stroke="#f87171" fill="url(#gradSortant)" strokeWidth={2.5} name="Sortant" dot={false} />
-  <Area type="monotone" dataKey="exchange" stroke="#3b82f6" fill="url(#gradExchange)" strokeWidth={2.5} name="Exchange" dot={false} />
-  <Area type="monotone" dataKey="mpay" stroke="#f59e0b" fill="url(#gradMpay)" strokeWidth={2.5} name="MPAY" dot={false} />
-                            </AreaChart>
+                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }} barSize={chartPeriod === 7 ? 24 : chartPeriod === 30 ? 10 : 6}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                              <XAxis 
+                                dataKey="day" 
+                                tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} 
+                                axisLine={false} 
+                                tickLine={false} 
+                                interval={chartPeriod === 7 ? 0 : chartPeriod === 30 ? 4 : 14}
+                              />
+                              <YAxis 
+                                tick={{ fontSize: 9, fill: '#475569' }} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
+                                width={40}
+                              />
+                              <Tooltip
+                                contentStyle={{ 
+                                  background: 'rgba(15, 23, 42, 0.95)', 
+                                  border: '1px solid rgba(255,255,255,0.1)', 
+                                  borderRadius: '1rem', 
+                                  fontSize: '11px', 
+                                  fontWeight: 600,
+                                  backdropFilter: 'blur(8px)'
+                                }}
+                                labelStyle={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: '9px', letterSpacing: '1px', marginBottom: '6px', fontWeight: 800 }}
+                                itemStyle={{ fontWeight: 600, padding: '2px 0' }}
+                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                              />
+                              <Legend 
+                                formatter={(value) => <span style={{ color: '#9ca3af', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{value}</span>}
+                                wrapperStyle={{ paddingTop: '12px' }}
+                              />
+                              <Bar dataKey="entrant" name="Entrant" fill="#10b981" stackId="a" radius={[0, 0, 0, 0]} />
+                              <Bar dataKey="sortant" name="Sortant" fill="#f87171" stackId="a" />
+                              <Bar dataKey="exchange" name="Exchange" fill="#3b82f6" stackId="a" />
+                              <Bar dataKey="mpay" name="MPAY" fill="#f59e0b" stackId="a" radius={[4, 4, 0, 0]} />
+                            </BarChart>
                           </ResponsiveContainer>
                         </div>
 {/* Summary cards */}
