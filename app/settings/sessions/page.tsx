@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
 import RevokeSessionButton from "@/components/sessions/RevokeSessionButton";
+import SessionsContent from "@/components/sessions/SessionsContent";
 import "flag-icons/css/flag-icons.min.css";
 
 // ============================================================================
@@ -149,11 +150,12 @@ export default async function SessionsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#020617] antialiased">
-      {/* ================================================================== */}
-      {/* HEADER — sticky navigation bar                                     */}
-      {/* ================================================================== */}
-      <header className="sticky top-0 z-50 flex h-16 items-center border-b border-white/[0.04] bg-[#020617]/90 px-4 backdrop-blur-2xl">
+    <SessionsContent>
+      <div className="min-h-screen bg-[#020617] antialiased">
+        {/* ================================================================== */}
+        {/* HEADER — sticky navigation bar                                     */}
+        {/* ================================================================== */}
+        <header className="sticky top-0 z-50 flex h-16 items-center border-b border-white/[0.04] bg-[#020617]/90 px-4 backdrop-blur-2xl">
         {/* Back button - corrigé pour pointer vers /settings */}
         <Link
           href="/settings"
@@ -376,5 +378,6 @@ export default async function SessionsPage() {
         </section>
       </main>
     </div>
+    </SessionsContent>
   );
 }
