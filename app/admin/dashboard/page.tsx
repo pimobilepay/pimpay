@@ -258,6 +258,12 @@ function DashboardContent() {
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
+  // Live chart states
+  const [liveIndicator, setLiveIndicator] = useState(true);
+  const [lastChartRefresh, setLastChartRefresh] = useState(new Date());
+  const [chartRefreshing, setChartRefreshing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   // 2FA Modal state for sensitive reset actions
   const [twoFaModal, setTwoFaModal] = useState<{
     open: boolean;
@@ -357,6 +363,58 @@ function DashboardContent() {
     }, 10000);
     return () => clearInterval(statsInterval);
   }, [isMounted]);
+
+  // Live indicator blink effect
+  useEffect(() => {
+    const blinkInterval = setInterval(() => setLiveIndicator(v => !v), 1200);
+    return () => clearInterval(blinkInterval);
+  }, []);
+
+  // Real-time clock
+  useEffect(() => {
+    const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
+
+  // Auto-refresh chart data every 30 seconds
+  useEffect(() => {
+    if (!isMounted) return;
+    const chartInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/admin/chart-data");
+        if (res.ok) {
+          const chartRes = await res.json();
+          setChartData(chartRes.chartData || []);
+          setChartSummary(chartRes.summary || { totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
+          setLastChartRefresh(new Date());
+        }
+      } catch { /* silent */ }
+    }, 30000);
+    return () => clearInterval(chartInterval);
+  }, [isMounted]);
+
+  // Manual chart refresh handler
+  const handleChartRefresh = async () => {
+    setChartRefreshing(true);
+    try {
+      const res = await fetch("/api/admin/chart-data");
+      if (res.ok) {
+        const chartRes = await res.json();
+        setChartData(chartRes.chartData || []);
+        setChartSummary(chartRes.summary || { totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
+        setLastChartRefresh(new Date());
+      }
+    } catch { /* silent */ }
+    finally { setChartRefreshing(false); }
+  };
+
+  // Format relative time
+  const formatRelativeTime = (date: Date): string => {
+    const diff = (Date.now() - date.getTime()) / 1000;
+    if (diff < 60) return `il y a ${Math.floor(diff)}s`;
+    if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`;
+    return `il y a ${Math.floor(diff / 3600)}h`;
+  };
 
   /**
    * Ouvre le modal 2FA et exécute l'action uniquement après vérification TOTP réussie.
@@ -512,14 +570,45 @@ function DashboardContent() {
                         </Card>
                     )}
                     {/* Dynamic Chart - Entrants / Sortants / Exchange */}
-                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Volume 7 Jours</p>
+                    <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 space-y-4 relative overflow-hidden">
+                        {/* Live indicator glow */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                        
+                        {/* Header with live indicator and refresh */}
+                        <div className="flex items-center justify-between relative z-10">
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[8px] font-black text-slate-400 uppercase">Entrant</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400" /><span className="text-[8px] font-black text-slate-400 uppercase">Sortant</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-[8px] font-black text-slate-400 uppercase">Exchange</span></div>
+                            <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Volume 7 Jours</p>
+                            {/* Live indicator */}
+                            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-1">
+                              <span className={`h-1.5 w-1.5 rounded-full bg-emerald-400 transition-opacity duration-500 ${liveIndicator ? 'opacity-100' : 'opacity-30'}`} />
+                              <span className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Live</span>
+                            </div>
                           </div>
+                          <div className="flex items-center gap-3">
+                            {/* Clock */}
+                            <div className="hidden sm:flex items-center gap-2">
+                              <span className="text-[8px] font-mono text-slate-500">{formatRelativeTime(lastChartRefresh)}</span>
+                              <span className="text-slate-700">|</span>
+                              <span className="text-[9px] font-mono text-blue-400 font-bold">{currentTime.toLocaleTimeString('fr-FR')}</span>
+                            </div>
+                            {/* Refresh button */}
+                            <button
+                              onClick={handleChartRefresh}
+                              disabled={chartRefreshing}
+                              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-[8px] font-black text-slate-300 uppercase tracking-wider transition hover:border-blue-500/50 hover:bg-slate-700 hover:text-white disabled:opacity-50"
+                            >
+                              <RefreshCw className={`h-3 w-3 transition-transform duration-700 ${chartRefreshing ? 'animate-spin' : ''}`} />
+                              <span className="hidden sm:inline">Actualiser</span>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Legend */}
+                        <div className="flex items-center justify-center gap-4 sm:gap-6">
+                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Entrant</span></div>
+                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Sortant</span></div>
+                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">Exchange</span></div>
+                          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]" /><span className="text-[8px] font-black text-slate-400 uppercase">MPAY</span></div>
                         </div>
                         <div className="h-52">
                           <ResponsiveContainer width="100%" height="100%">
