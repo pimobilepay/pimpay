@@ -14,6 +14,13 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { QRCodeSVG } from "qrcode.react";
+import * as faceapi from "face-api.js";
+
+// Face Recognition Constants
+const FACE_MATCH_THRESHOLD = 0.5; // Lower = more strict matching
+const FACE_DESCRIPTOR_STORAGE_KEY = "pimpay_face_descriptor";
+// Load models from CDN for reliability
+const MODELS_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
 
 interface SessionData {
   id: string;
@@ -71,7 +78,12 @@ export default function SecurityPage() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [faceScanProgress, setFaceScanProgress] = useState(0);
   const [faceScanStatus, setFaceScanStatus] = useState<'scanning' | 'success' | 'error' | 'idle'>('idle');
+  const [faceDetectionMessage, setFaceDetectionMessage] = useState<string>('');
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Google Authenticator states
   const [google2faEnabled, setGoogle2faEnabled] = useState(false);
@@ -219,15 +231,74 @@ export default function SecurityPage() {
     }
   };
 
+  // Load face-api.js models
+  const loadFaceApiModels = async () => {
+    if (modelsLoaded) return true;
+    
+    setIsLoadingModels(true);
+    try {
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL),
+      ]);
+      setModelsLoaded(true);
+      setIsLoadingModels(false);
+      return true;
+    } catch (error) {
+      console.error("Error loading face-api models:", error);
+      setIsLoadingModels(false);
+      toast.error("Erreur de chargement des modeles de reconnaissance faciale");
+      return false;
+    }
+  };
+
+  // Get stored face descriptor
+  const getStoredFaceDescriptor = (): Float32Array | null => {
+    try {
+      const stored = localStorage.getItem(FACE_DESCRIPTOR_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return new Float32Array(parsed);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Store face descriptor
+  const storeFaceDescriptor = (descriptor: Float32Array): void => {
+    const array = Array.from(descriptor);
+    localStorage.setItem(FACE_DESCRIPTOR_STORAGE_KEY, JSON.stringify(array));
+  };
+
+  // Clear stored face descriptor
+  const clearFaceDescriptor = (): void => {
+    localStorage.removeItem(FACE_DESCRIPTOR_STORAGE_KEY);
+  };
+
+  // Check if face data is registered
+  const hasFaceRegistered = (): boolean => {
+    return getStoredFaceDescriptor() !== null;
+  };
+
   // Start camera for face recognition
   const startFaceCamera = async () => {
     try {
+      // First load models
+      const modelsReady = await loadFaceApiModels();
+      if (!modelsReady) {
+        return false;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
       });
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
       return true;
     } catch (error) {
@@ -239,35 +310,121 @@ export default function SecurityPage() {
 
   // Stop camera
   const stopFaceCamera = () => {
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
     }
     setFaceScanProgress(0);
     setFaceScanStatus('idle');
+    setFaceDetectionMessage('');
   };
 
-  // Simulate face scanning process
+  // Real face scanning process with face-api.js
   const performFaceScan = async (): Promise<boolean> => {
+    if (!videoRef.current || !modelsLoaded) {
+      toast.error("La camera ou les modeles ne sont pas prets");
+      return false;
+    }
+
     setFaceScanStatus('scanning');
     setFaceScanProgress(0);
+    setFaceDetectionMessage('Analyse du visage en cours...');
+
+    const video = videoRef.current;
+    const mode = showFaceScanModal?.mode;
     
-    // Simulate scanning progress
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setFaceScanProgress(i);
-    }
-    
-    // Simulate face detection success (in real app, use face-api.js or similar)
-    const success = Math.random() > 0.1; // 90% success rate simulation
-    
-    if (success) {
-      setFaceScanStatus('success');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return true;
-    } else {
+    let attempts = 0;
+    const maxAttempts = 20;
+    let detectedDescriptor: Float32Array | null = null;
+
+    // Animate progress while scanning
+    const progressInterval = setInterval(() => {
+      setFaceScanProgress(prev => Math.min(prev + 3, 90));
+    }, 150);
+
+    try {
+      // Try to detect face multiple times
+      while (attempts < maxAttempts && !detectedDescriptor) {
+        attempts++;
+        setFaceDetectionMessage(`Recherche du visage... (${attempts}/${maxAttempts})`);
+
+        const detections = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (detections) {
+          detectedDescriptor = detections.descriptor;
+          setFaceDetectionMessage('Visage detecte!');
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      clearInterval(progressInterval);
+
+      if (!detectedDescriptor) {
+        setFaceScanProgress(0);
+        setFaceScanStatus('error');
+        setFaceDetectionMessage('Aucun visage detecte. Positionnez votre visage dans le cercle.');
+        return false;
+      }
+
+      // Mode: Activation - Store the face descriptor
+      if (mode === 'activate') {
+        setFaceScanProgress(100);
+        setFaceDetectionMessage('Enregistrement du visage...');
+        
+        // Store face descriptor
+        storeFaceDescriptor(detectedDescriptor);
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setFaceScanStatus('success');
+        setFaceDetectionMessage('Visage enregistre avec succes!');
+        return true;
+      }
+      
+      // Mode: Deactivation or Verification - Compare with stored face
+      if (mode === 'deactivate') {
+        const storedDescriptor = getStoredFaceDescriptor();
+        
+        if (!storedDescriptor) {
+          setFaceScanStatus('error');
+          setFaceDetectionMessage('Aucun visage enregistre trouve.');
+          return false;
+        }
+
+        setFaceDetectionMessage('Verification du visage...');
+        setFaceScanProgress(95);
+
+        // Compare face descriptors using Euclidean distance
+        const distance = faceapi.euclideanDistance(detectedDescriptor, storedDescriptor);
+        
+        if (distance < FACE_MATCH_THRESHOLD) {
+          // Face matches - allow deactivation
+          setFaceScanProgress(100);
+          setFaceScanStatus('success');
+          setFaceDetectionMessage('Visage verifie! Desactivation autorisee.');
+          clearFaceDescriptor();
+          return true;
+        } else {
+          setFaceScanStatus('error');
+          setFaceDetectionMessage('Visage non reconnu. Ce n\'est pas le visage enregistre.');
+          return false;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      clearInterval(progressInterval);
+      console.error("Face detection error:", error);
       setFaceScanStatus('error');
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      setFaceDetectionMessage('Erreur lors de la detection du visage.');
       return false;
     }
   };
@@ -422,7 +579,17 @@ export default function SecurityPage() {
     setOtpEmail(localStorage.getItem("otpEmail") === "true");
     setOtpSms(localStorage.getItem("otpSms") === "true");
     setBiometric(localStorage.getItem("biometric") === "true");
-    setFaceId(localStorage.getItem("faceId") === "true");
+    // Sync faceId state with actual stored face data
+    const storedFaceId = localStorage.getItem("faceId") === "true";
+    const storedDescriptor = localStorage.getItem(FACE_DESCRIPTOR_STORAGE_KEY);
+    const hasFaceData = storedDescriptor !== null;
+    // Only enable faceId if there's actual face data stored
+    if (storedFaceId && !hasFaceData) {
+      localStorage.setItem("faceId", "false");
+      setFaceId(false);
+    } else {
+      setFaceId(storedFaceId && hasFaceData);
+    }
     setFingerprint(localStorage.getItem("fingerprint") === "true");
     setVoiceAuth(localStorage.getItem("voiceAuth") === "true");
     fetchSessions();
@@ -1250,7 +1417,7 @@ export default function SecurityPage() {
 
             {/* Camera View */}
             <div className="px-6 py-6">
-              <div className="relative w-full aspect-[4/3] bg-slate-900 rounded-3xl overflow-hidden border border-white/10">
+              <div className="relative w-full aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-white/10">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -1258,28 +1425,90 @@ export default function SecurityPage() {
                   muted
                   className="w-full h-full object-cover scale-x-[-1]"
                 />
+                <canvas 
+                  ref={canvasRef} 
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                />
                 
-                {/* Face Guide Overlay */}
+                {/* Face Guide Circle with Progress Ring */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className={`w-48 h-60 border-4 rounded-[50%] transition-all duration-500 ${
-                    faceScanStatus === 'scanning' ? 'border-blue-500 animate-pulse shadow-[0_0_30px_rgba(59,130,246,0.5)]' :
-                    faceScanStatus === 'success' ? 'border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.5)]' :
-                    faceScanStatus === 'error' ? 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.5)]' :
-                    'border-white/30'
-                  }`} />
+                  {/* Perfect Circle Container */}
+                  <div className="relative w-52 h-52">
+                    {/* SVG Progress Ring */}
+                    <svg 
+                      className="absolute inset-0 w-full h-full -rotate-90"
+                      viewBox="0 0 208 208"
+                    >
+                      {/* Background Circle */}
+                      <circle
+                        cx="104"
+                        cy="104"
+                        r="100"
+                        fill="none"
+                        stroke={
+                          faceScanStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' :
+                          faceScanStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' :
+                          'rgba(255, 255, 255, 0.1)'
+                        }
+                        strokeWidth="4"
+                      />
+                      {/* Progress Circle */}
+                      <circle
+                        cx="104"
+                        cy="104"
+                        r="100"
+                        fill="none"
+                        stroke={
+                          faceScanStatus === 'success' ? '#10B981' :
+                          faceScanStatus === 'error' ? '#EF4444' :
+                          faceScanStatus === 'scanning' ? '#22C55E' :
+                          'rgba(255, 255, 255, 0.3)'
+                        }
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeDasharray={`${2 * Math.PI * 100}`}
+                        strokeDashoffset={`${2 * Math.PI * 100 * (1 - faceScanProgress / 100)}`}
+                        className="transition-all duration-300 ease-out"
+                        style={{
+                          filter: faceScanStatus === 'scanning' ? 'drop-shadow(0 0 10px rgba(34, 197, 94, 0.6))' :
+                                  faceScanStatus === 'success' ? 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.8))' :
+                                  faceScanStatus === 'error' ? 'drop-shadow(0 0 15px rgba(239, 68, 68, 0.8))' :
+                                  'none'
+                        }}
+                      />
+                    </svg>
+                    
+                    {/* Inner Circle Guide */}
+                    <div className={`absolute inset-2 rounded-full border-2 border-dashed transition-all duration-500 ${
+                      faceScanStatus === 'scanning' ? 'border-green-400/50 animate-pulse' :
+                      faceScanStatus === 'success' ? 'border-emerald-400' :
+                      faceScanStatus === 'error' ? 'border-red-400' :
+                      'border-white/20'
+                    }`} />
+                    
+                    {/* Corner Markers for alignment */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-gradient-to-r from-transparent via-white/50 to-transparent rounded-full" />
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-gradient-to-r from-transparent via-white/50 to-transparent rounded-full" />
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-gradient-to-b from-transparent via-white/50 to-transparent rounded-full" />
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-gradient-to-b from-transparent via-white/50 to-transparent rounded-full" />
+                  </div>
                 </div>
 
-                {/* Scan Progress */}
-                {faceScanStatus === 'scanning' && (
+                {/* Scan Progress Info */}
+                {(faceScanStatus === 'scanning' || isLoadingModels) && (
                   <div className="absolute bottom-4 left-4 right-4">
-                    <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl p-3">
+                    <div className="bg-slate-900/90 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Scan en cours</span>
+                        <span className="text-[10px] font-black text-green-400 uppercase tracking-widest flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          {isLoadingModels ? 'Chargement IA...' : 'Scan en cours'}
+                        </span>
                         <span className="text-[10px] font-bold text-white">{faceScanProgress}%</span>
                       </div>
+                      <p className="text-[9px] text-slate-400 mb-2">{faceDetectionMessage}</p>
                       <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-200"
+                          className="h-full bg-gradient-to-r from-green-500 via-emerald-500 to-cyan-500 rounded-full transition-all duration-200"
                           style={{ width: `${faceScanProgress}%` }}
                         />
                       </div>
@@ -1291,10 +1520,13 @@ export default function SecurityPage() {
                 {faceScanStatus === 'success' && (
                   <div className="absolute inset-0 bg-emerald-500/20 backdrop-blur-sm flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center mx-auto mb-4 shadow-[0_0_40px_rgba(16,185,129,0.5)]">
-                        <Check size={40} className="text-white" />
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center mx-auto mb-4 shadow-[0_0_60px_rgba(16,185,129,0.6)] animate-in zoom-in duration-300">
+                        <Check size={48} className="text-white" />
                       </div>
-                      <p className="text-lg font-black text-white uppercase">Visage Reconnu</p>
+                      <p className="text-lg font-black text-white uppercase tracking-tight">
+                        {showFaceScanModal?.mode === 'activate' ? 'Visage Enregistre' : 'Visage Verifie'}
+                      </p>
+                      <p className="text-[10px] text-emerald-300 mt-1">{faceDetectionMessage}</p>
                     </div>
                   </div>
                 )}
@@ -1303,10 +1535,11 @@ export default function SecurityPage() {
                 {faceScanStatus === 'error' && (
                   <div className="absolute inset-0 bg-red-500/20 backdrop-blur-sm flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center mx-auto mb-4 shadow-[0_0_40px_rgba(239,68,68,0.5)]">
-                        <X size={40} className="text-white" />
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center mx-auto mb-4 shadow-[0_0_60px_rgba(239,68,68,0.6)] animate-in zoom-in duration-300">
+                        <X size={48} className="text-white" />
                       </div>
-                      <p className="text-lg font-black text-white uppercase">Echec de Verification</p>
+                      <p className="text-lg font-black text-white uppercase tracking-tight">Echec de Verification</p>
+                      <p className="text-[10px] text-red-300 mt-1 max-w-[200px] mx-auto">{faceDetectionMessage}</p>
                     </div>
                   </div>
                 )}
@@ -1314,12 +1547,18 @@ export default function SecurityPage() {
 
               {/* Instructions */}
               <div className="mt-5 text-center">
-                <p className="text-[10px] text-slate-400 font-medium">
-                  {faceScanStatus === 'idle' && 'Positionnez votre visage dans le cadre et appuyez sur Scanner'}
-                  {faceScanStatus === 'scanning' && 'Ne bougez pas pendant le scan...'}
+                <p className="text-[11px] text-slate-400 font-medium">
+                  {faceScanStatus === 'idle' && 'Positionnez votre visage dans le cercle et appuyez sur Scanner'}
+                  {faceScanStatus === 'scanning' && faceDetectionMessage}
                   {faceScanStatus === 'success' && 'Verification reussie!'}
-                  {faceScanStatus === 'error' && 'Visage non reconnu. Reessayez.'}
+                  {faceScanStatus === 'error' && 'Appuyez sur Scanner pour reessayer'}
                 </p>
+                {faceScanStatus === 'idle' && showFaceScanModal?.mode === 'activate' && (
+                  <p className="text-[9px] text-blue-400 mt-2">Votre visage sera utilise pour securiser votre compte</p>
+                )}
+                {faceScanStatus === 'idle' && showFaceScanModal?.mode === 'deactivate' && (
+                  <p className="text-[9px] text-orange-400 mt-2">Verifiez votre identite pour desactiver</p>
+                )}
               </div>
             </div>
 
@@ -1327,25 +1566,26 @@ export default function SecurityPage() {
             <div className="px-6 pb-6 flex gap-3">
               <button
                 onClick={closeFaceScanModal}
-                className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98]"
+                disabled={faceScanStatus === 'scanning' || isLoadingModels}
+                className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Annuler
               </button>
               <button
                 onClick={handleFaceScanComplete}
-                disabled={faceScanStatus === 'scanning' || faceScanStatus === 'success'}
+                disabled={faceScanStatus === 'scanning' || faceScanStatus === 'success' || isLoadingModels}
                 className={`flex-1 py-4 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                   showFaceScanModal.mode === 'activate' 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                    : 'bg-red-600 hover:bg-red-700 text-white'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25' 
+                    : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white shadow-lg shadow-red-500/25'
                 }`}
               >
-                {faceScanStatus === 'scanning' ? (
+                {(faceScanStatus === 'scanning' || isLoadingModels) ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <Scan size={16} />
                 )}
-                {faceScanStatus === 'scanning' ? 'Scan...' : 'Scanner'}
+                {isLoadingModels ? 'Chargement...' : faceScanStatus === 'scanning' ? 'Analyse...' : 'Scanner'}
               </button>
             </div>
           </div>
