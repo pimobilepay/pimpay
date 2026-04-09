@@ -257,6 +257,7 @@ function DashboardContent() {
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   // Live chart states
   const [liveIndicator, setLiveIndicator] = useState(true);
@@ -720,7 +721,11 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-3">
                             {logs.slice(0, 8).map(log => (
-                                <div key={log.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 space-y-2">
+                                <div 
+                                  key={log.id} 
+                                  onClick={() => setSelectedLog(log)}
+                                  className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 space-y-2 cursor-pointer hover:bg-white/[0.04] hover:border-blue-500/20 transition-all group"
+                                >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-[8px] font-black uppercase">
@@ -731,7 +736,10 @@ function DashboardContent() {
                                         {log.adminEmail && <p className="text-[7px] text-slate-500 font-mono">{log.adminEmail}</p>}
                                       </div>
                                     </div>
-                                    <span className="text-[7px] text-slate-600 font-mono">{new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[7px] text-slate-600 font-mono">{new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                      <ChevronRight size={12} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${
@@ -1789,6 +1797,157 @@ function DashboardContent() {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AUDIT LOG DETAIL MODAL */}
+      {selectedLog && (
+        <div 
+          className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-200" 
+          onClick={() => setSelectedLog(null)}
+        >
+          <div 
+            className="bg-slate-900 border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300" 
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                  selectedLog.action.includes('BAN') ? 'bg-red-500/10 text-red-400' :
+                  selectedLog.action.includes('RESET') ? 'bg-orange-500/10 text-orange-400' :
+                  selectedLog.action.includes('AIRDROP') ? 'bg-amber-500/10 text-amber-400' :
+                  selectedLog.action.includes('ROLE') ? 'bg-purple-500/10 text-purple-400' :
+                  selectedLog.action.includes('BALANCE') ? 'bg-emerald-500/10 text-emerald-400' :
+                  selectedLog.action.includes('MAINTENANCE') ? 'bg-cyan-500/10 text-cyan-400' :
+                  'bg-blue-500/10 text-blue-400'
+                }`}>
+                  <History size={20} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-tight">Détails du Log</h2>
+                  <p className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">Audit #{selectedLog.id.slice(0, 8)}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedLog(null)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-slate-400 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Action Badge */}
+              <div className="flex items-center justify-center">
+                <span className={`text-xs font-black uppercase px-4 py-2 rounded-full tracking-wider ${
+                  selectedLog.action.includes('BAN') ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                  selectedLog.action.includes('RESET') ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                  selectedLog.action.includes('AIRDROP') ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                  selectedLog.action.includes('ROLE') ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                  selectedLog.action.includes('BALANCE') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                  selectedLog.action.includes('MAINTENANCE') ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                  'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                }`}>{selectedLog.action}</span>
+              </div>
+
+              {/* Admin Info */}
+              <div className="bg-white/[0.02] border border-white/[0.04] rounded-2xl p-4 space-y-3">
+                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Administrateur</p>
+                <div className="flex items-center gap-3">
+                  {selectedLog.adminAvatar ? (
+                    <img src={selectedLog.adminAvatar} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 text-sm font-black uppercase">
+                      {selectedLog.adminName?.[0] || 'S'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-black text-white uppercase">{selectedLog.adminName || 'Système'}</p>
+                    {selectedLog.adminEmail && (
+                      <p className="text-[10px] text-slate-500 font-mono">{selectedLog.adminEmail}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Target Info */}
+              {(selectedLog.targetId || selectedLog.targetEmail || selectedLog.targetName) && (
+                <div className="bg-white/[0.02] border border-white/[0.04] rounded-2xl p-4 space-y-3">
+                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Cible de l&apos;action</p>
+                  <div className="space-y-2">
+                    {selectedLog.targetName && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Nom</span>
+                        <span className="text-[11px] text-white font-bold">{selectedLog.targetName}</span>
+                      </div>
+                    )}
+                    {selectedLog.targetEmail && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Email</span>
+                        <span className="text-[11px] text-white font-mono">{selectedLog.targetEmail}</span>
+                      </div>
+                    )}
+                    {selectedLog.targetId && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">ID</span>
+                        <span className="text-[10px] text-cyan-400 font-mono">{selectedLog.targetId}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Details */}
+              {selectedLog.details && (
+                <div className="bg-white/[0.02] border border-white/[0.04] rounded-2xl p-4 space-y-3">
+                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Détails</p>
+                  <p className="text-[11px] text-slate-300 font-mono leading-relaxed break-all whitespace-pre-wrap">{selectedLog.details}</p>
+                </div>
+              )}
+
+              {/* Timestamp */}
+              <div className="bg-white/[0.02] border border-white/[0.04] rounded-2xl p-4 space-y-3">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Horodatage</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                    <Clock size={14} className="text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-white font-bold">
+                      {new Date(selectedLog.createdAt).toLocaleDateString('fr-FR', { 
+                        weekday: 'long', 
+                        day: 'numeric', 
+                        month: 'long', 
+                        year: 'numeric' 
+                      })}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      {new Date(selectedLog.createdAt).toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Log ID */}
+              <div className="bg-black/30 border border-white/[0.04] rounded-xl p-3 flex items-center justify-between">
+                <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest">ID du Log</span>
+                <span className="text-[9px] text-slate-400 font-mono select-all">{selectedLog.id}</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/5">
+              <button 
+                onClick={() => setSelectedLog(null)} 
+                className="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98]"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </div>
       )}
