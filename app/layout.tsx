@@ -11,6 +11,7 @@ import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { PiInitializer } from "@/components/PiInitializer";
+import SessionGuard from "@/components/auth/SessionGuard";
 
 export const viewport: Viewport = {
   themeColor: "#02040a",
@@ -81,35 +82,37 @@ export default function RootLayout({
 
         <LanguageProvider>
           <ThemeProvider>
-            <PiInitializer />
+            <SessionGuard>
+              <PiInitializer />
 
-            <div id="portal-root">
-              <GlobalAlert />
-            </div>
+              <div id="portal-root">
+                <GlobalAlert />
+              </div>
 
-            <GlobalAnnouncement />
+              <GlobalAnnouncement />
 
-            <ClientLayout>{children}</ClientLayout>
+              <ClientLayout>{children}</ClientLayout>
 
             <Script
               src="https://cdn.cinetpay.com/seamless/main.js"
               strategy="lazyOnload"
             />
 
-            <Toaster
-              position="top-center"
-              richColors
-              expand={false}
-              theme="dark"
-              toastOptions={{
-                style: {
-                  borderRadius: "1rem",
-                  background: "rgba(15, 23, 42, 0.8)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                },
-              }}
-            />
+              <Toaster
+                position="top-center"
+                richColors
+                expand={false}
+                theme="dark"
+                toastOptions={{
+                  style: {
+                    borderRadius: "1rem",
+                    background: "rgba(15, 23, 42, 0.8)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  },
+                }}
+              />
+            </SessionGuard>
           </ThemeProvider>
         </LanguageProvider>
       </body>
