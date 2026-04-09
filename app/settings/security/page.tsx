@@ -63,6 +63,8 @@ export default function SecurityPage() {
   const [faceId, setFaceId] = useState(false);
   const [fingerprint, setFingerprint] = useState(false);
   const [voiceAuth, setVoiceAuth] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState<string | null>(null);
+  const [showBiometricModal, setShowBiometricModal] = useState<{ type: string; label: string } | null>(null);
 
   // Google Authenticator states
   const [google2faEnabled, setGoogle2faEnabled] = useState(false);
@@ -207,6 +209,93 @@ export default function SecurityPage() {
       navigator.clipboard.writeText(setupData.secret);
       setSecretCopied(true);
       setTimeout(() => setSecretCopied(false), 2000);
+    }
+  };
+
+  // Function to request biometric permission
+  const requestBiometricPermission = async (type: string): Promise<boolean> => {
+    // Check if WebAuthn is supported
+    if (!window.PublicKeyCredential) {
+      toast.error("La biometrie n'est pas supportee sur cet appareil");
+      return false;
+    }
+
+    try {
+      // Check if platform authenticator is available
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) {
+        toast.error("Aucun capteur biometrique detecte sur cet appareil");
+        return false;
+      }
+
+      // Create a credential challenge for biometric verification
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+
+      const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
+        challenge,
+        rp: {
+          name: "PimPay",
+          id: window.location.hostname,
+        },
+        user: {
+          id: new Uint8Array(16),
+          name: "user@pimpay.com",
+          displayName: "Utilisateur PimPay",
+        },
+        pubKeyCredParams: [
+          { alg: -7, type: "public-key" }, // ES256
+          { alg: -257, type: "public-key" }, // RS256
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "preferred",
+        },
+        timeout: 60000,
+        attestation: "none",
+      };
+
+      // This will trigger the biometric prompt
+      await navigator.credentials.create({
+        publicKey: publicKeyCredentialCreationOptions,
+      });
+
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        if (error.name === "NotAllowedError") {
+          toast.error("Autorisation biometrique refusee");
+        } else if (error.name === "InvalidStateError") {
+          // Credential already exists, try to get it instead
+          return true;
+        } else {
+          toast.error("Erreur lors de la verification biometrique");
+        }
+      }
+      return false;
+    }
+  };
+
+  // Handle biometric toggle with permission request
+  const handleBiometricToggle = async (type: string, currentValue: boolean, setValue: (v: boolean) => void) => {
+    if (currentValue) {
+      // Deactivation - ask for confirmation
+      if (!window.confirm("Desactiver cette protection reduira la securite de votre protocole Pimpay. Continuer ?")) return;
+      setValue(false);
+      localStorage.setItem(type, "false");
+      toast.success(`${type === "fingerprint" ? "Empreinte Digitale" : type === "faceId" ? "Reconnaissance Faciale" : type === "voiceAuth" ? "Verification Vocale" : "Biometrie"} desactivee`);
+    } else {
+      // Activation - request biometric permission first
+      setBiometricLoading(type);
+      const granted = await requestBiometricPermission(type);
+      setBiometricLoading(null);
+      
+      if (granted) {
+        setValue(true);
+        localStorage.setItem(type, "true");
+        toast.success(`${type === "fingerprint" ? "Empreinte Digitale" : type === "faceId" ? "Reconnaissance Faciale" : type === "voiceAuth" ? "Verification Vocale" : "Biometrie"} activee avec succes`);
+      }
     }
   };
 
@@ -625,33 +714,37 @@ export default function SecurityPage() {
             <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{"Acces Biometrique"}</h3>
           </div>
           <div className="grid gap-3">
-            <SecurityToggle
+            <BiometricToggle
               icon={<Fingerprint size={20} />}
               label="Biometrie Native"
               description="Touch ID / Face ID"
               value={biometric}
-              onToggle={() => toggleSwitch("biometric", biometric, setBiometric)}
+              loading={biometricLoading === "biometric"}
+              onToggle={() => handleBiometricToggle("biometric", biometric, setBiometric)}
             />
-            <SecurityToggle
+            <BiometricToggle
               icon={<Scan size={20} />}
               label="Reconnaissance Faciale"
               description="Deverrouillage par visage"
               value={faceId}
-              onToggle={() => toggleSwitch("faceId", faceId, setFaceId)}
+              loading={biometricLoading === "faceId"}
+              onToggle={() => handleBiometricToggle("faceId", faceId, setFaceId)}
             />
-            <SecurityToggle
+            <BiometricToggle
               icon={<Eye size={20} />}
               label="Empreinte Digitale"
               description="Capteur biometrique avance"
               value={fingerprint}
-              onToggle={() => toggleSwitch("fingerprint", fingerprint, setFingerprint)}
+              loading={biometricLoading === "fingerprint"}
+              onToggle={() => handleBiometricToggle("fingerprint", fingerprint, setFingerprint)}
             />
-            <SecurityToggle
+            <BiometricToggle
               icon={<Mic size={20} />}
               label="Verification Vocale"
               description="Empreinte vocale unique"
               value={voiceAuth}
-              onToggle={() => toggleSwitch("voiceAuth", voiceAuth, setVoiceAuth)}
+              loading={biometricLoading === "voiceAuth"}
+              onToggle={() => handleBiometricToggle("voiceAuth", voiceAuth, setVoiceAuth)}
             />
           </div>
         </section>
@@ -1038,6 +1131,32 @@ function SecurityToggle({ icon, label, description, value, onToggle }: { icon: R
         <div className="text-left">
           <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{label}</p>
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">{description}</p>
+        </div>
+      </div>
+
+      <div className={`w-12 h-6.5 rounded-full p-1 flex items-center transition-all duration-500 ${value ? "bg-blue-600" : "bg-slate-800"}`}>
+        <div className={`w-4.5 h-4.5 rounded-full bg-white shadow-xl transform transition-all duration-500 ease-in-out ${value ? "translate-x-5.5" : "translate-x-0"}`} />
+      </div>
+    </button>
+  );
+}
+
+function BiometricToggle({ icon, label, description, value, loading, onToggle }: { icon: React.ReactNode; label: string; description: string; value: boolean; loading: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={loading}
+      className="w-full flex items-center justify-between p-5 rounded-[2.2rem] bg-slate-900/40 border border-white/5 hover:border-blue-500/20 active:scale-[0.98] transition-all group disabled:opacity-70 disabled:cursor-not-allowed"
+    >
+      <div className="flex items-center gap-4">
+        <div className={`p-3.5 rounded-2xl transition-all duration-500 ${value ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-slate-800 text-slate-500 border border-white/5'}`}>
+          {loading ? <Loader2 size={20} className="animate-spin" /> : icon}
+        </div>
+        <div className="text-left">
+          <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{label}</p>
+          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
+            {loading ? "Verification en cours..." : description}
+          </p>
         </div>
       </div>
 
