@@ -263,6 +263,7 @@ function DashboardContent() {
   const [lastChartRefresh, setLastChartRefresh] = useState(new Date());
   const [chartRefreshing, setChartRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [chartPeriod, setChartPeriod] = useState<7 | 30 | 90>(7);
 
   // 2FA Modal state for sensitive reset actions
   const [twoFaModal, setTwoFaModal] = useState<{
@@ -381,7 +382,7 @@ function DashboardContent() {
     if (!isMounted) return;
     const chartInterval = setInterval(async () => {
       try {
-        const res = await fetch("/api/admin/chart-data");
+        const res = await fetch(`/api/admin/chart-data?days=${chartPeriod}`);
         if (res.ok) {
           const chartRes = await res.json();
           setChartData(chartRes.chartData || []);
@@ -391,13 +392,29 @@ function DashboardContent() {
       } catch { /* silent */ }
     }, 30000);
     return () => clearInterval(chartInterval);
-  }, [isMounted]);
+  }, [isMounted, chartPeriod]);
 
   // Manual chart refresh handler
   const handleChartRefresh = async () => {
     setChartRefreshing(true);
     try {
-      const res = await fetch("/api/admin/chart-data");
+      const res = await fetch(`/api/admin/chart-data?days=${chartPeriod}`);
+      if (res.ok) {
+        const chartRes = await res.json();
+        setChartData(chartRes.chartData || []);
+        setChartSummary(chartRes.summary || { totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
+        setLastChartRefresh(new Date());
+      }
+    } catch { /* silent */ }
+    finally { setChartRefreshing(false); }
+  };
+
+  // Handle period change
+  const handlePeriodChange = async (period: 7 | 30 | 90) => {
+    setChartPeriod(period);
+    setChartRefreshing(true);
+    try {
+      const res = await fetch(`/api/admin/chart-data?days=${period}`);
       if (res.ok) {
         const chartRes = await res.json();
         setChartData(chartRes.chartData || []);
@@ -575,31 +592,56 @@ function DashboardContent() {
                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
                         
                         {/* Header with live indicator and refresh */}
-                        <div className="flex items-center justify-between relative z-10">
-                          <div className="flex items-center gap-3">
-                            <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Volume 7 Jours</p>
-                            {/* Live indicator */}
-                            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-1">
-                              <span className={`h-1.5 w-1.5 rounded-full bg-emerald-400 transition-opacity duration-500 ${liveIndicator ? 'opacity-100' : 'opacity-30'}`} />
-                              <span className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Live</span>
+                        <div className="flex flex-col gap-3 relative z-10">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-3">
+                              <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Flux Financier</p>
+                              {/* Live indicator */}
+                              <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-1">
+                                <span className={`h-1.5 w-1.5 rounded-full bg-emerald-400 transition-opacity duration-500 ${liveIndicator ? 'opacity-100' : 'opacity-30'}`} />
+                                <span className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Live</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {/* Clock */}
+                              <div className="hidden sm:flex items-center gap-2">
+                                <span className="text-[8px] font-mono text-slate-500">{formatRelativeTime(lastChartRefresh)}</span>
+                                <span className="text-slate-700">|</span>
+                                <span className="text-[9px] font-mono text-blue-400 font-bold">{currentTime.toLocaleTimeString('fr-FR')}</span>
+                              </div>
+                              {/* Refresh button */}
+                              <button
+                                onClick={handleChartRefresh}
+                                disabled={chartRefreshing}
+                                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-[8px] font-black text-slate-300 uppercase tracking-wider transition hover:border-blue-500/50 hover:bg-slate-700 hover:text-white disabled:opacity-50"
+                              >
+                                <RefreshCw className={`h-3 w-3 transition-transform duration-700 ${chartRefreshing ? 'animate-spin' : ''}`} />
+                                <span className="hidden sm:inline">Actualiser</span>
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {/* Clock */}
-                            <div className="hidden sm:flex items-center gap-2">
-                              <span className="text-[8px] font-mono text-slate-500">{formatRelativeTime(lastChartRefresh)}</span>
-                              <span className="text-slate-700">|</span>
-                              <span className="text-[9px] font-mono text-blue-400 font-bold">{currentTime.toLocaleTimeString('fr-FR')}</span>
-                            </div>
-                            {/* Refresh button */}
-                            <button
-                              onClick={handleChartRefresh}
-                              disabled={chartRefreshing}
-                              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-[8px] font-black text-slate-300 uppercase tracking-wider transition hover:border-blue-500/50 hover:bg-slate-700 hover:text-white disabled:opacity-50"
-                            >
-                              <RefreshCw className={`h-3 w-3 transition-transform duration-700 ${chartRefreshing ? 'animate-spin' : ''}`} />
-                              <span className="hidden sm:inline">Actualiser</span>
-                            </button>
+                          
+                          {/* Period filters */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Période :</span>
+                            {[
+                              { label: '7J', value: 7 as const },
+                              { label: '30J', value: 30 as const },
+                              { label: '90J', value: 90 as const }
+                            ].map(({ label, value }) => (
+                              <button
+                                key={value}
+                                onClick={() => handlePeriodChange(value)}
+                                disabled={chartRefreshing}
+                                className={`rounded-lg px-3 py-1.5 text-[8px] font-black uppercase tracking-wider transition border ${
+                                  chartPeriod === value
+                                    ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                                    : 'border-white/10 bg-slate-800/50 text-slate-400 hover:border-blue-500/30 hover:bg-slate-700'
+                                } disabled:opacity-50`}
+                              >
+                                {label}
+                              </button>
+                            ))}
                           </div>
                         </div>
                         
