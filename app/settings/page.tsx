@@ -89,17 +89,38 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       const loadingToast = toast.loading("Fermeture de la session sécurisée...");
+      
+      // Call logout API to properly terminate the session on the backend
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      // Clean up client-side data regardless of API response
       document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
       localStorage.removeItem("pimpay_user");
+      localStorage.clear(); // Clear all localStorage data
       
-      setTimeout(() => {
-        toast.dismiss(loadingToast);
-        router.push("/auth/login");
+      toast.dismiss(loadingToast);
+      
+      if (response.ok) {
         toast.success("Déconnecté avec succès");
-      }, 800);
+      } else {
+        toast.success("Session fermée localement");
+      }
+      
+      // Redirect to login
+      router.push("/auth/login");
+      router.refresh();
     } catch (error) {
-      toast.error("Erreur lors de la déconnexion");
+      console.error("[v0] Logout error:", error);
+      // Still log out locally even if backend fails
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+      localStorage.clear();
+      toast.success("Session fermée");
+      router.push("/auth/login");
     }
   };
 
