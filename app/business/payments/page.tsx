@@ -1,629 +1,256 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { BusinessSidebar } from "@/components/business/BusinessSidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
+import React, { useState, useMemo } from 'react';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  CreditCard, Plus, Search, Filter, Download, Eye, X, Send,
+  ArrowUpRight, ArrowDownRight, Clock, CheckCircle, AlertTriangle,
+  XCircle, ChevronLeft, ChevronRight, Calendar, DollarSign,
+  ArrowRightLeft, RefreshCw, Smartphone, Building2,
+} from 'lucide-react';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Building2,
-  Send,
-  Users,
-  Building,
-  Wallet,
-  CreditCard,
-  QrCode,
-  Phone,
-  User,
-  Clock,
-  CheckCircle2,
-  Menu,
-  X,
-  ArrowRight,
-  Plus,
-  Star,
-  History,
-  Zap,
-  Globe,
-  RefreshCw,
-  AlertTriangle,
-} from "lucide-react";
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
 
-// Types from Prisma schema / API
-interface Balance {
-  usd: number;
-  pi: number;
+type PayStatus = 'completed' | 'pending' | 'failed' | 'processing';
+type PayMethod = 'virement' | 'mobile_money' | 'cheque' | 'carte';
+type PayDirection = 'sent' | 'received';
+interface Payment {
+  id: string; beneficiary: string; email: string; amount: number;
+  method: PayMethod; date: string; status: PayStatus; direction: PayDirection;
+  description: string;
 }
 
-interface RecentPayment {
-  id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  type: string;
-  status: string;
-  description: string | null;
-  recipient: string;
-  createdAt: string;
-}
+const STATUS_CFG: Record<PayStatus, { label: string; color: string; icon: React.ElementType }> = {
+  completed: { label: 'Complété', color: 'bg-emerald-500/10 text-emerald-400', icon: CheckCircle },
+  pending: { label: 'En attente', color: 'bg-amber-500/10 text-amber-400', icon: Clock },
+  failed: { label: 'Échoué', color: 'bg-red-500/10 text-red-400', icon: XCircle },
+  processing: { label: 'En cours', color: 'bg-blue-500/10 text-blue-400', icon: RefreshCw },
+};
 
-interface FrequentRecipient {
-  userId: string;
-  name: string;
-  transactionCount: number;
-}
+const METHOD_LABELS: Record<PayMethod, string> = {
+  virement: 'Virement', mobile_money: 'Mobile Money', cheque: 'Chèque', carte: 'Carte',
+};
 
-interface PaymentsData {
-  balance: Balance;
-  recentPayments: RecentPayment[];
-  frequentRecipients: FrequentRecipient[];
-}
+const PAYMENTS: Payment[] = [
+  { id: 'PAY-2024-001', beneficiary: 'BGFI Holdings', email: 'finance@bgfi.com', amount: 45600000, method: 'virement', date: '2024-04-10', status: 'completed', direction: 'sent', description: 'Paiement consultation Q1' },
+  { id: 'PAY-2024-002', beneficiary: 'Afriland First Group', email: 'ap@afriland.com', amount: 28350000, method: 'virement', date: '2024-04-09', status: 'completed', direction: 'received', description: 'Règlement facture INV-2024-002' },
+  { id: 'PAY-2024-003', beneficiary: 'Ecobank Transnational', email: 'procurement@ecobank.com', amount: 67800000, method: 'virement', date: '2024-04-08', status: 'completed', direction: 'sent', description: 'Migration plateforme' },
+  { id: 'PAY-2024-004', beneficiary: 'UBA Cameroun', email: 'finance@uba.cm', amount: 15200000, method: 'mobile_money', date: '2024-04-07', status: 'pending', direction: 'sent', description: 'Services mensuels' },
+  { id: 'PAY-2024-005', beneficiary: 'Orange Cameroun', email: 'b2b@orange.cm', amount: 8750000, method: 'mobile_money', date: '2024-04-06', status: 'completed', direction: 'received', description: 'Commission API Mobile Money' },
+  { id: 'PAY-2024-006', beneficiary: 'MTN Cameroun', email: 'enterprise@mtn.cm', amount: 12300000, method: 'mobile_money', date: '2024-04-05', status: 'processing', direction: 'sent', description: 'Licence MoMo API' },
+  { id: 'PAY-2024-007', beneficiary: 'TechVision Cameroun', email: 'contact@techvision.cm', amount: 23400000, method: 'virement', date: '2024-04-04', status: 'completed', direction: 'sent', description: 'Matériel informatique' },
+  { id: 'PAY-2024-008', beneficiary: 'Bureau Express SARL', email: 'ventes@bureau-express.cm', amount: 3200000, method: 'cheque', date: '2024-04-03', status: 'completed', direction: 'sent', description: 'Fournitures de bureau' },
+  { id: 'PAY-2024-009', beneficiary: 'CloudAfrica Services', email: 'enterprise@cloudafrica.io', amount: 18900000, method: 'carte', date: '2024-04-02', status: 'failed', direction: 'sent', description: 'Hébergement cloud annuel' },
+  { id: 'PAY-2024-010', beneficiary: 'SONATREL', email: 'facturation@sonatrel.cm', amount: 4500000, method: 'virement', date: '2024-04-01', status: 'completed', direction: 'sent', description: 'Facture électricité' },
+  { id: 'PAY-2024-011', beneficiary: 'Société Générale CM', email: 'corporate@sgcm.com', amount: 56200000, method: 'virement', date: '2024-03-30', status: 'completed', direction: 'received', description: 'Frais de gestion bancaire' },
+  { id: 'PAY-2024-012', beneficiary: 'Camtel', email: 'entreprise@camtel.cm', amount: 2800000, method: 'mobile_money', date: '2024-03-29', status: 'completed', direction: 'sent', description: 'Abonnement internet' },
+];
+
+const chartData = [
+  { month: 'Jan', sent: 420, received: 280 }, { month: 'Fév', sent: 510, received: 320 },
+  { month: 'Mar', sent: 480, received: 390 }, { month: 'Avr', sent: 550, received: 410 },
+  { month: 'Mai', sent: 590, received: 350 }, { month: 'Jun', sent: 620, received: 480 },
+  { month: 'Jul', sent: 560, received: 420 }, { month: 'Aoû', sent: 600, received: 450 },
+  { month: 'Sep', sent: 630, received: 390 }, { month: 'Oct', sent: 610, received: 470 },
+  { month: 'Nov', sent: 647, received: 510 }, { month: 'Déc', sent: 670, received: 530 },
+];
+
+const fmt = (n: number) => n.toLocaleString('fr-FR') + ' XAF';
+type TabFilter = 'all' | 'sent' | 'received' | 'pending' | 'failed';
 
 export default function PaymentsPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("wallet");
-  const [amount, setAmount] = useState("");
-  const [recipient, setRecipient] = useState("");
-  const [recipientType, setRecipientType] = useState("internal");
-  const [description, setDescription] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [search, setSearch] = useState('');
+  const [tabFilter, setTabFilter] = useState<TabFilter>('all');
+  const [methodFilter, setMethodFilter] = useState<string>('all');
+  const [selected, setSelected] = useState<Payment | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [page, setPage] = useState(1);
+  const perPage = 8;
 
-  // Real data state
-  const [data, setData] = useState<PaymentsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const filtered = useMemo(() => {
+    let list = PAYMENTS;
+    if (tabFilter === 'sent') list = list.filter(p => p.direction === 'sent');
+    if (tabFilter === 'received') list = list.filter(p => p.direction === 'received');
+    if (tabFilter === 'pending') list = list.filter(p => p.status === 'pending' || p.status === 'processing');
+    if (tabFilter === 'failed') list = list.filter(p => p.status === 'failed');
+    if (methodFilter !== 'all') list = list.filter(p => p.method === methodFilter);
+    if (search) list = list.filter(p => p.beneficiary.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase()));
+    return list;
+  }, [search, tabFilter, methodFilter]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch("/api/business/payments", {
-        credentials: "include",
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Erreur de chargement");
-      setData(result.data);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const paged = filtered.slice((page - 1) * perPage, page * perPage);
+  const totalPages = Math.ceil(filtered.length / perPage);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const totalSent = PAYMENTS.filter(p => p.direction === 'sent' && p.status === 'completed').reduce((s, p) => s + p.amount, 0);
+  const totalReceived = PAYMENTS.filter(p => p.direction === 'received' && p.status === 'completed').reduce((s, p) => s + p.amount, 0);
+  const totalPending = PAYMENTS.filter(p => p.status === 'pending' || p.status === 'processing').reduce((s, p) => s + p.amount, 0);
+  const totalFailed = PAYMENTS.filter(p => p.status === 'failed').reduce((s, p) => s + p.amount, 0);
 
-  const handleSubmit = async () => {
-    if (!amount || !recipient) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    setSubmitSuccess(null);
-
-    try {
-      const res = await fetch("/api/business/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          currency,
-          recipient,
-          recipientType,
-          description,
-          method: paymentMethod,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Echec du paiement");
-      setSubmitSuccess(`Paiement effectue. Reference: ${result.data.reference}`);
-      setAmount("");
-      setRecipient("");
-      setDescription("");
-      await fetchData();
-    } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Erreur inconnue");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const selectRecipient = (name: string) => {
-    setRecipient(name);
-    setRecipientType("internal");
-  };
-
-  const statusConfig = (status: string) => {
-    switch (status) {
-      case "SUCCESS":
-        return { color: "bg-emerald-500/10", icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> };
-      case "PENDING":
-        return { color: "bg-amber-500/10", icon: <Clock className="h-4 w-4 text-amber-500" /> };
-      default:
-        return { color: "bg-red-500/10", icon: <X className="h-4 w-4 text-red-500" /> };
-    }
-  };
+  const tabs: { key: TabFilter; label: string }[] = [
+    { key: 'all', label: 'Tous' }, { key: 'sent', label: 'Envoyés' }, { key: 'received', label: 'Reçus' },
+    { key: 'pending', label: 'En Attente' }, { key: 'failed', label: 'Échoués' },
+  ];
 
   return (
-    <div className="flex min-h-screen bg-[#02040a]">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <BusinessSidebar />
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center"><CreditCard className="w-5 h-5 text-cyan-400" /></div>
+          <div><h1 className="text-xl font-bold text-white">Paiements</h1><p className="text-sm text-gray-400">Gérez vos paiements envoyés et reçus</p></div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors"><Download className="w-4 h-4" />Exporter</button>
+          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium rounded-lg transition-all"><Plus className="w-4 h-4" />Nouveau Paiement</button>
+        </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-64 bg-slate-950 border-r border-white/5 overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-                  <Building2 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-sm font-black text-white">PIMPAY</h1>
-                  <p className="text-[9px] font-bold text-emerald-500 uppercase">Business</p>
-                </div>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-                <X className="h-5 w-5" />
-              </button>
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Envoyé', value: fmt(totalSent), icon: ArrowUpRight, color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
+          { label: 'Total Reçu', value: fmt(totalReceived), icon: ArrowDownRight, color: 'text-blue-400', bg: 'bg-blue-500/20' },
+          { label: 'En Attente', value: fmt(totalPending), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/20' },
+          { label: 'Échoué', value: fmt(totalFailed), icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/20' },
+        ].map((c, i) => (
+          <div key={i} className="bg-[#0a0f1c] border border-white/5 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-gray-400 font-medium">{c.label}</span>
+              <div className={`w-8 h-8 rounded-lg ${c.bg} flex items-center justify-center`}><c.icon className={`w-4 h-4 ${c.color}`} /></div>
             </div>
-            <BusinessSidebar isMobile />
+            <p className="text-lg font-bold text-white">{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-6">
+        <h2 className="text-sm font-semibold text-white mb-4">Volume des paiements (millions XAF)</h2>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
+                <linearGradient id="recvGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} /><stop offset="95%" stopColor="#22d3ee" stopOpacity={0} /></linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#0d1321', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} />
+              <Area type="monotone" dataKey="sent" stroke="#6366f1" fill="url(#sentGrad)" name="Envoyé" />
+              <Area type="monotone" dataKey="received" stroke="#22d3ee" fill="url(#recvGrad)" name="Reçu" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Tabs + Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex gap-1 bg-white/5 rounded-lg p-1">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => { setTabFilter(t.key); setPage(1); }} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${tabFilter === t.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>{t.label}</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative"><Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." className="pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 w-56" /></div>
+          <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+            <option value="all">Toutes méthodes</option><option value="virement">Virement</option><option value="mobile_money">Mobile Money</option><option value="cheque">Chèque</option><option value="carte">Carte</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-[#0a0f1c] border border-white/5 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-gray-500 text-xs uppercase bg-white/[0.02]">
+              <th className="px-4 py-3">Référence</th><th className="px-4 py-3">Bénéficiaire</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Méthode</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Statut</th><th className="px-4 py-3">Actions</th>
+            </tr></thead>
+            <tbody className="divide-y divide-white/5">
+              {paged.map(p => {
+                const st = STATUS_CFG[p.status];
+                return (
+                  <tr key={p.id} className="hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-gray-300 font-mono text-xs">{p.id}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${p.direction === 'sent' ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                        <span className="text-white">{p.beneficiary}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-white font-medium">{fmt(p.amount)}</td>
+                    <td className="px-4 py-3 text-gray-400">{METHOD_LABELS[p.method]}</td>
+                    <td className="px-4 py-3 text-gray-400">{p.date}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}><st.icon className="w-3 h-3" />{st.label}</span></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setSelected(p)} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"><Eye className="w-4 h-4" /></button>
+                        <button className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"><Download className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+            <span className="text-xs text-gray-400">{filtered.length} résultats</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+              <span className="text-xs text-gray-300">Page {page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Detail Modal */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-[#0d1321] border border-white/10 rounded-xl w-full max-w-lg p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-white">Détail du paiement</h2><button onClick={() => setSelected(null)} className="p-1 hover:bg-white/5 rounded-lg text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="grid grid-cols-2 gap-4">
+              {[{ l: 'Référence', v: selected.id },{ l: 'Bénéficiaire', v: selected.beneficiary },{ l: 'Montant', v: fmt(selected.amount) },{ l: 'Méthode', v: METHOD_LABELS[selected.method] },{ l: 'Date', v: selected.date },{ l: 'Description', v: selected.description }].map((f, i) => (
+                <div key={i}><p className="text-xs text-gray-500">{f.l}</p><p className="text-sm text-white mt-1">{f.v}</p></div>
+              ))}
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-3">Progression</p>
+              <div className="flex items-center gap-2">
+                {['Initié', 'Vérifié', 'Envoyé', 'Reçu'].map((step, i) => {
+                  const done = selected.status === 'completed' ? true : i < 2;
+                  return (
+                    <React.Fragment key={i}>
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${done ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
+                        {done && <CheckCircle className="w-3 h-3" />}{step}
+                      </div>
+                      {i < 3 && <div className={`flex-1 h-px ${done ? 'bg-emerald-500/30' : 'bg-white/10'}`} />}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors"><Download className="w-4 h-4" />Télécharger le reçu</button>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
-        {/* Mobile Header */}
-        <div className="flex items-center justify-between mb-6 lg:hidden">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-            <Building2 className="h-5 w-5 text-white" />
-          </div>
-        </div>
-
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Paiements</h1>
-            <p className="text-sm text-slate-500 mt-1">Effectuez des virements et paiements instantanes</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Solde disponible</p>
-              {loading ? (
-                <Skeleton className="h-7 w-36 bg-slate-700 mt-1" />
-              ) : (
-                <div>
-                  <p className="text-xl font-black text-white">
-                    ${(data?.balance.usd || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 })}
-                  </p>
-                  {(data?.balance.pi || 0) > 0 && (
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {(data?.balance.pi || 0).toLocaleString()} PI
-                    </p>
-                  )}
-                </div>
-              )}
+      {/* New Payment Modal */}
+      {showNew && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
+          <div className="bg-[#0d1321] border border-white/10 rounded-xl w-full max-w-lg p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-white">Nouveau Paiement</h2><button onClick={() => setShowNew(false)} className="p-1 hover:bg-white/5 rounded-lg text-gray-400"><X className="w-5 h-5" /></button></div>
+            {[{ l: 'Bénéficiaire', ph: 'Nom du bénéficiaire' },{ l: 'Montant (XAF)', ph: '0' },{ l: 'Référence', ph: 'REF-...' },{ l: 'Description', ph: 'Description du paiement' }].map((f, i) => (
+              <div key={i}><label className="block text-xs text-gray-400 mb-1.5">{f.l}</label><input placeholder={f.ph} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500" /></div>
+            ))}
+            <div><label className="block text-xs text-gray-400 mb-1.5">Méthode de paiement</label>
+              <select className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"><option>Virement bancaire</option><option>Mobile Money</option><option>Chèque</option><option>Carte</option></select>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              className="border-white/10 rounded-xl"
-              onClick={fetchData}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </Button>
+            <button className="w-full px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"><Send className="w-4 h-4" />Envoyer le paiement</button>
           </div>
         </div>
-
-        {/* Global error */}
-        {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
-            <Button variant="ghost" size="sm" onClick={fetchData} className="ml-auto text-red-400 hover:text-red-300">
-              Reessayer
-            </Button>
-          </div>
-        )}
-
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Payment Form - 2 columns */}
-          <div className="xl:col-span-2">
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-black text-white">Nouveau Paiement</CardTitle>
-                <CardDescription className="text-slate-500">Effectuez un virement ou paiement</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="simple" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 rounded-2xl p-1 mb-6">
-                    <TabsTrigger value="simple" className="rounded-xl text-xs font-bold data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
-                      Paiement Simple
-                    </TabsTrigger>
-                    <TabsTrigger value="groupe" className="rounded-xl text-xs font-bold data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
-                      Paiement Groupe
-                    </TabsTrigger>
-                    <TabsTrigger value="international" className="rounded-xl text-xs font-bold data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
-                      International
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="simple" className="space-y-6">
-                    {/* Payment Method Selection */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-300 text-sm font-bold">Methode de paiement</Label>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                          { id: "virement", label: "Virement", icon: Building },
-                          { id: "mobile", label: "Mobile Money", icon: Phone },
-                          { id: "wallet", label: "Portefeuille", icon: Wallet },
-                          { id: "qrcode", label: "QR Code", icon: QrCode },
-                        ].map((method) => (
-                          <button
-                            key={method.id}
-                            onClick={() => setPaymentMethod(method.id)}
-                            className={`p-4 rounded-2xl border transition-all ${
-                              paymentMethod === method.id
-                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-                                : "bg-slate-800/30 border-white/5 text-slate-400 hover:border-white/10"
-                            }`}
-                          >
-                            <method.icon className="h-6 w-6 mx-auto mb-2" />
-                            <p className="text-xs font-bold">{method.label}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Recipient Type */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-300 text-sm font-bold">Type de destinataire</Label>
-                      <Select value={recipientType} onValueChange={setRecipientType}>
-                        <SelectTrigger className="bg-slate-800/50 border-white/10 rounded-2xl h-12">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-900 border-white/10">
-                          <SelectItem value="internal">Utilisateur PimPay</SelectItem>
-                          <SelectItem value="external">Compte externe</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Recipient */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-300 text-sm font-bold">Destinataire</Label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-                        <Input
-                          value={recipient}
-                          onChange={(e) => setRecipient(e.target.value)}
-                          placeholder={recipientType === "internal" ? "Email, telephone ou nom d'utilisateur" : "Nom ou compte"}
-                          className="pl-12 h-14 bg-slate-800/50 border-white/10 text-base rounded-2xl"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Amount + Currency */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-300 text-sm font-bold">Montant</Label>
-                      <div className="flex gap-3">
-                        <Select value={currency} onValueChange={setCurrency}>
-                          <SelectTrigger className="w-28 bg-slate-800/50 border-white/10 rounded-2xl h-16 font-bold">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-slate-900 border-white/10">
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="XAF">XAF</SelectItem>
-                            <SelectItem value="PI">PI</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="relative flex-1">
-                          <Input
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            placeholder="0.00"
-                            type="number"
-                            min="0"
-                            className="h-16 bg-slate-800/50 border-white/10 text-3xl font-black rounded-2xl"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {["100", "500", "1000", "5000"].map((preset) => (
-                          <Button
-                            key={preset}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAmount(preset)}
-                            className="border-white/10 text-xs font-bold"
-                          >
-                            {preset}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-300 text-sm font-bold">Description (optionnel)</Label>
-                      <Textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Motif du paiement..."
-                        className="bg-slate-800/50 border-white/10 rounded-2xl resize-none"
-                        rows={3}
-                      />
-                    </div>
-
-                    {/* Feedback messages */}
-                    {submitError && (
-                      <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20">
-                        <p className="text-sm text-red-400">{submitError}</p>
-                      </div>
-                    )}
-                    {submitSuccess && (
-                      <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                        <p className="text-sm text-emerald-400">{submitSuccess}</p>
-                      </div>
-                    )}
-
-                    {/* Submit */}
-                    <div className="pt-4">
-                      <Button
-                        className="w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-base font-black rounded-2xl"
-                        disabled={!amount || !recipient || submitting}
-                        onClick={handleSubmit}
-                      >
-                        {submitting ? (
-                          <RefreshCw className="h-5 w-5 mr-3 animate-spin" />
-                        ) : (
-                          <Send className="h-5 w-5 mr-3" />
-                        )}
-                        {submitting ? "Traitement..." : "Envoyer le Paiement"}
-                      </Button>
-                      <p className="text-center text-xs text-slate-500 mt-3">
-                        Solde disponible: ${(data?.balance.usd || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} USD
-                      </p>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="groupe" className="space-y-6">
-                    <div className="p-8 rounded-2xl bg-slate-800/30 border border-dashed border-white/10 text-center">
-                      <Users className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-                      <h3 className="text-lg font-bold text-white mb-2">Paiement de Groupe</h3>
-                      <p className="text-sm text-slate-500 mb-4">Payez plusieurs destinataires en une seule fois</p>
-                      <Button variant="outline" className="border-white/10 font-bold">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Importer une liste CSV
-                      </Button>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="international" className="space-y-6">
-                    <div className="p-8 rounded-2xl bg-slate-800/30 border border-dashed border-white/10 text-center">
-                      <Globe className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-                      <h3 className="text-lg font-bold text-white mb-2">Paiement International</h3>
-                      <p className="text-sm text-slate-500 mb-4">{"Envoyez des fonds a l'etranger avec des taux competitifs"}</p>
-                      <Button className="bg-emerald-500 hover:bg-emerald-600 font-bold">
-                        <Zap className="h-4 w-4 mr-2" />
-                        Commencer
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* Frequent Recipients */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-black text-white">Frequents</CardTitle>
-                  <Button variant="ghost" size="sm" className="text-emerald-500 text-xs font-bold">
-                    Voir tout
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {loading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-800/30">
-                      <Skeleton className="w-10 h-10 rounded-xl bg-slate-700" />
-                      <div>
-                        <Skeleton className="h-4 w-32 bg-slate-700 mb-1" />
-                        <Skeleton className="h-3 w-20 bg-slate-700" />
-                      </div>
-                    </div>
-                  ))
-                ) : data?.frequentRecipients && data.frequentRecipients.length > 0 ? (
-                  data.frequentRecipients.map((r) => (
-                    <button
-                      key={r.userId}
-                      onClick={() => selectRecipient(r.name)}
-                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-800/30 border border-white/5 hover:border-emerald-500/30 transition-all text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center">
-                          <User className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">{r.name}</p>
-                          <p className="text-[10px] text-slate-500">{r.transactionCount} transaction(s)</p>
-                        </div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-slate-500" />
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-slate-500 text-sm">Aucun destinataire frequent</p>
-                  </div>
-                )}
-                <Button variant="outline" className="w-full border-dashed border-white/10 text-xs font-bold">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter un destinataire
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Balance Overview */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-black text-white">Soldes</CardTitle>
-                  <Star className="h-5 w-5 text-amber-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {loading ? (
-                  <>
-                    <Skeleton className="h-20 rounded-2xl bg-slate-800" />
-                    <Skeleton className="h-20 rounded-2xl bg-slate-800" />
-                  </>
-                ) : (
-                  <>
-                    <div className="p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-emerald-500/10 rounded-xl">
-                            <Wallet className="h-5 w-5 text-emerald-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500 font-bold">USD</p>
-                            <p className="text-lg font-black text-white">
-                              ${(data?.balance.usd || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                        </div>
-                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">
-                          Disponible
-                        </Badge>
-                      </div>
-                    </div>
-                    {(data?.balance.pi || 0) > 0 && (
-                      <div className="p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-500/10 rounded-xl">
-                              <CreditCard className="h-5 w-5 text-amber-400" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-500 font-bold">PI</p>
-                              <p className="text-lg font-black text-white">
-                                {(data?.balance.pi || 0).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">
-                            Disponible
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Payments */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-black text-white">Recents</CardTitle>
-                  <History className="h-5 w-5 text-slate-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-slate-800/30">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="w-9 h-9 rounded-xl bg-slate-700" />
-                        <div>
-                          <Skeleton className="h-3 w-28 bg-slate-700 mb-1" />
-                          <Skeleton className="h-2.5 w-20 bg-slate-700" />
-                        </div>
-                      </div>
-                      <Skeleton className="h-4 w-16 bg-slate-700" />
-                    </div>
-                  ))
-                ) : data?.recentPayments && data.recentPayments.length > 0 ? (
-                  data.recentPayments.slice(0, 6).map((payment) => {
-                    const { color, icon } = statusConfig(payment.status);
-                    return (
-                      <div
-                        key={payment.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-slate-800/30 border border-white/5"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2 rounded-xl shrink-0 ${color}`}>
-                            {icon}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-white truncate max-w-[130px]">
-                              {payment.recipient}
-                            </p>
-                            <p className="text-[10px] text-slate-500">
-                              {new Date(payment.createdAt).toLocaleDateString("fr-FR", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <p className="text-sm font-black text-white">
-                            {payment.amount.toLocaleString()} {payment.currency}
-                          </p>
-                          <p className="text-[10px] text-slate-500">{payment.type}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-6">
-                    <History className="h-10 w-10 text-slate-700 mx-auto mb-2" />
-                    <p className="text-slate-500 text-sm">Aucun paiement recent</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
+      )}
     </div>
   );
 }

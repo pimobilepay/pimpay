@@ -1,217 +1,71 @@
-export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
 
-import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/auth";
-import { NextResponse } from "next/server";
-
-// GET - Get payment info and recent payments
-export async function GET(req: Request) {
-  try {
-    const session = await verifyAuth(req);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
-    }
-
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      include: { wallets: true }
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
-    }
-
-    // Get recent outgoing payments
-    const recentPayments = await prisma.transaction.findMany({
-      where: {
-        fromUserId: session.id,
-        type: { in: ["TRANSFER", "PAYMENT", "WITHDRAW"] }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      include: {
-        toUser: { select: { name: true, email: true } }
-      }
-    });
-
-    // Get frequent recipients (based on transaction history)
-    const frequentRecipients = await prisma.transaction.groupBy({
-      by: ['toUserId'],
-      where: {
-        fromUserId: session.id,
-        toUserId: { not: null },
-        status: "SUCCESS"
-      },
-      _count: true,
-      orderBy: { _count: { toUserId: 'desc' } },
-      take: 5
-    });
-
-    // Get recipient details
-    const recipientIds = frequentRecipients.map(r => r.toUserId).filter(Boolean) as string[];
-    const recipientDetails = await prisma.user.findMany({
-      where: { id: { in: recipientIds } },
-      select: { id: true, name: true, email: true }
-    });
-
-    const usdWallet = user.wallets.find(w => w.currency === "USD");
-    const piWallet = user.wallets.find(w => w.currency === "PI");
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        balance: {
-          usd: usdWallet?.balance || 0,
-          pi: piWallet?.balance || 0,
-        },
-        recentPayments: recentPayments.map(tx => ({
-          id: tx.id,
-          reference: tx.reference,
-          amount: tx.amount,
-          currency: tx.currency,
-          type: tx.type,
-          status: tx.status,
-          description: tx.description,
-          recipient: tx.toUser?.name || tx.toUser?.email || tx.accountName || "Externe",
-          createdAt: tx.createdAt,
-        })),
-        frequentRecipients: frequentRecipients.map(r => {
-          const details = recipientDetails.find(d => d.id === r.toUserId);
-          return {
-            userId: r.toUserId,
-            name: details?.name || details?.email || "Utilisateur",
-            transactionCount: r._count,
-          };
-        })
-      }
-    });
-
-  } catch (error: any) {
-    console.error("BUSINESS_PAYMENTS_GET_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
-  }
+interface Payment {
+  id: string; beneficiary: string; email: string; amount: number;
+  method: string; date: string; status: string; direction: string;
+  description: string; reference: string;
 }
 
-// POST - Create a new payment
-export async function POST(req: Request) {
+// Mock payments data store
+const payments: Payment[] = [
+  { id: 'PAY-2024-001', beneficiary: 'BGFI Holdings', email: 'finance@bgfi.com', amount: 45600000, method: 'virement', date: '2024-04-10', status: 'completed', direction: 'sent', description: 'Paiement consultation Q1', reference: 'REF-BGF-001' },
+  { id: 'PAY-2024-002', beneficiary: 'Afriland First Group', email: 'ap@afriland.com', amount: 28350000, method: 'virement', date: '2024-04-09', status: 'completed', direction: 'received', description: 'Règlement facture INV-2024-002', reference: 'REF-AFL-002' },
+  { id: 'PAY-2024-003', beneficiary: 'Ecobank Transnational', email: 'procurement@ecobank.com', amount: 67800000, method: 'virement', date: '2024-04-08', status: 'completed', direction: 'sent', description: 'Migration plateforme', reference: 'REF-ECO-003' },
+  { id: 'PAY-2024-004', beneficiary: 'UBA Cameroun', email: 'finance@uba.cm', amount: 15200000, method: 'mobile_money', date: '2024-04-07', status: 'pending', direction: 'sent', description: 'Services mensuels', reference: 'REF-UBA-004' },
+];
+
+// GET /api/payments - List payments with filtering
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status');
+  const direction = searchParams.get('direction');
+  const method = searchParams.get('method');
+  const search = searchParams.get('search');
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+
+  let filtered = [...payments];
+  if (status) filtered = filtered.filter(p => p.status === status);
+  if (direction) filtered = filtered.filter(p => p.direction === direction);
+  if (method) filtered = filtered.filter(p => p.method === method);
+  if (search) filtered = filtered.filter(p => p.beneficiary.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase()));
+
+  const total = filtered.length;
+  const paged = filtered.slice((page - 1) * limit, page * limit);
+
+  const summary = {
+    totalSent: payments.filter(p => p.direction === 'sent' && p.status === 'completed').reduce((s, p) => s + p.amount, 0),
+    totalReceived: payments.filter(p => p.direction === 'received' && p.status === 'completed').reduce((s, p) => s + p.amount, 0),
+    totalPending: payments.filter(p => p.status === 'pending' || p.status === 'processing').reduce((s, p) => s + p.amount, 0),
+    totalFailed: payments.filter(p => p.status === 'failed').reduce((s, p) => s + p.amount, 0),
+  };
+
+  return NextResponse.json({ data: paged, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, summary });
+}
+
+// POST /api/payments - Create new payment
+export async function POST(request: NextRequest) {
   try {
-    const session = await verifyAuth(req);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    const body = await request.json();
+    const { beneficiary, amount, method, description, reference } = body;
+
+    if (!beneficiary || !amount || !method) {
+      return NextResponse.json({ error: 'beneficiary, amount, and method are required' }, { status: 400 });
+    }
+    if (amount <= 0) {
+      return NextResponse.json({ error: 'Amount must be positive' }, { status: 400 });
     }
 
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-    }
+    const newPayment: Payment = {
+      id: 'PAY-2024-' + String(payments.length + 1).padStart(3, '0'),
+      beneficiary, email: '', amount, method, date: new Date().toISOString().split('T')[0],
+      status: 'processing', direction: 'sent', description: description || '',
+      reference: reference || 'REF-' + Date.now(),
+    };
 
-    const body = await req.json();
-    const { amount, currency = "USD", recipient, recipientType, description, method } = body;
-
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-    }
-
-    if (!recipient) {
-      return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      include: { wallets: true }
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
-    }
-
-    // Get appropriate wallet
-    const wallet = user.wallets.find(w => w.currency === currency);
-    if (!wallet || wallet.balance < amount) {
-      return NextResponse.json({ 
-        error: `Solde ${currency} insuffisant. Disponible: ${wallet?.balance || 0}` 
-      }, { status: 400 });
-    }
-
-    // Find recipient user (by email, phone, or username)
-    let recipientUser = null;
-    if (recipientType === "internal") {
-      recipientUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { email: recipient.toLowerCase() },
-            { phone: recipient },
-            { username: recipient.toLowerCase() }
-          ]
-        },
-        include: { wallets: true }
-      });
-    }
-
-    // Process payment
-    const result = await prisma.$transaction(async (tx) => {
-      // Deduct from sender wallet
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: amount } }
-      });
-
-      let toWalletId = null;
-      let toUserId = null;
-
-      // If internal transfer, credit recipient
-      if (recipientUser) {
-        toUserId = recipientUser.id;
-        const recipientWallet = recipientUser.wallets.find(w => w.currency === currency);
-        if (recipientWallet) {
-          toWalletId = recipientWallet.id;
-          await tx.wallet.update({
-            where: { id: recipientWallet.id },
-            data: { balance: { increment: amount } }
-          });
-        }
-      }
-
-      // Create transaction record
-      const transaction = await tx.transaction.create({
-        data: {
-          reference: `BIZ-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount,
-          currency,
-          type: recipientUser ? "TRANSFER" : "PAYMENT",
-          status: "SUCCESS",
-          description: description || `Paiement business vers ${recipient}`,
-          fromUserId: user.id,
-          fromWalletId: wallet.id,
-          toUserId,
-          toWalletId,
-          metadata: {
-            method,
-            recipientType,
-            recipientInfo: recipient,
-          }
-        }
-      });
-
-      return transaction;
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        transactionId: result.id,
-        reference: result.reference,
-        amount: result.amount,
-        currency: result.currency,
-        status: result.status,
-      }
-    });
-
-  } catch (error: any) {
-    console.error("BUSINESS_PAYMENTS_POST_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    payments.push(newPayment);
+    return NextResponse.json({ success: true, data: newPayment }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 }

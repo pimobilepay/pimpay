@@ -1,868 +1,636 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import useSWR from "swr";
-import { BusinessSidebar } from "@/components/business/BusinessSidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-
+import React, { useState } from 'react';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-} from "recharts";
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 import {
-  BadgeCheck,
   TrendingUp,
   TrendingDown,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Users,
-  Wallet,
-  Building2,
-  Send,
-  Upload,
-  UserPlus,
-  Search,
-  Filter,
-  Calendar,
-  MoreVertical,
-  RefreshCw,
-  FileSpreadsheet,
   DollarSign,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Banknote,
-  ChevronRight,
-  PiggyBank,
   CreditCard,
-  Menu,
-  X,
-} from "lucide-react";
+  FileText,
+  BarChart2,
+  Plus,
+  UserPlus,
+  Download,
+  ArrowUpRight,
+  ArrowDownRight,
+  Bell,
+  Settings,
+  Search,
+  ChevronDown,
+  Wallet,
+  Receipt,
+  Users,
+  Percent,
+} from 'lucide-react';
 
-// Types for API response
-interface Employee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  position: string | null;
-  salary: number | null;
-  isActive: boolean;
+const monthlyData = [
+  { month: 'Jan', revenue: 620, expenses: 180 },
+  { month: 'Fév', revenue: 710, expenses: 195 },
+  { month: 'Mar', revenue: 680, expenses: 210 },
+  { month: 'Avr', revenue: 750, expenses: 188 },
+  { month: 'Mai', revenue: 790, expenses: 220 },
+  { month: 'Jun', revenue: 820, expenses: 205 },
+  { month: 'Jul', revenue: 760, expenses: 198 },
+  { month: 'Aoû', revenue: 800, expenses: 215 },
+  { month: 'Sep', revenue: 830, expenses: 225 },
+  { month: 'Oct', revenue: 810, expenses: 218 },
+  { month: 'Nov', revenue: 847, expenses: 234 },
+  { month: 'Déc', revenue: 870, expenses: 240 },
+];
+
+const weekData = [
+  { month: 'Lun', revenue: 120, expenses: 45 },
+  { month: 'Mar', revenue: 145, expenses: 52 },
+  { month: 'Mer', revenue: 132, expenses: 48 },
+  { month: 'Jeu', revenue: 158, expenses: 55 },
+  { month: 'Ven', revenue: 170, expenses: 60 },
+  { month: 'Sam', revenue: 95, expenses: 30 },
+  { month: 'Dim', revenue: 75, expenses: 25 },
+];
+
+const monthData30 = [
+  { month: 'S1', revenue: 210, expenses: 65 },
+  { month: 'S2', revenue: 225, expenses: 70 },
+  { month: 'S3', revenue: 198, expenses: 58 },
+  { month: 'S4', revenue: 214, expenses: 72 },
+];
+
+const quarterData = [
+  { month: 'M1', revenue: 760, expenses: 198 },
+  { month: 'M2', revenue: 810, expenses: 218 },
+  { month: 'M3', revenue: 847, expenses: 234 },
+];
+
+const barData = [
+  { name: 'Jan', transactions: 420 },
+  { name: 'Fév', transactions: 380 },
+  { name: 'Mar', transactions: 510 },
+  { name: 'Avr', transactions: 460 },
+  { name: 'Mai', transactions: 540 },
+  { name: 'Jun', transactions: 490 },
+  { name: 'Jul', transactions: 520 },
+  { name: 'Aoû', transactions: 480 },
+  { name: 'Sep', transactions: 610 },
+  { name: 'Oct', transactions: 570 },
+  { name: 'Nov', transactions: 630 },
+  { name: 'Déc', transactions: 590 },
+];
+
+const pieData = [
+  { name: 'Services', value: 45, color: '#6366f1' },
+  { name: 'Produits', value: 28, color: '#22d3ee' },
+  { name: 'Conseil', value: 18, color: '#c084fc' },
+  { name: 'Abonnements', value: 9, color: '#34d399' },
+];
+
+const transactions = [
+  { id: 1, date: '2024-11-28', description: 'Facture Client MTN', amount: 4500000, type: 'Facture', status: 'Complété', positive: true },
+  { id: 2, date: '2024-11-27', description: 'Paiement Fournisseur Orange', amount: -1200000, type: 'Paiement', status: 'Complété', positive: false },
+  { id: 3, date: '2024-11-26', description: 'Contrat Service SaaS', amount: 2800000, type: 'Contrat', status: 'En attente', positive: true },
+  { id: 4, date: '2024-11-25', description: 'Remboursement Client', amount: -350000, type: 'Remboursement', status: 'Complété', positive: false },
+  { id: 5, date: '2024-11-24', description: 'Vente Produits Tech', amount: 6700000, type: 'Vente', status: 'Complété', positive: true },
+  { id: 6, date: '2024-11-23', description: 'Abonnement Premium', amount: 890000, type: 'Abonnement', status: 'En attente', positive: true },
+  { id: 7, date: '2024-11-22', description: 'Paiement Salaires', amount: -8500000, type: 'Salaire', status: 'Complété', positive: false },
+  { id: 8, date: '2024-11-21', description: 'Conseil Stratégique', amount: 3200000, type: 'Conseil', status: 'Echoué', positive: true },
+  { id: 9, date: '2024-11-20', description: 'Renouvellement Licence', amount: 1500000, type: 'Licence', status: 'Complété', positive: true },
+  { id: 10, date: '2024-11-19', description: 'Frais Bancaires', amount: -125000, type: 'Frais', status: 'Complété', positive: false },
+];
+
+const sparklineData = [
+  [40, 55, 48, 62, 58, 72, 65, 80, 75, 85],
+  [70, 65, 72, 68, 60, 55, 58, 52, 50, 48],
+  [15, 18, 20, 22, 19, 21, 23, 22, 24, 23],
+  [68, 70, 71, 69, 72, 71, 73, 72, 74, 72],
+];
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const width = 80;
+  const height = 32;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
-interface TransactionData {
-  id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  type: string;
-  status: string;
-  description: string | null;
-  createdAt: string;
-  isIncoming: boolean;
-  counterparty: string;
-}
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(15,20,35,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px 16px' }}>
+        <p style={{ color: '#9ca3af', marginBottom: 6, fontSize: 12 }}>{label}</p>
+        {payload.map((entry: any, i: number) => (
+          <p key={i} style={{ color: entry.color, fontSize: 13, fontWeight: 600, margin: '2px 0' }}>
+            {entry.name}: {entry.value}M XAF
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
-interface CashFlowPoint {
-  day: string;
-  entrant: number;
-  sortant: number;
-}
+const BarTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(15,20,35,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px 16px' }}>
+        <p style={{ color: '#9ca3af', marginBottom: 6, fontSize: 12 }}>{label}</p>
+        <p style={{ color: '#6366f1', fontSize: 13, fontWeight: 600 }}>Transactions: {payload[0]?.value}</p>
+      </div>
+    );
+  }
+  return null;
+};
 
-interface BusinessDashboardData {
-  success: boolean;
-  data: {
-    business: {
-      id: string;
-      name: string;
-      registrationNumber: string;
-      type: string;
-      status: string;
-      employeeCount: number;
-    } | null;
-    balances: {
-      usd: number;
-      pi: number;
-    };
-    stats: {
-      totalIncoming: number;
-      totalOutgoing: number;
-      netFlow: number;
-      pendingTransactions: number;
-      employeeCount: number;
-    };
-    cashFlowData: CashFlowPoint[];
-    recentTransactions: TransactionData[];
-    employees: Employee[];
-  };
-}
-
-const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
+const PieTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(15,20,35,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px 16px' }}>
+        <p style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{payload[0]?.name}: {payload[0]?.value}%</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function BusinessDashboard() {
-  const [period, setPeriod] = useState("30d");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
-  const [quickPayAmount, setQuickPayAmount] = useState("");
-  const [quickPayRecipient, setQuickPayRecipient] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activePeriod, setActivePeriod] = useState('12m');
 
-  // Fetch real data from API
-  const { data, error, isLoading, mutate } = useSWR<BusinessDashboardData>(
-    "/api/business/dashboard",
-    fetcher,
+  const getChartData = () => {
+    switch (activePeriod) {
+      case '7j': return weekData;
+      case '30j': return monthData30;
+      case '90j': return quarterData;
+      default: return monthlyData;
+    }
+  };
+
+  const kpiCards = [
     {
-      refreshInterval: 30000, // Refresh every 30 seconds
-      revalidateOnFocus: true,
-    }
-  );
+      title: 'Revenus Totaux',
+      value: '847M XAF',
+      change: '+12.4%',
+      positive: true,
+      icon: DollarSign,
+      color: '#6366f1',
+      sparkColor: '#6366f1',
+      sparkIdx: 0,
+    },
+    {
+      title: 'Dépenses',
+      value: '234M XAF',
+      change: '-3.2%',
+      positive: false,
+      icon: CreditCard,
+      color: '#22d3ee',
+      sparkColor: '#22d3ee',
+      sparkIdx: 1,
+    },
+    {
+      title: 'Factures en Attente',
+      value: '23',
+      change: '+5',
+      positive: true,
+      icon: Receipt,
+      color: '#c084fc',
+      sparkColor: '#c084fc',
+      sparkIdx: 2,
+    },
+    {
+      title: 'Marge Nette',
+      value: '72.3%',
+      change: '+2.1%',
+      positive: true,
+      icon: Percent,
+      color: '#34d399',
+      sparkColor: '#34d399',
+      sparkIdx: 3,
+    },
+  ];
 
-  const dashboardData = data?.data;
-  const employees = dashboardData?.employees || [];
-  const transactions = dashboardData?.recentTransactions || [];
-  const balances = dashboardData?.balances || { usd: 0, pi: 0 };
-  const stats = dashboardData?.stats || { totalIncoming: 0, totalOutgoing: 0, netFlow: 0, pendingTransactions: 0, employeeCount: 0 };
-  const business = dashboardData?.business;
-
-  // Use chart data directly from API (pre-computed with all 30 days)
-  const treasuryData = useMemo(() => dashboardData?.cashFlowData || [], [dashboardData]);
-
-  const totalSalary = useMemo(() => 
-    employees.filter(e => selectedEmployees.includes(e.id) || selectedEmployees.length === 0)
-      .reduce((sum, e) => sum + (e.salary || 0), 0)
-  , [selectedEmployees, employees]);
-
-  const toggleEmployee = (id: string) => {
-    setSelectedEmployees(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
-  };
-
-  const selectAllEmployees = () => {
-    if (selectedEmployees.length === employees.length) {
-      setSelectedEmployees([]);
-    } else {
-      setSelectedEmployees(employees.map(e => e.id));
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusLower = status.toLowerCase();
-    switch (statusLower) {
-      case "success":
-      case "completed":
-        return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Effectue</Badge>;
-      case "pending":
-        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">En attente</Badge>;
-      case "failed":
-      case "cancelled":
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-bold">Echec</Badge>;
-      default:
-        return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 text-[10px] font-bold">{status}</Badge>;
-    }
-  };
-
-  const getTypeBadge = (type: string, isIncoming?: boolean) => {
-    const typeLower = type.toLowerCase();
-    if (isIncoming) {
-      return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Entrant</Badge>;
-    }
-    switch (typeLower) {
-      case "transfer":
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[10px] font-bold">Transfert</Badge>;
-      case "payment":
-        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-[10px] font-bold">Paiement</Badge>;
-      case "withdraw":
-        return <Badge className="bg-rose-500/10 text-rose-500 border-rose-500/20 text-[10px] font-bold">Retrait</Badge>;
-      case "deposit":
-        return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-bold">Depot</Badge>;
-      default:
-        return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 text-[10px] font-bold">{type}</Badge>;
-    }
-  };
-
-  const getBusinessStatusLabel = (status: string) => {
+  const getStatusStyle = (status: string) => {
     switch (status) {
-      case "ACTIVE": return "Verifie";
-      case "PENDING_VERIFICATION": return "En attente";
-      case "SUSPENDED": return "Suspendu";
-      case "INACTIVE": return "Inactif";
-      default: return status;
+      case 'Complété':
+        return { background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' };
+      case 'En attente':
+        return { background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' };
+      case 'Echoué':
+        return { background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' };
+      default:
+        return {};
     }
+  };
+
+  const getTypeStyle = (type: string) => {
+    const colors: Record<string, { bg: string; color: string }> = {
+      Facture: { bg: 'rgba(99,102,241,0.15)', color: '#818cf8' },
+      Paiement: { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee' },
+      Contrat: { bg: 'rgba(192,132,252,0.15)', color: '#c084fc' },
+      Remboursement: { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24' },
+      Vente: { bg: 'rgba(52,211,153,0.15)', color: '#34d399' },
+      Abonnement: { bg: 'rgba(99,102,241,0.15)', color: '#818cf8' },
+      Salaire: { bg: 'rgba(239,68,68,0.15)', color: '#f87171' },
+      Conseil: { bg: 'rgba(192,132,252,0.15)', color: '#c084fc' },
+      Licence: { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee' },
+      Frais: { bg: 'rgba(156,163,175,0.15)', color: '#9ca3af' },
+    };
+    return colors[type] || { bg: 'rgba(156,163,175,0.15)', color: '#9ca3af' };
+  };
+
+  const formatAmount = (amount: number) => {
+    const abs = Math.abs(amount);
+    if (abs >= 1000000) return `${(abs / 1000000).toFixed(1)}M`;
+    if (abs >= 1000) return `${(abs / 1000).toFixed(0)}K`;
+    return abs.toString();
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
   };
 
+  const goldGradient = 'linear-gradient(135deg, #C8A961, #8B6914)';
+
   return (
-    <div className="flex min-h-screen bg-[#02040a]">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <BusinessSidebar />
+    <div style={{ background: '#02040a', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }} className="p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div style={{ background: goldGradient, borderRadius: '14px', padding: '10px 14px' }} className="flex items-center gap-2">
+            <Wallet size={22} color="#fff" />
+            <span style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px' }}>PimPay</span>
+          </div>
+          <div>
+            <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Tableau de Bord Business</h1>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Novembre 2024 — Toutes les métriques en temps réel</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Search size={15} color="#6b7280" />
+            <span style={{ color: '#6b7280', fontSize: 13 }}>Rechercher...</span>
+          </div>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px', cursor: 'pointer', position: 'relative' }}>
+            <Bell size={18} color="#9ca3af" />
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, background: '#6366f1', borderRadius: '50%', border: '2px solid #02040a' }}></span>
+          </button>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px', cursor: 'pointer' }}>
+            <Settings size={18} color="#9ca3af" />
+          </button>
+          <div style={{ background: goldGradient, borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>BA</span>
+          </div>
+        </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-64 bg-slate-950 border-r border-white/5 overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-                  <Building2 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-sm font-black text-white">PIMPAY</h1>
-                  <p className="text-[9px] font-bold text-emerald-500 uppercase">Business</p>
-                </div>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <BusinessSidebar isMobile />
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
-        {/* Mobile Header */}
-        <div className="flex items-center justify-between mb-6 lg:hidden">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
-          </div>
-        </div>
-
-        {/* Error State */}
-        {error && (
-          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-red-500/20 rounded-2xl">
-                  <XCircle className="h-6 w-6 text-red-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-red-400">Erreur de chargement</p>
-                  <p className="text-xs text-red-300/70 mt-1">Impossible de charger les donnees du tableau de bord. Veuillez reessayer.</p>
-                </div>
-                <Button 
-                  onClick={() => mutate()} 
-                  className="bg-red-500 hover:bg-red-600 text-xs font-bold"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Reessayer
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Tableau de Bord Entreprise</h1>
-            <p className="text-sm text-slate-500 mt-1">Gerez votre tresorerie et vos paiements en un seul endroit</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-32 bg-slate-900/50 border-white/10 text-white text-xs font-bold">
-                <Calendar className="h-4 w-4 mr-2 text-slate-500" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-white/10">
-                <SelectItem value="7d">7 jours</SelectItem>
-                <SelectItem value="30d">30 jours</SelectItem>
-                <SelectItem value="90d">90 jours</SelectItem>
-                <SelectItem value="1y">1 an</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="border-white/10 bg-slate-900/50"
-              onClick={() => mutate()}
-              disabled={isLoading}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-4 gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {kpiCards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={i}
+              style={{
+                background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '20px',
+                padding: '20px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                cursor: 'pointer',
+              }}
+              className="hover:-translate-y-0.5"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 24px 48px rgba(0,0,0,0.5)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.4)'; }}
             >
-              <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
+              <div className="flex items-start justify-between mb-3">
+                <div style={{ background: `${card.color}22`, borderRadius: '12px', padding: '10px', border: `1px solid ${card.color}33` }}>
+                  <Icon size={20} color={card.color} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: card.positive ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)', borderRadius: '8px', padding: '4px 8px', border: card.positive ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(239,68,68,0.2)' }}>
+                  {card.positive ? <TrendingUp size={12} color="#34d399" /> : <TrendingDown size={12} color="#ef4444" />}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: card.positive ? '#34d399' : '#ef4444' }}>{card.change}</span>
+                </div>
+              </div>
+              <div className="mb-3">
+                <p style={{ color: '#6b7280', fontSize: 12, margin: '0 0 4px 0', fontWeight: 500 }}>{card.title}</p>
+                <p style={{ color: '#fff', fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>{card.value}</p>
+              </div>
+              <Sparkline data={sparklineData[card.sparkIdx]} color={card.sparkColor} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Area Chart */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: '20px',
+          padding: '24px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+          marginBottom: '24px',
+        }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Revenus & Dépenses</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Analyse comparative sur la période sélectionnée</p>
+          </div>
+          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '4px' }}>
+            {['7j', '30j', '90j', '12m'].map(p => (
+              <button
+                key={p}
+                onClick={() => setActivePeriod(p)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                  background: activePeriod === p ? goldGradient : 'transparent',
+                  color: activePeriod === p ? '#fff' : '#6b7280',
+                }}
+              >
+                {p}
+              </button>
+            ))}
           </div>
         </div>
+        <ResponsiveContainer width="100%" height={280}>
+          <AreaChart data={getChartData()} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <defs>
+              <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              wrapperStyle={{ paddingTop: 16 }}
+              formatter={(value) => <span style={{ color: '#9ca3af', fontSize: 12 }}>{value}</span>}
+            />
+            <Area type="monotone" dataKey="revenue" name="Revenus" stroke="#6366f1" strokeWidth={2.5} fill="url(#revGrad)" dot={false} activeDot={{ r: 5, fill: '#6366f1' }} />
+            <Area type="monotone" dataKey="expenses" name="Dépenses" stroke="#22d3ee" strokeWidth={2.5} fill="url(#expGrad)" dot={false} activeDot={{ r: 5, fill: '#22d3ee' }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
 
-        {/* Balance & Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* Total Balance */}
-          <Card className="bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border-emerald-500/30 rounded-3xl">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-emerald-300/70 uppercase tracking-wider">Solde Total USD</p>
-                  {isLoading ? (
-                    <Skeleton className="h-9 w-32 mt-1 bg-emerald-500/20" />
-                  ) : (
-                    <p className="text-3xl font-black text-white mt-1">${balances.usd.toLocaleString()}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    {stats.netFlow >= 0 ? (
-                      <>
-                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                        <span className="text-xs font-bold text-emerald-400">+${stats.totalIncoming.toLocaleString()} ce mois</span>
-                      </>
-                    ) : (
-                      <>
-                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-                        <span className="text-xs font-bold text-rose-400">-${Math.abs(stats.netFlow).toLocaleString()} ce mois</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="p-3 bg-emerald-500/20 rounded-2xl">
-                  <Wallet className="h-6 w-6 text-emerald-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Account Status */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Statut du Compte</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    {business?.status === "ACTIVE" ? (
-                      <BadgeCheck className="h-5 w-5 text-emerald-500" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-amber-500" />
-                    )}
-                    {isLoading ? (
-                      <Skeleton className="h-6 w-20 bg-slate-700" />
-                    ) : (
-                      <p className="text-lg font-black text-white">{business ? getBusinessStatusLabel(business.status) : "Non configure"}</p>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{business?.name || "Entreprise"}</p>
-                </div>
-                <div className="p-3 bg-emerald-500/10 rounded-2xl">
-                  <Building2 className="h-6 w-6 text-emerald-500" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Employees */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Employes</p>
-                  {isLoading ? (
-                    <Skeleton className="h-9 w-12 mt-1 bg-slate-700" />
-                  ) : (
-                    <p className="text-3xl font-black text-white mt-1">{stats.employeeCount}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <Users className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-bold text-blue-400">{employees.length} actifs</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-blue-500/10 rounded-2xl">
-                  <Users className="h-6 w-6 text-blue-500" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pending Payments */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Paiements en attente</p>
-                  {isLoading ? (
-                    <Skeleton className="h-9 w-8 mt-1 bg-slate-700" />
-                  ) : (
-                    <p className="text-3xl font-black text-white mt-1">{stats.pendingTransactions}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <Clock className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="text-xs font-bold text-amber-400">Sortant: ${stats.totalOutgoing.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-amber-500/10 rounded-2xl">
-                  <Banknote className="h-6 w-6 text-amber-500" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Bar + Pie Charts */}
+      <div className="grid gap-6 mb-6" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        {/* Bar Chart */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+            border: '1px solid rgba(255,255,255,0.05)',
+            borderRadius: '20px',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div className="mb-5">
+            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Volume de Transactions</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Mensuel — Exercice 2024</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={barData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }} barSize={18}>
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" />
+                  <stop offset="100%" stopColor="#4338ca" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<BarTooltip />} />
+              <Bar dataKey="transactions" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - 2/3 width */}
-          <div className="xl:col-span-2 space-y-6">
-            {/* Treasury Chart */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-black text-white">Tresorerie & Flux</CardTitle>
-                    <CardDescription className="text-slate-500">Entrees et sorties des 30 derniers jours</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-bold text-slate-400">Entrant</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-rose-500" />
-                      <span className="text-xs font-bold text-slate-400">Sortant</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[280px]">
-                  {isLoading ? (
-                    <Skeleton className="h-full w-full rounded-2xl bg-slate-800" />
-                  ) : treasuryData.length === 0 || treasuryData.every(d => d.entrant === 0 && d.sortant === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                      <PiggyBank className="h-12 w-12 mb-3 opacity-50" />
-                      <p className="text-sm font-bold">Aucun flux sur les 30 derniers jours</p>
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={treasuryData}>
-                        <defs>
-                          <linearGradient id="colorEntrant" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorSortant" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} interval="preserveStartEnd" />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                          }}
-                          formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
-                        />
-                        <Area type="monotone" dataKey="entrant" stroke="#10b981" strokeWidth={2} fill="url(#colorEntrant)" name="Entrant" />
-                        <Area type="monotone" dataKey="sortant" stroke="#f43f5e" strokeWidth={2} fill="url(#colorSortant)" name="Sortant" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Payroll Section */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-lg font-black text-white">Gestion des Salaires</CardTitle>
-                    <CardDescription className="text-slate-500">Paiement groupe des employes</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" className="border-white/10 text-xs font-bold">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Importer CSV
-                    </Button>
-                    <Button className="bg-emerald-500 hover:bg-emerald-600 text-xs font-bold">
-                      <Send className="h-4 w-4 mr-2" />
-                      Payer ({selectedEmployees.length || "Tous"})
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Search & Filter */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <Input
-                      placeholder="Rechercher un employe..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-slate-800/50 border-white/10 text-sm"
-                    />
-                  </div>
-                  <Button variant="outline" size="sm" onClick={selectAllEmployees} className="border-white/10 text-xs font-bold">
-                    {selectedEmployees.length === employees.length ? "Deselectionner tout" : "Selectionner tout"}
-                  </Button>
-                </div>
-
-                {/* Employee List */}
-                <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2">
-                  {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="flex items-center justify-between p-4 rounded-2xl border bg-slate-800/30 border-white/5">
-                        <div className="flex items-center gap-4">
-                          <Skeleton className="w-10 h-10 rounded-xl bg-slate-700" />
-                          <div>
-                            <Skeleton className="h-4 w-32 mb-2 bg-slate-700" />
-                            <Skeleton className="h-3 w-20 bg-slate-700" />
-                          </div>
-                        </div>
-                        <Skeleton className="h-5 w-16 bg-slate-700" />
-                      </div>
-                    ))
-                  ) : employees.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                      <Users className="h-12 w-12 mx-auto mb-3 text-slate-600" />
-                      <p className="text-sm font-bold">Aucun employe</p>
-                      <p className="text-xs mt-1">Ajoutez des employes pour commencer</p>
-                    </div>
-                  ) : (
-                    employees.filter(e => {
-                      const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
-                      const position = (e.position || '').toLowerCase();
-                      return fullName.includes(searchQuery.toLowerCase()) || position.includes(searchQuery.toLowerCase());
-                    }).map((employee) => (
-                      <div
-                        key={employee.id}
-                        onClick={() => toggleEmployee(employee.id)}
-                        className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
-                          selectedEmployees.includes(employee.id)
-                            ? "bg-emerald-500/10 border-emerald-500/30"
-                            : "bg-slate-800/30 border-white/5 hover:border-white/10"
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase ${
-                            selectedEmployees.includes(employee.id)
-                              ? "bg-emerald-500 text-white"
-                              : "bg-slate-700 text-slate-300"
-                          }`}>
-                            {employee.firstName.charAt(0)}{employee.lastName.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-white">{employee.firstName} {employee.lastName}</p>
-                            <p className="text-[11px] text-slate-500">{employee.position || "Non defini"}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-black text-white">${(employee.salary || 0).toLocaleString()}</p>
-                          <p className="text-[10px] text-emerald-500 font-bold uppercase">Mensuel</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Total */}
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-400">Total a payer</p>
-                  <p className="text-2xl font-black text-emerald-500">${totalSalary.toLocaleString()}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Transactions Table */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-lg font-black text-white">Historique des Transactions</CardTitle>
-                    <CardDescription className="text-slate-500">Toutes les operations recentes</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filtrer
-                    </Button>
-                    <Button variant="outline" size="sm" className="border-white/10 text-xs font-bold">
-                      <FileSpreadsheet className="h-4 w-4 mr-2" />
-                      Exporter
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-white/5">
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Destinataire</TableHead>
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Montant</TableHead>
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Type</TableHead>
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Date</TableHead>
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Statut</TableHead>
-                        <TableHead className="text-[10px] font-bold text-slate-500 uppercase text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isLoading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i} className="border-white/5">
-                            <TableCell><Skeleton className="h-10 w-40 bg-slate-700" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-20 bg-slate-700" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-24 bg-slate-700" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-16 bg-slate-700" /></TableCell>
-                            <TableCell><Skeleton className="h-8 w-8 bg-slate-700" /></TableCell>
-                          </TableRow>
-                        ))
-                      ) : transactions.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                            <Banknote className="h-12 w-12 mx-auto mb-3 text-slate-600" />
-                            <p className="text-sm font-bold">Aucune transaction</p>
-                            <p className="text-xs mt-1">Les transactions apparaitront ici</p>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        transactions.map((tx) => (
-                          <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-xl ${
-                                  tx.isIncoming ? "bg-emerald-500/10" : "bg-rose-500/10"
-                                }`}>
-                                  {tx.isIncoming ? (
-                                    <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
-                                  ) : (
-                                    <ArrowUpRight className="h-4 w-4 text-rose-500" />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-sm font-bold text-white">{tx.counterparty}</p>
-                                  <p className="text-[10px] text-slate-500 font-mono">{tx.reference}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className={`text-sm font-black ${
-                                tx.isIncoming ? "text-emerald-500" : "text-white"
-                              }`}>
-                                {tx.isIncoming ? "+" : "-"}${tx.amount.toLocaleString()}
-                              </p>
-                            </TableCell>
-                            <TableCell>{getTypeBadge(tx.type, tx.isIncoming)}</TableCell>
-                            <TableCell className="text-sm text-slate-400">{formatDate(tx.createdAt)}</TableCell>
-                            <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4 text-slate-500" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Pie Chart */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+            border: '1px solid rgba(255,255,255,0.05)',
+            borderRadius: '20px',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div className="mb-5">
+            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Revenus par Catégorie</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Distribution — Novembre 2024</p>
           </div>
-
-          {/* Right Column - 1/3 width */}
-          <div className="space-y-6">
-            {/* Quick Payment Widget */}
-            <Card className="bg-gradient-to-br from-slate-900/80 to-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-black text-white flex items-center gap-2">
-                  <Send className="h-5 w-5 text-emerald-500" />
-                  Paiement Rapide
-                </CardTitle>
-                <CardDescription className="text-slate-500">Virement instantane</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Destinataire
-                  </label>
-                  <Input
-                    placeholder="Nom ou ID du destinataire"
-                    value={quickPayRecipient}
-                    onChange={(e) => setQuickPayRecipient(e.target.value)}
-                    className="bg-slate-800/50 border-white/10"
-                  />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <ResponsiveContainer width="50%" height={220}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={90}
+                  paddingAngle={4}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<PieTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ flex: 1 }}>
+              {pieData.map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0 }}></div>
+                    <span style={{ color: '#d1d5db', fontSize: 13 }}>{item.name}</span>
+                  </div>
+                  <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{item.value}%</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Montant (USD)
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <Input
-                      type="number"
-                      placeholder="0.00"
-                      value={quickPayAmount}
-                      onChange={(e) => setQuickPayAmount(e.target.value)}
-                      className="pl-10 bg-slate-800/50 border-white/10 text-lg font-bold"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Type de paiement
-                  </label>
-                  <Select defaultValue="instant">
-                    <SelectTrigger className="bg-slate-800/50 border-white/10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-white/10">
-                      <SelectItem value="instant">Instantane</SelectItem>
-                      <SelectItem value="scheduled">Programme</SelectItem>
-                      <SelectItem value="recurring">Recurrent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button className="w-full bg-emerald-500 hover:bg-emerald-600 h-12 text-sm font-bold">
-                  <Send className="h-4 w-4 mr-2" />
-                  Envoyer le paiement
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-black text-white">Actions Rapides</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-between h-12 border-white/10 text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/10 rounded-xl">
-                      <Users className="h-4 w-4 text-blue-500" />
-                    </div>
-                    <span className="text-sm font-bold">Ajouter un employe</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </Button>
-                <Button variant="outline" className="w-full justify-between h-12 border-white/10 text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-500/10 rounded-xl">
-                      <CreditCard className="h-4 w-4 text-purple-500" />
-                    </div>
-                    <span className="text-sm font-bold">Payer un fournisseur</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </Button>
-                <Button variant="outline" className="w-full justify-between h-12 border-white/10 text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/10 rounded-xl">
-                      <PiggyBank className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <span className="text-sm font-bold">Deposer des fonds</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </Button>
-                <Button variant="outline" className="w-full justify-between h-12 border-white/10 text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-amber-500/10 rounded-xl">
-                      <FileSpreadsheet className="h-4 w-4 text-amber-500" />
-                    </div>
-                    <span className="text-sm font-bold">Generer un rapport</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-black text-white">Activite Recente</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <Skeleton className="w-9 h-9 rounded-xl bg-slate-700" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2 bg-slate-700" />
-                        <Skeleton className="h-3 w-24 bg-slate-700" />
-                      </div>
-                    </div>
-                  ))
-                ) : transactions.length === 0 ? (
-                  <div className="text-center py-4 text-slate-500">
-                    <p className="text-xs">Aucune activite recente</p>
-                  </div>
-                ) : (
-                  transactions.slice(0, 4).map((tx) => {
-                    const getActivityIcon = () => {
-                      if (tx.status === 'PENDING') return { icon: AlertCircle, color: 'amber' };
-                      if (tx.status === 'FAILED' || tx.status === 'CANCELLED') return { icon: XCircle, color: 'red' };
-                      if (tx.isIncoming) return { icon: ArrowDownLeft, color: 'emerald' };
-                      return { icon: CheckCircle2, color: 'emerald' };
-                    };
-                    const { icon: Icon, color } = getActivityIcon();
-                    const timeAgo = (dateStr: string) => {
-                      const diff = Date.now() - new Date(dateStr).getTime();
-                      const hours = Math.floor(diff / (1000 * 60 * 60));
-                      if (hours < 1) return 'Il y a quelques minutes';
-                      if (hours < 24) return `Il y a ${hours} heure${hours > 1 ? 's' : ''}`;
-                      const days = Math.floor(hours / 24);
-                      return `Il y a ${days} jour${days > 1 ? 's' : ''}`;
-                    };
-
-                    return (
-                      <div key={tx.id} className="flex items-start gap-3">
-                        <div className={`p-2 bg-${color}-500/10 rounded-xl mt-0.5`}>
-                          <Icon className={`h-4 w-4 text-${color}-500`} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">
-                            {tx.isIncoming ? 'Paiement recu' : tx.status === 'PENDING' ? 'Paiement en attente' : tx.status === 'FAILED' ? 'Paiement echoue' : 'Paiement effectue'}
-                          </p>
-                          <p className="text-xs text-slate-500">{tx.counterparty} - ${tx.amount.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-600 mt-1">{timeAgo(tx.createdAt)}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
+              ))}
+            </div>
           </div>
         </div>
-      </main>
+      </div>
+
+      {/* Recent Transactions */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: '20px',
+          padding: '24px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+          marginBottom: '24px',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Transactions Récentes</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>10 dernières opérations</p>
+          </div>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', color: '#9ca3af', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Voir tout <ChevronDown size={14} />
+          </button>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                {['Date', 'Description', 'Type', 'Montant', 'Statut'].map(h => (
+                  <th key={h} style={{ padding: '0 16px 12px 0', textAlign: 'left', color: '#6b7280', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((tx, i) => {
+                const typeStyle = getTypeStyle(tx.type);
+                const statusStyle = getStatusStyle(tx.status);
+                return (
+                  <tr
+                    key={tx.id}
+                    style={{
+                      borderBottom: i < transactions.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '14px 16px 14px 0', color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(tx.date)}</td>
+                    <td style={{ padding: '14px 16px 14px 0', color: '#e5e7eb', fontSize: 13, fontWeight: 500 }}>{tx.description}</td>
+                    <td style={{ padding: '14px 16px 14px 0' }}>
+                      <span style={{ ...typeStyle, background: typeStyle.bg, borderRadius: '8px', padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>{tx.type}</span>
+                    </td>
+                    <td style={{ padding: '14px 16px 14px 0', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {tx.positive ? <ArrowUpRight size={14} color="#34d399" /> : <ArrowDownRight size={14} color="#f87171" />}
+                        <span style={{ color: tx.positive ? '#34d399' : '#f87171', fontSize: 14, fontWeight: 700 }}>
+                          {tx.positive ? '+' : '-'}{formatAmount(tx.amount)} XAF
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '14px 0' }}>
+                      <span style={{ ...statusStyle, borderRadius: '8px', padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>{tx.status}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: '20px',
+          padding: '24px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+        }}
+      >
+        <div className="mb-5">
+          <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Actions Rapides</h2>
+          <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Raccourcis vers les opérations fréquentes</p>
+        </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {[
+            { label: 'Nouvelle Facture', icon: FileText, color: '#6366f1', desc: 'Créer et envoyer' },
+            { label: 'Nouveau Paiement', icon: CreditCard, color: '#22d3ee', desc: 'Initier un transfert' },
+            { label: 'Ajouter Employé', icon: UserPlus, color: '#c084fc', desc: 'Onboarding RH' },
+            { label: 'Exporter Rapport', icon: Download, color: '#34d399', desc: 'PDF & Excel' },
+          ].map((action, i) => {
+            const ActionIcon = action.icon;
+            return (
+              <button
+                key={i}
+                style={{
+                  background: `${action.color}11`,
+                  border: `1px solid ${action.color}22`,
+                  borderRadius: '16px',
+                  padding: '18px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = `${action.color}22`;
+                  el.style.border = `1px solid ${action.color}44`;
+                  el.style.transform = 'translateY(-2px)';
+                  el.style.boxShadow = `0 12px 24px ${action.color}22`;
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = `${action.color}11`;
+                  el.style.border = `1px solid ${action.color}22`;
+                  el.style.transform = 'translateY(0)';
+                  el.style.boxShadow = 'none';
+                }}
+              >
+                <div style={{ background: `${action.color}22`, borderRadius: '12px', padding: '10px', width: 'fit-content', border: `1px solid ${action.color}33` }}>
+                  <ActionIcon size={20} color={action.color} />
+                </div>
+                <div>
+                  <p style={{ color: '#f3f4f6', fontWeight: 700, fontSize: 14, margin: '0 0 3px 0' }}>{action.label}</p>
+                  <p style={{ color: '#6b7280', fontSize: 12, margin: 0 }}>{action.desc}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Plus size={12} color={action.color} />
+                  <span style={{ color: action.color, fontSize: 12, fontWeight: 600 }}>Commencer</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', marginTop: 32, paddingBottom: 8 }}>
+        <p style={{ color: '#374151', fontSize: 12 }}>PimPay Business Dashboard © 2024 — Données synchronisées en temps réel</p>
+      </div>
     </div>
   );
 }

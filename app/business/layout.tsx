@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import BusinessClientLayout from "./BusinessClientLayout";
 
 export const metadata: Metadata = {
   title: 'Business | PimPay',
-  description: 'Portail Entreprise - Gestion des salaires et tresorerie PimPay',
+  description: 'Portail Entreprise - Gestion des salaires et trésorerie PimPay',
 };
 
 export default function BusinessLayout({
@@ -12,7 +13,7 @@ export default function BusinessLayout({
 }) {
   return (
     <div className="min-h-screen w-full bg-[#02040a]">
-      {children}
+      <BusinessClientLayout>{children}</BusinessClientLayout>
     </div>
   );
 }

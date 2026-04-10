@@ -1,585 +1,301 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { BusinessSidebar } from "@/components/business/BusinessSidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import React, { useState } from 'react';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  BarChart3, FileText, Download, Printer, Mail, Calendar, Eye,
+  TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon,
+  ArrowUpRight, Clock, CheckCircle, Trash2, Share2, X,
+  FileSpreadsheet, File,
+} from 'lucide-react';
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import {
-  Building2,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-  RefreshCw,
-  Download,
-  FileText,
-  Menu,
-  X,
-  Printer,
-  Share2,
-  FileSpreadsheet,
-} from "lucide-react";
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 
-// Types based on API response
-interface Summary {
-  totalRecettes: number;
-  totalDepenses: number;
-  totalProfit: number;
-  totalTransactions: number;
-  recettesChange: number;
-  depensesChange: number;
-  profitChange: number;
-  transactionsChange: number;
-}
+interface Report { id: number; name: string; type: string; period: string; date: string; by: string; size: string; }
 
-interface RevenueData {
-  month: string;
-  recettes: number;
-  depenses: number;
-  profit: number;
-}
-
-interface ExpenseCategory {
-  name: string;
-  value: number;
-  amount: number;
-  color: string;
-}
-
-interface TopClient {
-  rank: number;
-  name: string;
-  revenue: number;
-  transactions: number;
-  growth: number;
-}
-
-interface ReportsData {
-  summary: Summary;
-  revenueData: RevenueData[];
-  expenseCategories: ExpenseCategory[];
-  topClients: TopClient[];
-  period: {
-    start: string;
-    end: string;
-    months: number;
-  };
-}
-
-// Static available reports (these would be saved reports in DB in production)
-const availableReports = [
-  { id: 1, name: "Rapport Financier Mensuel", type: "Finances", reportType: "financial", lastGenerated: "-", format: "PDF" },
-  { id: 2, name: "Rapport de Paie", type: "RH", reportType: "payroll", lastGenerated: "-", format: "PDF" },
+const REPORT_TYPES = [
+  { key: 'bilan', label: 'Bilan Financier', desc: 'Vue complète de la situation financière', icon: FileText, color: '#6366f1', lastGen: '2024-04-08' },
+  { key: 'resultat', label: 'Compte de Résultat', desc: 'Revenus, charges et résultat net', icon: TrendingUp, color: '#34d399', lastGen: '2024-04-05' },
+  { key: 'tresorerie', label: 'Flux de Trésorerie', desc: 'Mouvements de trésorerie détaillés', icon: DollarSign, color: '#22d3ee', lastGen: '2024-04-01' },
+  { key: 'paie', label: 'Rapport de Paie', desc: 'Masse salariale et détails employés', icon: PieIcon, color: '#a78bfa', lastGen: '2024-03-31' },
 ];
 
+const REPORTS_HISTORY: Report[] = [
+  { id: 1, name: 'Bilan Financier Q1 2024', type: 'Bilan', period: 'Jan-Mar 2024', date: '2024-04-08', by: 'Jean-Pierre Mbarga', size: '2.4 MB' },
+  { id: 2, name: 'Compte de Résultat Mars 2024', type: 'Résultat', period: 'Mars 2024', date: '2024-04-05', by: 'Sandrine Ateba', size: '1.8 MB' },
+  { id: 3, name: 'Flux de Trésorerie Q1', type: 'Trésorerie', period: 'Jan-Mar 2024', date: '2024-04-01', by: 'Jean-Pierre Mbarga', size: '1.5 MB' },
+  { id: 4, name: 'Rapport Paie Mars 2024', type: 'Paie', period: 'Mars 2024', date: '2024-03-31', by: 'Aïcha Bello', size: '890 KB' },
+  { id: 5, name: 'Bilan Financier Février', type: 'Bilan', period: 'Fév 2024', date: '2024-03-05', by: 'Sandrine Ateba', size: '2.1 MB' },
+  { id: 6, name: 'Analyse Dépenses Q4 2023', type: 'Résultat', period: 'Oct-Déc 2023', date: '2024-01-15', by: 'Jean-Pierre Mbarga', size: '3.2 MB' },
+  { id: 7, name: 'Rapport Annuel 2023', type: 'Bilan', period: '2023', date: '2024-01-10', by: 'Jean-Pierre Mbarga', size: '8.5 MB' },
+  { id: 8, name: 'Flux Trésorerie Décembre', type: 'Trésorerie', period: 'Déc 2023', date: '2024-01-03', by: 'Sandrine Ateba', size: '1.2 MB' },
+];
+
+const revenueExpenseData = [
+  { month: 'Jan', revenue: 620, expenses: 180, profit: 440 },
+  { month: 'Fév', revenue: 710, expenses: 195, profit: 515 },
+  { month: 'Mar', revenue: 680, expenses: 210, profit: 470 },
+  { month: 'Avr', revenue: 750, expenses: 188, profit: 562 },
+  { month: 'Mai', revenue: 790, expenses: 220, profit: 570 },
+  { month: 'Jun', revenue: 820, expenses: 205, profit: 615 },
+  { month: 'Jul', revenue: 760, expenses: 198, profit: 562 },
+  { month: 'Aoû', revenue: 800, expenses: 215, profit: 585 },
+  { month: 'Sep', revenue: 830, expenses: 225, profit: 605 },
+  { month: 'Oct', revenue: 810, expenses: 218, profit: 592 },
+  { month: 'Nov', revenue: 847, expenses: 234, profit: 613 },
+  { month: 'Déc', revenue: 870, expenses: 240, profit: 630 },
+];
+
+const expenseBreakdown = [
+  { name: 'Salaires', value: 40, color: '#6366f1' },
+  { name: 'Loyers', value: 15, color: '#22d3ee' },
+  { name: 'Technologie', value: 20, color: '#a78bfa' },
+  { name: 'Marketing', value: 12, color: '#34d399' },
+  { name: 'Opérations', value: 8, color: '#f59e0b' },
+  { name: 'Autres', value: 5, color: '#94a3b8' },
+];
+
+const topClients = [
+  { name: 'Orange Money Cameroun', revenue: 312_000_000, share: 18.2 },
+  { name: 'Ecobank Transnational', revenue: 267_800_000, share: 15.6 },
+  { name: 'BGFI Holdings', revenue: 198_400_000, share: 11.6 },
+  { name: 'Société Générale Cameroun', revenue: 176_500_000, share: 10.3 },
+  { name: 'MTN MoMo', revenue: 156_200_000, share: 9.1 },
+];
+
+const agingReport = [
+  { range: '0-30 jours', count: 12, amount: 234_500_000, pct: 45 },
+  { range: '31-60 jours', count: 8, amount: 156_200_000, pct: 30 },
+  { range: '61-90 jours', count: 5, amount: 89_400_000, pct: 17 },
+  { range: '90+ jours', count: 3, amount: 42_100_000, pct: 8 },
+];
+
+const fmt = (n: number) => n.toLocaleString('fr-FR') + ' XAF';
+
 export default function ReportsPage() {
-  const [period, setPeriod] = useState("6m");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Real data state
-  const [data, setData] = useState<ReportsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
-
-  // Fetch reports data
-  const fetchReportsData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/business/reports?period=${period}`, {
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erreur lors du chargement");
-      }
-      
-      setData(result.data);
-      setError(null);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
-    }
-  }, [period]);
-
-  useEffect(() => {
-    fetchReportsData();
-  }, [fetchReportsData]);
-
-  // Generate report
-  const generateReport = async (reportType: string) => {
-    try {
-      setGeneratingReport(reportType);
-      const response = await fetch("/api/business/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          reportType,
-          format: "json"
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erreur lors de la generation");
-      }
-      
-      // Download as JSON file
-      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${reportType}-report-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de la generation");
-    } finally {
-      setGeneratingReport(null);
-    }
-  };
-
-  // Metrics for cards
-  const metrics = data ? [
-    { 
-      metric: "Chiffre d'affaires", 
-      current: data.summary.totalRecettes, 
-      change: data.summary.recettesChange,
-      isHighlight: false
-    },
-    { 
-      metric: "Depenses totales", 
-      current: data.summary.totalDepenses, 
-      change: data.summary.depensesChange,
-      isHighlight: false
-    },
-    { 
-      metric: "Profit net", 
-      current: data.summary.totalProfit, 
-      change: data.summary.profitChange,
-      isHighlight: true
-    },
-    { 
-      metric: "Transactions", 
-      current: data.summary.totalTransactions, 
-      change: data.summary.transactionsChange,
-      isHighlight: false
-    },
-  ] : [];
+  const [selectedReport, setSelectedReport] = useState('bilan');
+  const [showPreview, setShowPreview] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-[#02040a]">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <BusinessSidebar />
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#F3F4F6', letterSpacing: '-0.5px' }}>Rapports Financiers</h1>
+          <p style={{ color: '#9CA3AF', fontSize: '14px', marginTop: '4px' }}>{REPORTS_HISTORY.length} rapports générés</p>
+        </div>
+        <button onClick={() => setShowPreview(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)', color: '#0A0E17', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', border: 'none', cursor: 'pointer' }}>
+          <BarChart3 size={18} /> Générer Rapport
+        </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-64 bg-slate-950 border-r border-white/5 overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-                  <Building2 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-sm font-black text-white">PIMPAY</h1>
-                  <p className="text-[9px] font-bold text-emerald-500 uppercase">Business</p>
-                </div>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-                <X className="h-5 w-5" />
-              </button>
+      {/* Report Type Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        {REPORT_TYPES.map(r => (
+          <div key={r.key} onClick={() => setSelectedReport(r.key)} className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:-translate-y-0.5" style={{ cursor: 'pointer', position: 'relative', overflow: 'hidden', borderColor: selectedReport === r.key ? `${r.color}40` : undefined }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: r.color }} />
+            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: `${r.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <r.icon size={22} style={{ color: r.color }} />
             </div>
-            <BusinessSidebar isMobile />
+            <p style={{ color: '#F3F4F6', fontWeight: 700, fontSize: '15px' }}>{r.label}</p>
+            <p style={{ color: '#6B7280', fontSize: '12px', marginTop: '4px' }}>{r.desc}</p>
+            <p style={{ color: '#4B5563', fontSize: '11px', marginTop: '8px' }}>Dernier: {r.lastGen}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Export Bar */}
+      <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-4 shadow-xl" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Calendar size={16} style={{ color: '#6B7280' }} />
+          <input type="date" defaultValue="2024-01-01" style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#F3F4F6', fontSize: '12px', outline: 'none' }} />
+          <span style={{ color: '#6B7280', fontSize: '12px' }}>à</span>
+          <input type="date" defaultValue="2024-04-10" style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#F3F4F6', fontSize: '12px', outline: 'none' }} />
         </div>
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
-        {/* Mobile Header */}
-        <div className="flex items-center justify-between mb-6 lg:hidden">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
-          </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {[
+            { icon: File, label: 'PDF', color: '#ef4444' },
+            { icon: FileSpreadsheet, label: 'Excel', color: '#34d399' },
+            { icon: Printer, label: 'Imprimer', color: '#6B7280' },
+            { icon: Mail, label: 'Email', color: '#6366f1' },
+          ].map(b => (
+            <button key={b.label} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: '#0D1117', border: '1px solid #1F2937', color: '#9CA3AF', fontSize: '12px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }} className="hover:border-white/20 hover:text-white">
+              <b.icon size={14} style={{ color: b.color }} /> {b.label}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Rapports</h1>
-            <p className="text-sm text-slate-500 mt-1">Analyses et statistiques de votre activite</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-36 bg-slate-900/50 border-white/10 text-white text-xs font-bold">
-                <Calendar className="h-4 w-4 mr-2 text-slate-500" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-white/10">
-                <SelectItem value="1m">Ce mois</SelectItem>
-                <SelectItem value="3m">3 mois</SelectItem>
-                <SelectItem value="6m">6 mois</SelectItem>
-                <SelectItem value="1y">Cette annee</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button 
-              variant="outline" 
-              className="border-white/10 text-xs font-bold"
-              onClick={fetchReportsData}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Actualiser
-            </Button>
-          </div>
-        </div>
-
-        {/* Error State */}
-        {error && (
-          <Card className="bg-red-500/10 border-red-500/30 rounded-3xl mb-8">
-            <CardContent className="p-6">
-              <p className="text-red-400 text-sm">{error}</p>
-              <Button variant="outline" size="sm" onClick={fetchReportsData} className="mt-2 border-red-500/30 text-red-400">
-                Reessayer
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {loading ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-3xl bg-slate-800" />
-            ))
-          ) : (
-            metrics.map((metric, index) => (
-              <Card key={index} className={`rounded-3xl ${
-                metric.isHighlight 
-                  ? "bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border-emerald-500/30" 
-                  : "bg-slate-900/50 border-white/5"
-              }`}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${
-                        metric.isHighlight ? "text-emerald-300/70" : "text-slate-500"
-                      }`}>
-                        {metric.metric}
-                      </p>
-                      <p className="text-2xl font-black text-white mt-1">
-                        {metric.metric.includes("Transactions") 
-                          ? metric.current 
-                          : `$${metric.current.toLocaleString()}`}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {metric.change >= 0 ? (
-                          <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                        ) : (
-                          <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-                        )}
-                        <span className={`text-xs font-bold ${
-                          metric.change >= 0 ? "text-emerald-400" : "text-rose-400"
-                        }`}>
-                          {metric.change >= 0 ? "+" : ""}{metric.change}%
-                        </span>
-                        <span className="text-xs text-slate-500">vs periode prec.</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+      {/* Financial Overview */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        {/* Revenue vs Expenses Chart */}
+        <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl">
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6', marginBottom: '20px' }}>Revenus vs Dépenses (M XAF)</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={revenueExpenseData}>
+              <defs>
+                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+              <XAxis dataKey="month" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={{ stroke: '#1F2937' }} />
+              <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={{ stroke: '#1F2937' }} />
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6' }} />
+              <Area type="monotone" dataKey="revenue" stroke="#6366f1" fill="url(#revGrad)" strokeWidth={2} name="Revenus" />
+              <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="url(#expGrad)" strokeWidth={2} name="Dépenses" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-          {/* Revenue & Expenses Chart */}
-          <div className="xl:col-span-2">
-            <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-black text-white">Recettes vs Depenses</CardTitle>
-                    <CardDescription className="text-slate-500">
-                      Evolution sur {data?.period.months || 6} mois
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-bold text-slate-400">Recettes</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-rose-500" />
-                      <span className="text-xs font-bold text-slate-400">Depenses</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500" />
-                      <span className="text-xs font-bold text-slate-400">Profit</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  {loading ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Skeleton className="w-full h-full rounded-2xl bg-slate-800" />
-                    </div>
-                  ) : data?.revenueData && data.revenueData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.revenueData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `$${v/1000}k`} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                          }}
-                          formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
-                        />
-                        <Bar dataKey="recettes" fill="#10b981" radius={[4, 4, 0, 0]} name="Recettes" />
-                        <Bar dataKey="depenses" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Depenses" />
-                        <Bar dataKey="profit" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Profit" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-slate-500 text-sm">Aucune donnee disponible</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Expense Categories */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-black text-white">Repartition des Depenses</CardTitle>
-              <CardDescription className="text-slate-500">Par categorie</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <>
-                  <Skeleton className="h-[180px] rounded-2xl bg-slate-800 mb-4" />
-                  <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Skeleton key={i} className="h-6 bg-slate-800" />
-                    ))}
-                  </div>
-                </>
-              ) : data?.expenseCategories && data.expenseCategories.some(c => c.amount > 0) ? (
-                <>
-                  <div className="h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={data.expenseCategories.filter(c => c.amount > 0)}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={45}
-                          outerRadius={75}
-                          paddingAngle={4}
-                          dataKey="value"
-                        >
-                          {data.expenseCategories.filter(c => c.amount > 0).map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                          }}
-                          formatter={(value: number, name: string, props: { payload: ExpenseCategory }) => [
-                            `$${props.payload.amount.toLocaleString()} (${value}%)`, 
-                            props.payload.name
-                          ]}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-2">
-                    {data.expenseCategories.map((category) => (
-                      <div key={category.name} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                          <span className="text-xs font-bold text-slate-400">{category.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-black text-white">
-                            ${category.amount >= 1000 ? `${(category.amount / 1000).toFixed(0)}k` : category.amount}
-                          </span>
-                          <span className="text-[10px] text-slate-500 ml-2">({category.value}%)</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-center h-[300px]">
-                  <p className="text-slate-500 text-sm">Aucune depense enregistree</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Bottom Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Top Clients */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-black text-white">Top Clients</CardTitle>
-                  <CardDescription className="text-slate-500">Par chiffre d&apos;affaires</CardDescription>
-                </div>
+        {/* Expense Breakdown Pie */}
+        <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl">
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6', marginBottom: '20px' }}>Répartition Dépenses</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={expenseBreakdown} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" stroke="none">
+                {expenseBreakdown.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6' }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+            {expenseBreakdown.map(e => (
+              <div key={e.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: e.color }} />
+                <span style={{ color: '#9CA3AF' }}>{e.name} {e.value}%</span>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-20 rounded-2xl bg-slate-800" />
-                ))
-              ) : data?.topClients && data.topClients.length > 0 ? (
-                data.topClients.map((client) => (
-                  <div key={client.rank} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-sm font-black text-white">
-                        {client.rank}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">{client.name}</p>
-                        <p className="text-[10px] text-slate-500">{client.transactions} transactions</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-white">${client.revenue.toLocaleString()}</p>
-                      <div className="flex items-center gap-1 justify-end">
-                        {client.growth >= 0 ? (
-                          <TrendingUp className="h-3 w-3 text-emerald-400" />
-                        ) : (
-                          <TrendingDown className="h-3 w-3 text-rose-400" />
-                        )}
-                        <span className={`text-[10px] font-bold ${client.growth >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {client.growth >= 0 ? "+" : ""}{client.growth}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-slate-500 text-sm">Aucun client trouve</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          {/* Available Reports */}
-          <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-black text-white">Rapports Disponibles</CardTitle>
-                  <CardDescription className="text-slate-500">Telecharger ou partager</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {availableReports.map((report) => (
-                <div key={report.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/30 border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${
-                      report.format === "PDF" ? "bg-red-500/10" : "bg-emerald-500/10"
-                    }`}>
-                      {report.format === "PDF" ? (
-                        <FileText className="h-5 w-5 text-red-500" />
-                      ) : (
-                        <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">{report.name}</p>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-slate-800 text-slate-300 border-white/10 text-[9px] font-bold">
-                          {report.type}
-                        </Badge>
+      {/* Profit Margin Trend */}
+      <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl" style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6', marginBottom: '20px' }}>Marge Bénéficiaire (M XAF)</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={revenueExpenseData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+            <XAxis dataKey="month" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={{ stroke: '#1F2937' }} />
+            <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={{ stroke: '#1F2937' }} />
+            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6' }} />
+            <Line type="monotone" dataKey="profit" stroke="#C8A961" strokeWidth={2.5} dot={{ fill: '#C8A961', r: 3 }} name="Marge" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Top Clients + Aging */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        {/* Top Clients */}
+        <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #1F2937' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6' }}>Top Clients par Revenu</h3>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1F2937' }}>
+                {['Client', 'Revenu', 'Part'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#9CA3AF' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {topClients.map((c, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
+                  <td style={{ padding: '10px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 500 }}>{c.name}</td>
+                  <td style={{ padding: '10px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{fmt(c.revenue)}</td>
+                  <td style={{ padding: '10px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#1F2937', overflow: 'hidden' }}>
+                        <div style={{ width: `${c.share * 5}%`, height: '100%', background: '#6366f1', borderRadius: '3px' }} />
                       </div>
+                      <span style={{ color: '#9CA3AF', fontSize: '12px', fontWeight: 600, minWidth: '40px' }}>{c.share}%</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-slate-400 hover:text-white"
-                      onClick={() => generateReport(report.reportType)}
-                      disabled={generatingReport === report.reportType}
-                    >
-                      {generatingReport === report.reportType ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
-                      <Share2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                  </td>
+                </tr>
               ))}
-            </CardContent>
-          </Card>
+            </tbody>
+          </table>
         </div>
-      </main>
+
+        {/* Aging Report */}
+        <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #1F2937' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6' }}>Créances — Rapport d&apos;Ancienneté</h3>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1F2937' }}>
+                {['Période', 'Factures', 'Montant', '%'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#9CA3AF' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {agingReport.map((a, i) => {
+                const colors = ['#34d399', '#fbbf24', '#f59e0b', '#ef4444'];
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
+                    <td style={{ padding: '10px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 500 }}>{a.range}</td>
+                    <td style={{ padding: '10px 16px', color: '#9CA3AF', fontSize: '13px' }}>{a.count}</td>
+                    <td style={{ padding: '10px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{fmt(a.amount)}</td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#1F2937', overflow: 'hidden' }}>
+                          <div style={{ width: `${a.pct}%`, height: '100%', background: colors[i], borderRadius: '3px' }} />
+                        </div>
+                        <span style={{ color: colors[i], fontSize: '12px', fontWeight: 600, minWidth: '30px' }}>{a.pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Reports History */}
+      <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #1F2937' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F3F4F6' }}>Historique des Rapports</h3>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #1F2937' }}>
+              {['Rapport', 'Type', 'Période', 'Date', 'Généré par', 'Taille', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9CA3AF' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {REPORTS_HISTORY.map(r => (
+              <tr key={r.id} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }} className="hover:bg-white/[0.02]">
+                <td style={{ padding: '12px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{r.name}</td>
+                <td style={{ padding: '12px 16px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(99,102,241,0.15)', color: '#6366f1', fontSize: '11px', fontWeight: 600 }}>{r.type}</span></td>
+                <td style={{ padding: '12px 16px', color: '#9CA3AF', fontSize: '13px' }}>{r.period}</td>
+                <td style={{ padding: '12px 16px', color: '#9CA3AF', fontSize: '13px' }}>{r.date}</td>
+                <td style={{ padding: '12px 16px', color: '#9CA3AF', fontSize: '13px' }}>{r.by}</td>
+                <td style={{ padding: '12px 16px', color: '#6B7280', fontSize: '13px' }}>{r.size}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[{ icon: Download, t: 'Télécharger' }, { icon: Share2, t: 'Partager' }].map((a, j) => (
+                      <button key={j} title={a.t} style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#0D1117', border: '1px solid #1F2937', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', cursor: 'pointer' }} className="hover:border-white/20 hover:text-white">
+                        <a.icon size={14} />
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
