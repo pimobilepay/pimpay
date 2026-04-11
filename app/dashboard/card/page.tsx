@@ -299,13 +299,15 @@ export default function McardPage() {
       default:
         return {
           gradient: cardBrand === "VISA" 
-            ? "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]"
+            ? "bg-gradient-to-br from-[#2d2a54] via-[#3d3a6d] to-[#252347]"
             : "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-          shadow: "shadow-2xl shadow-blue-600/20",
+          shadow: cardBrand === "VISA" 
+            ? "shadow-2xl shadow-purple-600/20"
+            : "shadow-2xl shadow-blue-600/20",
           label: "PIMPAY VIRTUAL",
           labelColor: "text-[#FFD700]",
           pattern: "virtual",
-          accentColor: "text-blue-400",
+          accentColor: cardBrand === "VISA" ? "text-[#4a6cf7]" : "text-blue-400",
         };
     }
   };
