@@ -112,7 +112,33 @@ const getDefaultStyle = (brand: string) => {
   };
 };
 
-export default function VirtualCard({ card, user }: any) {
+// VISA Pattern SVG - matching the order page design
+function VisaPattern() {
+  return (
+    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+      <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
+      <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
+      <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
+      <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
+      <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
+      <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
+      <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
+    </svg>
+  );
+}
+
+// MasterCard Pattern SVG - matching the order page design
+function MasterCardPattern() {
+  return (
+    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+      <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+      <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+      <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+    </svg>
+  );
+}
+
+export default function VirtualCard({ card }: { card: any }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 
@@ -122,15 +148,10 @@ export default function VirtualCard({ card, user }: any) {
   // Get card styles based on type
   const cardStyles = CARD_STYLES[cardType] || getDefaultStyle(card.brand);
   const isVisa = cardStyles.brand === "VISA";
+  const isMasterCard = cardStyles.brand === "MASTERCARD";
 
   const handleFlip = () => setIsFlipped(!isFlipped);
   const toggleShowInfo = () => setShowInfo(!showInfo);
-  
-  const getBackGradient = () => {
-    if (card.isFrozen) return "bg-gray-800";
-    // Use the same gradient for back but slightly adjusted
-    return cardStyles.gradient;
-  };
 
   return (
     <div className="space-y-3">
@@ -146,7 +167,7 @@ export default function VirtualCard({ card, user }: any) {
           <div
             className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 md:p-8 text-white shadow-2xl overflow-hidden ${
               card.isFrozen ? "grayscale" : ""
-            } ${getCardGradient()}`}
+            } ${cardStyles.gradient}`}
             style={{ backfaceVisibility: "hidden" }}
           >
             {isVisa && !card.isFrozen && <VisaPattern />}
@@ -205,8 +226,8 @@ export default function VirtualCard({ card, user }: any) {
           {/* Face arriere de la carte (CVV) */}
           <div
             className={`absolute inset-0 w-full h-full rounded-[1.5rem] text-white shadow-2xl overflow-hidden ${
-              card.isFrozen ? "grayscale" : ""
-            } ${getBackGradient()}`}
+              card.isFrozen ? "grayscale bg-gray-800" : cardStyles.gradient
+            }`}
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
             <div className="w-full h-14 bg-black/80 mt-6"></div>
