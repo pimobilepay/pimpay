@@ -571,8 +571,6 @@ export default function McardPage() {
   // Use actual brand for logo/pattern display
   const isVisa = cardBrand.toUpperCase() === "VISA";
 
-  const cardStyles = getCardStyles();
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center">
