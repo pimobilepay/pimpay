@@ -568,11 +568,10 @@ export default function McardPage() {
                 className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 overflow-hidden ${isFrozen ? "grayscale opacity-60" : cardStyles.shadow}`}
                 style={{ backfaceVisibility: "hidden" }}
               >
-                {/* Background gradient based on card type */}
+                {/* Background gradient based on card brand */}
                 <div className={`absolute inset-0 rounded-[1.5rem] overflow-hidden ${cardStyles.gradient}`}>
-                  {/* Pattern based on card type */}
-                  {/* VISA patterns */}
-                  {(cardStyles.pattern === "visa" || cardStyles.pattern === "visa-black") && (
+                  {/* Pattern based on card brand - VISA or MASTERCARD */}
+                  {isVisa ? (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
                       <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
@@ -582,73 +581,11 @@ export default function McardPage() {
                       <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
                       <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
                     </svg>
-                  )}
-                  {cardStyles.pattern === "visa-gold" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <defs>
-                        <linearGradient id="visaGoldShine" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="rgba(255,255,255,0.3)" />
-                          <stop offset="50%" stopColor="rgba(255,255,255,0.05)" />
-                          <stop offset="100%" stopColor="rgba(255,255,255,0.3)" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="0" y="0" width="400" height="250" fill="url(#visaGoldShine)" />
-                      <circle cx="350" cy="60" r="50" fill="rgba(255,255,255,0.15)" />
-                      <circle cx="320" cy="180" r="30" fill="rgba(255,255,255,0.1)" />
-                    </svg>
-                  )}
-                  {cardStyles.pattern === "visa-platinum" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <defs>
-                        <linearGradient id="visaPlatinumShine" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
-                          <stop offset="50%" stopColor="rgba(255,255,255,0.25)" />
-                          <stop offset="100%" stopColor="rgba(255,255,255,0.1)" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="-50" y="80" width="500" height="60" fill="url(#visaPlatinumShine)" transform="rotate(-10)" />
-                      <rect x="-50" y="140" width="500" height="30" fill="url(#visaPlatinumShine)" transform="rotate(-10)" opacity="0.5" />
-                    </svg>
-                  )}
-                  {/* MASTERCARD patterns */}
-                  {cardStyles.pattern === "mastercard" && (
+                  ) : (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
                       <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
                       <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
-                    </svg>
-                  )}
-                  {/* Legacy patterns for backward compatibility */}
-                  {cardStyles.pattern === "physical" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <rect x="0" y="0" width="400" height="250" fill="url(#physicalGradient)" />
-                      <defs>
-                        <linearGradient id="physicalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="rgba(255,255,255,0.05)" />
-                          <stop offset="50%" stopColor="rgba(255,255,255,0.02)" />
-                          <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
-                        </linearGradient>
-                      </defs>
-                      <line x1="0" y1="80" x2="400" y2="80" stroke="rgba(255,255,255,0.1)" strokeWidth="30" />
-                    </svg>
-                  )}
-                  {cardStyles.pattern === "business" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <rect x="320" y="20" width="60" height="60" rx="8" fill="rgba(255,255,255,0.05)" />
-                      <rect x="340" y="40" width="60" height="60" rx="8" fill="rgba(255,255,255,0.03)" />
-                      <path d="M 0 200 L 150 150 L 300 180 L 400 140" stroke="rgba(255,255,255,0.08)" strokeWidth="2" fill="none" />
-                    </svg>
-                  )}
-                  {cardStyles.pattern === "platinum" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <defs>
-                        <linearGradient id="platinumShine" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
-                          <stop offset="50%" stopColor="rgba(255,255,255,0.2)" />
-                          <stop offset="100%" stopColor="rgba(255,255,255,0.1)" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="-50" y="100" width="500" height="50" fill="url(#platinumShine)" transform="rotate(-15)" />
                     </svg>
                   )}
                 </div>
