@@ -143,8 +143,9 @@ export async function POST(req: NextRequest) {
           reference: `CARD-RECHARGE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           amount: parsedAmount,
           fee,
-          type: "TRANSFER",
+          type: "CARD_RECHARGE",
           status: "SUCCESS",
+          currency: currency, // Explicitly set currency (USD or EUR)
           description: `Recharge carte *${card.number.slice(-4)} depuis ${currency}`,
           fromUserId: userId,
           fromWalletId: sourceWallet.id,
@@ -155,6 +156,7 @@ export async function POST(req: NextRequest) {
             currency,
             netAmount,
             feeRate: `${feeRate * 100}%`,
+            type: "CARD_RECHARGE",
           },
         },
       });

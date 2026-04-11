@@ -76,9 +76,27 @@ export default function McardPage() {
     type: "debit" | "credit";
     status: "success" | "pending" | "failed";
     category: string;
+    currency: string;
+    reference?: string;
+    fee?: number;
+    metadata?: Record<string, unknown>;
   }[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [cardBalance, setCardBalance] = useState<CardBalanceData>({ USD: 0, EUR: 0 });
+  const [selectedTransaction, setSelectedTransaction] = useState<{
+    id: string;
+    merchant: string;
+    amount: string;
+    date: string;
+    type: "debit" | "credit";
+    status: "success" | "pending" | "failed";
+    category: string;
+    currency: string;
+    reference?: string;
+    fee?: number;
+    metadata?: Record<string, unknown>;
+  } | null>(null);
+  const [showTransactionDetail, setShowTransactionDetail] = useState(false);
   
   // Recharge & Withdraw Modal States
   const [showRechargeModal, setShowRechargeModal] = useState(false);

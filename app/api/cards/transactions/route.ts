@@ -39,16 +39,23 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch card transactions (CARD_PURCHASE type or transactions with card metadata)
+    // Fetch card transactions (CARD_PURCHASE, CARD_RECHARGE, CARD_WITHDRAW and PAYMENT types)
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
           { fromUserId: userId, type: "CARD_PURCHASE" },
+          { fromUserId: userId, type: "CARD_RECHARGE" },
+          { fromUserId: userId, type: "CARD_WITHDRAW" },
           { fromUserId: userId, type: "PAYMENT" },
+          // Also include transactions with card metadata
+          { 
+            fromUserId: userId,
+            description: { contains: "carte" }
+          },
         ]
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: 50,
     });
 
     // Format transactions for the frontend
@@ -56,26 +63,50 @@ export async function GET(request: Request) {
       // Parse metadata if available for merchant info
       let merchant = tx.description || "Transaction carte";
       let category = "Achat";
+      let txCurrency = tx.currency || "USD";
       
       if (tx.metadata && typeof tx.metadata === 'object') {
-        const meta = tx.metadata as { merchant?: string; category?: string };
+        const meta = tx.metadata as { merchant?: string; category?: string; currency?: string; type?: string };
         if (meta.merchant) merchant = meta.merchant;
         if (meta.category) category = meta.category;
+        // Get currency from metadata if available (more accurate for card transactions)
+        if (meta.currency) txCurrency = meta.currency;
+        // Set category based on transaction type
+        if (meta.type === "CARD_RECHARGE") category = "Recharge";
+        if (meta.type === "CARD_WITHDRAW") category = "Retrait";
       }
 
-      // Determine transaction type (debit/credit)
-      const isDebit = tx.fromUserId === userId;
+      // Determine transaction type based on transaction type field
+      let isDebit = true;
+      let displayType: "debit" | "credit" = "debit";
+      
+      if (tx.type === "CARD_RECHARGE") {
+        // Recharge is debit from main wallet, credit to card
+        isDebit = true;
+        displayType = "credit"; // Show as credit on card view (money coming in)
+        category = "Recharge";
+      } else if (tx.type === "CARD_WITHDRAW") {
+        // Withdraw is debit from card, credit to main wallet
+        isDebit = true;
+        displayType = "debit"; // Show as debit on card view (money going out)
+        category = "Retrait";
+      } else {
+        isDebit = tx.fromUserId === userId;
+        displayType = isDebit ? "debit" : "credit";
+      }
       
       return {
         id: tx.id,
         merchant,
-        amount: isDebit ? `-${tx.amount.toFixed(2)}` : `+${tx.amount.toFixed(2)}`,
+        amount: displayType === "debit" ? `-${tx.amount.toFixed(2)}` : `+${tx.amount.toFixed(2)}`,
         date: formatDate(tx.createdAt),
-        type: isDebit ? "debit" : "credit",
+        type: displayType,
         status: tx.status === "SUCCESS" ? "success" : tx.status === "PENDING" ? "pending" : "failed",
         category,
-        currency: tx.currency || "USD",
-        reference: tx.reference
+        currency: txCurrency,
+        reference: tx.reference,
+        fee: tx.fee || 0,
+        metadata: tx.metadata,
       };
     });
 

@@ -729,12 +729,15 @@ enum WalletType {
 enum TransactionType {
   TRANSFER
   WITHDRAW
+  WITHDRAWAL
   DEPOSIT
   PAYMENT
   EXCHANGE
   STAKING_REWARD
   AIRDROP
   CARD_PURCHASE
+  CARD_RECHARGE
+  CARD_WITHDRAW
 }
 
 enum TransactionStatus {

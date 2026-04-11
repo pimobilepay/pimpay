@@ -153,8 +153,9 @@ export async function POST(req: NextRequest) {
           reference: `CARD-WITHDRAW-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           amount: parsedAmount,
           fee,
-          type: "WITHDRAWAL",
+          type: "CARD_WITHDRAW",
           status: "SUCCESS",
+          currency: currency, // Explicitly set currency (USD or EUR)
           description: `Retrait carte *${card.number.slice(-4)} vers compte ${currency}`,
           fromUserId: userId,
           fromWalletId: cardWallet.id,
@@ -165,6 +166,7 @@ export async function POST(req: NextRequest) {
             currency,
             netAmount,
             feeRate: `${feeRate * 100}%`,
+            type: "CARD_WITHDRAW",
           },
         },
       });
