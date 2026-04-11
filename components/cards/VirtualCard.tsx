@@ -16,7 +16,7 @@ const MasterCardPattern = () => (
   </svg>
 );
 
-// Decorative wave pattern for VISA (Platinum Business style)
+// Decorative wave pattern for VISA (Deep Navy style with blue accents)
 const VisaPattern = () => (
   <svg
     className="absolute inset-0 w-full h-full"
@@ -24,9 +24,16 @@ const VisaPattern = () => (
     preserveAspectRatio="xMidYMid slice"
     xmlns="http://www.w3.org/2000/svg"
   >
-    <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.3)" />
-    <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.2)" />
-    <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.15)" />
+    {/* Abstract shape - elephant/shield like left side */}
+    <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
+    <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
+    {/* Contactless waves pattern */}
+    <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
+    <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
+    <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
+    {/* Decorative swirl bottom right */}
+    <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
+    <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
   </svg>
 );
 
@@ -48,7 +55,7 @@ export default function VirtualCard({ card, user }: any) {
   const isVisa = card.brand?.toLowerCase() === "visa";
   const isMasterCard = card.brand?.toLowerCase() === "mastercard";
 
-  const visaGradient = "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]";
+  const visaGradient = "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]";
   const masterCardGradient = "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]";
   const defaultGradient = "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a]";
 
@@ -61,7 +68,7 @@ export default function VirtualCard({ card, user }: any) {
 
   const getBackGradient = () => {
     if (card.isFrozen) return "bg-gray-800";
-    if (isVisa) return "bg-gradient-to-br from-[#3f51b5] via-[#5c6bc0] to-[#7986cb]";
+    if (isVisa) return "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]";
     if (isMasterCard) return "bg-gradient-to-br from-[#01579b] via-[#0277bd] to-[#0288d1]";
     return "bg-gradient-to-br from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d]";
   };
@@ -97,7 +104,7 @@ export default function VirtualCard({ card, user }: any) {
                   <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
                 </div>
                 {isVisa ? (
-                  <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                  <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
                 ) : isMasterCard ? (
                   <div className="flex items-center">
                     <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
@@ -110,7 +117,7 @@ export default function VirtualCard({ card, user }: any) {
 
               {/* Middle Section - Contactless icon on right */}
               <div className="flex-1 flex items-end justify-end py-2">
-                <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
+                <Wifi size={24} className={`rotate-90 ${isVisa ? "text-[#3b5bdb]" : "text-[#3b82f6]"}`} />
               </div>
 
               {/* Card Number - stays on one line */}
@@ -122,15 +129,15 @@ export default function VirtualCard({ card, user }: any) {
                 </p>
               </div>
 
-              {/* Bottom Section - EXPIRE, CVV labels in gray */}
+              {/* Bottom Section - EXPIRE, CVV labels in gold for Visa, gray for others */}
               <div className="space-y-1">
                 <div className="flex gap-8">
                   <div>
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
+                    <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
                     <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.exp : "••/••"}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">CVV</p>
+                    <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
                     <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.cvv || "***" : "•••"}</p>
                   </div>
                 </div>
