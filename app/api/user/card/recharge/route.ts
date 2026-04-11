@@ -1,0 +1,150 @@
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
+import { sendNotification } from "@/lib/notifications";
+
+export async function POST(req: NextRequest) {
+  try {
+    const SECRET = process.env.JWT_SECRET;
+    if (!SECRET) {
+      return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
+    }
+
+    const cookieStore = await cookies();
+    const token = cookieStore.get("pimpay_token")?.value;
+    if (!token) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+
+    let userId: string;
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET));
+      userId = payload.id as string;
+    } catch {
+      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const { cardId, amount, currency } = body;
+
+    if (!cardId || !amount || !currency) {
+      return NextResponse.json({ error: "Donnees manquantes" }, { status: 400 });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
+
+    if (!["USD", "EUR"].includes(currency)) {
+      return NextResponse.json({ error: "Devise non supportee" }, { status: 400 });
+    }
+
+    // Verify card belongs to user
+    const card = await prisma.virtualCard.findFirst({
+      where: { id: cardId, userId },
+    });
+
+    if (!card) {
+      return NextResponse.json({ error: "Carte non trouvee" }, { status: 404 });
+    }
+
+    // Find source wallet (USD or EUR)
+    const sourceWallet = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency } },
+    });
+
+    if (!sourceWallet || sourceWallet.balance < parsedAmount) {
+      return NextResponse.json({ 
+        error: `Solde ${currency} insuffisant`,
+        available: sourceWallet?.balance || 0 
+      }, { status: 400 });
+    }
+
+    // Find or create card wallet
+    let cardWallet = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: `CARD_${currency}` } },
+    });
+
+    if (!cardWallet) {
+      cardWallet = await prisma.wallet.create({
+        data: {
+          userId,
+          currency: `CARD_${currency}`,
+          balance: 0,
+        },
+      });
+    }
+
+    // Calculate fees (2% recharge fee)
+    const feeRate = 0.02;
+    const fee = parsedAmount * feeRate;
+    const netAmount = parsedAmount - fee;
+
+    // Atomic transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Debit source wallet
+      await tx.wallet.update({
+        where: { id: sourceWallet.id },
+        data: { balance: { decrement: parsedAmount } },
+      });
+
+      // Credit card wallet
+      await tx.wallet.update({
+        where: { id: cardWallet!.id },
+        data: { balance: { increment: netAmount } },
+      });
+
+      // Create transaction record
+      return await tx.transaction.create({
+        data: {
+          reference: `CARD-RECHARGE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          amount: parsedAmount,
+          fee,
+          type: "TRANSFER",
+          status: "SUCCESS",
+          description: `Recharge carte *${card.number.slice(-4)} depuis ${currency}`,
+          fromUserId: userId,
+          fromWalletId: sourceWallet.id,
+          toWalletId: cardWallet!.id,
+          metadata: {
+            cardId,
+            cardLast4: card.number.slice(-4),
+            currency,
+            netAmount,
+            feeRate: `${feeRate * 100}%`,
+          },
+        },
+      });
+    });
+
+    // Send notification
+    try {
+      await sendNotification({
+        userId,
+        title: "Recharge carte reussie",
+        message: `${netAmount.toFixed(2)} ${currency} ajoutes a votre carte *${card.number.slice(-4)}`,
+        type: "success",
+      });
+    } catch (notifErr) {
+      console.warn("Notification non envoyee:", notifErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      txId: result.id,
+      amount: parsedAmount,
+      fee,
+      netAmount,
+      currency,
+    });
+
+  } catch (error: unknown) {
+    console.error("CARD_RECHARGE_ERROR:", error);
+    return NextResponse.json({ 
+      error: "Echec de la recharge",
+      details: error instanceof Error ? error.message : "Erreur inconnue"
+    }, { status: 500 });
+  }
+}

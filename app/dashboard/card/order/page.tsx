@@ -436,10 +436,85 @@ export default function CardOrderPage() {
         {/* STEP 2: SUMMARY */}
         {step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
+            {/* Card Preview Image */}
+            <div className="relative">
+              <div className="absolute -inset-2 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-cyan-600/20 rounded-[2rem] blur-xl opacity-50" />
+              <div className={`relative w-full aspect-[1.586/1] rounded-[1.5rem] overflow-hidden shadow-2xl border ${selectedCard.border} transition-all duration-500`}>
+                <div className={`absolute inset-0 bg-gradient-to-br ${selectedCard.gradient}`}>
+                  {/* VISA Pattern - Deep Navy with blue accents */}
+                  {selectedCard.brand === "VISA" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
+                      <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
+                      <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
+                      <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
+                      <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
+                      <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
+                      <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
+                    </svg>
+                  )}
+                  {/* MasterCard Pattern */}
+                  {selectedCard.brand === "MASTERCARD" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+                      <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+                      <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+                    </svg>
+                  )}
+                </div>
+
+                <div className="relative h-full p-6 flex flex-col justify-between z-10">
+                  {/* Header */}
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck size={14} className="text-[#FFD700]" />
+                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+                    </div>
+                    {selectedCard.brand === "VISA" ? (
+                      <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                    ) : (
+                      <div className="flex items-center">
+                        <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
+                        <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Middle - Contactless icon */}
+                  <div className="flex-1 flex items-end justify-end py-2">
+                    <Wifi size={24} className={`rotate-90 ${selectedCard.brand === "VISA" ? "text-[#3b5bdb]" : "text-[#3b82f6]"}`} />
+                  </div>
+
+                  {/* Card Number */}
+                  <div className="mb-2">
+                    <p className="text-base font-mono tracking-[0.15em] text-white whitespace-nowrap">
+                      {"•••• •••• •••• "}
+                      <span className={selectedCard.brand === "VISA" ? "text-[#3b5bdb]" : "text-[#3b82f6]"}>••••</span>
+                    </p>
+                  </div>
+
+                  {/* Bottom - EXPIRE, CVV, Holder */}
+                  <div className="space-y-1">
+                    <div className="flex gap-6">
+                      <div>
+                        <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
+                        <p className="text-xs font-bold tracking-widest text-white">{"••/••"}</p>
+                      </div>
+                      <div>
+                        <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
+                        <p className="text-xs font-bold tracking-widest text-white">{"•••"}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs font-black uppercase tracking-widest text-white pt-1">{selectedCard.tier}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Pricing Breakdown */}
             <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md space-y-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
+                <div className={`w-12 h-12 bg-gradient-to-br ${selectedCard.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
                   <CreditCard size={24} className="text-white" />
                 </div>
                 <div>

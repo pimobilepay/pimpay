@@ -8,7 +8,8 @@ import {
   ChevronRight, Copy, CheckCircle2,
   Ban, Wifi, RefreshCw,
   ArrowUpRight, ArrowDownLeft, Wallet,
-  DollarSign, Activity, Fingerprint, Loader2, Euro, Globe
+  DollarSign, Activity, Fingerprint, Loader2, Euro, Globe,
+  X, AlertTriangle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -71,6 +72,16 @@ export default function McardPage() {
     category: string;
   }[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  
+  // Recharge & Withdraw Modal States
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [rechargeAmount, setRechargeAmount] = useState("");
+  const [rechargeCurrency, setRechargeCurrency] = useState<"USD" | "EUR">("USD");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawCurrency, setWithdrawCurrency] = useState<"USD" | "EUR">("USD");
+  const [processingRecharge, setProcessingRecharge] = useState(false);
+  const [processingWithdraw, setProcessingWithdraw] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -227,6 +238,109 @@ export default function McardPage() {
       }
     }
     return total;
+  };
+
+  // Get specific wallet balance
+  const getWalletBalance = (currency: string): number => {
+    const wallet = wallets.find(w => w.currency === currency);
+    return wallet?.balance || 0;
+  };
+
+  // Handle card recharge
+  const handleRecharge = async () => {
+    if (!cardData?.id || !rechargeAmount) return;
+    
+    const amount = parseFloat(rechargeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Montant invalide");
+      return;
+    }
+
+    const available = getWalletBalance(rechargeCurrency);
+    if (amount > available) {
+      toast.error(`Solde ${rechargeCurrency} insuffisant`);
+      return;
+    }
+
+    setProcessingRecharge(true);
+    try {
+      const res = await fetch("/api/user/card/recharge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: cardData.id,
+          amount,
+          currency: rechargeCurrency,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Recharge de ${data.netAmount.toFixed(2)} ${rechargeCurrency} reussie!`);
+        setShowRechargeModal(false);
+        setRechargeAmount("");
+        // Refresh balances
+        const balanceRes = await fetch("/api/wallet/balance");
+        const balanceData = await balanceRes.json();
+        if (balanceData.wallets) setWallets(balanceData.wallets);
+      } else {
+        toast.error(data.error || "Echec de la recharge");
+      }
+    } catch (err) {
+      console.error("Recharge error:", err);
+      toast.error("Erreur lors de la recharge");
+    } finally {
+      setProcessingRecharge(false);
+    }
+  };
+
+  // Handle card withdraw
+  const handleWithdraw = async () => {
+    if (!cardData?.id || !withdrawAmount) return;
+    
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Montant invalide");
+      return;
+    }
+
+    // Card balance check (simplified - uses displayed balance)
+    const cardBalance = withdrawCurrency === "USD" ? usdBalance : eurBalance;
+    if (amount > cardBalance) {
+      toast.error(`Solde carte ${withdrawCurrency} insuffisant`);
+      return;
+    }
+
+    setProcessingWithdraw(true);
+    try {
+      const res = await fetch("/api/user/card/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: cardData.id,
+          amount,
+          currency: withdrawCurrency,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Retrait de ${data.netAmount.toFixed(2)} ${withdrawCurrency} vers compte ${withdrawCurrency} reussi!`);
+        setShowWithdrawModal(false);
+        setWithdrawAmount("");
+        // Refresh balances
+        const balanceRes = await fetch("/api/wallet/balance");
+        const balanceData = await balanceRes.json();
+        if (balanceData.wallets) setWallets(balanceData.wallets);
+      } else {
+        toast.error(data.error || "Echec du retrait");
+      }
+    } catch (err) {
+      console.error("Withdraw error:", err);
+      toast.error("Erreur lors du retrait");
+    } finally {
+      setProcessingWithdraw(false);
+    }
   };
 
   const usdBalance = getUsdBalance();
@@ -648,6 +762,26 @@ export default function McardPage() {
                 <span className="ml-1">{balanceCurrency === "USD" ? "EUR" : "USD"}</span>
               </p>
             </div>
+            
+            {/* Recharge & Withdraw Buttons */}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShowRechargeModal(true)}
+                disabled={isFrozen}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowDownLeft size={16} />
+                <span>Recharger</span>
+              </button>
+              <button
+                onClick={() => setShowWithdrawModal(true)}
+                disabled={isFrozen}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 rounded-xl text-orange-400 text-xs font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowUpRight size={16} />
+                <span>Retirer</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -882,6 +1016,264 @@ export default function McardPage() {
           </div>
         </div>
       </div>
+
+      {/* RECHARGE MODAL */}
+      {showRechargeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRechargeModal(false)} />
+          <div className="relative bg-slate-900 border border-white/10 rounded-[2rem] p-6 w-full max-w-md animate-in zoom-in-95 fade-in duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-emerald-600/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
+                  <ArrowDownLeft size={24} className="text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Recharger la carte</h3>
+                  <p className="text-[10px] text-slate-500 font-bold">Depuis votre compte USD ou EUR</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRechargeModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+
+            {/* Card Info */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <CreditCard size={20} className="text-blue-400" />
+                <div>
+                  <p className="text-sm font-bold">{cardBrand} *{last4}</p>
+                  <p className="text-[10px] text-slate-500">{cardHolder}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Currency Selection */}
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Compte source</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setRechargeCurrency("USD")}
+                  className={`flex-1 py-3 rounded-xl border font-bold text-sm transition-all ${
+                    rechargeCurrency === "USD"
+                      ? "bg-blue-600/20 border-blue-500/50 text-blue-400"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <DollarSign size={16} />
+                    <span>USD</span>
+                  </div>
+                  <p className="text-[10px] mt-1 opacity-70">{getWalletBalance("USD").toFixed(2)} disponible</p>
+                </button>
+                <button
+                  onClick={() => setRechargeCurrency("EUR")}
+                  className={`flex-1 py-3 rounded-xl border font-bold text-sm transition-all ${
+                    rechargeCurrency === "EUR"
+                      ? "bg-blue-600/20 border-blue-500/50 text-blue-400"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Euro size={16} />
+                    <span>EUR</span>
+                  </div>
+                  <p className="text-[10px] mt-1 opacity-70">{getWalletBalance("EUR").toFixed(2)} disponible</p>
+                </button>
+              </div>
+            </div>
+
+            {/* Amount Input */}
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Montant</p>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                  {rechargeCurrency === "USD" ? "$" : "\u20AC"}
+                </span>
+                <input
+                  type="number"
+                  value={rechargeAmount}
+                  onChange={(e) => setRechargeAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-lg font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              {/* Quick amounts */}
+              <div className="flex gap-2 mt-2">
+                {[10, 25, 50, 100].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setRechargeAmount(amt.toString())}
+                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-slate-400 transition-all"
+                  >
+                    {rechargeCurrency === "USD" ? "$" : "\u20AC"}{amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Fee Info */}
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-yellow-500/80 font-bold">
+                Frais de recharge: 2%. Montant net credite: {rechargeAmount ? (parseFloat(rechargeAmount) * 0.98).toFixed(2) : "0.00"} {rechargeCurrency}
+              </p>
+            </div>
+
+            {/* Confirm Button */}
+            <button
+              onClick={handleRecharge}
+              disabled={processingRecharge || !rechargeAmount || parseFloat(rechargeAmount) <= 0}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {processingRecharge ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Traitement...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowDownLeft size={18} />
+                  <span>Recharger {rechargeAmount ? `${rechargeCurrency === "USD" ? "$" : "\u20AC"}${rechargeAmount}` : ""}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WITHDRAW MODAL */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowWithdrawModal(false)} />
+          <div className="relative bg-slate-900 border border-white/10 rounded-[2rem] p-6 w-full max-w-md animate-in zoom-in-95 fade-in duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-orange-600/20 rounded-xl flex items-center justify-center border border-orange-500/30">
+                  <ArrowUpRight size={24} className="text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Retirer vers compte</h3>
+                  <p className="text-[10px] text-slate-500 font-bold">Vers votre compte USD ou EUR</p>
+                </div>
+              </div>
+              <button onClick={() => setShowWithdrawModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+
+            {/* Card Info */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CreditCard size={20} className="text-blue-400" />
+                  <div>
+                    <p className="text-sm font-bold">{cardBrand} *{last4}</p>
+                    <p className="text-[10px] text-slate-500">{cardHolder}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-emerald-400">
+                    {balanceCurrency === "USD" ? "$" : "\u20AC"}{displayBalance.toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Solde carte</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Currency Selection */}
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Compte destination</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWithdrawCurrency("USD")}
+                  className={`flex-1 py-3 rounded-xl border font-bold text-sm transition-all ${
+                    withdrawCurrency === "USD"
+                      ? "bg-orange-600/20 border-orange-500/50 text-orange-400"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <DollarSign size={16} />
+                    <span>Compte USD</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setWithdrawCurrency("EUR")}
+                  className={`flex-1 py-3 rounded-xl border font-bold text-sm transition-all ${
+                    withdrawCurrency === "EUR"
+                      ? "bg-orange-600/20 border-orange-500/50 text-orange-400"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Euro size={16} />
+                    <span>Compte EUR</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Amount Input */}
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Montant a retirer</p>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                  {withdrawCurrency === "USD" ? "$" : "\u20AC"}
+                </span>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-lg font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 transition-all"
+                />
+              </div>
+              {/* Quick amounts */}
+              <div className="flex gap-2 mt-2">
+                {[10, 25, 50, 100].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setWithdrawAmount(amt.toString())}
+                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-slate-400 transition-all"
+                  >
+                    {withdrawCurrency === "USD" ? "$" : "\u20AC"}{amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Fee Info */}
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-yellow-500/80 font-bold">
+                Frais de retrait: 1.5%. Montant net recu: {withdrawAmount ? (parseFloat(withdrawAmount) * 0.985).toFixed(2) : "0.00"} {withdrawCurrency}
+              </p>
+            </div>
+
+            {/* Confirm Button */}
+            <button
+              onClick={handleWithdraw}
+              disabled={processingWithdraw || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+              className="w-full bg-orange-600 hover:bg-orange-700 py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {processingWithdraw ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Traitement...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowUpRight size={18} />
+                  <span>Retirer {withdrawAmount ? `${withdrawCurrency === "USD" ? "$" : "\u20AC"}${withdrawAmount}` : ""}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
