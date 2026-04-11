@@ -31,6 +31,20 @@ const VisaPattern = () => (
   </svg>
 );
 
+// Decorative shapes for the card
+const DecorativeShapes = () => (
+  <div className="flex items-center gap-2">
+    <svg width="50" height="40" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
+      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
+      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
+    </svg>
+    <svg width="35" height="40" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
+      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
+      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
+    </svg>
+  </div>
+);
+
 export const VirtualCard = ({ 
   holderName = "PIM PIONEER", 
   cardNumber = "4532 8890 1234 5678", 
@@ -64,66 +78,49 @@ export const VirtualCard = ({
         {isVisa && !isLocked && <VisaPattern />}
         {isMasterCard && !isLocked && <MasterCardPattern />}
 
-        {/* Top Header: Logo & Brand */}
-        <div className="relative z-10 flex justify-between items-start mb-6">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest flex items-center gap-1">
-              <ShieldCheck size={12} /> Pimpay
-            </span>
-            <span className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</span>
+        {/* Header - PIMPAY VIRTUAL in gold */}
+        <div className="relative z-10 flex justify-between items-start mb-4">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck size={14} className="text-[#FFD700]" />
+            <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
           </div>
           {isVisa ? (
-            <div className="flex flex-col items-end">
-              <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
-              <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
-            </div>
+            <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
           ) : (
-            <div className="flex flex-col items-end">
-              <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-[#eb001b]" />
-                <div className="w-8 h-8 rounded-full bg-[#f79e1b] -ml-3" />
-              </div>
-              <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
+            <div className="flex items-center">
+              <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
+              <div className="w-7 h-7 rounded-full bg-[#f79e1b] -ml-3" />
             </div>
           )}
         </div>
 
-        {/* Chip & Contactless */}
-        <div className="relative z-10 flex items-center gap-4 mb-4">
-          <div className="w-12 h-9 bg-gradient-to-br from-[#ffd700] to-[#daa520] rounded-lg relative overflow-hidden">
-            <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-black/20 rounded-[1px]"></div>
-              ))}
-            </div>
-          </div>
-          <Wifi size={20} className="rotate-90 text-white/50" />
+        {/* Middle - Decorative shapes + Contactless */}
+        <div className="relative z-10 flex items-center justify-between flex-1 py-2">
+          <DecorativeShapes />
+          <Wifi size={20} className="rotate-90 text-[#3b82f6]" />
         </div>
 
         {/* Card Number */}
-        <div className="relative z-10 mb-4">
-          <p className="text-xl font-mono font-bold text-white tracking-[0.2em] drop-shadow-lg">
-            {showDetails ? cardNumber : cardNumber.replace(/\d{4} \d{4} \d{4}/, "**** **** ****")}
+        <div className="relative z-10 mb-3">
+          <p className="text-lg font-mono font-bold text-white tracking-[0.15em]">
+            {showDetails ? cardNumber : `•••• •••• •••• `}
+            <span className="text-[#3b82f6]">{cardNumber.slice(-4)}</span>
           </p>
         </div>
 
-        {/* Footer Info */}
-        <div className="relative z-10 flex justify-between items-end">
-          <div className="space-y-0.5">
-            <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Titulaire</p>
-            <p className="text-sm font-black text-white uppercase tracking-tight">{holderName}</p>
+        {/* Bottom - EXPIRE, CVV, Holder */}
+        <div className="relative z-10 space-y-2">
+          <div className="flex gap-8">
+            <div>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
+              <p className="text-sm font-bold text-white">{showDetails ? expiryDate : "••/••"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">CVV</p>
+              <p className="text-sm font-bold text-white">{showDetails ? cvv : "•••"}</p>
+            </div>
           </div>
-          
-          <div className="flex gap-6">
-             <div className="space-y-0.5 text-center">
-                <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Expire</p>
-                <p className="text-sm font-bold text-white font-mono">{expiryDate}</p>
-             </div>
-             <div className="space-y-0.5 text-center">
-                <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">CVV</p>
-                <p className="text-sm font-bold text-white font-mono">{showDetails ? cvv : "***"}</p>
-             </div>
-          </div>
+          <p className="text-sm font-black text-white uppercase tracking-widest">{holderName}</p>
         </div>
 
         {/* Overlay si la carte est verrouillée */}

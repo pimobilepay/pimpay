@@ -284,50 +284,58 @@ export default function CardOrderPage() {
               </div>
 
               <div className="relative h-full p-6 flex flex-col justify-between z-10">
+                {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
                 <div className="flex justify-between items-start">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black tracking-[0.2em] text-white/60 uppercase">PimPay</span>
-                    <span className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</span>
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-[#FFD700]" />
+                    <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
                   </div>
                   {selectedCard.brand === "VISA" ? (
-                    <div className="flex flex-col items-end">
-                      <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
-                      <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
-                    </div>
+                    <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
                   ) : (
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center">
-                        <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
-                        <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
-                      </div>
-                      <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
+                    <div className="flex items-center">
+                      <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
+                      <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Wifi size={18} className="rotate-90 text-white/40" />
-                  <Globe size={18} className="text-white/30" />
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-xl font-mono tracking-[0.25em] text-white/70">{"•••• •••• •••• ••••"}</p>
-                  <div className="flex justify-between items-end">
-                    <p className="text-xs font-black uppercase text-white/50">Nom du titulaire</p>
-                    <p className="text-xs font-mono text-white/50">{"••/••"}</p>
+                {/* Middle - Decorative shapes + Contactless icon */}
+                <div className="flex-1 flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <svg width="50" height="40" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
+                      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
+                      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
+                    </svg>
+                    <svg width="35" height="40" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
+                      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
+                      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
+                    </svg>
                   </div>
+                  <Wifi size={20} className="rotate-90 text-[#3b82f6]" />
                 </div>
 
-                <div className="flex justify-between items-end">
-                  <p className="text-[9px] font-black uppercase text-white/40 tracking-widest">{selectedCard.tier}</p>
-                  {selectedCard.brand === "VISA" ? (
-                    <span className="text-sm font-black italic text-[#1a237e]/60">VISA</span>
-                  ) : (
-                    <div className="flex items-center opacity-50">
-                      <div className="w-5 h-5 bg-[#eb001b] rounded-full" />
-                      <div className="w-5 h-5 bg-[#f79e1b] rounded-full -ml-2" />
+                {/* Card Number */}
+                <div className="mb-2">
+                  <p className="text-lg font-mono tracking-[0.2em] text-white">
+                    {"•••• •••• •••• "}
+                    <span className="text-[#3b82f6]">••••</span>
+                  </p>
+                </div>
+
+                {/* Bottom - EXPIRE, CVV, Holder */}
+                <div className="space-y-2">
+                  <div className="flex gap-6">
+                    <div>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
+                      <p className="text-xs font-bold tracking-widest text-white">{"••/••"}</p>
                     </div>
-                  )}
+                    <div>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">CVV</p>
+                      <p className="text-xs font-bold tracking-widest text-white">{"•••"}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-widest text-white">{selectedCard.tier}</p>
                 </div>
               </div>
             </div>

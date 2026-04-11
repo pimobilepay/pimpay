@@ -6,7 +6,7 @@ import {
   Lock, Eye, EyeOff, Settings,
   Plus, History, Info,
   ChevronRight, Copy, CheckCircle2,
-  Ban, Globe, Wifi, RefreshCw,
+  Ban, Wifi, RefreshCw,
   ArrowUpRight, ArrowDownLeft, Wallet,
   DollarSign, Activity, Fingerprint, Loader2, Euro
 } from "lucide-react";
@@ -266,67 +266,72 @@ export default function McardPage() {
                 </div>
 
                 <div className="h-full flex flex-col justify-between relative z-10">
-                  {/* Header */}
+                  {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
                   <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
-                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">PimPay</p>
-                      <p className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</p>
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck size={14} className="text-[#FFD700]" />
+                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
                     </div>
+                    {cardBrand === "VISA" ? (
+                      <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                    ) : (
+                      <div className="flex items-center">
+                        <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
+                        <div className="w-7 h-7 rounded-full bg-[#f79e1b] -ml-3" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Middle Section - Decorative shapes + Contactless icon on right */}
+                  <div className="flex-1 flex items-center justify-between py-2">
+                    {/* Decorative blue shapes */}
                     <div className="flex items-center gap-2">
-                      <Wifi size={18} className="text-white/40 rotate-90" />
-                      <Globe size={20} className="text-white/30" />
+                      {/* Elephant-like shape */}
+                      <svg width="60" height="50" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
+                        <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
+                        <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
+                      </svg>
+                      {/* Contactless payment icon shape */}
+                      <svg width="45" height="50" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
+                        <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
+                        <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path d="M28 18 Q 34 25, 28 32" stroke="currentColor" strokeWidth="3" fill="none" />
+                      </svg>
+                    </div>
+                    {/* Contactless icon on the right */}
+                    <div className="flex flex-col items-end gap-1">
+                      <Wifi size={22} className="rotate-90 text-[#3b82f6]" />
                     </div>
                   </div>
 
-                  {/* Card Number - Centered */}
-                  <div className="flex-1 flex items-center justify-center">
+                  {/* Card Number */}
+                  <div className="mb-3">
                     <button
                       onClick={() => copyToClipboard(cardNumber, "Numero")}
                       className="flex items-center gap-2 group"
                     >
-                      <p className="text-xl md:text-2xl font-black tracking-[0.2em] font-mono">
-                        {showDetails ? formattedNumber : maskedNumber}
+                      <p className="text-lg md:text-xl font-black tracking-[0.15em] font-mono text-white">
+                        {showDetails ? formattedNumber : `•••• •••• •••• `}
+                        <span className="text-[#3b82f6]">{last4}</span>
                       </p>
-                      <Copy size={14} className="text-white/30 group-hover:text-white/60 transition-colors" />
+                      <Copy size={12} className="text-white/30 group-hover:text-white/60 transition-colors" />
                     </button>
                   </div>
 
-                  {/* Bottom Section - Details + Holder Name */}
-                  <div className="space-y-1 mt-auto">
-                    <div className="flex gap-6">
+                  {/* Bottom Section - EXPIRE, CVV labels in gray, values in white */}
+                  <div className="space-y-2">
+                    <div className="flex gap-8">
                       <div>
-                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">{"Valide jusqu'au"}</p>
-                        <p className="text-xs font-bold tracking-widest">{showDetails ? cardExpiry : "••/••"}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
+                        <p className="text-sm font-bold tracking-widest text-white">{showDetails ? cardExpiry : "••/••"}</p>
                       </div>
                       <div>
-                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">CVV</p>
-                        <p className="text-xs font-bold tracking-widest">{showDetails ? cardCvv : "•••"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">Type</p>
-                        <p className="text-xs font-bold tracking-widest">DEBIT</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">CVV</p>
+                        <p className="text-sm font-bold tracking-widest text-white">{showDetails ? cardCvv : "•••"}</p>
                       </div>
                     </div>
-                    <div className="flex justify-between items-end pt-1">
-                      <div>
-                        <p className="text-[7px] font-bold text-white/40 uppercase mb-0.5">Titulaire</p>
-                        <p className="text-xs font-black uppercase tracking-widest opacity-80">{cardHolder}</p>
-                      </div>
-                      {cardBrand === "VISA" ? (
-                        <div className="flex flex-col items-end">
-                          <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
-                          <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-end">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-[#eb001b]" />
-                            <div className="w-8 h-8 rounded-full bg-[#f79e1b] -ml-3" />
-                          </div>
-                          <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Cardholder name at bottom */}
+                    <p className="text-sm font-black uppercase tracking-widest text-white">{cardHolder}</p>
                   </div>
                 </div>
               </div>
@@ -346,48 +351,24 @@ export default function McardPage() {
                   <div className="w-full h-12 bg-black/80 mt-6" />
 
                   <div className="p-6 flex flex-col justify-between" style={{ height: "calc(100% - 4.5rem)" }}>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-10 bg-white/90 rounded flex items-center justify-end px-4">
-                          <span className="text-slate-900 font-mono font-black text-lg tracking-widest">{cardCvv}</span>
-                        </div>
-                      </div>
-                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Code de securite CVV2</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-[10px] text-white/50">
-                        <span>Numero complet</span>
-                        <span className="font-mono text-white/70">{formattedNumber}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-white/50">
-                        <span>Titulaire</span>
-                        <span className="text-white/70 uppercase">{cardHolder}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-white/50">
-                        <span>Expiration</span>
-                        <span className="text-white/70">{cardExpiry}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-white/50">
-                        <span>Emetteur</span>
-                        <span className="text-white/70">PimPay Financial Services</span>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <p className="text-[7px] text-white/20">{"Propriete de PimPay. Usage personnel uniquement."}</p>
-                      {cardBrand === "VISA" ? (
-                        <div className="flex flex-col items-end opacity-60">
-                          <span className="text-lg font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-end opacity-60">
-                          <div className="flex items-center">
-                            <div className="w-5 h-5 rounded-full bg-[#eb001b]" />
-                            <div className="w-5 h-5 rounded-full bg-[#f79e1b] -ml-2" />
+                    {/* CVV signature strip */}
+                    <div className="space-y-2 mt-2">
+                      <div className="flex items-center">
+                        <div className="flex-1 h-12 bg-white rounded flex items-center justify-end">
+                          <div className="bg-white px-4 py-2 flex items-center justify-end min-w-[80px]">
+                            <span className="text-slate-900 font-mono font-black text-xl tracking-widest">{cardCvv}</span>
                           </div>
                         </div>
-                      )}
+                      </div>
+                      <p className="text-[10px] font-bold text-[#ec4899] uppercase tracking-widest">CODE DE SECURITE (CVV)</p>
+                      <p className="text-[10px] text-gray-400">
+                        Numero complet: <span className="font-mono text-white/80 ml-4">{formattedNumber}</span>
+                      </p>
+                    </div>
+
+                    {/* Legal text */}
+                    <div className="mt-auto">
+                      <p className="text-[8px] text-white/30">{"Cette carte est la propriete de Pimpay. Usage personnel uniquement."}</p>
                     </div>
                   </div>
                 </div>

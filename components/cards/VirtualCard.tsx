@@ -10,30 +10,9 @@ const MasterCardPattern = () => (
     preserveAspectRatio="xMidYMid slice"
     xmlns="http://www.w3.org/2000/svg"
   >
-    {/* Large "100" watermark text */}
-    <text
-      x="-20"
-      y="200"
-      fontSize="180"
-      fontWeight="bold"
-      fill="rgba(255,255,255,0.08)"
-      fontFamily="Arial, sans-serif"
-    >
-      100
-    </text>
-    {/* Decorative curved lines */}
-    <path
-      d="M 350 0 Q 280 80 350 160 Q 420 240 350 320"
-      stroke="rgba(255,255,255,0.1)"
-      strokeWidth="60"
-      fill="none"
-    />
-    <path
-      d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300"
-      stroke="rgba(255,255,255,0.05)"
-      strokeWidth="40"
-      fill="none"
-    />
+    <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+    <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+    <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
   </svg>
 );
 
@@ -45,51 +24,45 @@ const VisaPattern = () => (
     preserveAspectRatio="xMidYMid slice"
     xmlns="http://www.w3.org/2000/svg"
   >
-    {/* Wave patterns */}
-    <ellipse
-      cx="320"
-      cy="60"
-      rx="120"
-      ry="80"
-      fill="rgba(0,0,50,0.3)"
-    />
-    <ellipse
-      cx="350"
-      cy="120"
-      rx="100"
-      ry="70"
-      fill="rgba(0,0,50,0.2)"
-    />
-    <ellipse
-      cx="80"
-      cy="200"
-      rx="150"
-      ry="100"
-      fill="rgba(0,0,50,0.15)"
-    />
+    <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.3)" />
+    <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.2)" />
+    <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.15)" />
   </svg>
+);
+
+// Decorative shapes for the card (elephant + contactless icon style)
+const DecorativeShapes = () => (
+  <div className="flex items-center gap-2">
+    <svg width="60" height="50" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
+      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
+      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
+    </svg>
+    <svg width="45" height="50" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
+      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
+      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path d="M28 18 Q 34 25, 28 32" stroke="currentColor" strokeWidth="3" fill="none" />
+    </svg>
+  </div>
 );
 
 export default function VirtualCard({ card, user }: any) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 
+  const last4 = card.number?.slice(-4) || "0000";
+
   const formatCardNumber = (num: string) => {
     if (showInfo) {
       return num.replace(/(\d{4})/g, "$1 ").trim();
     }
-    return `\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ${num.slice(-4)}`;
+    return `•••• •••• •••• `;
   };
 
   const isVisa = card.brand?.toLowerCase() === "visa";
   const isMasterCard = card.brand?.toLowerCase() === "mastercard";
 
-  // New VISA gradient - Purple/Indigo (Platinum Business style)
   const visaGradient = "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]";
-  
-  // New MasterCard gradient - Blue (ePayService style)
   const masterCardGradient = "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]";
-  
   const defaultGradient = "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a]";
 
   const getCardGradient = () => {
@@ -106,54 +79,12 @@ export default function VirtualCard({ card, user }: any) {
     return "bg-gradient-to-br from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d]";
   };
 
-  const VisaLogo = () => (
-    <div className="flex flex-col items-end">
-      <span
-        className="text-2xl md:text-3xl font-black italic text-[#1a237e] tracking-tight"
-        style={{ fontFamily: "Arial, sans-serif" }}
-      >
-        VISA
-      </span>
-      <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">
-        Platinum Business
-      </span>
-    </div>
-  );
-
-  const MasterCardLogo = () => (
-    <div className="flex flex-col items-end">
-      <div className="flex items-center">
-        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#eb001b]"></div>
-        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#f79e1b] -ml-4"></div>
-      </div>
-      <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
-    </div>
-  );
-
-  const DefaultLogo = () => (
-    <div className="italic font-black text-xl">{card.brand}</div>
-  );
-
-  const renderLogo = () => {
-    if (isVisa) return <VisaLogo />;
-    if (isMasterCard) return <MasterCardLogo />;
-    return <DefaultLogo />;
-  };
-
-  const handleFlip = () => {
-    setIsFlipped(!isFlipped);
-  };
-
-  const toggleShowInfo = () => {
-    setShowInfo(!showInfo);
-  };
+  const handleFlip = () => setIsFlipped(!isFlipped);
+  const toggleShowInfo = () => setShowInfo(!showInfo);
 
   return (
     <div className="space-y-3">
-      <div
-        className="relative w-full aspect-[1.586/1]"
-        style={{ perspective: "1000px" }}
-      >
+      <div className="relative w-full aspect-[1.586/1]" style={{ perspective: "1000px" }}>
         <div
           className="relative w-full h-full transition-transform duration-700 ease-in-out"
           style={{
@@ -168,69 +99,56 @@ export default function VirtualCard({ card, user }: any) {
             } ${getCardGradient()}`}
             style={{ backfaceVisibility: "hidden" }}
           >
-            {/* Decorative patterns */}
             {isVisa && !card.isFrozen && <VisaPattern />}
             {isMasterCard && !card.isFrozen && <MasterCardPattern />}
 
             <div className="relative h-full flex flex-col justify-between z-10">
-              {/* Header */}
+              {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
               <div className="flex justify-between items-start">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/70">
-                    <ShieldCheck size={12} /> Pimpay
-                  </span>
-                  <span className="text-[12px] font-semibold text-white/90 tracking-wide">
-                    Virtual
-                  </span>
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-[#FFD700]" />
+                  <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
                 </div>
-                {renderLogo()}
-              </div>
-
-              {/* Chip et Contactless */}
-              <div className="flex items-center gap-4 my-2">
-                <div className="w-12 h-9 rounded-md bg-gradient-to-br from-[#ffd700] to-[#daa520]">
-                  <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="bg-black/20 rounded-[1px]"></div>
-                    ))}
+                {isVisa ? (
+                  <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                ) : isMasterCard ? (
+                  <div className="flex items-center">
+                    <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
+                    <div className="w-7 h-7 rounded-full bg-[#f79e1b] -ml-3" />
                   </div>
-                </div>
-                <Wifi size={24} className="rotate-90 text-white/60" />
+                ) : (
+                  <span className="text-xl font-black">{card.brand}</span>
+                )}
               </div>
 
-              {/* Numero de carte */}
-              <div>
-                <div className="flex items-center gap-4 mb-3">
-                  <h2 className="text-xl md:text-2xl lg:text-3xl font-mono tracking-[0.15em] text-white">
-                    {formatCardNumber(card.number)}
-                  </h2>
-                </div>
+              {/* Middle Section - Decorative shapes + Contactless icon on right */}
+              <div className="flex-1 flex items-center justify-between py-2">
+                <DecorativeShapes />
+                <Wifi size={22} className="rotate-90 text-[#3b82f6]" />
+              </div>
 
-                {/* Expiration */}
+              {/* Card Number */}
+              <div className="mb-3">
+                <p className="text-lg md:text-xl font-black tracking-[0.15em] font-mono text-white">
+                  {formatCardNumber(card.number)}
+                  <span className="text-[#3b82f6]">{last4}</span>
+                </p>
+              </div>
+
+              {/* Bottom Section - EXPIRE, CVV labels in gray */}
+              <div className="space-y-2">
                 <div className="flex gap-8">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-white/50">
-                      Expire
-                    </p>
-                    <p className="text-sm font-bold tracking-widest">
-                      {card.exp}
-                    </p>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
+                    <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.exp : "••/••"}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-white/50">
-                      CVV
-                    </p>
-                    <p className="text-sm font-bold tracking-widest">
-                      {showInfo ? card.cvv || "***" : "\u2022\u2022\u2022"}
-                    </p>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">CVV</p>
+                    <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.cvv || "***" : "•••"}</p>
                   </div>
                 </div>
+                <p className="text-sm font-black uppercase tracking-widest text-white">{card.holder}</p>
               </div>
-
-              {/* Nom du titulaire */}
-              <p className="text-sm font-medium tracking-wide uppercase text-white/90">
-                {card.holder}
-              </p>
             </div>
           </div>
 
@@ -239,71 +157,28 @@ export default function VirtualCard({ card, user }: any) {
             className={`absolute inset-0 w-full h-full rounded-[1.5rem] text-white shadow-2xl overflow-hidden ${
               card.isFrozen ? "grayscale" : ""
             } ${getBackGradient()}`}
-            style={{
-              backfaceVisibility: "hidden",
-              transform: "rotateY(180deg)",
-            }}
+            style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            {/* Bande magnetique */}
             <div className="w-full h-14 bg-black/80 mt-6"></div>
 
-            {/* Zone de signature et CVV */}
             <div className="p-6 md:p-8 h-[calc(100%-3.5rem)] flex flex-col justify-between">
-              {/* Zone de signature avec CVV */}
-              <div className="mt-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 h-10 bg-white/90 rounded flex items-center justify-end px-4">
-                    <div className="bg-white px-3 py-1 border-l-2 border-gray-300">
-                      <span className="text-black font-mono font-bold text-lg tracking-widest">
-                        {card.cvv || "***"}
-                      </span>
+              {/* CVV signature strip */}
+              <div className="space-y-2 mt-2">
+                <div className="flex items-center">
+                  <div className="flex-1 h-12 bg-white rounded flex items-center justify-end">
+                    <div className="px-4 py-2">
+                      <span className="text-slate-900 font-mono font-black text-xl tracking-widest">{card.cvv || "***"}</span>
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] mt-2 uppercase tracking-wider text-white/50">
-                  {"Code de securite (CVV)"}
+                <p className="text-[10px] font-bold text-[#ec4899] uppercase tracking-widest">CODE DE SECURITE (CVV)</p>
+                <p className="text-[10px] text-gray-400">
+                  Numero complet: <span className="font-mono text-white/80 ml-2">{card.number?.replace(/(\d{4})/g, "$1 ").trim()}</span>
                 </p>
               </div>
 
-              {/* Informations supplementaires */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-xs text-white/60">
-                  <span>{"Numero complet:"}</span>
-                  <span className="font-mono tracking-wider">
-                    {card.number.replace(/(\d{4})/g, "$1 ").trim()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-white/60">
-                  <span>{"Titulaire:"}</span>
-                  <span className="uppercase">{card.holder}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-white/60">
-                  <span>{"Expiration:"}</span>
-                  <span>{card.exp}</span>
-                </div>
-              </div>
-
-              {/* Logo */}
-              <div className="flex justify-between items-center">
-                <button
-                  onClick={handleFlip}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 bg-white/10 hover:bg-white/20"
-                >
-                  <EyeOff size={16} />
-                  <span className="text-xs font-medium">Masquer</span>
-                </button>
-
-                <div className="opacity-50 scale-75">{renderLogo()}</div>
-              </div>
-            </div>
-
-            {/* Texte legal */}
-            <div className="absolute bottom-2 left-0 right-0 text-center">
-              <p className="text-[8px] text-white/30 px-4">
-                {
-                  "Cette carte est la propriete de Pimpay. Usage personnel uniquement."
-                }
-              </p>
+              {/* Legal text */}
+              <p className="text-[8px] text-white/30">{"Cette carte est la propriete de Pimpay. Usage personnel uniquement."}</p>
             </div>
           </div>
         </div>
@@ -314,9 +189,7 @@ export default function VirtualCard({ card, user }: any) {
         <button
           onClick={toggleShowInfo}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all border ${
-            showInfo
-              ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
-              : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+            showInfo ? "bg-purple-500/20 border-purple-500/40 text-purple-300" : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
           }`}
         >
           {showInfo ? <EyeOff size={16} /> : <Eye size={16} />}
