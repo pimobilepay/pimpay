@@ -308,6 +308,8 @@ model VirtualCard {
   isFrozen          Boolean  @default(false)
   dailyLimit        Float    @default(1000)
   totalSpent        Float    @default(0)
+  balanceUSD        Float    @default(0)
+  balanceEUR        Float    @default(0)
   allowedCurrencies String[] @default(["USD", "XAF"])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @default(now()) @updatedAt
