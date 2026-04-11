@@ -36,6 +36,12 @@ interface WalletData {
   balance: number;
 }
 
+// Get card balance from CARD_USD and CARD_EUR wallets
+interface CardBalanceData {
+  USD: number;
+  EUR: number;
+}
+
 
 
 function formatCardNumber(num: string): string {
@@ -72,6 +78,7 @@ export default function McardPage() {
     category: string;
   }[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [cardBalance, setCardBalance] = useState<CardBalanceData>({ USD: 0, EUR: 0 });
   
   // Recharge & Withdraw Modal States
   const [showRechargeModal, setShowRechargeModal] = useState(false);
@@ -99,6 +106,14 @@ export default function McardPage() {
         if (profileData.success && profileData.user) {
           const userWallets = profileData.user.wallets || [];
           setWallets(userWallets);
+          
+          // Extract card balances from CARD_USD and CARD_EUR wallets
+          const cardUsdWallet = userWallets.find((w: WalletData) => w.currency === "CARD_USD");
+          const cardEurWallet = userWallets.find((w: WalletData) => w.currency === "CARD_EUR");
+          setCardBalance({
+            USD: cardUsdWallet?.balance || 0,
+            EUR: cardEurWallet?.balance || 0,
+          });
 
           // Extract card info from virtualCards
           const cards = profileData.user.virtualCards;
@@ -227,19 +242,6 @@ export default function McardPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // Compute total balance from user wallets (sum of USDT, USDC, DAI, BUSD, XAF converted)
-  const getUsdBalance = (): number => {
-    let total = 0;
-    for (const w of wallets) {
-      if (["USDT", "USD", "USDC", "DAI", "BUSD"].includes(w.currency)) {
-        total += w.balance;
-      } else if (w.currency === "XAF") {
-        total += w.balance / 655.957; // XAF to EUR to USD approx
-      }
-    }
-    return total;
-  };
-
   // Get specific wallet balance
   const getWalletBalance = (currency: string): number => {
     const wallet = wallets.find(w => w.currency === currency);
@@ -280,9 +282,19 @@ export default function McardPage() {
         setShowRechargeModal(false);
         setRechargeAmount("");
         // Refresh balances
-        const balanceRes = await fetch("/api/wallet/balance");
-        const balanceData = await balanceRes.json();
-        if (balanceData.wallets) setWallets(balanceData.wallets);
+        const profileRes2 = await fetch("/api/user/profile");
+        const profileData2 = await profileRes2.json();
+        if (profileData2.success && profileData2.user?.wallets) {
+          const userWallets2 = profileData2.user.wallets;
+          setWallets(userWallets2);
+          // Update card balances
+          const cardUsdWallet2 = userWallets2.find((w: WalletData) => w.currency === "CARD_USD");
+          const cardEurWallet2 = userWallets2.find((w: WalletData) => w.currency === "CARD_EUR");
+          setCardBalance({
+            USD: cardUsdWallet2?.balance || 0,
+            EUR: cardEurWallet2?.balance || 0,
+          });
+        }
       } else {
         toast.error(data.error || "Echec de la recharge");
       }
@@ -304,10 +316,10 @@ export default function McardPage() {
       return;
     }
 
-    // Card balance check (simplified - uses displayed balance)
-    const cardBalance = withdrawCurrency === "USD" ? usdBalance : eurBalance;
-    if (amount > cardBalance) {
-      toast.error(`Solde carte ${withdrawCurrency} insuffisant`);
+    // Card balance check - uses actual card balance
+    const availableCardBalance = withdrawCurrency === "USD" ? cardBalance.USD : cardBalance.EUR;
+    if (amount > availableCardBalance) {
+      toast.error(`Solde carte ${withdrawCurrency} insuffisant (${availableCardBalance.toFixed(2)} ${withdrawCurrency} disponible)`);
       return;
     }
 
@@ -329,9 +341,19 @@ export default function McardPage() {
         setShowWithdrawModal(false);
         setWithdrawAmount("");
         // Refresh balances
-        const balanceRes = await fetch("/api/wallet/balance");
-        const balanceData = await balanceRes.json();
-        if (balanceData.wallets) setWallets(balanceData.wallets);
+        const profileRes3 = await fetch("/api/user/profile");
+        const profileData3 = await profileRes3.json();
+        if (profileData3.success && profileData3.user?.wallets) {
+          const userWallets3 = profileData3.user.wallets;
+          setWallets(userWallets3);
+          // Update card balances
+          const cardUsdWallet3 = userWallets3.find((w: WalletData) => w.currency === "CARD_USD");
+          const cardEurWallet3 = userWallets3.find((w: WalletData) => w.currency === "CARD_EUR");
+          setCardBalance({
+            USD: cardUsdWallet3?.balance || 0,
+            EUR: cardEurWallet3?.balance || 0,
+          });
+        }
       } else {
         toast.error(data.error || "Echec du retrait");
       }
@@ -343,10 +365,16 @@ export default function McardPage() {
     }
   };
 
-  const usdBalance = getUsdBalance();
-  const eurBalance = usdBalance * USD_TO_EUR;
-  const displayBalance = balanceCurrency === "USD" ? usdBalance : eurBalance;
+  // Card balances (actual balance on the card)
+  const cardUsdBalance = cardBalance.USD;
+  const cardEurBalance = cardBalance.EUR;
+  
+  // Display card balance based on selected currency
+  const displayBalance = balanceCurrency === "USD" ? cardUsdBalance : cardEurBalance;
   const displaySymbol = balanceCurrency === "USD" ? "$" : "\u20AC";
+  
+  // Secondary display (for the other currency)
+  const secondaryBalance = balanceCurrency === "USD" ? cardEurBalance : cardUsdBalance;
 
   // Card display values
   const cardNumber = cardData?.number || "";
@@ -486,7 +514,7 @@ export default function McardPage() {
             </p>
           </div>
         </div>
-        <button onClick={() => setActiveTab("settings")} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
+        <button onClick={() => router.push("/cards")} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
           <Settings size={20} />
         </button>
       </header>
@@ -758,7 +786,7 @@ export default function McardPage() {
             <div className="mt-2 ml-14 pl-0.5">
               <p className="text-[10px] text-slate-600 font-bold">
                 {"~"}{balanceCurrency === "USD" ? "\u20AC" : "$"}
-                {(balanceCurrency === "USD" ? eurBalance : usdBalance).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {secondaryBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 <span className="ml-1">{balanceCurrency === "USD" ? "EUR" : "USD"}</span>
               </p>
             </div>
@@ -1176,9 +1204,9 @@ export default function McardPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-emerald-400">
-                    {balanceCurrency === "USD" ? "$" : "\u20AC"}{displayBalance.toFixed(2)}
+                    ${cardBalance.USD.toFixed(2)} / {"\u20AC"}{cardBalance.EUR.toFixed(2)}
                   </p>
-                  <p className="text-[10px] text-slate-500">Solde carte</p>
+                  <p className="text-[10px] text-slate-500">Solde carte USD/EUR</p>
                 </div>
               </div>
             </div>
@@ -1199,6 +1227,7 @@ export default function McardPage() {
                     <DollarSign size={16} />
                     <span>Compte USD</span>
                   </div>
+                  <p className="text-[10px] mt-1 opacity-70">{cardBalance.USD.toFixed(2)} dispo sur carte</p>
                 </button>
                 <button
                   onClick={() => setWithdrawCurrency("EUR")}
@@ -1212,6 +1241,7 @@ export default function McardPage() {
                     <Euro size={16} />
                     <span>Compte EUR</span>
                   </div>
+                  <p className="text-[10px] mt-1 opacity-70">{cardBalance.EUR.toFixed(2)} dispo sur carte</p>
                 </button>
               </div>
             </div>
