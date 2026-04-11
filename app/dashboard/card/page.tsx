@@ -282,35 +282,18 @@ export default function McardPage() {
                     )}
                   </div>
 
-                  {/* Middle Section - Decorative shapes + Contactless icon on right */}
-                  <div className="flex-1 flex items-center justify-between py-2">
-                    {/* Decorative blue shapes */}
-                    <div className="flex items-center gap-2">
-                      {/* Elephant-like shape */}
-                      <svg width="60" height="50" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
-                        <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
-                        <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
-                      </svg>
-                      {/* Contactless payment icon shape */}
-                      <svg width="45" height="50" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
-                        <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
-                        <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path d="M28 18 Q 34 25, 28 32" stroke="currentColor" strokeWidth="3" fill="none" />
-                      </svg>
-                    </div>
-                    {/* Contactless icon on the right */}
-                    <div className="flex flex-col items-end gap-1">
-                      <Wifi size={22} className="rotate-90 text-[#3b82f6]" />
-                    </div>
+                  {/* Middle Section - Contactless icon on right */}
+                  <div className="flex-1 flex items-end justify-end py-2">
+                    <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
                   </div>
 
-                  {/* Card Number */}
-                  <div className="mb-3">
+                  {/* Card Number - stays on one line */}
+                  <div className="mb-2">
                     <button
                       onClick={() => copyToClipboard(cardNumber, "Numero")}
                       className="flex items-center gap-2 group"
                     >
-                      <p className="text-lg md:text-xl font-black tracking-[0.15em] font-mono text-white">
+                      <p className="text-base md:text-lg font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
                         {showDetails ? formattedNumber : `•••• •••• •••• `}
                         <span className="text-[#3b82f6]">{last4}</span>
                       </p>
@@ -319,7 +302,7 @@ export default function McardPage() {
                   </div>
 
                   {/* Bottom Section - EXPIRE, CVV labels in gray, values in white */}
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <div className="flex gap-8">
                       <div>
                         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
@@ -330,8 +313,8 @@ export default function McardPage() {
                         <p className="text-sm font-bold tracking-widest text-white">{showDetails ? cardCvv : "•••"}</p>
                       </div>
                     </div>
-                    {/* Cardholder name at bottom */}
-                    <p className="text-sm font-black uppercase tracking-widest text-white">{cardHolder}</p>
+                    {/* Cardholder name */}
+                    <p className="text-sm font-black uppercase tracking-widest text-white pt-1">{cardHolder}</p>
                   </div>
                 </div>
               </div>

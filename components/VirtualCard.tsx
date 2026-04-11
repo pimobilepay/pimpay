@@ -31,19 +31,7 @@ const VisaPattern = () => (
   </svg>
 );
 
-// Decorative shapes for the card
-const DecorativeShapes = () => (
-  <div className="flex items-center gap-2">
-    <svg width="50" height="40" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
-      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
-      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
-    </svg>
-    <svg width="35" height="40" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
-      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
-      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
-    </svg>
-  </div>
-);
+
 
 export const VirtualCard = ({ 
   holderName = "PIM PIONEER", 
@@ -94,22 +82,21 @@ export const VirtualCard = ({
           )}
         </div>
 
-        {/* Middle - Decorative shapes + Contactless */}
-        <div className="relative z-10 flex items-center justify-between flex-1 py-2">
-          <DecorativeShapes />
-          <Wifi size={20} className="rotate-90 text-[#3b82f6]" />
+        {/* Middle - Contactless icon on right */}
+        <div className="relative z-10 flex items-end justify-end flex-1 py-2">
+          <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
         </div>
 
-        {/* Card Number */}
-        <div className="relative z-10 mb-3">
-          <p className="text-lg font-mono font-bold text-white tracking-[0.15em]">
+        {/* Card Number - stays on one line */}
+        <div className="relative z-10 mb-2">
+          <p className="text-base font-mono font-bold text-white tracking-[0.12em] whitespace-nowrap">
             {showDetails ? cardNumber : `•••• •••• •••• `}
             <span className="text-[#3b82f6]">{cardNumber.slice(-4)}</span>
           </p>
         </div>
 
         {/* Bottom - EXPIRE, CVV, Holder */}
-        <div className="relative z-10 space-y-2">
+        <div className="relative z-10 space-y-1">
           <div className="flex gap-8">
             <div>
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
@@ -120,7 +107,7 @@ export const VirtualCard = ({
               <p className="text-sm font-bold text-white">{showDetails ? cvv : "•••"}</p>
             </div>
           </div>
-          <p className="text-sm font-black text-white uppercase tracking-widest">{holderName}</p>
+          <p className="text-sm font-black text-white uppercase tracking-widest pt-1">{holderName}</p>
         </div>
 
         {/* Overlay si la carte est verrouillée */}

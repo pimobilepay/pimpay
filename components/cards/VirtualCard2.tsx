@@ -20,19 +20,7 @@ const VisaPattern = () => (
   </svg>
 );
 
-// Decorative shapes for the card
-const DecorativeShapes = () => (
-  <div className="flex items-center gap-2">
-    <svg width="50" height="40" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
-      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
-      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
-    </svg>
-    <svg width="35" height="40" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
-      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
-      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
-    </svg>
-  </div>
-);
+
 
 export default function VirtualCard({ card, user }: any) {
   const [showDetails, setShowDetails] = useState(false);
@@ -72,16 +60,15 @@ export default function VirtualCard({ card, user }: any) {
           )}
         </div>
 
-        {/* Middle - Decorative shapes + Contactless */}
-        <div className="flex-1 flex items-center justify-between py-2">
-          <DecorativeShapes />
-          <Wifi size={20} className="rotate-90 text-[#3b82f6]" />
+        {/* Middle - Contactless icon on right */}
+        <div className="flex-1 flex items-end justify-end py-2">
+          <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
         </div>
 
-        {/* Card Number */}
+        {/* Card Number - stays on one line */}
         <div className="mb-2">
           <div className="flex items-center gap-3">
-            <p className="text-lg md:text-xl font-mono tracking-[0.15em] text-white">
+            <p className="text-base md:text-lg font-mono tracking-[0.12em] text-white whitespace-nowrap">
               {showDetails ? card.number?.replace(/(\d{4})/g, '$1 ').trim() : `•••• •••• •••• `}
               <span className="text-[#3b82f6]">{last4}</span>
             </p>
@@ -92,7 +79,7 @@ export default function VirtualCard({ card, user }: any) {
         </div>
 
         {/* Bottom - EXPIRE, CVV, Holder */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex gap-8">
             <div>
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
@@ -103,7 +90,7 @@ export default function VirtualCard({ card, user }: any) {
               <p className="text-sm font-bold tracking-widest text-white">{showDetails ? (card.cvv || '***') : '•••'}</p>
             </div>
           </div>
-          <p className="text-sm font-black uppercase tracking-widest text-white">{card.holder}</p>
+          <p className="text-sm font-black uppercase tracking-widest text-white pt-1">{card.holder}</p>
         </div>
       </div>
     </div>

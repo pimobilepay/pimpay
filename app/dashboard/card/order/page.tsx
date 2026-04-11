@@ -300,31 +300,21 @@ export default function CardOrderPage() {
                   )}
                 </div>
 
-                {/* Middle - Decorative shapes + Contactless icon */}
-                <div className="flex-1 flex items-center justify-between py-2">
-                  <div className="flex items-center gap-2">
-                    <svg width="50" height="40" viewBox="0 0 60 50" fill="none" className="text-[#3b82f6]">
-                      <ellipse cx="20" cy="25" rx="18" ry="20" fill="currentColor" />
-                      <ellipse cx="45" cy="30" rx="12" ry="15" fill="currentColor" />
-                    </svg>
-                    <svg width="35" height="40" viewBox="0 0 45 50" fill="none" className="text-[#3b82f6]">
-                      <path d="M10 10 C 5 25, 5 35, 15 45 L 20 40 C 12 32, 12 22, 18 12 Z" fill="currentColor" />
-                      <path d="M22 15 Q 30 25, 22 35" stroke="currentColor" strokeWidth="4" fill="none" />
-                    </svg>
-                  </div>
-                  <Wifi size={20} className="rotate-90 text-[#3b82f6]" />
+                {/* Middle - Contactless icon on right */}
+                <div className="flex-1 flex items-end justify-end py-2">
+                  <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
                 </div>
 
                 {/* Card Number */}
                 <div className="mb-2">
-                  <p className="text-lg font-mono tracking-[0.2em] text-white">
+                  <p className="text-base font-mono tracking-[0.15em] text-white whitespace-nowrap">
                     {"•••• •••• •••• "}
                     <span className="text-[#3b82f6]">••••</span>
                   </p>
                 </div>
 
                 {/* Bottom - EXPIRE, CVV, Holder */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex gap-6">
                     <div>
                       <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">EXPIRE</p>
@@ -335,7 +325,7 @@ export default function CardOrderPage() {
                       <p className="text-xs font-bold tracking-widest text-white">{"•••"}</p>
                     </div>
                   </div>
-                  <p className="text-xs font-black uppercase tracking-widest text-white">{selectedCard.tier}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-white pt-1">{selectedCard.tier}</p>
                 </div>
               </div>
             </div>
