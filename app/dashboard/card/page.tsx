@@ -34,14 +34,7 @@ interface WalletData {
   balance: number;
 }
 
-const CARD_LOGS = [
-  { id: 1, merchant: "Netflix", amount: "-15.99", date: "Aujourd'hui, 20:01", type: "debit", status: "success", category: "Streaming" },
-  { id: 2, merchant: "Amazon", amount: "-124.50", date: "Hier, 12:30", type: "debit", status: "success", category: "E-commerce" },
-  { id: 3, merchant: "Recharge +250.00", amount: "+250.00", date: "15 Fev, 09:15", type: "credit", status: "success", category: "Top-up" },
-  { id: 4, merchant: "Apple Store", amount: "-2.99", date: "14 Fev, 14:20", type: "debit", status: "success", category: "Apps" },
-  { id: 5, merchant: "Spotify", amount: "-9.99", date: "10 Fev, 08:00", type: "debit", status: "success", category: "Streaming" },
-  { id: 6, merchant: "Uber Eats", amount: "-18.75", date: "8 Fev, 21:30", type: "debit", status: "pending", category: "Food" },
-];
+
 
 function formatCardNumber(num: string): string {
   const clean = num.replace(/\s/g, "");
@@ -66,6 +59,16 @@ export default function McardPage() {
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [balanceCurrency, setBalanceCurrency] = useState<"USD" | "EUR">("USD");
   const [noCard, setNoCard] = useState(false);
+  const [cardTransactions, setCardTransactions] = useState<{
+    id: string;
+    merchant: string;
+    amount: string;
+    date: string;
+    type: "debit" | "credit";
+    status: "success" | "pending" | "failed";
+    category: string;
+  }[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -135,6 +138,27 @@ export default function McardPage() {
     };
     fetchData();
   }, []);
+
+  // Fetch card transactions when history tab is active
+  useEffect(() => {
+    const fetchCardTransactions = async () => {
+      if (activeTab !== "history" || !cardData?.id) return;
+      
+      setLoadingTransactions(true);
+      try {
+        const res = await fetch(`/api/cards/transactions?cardId=${cardData.id}`);
+        const data = await res.json();
+        if (data.success && data.transactions) {
+          setCardTransactions(data.transactions);
+        }
+      } catch (err) {
+        console.error("Erreur chargement transactions:", err);
+      } finally {
+        setLoadingTransactions(false);
+      }
+    };
+    fetchCardTransactions();
+  }, [activeTab, cardData?.id]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text.replace(/\s/g, ""));
@@ -478,7 +502,7 @@ export default function McardPage() {
             {/* Full Card Details */}
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
               {[
-                { label: "Numero de carte", value: showDetails ? formattedNumber : `•••• •••• •••• ${last4}`, copyable: true, copyVal: cardNumber },
+                { label: "Numero de carte", value: showDetails ? formattedNumber : `•••• •••• •••��� ${last4}`, copyable: true, copyVal: cardNumber },
                 { label: "Titulaire", value: cardHolder },
                 { label: "Date d'expiration", value: showDetails ? cardExpiry : "••/••" },
                 { label: "CVV / CVC", value: showDetails ? cardCvv : "•••" },
@@ -546,34 +570,48 @@ export default function McardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <History size={14} className="text-blue-500" />
-                <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Transactions recentes</h2>
+                <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">Transactions carte</h2>
               </div>
             </div>
 
-            <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
-              {CARD_LOGS.map((log) => (
-                <div key={log.id} className="flex items-center gap-4 p-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${log.type === "credit" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
-                    {log.type === "credit" ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black uppercase tracking-tight truncate">{log.merchant}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[9px] font-bold text-slate-600">{log.date}</p>
-                      <span className="text-[7px] font-black text-slate-700 bg-white/5 px-1.5 py-0.5 rounded-full uppercase">{log.category}</span>
+            {loadingTransactions ? (
+              <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-8 flex items-center justify-center">
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+              </div>
+            ) : cardTransactions.length === 0 ? (
+              <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-8 text-center">
+                <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <CreditCard size={20} className="text-slate-500" />
+                </div>
+                <p className="text-sm font-bold text-slate-400">Aucune transaction</p>
+                <p className="text-xs text-slate-600 mt-1">Les transactions effectuees avec votre carte apparaitront ici</p>
+              </div>
+            ) : (
+              <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
+                {cardTransactions.map((tx) => (
+                  <div key={tx.id} className="flex items-center gap-4 p-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+                      {tx.type === "credit" ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black uppercase tracking-tight truncate">{tx.merchant}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[9px] font-bold text-slate-600">{tx.date}</p>
+                        <span className="text-[7px] font-black text-slate-700 bg-white/5 px-1.5 py-0.5 rounded-full uppercase">{tx.category}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${tx.type === "credit" ? "text-emerald-400" : "text-white"}`}>
+                        {tx.amount} $
+                      </p>
+                      <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === "success" ? "text-emerald-500/60" : tx.status === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
+                        {tx.status === "success" ? "Confirme" : tx.status === "pending" ? "En cours" : "Echoue"}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-black ${log.type === "credit" ? "text-emerald-400" : "text-white"}`}>
-                      {log.amount} $
-                    </p>
-                    <p className={`text-[8px] font-black uppercase tracking-widest ${log.status === "success" ? "text-emerald-500/60" : "text-amber-500/60"}`}>
-                      {log.status === "success" ? "Confirme" : "En cours"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
