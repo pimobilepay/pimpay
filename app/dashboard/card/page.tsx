@@ -8,7 +8,7 @@ import {
   ChevronRight, Copy, CheckCircle2,
   Ban, Wifi, RefreshCw,
   ArrowUpRight, ArrowDownLeft, Wallet,
-  DollarSign, Activity, Fingerprint, Loader2, Euro
+  DollarSign, Activity, Fingerprint, Loader2, Euro, Globe
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
