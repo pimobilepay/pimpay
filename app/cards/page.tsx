@@ -27,6 +27,7 @@ import {
 import VirtualCard from "@/components/cards/VirtualCard";
 import CardActions from "@/components/cards/CardActions";
 import { CardSelectButton } from "@/components/cards/CardSelectButton";
+import { CardDeleteButton } from "@/components/cards/CardDeleteButton";
 
 // Fonction d'authentification securisee
 async function getAuthenticatedUser() {
@@ -327,6 +328,7 @@ export default async function GlobalCardsPage({
                           <span>Voir</span>
                         </Link>
                         <CardSelectButton cardId={activeCard.id} />
+                        <CardDeleteButton cardId={activeCard.id} cardLast4={activeCard.number.slice(-4)} />
                       </div>
                     </div>
 
