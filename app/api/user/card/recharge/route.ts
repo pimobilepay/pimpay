@@ -119,13 +119,22 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    // Send notification
+    // Send notification with full details
     try {
       await sendNotification({
         userId,
         title: "Recharge carte reussie",
-        message: `${netAmount.toFixed(2)} ${currency} ajoutes a votre carte *${card.number.slice(-4)}`,
-        type: "success",
+        message: `${netAmount.toFixed(2)} ${currency} ajoutes a votre carte *${card.number.slice(-4)}. Frais: ${fee.toFixed(2)} ${currency} (${(feeRate * 100).toFixed(1)}%)`,
+        type: "SUCCESS",
+        metadata: {
+          amount: parsedAmount,
+          currency,
+          fee,
+          reference: result.reference,
+          transactionId: result.id,
+          status: "SUCCESS",
+          method: "CARD_RECHARGE",
+        },
       });
     } catch (notifErr) {
       console.warn("Notification non envoyee:", notifErr);

@@ -119,13 +119,22 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    // Send notification
+    // Send notification with full details
     try {
       await sendNotification({
         userId,
         title: "Retrait carte reussi",
-        message: `${netAmount.toFixed(2)} ${currency} transferes vers votre compte ${currency}`,
-        type: "success",
+        message: `${netAmount.toFixed(2)} ${currency} transferes de votre carte *${card.number.slice(-4)} vers votre compte ${currency}. Frais: ${fee.toFixed(2)} ${currency} (${(feeRate * 100).toFixed(1)}%)`,
+        type: "PAYMENT_SENT",
+        metadata: {
+          amount: parsedAmount,
+          currency,
+          fee,
+          reference: result.reference,
+          transactionId: result.id,
+          status: "SUCCESS",
+          method: "CARD_WITHDRAW",
+        },
       });
     } catch (notifErr) {
       console.warn("Notification non envoyee:", notifErr);
