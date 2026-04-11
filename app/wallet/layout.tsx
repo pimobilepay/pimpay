@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Mon Portefeuille | PimPay',
+  title: 'Mobile Wallet | PimPay',
   description: 'Gérez vos actifs Pi et vos transactions en temps réel',
 };
 
