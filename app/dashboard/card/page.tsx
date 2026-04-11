@@ -29,6 +29,8 @@ interface CardData {
   dailyLimit: number;
   totalSpent: number;
   allowedCurrencies: string[];
+  balanceUSD: number;
+  balanceEUR: number;
 }
 
 interface WalletData {
@@ -125,18 +127,10 @@ export default function McardPage() {
           const userWallets = profileData.user.wallets || [];
           setWallets(userWallets);
           
-          // Extract card balances from CARD_USD and CARD_EUR wallets
-          const cardUsdWallet = userWallets.find((w: WalletData) => w.currency === "CARD_USD");
-          const cardEurWallet = userWallets.find((w: WalletData) => w.currency === "CARD_EUR");
-          setCardBalance({
-            USD: cardUsdWallet?.balance || 0,
-            EUR: cardEurWallet?.balance || 0,
-          });
-
-          // Extract card info from virtualCards
+          // Extract card info from virtualCards (each card has its own balance)
           const cards = profileData.user.virtualCards;
           if (cards && cards.length > 0) {
-            // Store all cards for later switching
+            // Store all cards for later switching - each card has its own balance
             const mappedCards: CardData[] = cards.map((c: { 
               id: string; 
               number?: string; 
@@ -149,6 +143,8 @@ export default function McardPage() {
               dailyLimit?: number; 
               totalSpent?: number; 
               allowedCurrencies?: string[];
+              balanceUSD?: number;
+              balanceEUR?: number;
             }) => ({
               id: c.id,
               number: c.number || "",
@@ -161,6 +157,8 @@ export default function McardPage() {
               dailyLimit: c.dailyLimit || 1000,
               totalSpent: c.totalSpent || 0,
               allowedCurrencies: c.allowedCurrencies || ["USD", "EUR"],
+              balanceUSD: c.balanceUSD || 0,
+              balanceEUR: c.balanceEUR || 0,
             }));
             setAllCards(mappedCards);
 
@@ -183,6 +181,11 @@ export default function McardPage() {
             
             setCardData(selectedCard);
             setIsFrozen(selectedCard.isFrozen || false);
+            // Set card balance from selected card
+            setCardBalance({
+              USD: selectedCard.balanceUSD || 0,
+              EUR: selectedCard.balanceEUR || 0,
+            });
           } else {
             setNoCard(true);
           }
@@ -234,6 +237,11 @@ export default function McardPage() {
           setCardData(foundCard);
           setIsFrozen(foundCard.isFrozen || false);
           setCardTransactions([]);
+          // Update card balance from new card
+          setCardBalance({
+            USD: foundCard.balanceUSD || 0,
+            EUR: foundCard.balanceEUR || 0,
+          });
         }
       }
     };
@@ -299,19 +307,28 @@ export default function McardPage() {
         toast.success(`Recharge de ${data.netAmount.toFixed(2)} ${rechargeCurrency} reussie!`);
         setShowRechargeModal(false);
         setRechargeAmount("");
-        // Refresh balances
+        // Refresh balances from profile (wallets and card balances)
         const profileRes2 = await fetch("/api/user/profile");
         const profileData2 = await profileRes2.json();
-        if (profileData2.success && profileData2.user?.wallets) {
-          const userWallets2 = profileData2.user.wallets;
+        if (profileData2.success && profileData2.user) {
+          const userWallets2 = profileData2.user.wallets || [];
           setWallets(userWallets2);
-          // Update card balances
-          const cardUsdWallet2 = userWallets2.find((w: WalletData) => w.currency === "CARD_USD");
-          const cardEurWallet2 = userWallets2.find((w: WalletData) => w.currency === "CARD_EUR");
-          setCardBalance({
-            USD: cardUsdWallet2?.balance || 0,
-            EUR: cardEurWallet2?.balance || 0,
-          });
+          
+          // Update card balance from the updated card data
+          const updatedCards = profileData2.user.virtualCards || [];
+          const updatedCard = updatedCards.find((c: { id: string }) => c.id === cardData?.id);
+          if (updatedCard) {
+            setCardBalance({
+              USD: updatedCard.balanceUSD || 0,
+              EUR: updatedCard.balanceEUR || 0,
+            });
+            // Also update cardData with new balance
+            setCardData((prev) => prev ? {
+              ...prev,
+              balanceUSD: updatedCard.balanceUSD || 0,
+              balanceEUR: updatedCard.balanceEUR || 0,
+            } : null);
+          }
         }
         // Refresh transactions if on history tab
         if (activeTab === "history" && cardData?.id) {
@@ -369,19 +386,28 @@ export default function McardPage() {
         toast.success(`Retrait de ${data.netAmount.toFixed(2)} ${withdrawCurrency} vers compte ${withdrawCurrency} reussi!`);
         setShowWithdrawModal(false);
         setWithdrawAmount("");
-        // Refresh balances
+        // Refresh balances from profile (wallets and card balances)
         const profileRes3 = await fetch("/api/user/profile");
         const profileData3 = await profileRes3.json();
-        if (profileData3.success && profileData3.user?.wallets) {
-          const userWallets3 = profileData3.user.wallets;
+        if (profileData3.success && profileData3.user) {
+          const userWallets3 = profileData3.user.wallets || [];
           setWallets(userWallets3);
-          // Update card balances
-          const cardUsdWallet3 = userWallets3.find((w: WalletData) => w.currency === "CARD_USD");
-          const cardEurWallet3 = userWallets3.find((w: WalletData) => w.currency === "CARD_EUR");
-          setCardBalance({
-            USD: cardUsdWallet3?.balance || 0,
-            EUR: cardEurWallet3?.balance || 0,
-          });
+          
+          // Update card balance from the updated card data
+          const updatedCards3 = profileData3.user.virtualCards || [];
+          const updatedCard3 = updatedCards3.find((c: { id: string }) => c.id === cardData?.id);
+          if (updatedCard3) {
+            setCardBalance({
+              USD: updatedCard3.balanceUSD || 0,
+              EUR: updatedCard3.balanceEUR || 0,
+            });
+            // Also update cardData with new balance
+            setCardData((prev) => prev ? {
+              ...prev,
+              balanceUSD: updatedCard3.balanceUSD || 0,
+              balanceEUR: updatedCard3.balanceEUR || 0,
+            } : null);
+          }
         }
         // Refresh transactions if on history tab
         if (activeTab === "history" && cardData?.id) {

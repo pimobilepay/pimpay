@@ -79,46 +79,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Carte non trouvee" }, { status: 404 });
     }
 
-    // Find card wallet - try CARD_USD/CARD_EUR first, otherwise check if card has direct balance
-    let cardWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: `CARD_${currency}` } },
-    });
+    // Check card balance directly (each card has its own balanceUSD and balanceEUR)
+    const balanceField = currency === "EUR" ? "balanceEUR" : "balanceUSD";
+    const cardBalance = currency === "EUR" ? (card.balanceEUR ?? 0) : (card.balanceUSD ?? 0);
 
-    await logToAdmin("CARD_WITHDRAW_DEBUG", `cardWallet trouvé: ${cardWallet ? `id=${cardWallet.id}, balance=${cardWallet.balance}` : "NULL"} | ${logContext}`, userId);
-
-    // If no CARD_USD/CARD_EUR wallet exists, create one (this allows users to start using the feature)
-    if (!cardWallet) {
-      await logToAdmin("CARD_WITHDRAW_INFO", `Wallet CARD_${currency} introuvable, creation... | ${logContext}`, userId);
-      try {
-        cardWallet = await prisma.wallet.create({
-          data: {
-            userId,
-            currency: `CARD_${currency}`,
-            balance: 0,
-            type: "FIAT",
-          },
-        });
-        await logToAdmin("CARD_WITHDRAW_INFO", `Wallet CARD_${currency} cree avec succes: id=${cardWallet.id} | ${logContext}`, userId);
-      } catch (createErr: any) {
-        // If creation fails due to unique constraint, wallet was created concurrently
-        cardWallet = await prisma.wallet.findUnique({
-          where: { userId_currency: { userId, currency: `CARD_${currency}` } },
-        });
-        if (!cardWallet) {
-          await logToAdmin("CARD_WITHDRAW_ERROR", `Erreur creation wallet CARD_${currency}: ${createErr.message} | ${logContext}`, userId);
-          return NextResponse.json({ 
-            error: `Wallet carte ${currency} introuvable et impossible a creer`,
-            available: 0 
-          }, { status: 400 });
-        }
-      }
-    }
+    await logToAdmin("CARD_WITHDRAW_DEBUG", `Card ${cardId} ${balanceField}=${cardBalance} | ${logContext}`, userId);
     
-    if (cardWallet.balance < parsedAmount) {
-      await logToAdmin("CARD_WITHDRAW_ERROR", `Solde insuffisant: ${cardWallet.balance} < ${parsedAmount} | ${logContext}`, userId);
+    if (cardBalance < parsedAmount) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Solde carte insuffisant: ${cardBalance} < ${parsedAmount} | ${logContext}`, userId);
       return NextResponse.json({ 
-        error: `Solde carte ${currency} insuffisant (${cardWallet.balance.toFixed(2)} ${currency} disponible)`,
-        available: cardWallet.balance 
+        error: `Solde carte ${currency} insuffisant (${cardBalance.toFixed(2)} ${currency} disponible)`,
+        available: cardBalance 
       }, { status: 400 });
     }
 
@@ -153,12 +124,12 @@ export async function POST(req: NextRequest) {
 
     await logToAdmin("CARD_WITHDRAW_DEBUG", `Calcul: amount=${parsedAmount}, fee=${fee}, netAmount=${netAmount} | ${logContext}`, userId);
 
-    // Atomic transaction
+    // Atomic transaction - debit card balance directly, credit destination wallet
     const result = await prisma.$transaction(async (tx) => {
-      // Debit card wallet
-      await tx.wallet.update({
-        where: { id: cardWallet.id },
-        data: { balance: { decrement: parsedAmount } },
+      // Debit card balance directly
+      await tx.virtualCard.update({
+        where: { id: cardId },
+        data: { [balanceField]: { decrement: parsedAmount } },
       });
 
       // Credit destination wallet
@@ -175,10 +146,9 @@ export async function POST(req: NextRequest) {
           fee,
           type: "CARD_WITHDRAW",
           status: "SUCCESS",
-          currency: currency, // Explicitly set currency (USD or EUR)
+          currency: currency,
           description: `Retrait carte *${card.number.slice(-4)} vers compte ${currency}`,
           fromUserId: userId,
-          fromWalletId: cardWallet.id,
           toWalletId: destWallet!.id,
           metadata: {
             cardId,

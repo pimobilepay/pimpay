@@ -94,36 +94,17 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Find or create card wallet
-    let cardWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: `CARD_${currency}` } },
-    });
-
-    await logToAdmin("CARD_RECHARGE_DEBUG", `cardWallet: ${cardWallet ? `id=${cardWallet.id}, balance=${cardWallet.balance}` : "NULL, creation..."} | ${logContext}`, userId);
-
-    if (!cardWallet) {
-      try {
-        cardWallet = await prisma.wallet.create({
-          data: {
-            userId,
-            currency: `CARD_${currency}`,
-            balance: 0,
-            type: "FIAT", // Card wallets are FIAT type
-          },
-        });
-        await logToAdmin("CARD_RECHARGE_INFO", `Wallet CARD_${currency} cree: id=${cardWallet.id} | ${logContext}`, userId);
-      } catch (createErr: any) {
-        await logToAdmin("CARD_RECHARGE_ERROR", `Erreur creation wallet CARD_${currency}: ${createErr.message} | ${logContext}`, userId);
-        return NextResponse.json({ error: "Erreur creation wallet carte" }, { status: 500 });
-      }
-    }
-
     // Calculate fees (2% recharge fee)
     const feeRate = 0.02;
     const fee = parsedAmount * feeRate;
     const netAmount = parsedAmount - fee;
 
-    // Atomic transaction
+    // Determine which balance field to update based on currency
+    const balanceField = currency === "EUR" ? "balanceEUR" : "balanceUSD";
+
+    await logToAdmin("CARD_RECHARGE_DEBUG", `Updating card ${cardId} ${balanceField} += ${netAmount} | ${logContext}`, userId);
+
+    // Atomic transaction - update card balance directly
     const result = await prisma.$transaction(async (tx) => {
       // Debit source wallet
       await tx.wallet.update({
@@ -131,10 +112,10 @@ export async function POST(req: NextRequest) {
         data: { balance: { decrement: parsedAmount } },
       });
 
-      // Credit card wallet
-      await tx.wallet.update({
-        where: { id: cardWallet!.id },
-        data: { balance: { increment: netAmount } },
+      // Credit card balance directly
+      await tx.virtualCard.update({
+        where: { id: cardId },
+        data: { [balanceField]: { increment: netAmount } },
       });
 
       // Create transaction record
@@ -145,11 +126,10 @@ export async function POST(req: NextRequest) {
           fee,
           type: "CARD_RECHARGE",
           status: "SUCCESS",
-          currency: currency, // Explicitly set currency (USD or EUR)
+          currency: currency,
           description: `Recharge carte *${card.number.slice(-4)} depuis ${currency}`,
           fromUserId: userId,
           fromWalletId: sourceWallet.id,
-          toWalletId: cardWallet!.id,
           metadata: {
             cardId,
             cardLast4: card.number.slice(-4),
