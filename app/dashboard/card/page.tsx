@@ -87,7 +87,22 @@ export default function McardPage() {
           // Extract card info from virtualCards
           const cards = profileData.user.virtualCards;
           if (cards && cards.length > 0) {
-            const card = cards[0];
+            // Get URL search params for card id
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlCardId = urlParams.get("id");
+            
+            // Check for primary card in localStorage
+            const primaryCardId = localStorage.getItem("pimpay_primary_card");
+            
+            // Find the card to display: URL param > localStorage > first card
+            let card = cards[0];
+            if (urlCardId) {
+              const foundCard = cards.find((c: { id: string }) => c.id === urlCardId);
+              if (foundCard) card = foundCard;
+            } else if (primaryCardId) {
+              const foundCard = cards.find((c: { id: string }) => c.id === primaryCardId);
+              if (foundCard) card = foundCard;
+            }
             setCardData({
               number: card.number || "",
               expiry: card.exp || "",

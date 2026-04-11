@@ -115,9 +115,10 @@ export default function VirtualCard({ card, user }: any) {
 
               {/* Card Number - stays on one line */}
               <div className="mb-2">
-                <p className="text-base md:text-lg font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
-                  {formatCardNumber(card.number)}
-                  <span className="text-[#3b82f6]">{last4}</span>
+                <p className="text-lg md:text-xl font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
+                  {showInfo 
+                    ? card.number?.replace(/(\d{4})/g, "$1 ").trim() 
+                    : `•••• •••• •••• ${last4}`}
                 </p>
               </div>
 
