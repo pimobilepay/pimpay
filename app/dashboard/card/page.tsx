@@ -529,21 +529,34 @@ export default function McardPage() {
                 <div className={`absolute inset-0 rounded-[1.5rem] ${cardStyles.gradient}`} />
 
                 <div className="relative h-full z-10">
-                  <div className="w-full h-12 bg-black/80 mt-6" />
+                  {/* Magnetic stripe */}
+                  <div className="w-full h-12 bg-gradient-to-b from-[#1a1a2e] via-[#0d0d1a] to-[#1a1a2e] mt-6 shadow-inner" />
 
                   <div className="p-6 flex flex-col justify-between" style={{ height: "calc(100% - 4.5rem)" }}>
-                    {/* CVV signature strip */}
+                    {/* CVV signature strip with background lines */}
                     <div className="space-y-2 mt-2">
                       <div className="flex items-center">
-                        <div className="flex-1 h-12 bg-white rounded flex items-center justify-end">
-                          <div className="bg-white px-4 py-2 flex items-center justify-end min-w-[80px]">
-                            <span className="text-slate-900 font-mono font-black text-xl tracking-widest">{cardCvv}</span>
+                        <div className="relative flex-1 h-12 bg-gradient-to-r from-[#f5f5f0] to-[#e8e8e0] rounded overflow-hidden">
+                          {/* Signature lines pattern */}
+                          <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                            <defs>
+                              <pattern id="signatureLines" patternUnits="userSpaceOnUse" width="100%" height="6">
+                                <line x1="0" y1="5" x2="100%" y2="5" stroke="rgba(180,180,170,0.4)" strokeWidth="1" />
+                              </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#signatureLines)" />
+                          </svg>
+                          {/* CVV display area */}
+                          <div className="absolute right-0 top-0 bottom-0 bg-white px-4 flex items-center justify-center min-w-[80px] border-l border-gray-200">
+                            <span className="text-slate-900 font-mono font-black text-xl tracking-widest">
+                              {showDetails ? cardCvv : "***"}
+                            </span>
                           </div>
                         </div>
                       </div>
                       <p className="text-[10px] font-bold text-[#ec4899] uppercase tracking-widest">CODE DE SECURITE (CVV)</p>
                       <p className="text-[10px] text-gray-400">
-                        Numero complet: <span className="font-mono text-white/80 ml-4">{formattedNumber}</span>
+                        Numero complet: <span className="font-mono text-white/80 ml-4">{showDetails ? formattedNumber : maskedNumber}</span>
                       </p>
                     </div>
 
