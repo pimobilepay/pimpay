@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Lock, Unlock, Zap, Contact } from "lucide-react";
+import { Eye, EyeOff, Lock, Unlock, Wifi, ShieldCheck } from "lucide-react";
 
 interface CardProps {
   holderName: string;
@@ -10,7 +10,26 @@ interface CardProps {
   cvv: string;
   balance: number;
   isLocked?: boolean;
+  brand?: "VISA" | "MASTERCARD";
 }
+
+// Decorative pattern for MasterCard (ePayService style)
+const MasterCardPattern = () => (
+  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+    <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+    <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+    <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+  </svg>
+);
+
+// Decorative pattern for VISA (Platinum Business style)
+const VisaPattern = () => (
+  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+    <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.3)" />
+    <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.2)" />
+    <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.15)" />
+  </svg>
+);
 
 export const VirtualCard = ({ 
   holderName = "PIM PIONEER", 
@@ -18,9 +37,20 @@ export const VirtualCard = ({
   expiryDate = "12/28", 
   cvv = "314",
   balance = 0,
-  isLocked = false 
+  isLocked = false,
+  brand = "VISA"
 }: CardProps) => {
   const [showDetails, setShowDetails] = useState(false);
+
+  const isVisa = brand === "VISA";
+  const isMasterCard = brand === "MASTERCARD";
+
+  const getCardGradient = () => {
+    if (isLocked) return "bg-slate-900 border-white/5 grayscale";
+    if (isVisa) return "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5] border-indigo-400/30";
+    if (isMasterCard) return "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b] border-cyan-400/30";
+    return "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a] border-white/20";
+  };
 
   return (
     <div className="relative w-full max-w-md mx-auto perspective-1000">
@@ -28,72 +58,71 @@ export const VirtualCard = ({
         initial={{ rotateY: 20, opacity: 0 }}
         animate={{ rotateY: 0, opacity: 1 }}
         transition={{ duration: 0.8 }}
-        className={`relative h-60 w-full rounded-[2.5rem] p-8 overflow-hidden border shadow-2xl transition-all duration-500 ${
-          isLocked 
-          ? "bg-slate-900 border-white/5 grayscale" 
-          : "bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 border-white/20"
-        }`}
+        className={`relative h-60 w-full rounded-[2.5rem] p-8 overflow-hidden border shadow-2xl transition-all duration-500 ${getCardGradient()}`}
       >
-        {/* Background Patterns - Verre et Lumière */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl" />
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
-        </div>
+        {/* Background Patterns */}
+        {isVisa && !isLocked && <VisaPattern />}
+        {isMasterCard && !isLocked && <MasterCardPattern />}
 
-        {/* Top Header: Logo & Type */}
-        <div className="relative z-10 flex justify-between items-start mb-8">
+        {/* Top Header: Logo & Brand */}
+        <div className="relative z-10 flex justify-between items-start mb-6">
           <div className="flex flex-col">
-            <h2 className="text-white font-black italic tracking-tighter text-xl leading-none">
-              PIMPAY<span className="text-blue-300">CARD</span>
-            </h2>
-            <div className="flex items-center gap-1 mt-1">
-              <Zap size={10} className="text-yellow-400 fill-yellow-400" />
-              <span className="text-[8px] font-black text-white/70 uppercase tracking-widest">Premium Web3 Card</span>
+            <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest flex items-center gap-1">
+              <ShieldCheck size={12} /> Pimpay
+            </span>
+            <span className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</span>
+          </div>
+          {isVisa ? (
+            <div className="flex flex-col items-end">
+              <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+              <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
             </div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-md p-2 rounded-xl border border-white/10">
-             <Contact size={24} className="text-white/80" />
-          </div>
+          ) : (
+            <div className="flex flex-col items-end">
+              <div className="flex items-center">
+                <div className="w-8 h-8 rounded-full bg-[#eb001b]" />
+                <div className="w-8 h-8 rounded-full bg-[#f79e1b] -ml-3" />
+              </div>
+              <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
+            </div>
+          )}
         </div>
 
         {/* Chip & Contactless */}
-        <div className="relative z-10 flex items-center gap-4 mb-6">
-          <div className="w-12 h-9 bg-gradient-to-br from-yellow-200 to-yellow-500 rounded-lg relative overflow-hidden shadow-inner">
-             <div className="absolute inset-0 opacity-30 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,black_3px)]" />
+        <div className="relative z-10 flex items-center gap-4 mb-4">
+          <div className="w-12 h-9 bg-gradient-to-br from-[#ffd700] to-[#daa520] rounded-lg relative overflow-hidden">
+            <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-black/20 rounded-[1px]"></div>
+              ))}
+            </div>
           </div>
-          <svg className="w-8 h-8 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M2 8c4 0 4 8 8 8s4-8 8-8" />
-          </svg>
+          <Wifi size={20} className="rotate-90 text-white/50" />
         </div>
 
         {/* Card Number */}
-        <div className="relative z-10 mb-6">
-          <p className="text-2xl font-mono font-bold text-white tracking-[0.2em] drop-shadow-lg">
+        <div className="relative z-10 mb-4">
+          <p className="text-xl font-mono font-bold text-white tracking-[0.2em] drop-shadow-lg">
             {showDetails ? cardNumber : cardNumber.replace(/\d{4} \d{4} \d{4}/, "**** **** ****")}
           </p>
         </div>
 
         {/* Footer Info */}
         <div className="relative z-10 flex justify-between items-end">
-          <div className="space-y-1">
-            <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Card Holder</p>
+          <div className="space-y-0.5">
+            <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Titulaire</p>
             <p className="text-sm font-black text-white uppercase tracking-tight">{holderName}</p>
           </div>
           
-          <div className="flex gap-8">
-             <div className="space-y-1 text-center">
-                <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Expires</p>
+          <div className="flex gap-6">
+             <div className="space-y-0.5 text-center">
+                <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">Expire</p>
                 <p className="text-sm font-bold text-white font-mono">{expiryDate}</p>
              </div>
-             <div className="space-y-1 text-center">
+             <div className="space-y-0.5 text-center">
                 <p className="text-[8px] text-white/50 uppercase font-bold tracking-widest">CVV</p>
                 <p className="text-sm font-bold text-white font-mono">{showDetails ? cvv : "***"}</p>
              </div>
-          </div>
-
-          <div className="text-right">
-             <p className="text-xl font-black text-white italic">VISA</p>
           </div>
         </div>
 

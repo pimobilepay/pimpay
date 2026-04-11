@@ -29,7 +29,7 @@ const PI_RATE_GCV = 314159;
 
 // Tier IDs must match the API CARD_CONFIG keys: PLATINIUM, PREMIUM, GOLD, ULTRA, VISA_CLASSIC, VISA_GOLD, VISA_PLATINUM, VISA_INFINITE
 const CARD_TIERS = [
-  // MASTERCARD
+  // MASTERCARD - Blue theme variations (ePayService style)
   {
     id: "PLATINIUM",
     tier: "Mastercard Blue",
@@ -37,10 +37,11 @@ const CARD_TIERS = [
     price: 10,
     limit: "1,000",
     monthlyLimit: "5,000",
-    gradient: "from-[#1e3a8a] via-[#3b82f6] to-[#1e40af]",
-    border: "border-blue-500/30",
-    accent: "text-blue-400",
-    accentBg: "bg-blue-500/20",
+    gradient: "from-[#0288d1] via-[#0277bd] to-[#01579b]",
+    pattern: "mastercard-blue",
+    border: "border-cyan-500/30",
+    accent: "text-cyan-400",
+    accentBg: "bg-cyan-500/20",
     features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
     maintenance: "$1/mois",
     rechargeRate: "2.5%",
@@ -48,15 +49,16 @@ const CARD_TIERS = [
   },
   {
     id: "PREMIUM",
-    tier: "Mastercard Diamond",
+    tier: "Mastercard Teal",
     brand: "MASTERCARD",
     price: 25,
     limit: "2,500",
     monthlyLimit: "50,000",
-    gradient: "from-[#fbbf24] via-[#b45309] to-[#78350f]",
-    border: "border-amber-500/40",
-    accent: "text-amber-400",
-    accentBg: "bg-amber-500/20",
+    gradient: "from-[#00897b] via-[#00796b] to-[#004d40]",
+    pattern: "mastercard-teal",
+    border: "border-teal-500/40",
+    accent: "text-teal-400",
+    accentBg: "bg-teal-500/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$2/mois",
     rechargeRate: "1.5%",
@@ -64,15 +66,16 @@ const CARD_TIERS = [
   },
   {
     id: "GOLD",
-    tier: "Mastercard Gold",
+    tier: "Mastercard Navy",
     brand: "MASTERCARD",
     price: 50,
     limit: "5,000",
     monthlyLimit: "200,000",
-    gradient: "from-[#334155] via-[#475569] to-[#1e293b]",
-    border: "border-slate-400/40",
-    accent: "text-slate-300",
-    accentBg: "bg-slate-400/20",
+    gradient: "from-[#1a237e] via-[#283593] to-[#0d1b4c]",
+    pattern: "mastercard-navy",
+    border: "border-indigo-400/40",
+    accent: "text-indigo-300",
+    accentBg: "bg-indigo-400/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$5/mois",
     rechargeRate: "1%",
@@ -80,12 +83,13 @@ const CARD_TIERS = [
   },
   {
     id: "ULTRA",
-    tier: "Mastercard Platinum",
+    tier: "Mastercard Black",
     brand: "MASTERCARD",
     price: 100,
     limit: "Illimite",
     monthlyLimit: "Illimite",
-    gradient: "from-[#0f172a] via-[#1e293b] to-[#0c0a09]",
+    gradient: "from-[#212121] via-[#424242] to-[#0a0a0a]",
+    pattern: "mastercard-black",
     border: "border-white/20",
     accent: "text-white",
     accentBg: "bg-white/10",
@@ -94,18 +98,19 @@ const CARD_TIERS = [
     rechargeRate: "0.5%",
     withdrawRate: "0%",
   },
-  // VISA
+  // VISA - Wave pattern style (Platinum Business style)
   {
     id: "VISA_CLASSIC",
-    tier: "Visa Classic",
+    tier: "Visa Purple",
     brand: "VISA",
     price: 15,
     limit: "1,500",
     monthlyLimit: "10,000",
-    gradient: "from-[#1a1f71] via-[#2d3a8c] to-[#0d1137]",
-    border: "border-indigo-500/30",
-    accent: "text-indigo-400",
-    accentBg: "bg-indigo-500/20",
+    gradient: "from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]",
+    pattern: "visa-purple",
+    border: "border-indigo-400/30",
+    accent: "text-indigo-300",
+    accentBg: "bg-indigo-400/20",
     features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
     maintenance: "$1.5/mois",
     rechargeRate: "2%",
@@ -118,10 +123,11 @@ const CARD_TIERS = [
     price: 35,
     limit: "3,000",
     monthlyLimit: "75,000",
-    gradient: "from-[#854d0e] via-[#a16207] to-[#713f12]",
-    border: "border-yellow-600/40",
-    accent: "text-yellow-500",
-    accentBg: "bg-yellow-500/20",
+    gradient: "from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
+    pattern: "visa-gold",
+    border: "border-amber-400/40",
+    accent: "text-amber-300",
+    accentBg: "bg-amber-400/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$3/mois",
     rechargeRate: "1.5%",
@@ -134,10 +140,11 @@ const CARD_TIERS = [
     price: 75,
     limit: "10,000",
     monthlyLimit: "300,000",
-    gradient: "from-[#374151] via-[#6b7280] to-[#1f2937]",
-    border: "border-gray-400/40",
-    accent: "text-gray-300",
-    accentBg: "bg-gray-400/20",
+    gradient: "from-[#546e7a] via-[#607d8b] to-[#37474f]",
+    pattern: "visa-platinum",
+    border: "border-slate-400/40",
+    accent: "text-slate-300",
+    accentBg: "bg-slate-400/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$7/mois",
     rechargeRate: "1%",
@@ -145,12 +152,13 @@ const CARD_TIERS = [
   },
   {
     id: "VISA_INFINITE",
-    tier: "Visa Infinite",
+    tier: "Visa Black",
     brand: "VISA",
     price: 150,
     limit: "Illimite",
     monthlyLimit: "Illimite",
-    gradient: "from-[#0c0a09] via-[#1c1917] to-[#0a0a0a]",
+    gradient: "from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
+    pattern: "visa-black",
     border: "border-white/30",
     accent: "text-white",
     accentBg: "bg-white/10",
@@ -257,21 +265,42 @@ export default function CardOrderPage() {
             {/* Card Preview */}
             <div className={`relative w-full aspect-[1.586/1] rounded-[1.5rem] overflow-hidden shadow-2xl border ${selectedCard.border} transition-all duration-500`}>
               <div className={`absolute inset-0 bg-gradient-to-br ${selectedCard.gradient}`}>
-                <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-20 -mb-20 blur-3xl" />
+                {/* VISA Pattern - Wave ellipses */}
+                {selectedCard.brand === "VISA" && (
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                    <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.25)" />
+                    <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.15)" />
+                    <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.1)" />
+                  </svg>
+                )}
+                {/* MasterCard Pattern - "100" watermark and curves */}
+                {selectedCard.brand === "MASTERCARD" && (
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                    <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+                    <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+                    <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+                  </svg>
+                )}
               </div>
 
-              <div className="relative h-full p-6 flex flex-col justify-between">
+              <div className="relative h-full p-6 flex flex-col justify-between z-10">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-[10px] font-black tracking-[0.2em] text-white/50 uppercase">PimPay Virtual</span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black tracking-[0.2em] text-white/60 uppercase">PimPay</span>
+                    <span className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</span>
                   </div>
                   {selectedCard.brand === "VISA" ? (
-                    <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                    <div className="flex flex-col items-end">
+                      <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                      <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
+                    </div>
                   ) : (
-                    <div className="flex items-center">
-                      <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
-                      <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-center">
+                        <div className="w-7 h-7 bg-[#eb001b] rounded-full" />
+                        <div className="w-7 h-7 bg-[#f79e1b] rounded-full -ml-3" />
+                      </div>
+                      <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
                     </div>
                   )}
                 </div>
@@ -292,7 +321,7 @@ export default function CardOrderPage() {
                 <div className="flex justify-between items-end">
                   <p className="text-[9px] font-black uppercase text-white/40 tracking-widest">{selectedCard.tier}</p>
                   {selectedCard.brand === "VISA" ? (
-                    <span className="text-sm font-black italic text-white/50">VISA</span>
+                    <span className="text-sm font-black italic text-[#1a237e]/60">VISA</span>
                   ) : (
                     <div className="flex items-center opacity-50">
                       <div className="w-5 h-5 bg-[#eb001b] rounded-full" />

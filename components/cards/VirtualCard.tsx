@@ -2,6 +2,74 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Wifi, RotateCcw } from "lucide-react";
 
+// Decorative wave pattern for MasterCard (similar to ePayService design)
+const MasterCardPattern = () => (
+  <svg
+    className="absolute inset-0 w-full h-full"
+    viewBox="0 0 400 250"
+    preserveAspectRatio="xMidYMid slice"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Large "100" watermark text */}
+    <text
+      x="-20"
+      y="200"
+      fontSize="180"
+      fontWeight="bold"
+      fill="rgba(255,255,255,0.08)"
+      fontFamily="Arial, sans-serif"
+    >
+      100
+    </text>
+    {/* Decorative curved lines */}
+    <path
+      d="M 350 0 Q 280 80 350 160 Q 420 240 350 320"
+      stroke="rgba(255,255,255,0.1)"
+      strokeWidth="60"
+      fill="none"
+    />
+    <path
+      d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300"
+      stroke="rgba(255,255,255,0.05)"
+      strokeWidth="40"
+      fill="none"
+    />
+  </svg>
+);
+
+// Decorative wave pattern for VISA (Platinum Business style)
+const VisaPattern = () => (
+  <svg
+    className="absolute inset-0 w-full h-full"
+    viewBox="0 0 400 250"
+    preserveAspectRatio="xMidYMid slice"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Wave patterns */}
+    <ellipse
+      cx="320"
+      cy="60"
+      rx="120"
+      ry="80"
+      fill="rgba(0,0,50,0.3)"
+    />
+    <ellipse
+      cx="350"
+      cy="120"
+      rx="100"
+      ry="70"
+      fill="rgba(0,0,50,0.2)"
+    />
+    <ellipse
+      cx="80"
+      cy="200"
+      rx="150"
+      ry="100"
+      fill="rgba(0,0,50,0.15)"
+    />
+  </svg>
+);
+
 export default function VirtualCard({ card, user }: any) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -16,12 +84,13 @@ export default function VirtualCard({ card, user }: any) {
   const isVisa = card.brand?.toLowerCase() === "visa";
   const isMasterCard = card.brand?.toLowerCase() === "mastercard";
 
-  const visaGradient =
-    "bg-gradient-to-br from-[#1a1f71] via-[#2d3a8c] to-[#0d1137]";
-  const masterCardGradient =
-    "bg-gradient-to-br from-[#eb001b] via-[#c41230] to-[#ff5f00]";
-  const defaultGradient =
-    "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a]";
+  // New VISA gradient - Purple/Indigo (Platinum Business style)
+  const visaGradient = "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]";
+  
+  // New MasterCard gradient - Blue (ePayService style)
+  const masterCardGradient = "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]";
+  
+  const defaultGradient = "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a]";
 
   const getCardGradient = () => {
     if (card.isFrozen) return "bg-gray-800";
@@ -32,31 +101,32 @@ export default function VirtualCard({ card, user }: any) {
 
   const getBackGradient = () => {
     if (card.isFrozen) return "bg-gray-800";
-    if (isVisa)
-      return "bg-gradient-to-br from-[#0d1137] via-[#1a1f71] to-[#2d3a8c]";
-    if (isMasterCard)
-      return "bg-gradient-to-br from-[#ff5f00] via-[#c41230] to-[#eb001b]";
+    if (isVisa) return "bg-gradient-to-br from-[#3f51b5] via-[#5c6bc0] to-[#7986cb]";
+    if (isMasterCard) return "bg-gradient-to-br from-[#01579b] via-[#0277bd] to-[#0288d1]";
     return "bg-gradient-to-br from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d]";
   };
 
   const VisaLogo = () => (
-    <div className="flex items-center">
+    <div className="flex flex-col items-end">
       <span
-        className="text-2xl md:text-3xl font-black italic text-white tracking-tight"
+        className="text-2xl md:text-3xl font-black italic text-[#1a237e] tracking-tight"
         style={{ fontFamily: "Arial, sans-serif" }}
       >
         VISA
+      </span>
+      <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">
+        Platinum Business
       </span>
     </div>
   );
 
   const MasterCardLogo = () => (
-    <div className="flex items-center">
+    <div className="flex flex-col items-end">
       <div className="flex items-center">
-        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#eb001b] opacity-90"></div>
-        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#f79e1b] opacity-90 -ml-4"></div>
+        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#eb001b]"></div>
+        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#f79e1b] -ml-4"></div>
       </div>
-      <span className="text-xs font-bold ml-2 tracking-wider">mastercard</span>
+      <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
     </div>
   );
 
@@ -98,37 +168,19 @@ export default function VirtualCard({ card, user }: any) {
             } ${getCardGradient()}`}
             style={{ backfaceVisibility: "hidden" }}
           >
-            {/* Motif de fond pour Visa */}
-            {isVisa && !card.isFrozen && (
-              <>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#f7b924]/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-[#f7b924]/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2"></div>
-              </>
-            )}
-
-            {/* Motif de fond pour MasterCard */}
-            {isMasterCard && !card.isFrozen && (
-              <>
-                <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-[#ff5f00]/30 to-transparent rounded-full -translate-y-1/3 translate-x-1/3"></div>
-                <div className="absolute bottom-0 left-0 w-56 h-56 bg-gradient-to-tr from-[#eb001b]/20 to-transparent rounded-full translate-y-1/3 -translate-x-1/3"></div>
-                <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-[#f79e1b]/10 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-              </>
-            )}
+            {/* Decorative patterns */}
+            {isVisa && !card.isFrozen && <VisaPattern />}
+            {isMasterCard && !card.isFrozen && <MasterCardPattern />}
 
             <div className="relative h-full flex flex-col justify-between z-10">
               {/* Header */}
               <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 ${
-                      isVisa
-                        ? "text-[#f7b924]"
-                        : isMasterCard
-                          ? "text-white/80"
-                          : "text-[#6C5CE7]"
-                    }`}
-                  >
-                    <ShieldCheck size={12} /> Pimpay Virtual
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/70">
+                    <ShieldCheck size={12} /> Pimpay
+                  </span>
+                  <span className="text-[12px] font-semibold text-white/90 tracking-wide">
+                    Virtual
                   </span>
                 </div>
                 {renderLogo()}
@@ -136,15 +188,7 @@ export default function VirtualCard({ card, user }: any) {
 
               {/* Chip et Contactless */}
               <div className="flex items-center gap-4 my-2">
-                <div
-                  className={`w-12 h-9 rounded-md ${
-                    isVisa
-                      ? "bg-gradient-to-br from-[#f7b924] to-[#d4a017]"
-                      : isMasterCard
-                        ? "bg-gradient-to-br from-[#ffd700] to-[#daa520]"
-                        : "bg-gradient-to-br from-[#d4af37] to-[#b8860b]"
-                  }`}
-                >
+                <div className="w-12 h-9 rounded-md bg-gradient-to-br from-[#ffd700] to-[#daa520]">
                   <div className="w-full h-full grid grid-cols-3 gap-[1px] p-1">
                     {[...Array(6)].map((_, i) => (
                       <div key={i} className="bg-black/20 rounded-[1px]"></div>
@@ -165,15 +209,7 @@ export default function VirtualCard({ card, user }: any) {
                 {/* Expiration */}
                 <div className="flex gap-8">
                   <div>
-                    <p
-                      className={`text-[10px] uppercase tracking-wider ${
-                        isVisa
-                          ? "text-[#f7b924]/70"
-                          : isMasterCard
-                            ? "text-white/50"
-                            : "text-gray-500"
-                      }`}
-                    >
+                    <p className="text-[10px] uppercase tracking-wider text-white/50">
                       Expire
                     </p>
                     <p className="text-sm font-bold tracking-widest">
@@ -181,15 +217,7 @@ export default function VirtualCard({ card, user }: any) {
                     </p>
                   </div>
                   <div>
-                    <p
-                      className={`text-[10px] uppercase tracking-wider ${
-                        isVisa
-                          ? "text-[#f7b924]/70"
-                          : isMasterCard
-                            ? "text-white/50"
-                            : "text-gray-500"
-                      }`}
-                    >
+                    <p className="text-[10px] uppercase tracking-wider text-white/50">
                       CVV
                     </p>
                     <p className="text-sm font-bold tracking-widest">
@@ -232,15 +260,7 @@ export default function VirtualCard({ card, user }: any) {
                     </div>
                   </div>
                 </div>
-                <p
-                  className={`text-[10px] mt-2 uppercase tracking-wider ${
-                    isVisa
-                      ? "text-[#f7b924]/70"
-                      : isMasterCard
-                        ? "text-white/50"
-                        : "text-gray-400"
-                  }`}
-                >
+                <p className="text-[10px] mt-2 uppercase tracking-wider text-white/50">
                   {"Code de securite (CVV)"}
                 </p>
               </div>
@@ -267,11 +287,7 @@ export default function VirtualCard({ card, user }: any) {
               <div className="flex justify-between items-center">
                 <button
                   onClick={handleFlip}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 ${
-                    isVisa
-                      ? "bg-[#f7b924]/20 hover:bg-[#f7b924]/30"
-                      : "bg-white/10 hover:bg-white/20"
-                  }`}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 bg-white/10 hover:bg-white/20"
                 >
                   <EyeOff size={16} />
                   <span className="text-xs font-medium">Masquer</span>

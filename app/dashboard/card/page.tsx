@@ -241,17 +241,36 @@ export default function McardPage() {
                 className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 overflow-hidden ${isFrozen ? "grayscale opacity-60" : "shadow-2xl shadow-blue-600/20"}`}
                 style={{ backfaceVisibility: "hidden" }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-blue-700 to-slate-900 rounded-[1.5rem] overflow-hidden">
-                  <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl" />
-                  <div className="absolute bottom-0 left-0 w-72 h-72 bg-blue-400/10 rounded-full -ml-20 -mb-20 blur-3xl" />
-                  <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-indigo-400/5 rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl" />
+                {/* Background gradient based on card brand */}
+                <div className={`absolute inset-0 rounded-[1.5rem] overflow-hidden ${
+                  cardBrand === "VISA" 
+                    ? "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]"
+                    : "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]"
+                }`}>
+                  {/* VISA Pattern - Wave ellipses */}
+                  {cardBrand === "VISA" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.3)" />
+                      <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.2)" />
+                      <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.15)" />
+                    </svg>
+                  )}
+                  {/* MasterCard Pattern - "100" watermark and curves */}
+                  {cardBrand !== "VISA" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
+                      <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
+                      <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+                    </svg>
+                  )}
                 </div>
 
                 <div className="h-full flex flex-col justify-between relative z-10">
                   {/* Header */}
                   <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">PimPay Virtual</p>
+                    <div className="flex flex-col">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">PimPay</p>
+                      <p className="text-[12px] font-semibold text-white/90 tracking-wide">Virtual</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Wifi size={18} className="text-white/40 rotate-90" />
@@ -294,11 +313,17 @@ export default function McardPage() {
                         <p className="text-xs font-black uppercase tracking-widest opacity-80">{cardHolder}</p>
                       </div>
                       {cardBrand === "VISA" ? (
-                        <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-2xl font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                          <span className="text-[8px] font-medium text-[#1a237e]/70 tracking-wider -mt-1">Platinum Business</span>
+                        </div>
                       ) : (
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-full bg-[#eb001b]/80" />
-                          <div className="w-8 h-8 rounded-full bg-[#f79e1b]/80 -ml-3" />
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-full bg-[#eb001b]" />
+                            <div className="w-8 h-8 rounded-full bg-[#f79e1b] -ml-3" />
+                          </div>
+                          <span className="text-[9px] font-medium text-white/80 tracking-wider mt-0.5">debit</span>
                         </div>
                       )}
                     </div>
@@ -311,7 +336,11 @@ export default function McardPage() {
                 className={`absolute inset-0 w-full h-full rounded-[1.5rem] overflow-hidden ${isFrozen ? "grayscale opacity-60" : "shadow-2xl shadow-blue-600/20"}`}
                 style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900 rounded-[1.5rem]" />
+                <div className={`absolute inset-0 rounded-[1.5rem] ${
+                  cardBrand === "VISA"
+                    ? "bg-gradient-to-br from-[#3f51b5] via-[#5c6bc0] to-[#7986cb]"
+                    : "bg-gradient-to-br from-[#01579b] via-[#0277bd] to-[#0288d1]"
+                }`} />
 
                 <div className="relative h-full z-10">
                   <div className="w-full h-12 bg-black/80 mt-6" />
@@ -348,11 +377,15 @@ export default function McardPage() {
                     <div className="flex justify-between items-center">
                       <p className="text-[7px] text-white/20">{"Propriete de PimPay. Usage personnel uniquement."}</p>
                       {cardBrand === "VISA" ? (
-                        <span className="text-lg font-black italic text-white/50 tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                        <div className="flex flex-col items-end opacity-60">
+                          <span className="text-lg font-black italic text-[#1a237e] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                        </div>
                       ) : (
-                        <div className="flex items-center opacity-50">
-                          <div className="w-5 h-5 rounded-full bg-[#eb001b]/80" />
-                          <div className="w-5 h-5 rounded-full bg-[#f79e1b]/80 -ml-2" />
+                        <div className="flex flex-col items-end opacity-60">
+                          <div className="flex items-center">
+                            <div className="w-5 h-5 rounded-full bg-[#eb001b]" />
+                            <div className="w-5 h-5 rounded-full bg-[#f79e1b] -ml-2" />
+                          </div>
                         </div>
                       )}
                     </div>
