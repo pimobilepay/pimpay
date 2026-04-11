@@ -455,13 +455,95 @@ export default function McardPage() {
   const dailyLimit = cardData?.dailyLimit || 1000;
   const monthlyLimit = dailyLimit * 5;
 
-  // Get card styles - ALWAYS use cardBrand to determine VISA vs MasterCard
-  // Label is ALWAYS "PIMPAY VIRTUAL" for consistency
-  const isVisa = cardBrand.toUpperCase() === "VISA";
-  
-  const getCardStyles = () => {
-    // Base styles based on actual card brand (VISA or MASTERCARD)
-    if (isVisa) {
+  // Card style configurations - MUST match VirtualCard.tsx and order page exactly
+  const CARD_STYLES: Record<string, {
+    gradient: string;
+    shadow: string;
+    label: string;
+    labelColor: string;
+    pattern: string;
+    accentColor: string;
+    brand: string;
+  }> = {
+    // MASTERCARD Types
+    PLATINIUM: {
+      gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+      shadow: "shadow-2xl shadow-cyan-600/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "mastercard",
+      accentColor: "text-cyan-400",
+      brand: "MASTERCARD",
+    },
+    PREMIUM: {
+      gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
+      shadow: "shadow-2xl shadow-teal-600/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "mastercard",
+      accentColor: "text-teal-400",
+      brand: "MASTERCARD",
+    },
+    GOLD: {
+      gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
+      shadow: "shadow-2xl shadow-indigo-600/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "mastercard",
+      accentColor: "text-indigo-300",
+      brand: "MASTERCARD",
+    },
+    ULTRA: {
+      gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
+      shadow: "shadow-2xl shadow-white/10",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "mastercard",
+      accentColor: "text-white",
+      brand: "MASTERCARD",
+    },
+    // VISA Types
+    VISA_CLASSIC: {
+      gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+      shadow: "shadow-2xl shadow-indigo-900/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "visa",
+      accentColor: "text-[#3b5bdb]",
+      brand: "VISA",
+    },
+    VISA_GOLD: {
+      gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
+      shadow: "shadow-2xl shadow-amber-600/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#1a1a1a]",
+      pattern: "visa",
+      accentColor: "text-amber-300",
+      brand: "VISA",
+    },
+    VISA_PLATINUM: {
+      gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
+      shadow: "shadow-2xl shadow-slate-500/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "visa",
+      accentColor: "text-slate-300",
+      brand: "VISA",
+    },
+    VISA_INFINITE: {
+      gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
+      shadow: "shadow-2xl shadow-white/10",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "visa",
+      accentColor: "text-white",
+      brand: "VISA",
+    },
+  };
+
+  // Get default style based on brand
+  const getDefaultStyle = (brand: string) => {
+    if (brand?.toUpperCase() === "VISA") {
       return {
         gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
         shadow: "shadow-2xl shadow-indigo-900/30",
@@ -472,7 +554,6 @@ export default function McardPage() {
         brand: "VISA",
       };
     }
-    // Default: MASTERCARD
     return {
       gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
       shadow: "shadow-2xl shadow-blue-600/20",
@@ -483,6 +564,12 @@ export default function McardPage() {
       brand: "MASTERCARD",
     };
   };
+
+  // Get card styles based on card type (VISA_GOLD, VISA_PLATINUM, PLATINIUM, etc.)
+  const cardStyles = CARD_STYLES[cardType.toUpperCase()] || getDefaultStyle(cardBrand);
+  
+  // Use actual brand for logo/pattern display
+  const isVisa = cardBrand.toUpperCase() === "VISA";
 
   const cardStyles = getCardStyles();
 
