@@ -455,9 +455,92 @@ export default function McardPage() {
   const dailyLimit = cardData?.dailyLimit || 1000;
   const monthlyLimit = dailyLimit * 5;
 
-  // Get card styles based on type
+  // Get card styles based on type - matching the order page card tiers
   const getCardStyles = () => {
     switch (cardType.toUpperCase()) {
+      // MASTERCARD Types
+      case "PLATINIUM":
+        return {
+          gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+          shadow: "shadow-2xl shadow-cyan-600/30",
+          label: "MASTERCARD BLUE",
+          labelColor: "text-[#FFD700]",
+          pattern: "mastercard",
+          accentColor: "text-cyan-400",
+          brand: "MASTERCARD",
+        };
+      case "PREMIUM":
+        return {
+          gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
+          shadow: "shadow-2xl shadow-teal-600/30",
+          label: "MASTERCARD TEAL",
+          labelColor: "text-[#FFD700]",
+          pattern: "mastercard",
+          accentColor: "text-teal-400",
+          brand: "MASTERCARD",
+        };
+      case "GOLD":
+        return {
+          gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
+          shadow: "shadow-2xl shadow-indigo-600/30",
+          label: "MASTERCARD NAVY",
+          labelColor: "text-[#FFD700]",
+          pattern: "mastercard",
+          accentColor: "text-indigo-300",
+          brand: "MASTERCARD",
+        };
+      case "ULTRA":
+        return {
+          gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
+          shadow: "shadow-2xl shadow-white/10",
+          label: "MASTERCARD BLACK",
+          labelColor: "text-[#FFD700]",
+          pattern: "mastercard",
+          accentColor: "text-white",
+          brand: "MASTERCARD",
+        };
+      // VISA Types
+      case "VISA_CLASSIC":
+        return {
+          gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+          shadow: "shadow-2xl shadow-indigo-900/30",
+          label: "VISA PURPLE",
+          labelColor: "text-[#FFD700]",
+          pattern: "visa",
+          accentColor: "text-[#3b5bdb]",
+          brand: "VISA",
+        };
+      case "VISA_GOLD":
+        return {
+          gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
+          shadow: "shadow-2xl shadow-amber-600/30",
+          label: "VISA GOLD",
+          labelColor: "text-[#1a1a1a]",
+          pattern: "visa-gold",
+          accentColor: "text-amber-300",
+          brand: "VISA",
+        };
+      case "VISA_PLATINUM":
+        return {
+          gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
+          shadow: "shadow-2xl shadow-slate-500/30",
+          label: "VISA PLATINUM",
+          labelColor: "text-[#FFD700]",
+          pattern: "visa-platinum",
+          accentColor: "text-slate-300",
+          brand: "VISA",
+        };
+      case "VISA_INFINITE":
+        return {
+          gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
+          shadow: "shadow-2xl shadow-white/10",
+          label: "VISA BLACK",
+          labelColor: "text-[#FFD700]",
+          pattern: "visa-black",
+          accentColor: "text-white",
+          brand: "VISA",
+        };
+      // Legacy types for backward compatibility
       case "PHYSICAL":
         return {
           gradient: "bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]",
@@ -466,15 +549,7 @@ export default function McardPage() {
           labelColor: "text-slate-300",
           pattern: "physical",
           accentColor: "text-slate-400",
-        };
-      case "PREMIUM":
-        return {
-          gradient: "bg-gradient-to-br from-[#2d1f3d] via-[#4a2c6a] to-[#6b3fa0]",
-          shadow: "shadow-2xl shadow-purple-600/30",
-          label: "PIMPAY PREMIUM",
-          labelColor: "text-[#c9a0dc]",
-          pattern: "premium",
-          accentColor: "text-purple-400",
+          brand: cardBrand,
         };
       case "BUSINESS":
         return {
@@ -484,15 +559,7 @@ export default function McardPage() {
           labelColor: "text-emerald-300",
           pattern: "business",
           accentColor: "text-emerald-400",
-        };
-      case "GOLD":
-        return {
-          gradient: "bg-gradient-to-br from-[#8B6914] via-[#D4AF37] to-[#8B6914]",
-          shadow: "shadow-2xl shadow-yellow-600/30",
-          label: "PIMPAY GOLD",
-          labelColor: "text-yellow-100",
-          pattern: "gold",
-          accentColor: "text-yellow-200",
+          brand: cardBrand,
         };
       case "PLATINUM":
         return {
@@ -502,18 +569,31 @@ export default function McardPage() {
           labelColor: "text-slate-200",
           pattern: "platinum",
           accentColor: "text-slate-300",
+          brand: cardBrand,
         };
+      case "CLASSIC":
       case "VIRTUAL":
       default:
+        // Default based on brand
+        if (cardBrand === "VISA") {
+          return {
+            gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+            shadow: "shadow-2xl shadow-indigo-900/30",
+            label: "PIMPAY VIRTUAL",
+            labelColor: "text-[#FFD700]",
+            pattern: "visa",
+            accentColor: "text-[#3b5bdb]",
+            brand: "VISA",
+          };
+        }
         return {
-          gradient: cardBrand === "VISA" 
-            ? "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]"
-            : "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-          shadow: cardBrand === "VISA" ? "shadow-2xl shadow-indigo-900/30" : "shadow-2xl shadow-blue-600/20",
+          gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+          shadow: "shadow-2xl shadow-blue-600/20",
           label: "PIMPAY VIRTUAL",
           labelColor: "text-[#FFD700]",
-          pattern: "virtual",
-          accentColor: cardBrand === "VISA" ? "text-[#3b5bdb]" : "text-blue-400",
+          pattern: "mastercard",
+          accentColor: "text-blue-400",
+          brand: "MASTERCARD",
         };
     }
   };
@@ -605,27 +685,54 @@ export default function McardPage() {
                 {/* Background gradient based on card type */}
                 <div className={`absolute inset-0 rounded-[1.5rem] overflow-hidden ${cardStyles.gradient}`}>
                   {/* Pattern based on card type */}
-                  {cardStyles.pattern === "virtual" && cardBrand === "VISA" && (
+                  {/* VISA patterns */}
+                  {(cardStyles.pattern === "visa" || cardStyles.pattern === "visa-black") && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      {/* Abstract shape - elephant/shield like left side */}
                       <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
                       <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
-                      {/* Contactless waves pattern */}
                       <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
                       <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
                       <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
-                      {/* Decorative swirl bottom right */}
                       <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
                       <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
                     </svg>
                   )}
-                  {cardStyles.pattern === "virtual" && cardBrand !== "VISA" && (
+                  {cardStyles.pattern === "visa-gold" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <defs>
+                        <linearGradient id="visaGoldShine" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="rgba(255,255,255,0.3)" />
+                          <stop offset="50%" stopColor="rgba(255,255,255,0.05)" />
+                          <stop offset="100%" stopColor="rgba(255,255,255,0.3)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="400" height="250" fill="url(#visaGoldShine)" />
+                      <circle cx="350" cy="60" r="50" fill="rgba(255,255,255,0.15)" />
+                      <circle cx="320" cy="180" r="30" fill="rgba(255,255,255,0.1)" />
+                    </svg>
+                  )}
+                  {cardStyles.pattern === "visa-platinum" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <defs>
+                        <linearGradient id="visaPlatinumShine" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
+                          <stop offset="50%" stopColor="rgba(255,255,255,0.25)" />
+                          <stop offset="100%" stopColor="rgba(255,255,255,0.1)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="-50" y="80" width="500" height="60" fill="url(#visaPlatinumShine)" transform="rotate(-10)" />
+                      <rect x="-50" y="140" width="500" height="30" fill="url(#visaPlatinumShine)" transform="rotate(-10)" opacity="0.5" />
+                    </svg>
+                  )}
+                  {/* MASTERCARD patterns */}
+                  {cardStyles.pattern === "mastercard" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
                       <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
                       <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
                     </svg>
                   )}
+                  {/* Legacy patterns for backward compatibility */}
                   {cardStyles.pattern === "physical" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <rect x="0" y="0" width="400" height="250" fill="url(#physicalGradient)" />
@@ -639,32 +746,11 @@ export default function McardPage() {
                       <line x1="0" y1="80" x2="400" y2="80" stroke="rgba(255,255,255,0.1)" strokeWidth="30" />
                     </svg>
                   )}
-                  {cardStyles.pattern === "premium" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <circle cx="350" cy="50" r="80" fill="rgba(255,255,255,0.05)" />
-                      <circle cx="50" cy="200" r="100" fill="rgba(255,255,255,0.03)" />
-                      <path d="M 0 125 Q 100 80 200 125 T 400 125" stroke="rgba(255,255,255,0.08)" strokeWidth="2" fill="none" />
-                      <path d="M 0 145 Q 100 100 200 145 T 400 145" stroke="rgba(255,255,255,0.05)" strokeWidth="2" fill="none" />
-                    </svg>
-                  )}
                   {cardStyles.pattern === "business" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <rect x="320" y="20" width="60" height="60" rx="8" fill="rgba(255,255,255,0.05)" />
                       <rect x="340" y="40" width="60" height="60" rx="8" fill="rgba(255,255,255,0.03)" />
                       <path d="M 0 200 L 150 150 L 300 180 L 400 140" stroke="rgba(255,255,255,0.08)" strokeWidth="2" fill="none" />
-                    </svg>
-                  )}
-                  {cardStyles.pattern === "gold" && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <defs>
-                        <linearGradient id="goldShine" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
-                          <stop offset="50%" stopColor="rgba(255,255,255,0)" />
-                          <stop offset="100%" stopColor="rgba(255,255,255,0.2)" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="0" y="0" width="400" height="250" fill="url(#goldShine)" />
-                      <circle cx="350" cy="60" r="40" fill="rgba(255,255,255,0.1)" />
                     </svg>
                   )}
                   {cardStyles.pattern === "platinum" && (
@@ -688,7 +774,7 @@ export default function McardPage() {
                       <ShieldCheck size={14} className={cardStyles.labelColor} />
                       <span className={`text-[11px] font-black uppercase tracking-widest ${cardStyles.labelColor}`}>{cardStyles.label}</span>
                     </div>
-                    {cardBrand === "VISA" ? (
+                    {(cardStyles.brand || cardBrand) === "VISA" ? (
                       <span className="text-2xl font-black italic text-white/90 tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
                     ) : (
                       <div className="flex items-center">

@@ -2,79 +2,135 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Wifi, RotateCcw } from "lucide-react";
 
-// Decorative wave pattern for MasterCard (similar to ePayService design)
-const MasterCardPattern = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 400 250"
-    preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
-    <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
-    <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
-  </svg>
-);
+// Card style configurations matching the order page
+const CARD_STYLES: Record<string, {
+  gradient: string;
+  shadow: string;
+  label: string;
+  labelColor: string;
+  pattern: string;
+  accentColor: string;
+  brand: string;
+}> = {
+  // MASTERCARD Types
+  PLATINIUM: {
+    gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+    shadow: "shadow-2xl shadow-cyan-600/30",
+    label: "MASTERCARD BLUE",
+    labelColor: "text-[#FFD700]",
+    pattern: "mastercard",
+    accentColor: "text-cyan-400",
+    brand: "MASTERCARD",
+  },
+  PREMIUM: {
+    gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
+    shadow: "shadow-2xl shadow-teal-600/30",
+    label: "MASTERCARD TEAL",
+    labelColor: "text-[#FFD700]",
+    pattern: "mastercard",
+    accentColor: "text-teal-400",
+    brand: "MASTERCARD",
+  },
+  GOLD: {
+    gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
+    shadow: "shadow-2xl shadow-indigo-600/30",
+    label: "MASTERCARD NAVY",
+    labelColor: "text-[#FFD700]",
+    pattern: "mastercard",
+    accentColor: "text-indigo-300",
+    brand: "MASTERCARD",
+  },
+  ULTRA: {
+    gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
+    shadow: "shadow-2xl shadow-white/10",
+    label: "MASTERCARD BLACK",
+    labelColor: "text-[#FFD700]",
+    pattern: "mastercard",
+    accentColor: "text-white",
+    brand: "MASTERCARD",
+  },
+  // VISA Types
+  VISA_CLASSIC: {
+    gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+    shadow: "shadow-2xl shadow-indigo-900/30",
+    label: "VISA PURPLE",
+    labelColor: "text-[#FFD700]",
+    pattern: "visa",
+    accentColor: "text-[#3b5bdb]",
+    brand: "VISA",
+  },
+  VISA_GOLD: {
+    gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
+    shadow: "shadow-2xl shadow-amber-600/30",
+    label: "VISA GOLD",
+    labelColor: "text-[#1a1a1a]",
+    pattern: "visa-gold",
+    accentColor: "text-amber-300",
+    brand: "VISA",
+  },
+  VISA_PLATINUM: {
+    gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
+    shadow: "shadow-2xl shadow-slate-500/30",
+    label: "VISA PLATINUM",
+    labelColor: "text-[#FFD700]",
+    pattern: "visa-platinum",
+    accentColor: "text-slate-300",
+    brand: "VISA",
+  },
+  VISA_INFINITE: {
+    gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
+    shadow: "shadow-2xl shadow-white/10",
+    label: "VISA BLACK",
+    labelColor: "text-[#FFD700]",
+    pattern: "visa-black",
+    accentColor: "text-white",
+    brand: "VISA",
+  },
+};
 
-// Decorative wave pattern for VISA (Deep Navy style with blue accents)
-const VisaPattern = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 400 250"
-    preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {/* Abstract shape - elephant/shield like left side */}
-    <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
-    <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
-    {/* Contactless waves pattern */}
-    <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
-    <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
-    <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
-    {/* Decorative swirl bottom right */}
-    <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
-    <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
-  </svg>
-);
-
-
+// Default styles based on brand
+const getDefaultStyle = (brand: string) => {
+  if (brand?.toUpperCase() === "VISA") {
+    return {
+      gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+      shadow: "shadow-2xl shadow-indigo-900/30",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "visa",
+      accentColor: "text-[#3b5bdb]",
+      brand: "VISA",
+    };
+  }
+  return {
+    gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+    shadow: "shadow-2xl shadow-blue-600/20",
+    label: "PIMPAY VIRTUAL",
+    labelColor: "text-[#FFD700]",
+    pattern: "mastercard",
+    accentColor: "text-blue-400",
+    brand: "MASTERCARD",
+  };
+};
 
 export default function VirtualCard({ card, user }: any) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 
   const last4 = card.number?.slice(-4) || "0000";
-
-  const formatCardNumber = (num: string) => {
-    if (showInfo) {
-      return num.replace(/(\d{4})/g, "$1 ").trim();
-    }
-    return `•••• •••• •••• `;
-  };
-
-  const isVisa = card.brand?.toLowerCase() === "visa";
-  const isMasterCard = card.brand?.toLowerCase() === "mastercard";
-
-  const visaGradient = "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]";
-  const masterCardGradient = "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]";
-  const defaultGradient = "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a]";
-
-  const getCardGradient = () => {
-    if (card.isFrozen) return "bg-gray-800";
-    if (isVisa) return visaGradient;
-    if (isMasterCard) return masterCardGradient;
-    return defaultGradient;
-  };
-
-  const getBackGradient = () => {
-    if (card.isFrozen) return "bg-gray-800";
-    if (isVisa) return "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]";
-    if (isMasterCard) return "bg-gradient-to-br from-[#01579b] via-[#0277bd] to-[#0288d1]";
-    return "bg-gradient-to-br from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d]";
-  };
+  const cardType = card.type?.toUpperCase() || "CLASSIC";
+  
+  // Get card styles based on type
+  const cardStyles = CARD_STYLES[cardType] || getDefaultStyle(card.brand);
+  const isVisa = cardStyles.brand === "VISA";
 
   const handleFlip = () => setIsFlipped(!isFlipped);
   const toggleShowInfo = () => setShowInfo(!showInfo);
+  
+  const getBackGradient = () => {
+    if (card.isFrozen) return "bg-gray-800";
+    // Use the same gradient for back but slightly adjusted
+    return cardStyles.gradient;
+  };
 
   return (
     <div className="space-y-3">
