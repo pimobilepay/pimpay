@@ -6,38 +6,66 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { sendNotification } from "@/lib/notifications";
 
+// Helper to log to AuditLog for admin visibility
+async function logToAdmin(action: string, details: string, targetId?: string) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        adminId: null,
+        adminName: "SYSTEM",
+        action,
+        targetId: targetId || null,
+        details,
+      },
+    });
+  } catch (err) {
+    console.error("[AUDIT_LOG_ERROR]:", err);
+  }
+}
+
 export async function POST(req: NextRequest) {
+  let userId: string = "";
+  let logContext = "";
+  
   try {
     const SECRET = process.env.JWT_SECRET;
     if (!SECRET) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", "JWT_SECRET non configure");
       return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
     }
 
     const cookieStore = await cookies();
     const token = cookieStore.get("pimpay_token")?.value;
-    if (!token) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    if (!token) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", "Token manquant");
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
 
-    let userId: string;
     try {
       const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET));
       userId = payload.id as string;
     } catch {
+      await logToAdmin("CARD_WITHDRAW_ERROR", "Token invalide ou expire");
       return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
     const { cardId, amount, currency } = body;
+    logContext = `userId=${userId}, cardId=${cardId}, amount=${amount}, currency=${currency}`;
 
     if (!cardId || !amount || !currency) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Donnees manquantes | ${logContext}`, userId);
       return NextResponse.json({ error: "Donnees manquantes" }, { status: 400 });
     }
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Montant invalide (${amount}) | ${logContext}`, userId);
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
     if (!["USD", "EUR"].includes(currency)) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Devise non supportee (${currency}) | ${logContext}`, userId);
       return NextResponse.json({ error: "Devise non supportee" }, { status: 400 });
     }
 
@@ -47,6 +75,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!card) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Carte non trouvee | ${logContext}`, userId);
       return NextResponse.json({ error: "Carte non trouvee" }, { status: 404 });
     }
 
@@ -55,10 +84,21 @@ export async function POST(req: NextRequest) {
       where: { userId_currency: { userId, currency: `CARD_${currency}` } },
     });
 
-    if (!cardWallet || cardWallet.balance < parsedAmount) {
+    await logToAdmin("CARD_WITHDRAW_DEBUG", `cardWallet trouvé: ${cardWallet ? `id=${cardWallet.id}, balance=${cardWallet.balance}` : "NULL"} | ${logContext}`, userId);
+
+    if (!cardWallet) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Wallet carte CARD_${currency} introuvable | ${logContext}`, userId);
+      return NextResponse.json({ 
+        error: `Wallet carte ${currency} introuvable`,
+        available: 0 
+      }, { status: 400 });
+    }
+    
+    if (cardWallet.balance < parsedAmount) {
+      await logToAdmin("CARD_WITHDRAW_ERROR", `Solde insuffisant: ${cardWallet.balance} < ${parsedAmount} | ${logContext}`, userId);
       return NextResponse.json({ 
         error: `Solde carte ${currency} insuffisant`,
-        available: cardWallet?.balance || 0 
+        available: cardWallet.balance 
       }, { status: 400 });
     }
 
@@ -67,20 +107,30 @@ export async function POST(req: NextRequest) {
       where: { userId_currency: { userId, currency } },
     });
 
+    await logToAdmin("CARD_WITHDRAW_DEBUG", `destWallet trouvé: ${destWallet ? `id=${destWallet.id}, balance=${destWallet.balance}` : "NULL, creation en cours..."} | ${logContext}`, userId);
+
     if (!destWallet) {
-      destWallet = await prisma.wallet.create({
-        data: {
-          userId,
-          currency,
-          balance: 0,
-        },
-      });
+      try {
+        destWallet = await prisma.wallet.create({
+          data: {
+            userId,
+            currency,
+            balance: 0,
+          },
+        });
+        await logToAdmin("CARD_WITHDRAW_INFO", `Wallet ${currency} cree avec succes: id=${destWallet.id} | ${logContext}`, userId);
+      } catch (createErr: any) {
+        await logToAdmin("CARD_WITHDRAW_ERROR", `Erreur creation wallet ${currency}: ${createErr.message} | ${logContext}`, userId);
+        return NextResponse.json({ error: "Erreur creation wallet destination" }, { status: 500 });
+      }
     }
 
     // Calculate fees (1.5% withdraw fee)
     const feeRate = 0.015;
     const fee = parsedAmount * feeRate;
     const netAmount = parsedAmount - fee;
+
+    await logToAdmin("CARD_WITHDRAW_DEBUG", `Calcul: amount=${parsedAmount}, fee=${fee}, netAmount=${netAmount} | ${logContext}`, userId);
 
     // Atomic transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -118,6 +168,8 @@ export async function POST(req: NextRequest) {
         },
       });
     });
+    
+    await logToAdmin("CARD_WITHDRAW_SUCCESS", `Retrait reussi: ${netAmount} ${currency} | txId=${result.id} | ${logContext}`, userId);
 
     // Send notification with full details
     try {
@@ -150,10 +202,19 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Erreur inconnue";
+    const errorStack = error instanceof Error ? error.stack : "";
     console.error("CARD_WITHDRAW_ERROR:", error);
+    
+    await logToAdmin(
+      "CARD_WITHDRAW_FATAL", 
+      `Exception: ${errorMsg} | Stack: ${errorStack?.slice(0, 500)} | Context: ${logContext}`,
+      userId || undefined
+    );
+    
     return NextResponse.json({ 
       error: "Echec du retrait",
-      details: error instanceof Error ? error.message : "Erreur inconnue"
+      details: errorMsg
     }, { status: 500 });
   }
 }
