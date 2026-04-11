@@ -145,10 +145,15 @@ export default function VirtualCard({ card }: { card: any }) {
   const last4 = card.number?.slice(-4) || "0000";
   const cardType = card.type?.toUpperCase() || "CLASSIC";
   
-  // Get card styles based on type
+  // IMPORTANT: Determine brand from card.brand first, then fallback to cardStyles
+  const cardBrand = card.brand?.toUpperCase() || "VISA";
+  
+  // Get card styles based on type, but override brand detection
   const cardStyles = CARD_STYLES[cardType] || getDefaultStyle(card.brand);
-  const isVisa = cardStyles.brand === "VISA";
-  const isMasterCard = cardStyles.brand === "MASTERCARD";
+  
+  // Use actual card brand for logo/pattern, not the style's brand
+  const isVisa = cardBrand === "VISA";
+  const isMasterCard = cardBrand === "MASTERCARD";
 
   const handleFlip = () => setIsFlipped(!isFlipped);
   const toggleShowInfo = () => setShowInfo(!showInfo);
