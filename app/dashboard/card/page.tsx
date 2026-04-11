@@ -295,9 +295,8 @@ export default function McardPage() {
                     >
                       <p className="text-lg md:text-xl font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
                         {showDetails 
-                          ? formattedNumber.slice(0, -4).trim() + " " 
-                          : `•••• •••• •••• `}
-                        <span className="text-[#3b82f6]">{last4}</span>
+                          ? formattedNumber 
+                          : `•••• •••• •••• ${last4}`}
                       </p>
                       <Copy size={12} className="text-white/30 group-hover:text-white/60 transition-colors" />
                     </button>
