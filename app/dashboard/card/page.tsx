@@ -455,147 +455,33 @@ export default function McardPage() {
   const dailyLimit = cardData?.dailyLimit || 1000;
   const monthlyLimit = dailyLimit * 5;
 
-  // Get card styles based on type - matching the order page card tiers
+  // Get card styles - ALWAYS use cardBrand to determine VISA vs MasterCard
+  // Label is ALWAYS "PIMPAY VIRTUAL" for consistency
+  const isVisa = cardBrand.toUpperCase() === "VISA";
+  
   const getCardStyles = () => {
-    switch (cardType.toUpperCase()) {
-      // MASTERCARD Types
-      case "PLATINIUM":
-        return {
-          gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-          shadow: "shadow-2xl shadow-cyan-600/30",
-          label: "MASTERCARD BLUE",
-          labelColor: "text-[#FFD700]",
-          pattern: "mastercard",
-          accentColor: "text-cyan-400",
-          brand: "MASTERCARD",
-        };
-      case "PREMIUM":
-        return {
-          gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
-          shadow: "shadow-2xl shadow-teal-600/30",
-          label: "MASTERCARD TEAL",
-          labelColor: "text-[#FFD700]",
-          pattern: "mastercard",
-          accentColor: "text-teal-400",
-          brand: "MASTERCARD",
-        };
-      case "GOLD":
-        return {
-          gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
-          shadow: "shadow-2xl shadow-indigo-600/30",
-          label: "MASTERCARD NAVY",
-          labelColor: "text-[#FFD700]",
-          pattern: "mastercard",
-          accentColor: "text-indigo-300",
-          brand: "MASTERCARD",
-        };
-      case "ULTRA":
-        return {
-          gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
-          shadow: "shadow-2xl shadow-white/10",
-          label: "MASTERCARD BLACK",
-          labelColor: "text-[#FFD700]",
-          pattern: "mastercard",
-          accentColor: "text-white",
-          brand: "MASTERCARD",
-        };
-      // VISA Types
-      case "VISA_CLASSIC":
-        return {
-          gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
-          shadow: "shadow-2xl shadow-indigo-900/30",
-          label: "VISA PURPLE",
-          labelColor: "text-[#FFD700]",
-          pattern: "visa",
-          accentColor: "text-[#3b5bdb]",
-          brand: "VISA",
-        };
-      case "VISA_GOLD":
-        return {
-          gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
-          shadow: "shadow-2xl shadow-amber-600/30",
-          label: "VISA GOLD",
-          labelColor: "text-[#1a1a1a]",
-          pattern: "visa-gold",
-          accentColor: "text-amber-300",
-          brand: "VISA",
-        };
-      case "VISA_PLATINUM":
-        return {
-          gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
-          shadow: "shadow-2xl shadow-slate-500/30",
-          label: "VISA PLATINUM",
-          labelColor: "text-[#FFD700]",
-          pattern: "visa-platinum",
-          accentColor: "text-slate-300",
-          brand: "VISA",
-        };
-      case "VISA_INFINITE":
-        return {
-          gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
-          shadow: "shadow-2xl shadow-white/10",
-          label: "VISA BLACK",
-          labelColor: "text-[#FFD700]",
-          pattern: "visa-black",
-          accentColor: "text-white",
-          brand: "VISA",
-        };
-      // Legacy types for backward compatibility
-      case "PHYSICAL":
-        return {
-          gradient: "bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]",
-          shadow: "shadow-2xl shadow-indigo-600/20",
-          label: "PIMPAY PHYSICAL",
-          labelColor: "text-slate-300",
-          pattern: "physical",
-          accentColor: "text-slate-400",
-          brand: cardBrand,
-        };
-      case "BUSINESS":
-        return {
-          gradient: "bg-gradient-to-br from-[#1e3a2f] via-[#2d5a4a] to-[#1a4a3a]",
-          shadow: "shadow-2xl shadow-emerald-600/30",
-          label: "PIMPAY BUSINESS",
-          labelColor: "text-emerald-300",
-          pattern: "business",
-          accentColor: "text-emerald-400",
-          brand: cardBrand,
-        };
-      case "PLATINUM":
-        return {
-          gradient: "bg-gradient-to-br from-[#3d3d3d] via-[#6b6b6b] to-[#4a4a4a]",
-          shadow: "shadow-2xl shadow-slate-500/30",
-          label: "PIMPAY PLATINUM",
-          labelColor: "text-slate-200",
-          pattern: "platinum",
-          accentColor: "text-slate-300",
-          brand: cardBrand,
-        };
-      case "CLASSIC":
-      case "VIRTUAL":
-      default:
-        // Default based on brand
-        if (cardBrand === "VISA") {
-          return {
-            gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
-            shadow: "shadow-2xl shadow-indigo-900/30",
-            label: "PIMPAY VIRTUAL",
-            labelColor: "text-[#FFD700]",
-            pattern: "visa",
-            accentColor: "text-[#3b5bdb]",
-            brand: "VISA",
-          };
-        }
-        return {
-          gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-          shadow: "shadow-2xl shadow-blue-600/20",
-          label: "PIMPAY VIRTUAL",
-          labelColor: "text-[#FFD700]",
-          pattern: "mastercard",
-          accentColor: "text-blue-400",
-          brand: "MASTERCARD",
-        };
+    // Base styles based on actual card brand (VISA or MASTERCARD)
+    if (isVisa) {
+      return {
+        gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+        shadow: "shadow-2xl shadow-indigo-900/30",
+        label: "PIMPAY VIRTUAL",
+        labelColor: "text-[#FFD700]",
+        pattern: "visa",
+        accentColor: "text-[#3b5bdb]",
+        brand: "VISA",
+      };
     }
+    // Default: MASTERCARD
+    return {
+      gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+      shadow: "shadow-2xl shadow-blue-600/20",
+      label: "PIMPAY VIRTUAL",
+      labelColor: "text-[#FFD700]",
+      pattern: "mastercard",
+      accentColor: "text-blue-400",
+      brand: "MASTERCARD",
+    };
   };
 
   const cardStyles = getCardStyles();
@@ -774,7 +660,7 @@ export default function McardPage() {
                       <ShieldCheck size={14} className={cardStyles.labelColor} />
                       <span className={`text-[11px] font-black uppercase tracking-widest ${cardStyles.labelColor}`}>{cardStyles.label}</span>
                     </div>
-                    {(cardStyles.brand || cardBrand) === "VISA" ? (
+                    {isVisa ? (
                       <span className="text-2xl font-black italic text-white/90 tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
                     ) : (
                       <div className="flex items-center">
@@ -808,11 +694,11 @@ export default function McardPage() {
                   <div className="space-y-1">
                     <div className="flex gap-8">
                       <div>
-                        <p className={`text-[9px] font-bold uppercase tracking-wider ${cardBrand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
+                        <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
                         <p className="text-sm font-bold tracking-widest text-white">{showDetails ? cardExpiry : "••/••"}</p>
                       </div>
                       <div>
-                        <p className={`text-[9px] font-bold uppercase tracking-wider ${cardBrand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
+                        <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
                         <p className="text-sm font-bold tracking-widest text-white">{showDetails ? cardCvv : "•••"}</p>
                       </div>
                     </div>
