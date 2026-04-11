@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
             userId,
             currency: `CARD_${currency}`,
             balance: 0,
+            type: "FIAT", // Card wallets are FIAT type
           },
         });
         await logToAdmin("CARD_RECHARGE_INFO", `Wallet CARD_${currency} cree: id=${cardWallet.id} | ${logContext}`, userId);

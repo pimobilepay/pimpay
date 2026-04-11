@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
             userId,
             currency,
             balance: 0,
+            type: "FIAT", // USD and EUR are FIAT wallets
           },
         });
         await logToAdmin("CARD_WITHDRAW_INFO", `Wallet ${currency} cree avec succes: id=${destWallet.id} | ${logContext}`, userId);
