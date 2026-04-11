@@ -293,8 +293,10 @@ export default function McardPage() {
                       onClick={() => copyToClipboard(cardNumber, "Numero")}
                       className="flex items-center gap-2 group"
                     >
-                      <p className="text-base md:text-lg font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
-                        {showDetails ? formattedNumber : `•••• •••• •••• `}
+                      <p className="text-lg md:text-xl font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
+                        {showDetails 
+                          ? formattedNumber.slice(0, -4).trim() + " " 
+                          : `•••• •••• •••• `}
                         <span className="text-[#3b82f6]">{last4}</span>
                       </p>
                       <Copy size={12} className="text-white/30 group-hover:text-white/60 transition-colors" />
