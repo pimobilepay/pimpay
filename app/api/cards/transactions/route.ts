@@ -40,22 +40,37 @@ export async function GET(request: Request) {
     }
 
     // Fetch card transactions (CARD_PURCHASE, CARD_RECHARGE, CARD_WITHDRAW and PAYMENT types)
+    // Include transactions where user is either sender or receiver for recharges/withdrawals
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
+          // Card purchase transactions
           { fromUserId: userId, type: "CARD_PURCHASE" },
+          // Card recharge transactions (money going INTO the card)
           { fromUserId: userId, type: "CARD_RECHARGE" },
+          // Card withdraw transactions (money going OUT of the card)  
           { fromUserId: userId, type: "CARD_WITHDRAW" },
+          // Payment transactions
           { fromUserId: userId, type: "PAYMENT" },
-          // Also include transactions with card metadata
+          // Also include transactions with card metadata or description containing "carte"
           { 
             fromUserId: userId,
-            description: { contains: "carte" }
+            description: { contains: "carte", mode: "insensitive" }
+          },
+          // Include transactions referencing card in description (case insensitive)
+          { 
+            fromUserId: userId,
+            description: { contains: "Recharge carte", mode: "insensitive" }
+          },
+          { 
+            fromUserId: userId,
+            description: { contains: "Retrait carte", mode: "insensitive" }
           },
         ]
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 100, // Increased limit to show more history
+      distinct: ['id'], // Avoid duplicates
     });
 
     // Format transactions for the frontend

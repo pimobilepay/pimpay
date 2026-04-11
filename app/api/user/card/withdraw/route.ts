@@ -79,25 +79,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Carte non trouvee" }, { status: 404 });
     }
 
-    // Find card wallet
-    const cardWallet = await prisma.wallet.findUnique({
+    // Find card wallet - try CARD_USD/CARD_EUR first, otherwise check if card has direct balance
+    let cardWallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency: `CARD_${currency}` } },
     });
 
     await logToAdmin("CARD_WITHDRAW_DEBUG", `cardWallet trouvé: ${cardWallet ? `id=${cardWallet.id}, balance=${cardWallet.balance}` : "NULL"} | ${logContext}`, userId);
 
+    // If no CARD_USD/CARD_EUR wallet exists, create one (this allows users to start using the feature)
     if (!cardWallet) {
-      await logToAdmin("CARD_WITHDRAW_ERROR", `Wallet carte CARD_${currency} introuvable | ${logContext}`, userId);
-      return NextResponse.json({ 
-        error: `Wallet carte ${currency} introuvable`,
-        available: 0 
-      }, { status: 400 });
+      await logToAdmin("CARD_WITHDRAW_INFO", `Wallet CARD_${currency} introuvable, creation... | ${logContext}`, userId);
+      try {
+        cardWallet = await prisma.wallet.create({
+          data: {
+            userId,
+            currency: `CARD_${currency}`,
+            balance: 0,
+            type: "FIAT",
+          },
+        });
+        await logToAdmin("CARD_WITHDRAW_INFO", `Wallet CARD_${currency} cree avec succes: id=${cardWallet.id} | ${logContext}`, userId);
+      } catch (createErr: any) {
+        // If creation fails due to unique constraint, wallet was created concurrently
+        cardWallet = await prisma.wallet.findUnique({
+          where: { userId_currency: { userId, currency: `CARD_${currency}` } },
+        });
+        if (!cardWallet) {
+          await logToAdmin("CARD_WITHDRAW_ERROR", `Erreur creation wallet CARD_${currency}: ${createErr.message} | ${logContext}`, userId);
+          return NextResponse.json({ 
+            error: `Wallet carte ${currency} introuvable et impossible a creer`,
+            available: 0 
+          }, { status: 400 });
+        }
+      }
     }
     
     if (cardWallet.balance < parsedAmount) {
       await logToAdmin("CARD_WITHDRAW_ERROR", `Solde insuffisant: ${cardWallet.balance} < ${parsedAmount} | ${logContext}`, userId);
       return NextResponse.json({ 
-        error: `Solde carte ${currency} insuffisant`,
+        error: `Solde carte ${currency} insuffisant (${cardWallet.balance.toFixed(2)} ${currency} disponible)`,
         available: cardWallet.balance 
       }, { status: 400 });
     }

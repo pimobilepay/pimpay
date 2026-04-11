@@ -313,8 +313,19 @@ export default function McardPage() {
             EUR: cardEurWallet2?.balance || 0,
           });
         }
+        // Refresh transactions if on history tab
+        if (activeTab === "history" && cardData?.id) {
+          const txRes = await fetch(`/api/cards/transactions?cardId=${cardData.id}`);
+          const txData = await txRes.json();
+          if (txData.success && txData.transactions) {
+            setCardTransactions(txData.transactions);
+          }
+        }
       } else {
-        toast.error(data.error || "Echec de la recharge");
+        // Display more detailed error message
+        const errorMsg = data.error || "Echec de la recharge";
+        const availableMsg = data.available !== undefined ? ` (Disponible: ${data.available.toFixed(2)} ${rechargeCurrency})` : "";
+        toast.error(errorMsg + availableMsg);
       }
     } catch (err) {
       console.error("Recharge error:", err);
@@ -372,8 +383,19 @@ export default function McardPage() {
             EUR: cardEurWallet3?.balance || 0,
           });
         }
+        // Refresh transactions if on history tab
+        if (activeTab === "history" && cardData?.id) {
+          const txRes = await fetch(`/api/cards/transactions?cardId=${cardData.id}`);
+          const txData = await txRes.json();
+          if (txData.success && txData.transactions) {
+            setCardTransactions(txData.transactions);
+          }
+        }
       } else {
-        toast.error(data.error || "Echec du retrait");
+        // Display more detailed error message
+        const errorMsg = data.error || "Echec du retrait";
+        const availableMsg = data.available !== undefined ? ` (Disponible: ${data.available.toFixed(2)} ${withdrawCurrency})` : "";
+        toast.error(errorMsg + availableMsg);
       }
     } catch (err) {
       console.error("Withdraw error:", err);
@@ -947,7 +969,14 @@ export default function McardPage() {
             ) : (
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
                 {cardTransactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center gap-4 p-4">
+                  <button 
+                    key={tx.id} 
+                    onClick={() => {
+                      setSelectedTransaction(tx);
+                      setShowTransactionDetail(true);
+                    }}
+                    className="w-full flex items-center gap-4 p-4 hover:bg-white/5 transition-all text-left"
+                  >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
                       {tx.type === "credit" ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
                     </div>
@@ -958,15 +987,18 @@ export default function McardPage() {
                         <span className="text-[7px] font-black text-slate-700 bg-white/5 px-1.5 py-0.5 rounded-full uppercase">{tx.category}</span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-black ${tx.type === "credit" ? "text-emerald-400" : "text-white"}`}>
-                        {tx.amount} $
-                      </p>
-                      <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === "success" ? "text-emerald-500/60" : tx.status === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
-                        {tx.status === "success" ? "Confirme" : tx.status === "pending" ? "En cours" : "Echoue"}
-                      </p>
+                    <div className="text-right flex items-center gap-2">
+                      <div>
+                        <p className={`text-sm font-black ${tx.type === "credit" ? "text-emerald-400" : "text-white"}`}>
+                          {tx.amount} {tx.currency === "EUR" ? "\u20AC" : "$"}
+                        </p>
+                        <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === "success" ? "text-emerald-500/60" : tx.status === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
+                          {tx.status === "success" ? "Confirme" : tx.status === "pending" ? "En cours" : "Echoue"}
+                        </p>
+                      </div>
+                      <ChevronRight size={14} className="text-slate-600" />
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1318,6 +1350,120 @@ export default function McardPage() {
                   <span>Retirer {withdrawAmount ? `${withdrawCurrency === "USD" ? "$" : "\u20AC"}${withdrawAmount}` : ""}</span>
                 </>
               )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TRANSACTION DETAIL MODAL */}
+      {showTransactionDetail && selectedTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowTransactionDetail(false)} />
+          <div className="relative bg-slate-900 border border-white/10 rounded-[2rem] p-6 w-full max-w-md animate-in zoom-in-95 fade-in duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
+                  selectedTransaction.type === "credit" 
+                    ? "bg-emerald-600/20 border-emerald-500/30" 
+                    : "bg-red-600/20 border-red-500/30"
+                }`}>
+                  {selectedTransaction.type === "credit" 
+                    ? <ArrowDownLeft size={24} className="text-emerald-400" />
+                    : <ArrowUpRight size={24} className="text-red-400" />
+                  }
+                </div>
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Details transaction</h3>
+                  <p className="text-[10px] text-slate-500 font-bold">{selectedTransaction.category}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTransactionDetail(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+
+            {/* Amount Display */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-4 text-center">
+              <p className={`text-3xl font-black ${selectedTransaction.type === "credit" ? "text-emerald-400" : "text-white"}`}>
+                {selectedTransaction.amount} {selectedTransaction.currency === "EUR" ? "\u20AC" : "$"}
+              </p>
+              <div className={`inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                selectedTransaction.status === "success" 
+                  ? "bg-emerald-500/20 text-emerald-400" 
+                  : selectedTransaction.status === "pending" 
+                    ? "bg-amber-500/20 text-amber-400" 
+                    : "bg-red-500/20 text-red-400"
+              }`}>
+                {selectedTransaction.status === "success" ? (
+                  <><CheckCircle2 size={12} /> Confirme</>
+                ) : selectedTransaction.status === "pending" ? (
+                  <><Loader2 size={12} className="animate-spin" /> En cours</>
+                ) : (
+                  <><AlertTriangle size={12} /> Echoue</>
+                )}
+              </div>
+            </div>
+
+            {/* Transaction Details */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5 mb-4">
+              <div className="flex items-center justify-between p-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Description</span>
+                <span className="text-xs font-bold text-white text-right max-w-[180px] truncate">{selectedTransaction.merchant}</span>
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</span>
+                <span className="text-xs font-bold text-white">{selectedTransaction.date}</span>
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Type</span>
+                <span className="text-xs font-bold text-white">{selectedTransaction.type === "credit" ? "Credit (Entrant)" : "Debit (Sortant)"}</span>
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Categorie</span>
+                <span className="text-xs font-bold text-white capitalize">{selectedTransaction.category}</span>
+              </div>
+              {selectedTransaction.fee !== undefined && selectedTransaction.fee > 0 && (
+                <div className="flex items-center justify-between p-4">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Frais</span>
+                  <span className="text-xs font-bold text-amber-400">
+                    {selectedTransaction.fee.toFixed(2)} {selectedTransaction.currency === "EUR" ? "\u20AC" : "$"}
+                  </span>
+                </div>
+              )}
+              {selectedTransaction.reference && (
+                <div className="flex items-center justify-between p-4">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Reference</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-400 max-w-[140px] truncate">{selectedTransaction.reference}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedTransaction.reference!, "Reference")}
+                      className="p-1 hover:bg-white/10 rounded-lg transition-all"
+                    >
+                      {copied === "Reference" ? <CheckCircle2 size={12} className="text-emerald-400" /> : <Copy size={12} className="text-slate-600" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Card Info */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <CreditCard size={20} className="text-blue-400" />
+                <div>
+                  <p className="text-sm font-bold">{cardBrand} *{last4}</p>
+                  <p className="text-[10px] text-slate-500">{cardHolder}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowTransactionDetail(false)}
+              className="w-full bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+            >
+              Fermer
             </button>
           </div>
         </div>
