@@ -17,6 +17,7 @@ import { toast } from "sonner";
 const USD_TO_EUR = 0.92;
 
 interface CardData {
+  id: string;
   number: string;
   expiry: string;
   cvv: string;
@@ -56,6 +57,7 @@ export default function McardPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [cardData, setCardData] = useState<CardData | null>(null);
+  const [allCards, setAllCards] = useState<CardData[]>([]);
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [balanceCurrency, setBalanceCurrency] = useState<"USD" | "EUR">("USD");
   const [noCard, setNoCard] = useState(false);
@@ -90,6 +92,34 @@ export default function McardPage() {
           // Extract card info from virtualCards
           const cards = profileData.user.virtualCards;
           if (cards && cards.length > 0) {
+            // Store all cards for later switching
+            const mappedCards: CardData[] = cards.map((c: { 
+              id: string; 
+              number?: string; 
+              exp?: string; 
+              cvv?: string; 
+              holder?: string; 
+              brand?: string; 
+              type?: string; 
+              isFrozen?: boolean; 
+              dailyLimit?: number; 
+              totalSpent?: number; 
+              allowedCurrencies?: string[];
+            }) => ({
+              id: c.id,
+              number: c.number || "",
+              expiry: c.exp || "",
+              cvv: c.cvv || "",
+              holder: c.holder || "PIONEER",
+              brand: c.brand || "MASTERCARD",
+              type: c.type || "VIRTUAL",
+              isFrozen: c.isFrozen || false,
+              dailyLimit: c.dailyLimit || 1000,
+              totalSpent: c.totalSpent || 0,
+              allowedCurrencies: c.allowedCurrencies || ["USD", "EUR"],
+            }));
+            setAllCards(mappedCards);
+
             // Get URL search params for card id
             const urlParams = new URLSearchParams(window.location.search);
             const urlCardId = urlParams.get("id");
@@ -98,27 +128,17 @@ export default function McardPage() {
             const primaryCardId = localStorage.getItem("pimpay_primary_card");
             
             // Find the card to display: URL param > localStorage > first card
-            let card = cards[0];
+            let selectedCard = mappedCards[0];
             if (urlCardId) {
-              const foundCard = cards.find((c: { id: string }) => c.id === urlCardId);
-              if (foundCard) card = foundCard;
+              const foundCard = mappedCards.find((c) => c.id === urlCardId);
+              if (foundCard) selectedCard = foundCard;
             } else if (primaryCardId) {
-              const foundCard = cards.find((c: { id: string }) => c.id === primaryCardId);
-              if (foundCard) card = foundCard;
+              const foundCard = mappedCards.find((c) => c.id === primaryCardId);
+              if (foundCard) selectedCard = foundCard;
             }
-            setCardData({
-              number: card.number || "",
-              expiry: card.exp || "",
-              cvv: card.cvv || "",
-              holder: card.holder || "PIONEER",
-              brand: card.brand || "MASTERCARD",
-              type: card.type || "CLASSIC",
-              isFrozen: card.isFrozen || false,
-              dailyLimit: card.dailyLimit || 1000,
-              totalSpent: card.totalSpent || 0,
-              allowedCurrencies: card.allowedCurrencies || ["USD", "EUR"],
-            });
-            setIsFrozen(card.isFrozen || false);
+            
+            setCardData(selectedCard);
+            setIsFrozen(selectedCard.isFrozen || false);
           } else {
             setNoCard(true);
           }
@@ -160,6 +180,35 @@ export default function McardPage() {
     fetchCardTransactions();
   }, [activeTab, cardData?.id]);
 
+  // Listen for localStorage changes to switch cards
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const primaryCardId = localStorage.getItem("pimpay_primary_card");
+      if (primaryCardId && allCards.length > 0) {
+        const foundCard = allCards.find((c) => c.id === primaryCardId);
+        if (foundCard && foundCard.id !== cardData?.id) {
+          setCardData(foundCard);
+          setIsFrozen(foundCard.isFrozen || false);
+          setCardTransactions([]);
+        }
+      }
+    };
+
+    // Check on mount/update
+    handleStorageChange();
+
+    // Listen for storage events from other tabs
+    window.addEventListener("storage", handleStorageChange);
+    
+    // Custom event for same-tab updates
+    window.addEventListener("pimpay_card_changed", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("pimpay_card_changed", handleStorageChange);
+    };
+  }, [allCards, cardData?.id]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text.replace(/\s/g, ""));
     setCopied(label);
@@ -194,9 +243,74 @@ export default function McardPage() {
   const cardCvv = cardData?.cvv || "";
   const cardHolder = cardData?.holder || "PIONEER";
   const cardBrand = cardData?.brand || "MASTERCARD";
-  const cardType = cardData?.type || "CLASSIC";
+  const cardType = cardData?.type || "VIRTUAL";
   const dailyLimit = cardData?.dailyLimit || 1000;
   const monthlyLimit = dailyLimit * 5;
+
+  // Get card styles based on type
+  const getCardStyles = () => {
+    switch (cardType.toUpperCase()) {
+      case "PHYSICAL":
+        return {
+          gradient: "bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]",
+          shadow: "shadow-2xl shadow-indigo-600/20",
+          label: "PIMPAY PHYSICAL",
+          labelColor: "text-slate-300",
+          pattern: "physical",
+          accentColor: "text-slate-400",
+        };
+      case "PREMIUM":
+        return {
+          gradient: "bg-gradient-to-br from-[#2d1f3d] via-[#4a2c6a] to-[#6b3fa0]",
+          shadow: "shadow-2xl shadow-purple-600/30",
+          label: "PIMPAY PREMIUM",
+          labelColor: "text-[#c9a0dc]",
+          pattern: "premium",
+          accentColor: "text-purple-400",
+        };
+      case "BUSINESS":
+        return {
+          gradient: "bg-gradient-to-br from-[#1e3a2f] via-[#2d5a4a] to-[#1a4a3a]",
+          shadow: "shadow-2xl shadow-emerald-600/30",
+          label: "PIMPAY BUSINESS",
+          labelColor: "text-emerald-300",
+          pattern: "business",
+          accentColor: "text-emerald-400",
+        };
+      case "GOLD":
+        return {
+          gradient: "bg-gradient-to-br from-[#8B6914] via-[#D4AF37] to-[#8B6914]",
+          shadow: "shadow-2xl shadow-yellow-600/30",
+          label: "PIMPAY GOLD",
+          labelColor: "text-yellow-100",
+          pattern: "gold",
+          accentColor: "text-yellow-200",
+        };
+      case "PLATINUM":
+        return {
+          gradient: "bg-gradient-to-br from-[#3d3d3d] via-[#6b6b6b] to-[#4a4a4a]",
+          shadow: "shadow-2xl shadow-slate-500/30",
+          label: "PIMPAY PLATINUM",
+          labelColor: "text-slate-200",
+          pattern: "platinum",
+          accentColor: "text-slate-300",
+        };
+      case "VIRTUAL":
+      default:
+        return {
+          gradient: cardBrand === "VISA" 
+            ? "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]"
+            : "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
+          shadow: "shadow-2xl shadow-blue-600/20",
+          label: "PIMPAY VIRTUAL",
+          labelColor: "text-[#FFD700]",
+          pattern: "virtual",
+          accentColor: "text-blue-400",
+        };
+    }
+  };
+
+  const cardStyles = getCardStyles();
 
   if (loading) {
     return (
@@ -277,42 +391,90 @@ export default function McardPage() {
             >
               {/* FRONT */}
               <div
-                className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 overflow-hidden ${isFrozen ? "grayscale opacity-60" : "shadow-2xl shadow-blue-600/20"}`}
+                className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 overflow-hidden ${isFrozen ? "grayscale opacity-60" : cardStyles.shadow}`}
                 style={{ backfaceVisibility: "hidden" }}
               >
-                {/* Background gradient based on card brand */}
-                <div className={`absolute inset-0 rounded-[1.5rem] overflow-hidden ${
-                  cardBrand === "VISA" 
-                    ? "bg-gradient-to-br from-[#5c6bc0] via-[#5c6bc0] to-[#3f51b5]"
-                    : "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]"
-                }`}>
-                  {/* VISA Pattern - Wave ellipses */}
-                  {cardBrand === "VISA" && (
+                {/* Background gradient based on card type */}
+                <div className={`absolute inset-0 rounded-[1.5rem] overflow-hidden ${cardStyles.gradient}`}>
+                  {/* Pattern based on card type */}
+                  {cardStyles.pattern === "virtual" && cardBrand === "VISA" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <ellipse cx="320" cy="60" rx="120" ry="80" fill="rgba(0,0,50,0.3)" />
                       <ellipse cx="350" cy="120" rx="100" ry="70" fill="rgba(0,0,50,0.2)" />
                       <ellipse cx="80" cy="200" rx="150" ry="100" fill="rgba(0,0,50,0.15)" />
                     </svg>
                   )}
-                  {/* MasterCard Pattern - "100" watermark and curves */}
-                  {cardBrand !== "VISA" && (
+                  {cardStyles.pattern === "virtual" && cardBrand !== "VISA" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
                       <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
                       <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
                       <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
                     </svg>
                   )}
+                  {cardStyles.pattern === "physical" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <rect x="0" y="0" width="400" height="250" fill="url(#physicalGradient)" />
+                      <defs>
+                        <linearGradient id="physicalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="rgba(255,255,255,0.05)" />
+                          <stop offset="50%" stopColor="rgba(255,255,255,0.02)" />
+                          <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+                        </linearGradient>
+                      </defs>
+                      <line x1="0" y1="80" x2="400" y2="80" stroke="rgba(255,255,255,0.1)" strokeWidth="30" />
+                    </svg>
+                  )}
+                  {cardStyles.pattern === "premium" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <circle cx="350" cy="50" r="80" fill="rgba(255,255,255,0.05)" />
+                      <circle cx="50" cy="200" r="100" fill="rgba(255,255,255,0.03)" />
+                      <path d="M 0 125 Q 100 80 200 125 T 400 125" stroke="rgba(255,255,255,0.08)" strokeWidth="2" fill="none" />
+                      <path d="M 0 145 Q 100 100 200 145 T 400 145" stroke="rgba(255,255,255,0.05)" strokeWidth="2" fill="none" />
+                    </svg>
+                  )}
+                  {cardStyles.pattern === "business" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <rect x="320" y="20" width="60" height="60" rx="8" fill="rgba(255,255,255,0.05)" />
+                      <rect x="340" y="40" width="60" height="60" rx="8" fill="rgba(255,255,255,0.03)" />
+                      <path d="M 0 200 L 150 150 L 300 180 L 400 140" stroke="rgba(255,255,255,0.08)" strokeWidth="2" fill="none" />
+                    </svg>
+                  )}
+                  {cardStyles.pattern === "gold" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <defs>
+                        <linearGradient id="goldShine" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
+                          <stop offset="50%" stopColor="rgba(255,255,255,0)" />
+                          <stop offset="100%" stopColor="rgba(255,255,255,0.2)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="400" height="250" fill="url(#goldShine)" />
+                      <circle cx="350" cy="60" r="40" fill="rgba(255,255,255,0.1)" />
+                    </svg>
+                  )}
+                  {cardStyles.pattern === "platinum" && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+                      <defs>
+                        <linearGradient id="platinumShine" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
+                          <stop offset="50%" stopColor="rgba(255,255,255,0.2)" />
+                          <stop offset="100%" stopColor="rgba(255,255,255,0.1)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="-50" y="100" width="500" height="50" fill="url(#platinumShine)" transform="rotate(-15)" />
+                    </svg>
+                  )}
                 </div>
 
                 <div className="h-full flex flex-col justify-between relative z-10">
-                  {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
+                  {/* Header - Card type label + Brand logo */}
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-1.5">
-                      <ShieldCheck size={14} className="text-[#FFD700]" />
-                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+                      <ShieldCheck size={14} className={cardStyles.labelColor} />
+                      <span className={`text-[11px] font-black uppercase tracking-widest ${cardStyles.labelColor}`}>{cardStyles.label}</span>
                     </div>
                     {cardBrand === "VISA" ? (
-                      <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
+                      <span className="text-2xl font-black italic text-white/90 tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
                     ) : (
                       <div className="flex items-center">
                         <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
@@ -323,7 +485,7 @@ export default function McardPage() {
 
                   {/* Middle Section - Contactless icon on right */}
                   <div className="flex-1 flex items-end justify-end py-2">
-                    <Wifi size={24} className="rotate-90 text-[#3b82f6]" />
+                    <Wifi size={24} className={`rotate-90 ${cardStyles.accentColor}`} />
                   </div>
 
                   {/* Card Number - stays on one line */}
@@ -361,14 +523,10 @@ export default function McardPage() {
 
               {/* BACK */}
               <div
-                className={`absolute inset-0 w-full h-full rounded-[1.5rem] overflow-hidden ${isFrozen ? "grayscale opacity-60" : "shadow-2xl shadow-blue-600/20"}`}
+                className={`absolute inset-0 w-full h-full rounded-[1.5rem] overflow-hidden ${isFrozen ? "grayscale opacity-60" : cardStyles.shadow}`}
                 style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
               >
-                <div className={`absolute inset-0 rounded-[1.5rem] ${
-                  cardBrand === "VISA"
-                    ? "bg-gradient-to-br from-[#3f51b5] via-[#5c6bc0] to-[#7986cb]"
-                    : "bg-gradient-to-br from-[#01579b] via-[#0277bd] to-[#0288d1]"
-                }`} />
+                <div className={`absolute inset-0 rounded-[1.5rem] ${cardStyles.gradient}`} />
 
                 <div className="relative h-full z-10">
                   <div className="w-full h-12 bg-black/80 mt-6" />

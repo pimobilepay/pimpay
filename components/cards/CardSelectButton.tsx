@@ -28,6 +28,9 @@ export function CardSelectButton({ cardId }: CardSelectButtonProps) {
       setIsSelected(true);
       toast.success("Carte selectionnee comme carte principale");
       
+      // Dispatch custom event to notify same-tab listeners
+      window.dispatchEvent(new Event("pimpay_card_changed"));
+      
       // Also notify the server to update the default card
       await fetch("/api/cards/set-primary", {
         method: "POST",
