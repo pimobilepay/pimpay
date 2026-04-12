@@ -902,7 +902,7 @@ export default function McardPage() {
             {/* Full Card Details */}
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
               {[
-                { label: "Numero de carte", value: showDetails ? formattedNumber : `•••• •••• •••��� ${last4}`, copyable: true, copyVal: cardNumber },
+                { label: "Numero de carte", value: showDetails ? formattedNumber : `•••• •••• •••• ${last4}`, copyable: true, copyVal: cardNumber },
                 { label: "Titulaire", value: cardHolder },
                 { label: "Date d'expiration", value: showDetails ? cardExpiry : "••/••" },
                 { label: "CVV / CVC", value: showDetails ? cardCvv : "•••" },
