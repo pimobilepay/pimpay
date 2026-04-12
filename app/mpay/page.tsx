@@ -61,12 +61,64 @@ interface TransactionHistory {
   type: string;
   status: string;
   description: string;
+  currency?: string;
   createdAt: string;
   fromUserId: string;
   toUserId: string;
-  fromUser?: { username: string; name: string; avatar: string | null };
-  toUser?: { username: string; name: string; avatar: string | null };
+  fromUser?: { username: string; name: string; avatar: string | null; displayName?: string };
+  toUser?: { username: string; name: string; avatar: string | null; displayName?: string };
 }
+
+// Helper function to format amounts with proper decimals
+const formatAmount = (amount: number, currency: string = "Pi"): string => {
+  // For crypto, max 6 decimals; for fiat, max 2 decimals
+  const isFiat = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN"].includes(currency.toUpperCase());
+  const maxDecimals = isFiat ? 2 : 6;
+  
+  // Handle very small numbers (avoid scientific notation)
+  if (Math.abs(amount) < 0.000001 && amount !== 0) {
+    return amount.toFixed(maxDecimals);
+  }
+  
+  // Format with appropriate decimals
+  const formatted = amount.toLocaleString("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals,
+  });
+  
+  return formatted;
+};
+
+// Helper function to get display name for special transaction types
+const getTransactionDisplayName = (
+  tx: TransactionHistory,
+  isSent: boolean
+): string => {
+  const txType = tx.type?.toUpperCase() || "";
+  const ref = tx.reference?.toUpperCase() || "";
+  
+  // Handle CARD_PURCHASE transactions
+  if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY") || ref.includes("CARD_PURCHASE")) {
+    return "Achat Carte PimPay";
+  }
+  
+  // Handle external withdrawals
+  if (txType === "WITHDRAWAL" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+    return "Retrait Externe";
+  }
+  
+  // Handle deposits
+  if (txType === "DEPOSIT") {
+    return "Depot";
+  }
+  
+  // Default: use user display name
+  if (isSent) {
+    return tx.toUser?.displayName || tx.toUser?.name || tx.toUser?.username || "Utilisateur Inconnu";
+  } else {
+    return tx.fromUser?.displayName || tx.fromUser?.name || tx.fromUser?.username || "Utilisateur Inconnu";
+  }
+};
 
 type ActiveView = "hub" | "scanner" | "receive" | "pay-merchant";
 
@@ -925,11 +977,11 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             ) : (
               transactions.map((tx) => {
                 const isSent = tx.fromUserId === userId;
-                // Use displayName from API which properly resolves user names from multiple sources
-                const displayName = isSent 
-                  ? ((tx.toUser as any)?.displayName || tx.toUser?.name || tx.toUser?.username || "Utilisateur")
-                  : ((tx.fromUser as any)?.displayName || tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
+                // Use helper function to get proper display name for all transaction types
+                const displayName = getTransactionDisplayName(tx, isSent);
                 const statusLower = tx.status.toLowerCase();
+                const currency = tx.currency || "Pi";
+                const formattedAmount = formatAmount(tx.amount, currency);
                 const formattedDate = new Date(tx.createdAt).toLocaleDateString("fr-FR", {
                   day: "numeric",
                   month: "short",
@@ -952,7 +1004,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                     </div>
                     <div className="text-right">
                       <p className={`text-sm font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
-                        {isSent ? "-" : "+"}{tx.amount} Pi
+                        {isSent ? "-" : "+"}{formattedAmount} {currency}
                       </p>
                       <p className={`text-[8px] font-black uppercase ${statusLower === "success" ? "text-emerald-500/60" : statusLower === "pending" ? "text-amber-500/60" : "text-red-500/60"}`}>
                         {statusLower === "success" ? "Confirme" : statusLower === "pending" ? "En cours" : "Echoue"}

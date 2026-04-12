@@ -82,6 +82,27 @@ export async function GET(
       if (metadata.employeeName) toDisplayName = metadata.employeeName;
     }
 
+    // Special handling for card purchases
+    if (transaction.type === "CARD_PURCHASE" || transaction.reference?.toUpperCase().startsWith("CARD-BUY")) {
+      toDisplayName = "Achat Carte PimPay";
+    }
+
+    // Special handling for deposits
+    if (transaction.type === "DEPOSIT" && !transaction.fromUserId) {
+      if (transaction.currency === "PI") {
+        fromDisplayName = "Pi Network";
+      } else if (transaction.currency === "SDA") {
+        fromDisplayName = "Sidra Chain";
+      } else {
+        fromDisplayName = "Depot Blockchain";
+      }
+    }
+
+    // Special handling for withdrawals
+    if (transaction.type === "WITHDRAW" && !transaction.toUserId) {
+      toDisplayName = "Retrait Externe";
+    }
+
     const formattedTransaction = {
       ...transaction,
       fromUser: transaction.fromUser 
