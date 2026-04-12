@@ -42,10 +42,13 @@ function SummaryContent() {
     const avatar = searchParams.get("recipientAvatar") || "";
     const currency = (searchParams.get("currency") || "XAF").toUpperCase();
     const amount = parseFloat(searchParams.get("amount") || "0");
-    const feeParam = parseFloat(searchParams.get("fee") || "0.01");
+    // Get fee rate (e.g., 0.01 for 1%) and calculate actual fee amount
+    const feeRateParam = parseFloat(searchParams.get("feeRate") || "0.01");
     const description = searchParams.get("description") || "Transfert PimPay";
-    const fee = Number.isFinite(feeParam) && feeParam >= 0 ? feeParam : 0.01;
+    const feeRate = Number.isFinite(feeRateParam) && feeRateParam >= 0 ? feeRateParam : 0.01;
     const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+    // Calculate actual fee: amount * rate (e.g., 1000 * 0.01 = 10)
+    const feeAmount = Math.round(safeAmount * feeRate * 100) / 100;
     const isExternal = detectExternalAddress(recipientId);
     return {
       recipientId,
@@ -54,7 +57,8 @@ function SummaryContent() {
       amount: safeAmount,
       currency,
       description,
-      fee,
+      feeRate, // Keep the rate for display (e.g., 1%)
+      fee: feeAmount, // Calculated fee amount
       isExternal,
     };
   }, [searchParams]);
@@ -293,8 +297,8 @@ function SummaryContent() {
             </span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Frais de réseau</span>
-            <span className="text-red-400">+{data.fee} {data.currency}</span>
+            <span className="text-slate-500">Frais ({(data.feeRate * 100).toFixed(0)}%)</span>
+            <span className="text-red-400">+{data.fee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {data.currency}</span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">Description</span>

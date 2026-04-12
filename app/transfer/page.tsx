@@ -342,7 +342,8 @@ export default function SendPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWallets, setIsLoadingWallets] = useState(true);
 
-  const networkFee = 0.01;
+  // Fee rate (1% = 0.01) - displayed as percentage, calculated on amount
+  const networkFeeRate = 0.01;
 
   // ── Fetch wallets ──────────────────────────────────────────────────────────
   const fetchWallets = async () => {
@@ -492,7 +493,7 @@ export default function SendPage() {
       recipientAvatar: recipientData?.avatar || "",
       amount: amount,
       currency: selectedCurrency,
-      fee: networkFee.toString(),
+      feeRate: networkFeeRate.toString(), // Pass fee rate (e.g., 0.01 for 1%)
       description: description || t("transfer.defaultDescription"),
     });
     router.push(`/transfer/summary?${params.toString()}`);
@@ -653,7 +654,7 @@ export default function SendPage() {
               <span className="text-[11px] text-slate-500">{currencyMeta.network}</span>
             </div>
             <span className="text-[11px] text-slate-600">
-              {t("common.fee")}: {networkFee} {selectedCurrency}
+              {t("common.fee")}: {(networkFeeRate * 100).toFixed(0)}%
             </span>
           </div>
         </div>
