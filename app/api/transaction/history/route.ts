@@ -113,6 +113,11 @@ export async function GET() {
         }
       }
 
+      // Special handling for card purchases
+      if (tx.type === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY")) {
+        toDisplayName = "Achat Carte PimPay";
+      }
+
       return {
         ...tx,
         fromUser: tx.fromUser ? { ...tx.fromUser, displayName: fromDisplayName } : { displayName: fromDisplayName },

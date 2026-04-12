@@ -165,7 +165,28 @@ export default function TransactionDetailsPage() {
 
   const isSent = transaction.fromUserId === userId;
   const otherUser = isSent ? transaction.toUser : transaction.fromUser;
-  const displayName = otherUser?.displayName || otherUser?.name || otherUser?.username || "Utilisateur";
+  const txType = transaction.type?.toUpperCase() || "";
+  const ref = transaction.reference?.toUpperCase() || "";
+  
+  // Handle special transaction types for display name
+  const getDisplayName = (): string => {
+    // Handle CARD_PURCHASE transactions
+    if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY") || ref.includes("CARD_PURCHASE")) {
+      return "Achat Carte PimPay";
+    }
+    // Handle external withdrawals
+    if (txType === "WITHDRAWAL" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+      return "Retrait Externe";
+    }
+    // Handle deposits
+    if (txType === "DEPOSIT") {
+      return "Depot";
+    }
+    // Default: use user display name
+    return otherUser?.displayName || otherUser?.name || otherUser?.username || "Utilisateur";
+  };
+  
+  const displayName = getDisplayName();
   const statusLower = transaction.status.toLowerCase();
 
   const getStatusInfo = () => {
@@ -192,9 +213,27 @@ export default function TransactionDetailsPage() {
       case "WITHDRAWAL": return "Retrait";
       case "PAYMENT": return "Paiement";
       case "SALARY": return "Salaire";
+      case "CARD_PURCHASE": return "Achat Carte";
       default: return type;
     }
   };
+  
+  // Format amount with proper decimals
+  const formatAmount = (amount: number, currency: string = "Pi"): string => {
+    const isFiat = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN"].includes(currency.toUpperCase());
+    const maxDecimals = isFiat ? 2 : 6;
+    
+    if (Math.abs(amount) < 0.000001 && amount !== 0) {
+      return amount.toFixed(maxDecimals);
+    }
+    
+    return amount.toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: maxDecimals,
+    });
+  };
+  
+  const formattedAmount = formatAmount(transaction.amount, transaction.currency);
 
   const formattedDate = new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -254,7 +293,7 @@ export default function TransactionDetailsPage() {
             </div>
             
             <p className={`text-4xl font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
-              {isSent ? "-" : "+"}{transaction.amount.toLocaleString()} {transaction.currency}
+              {isSent ? "-" : "+"}{formattedAmount} {transaction.currency}
             </p>
             
             {transaction.fee > 0 && (
