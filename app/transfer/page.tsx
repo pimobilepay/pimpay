@@ -342,7 +342,35 @@ export default function SendPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWallets, setIsLoadingWallets] = useState(true);
 
-  const networkFee = 0.01;
+  // Fee state - dynamically loaded from API
+  const [feeConfig, setFeeConfig] = useState<{
+    transferFee: number;
+    fiatTransferFee: number;
+  }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
+  const [isLoadingFees, setIsLoadingFees] = useState(true);
+
+  // ── Fetch fees from API ─────────────────────────────────────────────────────
+  const fetchFees = async () => {
+    try {
+      const res = await fetch("/api/fees", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (res.ok && isMountedRef.current) {
+        const data = await res.json();
+        if (data.ok && data.fees) {
+          setFeeConfig({
+            transferFee: data.fees.transferFee ?? 0.01,
+            fiatTransferFee: data.fees.fiatTransferFee ?? 0.005,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Fee fetch error:", err);
+    } finally {
+      if (isMountedRef.current) setIsLoadingFees(false);
+    }
+  };
 
   // ── Fetch wallets ──────────────────────────────────────────────────────────
   const fetchWallets = async () => {
@@ -373,6 +401,7 @@ export default function SendPage() {
     setMounted(true);
     isMountedRef.current = true;
     fetchWallets();
+    fetchFees();
 
     const addr = searchParams.get("address");
     const cur = searchParams.get("currency");
@@ -384,11 +413,18 @@ export default function SendPage() {
     };
   }, [searchParams]);
 
-  const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
-    balance: 0,
-    currency: selectedCurrency,
+const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
+  balance: 0,
+  currency: selectedCurrency,
   };
 
+  // Determine if selected currency is fiat (XAF, EUR, USD, etc.) or crypto
+  const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
+  const isFiatCurrency = FIAT_CURRENCIES.includes(selectedCurrency.toUpperCase());
+  
+  // Use fiatTransferFee for fiat currencies, transferFee for crypto
+  const networkFee = isFiatCurrency ? feeConfig.fiatTransferFee : feeConfig.transferFee;
+  
   // ── Recherche destinataire ─────────────────────────────────────────────────
   useEffect(() => {
     const abortController = new AbortController();

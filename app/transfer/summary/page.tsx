@@ -26,6 +26,9 @@ function detectExternalAddress(identifier: string): boolean {
   if (/^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(clean)) return true;
   return false;
 }
+// Fiat currencies list
+const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
+
 function SummaryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,31 +36,63 @@ function SummaryContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
+  const [feeConfig, setFeeConfig] = useState<{
+    transferFee: number;
+    fiatTransferFee: number;
+  }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
+  const [feeLoading, setFeeLoading] = useState(true);
+
   useEffect(() => {
     setMounted(true);
-  }, []);
-  const data = useMemo(() => {
-    const recipientId = searchParams.get("recipient") || "";
-    const name = searchParams.get("recipientName") || "Utilisateur";
-    const avatar = searchParams.get("recipientAvatar") || "";
-    const currency = (searchParams.get("currency") || "XAF").toUpperCase();
-    const amount = parseFloat(searchParams.get("amount") || "0");
-    const feeParam = parseFloat(searchParams.get("fee") || "0.01");
-    const description = searchParams.get("description") || "Transfert PimPay";
-    const fee = Number.isFinite(feeParam) && feeParam >= 0 ? feeParam : 0.01;
-    const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
-    const isExternal = detectExternalAddress(recipientId);
-    return {
-      recipientId,
-      name,
-      avatar,
-      amount: safeAmount,
-      currency,
-      description,
-      fee,
-      isExternal,
+    // Fetch fees from API
+    const fetchFees = async () => {
+      try {
+        const res = await fetch("/api/fees", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.fees) {
+            setFeeConfig({
+              transferFee: data.fees.transferFee ?? 0.01,
+              fiatTransferFee: data.fees.fiatTransferFee ?? 0.005,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Fee fetch error:", err);
+      } finally {
+        setFeeLoading(false);
+      }
     };
-  }, [searchParams]);
+    fetchFees();
+  }, []);
+const data = useMemo(() => {
+  const recipientId = searchParams.get("recipient") || "";
+  const name = searchParams.get("recipientName") || "Utilisateur";
+  const avatar = searchParams.get("recipientAvatar") || "";
+  const currency = (searchParams.get("currency") || "XAF").toUpperCase();
+  const amount = parseFloat(searchParams.get("amount") || "0");
+  const description = searchParams.get("description") || "Transfert PimPay";
+  
+  // Determine if currency is fiat and use appropriate fee rate
+  const isFiat = FIAT_CURRENCIES.includes(currency);
+  const feeRate = isFiat ? feeConfig.fiatTransferFee : feeConfig.transferFee;
+  
+  const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+  const isExternal = detectExternalAddress(recipientId);
+  return {
+  recipientId,
+  name,
+  avatar,
+  amount: safeAmount,
+  currency,
+  description,
+  fee: feeRate,
+  isExternal,
+  };
+  }, [searchParams, feeConfig]);
   const totalRequired = useMemo(() => data.amount + data.fee, [data.amount, data.fee]);
   useEffect(() => {
     if (!mounted) return;

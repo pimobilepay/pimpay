@@ -46,6 +46,10 @@ export interface FeeConfig {
   /** QR code payment fee rate */
   qrPaymentFee: number;
   
+  // Fiat Transfer Fee
+  /** Fiat P2P transfer fee rate (XAF, EUR, USD, etc.) */
+  fiatTransferFee: number;
+  
   /** Min withdrawal amount */
   minWithdrawal: number;
   /** Max withdrawal amount */
@@ -64,6 +68,7 @@ export type FeeType =
   | "deposit_card"
   | "withdraw_mobile"
   | "withdraw_bank"
+  | "fiat_transfer"
   // Payments
   | "card_payment"
   | "merchant_payment"
@@ -91,6 +96,8 @@ const DEFAULT_FEE_CONFIG: FeeConfig = {
   merchantPaymentFee: 0.02,
   billPaymentFee: 0.015,
   qrPaymentFee: 0.01,
+  // Fiat Transfer Fee
+  fiatTransferFee: 0.005,
   // Limits
   minWithdrawal: 1.0,
   maxWithdrawal: 5000.0,
@@ -125,6 +132,8 @@ export async function getFeeConfig(): Promise<FeeConfig> {
         merchantPaymentFee: true,
         billPaymentFee: true,
         qrPaymentFee: true,
+        // Fiat Transfer Fee
+        fiatTransferFee: true,
         // Limits
         minWithdrawal: true,
         maxWithdrawal: true,
@@ -150,6 +159,8 @@ export async function getFeeConfig(): Promise<FeeConfig> {
       merchantPaymentFee: config.merchantPaymentFee ?? DEFAULT_FEE_CONFIG.merchantPaymentFee,
       billPaymentFee: config.billPaymentFee ?? DEFAULT_FEE_CONFIG.billPaymentFee,
       qrPaymentFee: config.qrPaymentFee ?? DEFAULT_FEE_CONFIG.qrPaymentFee,
+      // Fiat Transfer Fee
+      fiatTransferFee: (config as any).fiatTransferFee ?? DEFAULT_FEE_CONFIG.fiatTransferFee,
       // Limits
       minWithdrawal: config.minWithdrawal ?? DEFAULT_FEE_CONFIG.minWithdrawal,
       maxWithdrawal: config.maxWithdrawal ?? DEFAULT_FEE_CONFIG.maxWithdrawal,
@@ -183,9 +194,11 @@ export function getFeeRate(config: FeeConfig, type: FeeType): number {
       return config.depositCardFee;
     case "withdraw_mobile":
       return config.withdrawMobileFee;
-    case "withdraw_bank":
-      return config.withdrawBankFee;
-    // Payment Fees
+case "withdraw_bank":
+  return config.withdrawBankFee;
+  case "fiat_transfer":
+  return config.fiatTransferFee;
+  // Payment Fees
     case "card_payment":
       return config.cardPaymentFee;
     case "merchant_payment":

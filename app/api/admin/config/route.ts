@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
       // Crypto fee fields
       transferFee, withdrawFee, depositCryptoFee, exchangeFee,
       // Fiat fee fields
-      depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee,
+      depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee, fiatTransferFee,
       // Payment fee fields
       cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee,
       // Limits
@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
     if (depositCardFee !== undefined) updateData.depositCardFee = Number(depositCardFee);
     if (withdrawMobileFee !== undefined) updateData.withdrawMobileFee = Number(withdrawMobileFee);
     if (withdrawBankFee !== undefined) updateData.withdrawBankFee = Number(withdrawBankFee);
+    if (fiatTransferFee !== undefined) updateData.fiatTransferFee = Number(fiatTransferFee);
     // Payment fee fields
     if (cardPaymentFee !== undefined) updateData.cardPaymentFee = Number(cardPaymentFee);
     if (merchantPaymentFee !== undefined) updateData.merchantPaymentFee = Number(merchantPaymentFee);

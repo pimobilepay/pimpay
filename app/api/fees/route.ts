@@ -33,12 +33,22 @@ export async function GET(req: NextRequest) {
         fee,
         // Tous les frais individuels pour le front-end
         fees: {
+          // Crypto Fees
           transferFee: feeConfig.transferFee,
           withdrawFee: feeConfig.withdrawFee,
+          depositCryptoFee: feeConfig.depositCryptoFee,
+          exchangeFee: feeConfig.exchangeFee,
+          // Fiat Fees
           depositMobileFee: feeConfig.depositMobileFee,
           depositCardFee: feeConfig.depositCardFee,
-          exchangeFee: feeConfig.exchangeFee,
+          withdrawMobileFee: feeConfig.withdrawMobileFee,
+          withdrawBankFee: feeConfig.withdrawBankFee,
+          fiatTransferFee: feeConfig.fiatTransferFee,
+          // Payment Fees
           cardPaymentFee: feeConfig.cardPaymentFee,
+          merchantPaymentFee: feeConfig.merchantPaymentFee,
+          billPaymentFee: feeConfig.billPaymentFee,
+          qrPaymentFee: feeConfig.qrPaymentFee,
         },
         minWithdrawal: feeConfig.minWithdrawal,
         maxWithdrawal: feeConfig.maxWithdrawal,

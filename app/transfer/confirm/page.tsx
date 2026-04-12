@@ -8,6 +8,9 @@ import {
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 
+// Fiat currencies list
+const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
+
 function ConfirmContent() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -17,6 +20,10 @@ function ConfirmContent() {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [feeConfig, setFeeConfig] = useState<{
+    transferFee: number;
+    fiatTransferFee: number;
+  }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
 
   // Transaction data from URL params
   const recipientId = searchParams.get("recipientId") || searchParams.get("recipient") || "";
@@ -25,25 +32,51 @@ function ConfirmContent() {
   const currency = (searchParams.get("currency") || "XAF").toUpperCase();
   const description = searchParams.get("description") || "Transfert PimPay";
 
-  const networkFee = 0.01;
+  // Determine if currency is fiat and use appropriate fee
+  const isFiat = FIAT_CURRENCIES.includes(currency);
+  const networkFee = isFiat ? feeConfig.fiatTransferFee : feeConfig.transferFee;
   const totalDebit = amount + networkFee;
+
+// Fetch fees from API
+  useEffect(() => {
+  const fetchFees = async () => {
+  try {
+  const res = await fetch("/api/fees", {
+  cache: "no-store",
+  headers: { "Cache-Control": "no-cache" },
+  });
+  if (res.ok) {
+  const data = await res.json();
+  if (data.ok && data.fees) {
+  setFeeConfig({
+  transferFee: data.fees.transferFee ?? 0.01,
+  fiatTransferFee: data.fees.fiatTransferFee ?? 0.005,
+  });
+  }
+  }
+  } catch (err) {
+  console.error("Fee fetch error:", err);
+  }
+  };
+  fetchFees();
+  }, []);
 
   // Fetch the correct wallet balance for the selected currency
   useEffect(() => {
-    const fetchBalance = async () => {
-      try {
-        const res = await fetch("/api/user/profile", {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
-        });
-        if (res.ok) {
-          const d = await res.json();
-          const userWallets = d.user?.wallets || d.wallets || [];
-          const targetWallet = userWallets.find(
-            (w: any) => String(w.currency || "").toUpperCase() === currency
-          );
-          const bal = targetWallet?.balance;
-          const parsed = typeof bal === "number" ? bal : parseFloat(String(bal ?? "0"));
+  const fetchBalance = async () => {
+  try {
+  const res = await fetch("/api/user/profile", {
+  cache: "no-store",
+  headers: { "Cache-Control": "no-cache" },
+  });
+  if (res.ok) {
+  const d = await res.json();
+  const userWallets = d.user?.wallets || d.wallets || [];
+  const targetWallet = userWallets.find(
+  (w: any) => String(w.currency || "").toUpperCase() === currency
+  );
+  const bal = targetWallet?.balance;
+  const parsed = typeof bal === "number" ? bal : parseFloat(String(bal ?? "0"));
           setWalletBalance(Number.isFinite(parsed) ? parsed : 0);
         }
       } catch (err) {

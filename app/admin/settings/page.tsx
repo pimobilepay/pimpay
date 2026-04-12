@@ -59,6 +59,7 @@ export default function SystemSettings() {
     depositCardFee: 0.035,       // Card Deposit
     withdrawMobileFee: 0.025,    // Mobile Money Withdrawal
     withdrawBankFee: 0.02,       // Bank Withdrawal
+    fiatTransferFee: 0.005,      // Fiat P2P Transfer (XAF, EUR, etc.)
     cardPaymentFee: 0.015,       // Virtual Card Payment
     // Payment Fees
     merchantPaymentFee: 0.02,    // Merchant Payment
@@ -554,17 +555,19 @@ export default function SystemSettings() {
                     <FeeInput icon={<CreditCard size={14} />} label="Depot Carte Bancaire" sublabel="Visa, Mastercard, etc." value={config.depositCardFee} onChange={(v: number) => setConfig({ ...config, depositCardFee: v })} color="text-purple-400" />
                     <FeeInput icon={<Smartphone size={14} />} label="Retrait Mobile Money" sublabel="Vers numero mobile" value={config.withdrawMobileFee} onChange={(v: number) => setConfig({ ...config, withdrawMobileFee: v })} color="text-orange-400" />
                     <FeeInput icon={<Landmark size={14} />} label="Retrait Bancaire" sublabel="Vers compte bancaire" value={config.withdrawBankFee} onChange={(v: number) => setConfig({ ...config, withdrawBankFee: v })} color="text-blue-400" />
+                    <FeeInput icon={<ArrowUpDown size={14} />} label="Transfert Fiat P2P" sublabel="Envoi XAF/EUR entre utilisateurs" value={config.fiatTransferFee} onChange={(v: number) => setConfig({ ...config, fiatTransferFee: v })} color="text-emerald-400" />
                   </div>
                   <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 mt-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Info size={12} className="text-blue-400" />
                       <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Resume Fiat</p>
                     </div>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-5 gap-2">
                       <FeePreviewChip label="Mob. Dep" value={config.depositMobileFee} color="green" />
                       <FeePreviewChip label="Card Dep" value={config.depositCardFee} color="purple" />
                       <FeePreviewChip label="Mob. Ret" value={config.withdrawMobileFee} color="orange" />
                       <FeePreviewChip label="Bank Ret" value={config.withdrawBankFee} color="blue" />
+                      <FeePreviewChip label="P2P Fiat" value={config.fiatTransferFee} color="emerald" />
                     </div>
                   </div>
                 </div>
@@ -604,20 +607,21 @@ export default function SystemSettings() {
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tous les frais actifs</p>
                   <span className="text-[8px] font-mono text-slate-500">Valeurs en %</span>
                 </div>
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
-                  <FeePreviewChip label="P2P Crypto" value={config.transferFee} color="amber" />
-                  <FeePreviewChip label="Dep. Crypto" value={config.depositCryptoFee} color="green" />
-                  <FeePreviewChip label="Ret. Crypto" value={config.withdrawFee} color="orange" />
-                  <FeePreviewChip label="Swap" value={config.exchangeFee} color="cyan" />
-                  <FeePreviewChip label="Dep. Mobile" value={config.depositMobileFee} color="green" />
-                  <FeePreviewChip label="Dep. Carte" value={config.depositCardFee} color="purple" />
-                  <FeePreviewChip label="Ret. Mobile" value={config.withdrawMobileFee} color="orange" />
-                  <FeePreviewChip label="Ret. Bank" value={config.withdrawBankFee} color="blue" />
-                  <FeePreviewChip label="Card Pay" value={config.cardPaymentFee} color="pink" />
-                  <FeePreviewChip label="Marchand" value={config.merchantPaymentFee} color="emerald" />
-                  <FeePreviewChip label="Factures" value={config.billPaymentFee} color="amber" />
-                  <FeePreviewChip label="QR Pay" value={config.qrPaymentFee} color="cyan" />
-                </div>
+  <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+  <FeePreviewChip label="P2P Crypto" value={config.transferFee} color="amber" />
+  <FeePreviewChip label="Dep. Crypto" value={config.depositCryptoFee} color="green" />
+  <FeePreviewChip label="Ret. Crypto" value={config.withdrawFee} color="orange" />
+  <FeePreviewChip label="Swap" value={config.exchangeFee} color="cyan" />
+  <FeePreviewChip label="P2P Fiat" value={config.fiatTransferFee} color="emerald" />
+  <FeePreviewChip label="Dep. Mobile" value={config.depositMobileFee} color="green" />
+  <FeePreviewChip label="Dep. Carte" value={config.depositCardFee} color="purple" />
+  <FeePreviewChip label="Ret. Mobile" value={config.withdrawMobileFee} color="orange" />
+  <FeePreviewChip label="Ret. Bank" value={config.withdrawBankFee} color="blue" />
+  <FeePreviewChip label="Card Pay" value={config.cardPaymentFee} color="pink" />
+  <FeePreviewChip label="Marchand" value={config.merchantPaymentFee} color="emerald" />
+  <FeePreviewChip label="Factures" value={config.billPaymentFee} color="amber" />
+  <FeePreviewChip label="QR Pay" value={config.qrPaymentFee} color="cyan" />
+  </div>
               </div>
             </div>
           </div>
