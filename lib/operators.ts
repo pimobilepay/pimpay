@@ -75,7 +75,7 @@ const OP_LOGOS: Record<string, string> = {
   digi:           "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Digi_Communications_logo.svg/200px-Digi_Communications_logo.svg.png",
   vodafone_ro:    "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   orange_ro:      "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
-  telekom_ro:     "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Telekom_Logo_2013.svg/200px-Telekom_Logo_2013.svg.png",
+  telekom_ro:     "https://pimpay.vercel.app/dl-telekom-logo.png",
   // Europe & Americas
   paypal:         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/200px-PayPal.svg.png",
   venmo:          "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Venmo_logo.svg/200px-Venmo_logo.svg.png",
