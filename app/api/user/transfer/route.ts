@@ -134,12 +134,22 @@ export async function POST(req: NextRequest) {
       
       console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 
+      // Verification d'auto-envoi AVANT le debit - doit etre faite ici
+      if (recipientUser && recipientUser.id === senderId) {
+        throw new Error("Auto-envoi interdit.");
+      }
+
+      // Verifier que le destinataire existe pour les transferts internes ou que c'est une adresse externe valide
+      if (!recipientUser && !isExternalAddress(recipientInput)) {
+        throw new Error("Destinataire ou adresse invalide.");
+      }
+
       const updatedSender = await tx.wallet.update({
         where: { id: senderWallet.id },
         data: { balance: { decrement: totalDebit } },
       });
 
-      if (recipientUser && recipientUser.id !== senderId) {
+      if (recipientUser) {
         console.log("[v0] [USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
         
         const toWallet = await tx.wallet.upsert({
@@ -180,10 +190,7 @@ export async function POST(req: NextRequest) {
         return { type: "INTERNAL" as const, transaction };
       }
 
-      if (recipientUser && recipientUser.id === senderId) throw new Error("Auto-envoi interdit.");
-
-      if (!isExternalAddress(recipientInput)) throw new Error("Destinataire ou adresse invalide.");
-
+      // Transfert EXTERNE (blockchain) - recipientUser est null a ce point
       let blockchainTxHash: string | null = null;
       let txStatus = TransactionStatus.PENDING;
 
