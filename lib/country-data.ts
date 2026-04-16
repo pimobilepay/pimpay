@@ -73,6 +73,11 @@ const OP: Record<string, string> = {
   revolut:      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
   inwi:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Inwi_logo.svg/200px-Inwi_logo.svg.png",
   maroctelecom: "https://upload.wikimedia.org/wikipedia/commons/d/de/Maroc_Telecom_logo.png",
+  // Romania
+  digi:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Digi_Communications_logo.svg/200px-Digi_Communications_logo.svg.png",
+  vodafone_ro:  "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
+  orange_ro:    "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
+  telekom_ro:   "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Telekom_Logo_2013.svg/200px-Telekom_Logo_2013.svg.png",
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +138,13 @@ const BK: Record<string, string> = {
   hsbc:             "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/HSBC_logo_%282018%29.svg/200px-HSBC_logo_%282018%29.svg.png",
   barclays:         "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Barclays_logo.svg/200px-Barclays_logo.svg.png",
   revolut_bank:     "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
+  // Romania
+  banca_transilvania: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Banca_Transilvania_logo.svg/200px-Banca_Transilvania_logo.svg.png",
+  bcr:                "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/BCR_logo.svg/200px-BCR_logo.svg.png",
+  brd:                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/BRD_logo.svg/200px-BRD_logo.svg.png",
+  ing_ro:             "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/ING_logo.svg/200px-ING_logo.svg.png",
+  raiffeisen_ro:      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Raiffeisen_Bank_logo.svg/200px-Raiffeisen_Bank_logo.svg.png",
+  unicredit_ro:       "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/UniCredit_logo.svg/200px-UniCredit_logo.svg.png",
   // Americas
   chase:            "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/J.P._Morgan_Logo_2008_1.svg/200px-J.P._Morgan_Logo_2008_1.svg.png",
   bofa:             "https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/BankofAmerica.svg/200px-BankofAmerica.svg.png",
@@ -566,6 +578,33 @@ export const worldCountries: Country[] = [
   { name: "Turkey",              code: "TR", flag: "TR", currency: "TRY", currencySymbol: "₺",   piToLocalRate: 32,     dialCode: "+90",    continent: "EUROPE",  isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
   { name: "Russia",              code: "RU", flag: "RU", currency: "RUB", currencySymbol: "₽",   piToLocalRate: 92,     dialCode: "+7",     continent: "EUROPE",  isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
   { name: "Ukraine",             code: "UA", flag: "UA", currency: "UAH", currencySymbol: "₴",   piToLocalRate: 41,     dialCode: "+380",   continent: "EUROPE",  isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
+  {
+    name: "Romania",
+    code: "RO",
+    flag: "🇷🇴",
+    currency: "RON",
+    currencySymbol: "lei",
+    piToLocalRate: 4.6,
+    dialCode: "+40",
+    continent: "EUROPE",
+    isoStandard: "ISO20022",
+    isActive: true,
+    banks: [
+      { name: "Banca Transilvania", bic: "BTRLRO22", swift: "BTRLRO22", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.banca_transilvania },
+      { name: "BCR (Banca Comerciala Romana)", bic: "RNCBROBU", swift: "RNCBROBU", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.bcr },
+      { name: "BRD - Groupe Societe Generale", bic: "BRDEROBU", swift: "BRDEROBU", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.brd },
+      { name: "ING Bank Romania", bic: "INGBROBU", swift: "INGBROBU", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.ing_ro },
+      { name: "Raiffeisen Bank Romania", bic: "RZBRROBU", swift: "RZBRROBU", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.raiffeisen_ro },
+      { name: "UniCredit Bank Romania", bic: "BACXROBU", swift: "BACXROBU", ibanStructure: "ROkk BBBB CCCC CCCC CCCC CCCC", logo: BK.unicredit_ro },
+    ],
+    operators: [
+      { id: "digi_ro",     name: "Digi Mobil",    icon: OP.digi,        features: { cashIn: false, cashOut: false, airtime: true } },
+      { id: "vodafone_ro", name: "Vodafone Romania", icon: OP.vodafone_ro, features: { cashIn: false, cashOut: false, airtime: true } },
+      { id: "orange_ro",   name: "Orange Romania",   icon: OP.orange_ro,   features: { cashIn: false, cashOut: false, airtime: true } },
+      { id: "telekom_ro",  name: "Telekom Romania",  icon: OP.telekom_ro,  features: { cashIn: false, cashOut: false, airtime: true } },
+      { id: "revolut_ro",  name: "Revolut",          icon: OP.revolut,     features: { cashIn: true,  cashOut: true,  airtime: false } },
+    ],
+  },
   { name: "China",               code: "CN", flag: "CN", currency: "CNY", currencySymbol: "¥",   piToLocalRate: 7.1,    dialCode: "+86",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
     banks: [
       { name: "ICBC",         bic: "ICBKCNBJ", swift: "ICBKCNBJ", logo: BK.icbc },

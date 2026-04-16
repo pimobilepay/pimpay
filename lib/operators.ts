@@ -71,6 +71,11 @@ const OP_LOGOS: Record<string, string> = {
   telma:          "https://upload.wikimedia.org/wikipedia/commons/7/71/Telma-logo.jpg",
   cbe:            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Commercial_Bank_of_Ethiopia_logo.svg/200px-Commercial_Bank_of_Ethiopia_logo.svg.png",
   mbirr:          "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/MBIRR_logo.png/200px-MBIRR_logo.png",
+  // Romania
+  digi:           "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Digi_Communications_logo.svg/200px-Digi_Communications_logo.svg.png",
+  vodafone_ro:    "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
+  orange_ro:      "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
+  telekom_ro:     "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Telekom_Logo_2013.svg/200px-Telekom_Logo_2013.svg.png",
   // Europe & Americas
   paypal:         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/200px-PayPal.svg.png",
   venmo:          "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Venmo_logo.svg/200px-Venmo_logo.svg.png",
@@ -432,6 +437,14 @@ export const COUNTRY_OPERATORS: Record<string, MobileOperator[]> = {
     { name: "NCB Quisk",logo: OP_LOGOS.ncb,    type: "mobile_money" },
     { name: "Digicel",  logo: OP_LOGOS.digicel,type: "telecom" },
     { name: "Flow",     logo: OP_LOGOS.flow,   type: "telecom" },
+  ],
+  // Romania
+  RO: [
+    { name: "Digi Mobil",       logo: OP_LOGOS.digi,        type: "telecom" },
+    { name: "Vodafone Romania", logo: OP_LOGOS.vodafone_ro, type: "telecom" },
+    { name: "Orange Romania",   logo: OP_LOGOS.orange_ro,   type: "telecom" },
+    { name: "Telekom Romania",  logo: OP_LOGOS.telekom_ro,  type: "telecom" },
+    { name: "Revolut",          logo: OP_LOGOS.revolut,     type: "bank_app" },
   ],
 };
 
