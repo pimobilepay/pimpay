@@ -72,7 +72,7 @@ const OP_LOGOS: Record<string, string> = {
   cbe:            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Commercial_Bank_of_Ethiopia_logo.svg/200px-Commercial_Bank_of_Ethiopia_logo.svg.png",
   mbirr:          "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/MBIRR_logo.png/200px-MBIRR_logo.png",
   // Romania
-  digi:           "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Digi_Communications_logo.svg/200px-Digi_Communications_logo.svg.png",
+  digi:           "https://pimpay.vercel.app/digi-mobil.png",
   vodafone_ro:    "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   orange_ro:      "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
   telekom_ro:     "https://pimpay.vercel.app/dl-telekom-logo.png",
@@ -82,7 +82,7 @@ const OP_LOGOS: Record<string, string> = {
   cashapp:        "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Square_Cash_app_logo.svg/200px-Square_Cash_app_logo.svg.png",
   zelle:          "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Zelle_%28payment_service%29_logo.svg/200px-Zelle_%28payment_service%29_logo.svg.png",
   monzo:          "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Monzo_logo.svg/200px-Monzo_logo.svg.png",
-  revolut:        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
+  revolut:        "https://pimpay.vercel.app/revolut.png",
   sfr:            "https://upload.wikimedia.org/wikipedia/commons/9/97/SFR-2022-logo.svg",
   bouygues:       "https://upload.wikimedia.org/wikipedia/commons/3/31/Bouygues_Telecom_%28alt_logo%29.svg",
   pix:            "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Logo_PIX_verde_e_branco.svg/200px-Logo_PIX_verde_e_branco.svg.png",

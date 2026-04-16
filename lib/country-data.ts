@@ -70,11 +70,11 @@ const OP: Record<string, string> = {
   movicel:      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Movicel_logo.svg/200px-Movicel_logo.svg.png",
   multicaixa:   "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Multicaixa_logo.png/200px-Multicaixa_logo.png",
   telma:        "https://upload.wikimedia.org/wikipedia/commons/7/71/Telma-logo.jpg",
-  revolut:      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Revolut_logo.svg/200px-Revolut_logo.svg.png",
+  revolut:      "https://pimpay.vercel.app/revolut.png",
   inwi:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Inwi_logo.svg/200px-Inwi_logo.svg.png",
   maroctelecom: "https://upload.wikimedia.org/wikipedia/commons/d/de/Maroc_Telecom_logo.png",
   // Romania
-  digi:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Digi_Communications_logo.svg/200px-Digi_Communications_logo.svg.png",
+  digi:         "https://pimpay.vercel.app/digi-mobil.png",
   vodafone_ro:  "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   orange_ro:    "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
   telekom_ro:   "https://pimpay.vercel.app/dl-telekom-logo.png",
