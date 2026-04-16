@@ -4,7 +4,8 @@ import {
   ArrowLeft, Share2, Download, Clock, X, Copy, Check, History,
   ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar,
   RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp,
-  Send, Loader2, Scan
+  Send, Loader2, Scan, User, FileText, Hash,
+  CheckCircle2, XCircle
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -216,16 +217,35 @@ const COINGECKO_IDS: Record<string, string> = {
   BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", USDT: "tether", USDC: "usd-coin", XRP: "ripple", XLM: "stellar", TRX: "tron", ADA: "cardano", DOGE: "dogecoin", TON: "the-open-network", SOL: "solana", DAI: "dai", BUSD: "binance-usd",
 };
 
+interface TxUser {
+  id: string;
+  username?: string | null;
+  name?: string | null;
+  avatar?: string | null;
+  displayName?: string;
+}
+
 interface Transaction {
+  id: string;
+  reference?: string;
   createdAt: string;
   currency: string;
   amount: number;
+  fee?: number;
   status: string;
   type?: string;
+  description?: string;
   blockchainTx?: string;
   externalId?: string;
   toUserId?: string;
   fromUserId?: string;
+  fromUser?: TxUser;
+  toUser?: TxUser;
+  metadata?: {
+    blockchainTxHash?: string;
+    memo?: string;
+    [key: string]: unknown;
+  };
 }
 
 export default function AssetDetailPage() {
@@ -250,6 +270,7 @@ export default function AssetDetailPage() {
   const [balance, setBalance] = useState("0.00000000");
   const [address, setAddress] = useState("");
   const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   const fetchMarketPrice = useCallback(async () => {
     if (assetId === "PI" || assetId === "SDA") return;
@@ -385,20 +406,33 @@ export default function AssetDetailPage() {
             <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">Tout voir</button>
           </div>
           <div className="space-y-2.5">
-            {transactions.length > 0 ? transactions.map((tx, i) => (
-               <div key={i} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+            {transactions.length > 0 ? transactions.map((tx, i) => {
+              const isSent = tx.fromUserId === userId;
+              const statusColor = tx.status?.toLowerCase() === "success" ? "text-emerald-400" : tx.status?.toLowerCase() === "pending" ? "text-amber-400" : "text-red-400";
+              const amountFormatted = parseFloat(String(tx.amount)).toFixed(Math.min(config.decimals, 8));
+              return (
+               <button key={i} onClick={() => setSelectedTx(tx)} className="w-full bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between active:bg-white/[0.06] transition-all text-left">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                      <History size={18} className="text-slate-400" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
+                      {isSent
+                        ? <ArrowUpRight size={18} className="text-red-400" />
+                        : <ArrowDownLeft size={18} className="text-emerald-400" />
+                      }
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-white uppercase">{tx.type || "TRANSFERT"}</p>
-                      <p className="text-[9px] text-slate-500 font-bold">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                      <p className="text-[9px] text-slate-500 font-bold">{new Date(tx.createdAt).toLocaleDateString("fr-FR")}</p>
                     </div>
                   </div>
-                  <p className="text-[12px] font-black text-white">{parseFloat(String(tx.amount)).toFixed(Math.min(config.decimals, 8))} {assetId}</p>
-               </div>
-            )) : (
+                  <div className="text-right">
+                    <p className={`text-[12px] font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
+                      {isSent ? "-" : "+"}{amountFormatted} {assetId}
+                    </p>
+                    <p className={`text-[9px] font-bold uppercase ${statusColor}`}>{tx.status}</p>
+                  </div>
+               </button>
+              );
+            }) : (
               <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-10 text-center">
                 <Clock size={20} className="mx-auto text-slate-700 mb-2" />
                 <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">Aucune activité</p>
@@ -418,6 +452,219 @@ export default function AssetDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Modal de details de transaction */}
+      {selectedTx && (() => {
+        const tx = selectedTx;
+        const isSent = tx.fromUserId === userId;
+        const otherUser = isSent ? tx.toUser : tx.fromUser;
+
+        const statusLower = tx.status?.toLowerCase() || "";
+        const statusInfo = statusLower === "success"
+          ? { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10", label: "Confirme" }
+          : statusLower === "pending"
+          ? { icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", label: "En cours" }
+          : { icon: XCircle, color: "text-red-400", bg: "bg-red-500/10", label: "Echoue" };
+        const StatusIcon = statusInfo.icon;
+
+        const txType = tx.type?.toUpperCase() || "";
+        const ref = tx.reference?.toUpperCase() || "";
+        const getDisplayName = (): string => {
+          if (tx.description && (txType.includes("CARD") || tx.description.toUpperCase().includes("CARTE"))) {
+            return tx.description.charAt(0).toUpperCase() + tx.description.slice(1).toLowerCase();
+          }
+          if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY")) return "Achat Carte PimPay";
+          if (txType === "WITHDRAWAL" || ref.startsWith("WD-")) return "Retrait Externe";
+          if (txType === "DEPOSIT") return "Depot";
+          const u = otherUser;
+          const fullName = `${u?.name || ""}`.trim();
+          if (fullName) return fullName;
+          if (u?.displayName) return u.displayName;
+          if (u?.username) return `@${u.username}`;
+          return "Utilisateur PimPay";
+        };
+        const displayName = getDisplayName();
+
+        const getTypeLabel = () => {
+          switch (txType) {
+            case "TRANSFER": return "Transfert";
+            case "DEPOSIT": return "Depot";
+            case "WITHDRAWAL": return "Retrait";
+            case "PAYMENT": return "Paiement";
+            case "SALARY": return "Salaire";
+            case "CARD_PURCHASE": return "Achat Carte";
+            case "CARD_RECHARGE": return "Recharge Carte";
+            case "CARD_WITHDRAW": return "Retrait Carte";
+            default: return txType || "Transfert";
+          }
+        };
+
+        const isCrypto = !["XAF", "EUR", "USD", "XOF", "GHS", "NGN"].includes((tx.currency || "").toUpperCase());
+        const decimals = isCrypto ? Math.min(config.decimals, 8) : 2;
+        const amountFormatted = parseFloat(String(tx.amount)).toFixed(decimals).replace(/\.?0+$/, "") || "0";
+        const feeFormatted = tx.fee ? parseFloat(String(tx.fee)).toFixed(decimals).replace(/\.?0+$/, "") : null;
+
+        const formattedDate = new Date(tx.createdAt).toLocaleDateString("fr-FR", {
+          weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+        });
+
+        const handleShare = async () => {
+          const text = `Transaction PimPay\nReference: ${tx.reference || tx.id}\nMontant: ${amountFormatted} ${tx.currency}\nStatut: ${tx.status}`;
+          if (navigator.share) {
+            try { await navigator.share({ title: "Transaction PimPay", text }); } catch { navigator.clipboard.writeText(text); toast.success("Details copies"); }
+          } else {
+            navigator.clipboard.writeText(text);
+            toast.success("Details copies");
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-[102] flex flex-col bg-[#020617] overflow-y-auto">
+            {/* Header */}
+            <header className="px-6 pt-12 pb-6 flex items-center justify-between shrink-0">
+              <button onClick={() => setSelectedTx(null)} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-transform">
+                <ArrowLeft size={20} />
+              </button>
+              <div className="text-center">
+                <h1 className="text-lg font-black uppercase tracking-tight">Details</h1>
+                <p className={`text-[9px] font-bold tracking-[3px] uppercase ${config.accentColor}`}>Transaction</p>
+              </div>
+              <button onClick={handleShare} className="p-3 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-transform">
+                <Share2 size={20} />
+              </button>
+            </header>
+
+            <main className="px-6 space-y-4 pb-10">
+              {/* Carte montant */}
+              <div className={`rounded-[2rem] p-8 text-center relative overflow-hidden border ${isSent ? "border-red-500/20 bg-red-500/5" : "border-emerald-500/20 bg-emerald-500/5"}`}>
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${statusInfo.bg} mb-5`}>
+                  <StatusIcon size={14} className={statusInfo.color} />
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${statusInfo.color}`}>{statusInfo.label}</span>
+                </div>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
+                  {isSent ? <ArrowUpRight size={28} className="text-red-400" /> : <ArrowDownLeft size={28} className="text-emerald-400" />}
+                </div>
+                <p className={`text-4xl font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
+                  {isSent ? "-" : "+"}{amountFormatted} {tx.currency}
+                </p>
+                {feeFormatted && parseFloat(feeFormatted) > 0 && (
+                  <p className="text-[10px] font-bold text-slate-500 mt-2">Frais: {feeFormatted} {tx.currency}</p>
+                )}
+                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg">
+                  <Wallet size={12} className={config.accentColor} />
+                  <span className="text-[9px] font-black text-slate-400 uppercase">{getTypeLabel()}</span>
+                </div>
+              </div>
+
+              {/* Infos utilisateur */}
+              <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5">
+                <div className="flex items-center gap-4">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
+                    {otherUser?.avatar
+                      ? <img src={otherUser.avatar} alt={displayName} className="w-full h-full rounded-2xl object-cover" />
+                      : <User size={24} className={isSent ? "text-red-400" : "text-emerald-400"} />
+                    }
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      {isSent ? "Envoye a" : "Recu de"}
+                    </p>
+                    <p className="text-base font-black uppercase tracking-tight">{displayName}</p>
+                    {otherUser?.username && (
+                      <p className="text-[10px] text-blue-400">@{otherUser.username}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lignes de detail */}
+              <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
+                {/* Reference */}
+                {(tx.reference || tx.id) && (
+                  <button onClick={() => { navigator.clipboard.writeText(tx.reference || tx.id); toast.success("Reference copiee"); }} className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
+                    <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
+                      <Hash size={18} className="text-blue-400" />
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Reference</p>
+                      <p className="text-xs font-bold text-white truncate">{tx.reference || tx.id}</p>
+                    </div>
+                    <Copy size={16} className="text-slate-500 shrink-0" />
+                  </button>
+                )}
+
+                {/* Date */}
+                <div className="flex items-center gap-4 p-4">
+                  <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0">
+                    <Calendar size={18} className="text-purple-400" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Date</p>
+                    <p className="text-xs font-bold text-white capitalize">{formattedDate}</p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {tx.description && (
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center shrink-0">
+                      <FileText size={18} className="text-cyan-400" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Description</p>
+                      <p className="text-xs font-bold text-white">{tx.description}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Memo metadata */}
+                {tx.metadata?.memo && (
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center shrink-0">
+                      <FileText size={18} className="text-amber-400" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Memo</p>
+                      <p className="text-xs font-bold text-white">{tx.metadata.memo}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hash blockchain */}
+                {(tx.metadata?.blockchainTxHash || tx.blockchainTx) && (
+                  <button onClick={() => { navigator.clipboard.writeText(String(tx.metadata?.blockchainTxHash || tx.blockchainTx)); toast.success("Hash copie"); }} className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
+                    <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0">
+                      <ExternalLink size={18} className="text-indigo-400" />
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash Blockchain</p>
+                      <p className="text-xs font-bold text-white truncate">{tx.metadata?.blockchainTxHash || tx.blockchainTx}</p>
+                    </div>
+                    <Copy size={16} className="text-slate-500 shrink-0" />
+                  </button>
+                )}
+
+                {/* ID Transaction */}
+                <button onClick={() => { navigator.clipboard.writeText(tx.id); toast.success("ID Transaction copie"); }} className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
+                  <div className="w-10 h-10 bg-slate-500/10 rounded-xl flex items-center justify-center shrink-0">
+                    <Hash size={18} className="text-slate-400" />
+                  </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">ID Transaction</p>
+                    <p className="text-[10px] font-mono text-slate-400 truncate">{tx.id}</p>
+                  </div>
+                  <Copy size={16} className="text-slate-500 shrink-0" />
+                </button>
+              </div>
+
+              {/* Actions */}
+              <button onClick={() => setSelectedTx(null)} className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-sm font-black uppercase tracking-wider active:scale-95 transition-transform">
+                Fermer
+              </button>
+            </main>
+          </div>
+        );
+      })()}
 
       {showReceiveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">

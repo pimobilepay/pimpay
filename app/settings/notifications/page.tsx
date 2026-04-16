@@ -13,6 +13,20 @@ import { cn } from "@/lib/utils";
 
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | string;
 
+// Helper pour formater les montants PI avec 8 decimales maximum
+function formatPiAmount(amount: number | undefined, currency?: string): string {
+  if (amount === undefined || amount === null) return "0";
+  const curr = (currency || "PI").toUpperCase();
+  // Pour PI, afficher jusqu'a 8 decimales significatives
+  if (curr === "PI") {
+    // Supprimer les zeros de fin
+    const formatted = Number(amount).toFixed(8).replace(/\.?0+$/, "");
+    return formatted || "0";
+  }
+  // Pour les autres devises, utiliser toLocaleString classique
+  return Number(amount).toLocaleString();
+}
+
 interface Notification {
   id: string;
   title: string;
@@ -236,7 +250,7 @@ export default function NotificationsPage() {
                     <p className={`text-2xl font-black ${
                       notification.type === "PAYMENT_SENT" ? "text-blue-400" : "text-emerald-400"
                     }`}>
-                      {notification.type === "PAYMENT_SENT" ? "-" : "+"}{Number(metadata.amount).toLocaleString()} {metadata.currency || "PI"}
+                      {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
                     </p>
                   </div>
                 )}
@@ -279,7 +293,7 @@ export default function NotificationsPage() {
                 {metadata.fee && metadata.fee > 0 && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Frais</p>
-                    <p className="text-sm font-bold text-amber-400">{metadata.fee} {metadata.currency || "PI"}</p>
+                    <p className="text-sm font-bold text-amber-400">{formatPiAmount(metadata.fee, metadata.currency)} {metadata.currency || "PI"}</p>
                   </div>
                 )}
 
@@ -566,7 +580,7 @@ export default function NotificationsPage() {
                               <div>
                                 <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant recu</span>
                                 <p className="text-sm font-black text-emerald-400">
-                                  +{Number(notif.metadata.amount || 0).toLocaleString()} {notif.metadata.currency || "PI"}
+                                  +{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
                                 </p>
                               </div>
                             </div>
@@ -602,7 +616,7 @@ export default function NotificationsPage() {
                               <div>
                                 <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant envoye</span>
                                 <p className="text-sm font-black text-blue-400">
-                                  -{Number(notif.metadata.amount || 0).toLocaleString()} {notif.metadata.currency || "PI"}
+                                  -{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
                                 </p>
                               </div>
                             </div>
@@ -622,7 +636,7 @@ export default function NotificationsPage() {
                           {notif.metadata.fee && notif.metadata.fee > 0 && (
                             <div className="flex items-center gap-2 text-[10px] text-slate-500">
                               <Info size={10} />
-                              <span>Frais: {notif.metadata.fee} {notif.metadata.currency || "PI"}</span>
+                              <span>Frais: {formatPiAmount(notif.metadata.fee, notif.metadata.currency)} {notif.metadata.currency || "PI"}</span>
                             </div>
                           )}
                           {(notif.metadata.reference || notif.metadata.transactionId) && (
