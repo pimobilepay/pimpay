@@ -96,6 +96,16 @@ const getTransactionDisplayName = (
 ): string => {
   const txType = tx.type?.toUpperCase() || "";
   const ref = tx.reference?.toUpperCase() || "";
+  const desc = tx.description?.toUpperCase() || "";
+  
+  // Handle CARD_RECHARGE and CARD_WITHDRAW transactions - use description if available
+  if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW" || desc.includes("CARTE")) {
+    if (tx.description) {
+      // Capitalize first letter and format nicely
+      return tx.description.charAt(0).toUpperCase() + tx.description.slice(1).toLowerCase();
+    }
+    return txType === "CARD_RECHARGE" ? "Recharge Carte" : "Retrait Carte";
+  }
   
   // Handle CARD_PURCHASE transactions
   if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY") || ref.includes("CARD_PURCHASE")) {
