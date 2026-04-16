@@ -12,11 +12,27 @@ import { toast } from 'sonner';
 
 const PI_GCV_PRICE = 314159;
 
+function resolveUserName(user?: { firstName?: string; lastName?: string; username?: string; email?: string }): { displayName: string; subLabel: string } {
+  if (!user) return { displayName: "Utilisateur Inconnu", subLabel: "" };
+  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  if (fullName) return { displayName: fullName, subLabel: user.username ? `@${user.username}` : (user.email || "") };
+  if (user.username) return { displayName: `@${user.username}`, subLabel: user.email || "" };
+  if (user.email) return { displayName: user.email, subLabel: "" };
+  return { displayName: "Utilisateur PimPay", subLabel: "" };
+}
+
+interface TransactionUser {
+  firstName: string;
+  lastName: string;
+  username?: string;
+  email?: string;
+}
+
 interface Transaction {
   id: string;
   userId: string;
-  fromUser?: { firstName: string; lastName: string };
-  toUser?: { firstName: string; lastName: string };
+  fromUser?: TransactionUser;
+  toUser?: TransactionUser;
   amount: number;
   currency: string;
   type: string;
@@ -152,11 +168,25 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
               />
             )}
             {/* Client Info */}
-            <DetailRow 
-              icon={<Smartphone size={16} />} 
-              label="Client" 
-              value={`${tx.fromUser?.firstName || tx.toUser?.firstName || 'User'} ${tx.fromUser?.lastName || tx.toUser?.lastName || ''}`}
-            />
+            {(() => {
+              const { displayName, subLabel } = resolveUserName(tx.fromUser || tx.toUser);
+              return (
+                <>
+                  <DetailRow 
+                    icon={<Smartphone size={16} />} 
+                    label="Client" 
+                    value={displayName}
+                  />
+                  {subLabel && (
+                    <DetailRow
+                      icon={<Hash size={16} />}
+                      label="Identifiant"
+                      value={subLabel}
+                    />
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* Action Buttons */}
@@ -277,12 +307,12 @@ export default function AdminTransactionsPage() {
   const filteredTransactions = transactions.filter(t => {
     const searchLower = filter.toLowerCase();
     const user = t.fromUser || t.toUser;
-    const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.toLowerCase();
-
+    const { displayName, subLabel } = resolveUserName(user);
     return (
-      fullName.includes(searchLower) ||
+      displayName.toLowerCase().includes(searchLower) ||
+      subLabel.toLowerCase().includes(searchLower) ||
       t.id.toLowerCase().includes(searchLower) ||
-      (t.accountNumber && t.accountNumber.includes(searchLower))
+      (t.accountNumber && t.accountNumber.toLowerCase().includes(searchLower))
     );
   });
 
@@ -353,10 +383,15 @@ export default function AdminTransactionsPage() {
                         </div>
                       </td>
                       <td className="p-6">
-                        <div className="font-bold text-sm">
-                          {tx.fromUser?.firstName || tx.toUser?.firstName || 'User'} {tx.fromUser?.lastName || tx.toUser?.lastName || ''}
-                        </div>
-                        <div className="text-[9px] text-slate-600 font-mono italic">{tx.userId.slice(-10)}</div>
+                        {(() => {
+                          const { displayName, subLabel } = resolveUserName(tx.fromUser || tx.toUser);
+                          return (
+                            <>
+                              <div className="font-bold text-sm">{displayName}</div>
+                              <div className="text-[9px] text-slate-500 font-mono italic">{subLabel || tx.userId.slice(-10)}</div>
+                            </>
+                          );
+                        })()}
                       </td>
                       <td className="p-6">
                         <span className="font-black text-blue-400">{typeof tx.amount === 'number' ? (tx.amount < 0.01 && tx.amount > 0 ? tx.amount.toFixed(8) : tx.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })) : tx.amount}</span>

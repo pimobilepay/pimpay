@@ -99,8 +99,10 @@ export async function GET() {
         id: tx.id,
         userId: tx.fromUserId || tx.toUserId || "N/A",
         fromUser: {
-          firstName: user?.firstName || "Utilisateur",
-          lastName: user?.lastName || "PimPay"
+          firstName: user?.firstName || "",
+          lastName: user?.lastName || "",
+          username: (user as any)?.username || "",
+          email: (user as any)?.email || "",
         },
         amount: tx.amount,
         currency: tx.currency,
