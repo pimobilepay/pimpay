@@ -56,37 +56,17 @@ export const usePiPayment = () => {
       return;
     }
 
-    const loadingToast = toast.loading("Ouverture du Pi Wallet...");
+    const loadingToast = toast.loading("Connexion au reseau Pi...");
 
     try {
-      // Verifier si l'utilisateur est connecte
-      const piSession = localStorage.getItem("pimpay_user");
-      if (!piSession) {
-        toast.dismiss(loadingToast);
-        toast.error("Veuillez d'abord vous connecter via Pi Network.");
-        return;
-      }
+      // Authentification Pi SDK
+      const auth = await window.Pi.authenticate(
+        ["username", "payments", "wallet_address"],
+        handleIncompletePayment
+      );
 
-      // Si les scopes complets ne sont pas encore accordes (wallet_address manquant),
-      // on lance authenticate UNE SEULE FOIS avant le paiement puis on pose le flag.
-      const scopesGranted = localStorage.getItem("pimpay_pi_scopes_v2");
-      if (!scopesGranted) {
-        toast.loading("Autorisation du wallet Pi...", { id: "scope-upgrade" });
-        try {
-          const auth = await window.Pi.authenticate(
-            ["username", "payments", "wallet_address"],
-            handleIncompletePayment
-          );
-          if (auth?.user) {
-            localStorage.setItem("pimpay_pi_scopes_v2", "1");
-          }
-        } catch {
-          toast.dismiss("scope-upgrade");
-          toast.dismiss(loadingToast);
-          toast.error("Autorisation requise pour acceder au Pi Wallet.");
-          return;
-        }
-        toast.dismiss("scope-upgrade");
+      if (!auth || !auth.user) {
+        throw new Error("Autorisation refusee par l'utilisateur.");
       }
 
       const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;

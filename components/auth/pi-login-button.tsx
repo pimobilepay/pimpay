@@ -18,7 +18,7 @@ export function PiLoginButton() {
 
     setLoading(true);
     try {
-      const scopes = ['username', 'payments', 'wallet_address'];
+      const scopes = ['username', 'payments'];
       
       // Demande d'authentification au SDK Pi
       const auth = await window.Pi.authenticate(scopes, (payment: any) => {

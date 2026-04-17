@@ -88,8 +88,8 @@ export const usePiAuth = () => {
         return { success: false, error: "SDK Pi non disponible" };
       }
 
-      // Scopes complets pour connexion et paiements - wallet_address requis pour initialiser le Pi Wallet
-      const scopes = ["username", "payments", "wallet_address"];
+      // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
+      const scopes = ["username", "payments"];
       
       // Timeout de 30s pour l'authentification Pi
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
