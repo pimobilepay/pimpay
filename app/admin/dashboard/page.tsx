@@ -33,8 +33,8 @@ type LedgerUser = {
 type Transaction = {
   id: string;
   userId: string;
-  fromUser?: { firstName: string | null; lastName: string | null };
-  toUser?: { firstName: string | null; lastName: string | null };
+  fromUser?: { firstName: string | null; lastName: string | null; username?: string | null };
+  toUser?: { firstName: string | null; lastName: string | null; username?: string | null };
   amount: number;
   currency: string;
   type: string;
@@ -781,20 +781,6 @@ function DashboardContent() {
            {activeTab === "users" && (
                 <div className="space-y-4">
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl px-6 text-xs font-bold text-white outline-none focus:border-blue-500/50" placeholder="RECHERCHER UN UTILISATEUR..." />
-                    <button
-                      onClick={() => requireTwoFa(
-                        "Réinitialiser tous les soldes",
-                        "Cette action va remettre le solde de TOUS les utilisateurs à 0. Confirmez avec votre code Google Authenticator.",
-                        () => handleAction(null, "RESET_ALL_BALANCES")
-                      )}
-                      className="w-full h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between px-6 text-red-400 hover:bg-red-500/20 transition-colors active:scale-[0.98]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Wallet size={16} className="shrink-0" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Réinitialiser tous les soldes</span>
-                      </div>
-                      <span className="text-[8px] font-black uppercase tracking-widest bg-red-500/20 px-2 py-1 rounded-full border border-red-500/30">Dangereux</span>
-                    </button>
                     {filteredUsers.map(user => (
                         <UserRow key={`user-${user.id}`} user={user}
                             isSelected={selectedUserIds.includes(user.id)}
@@ -826,6 +812,20 @@ function DashboardContent() {
                             onViewBalance={() => setBalanceModalUser(user)}
                         />
                     ))}
+                    <button
+                      onClick={() => requireTwoFa(
+                        "Réinitialiser tous les soldes",
+                        "Cette action va remettre le solde de TOUS les utilisateurs à 0. Confirmez avec votre code Google Authenticator.",
+                        () => handleAction(null, "RESET_ALL_BALANCES")
+                      )}
+                      className="w-full h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between px-6 text-red-400 hover:bg-red-500/20 transition-colors active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Wallet size={16} className="shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Réinitialiser tous les soldes</span>
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-widest bg-red-500/20 px-2 py-1 rounded-full border border-red-500/30">Dangereux</span>
+                    </button>
                 </div>
             )}
 
@@ -843,7 +843,8 @@ function DashboardContent() {
                       ) : (
                         pendingTransactions.map(tx => {
                           const user = tx.fromUser || tx.toUser;
-                          const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Utilisateur PimPay' : 'Utilisateur Inconnu';
+                          const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+                          const userName = fullName || user?.username || 'Utilisateur PimPay';
                           return (
                             <Card 
                               key={`tx-${tx.id}`} 
@@ -1579,7 +1580,8 @@ function DashboardContent() {
       {/* TRANSACTION DETAIL MODAL */}
       {selectedTx && (() => {
         const user = selectedTx.fromUser || selectedTx.toUser;
-        const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Utilisateur PimPay' : 'Utilisateur Inconnu';
+        const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+        const userName = fullName || user?.username || 'Utilisateur PimPay';
         const isSuccess = selectedTx.status === "SUCCESS";
         const isPending = selectedTx.status === "PENDING";
         const PI_GCV_PRICE = 314159;
