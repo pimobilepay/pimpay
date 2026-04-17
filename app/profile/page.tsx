@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  User, Mail, Shield, Bell, Smartphone, ChevronRight, LogOut, Camera, CheckCircle2,
+  User, Mail, Shield, Bell, ChevronRight, LogOut, Camera, CheckCircle2,
   Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2,
-  Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock
+  Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock, X, Check, ChevronDown
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -45,6 +45,11 @@ interface ProfileItem {
   toggle?: boolean;
   active?: boolean;
   accent?: string;
+  fieldKey?: string;
+  editable?: boolean;
+  inputType?: "text" | "email" | "tel" | "date" | "select";
+  options?: { value: string; label: string }[];
+  readOnly?: boolean;
 }
 
 interface ProfileSection {
@@ -101,6 +106,110 @@ export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  // Options pour les champs select
+  const genderOptions = [
+    { value: "M", label: "Masculin" },
+    { value: "F", label: "Feminin" },
+    { value: "OTHER", label: "Autre" },
+  ];
+
+  const occupationOptions = [
+    { value: "EMPLOYEE", label: "Employe(e)" },
+    { value: "SELF_EMPLOYED", label: "Travailleur independant" },
+    { value: "BUSINESS_OWNER", label: "Chef d'entreprise" },
+    { value: "FREELANCE", label: "Freelance" },
+    { value: "STUDENT", label: "Etudiant(e)" },
+    { value: "RETIRED", label: "Retraite(e)" },
+    { value: "UNEMPLOYED", label: "Sans emploi" },
+    { value: "OTHER", label: "Autre" },
+  ];
+
+  const sourceOfFundsOptions = [
+    { value: "SALARY", label: "Salaire" },
+    { value: "BUSINESS_INCOME", label: "Revenus d'entreprise" },
+    { value: "INVESTMENTS", label: "Investissements" },
+    { value: "SAVINGS", label: "Epargne" },
+    { value: "CRYPTO_MINING", label: "Minage crypto" },
+    { value: "FAMILY_SUPPORT", label: "Soutien familial" },
+    { value: "OTHER", label: "Autre" },
+  ];
+
+  const idTypeOptions = [
+    { value: "NATIONAL_ID", label: "Carte nationale d'identite" },
+    { value: "PASSPORT", label: "Passeport" },
+    { value: "DRIVERS_LICENSE", label: "Permis de conduire" },
+    { value: "RESIDENCE_PERMIT", label: "Titre de sejour" },
+  ];
+
+  const handleStartEdit = (fieldKey: string, currentValue: string, inputType?: string) => {
+    setEditingField(fieldKey);
+    setEditValue(currentValue || "");
+    setTimeout(() => {
+      if (inputType === "select") {
+        selectRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
+    }, 50);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingField || !user) return;
+
+    setSaving(true);
+    try {
+      const updateData: Record<string, string> = {
+        id: user.id,
+        [editingField]: editValue,
+      };
+
+      const res = await fetch("/api/user/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!res.ok) throw new Error("Erreur lors de la mise a jour");
+
+      // Mettre a jour l'utilisateur local
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, [editingField]: editValue };
+        // Mettre a jour le nom complet si firstName ou lastName change
+        if (editingField === "firstName" || editingField === "lastName") {
+          updated.name = `${updated.firstName || ""} ${updated.lastName || ""}`.trim();
+        }
+        return updated;
+      });
+
+      toast.success("Information mise a jour !");
+      setEditingField(null);
+      setEditValue("");
+    } catch {
+      toast.error("Erreur lors de la sauvegarde");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveEdit();
+    } else if (e.key === "Escape") {
+      handleCancelEdit();
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -142,55 +251,55 @@ export default function ProfilePage() {
       title: "Identite Personnelle",
       icon: <User size={12} />,
       items: [
-        { label: "Nom d'utilisateur", icon: <Fingerprint size={18} />, value: user?.username ? `@${user.username}` : "Non renseigne" },
-        { label: "Prenom", icon: <User size={18} />, value: user?.firstName || "Non renseigne" },
-        { label: "Nom de famille", icon: <User size={18} />, value: user?.lastName || "Non renseigne" },
-        { label: "Genre", icon: <User size={18} />, value: formatGender(user?.gender || "") },
-        { label: "Date de naissance", icon: <Calendar size={18} />, value: user?.birthDate ? new Date(user.birthDate).toLocaleDateString("fr-FR") : "Non renseignee" },
-        { label: "Nationalite", icon: <Globe size={18} />, value: user?.nationality || "Non renseignee" },
+        { label: "Nom d'utilisateur", icon: <Fingerprint size={18} />, value: user?.username ? `@${user.username}` : "Non renseigne", fieldKey: "username", editable: true, inputType: "text" },
+        { label: "Prenom", icon: <User size={18} />, value: user?.firstName || "Non renseigne", fieldKey: "firstName", editable: true, inputType: "text" },
+        { label: "Nom de famille", icon: <User size={18} />, value: user?.lastName || "Non renseigne", fieldKey: "lastName", editable: true, inputType: "text" },
+        { label: "Genre", icon: <User size={18} />, value: formatGender(user?.gender || ""), fieldKey: "gender", editable: true, inputType: "select", options: genderOptions },
+        { label: "Date de naissance", icon: <Calendar size={18} />, value: user?.birthDate ? new Date(user.birthDate).toLocaleDateString("fr-FR") : "Non renseignee", fieldKey: "birthDate", editable: true, inputType: "date" },
+        { label: "Nationalite", icon: <Globe size={18} />, value: user?.nationality || "Non renseignee", fieldKey: "nationality", editable: true, inputType: "text" },
       ],
     },
     {
       title: "Coordonnees",
       icon: <Mail size={12} />,
       items: [
-        { label: "Adresse e-mail", icon: <Mail size={18} />, value: user?.email || "Non renseigne" },
-        { label: "Telephone", icon: <Phone size={18} />, value: user?.phone || "Non renseigne" },
+        { label: "Adresse e-mail", icon: <Mail size={18} />, value: user?.email || "Non renseigne", fieldKey: "email", editable: true, inputType: "email" },
+        { label: "Telephone", icon: <Phone size={18} />, value: user?.phone || "Non renseigne", fieldKey: "phone", editable: true, inputType: "tel" },
       ],
     },
     {
       title: "Adresse et Localisation",
       icon: <MapPin size={12} />,
       items: [
-        { label: "Pays", icon: <Globe size={18} />, value: user?.country || "Non renseigne" },
-        { label: "Ville", icon: <Building2 size={18} />, value: user?.city || "Non renseignee" },
-        { label: "Adresse de residence", icon: <MapPin size={18} />, value: user?.address || "Non renseignee" },
-        { label: "Code postal", icon: <Hash size={18} />, value: user?.postalCode || "Non renseigne" },
+        { label: "Pays", icon: <Globe size={18} />, value: user?.country || "Non renseigne", fieldKey: "country", editable: true, inputType: "text" },
+        { label: "Ville", icon: <Building2 size={18} />, value: user?.city || "Non renseignee", fieldKey: "city", editable: true, inputType: "text" },
+        { label: "Adresse de residence", icon: <MapPin size={18} />, value: user?.address || "Non renseignee", fieldKey: "address", editable: true, inputType: "text" },
+        { label: "Code postal", icon: <Hash size={18} />, value: user?.postalCode || "Non renseigne", fieldKey: "postalCode", editable: true, inputType: "text" },
       ],
     },
     {
       title: "Informations Financieres",
       icon: <Briefcase size={12} />,
       items: [
-        { label: "Profession / Activite", icon: <Briefcase size={18} />, value: formatOccupation(user?.occupation || "") },
-        { label: "Source des fonds", icon: <CreditCard size={18} />, value: formatSourceOfFunds(user?.sourceOfFunds || ""), accent: "text-amber-400" },
+        { label: "Profession / Activite", icon: <Briefcase size={18} />, value: formatOccupation(user?.occupation || ""), fieldKey: "occupation", editable: true, inputType: "select", options: occupationOptions },
+        { label: "Source des fonds", icon: <CreditCard size={18} />, value: formatSourceOfFunds(user?.sourceOfFunds || ""), accent: "text-amber-400", fieldKey: "sourceOfFunds", editable: true, inputType: "select", options: sourceOfFundsOptions },
       ],
     },
     {
       title: "Piece d'identite",
       icon: <FileText size={12} />,
       items: [
-        { label: "Type de document", icon: <BadgeCheck size={18} />, value: formatIdType(user?.idType || "") },
-        { label: "Numero du document", icon: <Shield size={18} />, value: user?.idNumber ? `${user.idNumber.substring(0, 3)}****${user.idNumber.slice(-2)}` : "Non renseigne" },
+        { label: "Type de document", icon: <BadgeCheck size={18} />, value: formatIdType(user?.idType || ""), fieldKey: "idType", editable: true, inputType: "select", options: idTypeOptions },
+        { label: "Numero du document", icon: <Shield size={18} />, value: user?.idNumber ? `${user.idNumber.substring(0, 3)}****${user.idNumber.slice(-2)}` : "Non renseigne", fieldKey: "idNumber", editable: true, inputType: "text" },
       ],
     },
     {
       title: "Securite et Web3",
       icon: <Wallet size={12} />,
       items: [
-        { label: "Adresse Pi Wallet", icon: <Wallet size={18} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...${user.walletAddress.slice(-6)}` : "Non liee" },
-        { label: "Code PIN Transaction", icon: <Shield size={18} />, value: "Securise", active: true },
-        { label: "Authentification biometrique", icon: <Fingerprint size={18} />, toggle: true },
+        { label: "Adresse Pi Wallet", icon: <Wallet size={18} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...${user.walletAddress.slice(-6)}` : "Non liee", fieldKey: "walletAddress", editable: true, inputType: "text" },
+        { label: "Code PIN Transaction", icon: <Shield size={18} />, value: "Securise", active: true, path: "/profile/change-pin" },
+        { label: "Authentification biometrique", icon: <Fingerprint size={18} />, toggle: true, path: "/settings/security/biometrics" },
       ],
     },
     {
@@ -199,7 +308,7 @@ export default function ProfilePage() {
       items: [
         { label: "Notifications", icon: <Bell size={18} />, path: "/settings/notifications" },
         { label: "Securite du compte", icon: <Lock size={18} />, path: "/settings/security" },
-        { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: "USD ($)" },
+        { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: "USD ($)", readOnly: true },
       ],
     },
   ];
@@ -288,34 +397,106 @@ export default function ProfilePage() {
               {section.title}
             </h3>
             <div className="bg-white/5 rounded-[28px] border border-white/10 overflow-hidden">
-              {section.items.map((item, iIdx) => (
-                <button
-                  key={iIdx}
-                  onClick={() => {
-                    if (item.path) router.push(item.path);
-                  }}
-                  className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-slate-900 text-blue-400">{item.icon}</div>
-                    <span className="font-semibold text-sm text-slate-300">{item.label}</span>
+              {section.items.map((item, iIdx) => {
+                const isEditing = editingField === item.fieldKey;
+                const rawValue = item.fieldKey ? (user as Record<string, string | undefined>)?.[item.fieldKey] || "" : "";
+                
+                return (
+                  <div
+                    key={iIdx}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 text-blue-400 shrink-0">{item.icon}</div>
+                      <span className="font-semibold text-sm text-slate-300 shrink-0">{item.label}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                      {isEditing ? (
+                        // Mode edition
+                        <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+                          {item.inputType === "select" && item.options ? (
+                            <div className="relative flex-1">
+                              <select
+                                ref={selectRef}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-full bg-slate-800 border border-blue-500 rounded-lg px-3 py-2 text-sm text-white outline-none appearance-none cursor-pointer pr-8"
+                              >
+                                <option value="" className="bg-slate-900">Selectionner...</option>
+                                {item.options.map((opt) => (
+                                  <option key={opt.value} value={opt.value} className="bg-slate-900">
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            </div>
+                          ) : (
+                            <input
+                              ref={inputRef}
+                              type={item.inputType || "text"}
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              className={`flex-1 bg-slate-800 border border-blue-500 rounded-lg px-3 py-2 text-sm text-white outline-none ${item.inputType === "date" ? "[color-scheme:dark]" : ""}`}
+                              placeholder={item.label}
+                            />
+                          )}
+                          <button
+                            onClick={handleSaveEdit}
+                            disabled={saving}
+                            className="p-2 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors disabled:opacity-50"
+                          >
+                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        // Mode affichage
+                        <>
+                          {item.value && (
+                            <span className={`text-[11px] font-bold max-w-[140px] truncate ${item.accent || (item.active ? "text-emerald-400" : "text-slate-500")}`}>
+                              {item.value}
+                            </span>
+                          )}
+                          {item.toggle ? (
+                            <button
+                              onClick={() => item.path && router.push(item.path)}
+                              className="w-10 h-5 bg-blue-600 rounded-full relative"
+                            >
+                              <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+                            </button>
+                          ) : item.editable && !item.readOnly ? (
+                            <button
+                              onClick={() => handleStartEdit(item.fieldKey!, rawValue, item.inputType)}
+                              className="p-1.5 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors active:scale-90"
+                              title="Modifier"
+                            >
+                              <UserPen size={14} />
+                            </button>
+                          ) : item.path ? (
+                            <button
+                              onClick={() => router.push(item.path!)}
+                              className="p-1.5"
+                            >
+                              <ChevronRight size={16} className="text-slate-700" />
+                            </button>
+                          ) : (
+                            <ChevronRight size={16} className="text-slate-700" />
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {item.value && (
-                      <span className={`text-[11px] font-bold max-w-[140px] truncate ${item.accent || (item.active ? "text-emerald-400" : "text-slate-500")}`}>
-                        {item.value}
-                      </span>
-                    )}
-                    {item.toggle ? (
-                      <div className="w-10 h-5 bg-blue-600 rounded-full relative">
-                        <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                      </div>
-                    ) : (
-                      <ChevronRight size={16} className="text-slate-700" />
-                    )}
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
