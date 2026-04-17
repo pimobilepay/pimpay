@@ -56,17 +56,16 @@ export const usePiPayment = () => {
       return;
     }
 
-    const loadingToast = toast.loading("Connexion au reseau Pi...");
+    const loadingToast = toast.loading("Ouverture du Pi Wallet...");
 
     try {
-      // Authentification Pi SDK
-      const auth = await window.Pi.authenticate(
-        ["username", "payments", "wallet_address"],
-        handleIncompletePayment
-      );
-
-      if (!auth || !auth.user) {
-        throw new Error("Autorisation refusee par l'utilisateur.");
+      // Verifier si on a une session Pi active (utilisateur deja authentifie)
+      const piSession = localStorage.getItem("pimpay_user");
+      
+      if (!piSession) {
+        toast.dismiss(loadingToast);
+        toast.error("Veuillez d'abord vous connecter via Pi Network.");
+        return;
       }
 
       const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;

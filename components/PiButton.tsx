@@ -80,20 +80,21 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
     }
 
     setLoading(true);
-    const loadingToast = toast.loading("Connexion au reseau Pi...");
+    const loadingToast = toast.loading("Ouverture du Pi Wallet...");
 
     try {
-      // Etape 1: Authentification pour obtenir les scopes payments
-      const auth = await window.Pi.authenticate(
-        ["username", "payments", "wallet_address"],
-        handleIncompletePayment
-      );
-
-      if (!auth || !auth.user) {
-        throw new Error("Autorisation refusee par l'utilisateur.");
+      // Verifier si on a une session Pi active (utilisateur deja authentifie dans cette session)
+      // Si pas de session, on doit s'authentifier une fois pour activer createPayment
+      const piSession = localStorage.getItem("pimpay_user");
+      
+      if (!piSession) {
+        // Premiere connexion dans cette session - authentification requise
+        toast.dismiss(loadingToast);
+        toast.error("Veuillez d'abord vous connecter via Pi Network.");
+        setLoading(false);
+        return;
       }
 
-      // Etape 2: Creation du paiement
       const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;
 
       await window.Pi.createPayment(
