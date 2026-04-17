@@ -83,16 +83,37 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
     const loadingToast = toast.loading("Ouverture du Pi Wallet...");
 
     try {
-      // Verifier si on a une session Pi active (utilisateur deja authentifie dans cette session)
-      // Si pas de session, on doit s'authentifier une fois pour activer createPayment
+      // Verifier si l'utilisateur est connecte
       const piSession = localStorage.getItem("pimpay_user");
-      
       if (!piSession) {
-        // Premiere connexion dans cette session - authentification requise
         toast.dismiss(loadingToast);
         toast.error("Veuillez d'abord vous connecter via Pi Network.");
         setLoading(false);
         return;
+      }
+
+      // Si les scopes complets ne sont pas encore accordes (wallet_address manquant),
+      // on lance authenticate UNE SEULE FOIS avant le paiement puis on pose le flag.
+      const scopesGranted = localStorage.getItem("pimpay_pi_scopes_v2");
+      if (!scopesGranted) {
+        toast.loading("Autorisation du wallet Pi...", { id: "scope-upgrade" });
+        try {
+          const auth = await window.Pi.authenticate(
+            ["username", "payments", "wallet_address"],
+            handleIncompletePayment
+          );
+          if (auth?.user) {
+            localStorage.setItem("pimpay_pi_scopes_v2", "1");
+          }
+        } catch {
+          // Si l'utilisateur annule l'upgrade de scope, on bloque le paiement
+          toast.dismiss("scope-upgrade");
+          toast.dismiss(loadingToast);
+          toast.error("Autorisation requise pour acceder au Pi Wallet.");
+          setLoading(false);
+          return;
+        }
+        toast.dismiss("scope-upgrade");
       }
 
       const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;
