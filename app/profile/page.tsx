@@ -473,14 +473,6 @@ export default function ProfilePage() {
                             >
                               <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
                             </button>
-                          ) : item.editable && !item.readOnly ? (
-                            <button
-                              onClick={() => handleStartEdit(item.fieldKey!, rawValue, item.inputType)}
-                              className="p-1.5 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors active:scale-90"
-                              title="Modifier"
-                            >
-                              <UserPen size={14} />
-                            </button>
                           ) : item.path ? (
                             <button
                               onClick={() => router.push(item.path!)}
