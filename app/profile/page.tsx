@@ -487,38 +487,43 @@ export default function ProfilePage() {
                           </button>
                           
                           {showCurrencySelector && (
-                            <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                              <div className="p-2 border-b border-slate-800">
-                                <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Choisir une devise</p>
-                              </div>
-                              <div className="max-h-64 overflow-y-auto">
-                                {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => {
-                                  const info = CURRENCIES[code];
-                                  const isSelected = code === currency;
-                                  return (
-                                    <button
-                                      key={code}
-                                      onClick={() => {
-                                        setCurrency(code);
-                                        setShowCurrencySelector(false);
-                                        toast.success(`Devise changee en ${info.name}`);
-                                      }}
-                                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors ${isSelected ? "bg-blue-600/10" : ""}`}
-                                    >
-                                      <span className="text-xl">{info.flag}</span>
-                                      <div className="flex-1 text-left">
-                                        <p className={`text-sm font-semibold ${isSelected ? "text-blue-400" : "text-white"}`}>
-                                          {info.code}
-                                        </p>
-                                        <p className="text-[10px] text-slate-500">{info.name}</p>
-                                      </div>
-                                      <span className="text-xs text-slate-600">{info.symbol}</span>
-                                      {isSelected && (
-                                        <CheckCircle2 size={16} className="text-blue-400" />
-                                      )}
-                                    </button>
-                                  );
-                                })}
+                            <div className="fixed inset-0 z-[100]" onClick={() => setShowCurrencySelector(false)}>
+                              <div 
+                                className="absolute left-4 right-4 bottom-24 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="p-3 border-b border-slate-800">
+                                  <p className="text-xs text-slate-400 font-bold">Choisir une devise</p>
+                                </div>
+                                <div className="max-h-72 overflow-y-auto">
+                                  {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => {
+                                    const info = CURRENCIES[code];
+                                    const isSelected = code === currency;
+                                    return (
+                                      <button
+                                        key={code}
+                                        onClick={() => {
+                                          setCurrency(code);
+                                          setShowCurrencySelector(false);
+                                          toast.success(`Devise changee en ${info.name}`);
+                                        }}
+                                        className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-800 transition-colors ${isSelected ? "bg-blue-600/20 border-l-2 border-blue-500" : ""}`}
+                                      >
+                                        <span className="text-2xl">{info.flag}</span>
+                                        <div className="flex-1 text-left">
+                                          <p className={`text-sm font-semibold ${isSelected ? "text-blue-400" : "text-white"}`}>
+                                            {info.code}
+                                          </p>
+                                          <p className="text-xs text-slate-500">{info.name}</p>
+                                        </div>
+                                        <span className="text-sm text-slate-500">{info.symbol}</span>
+                                        {isSelected && (
+                                          <CheckCircle2 size={18} className="text-blue-400" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
                           )}
