@@ -3,9 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, Wallet, TrendingUp, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useCurrency } from "@/context/CurrencyContext";
 
 export default function BalanceCard() {
-  const [data, setData] = useState({ balance: 0, gcvValue: 0, currency: "CFA" });
+  const { formatAmount, currencyInfo } = useCurrency();
+  const [data, setData] = useState({ balance: 0, gcvValue: 0, balanceXAF: 0 });
   const [isVisible, setIsVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -16,10 +18,11 @@ export default function BalanceCard() {
       const res = await fetch("/api/user/profile");
       if (res.ok) {
         const result = await res.json();
+        // Le solde est stocké en XAF dans la base de données
         setData({
-          balance: result.balance,
-          gcvValue: result.gcvValue,
-          currency: result.currency || "CFA"
+          balance: result.balance || 0,
+          gcvValue: result.gcvValue || 0,
+          balanceXAF: result.balance || 0, // Garder la valeur XAF originale
         });
       }
     } catch (err) {
@@ -75,9 +78,9 @@ export default function BalanceCard() {
         <div className="space-y-1">
           <div className="flex items-baseline gap-2">
             <h2 className="text-4xl font-black tracking-tighter text-white">
-              {loading ? "••••" : isVisible ? formatValue(data.balance) : "****"}
+              {loading ? "••••" : isVisible ? formatAmount(data.balanceXAF, false) : "****"}
             </h2>
-            <span className="text-lg font-bold text-blue-500">{data.currency}</span>
+            <span className="text-lg font-bold text-blue-500">{currencyInfo.symbol}</span>
           </div>
           
           <div className="flex items-center gap-2 pt-2">

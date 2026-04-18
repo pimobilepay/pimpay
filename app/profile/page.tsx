@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useCurrency, CURRENCIES, type CurrencyCode } from "@/context/CurrencyContext";
 
 interface UserData {
   id: string;
@@ -47,7 +48,7 @@ interface ProfileItem {
   accent?: string;
   fieldKey?: string;
   editable?: boolean;
-  inputType?: "text" | "email" | "tel" | "date" | "select";
+  inputType?: "text" | "email" | "tel" | "date" | "select" | "currency";
   options?: { value: string; label: string }[];
   readOnly?: boolean;
 }
@@ -104,13 +105,16 @@ function formatIdType(t: string) {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { currency, currencyInfo, setCurrency } = useCurrency();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
+  const currencySelectorRef = useRef<HTMLDivElement>(null);
 
   // Options pour les champs select
   const genderOptions = [
@@ -211,6 +215,17 @@ export default function ProfilePage() {
     }
   };
 
+  // Fermer le sélecteur de devise quand on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (currencySelectorRef.current && !currencySelectorRef.current.contains(event.target as Node)) {
+        setShowCurrencySelector(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -308,7 +323,7 @@ export default function ProfilePage() {
       items: [
         { label: "Notifications", icon: <Bell size={18} />, path: "/settings/notifications" },
         { label: "Securite du compte", icon: <Lock size={18} />, path: "/settings/security" },
-        { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: "USD ($)", readOnly: true },
+        { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: `${currencyInfo.code} (${currencyInfo.symbol})`, fieldKey: "currency", editable: true, inputType: "currency" as const },
       ],
     },
   ];
@@ -458,8 +473,58 @@ export default function ProfilePage() {
                             <X size={14} />
                           </button>
                         </div>
+                      ) : item.inputType === "currency" ? (
+                        // Sélecteur de devise
+                        <div className="relative" ref={currencySelectorRef}>
+                          <button
+                            onClick={() => setShowCurrencySelector(!showCurrencySelector)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-xl border border-slate-700 hover:border-blue-500/50 transition-colors"
+                          >
+                            <span className="text-lg">{currencyInfo.flag}</span>
+                            <span className="text-[11px] font-bold text-blue-400">{currencyInfo.code}</span>
+                            <span className="text-[10px] text-slate-500">({currencyInfo.symbol})</span>
+                            <ChevronDown size={12} className={`text-slate-400 transition-transform ${showCurrencySelector ? "rotate-180" : ""}`} />
+                          </button>
+                          
+                          {showCurrencySelector && (
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                              <div className="p-2 border-b border-slate-800">
+                                <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Choisir une devise</p>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto">
+                                {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => {
+                                  const info = CURRENCIES[code];
+                                  const isSelected = code === currency;
+                                  return (
+                                    <button
+                                      key={code}
+                                      onClick={() => {
+                                        setCurrency(code);
+                                        setShowCurrencySelector(false);
+                                        toast.success(`Devise changee en ${info.name}`);
+                                      }}
+                                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors ${isSelected ? "bg-blue-600/10" : ""}`}
+                                    >
+                                      <span className="text-xl">{info.flag}</span>
+                                      <div className="flex-1 text-left">
+                                        <p className={`text-sm font-semibold ${isSelected ? "text-blue-400" : "text-white"}`}>
+                                          {info.code}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">{info.name}</p>
+                                      </div>
+                                      <span className="text-xs text-slate-600">{info.symbol}</span>
+                                      {isSelected && (
+                                        <CheckCircle2 size={16} className="text-blue-400" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
-                        // Mode affichage
+                        // Mode affichage normal
                         <>
                           {item.value && (
                             <span className={`text-[11px] font-bold max-w-[140px] truncate ${item.accent || (item.active ? "text-emerald-400" : "text-slate-500")}`}>
@@ -479,7 +544,7 @@ export default function ProfilePage() {
                               className="p-1.5 rounded-lg transition-colors active:scale-90"
                               title="Modifier"
                             >
-                              {/* Icône supprimée - zone cliquable conservée */}
+                              {/* Icone supprimee - zone cliquable conservee */}
                             </button>
                           ) : item.path ? (
                             <button

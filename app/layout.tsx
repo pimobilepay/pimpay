@@ -10,6 +10,7 @@ import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { CurrencyProvider } from "@/context/CurrencyContext";
 import { PiInitializer } from "@/components/PiInitializer";
 import SessionGuard from "@/components/auth/SessionGuard";
 
@@ -81,8 +82,9 @@ export default function RootLayout({
         </Script>
 
         <LanguageProvider>
-          <ThemeProvider>
-            <SessionGuard>
+          <CurrencyProvider>
+            <ThemeProvider>
+              <SessionGuard>
               <PiInitializer />
 
               <div id="portal-root">
@@ -112,8 +114,9 @@ export default function RootLayout({
                   },
                 }}
               />
-            </SessionGuard>
-          </ThemeProvider>
+              </SessionGuard>
+            </ThemeProvider>
+          </CurrencyProvider>
         </LanguageProvider>
       </body>
     </html>

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import SendModal from "@/components/SendModal";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
+import { useCurrency } from "@/context/CurrencyContext";
 
 // --- LOGOS CORRIGÉS VERS /PUBLIC ---
 const PiLogo = () => (
@@ -147,6 +148,7 @@ interface WalletAddresses {
 export default function WalletPage() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { formatAmount, currencyInfo, convertFromXAF } = useCurrency();
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -293,6 +295,11 @@ export default function WalletPage() {
     (parseFloat(adaBalance) * marketPrices.ADA) +
     (parseFloat(dogeBalance) * marketPrices.DOGE) +
     (parseFloat(tonBalance) * marketPrices.TON);
+  
+  // Convertir USD en XAF puis en devise sélectionnée (1 USD ≈ 601.32 XAF)
+  const USD_TO_XAF = 601.32;
+  const totalInXAF = totalUSDValue * USD_TO_XAF;
+  const totalInSelectedCurrency = convertFromXAF(totalInXAF);
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
@@ -318,7 +325,7 @@ export default function WalletPage() {
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{t("wallet.totalBalance")}</p>
-                  {loading ? <div className="h-9 w-48 bg-white/5 rounded-xl animate-pulse" /> : <p className="text-3xl font-black text-white tracking-tight">${totalUSDValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                  {loading ? <div className="h-9 w-48 bg-white/5 rounded-xl animate-pulse" /> : <p className="text-3xl font-black text-white tracking-tight">{currencyInfo.symbol === "FCFA" ? `${totalInSelectedCurrency.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA` : `${currencyInfo.symbol}${totalInSelectedCurrency.toLocaleString(currencyInfo.locale, { minimumFractionDigits: currencyInfo.decimals, maximumFractionDigits: currencyInfo.decimals })}`}</p>}
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                   <Shield size={10} className="text-blue-400" />
