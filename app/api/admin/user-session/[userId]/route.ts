@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     const { userId } = await context.params;
 
-    // Get user info
+    // Get user info with country
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -33,6 +33,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         status: true,
         lastLogin: true,
         createdAt: true,
+        country: true,
       },
     });
 

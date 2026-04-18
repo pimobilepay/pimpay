@@ -7,7 +7,9 @@ import {
   Globe, ShieldCheck, BarChart3, RefreshCw, Loader2,
   UserPlus, ArrowUpRight, ArrowDownRight, X, LayoutGrid,
   Wallet, Headphones, Settings, Shield, Menu,
-  Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target
+  Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target,
+  Laptop, Tablet, Radio, XCircle, Timer, MousePointerClick,
+  Layers, ArrowRight, Wifi
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,6 +82,68 @@ type OnlineUser = {
   currentPage: string;
   device: string | null;
   lastSeen: string;
+};
+
+type OnlineUserGeo = {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userAvatar: string | null;
+  userRole: string;
+  userStatus: string;
+  country: string | null;
+  countryFlag: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  currentPage: string;
+  device: string | null;
+  browser: string | null;
+  os: string | null;
+  ip: string | null;
+  lastSeen: string;
+};
+
+type UserSessionData = {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    username: string | null;
+    avatar: string | null;
+    role: string;
+    status: string;
+    country: string | null;
+    lastLogin: string | null;
+    createdAt: string;
+  };
+  isOnline: boolean;
+  currentPage: string | null;
+  currentDevice: string | null;
+  currentBrowser: string | null;
+  currentOS: string | null;
+  currentIP: string | null;
+  sessionStartTime: string | null;
+  totalDuration: number;
+  totalPageViews: number;
+  totalClicks: number;
+  pageVisits: { page: string; count: number }[];
+  pageJourney: {
+    page: string;
+    timestamp: string;
+    duration: number;
+    nextPage: string | null;
+  }[];
+  recentActivities: {
+    id: string;
+    page: string;
+    action: string;
+    duration: number | null;
+    device: string | null;
+    browser: string | null;
+    os: string | null;
+    ip: string | null;
+    createdAt: string;
+  }[];
 };
 
 // Country coordinates for map markers
@@ -243,6 +307,33 @@ function getPageLabel(page: string): string {
   return labels[page] || page;
 }
 
+function getPageColor(page: string): string {
+  const colors: Record<string, string> = {
+    "/dashboard": "bg-blue-500/10 text-blue-400",
+    "/wallet": "bg-emerald-500/10 text-emerald-400",
+    "/send": "bg-violet-500/10 text-violet-400",
+    "/deposit": "bg-green-500/10 text-green-400",
+    "/withdraw": "bg-orange-500/10 text-orange-400",
+    "/exchange": "bg-cyan-500/10 text-cyan-400",
+    "/profile": "bg-pink-500/10 text-pink-400",
+    "/settings": "bg-slate-500/10 text-slate-400",
+    "/airtime": "bg-amber-500/10 text-amber-400",
+    "/staking": "bg-indigo-500/10 text-indigo-400",
+  };
+  return colors[page] || "bg-slate-500/10 text-slate-400";
+}
+
+function getDeviceIcon(device: string | null) {
+  switch (device?.toLowerCase()) {
+    case "mobile":
+      return Smartphone;
+    case "tablet":
+      return Tablet;
+    default:
+      return Laptop;
+  }
+}
+
 // --- COMPONENTS ---
 
 function KpiCard({ label, value, sub, trend, icon: Icon, color }: {
@@ -318,8 +409,17 @@ export default function AdminAnalyticsPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [onlineUsersGeo, setOnlineUsersGeo] = useState<OnlineUserGeo[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [mapView, setMapView] = useState<"world" | "africa">("africa");
+  
+  // User session panel state
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userSession, setUserSession] = useState<UserSessionData | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [selectedMapUser, setSelectedMapUser] = useState<OnlineUserGeo | null>(null);
+  const [showPageDetail, setShowPageDetail] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchAnalytics = async () => {
     try {
@@ -339,6 +439,22 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => { fetchAnalytics(); }, []);
 
+  // Fetch user session details
+  const fetchUserSession = useCallback(async (userId: string) => {
+    try {
+      setSessionLoading(true);
+      const res = await fetch(`/api/admin/user-session/${userId}`);
+      if (!res.ok) throw new Error("Erreur API");
+      const json = await res.json();
+      setUserSession(json);
+    } catch {
+      toast.error("Impossible de charger la session utilisateur");
+      setUserSession(null);
+    } finally {
+      setSessionLoading(false);
+    }
+  }, []);
+
   // Fetch online users
   const fetchOnlineUsers = useCallback(async () => {
     try {
@@ -352,12 +468,47 @@ export default function AdminAnalyticsPage() {
     }
   }, []);
 
+  // Fetch online users with geo data
+  const fetchOnlineUsersGeo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/online-users-geo");
+      if (res.ok) {
+        const json = await res.json();
+        setOnlineUsersGeo(json.onlineUsers || []);
+      }
+    } catch {
+      // silent fail for polling
+    }
+  }, []);
+
   // Initial fetch + polling every 15 seconds
   useEffect(() => {
     fetchOnlineUsers();
-    const interval = setInterval(fetchOnlineUsers, 15000);
+    fetchOnlineUsersGeo();
+    const interval = setInterval(() => {
+      fetchOnlineUsers();
+      fetchOnlineUsersGeo();
+    }, 15000);
     return () => clearInterval(interval);
-  }, [fetchOnlineUsers]);
+  }, [fetchOnlineUsers, fetchOnlineUsersGeo]);
+
+  // Auto-refresh user session every 5 seconds when enabled
+  useEffect(() => {
+    if (!autoRefresh || !selectedUserId) return;
+    
+    const interval = setInterval(() => {
+      fetchUserSession(selectedUserId);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [autoRefresh, selectedUserId, fetchUserSession]);
+
+  // Fetch session when user is selected
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchUserSession(selectedUserId);
+    }
+  }, [selectedUserId, fetchUserSession]);
 
   // Pie chart data
   const rolePieData = useMemo(() => {
@@ -597,6 +748,44 @@ export default function AdminAnalyticsPage() {
                     />
                   </Marker>
                 ))}
+                {/* Online user markers with device icons */}
+                {onlineUsersGeo.filter(u => u.latitude && u.longitude).map((user) => {
+                  const DeviceIcon = getDeviceIcon(user.device);
+                  return (
+                    <Marker
+                      key={`online-${user.userId}`}
+                      coordinates={[user.longitude!, user.latitude!]}
+                      onClick={() => {
+                        setSelectedMapUser(user);
+                        setSelectedUserId(user.userId);
+                      }}
+                    >
+                      <g className="cursor-pointer">
+                        {/* Pulse animation */}
+                        <circle
+                          r={12}
+                          fill="#10b981"
+                          fillOpacity={0.2}
+                          className="animate-ping"
+                          style={{ animationDuration: "2s" }}
+                        />
+                        {/* Device icon background */}
+                        <circle
+                          r={10}
+                          fill={selectedMapUser?.userId === user.userId ? "#10b981" : "#1e293b"}
+                          stroke="#10b981"
+                          strokeWidth={2}
+                        />
+                        {/* Device icon using foreignObject */}
+                        <foreignObject x={-6} y={-6} width={12} height={12}>
+                          <div className="flex items-center justify-center w-full h-full">
+                            <DeviceIcon size={8} className="text-emerald-400" />
+                          </div>
+                        </foreignObject>
+                      </g>
+                    </Marker>
+                  );
+                })}
               </ComposableMap>
             </div>
 
@@ -635,6 +824,85 @@ export default function AdminAnalyticsPage() {
                     <p className="text-sm font-black text-amber-400">{selectedCountry.newCount}</p>
                     <p className="text-[8px] text-slate-500 uppercase">Nouveaux</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected online user from map */}
+            {selectedMapUser && (
+              <div className="p-4 bg-emerald-500/5 border-t border-emerald-500/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-sm">
+                        {selectedMapUser.userName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{selectedMapUser.userName}</p>
+                      <p className="text-[9px] text-slate-500">{selectedMapUser.userEmail}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedMapUser(null);
+                      setSelectedUserId(null);
+                      setUserSession(null);
+                    }}
+                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                
+                {/* Location & Device Info */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-black/20 rounded-lg p-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <MapPin size={10} className="text-emerald-400" />
+                      <span className="text-[8px] font-black text-slate-500 uppercase">Localisation</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-white flex items-center gap-1">
+                      {selectedMapUser.countryFlag && <span>{selectedMapUser.countryFlag}</span>}
+                      {selectedMapUser.country || "Inconnu"}
+                    </p>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Wifi size={10} className="text-blue-400" />
+                      <span className="text-[8px] font-black text-slate-500 uppercase">IP</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-white font-mono">{selectedMapUser.ip || "N/A"}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-black/20 rounded-lg p-2 text-center">
+                    {(() => {
+                      const DeviceIcon = getDeviceIcon(selectedMapUser.device);
+                      return <DeviceIcon size={14} className="text-violet-400 mx-auto mb-1" />;
+                    })()}
+                    <p className="text-[8px] font-bold text-slate-500">{selectedMapUser.device || "N/A"}</p>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-2 text-center">
+                    <Globe size={14} className="text-cyan-400 mx-auto mb-1" />
+                    <p className="text-[8px] font-bold text-slate-500">{selectedMapUser.browser || "N/A"}</p>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-2 text-center">
+                    <Monitor size={14} className="text-amber-400 mx-auto mb-1" />
+                    <p className="text-[8px] font-bold text-slate-500">{selectedMapUser.os || "N/A"}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-3 flex items-center justify-between p-2 bg-emerald-500/10 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Eye size={12} className="text-emerald-400" />
+                    <span className="text-[9px] font-bold text-emerald-400">Page actuelle:</span>
+                  </div>
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded ${getPageColor(selectedMapUser.currentPage)}`}>
+                    {getPageLabel(selectedMapUser.currentPage)}
+                  </span>
                 </div>
               </div>
             )}
@@ -683,47 +951,58 @@ export default function AdminAnalyticsPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
-              Utilisateurs en Ligne ({onlineUsers.length})
+              Utilisateurs en Ligne ({onlineUsersGeo.length})
             </span>
           </SectionTitle>
 
-          {onlineUsers.length > 0 ? (
+          {onlineUsersGeo.length > 0 ? (
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {onlineUsers.map((user) => (
-                <div
-                  key={user.userId}
-                  className="flex-shrink-0 bg-slate-900/60 border border-emerald-500/10 rounded-[1.5rem] p-4 min-w-[170px]"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="relative">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[10px]">
-                        {user.userName.charAt(0).toUpperCase()}
+              {onlineUsersGeo.map((user) => {
+                const DeviceIcon = getDeviceIcon(user.device);
+                return (
+                  <button
+                    key={user.userId}
+                    onClick={() => {
+                      setSelectedUserId(user.userId);
+                      setSelectedMapUser(user);
+                    }}
+                    className={`flex-shrink-0 bg-slate-900/60 border rounded-[1.5rem] p-4 min-w-[170px] text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                      selectedUserId === user.userId 
+                        ? "border-emerald-500/50 ring-2 ring-emerald-500/20" 
+                        : "border-emerald-500/10 hover:border-emerald-500/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="relative">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[10px]">
+                          {user.userName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#020617]" />
                       </div>
-                      <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#020617]" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black text-white truncate">{user.userName}</p>
+                        <p className="text-[8px] text-slate-500 truncate">{user.userEmail}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black text-white truncate">{user.userName}</p>
-                      <p className="text-[8px] text-slate-500 truncate">{user.userEmail}</p>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      {user.countryFlag && <span className="text-xs">{user.countryFlag}</span>}
+                      <span className="text-[8px] text-slate-500 truncate">{user.country || "Inconnu"}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Eye size={10} className="text-emerald-400" />
-                    <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider truncate">
-                      {getPageLabel(user.currentPage)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    {user.device === "Mobile" ? (
-                      <Smartphone size={9} className="text-slate-500" />
-                    ) : (
-                      <Monitor size={9} className="text-slate-500" />
-                    )}
-                    <span className="text-[8px] text-slate-600">{user.device || "Inconnu"}</span>
-                    <Clock size={9} className="text-slate-500 ml-auto" />
-                    <span className="text-[8px] text-slate-600">{formatTimeAgo(user.lastSeen)}</span>
-                  </div>
-                </div>
-              ))}
+                    <div className="flex items-center gap-1.5">
+                      <Eye size={10} className="text-emerald-400" />
+                      <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider truncate">
+                        {getPageLabel(user.currentPage)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <DeviceIcon size={9} className="text-slate-500" />
+                      <span className="text-[8px] text-slate-600">{user.device || "Inconnu"}</span>
+                      <Clock size={9} className="text-slate-500 ml-auto" />
+                      <span className="text-[8px] text-slate-600">{formatTimeAgo(user.lastSeen)}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-8 text-center">
@@ -732,6 +1011,225 @@ export default function AdminAnalyticsPage() {
               </div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aucun utilisateur en ligne</p>
               <p className="text-[8px] text-slate-600 mt-1">Les utilisateurs actifs apparaitront ici en temps reel</p>
+            </div>
+          )}
+
+          {/* USER SESSION PANEL */}
+          {selectedUserId && userSession && (
+            <div className="bg-slate-900/80 border border-emerald-500/20 rounded-2xl overflow-hidden mt-4">
+              {/* Session Panel Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/5 bg-emerald-500/5">
+                <div className="flex items-center gap-3">
+                  <Radio size={16} className={`${userSession.isOnline ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
+                  <div>
+                    <p className="text-[10px] font-black text-white uppercase tracking-wider">
+                      Session en Temps Reel
+                    </p>
+                    <p className="text-[8px] text-slate-500">
+                      {userSession.user.name || userSession.user.email}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAutoRefresh(!autoRefresh)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all ${
+                      autoRefresh 
+                        ? "bg-emerald-600 text-white" 
+                        : "bg-white/5 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    <RefreshCw size={10} className={autoRefresh ? "animate-spin" : ""} />
+                    Auto
+                  </button>
+                  <button
+                    onClick={() => fetchUserSession(selectedUserId)}
+                    disabled={sessionLoading}
+                    className="p-2 bg-white/5 rounded-lg text-white hover:bg-white/10 transition-all"
+                  >
+                    <RefreshCw size={12} className={sessionLoading ? "animate-spin" : ""} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedUserId(null);
+                      setUserSession(null);
+                      setSelectedMapUser(null);
+                      setAutoRefresh(false);
+                    }}
+                    className="p-2 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    <XCircle size={12} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {/* Current Status */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers size={12} className="text-emerald-400" />
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Page Actuelle</span>
+                    </div>
+                    <p className={`text-[11px] font-black ${userSession.currentPage ? getPageColor(userSession.currentPage).split(" ")[1] : "text-slate-500"}`}>
+                      {userSession.currentPage ? getPageLabel(userSession.currentPage) : "Hors ligne"}
+                    </p>
+                    {userSession.currentPage && (
+                      <p className="text-[8px] text-slate-600 mt-0.5 truncate">{userSession.currentPage}</p>
+                    )}
+                  </div>
+                  <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Timer size={12} className="text-blue-400" />
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Duree Session</span>
+                    </div>
+                    <p className="text-[11px] font-black text-white">
+                      {Math.floor(userSession.totalDuration / 60)}min {userSession.totalDuration % 60}s
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                    <p className="text-[14px] font-black text-blue-400">{userSession.totalPageViews}</p>
+                    <p className="text-[7px] font-bold text-slate-600 uppercase">Pages</p>
+                  </div>
+                  <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                    <p className="text-[14px] font-black text-amber-400">{userSession.totalClicks}</p>
+                    <p className="text-[7px] font-bold text-slate-600 uppercase">Clics</p>
+                  </div>
+                  <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                    {(() => {
+                      const DeviceIcon = getDeviceIcon(userSession.currentDevice);
+                      return <DeviceIcon size={14} className="text-emerald-400 mx-auto" />;
+                    })()}
+                    <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentDevice || "N/A"}</p>
+                  </div>
+                  <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                    <Globe size={14} className="text-cyan-400 mx-auto" />
+                    <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentBrowser || "N/A"}</p>
+                  </div>
+                </div>
+
+                {/* Page Journey Schema */}
+                {userSession.pageJourney.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                        <Layers size={12} />
+                        Parcours de Navigation
+                      </p>
+                      <span className="text-[8px] text-slate-600">{userSession.pageJourney.length} pages</span>
+                    </div>
+                    <div className="bg-black/30 rounded-xl p-3 border border-white/5 overflow-x-auto">
+                      <div className="flex items-center gap-1 min-w-max">
+                        {userSession.pageJourney.slice(-10).map((step, i, arr) => (
+                          <div key={i} className="flex items-center gap-1">
+                            <button
+                              onClick={() => setShowPageDetail(showPageDetail === step.page ? null : step.page)}
+                              className={`flex flex-col items-center p-2 rounded-lg transition-all hover:scale-105 ${
+                                showPageDetail === step.page 
+                                  ? "bg-blue-600/20 border border-blue-500/30" 
+                                  : "bg-white/5 hover:bg-white/10"
+                              } ${i === arr.length - 1 ? "ring-2 ring-emerald-500/30" : ""}`}
+                            >
+                              <span className={`text-[8px] font-black px-2 py-0.5 rounded ${getPageColor(step.page)}`}>
+                                {getPageLabel(step.page)}
+                              </span>
+                              {step.duration > 0 && (
+                                <span className="text-[7px] text-slate-500 mt-1">{step.duration}s</span>
+                              )}
+                            </button>
+                            {i < arr.length - 1 && (
+                              <ArrowRight size={10} className="text-slate-600 flex-shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Page Detail Panel */}
+                {showPageDetail && (
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider">
+                        Details: {getPageLabel(showPageDetail)}
+                      </p>
+                      <button
+                        onClick={() => setShowPageDetail(null)}
+                        className="p-1 text-slate-500 hover:text-white transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {userSession.recentActivities
+                        .filter(a => a.page === showPageDetail)
+                        .slice(0, 10)
+                        .map((activity) => (
+                          <div 
+                            key={activity.id}
+                            className="flex items-center justify-between p-2 bg-black/20 rounded-lg"
+                          >
+                            <div className="flex items-center gap-2">
+                              {activity.action === "CLICK" ? (
+                                <MousePointerClick size={10} className="text-amber-400" />
+                              ) : (
+                                <Eye size={10} className="text-blue-400" />
+                              )}
+                              <span className="text-[9px] font-bold text-white">{activity.action}</span>
+                              {activity.duration && (
+                                <span className="text-[8px] text-slate-500">({activity.duration}s)</span>
+                              )}
+                            </div>
+                            <span className="text-[8px] text-slate-600">
+                              {formatTimeAgo(activity.createdAt)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent Activities */}
+                <div>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                    Activites Recentes
+                  </p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {userSession.recentActivities.slice(0, 10).map((activity) => (
+                      <div 
+                        key={activity.id}
+                        className="flex items-center justify-between p-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {activity.action === "CLICK" ? (
+                            <MousePointerClick size={10} className="text-amber-400" />
+                          ) : (
+                            <Eye size={10} className="text-blue-400" />
+                          )}
+                          <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${getPageColor(activity.page)}`}>
+                            {getPageLabel(activity.page)}
+                          </span>
+                          <span className="text-[9px] text-slate-400">{activity.action}</span>
+                        </div>
+                        <span className="text-[8px] text-slate-600">{formatTimeAgo(activity.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state for session */}
+          {selectedUserId && sessionLoading && !userSession && (
+            <div className="bg-slate-900/80 border border-emerald-500/20 rounded-2xl p-8 text-center mt-4">
+              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-3" />
+              <p className="text-[9px] text-slate-500 uppercase tracking-widest">Chargement de la session...</p>
             </div>
           )}
         </div>
