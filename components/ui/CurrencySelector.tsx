@@ -35,12 +35,15 @@ const CURRENCY_DATA: Record<string, CurrencyInfo> = {
   EUR: { code: 'EUR', name: 'Euro', flag: '🇪🇺', rateToXAF: 655.957 },
   USD: { code: 'USD', name: 'US Dollar', flag: '🇺🇸', rateToXAF: 601.32 },
   GBP: { code: 'GBP', name: 'British Pound', flag: '🇬🇧', rateToXAF: 762.45 },
-  NGN: { code: 'NGN', name: 'Nigerian Naira', flag: '🇳🇬', rateToXAF: 0.39 },
+  NGN: { code: 'NGN', name: 'Naira nigerien', flag: '🇳🇬', rateToXAF: 0.38 },
   GHS: { code: 'GHS', name: 'Ghanaian Cedi', flag: '🇬🇭', rateToXAF: 42.1 },
   MAD: { code: 'MAD', name: 'Moroccan Dirham', flag: '🇲🇦', rateToXAF: 60.3 },
+  CDF: { code: 'CDF', name: 'Franc Congolais', flag: '🇨🇩', rateToXAF: 0.215 },
+  AED: { code: 'AED', name: 'Dirham emiratis', flag: '🇦🇪', rateToXAF: 163.71 },
+  MGA: { code: 'MGA', name: 'Ariary malgache', flag: '🇲🇬', rateToXAF: 0.134 },
 };
 
-const DEFAULT_CURRENCIES = ['XAF', 'XOF', 'EUR', 'USD'];
+const DEFAULT_CURRENCIES = ['XAF', 'XOF', 'EUR', 'USD', 'CDF', 'AED', 'NGN', 'MGA'];
 
 // ─────────────────────────────────────────────
 // CurrencySelector

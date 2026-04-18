@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type CurrencyCode = "XAF" | "EUR" | "USD" | "XOF" | "GBP";
+export type CurrencyCode = "XAF" | "EUR" | "USD" | "XOF" | "GBP" | "CDF" | "AED" | "NGN" | "MGA";
 
 export interface CurrencyInfo {
   code: CurrencyCode;
@@ -63,6 +63,42 @@ export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
     rateToXAF: 762.45, 
     decimals: 2,
     locale: "en-GB"
+  },
+  CDF: {
+    code: "CDF",
+    name: "Franc Congolais",
+    symbol: "FC",
+    flag: "🇨🇩",
+    rateToXAF: 0.215,
+    decimals: 0,
+    locale: "fr-CD"
+  },
+  AED: {
+    code: "AED",
+    name: "Dirham emiratis",
+    symbol: "AED",
+    flag: "🇦🇪",
+    rateToXAF: 163.71,
+    decimals: 2,
+    locale: "ar-AE"
+  },
+  NGN: {
+    code: "NGN",
+    name: "Naira nigerien",
+    symbol: "₦",
+    flag: "🇳🇬",
+    rateToXAF: 0.38,
+    decimals: 0,
+    locale: "en-NG"
+  },
+  MGA: {
+    code: "MGA",
+    name: "Ariary malgache",
+    symbol: "Ar",
+    flag: "🇲🇬",
+    rateToXAF: 0.134,
+    decimals: 0,
+    locale: "fr-MG"
   },
 };
 
@@ -135,6 +171,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       const parts = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0");
       const formatted = `${isNegative ? "-" : ""}${parts}`;
       return showSymbol ? `${formatted}\u00A0FCFA` : formatted;
+    }
+
+    if (info.code === "CDF" || info.code === "NGN" || info.code === "MGA") {
+      // Format whole-number currencies
+      const rounded = Math.round(converted);
+      const isNegative = rounded < 0;
+      const abs = Math.abs(rounded);
+      const parts = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0");
+      const formatted = `${isNegative ? "-" : ""}${parts}`;
+      return showSymbol ? `${formatted}\u00A0${info.symbol}` : formatted;
     }
     
     // Format other currencies

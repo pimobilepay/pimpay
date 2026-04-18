@@ -34,8 +34,19 @@ import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useLanguage } from "@/context/LanguageContext";
 import { ReferralProgram } from "@/components/ReferralProgram";
+import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyContext";
 
-const RATES = { USD: 1, XFA: 615, CDF: 2800, EUR: 0.92 };
+const RATES: Record<string, number> = {
+  USD: 1,
+  XAF: 603,
+  XOF: 603,
+  EUR: 0.92,
+  GBP: 0.79,
+  CDF: 2800,
+  AED: 3.67,
+  NGN: 1580,
+  MGA: 4500,
+};
 type CurrencyKey = keyof typeof RATES;
 
 const PIE_COLOR_BY_NAME: Record<string, string> = {
@@ -76,12 +87,15 @@ const formatDescription = (description: string): string => {
 export default function UserDashboard() {
   const router = useRouter();
   const { locale, setLocale } = useLanguage();
+  const { currency: ctxCurrency, setCurrency: setCtxCurrency, currencyInfo } = useCurrency();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [currency, setCurrency] = useState<CurrencyKey>("USD");
+  const [showCurrencySwitcher, setShowCurrencySwitcher] = useState(false);
+  const currencySwitcherRef = useRef<HTMLDivElement>(null);
+  const currency = ctxCurrency as CurrencyKey;
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
@@ -152,6 +166,7 @@ export default function UserDashboard() {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setShowProfileMenu(false);
       if (walletRef.current && !walletRef.current.contains(event.target as Node)) setShowWalletSelector(false);
+      if (currencySwitcherRef.current && !currencySwitcherRef.current.contains(event.target as Node)) setShowCurrencySwitcher(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -224,7 +239,9 @@ export default function UserDashboard() {
   const currentCurrency = (currentWallet.currency || "PI").toUpperCase();
   const displayName = data?.name || "PIONEER";
   const rateToUse = marketPrices[currentCurrency] ?? 1;
-  const convertedValue = balance * rateToUse * RATES[currency];
+  // Convert wallet balance -> USD -> selected fiat currency
+  const fiatRate = RATES[currency as string] ?? RATES["USD"];
+  const convertedValue = balance * rateToUse * fiatRate;
 
   const computeStats = (txsRaw: any[], walletCurrency: string) => {
     const filtered = (txsRaw || []).filter(t => t.status === "SUCCESS" || !t.status);
@@ -340,7 +357,52 @@ export default function UserDashboard() {
               </div>
             </div>
             <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2"><span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency === "XAF" ? "" : "$"}</span>{showBalance ? balance.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) : "••••••"}</h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
-            <div className="flex justify-between items-end"><div className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2"><Globe size={12} className="text-blue-400" /><p className="text-[11px] font-mono font-bold">≈ {showBalance ? `${convertedValue.toLocaleString()} ${currency}` : "Locked"}</p></div><p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency}</p></div>
+            <div className="flex justify-between items-end">
+              <div className="relative" ref={currencySwitcherRef}>
+                <button
+                  onClick={() => setShowCurrencySwitcher(!showCurrencySwitcher)}
+                  className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2 hover:border-white/20 transition-colors"
+                >
+                  <Globe size={12} className="text-blue-400" />
+                  <p className="text-[11px] font-mono font-bold">
+                    ≈ {showBalance ? `${convertedValue.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${currencyInfo.symbol}` : "Locked"}
+                  </p>
+                  <ChevronDown size={10} className={`text-white/40 transition-transform ${showCurrencySwitcher ? "rotate-180" : ""}`} />
+                </button>
+                {showCurrencySwitcher && (
+                  <div className="absolute bottom-full mb-2 left-0 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[130]">
+                    <div className="px-3 py-2 border-b border-white/5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Devise d&apos;affichage</p>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto py-1">
+                      {(Object.keys(CURRENCY_LIST) as Array<keyof typeof CURRENCY_LIST>).map((code) => {
+                        const info = CURRENCY_LIST[code];
+                        const isSelected = code === currency;
+                        return (
+                          <button
+                            key={code}
+                            onClick={() => {
+                              setCtxCurrency(code);
+                              setShowCurrencySwitcher(false);
+                              toast.success(`Devise: ${info.name}`);
+                            }}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isSelected ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-white"}`}
+                          >
+                            <span className="text-base">{info.flag}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black uppercase">{info.code}</p>
+                              <p className="text-[9px] text-slate-500 truncate">{info.name}</p>
+                            </div>
+                            <span className="text-[10px] text-slate-500">{info.symbol}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency}</p>
+            </div>
           </div><Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
         </div>
         <div className="grid grid-cols-4 gap-4 mb-8">
