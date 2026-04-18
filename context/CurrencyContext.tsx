@@ -103,7 +103,7 @@ export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
 };
 
 export const CURRENCY_STORAGE_KEY = "pimpay-currency";
-export const DEFAULT_CURRENCY: CurrencyCode = "XAF";
+export const DEFAULT_CURRENCY: CurrencyCode = "USD";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 

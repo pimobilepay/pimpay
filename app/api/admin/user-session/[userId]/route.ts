@@ -124,8 +124,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     console.error("[ADMIN_USER_SESSION_ERROR]:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
     return NextResponse.json(
-      { error: "Erreur lors de la recuperation de la session" },
+      { 
+        error: "Erreur lors de la recuperation de la session",
+        details: errorMessage
+      },
       { status: 500 }
     );
   }

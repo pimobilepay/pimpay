@@ -228,6 +228,7 @@ export default function AdminLogsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userSession, setUserSession] = useState<UserSessionData | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [showPageDetail, setShowPageDetail] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
@@ -243,11 +244,25 @@ export default function AdminLogsPage() {
       if (pageFilter) params.set("pageFilter", pageFilter);
 
       const res = await fetch(`/api/admin/user-activity?${params}`);
-      if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
+      
+      if (!res.ok) {
+        // Even if there's an error, use the fallback data from the API
+        setUserData({
+          activities: json.activities || [],
+          total: json.total || 0,
+          page: json.page || 1,
+          totalPages: json.totalPages || 0,
+          onlineUsers: json.onlineUsers || [],
+          pageStats: json.pageStats || []
+        });
+        throw new Error(json.error || "Erreur API");
+      }
+      
       setUserData(json);
-    } catch {
-      toast.error("Impossible de charger les logs utilisateurs");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Impossible de charger les logs utilisateurs";
+      toast.error(errorMessage);
     } finally {
       setUserLoading(false);
     }
@@ -288,12 +303,19 @@ export default function AdminLogsPage() {
   const fetchUserSession = useCallback(async (userId: string) => {
     try {
       setSessionLoading(true);
+      setSessionError(null);
       const res = await fetch(`/api/admin/user-session/${userId}`);
-      if (!res.ok) throw new Error("Erreur API");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Erreur API");
+      }
       const json = await res.json();
       setUserSession(json);
-    } catch {
-      toast.error("Impossible de charger la session utilisateur");
+      setSessionError(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Impossible de charger les donnees";
+      setSessionError(errorMessage);
+      toast.error(errorMessage);
       setUserSession(null);
     } finally {
       setSessionLoading(false);
@@ -520,6 +542,7 @@ export default function AdminLogsPage() {
                         setSelectedUserId(null);
                         setUserSession(null);
                         setAutoRefresh(false);
+                        setSessionError(null);
                       }}
                       className="p-2 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
                     >
@@ -532,6 +555,18 @@ export default function AdminLogsPage() {
                   <div className="p-8 text-center">
                     <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-3" />
                     <p className="text-[9px] text-slate-500 uppercase tracking-widest">Chargement de la session...</p>
+                  </div>
+                ) : sessionError ? (
+                  <div className="p-8 text-center">
+                    <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+                    <p className="text-[10px] text-red-400 font-bold mb-2">Erreur de chargement</p>
+                    <p className="text-[9px] text-slate-500 mb-4">{sessionError}</p>
+                    <button
+                      onClick={() => selectedUserId && fetchUserSession(selectedUserId)}
+                      className="px-4 py-2 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-500 transition-colors"
+                    >
+                      Reessayer
+                    </button>
                   </div>
                 ) : userSession ? (
                   <div className="p-4 space-y-4">

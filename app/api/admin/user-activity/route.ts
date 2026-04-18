@@ -136,8 +136,18 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("[ADMIN_USER_ACTIVITY_ERROR]:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
     return NextResponse.json(
-      { error: "Erreur lors de la recuperation des activites" },
+      { 
+        error: "Erreur lors de la recuperation des activites",
+        details: errorMessage,
+        activities: [],
+        total: 0,
+        page: 1,
+        totalPages: 0,
+        onlineUsers: [],
+        pageStats: []
+      },
       { status: 500 }
     );
   }
