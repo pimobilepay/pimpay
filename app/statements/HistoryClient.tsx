@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, Search, ArrowUpRight, ArrowDownLeft,
   Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, FileText,
-  User, ChevronDown, ChevronUp
+  User, ChevronDown, ChevronUp, Send, Download, CreditCard, RefreshCw, Receipt, Banknote
 } from "lucide-react";
 import Link from "next/link";
 import { format, subDays, endOfDay } from "date-fns";
@@ -323,11 +323,28 @@ function StatMiniCard({ label, value, icon, color, bg }: any) {
 function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const icons: any = {
-    transfer: <ArrowRightLeft size={18} className="text-blue-400" />,
-    deposit:  <ArrowDownLeft  size={18} className="text-green-500" />,
-    withdraw: <Wallet         size={18} className="text-red-400" />,
-    recharge: <Smartphone     size={18} className="text-purple-400" />,
+  // Icône selon le type + direction (entrant/sortant)
+  const getIcon = () => {
+    if (tx.type === "deposit") {
+      return <Download size={18} className="text-emerald-400" />;
+    }
+    if (tx.type === "withdraw") {
+      return <Banknote size={18} className="text-red-400" />;
+    }
+    if (tx.type === "recharge") {
+      return <Smartphone size={18} className="text-purple-400" />;
+    }
+    if (tx.type === "swap") {
+      return <RefreshCw size={18} className="text-cyan-400" />;
+    }
+    if (tx.type === "payment") {
+      return <CreditCard size={18} className="text-orange-400" />;
+    }
+    // Transfer: différencier entrant/sortant
+    if (tx.isIncome) {
+      return <ArrowDownLeft size={18} className="text-green-400" />;
+    }
+    return <Send size={18} className="text-blue-400" />;
   };
 
   const statusStyles: any = {
@@ -354,7 +371,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
       >
         {/* Icone type */}
         <div className="w-11 h-11 rounded-2xl bg-slate-950 border border-white/5 flex items-center justify-center shrink-0">
-          {icons[tx.type] || <Zap size={18} className="text-blue-500" />}
+          {getIcon()}
         </div>
 
         {/* Infos centre */}
