@@ -23,8 +23,32 @@ async function getStatementsData() {
           { toUserId: userId }
         ]
       },
+      include: {
+        fromUser: {
+          select: {
+            id: true,
+            name: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            email: true,
+            phone: true,
+          }
+        },
+        toUser: {
+          select: {
+            id: true,
+            name: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            email: true,
+            phone: true,
+          }
+        },
+      },
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: 100
     });
 
     // Calcul enrichi des statistiques
