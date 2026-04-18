@@ -21,6 +21,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
+import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 
 interface TransactionDetails {
   id: string;
@@ -310,25 +311,52 @@ export default function TransactionDetailsPage() {
           </div>
         </div>
 
-        {/* User Info */}
-        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5">
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
-              {otherUser?.avatar ? (
-                <img src={otherUser.avatar} alt={displayName} className="w-full h-full rounded-2xl object-cover" />
+        {/* Sender & Recipient Info */}
+        <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
+          {/* Sender */}
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-red-500/10">
+              {transaction.fromUser?.avatar ? (
+                <img src={transaction.fromUser.avatar} alt="Expediteur" className="w-full h-full rounded-2xl object-cover" />
               ) : (
-                <User size={24} className={isSent ? "text-red-400" : "text-emerald-400"} />
+                <User size={20} className="text-red-400" />
               )}
             </div>
-            <div className="flex-1">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                {isSent ? "Envoye a" : "Recu de"}
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Expediteur</p>
+              <p className="text-sm font-black text-white truncate">
+                {transaction.fromUser?.displayName || transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur"}
               </p>
-              <p className="text-base font-black uppercase tracking-tight">{displayName}</p>
-              {otherUser?.username && (
-                <p className="text-[10px] text-blue-400">@{otherUser.username}</p>
+              {transaction.fromUser?.username && (
+                <p className="text-[10px] text-blue-400 truncate">@{transaction.fromUser.username}</p>
               )}
             </div>
+            {isSent && (
+              <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg uppercase">Vous</span>
+            )}
+          </div>
+
+          {/* Recipient */}
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-500/10">
+              {transaction.toUser?.avatar ? (
+                <img src={transaction.toUser.avatar} alt="Destinataire" className="w-full h-full rounded-2xl object-cover" />
+              ) : (
+                <User size={20} className="text-emerald-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Destinataire</p>
+              <p className="text-sm font-black text-white truncate">
+                {transaction.toUser?.displayName || transaction.toUser?.name || transaction.toUser?.username || "Utilisateur"}
+              </p>
+              {transaction.toUser?.username && (
+                <p className="text-[10px] text-emerald-400 truncate">@{transaction.toUser.username}</p>
+              )}
+            </div>
+            {!isSent && (
+              <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg uppercase">Vous</span>
+            )}
           </div>
         </div>
 
@@ -401,6 +429,25 @@ export default function TransactionDetailsPage() {
               </div>
               <Copy size={16} className="text-slate-500" />
             </button>
+          )}
+
+          {/* Blockchain Explorer Link */}
+          {transaction.metadata?.blockchainTxHash && hasBlockchainExplorer(transaction.currency) && (
+            <a
+              href={getBlockchainTxUrl(transaction.currency, transaction.metadata.blockchainTxHash) || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all group"
+            >
+              <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
+                <ExternalLink size={18} className="text-cyan-400" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Verifier sur la Blockchain</p>
+                <p className="text-xs font-bold text-cyan-400 group-hover:underline">{getExplorerName(transaction.currency)}</p>
+              </div>
+              <ExternalLink size={16} className="text-cyan-400" />
+            </a>
           )}
 
           {/* Transaction ID */}

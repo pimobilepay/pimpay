@@ -8,6 +8,7 @@ import {
   ExternalLink, Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 
 function TransactionDetailContent() {
   const router = useRouter();
@@ -91,27 +92,39 @@ function TransactionDetailContent() {
             </button>
           </div>
 
-          {/* FLUX DE FONDS */}
+          {/* FLUX DE FONDS - EXPEDITEUR & DESTINATAIRE */}
           <div className="bg-[#020617]/50 rounded-[24px] p-5 border border-white/5 space-y-4">
             <div className="flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="p-2 bg-red-500/10 rounded-lg"><ArrowUpRight size={14} className="text-red-400" /></div>
                   <div>
-                    <p className="text-[8px] font-black text-slate-500 uppercase">Depuis</p>
-                    <p className="text-xs font-black uppercase italic">{tx?.sender}</p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase">Expediteur</p>
+                    <p className="text-xs font-black uppercase italic text-red-400">{tx?.sender || "Inconnu"}</p>
                   </div>
                </div>
-               <p className="text-[10px] font-bold text-slate-600 italic">Fee: 0.01 π</p>
+               <p className="text-[10px] font-bold text-slate-600 italic">Fee: {tx?.fee || "0.01"} π</p>
             </div>
             <div className="flex items-center justify-between border-t border-white/5 pt-4">
                <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-500/10 rounded-lg"><ArrowDownLeft size={14} className="text-emerald-400" /></div>
                   <div>
-                    <p className="text-[8px] font-black text-slate-500 uppercase">Vers</p>
-                    <p className="text-xs font-black uppercase italic">{tx?.recipient}</p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase">Destinataire</p>
+                    <p className="text-xs font-black uppercase italic text-emerald-400">{tx?.recipient || "Inconnu"}</p>
                   </div>
                </div>
-               <ExternalLink size={14} className="text-slate-700" />
+               {tx?.blockchainTx && hasBlockchainExplorer(tx?.currency || "PI") ? (
+                 <a 
+                   href={getBlockchainTxUrl(tx?.currency || "PI", tx.blockchainTx) || "#"} 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="flex items-center gap-1 text-cyan-400 hover:underline"
+                 >
+                   <ExternalLink size={14} />
+                   <span className="text-[8px] font-black uppercase">{getExplorerName(tx?.currency || "PI")}</span>
+                 </a>
+               ) : (
+                 <ExternalLink size={14} className="text-slate-700" />
+               )}
             </div>
           </div>
 

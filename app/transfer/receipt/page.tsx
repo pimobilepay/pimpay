@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
+import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 
 const PI_GCV_PRICE = 314159;
 
@@ -79,6 +80,7 @@ function ReceiptContent() {
   const currency = transaction?.currency || urlCurrency;
   const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
   const beneficiary = transaction?.toUser?.username || transaction?.toUser?.name || urlName;
+  const sender = transaction?.fromUser?.username || transaction?.fromUser?.name || "Vous";
   
   const isPi = currency === "PI";
   const amountDisplay = amount;
@@ -98,20 +100,9 @@ function ReceiptContent() {
   const isPending = transaction?.status === "PENDING";
   const blockchainTx = transaction?.blockchainTx || transaction?.metadata?.blockchainTx;
 
-  // Configuration des Explorateurs selon la devise
-  const getBlockExplorer = (curr: string, txHash: string) => {
-    if (!txHash) return null;
-    switch (curr) {
-      case "PI": return `https://blockexplorer.minepi.com/tx/${txHash}`;
-      case "SDA": return `https://ledger.sidrachain.com/tx/${txHash}`;
-      case "BTC": return `https://blockchain.info/tx/${txHash}`;
-      case "USDT": return `https://tronscan.org/#/transaction/${txHash}`;
-      case "ETH": return `https://etherscan.io/tx/${txHash}`;
-      default: return null;
-    }
-  };
-
-  const explorerUrl = getBlockExplorer(currency, blockchainTx);
+  // Configuration des Explorateurs selon la devise (utilise l'utilitaire centralisé)
+  const explorerUrl = blockchainTx ? getBlockchainTxUrl(currency, blockchainTx) : null;
+  const explorerName = getExplorerName(currency);
 
   const handleDownloadPDF = async () => {
     if (!receiptRef.current) return;
@@ -237,8 +228,15 @@ function ReceiptContent() {
               <div className="space-y-5 border-t border-white/5 pt-8">
                 <DetailRow 
                   icon={<User />} 
-                  label="Bénéficiaire" 
-                  value={beneficiary} 
+                  label="Expediteur" 
+                  value={sender}
+                  valueClassName="text-red-400"
+                />
+                <DetailRow 
+                  icon={<User />} 
+                  label="Destinataire" 
+                  value={beneficiary}
+                  valueClassName="text-emerald-400"
                 />
                 <DetailRow 
                   icon={<Hash />} 
@@ -283,10 +281,10 @@ function ReceiptContent() {
                     className="flex justify-between items-center pt-3 border-t border-white/5 group"
                   >
                     <div className="flex items-center gap-2">
-                      <ExternalLink size={14} className="text-blue-500" />
-                      <span className="text-[9px] font-black text-slate-500 uppercase">Blockchain</span>
+                      <ExternalLink size={14} className="text-cyan-500" />
+                      <span className="text-[9px] font-black text-slate-500 uppercase">Verifier sur Blockchain</span>
                     </div>
-                    <span className="text-[10px] font-bold text-blue-400 group-hover:underline">Vérifier sur l'explorateur</span>
+                    <span className="text-[10px] font-bold text-cyan-400 group-hover:underline">{explorerName}</span>
                   </a>
                 )}
               </div>

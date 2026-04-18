@@ -5,8 +5,9 @@ import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, Search, ArrowUpRight, ArrowDownLeft,
   Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, FileText,
-  User, ChevronDown, ChevronUp, Send, Download, CreditCard, RefreshCw, BatteryCharging
+  User, ChevronDown, ChevronUp, Send, Download, CreditCard, RefreshCw, BatteryCharging, ExternalLink
 } from "lucide-react";
+import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 import Link from "next/link";
 import { format, subDays, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -89,6 +90,8 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         note: tx.note || null,
         accountName:   tx.accountName   || null,
         accountNumber: tx.accountNumber || null,
+        // Blockchain
+        blockchainTxHash: tx.blockchainTx || tx.metadata?.blockchainTxHash || null,
       };
     });
   }, [initialTransactions, currentUserId]);
@@ -458,7 +461,23 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
             {tx.note && (
               <DetailRow label="Note"         value={tx.note} />
             )}
+            {tx.blockchainTxHash && (
+              <DetailRow label="Hash"         value={tx.blockchainTxHash.slice(0, 16) + "..."} mono accent="text-cyan-400" />
+            )}
           </div>
+
+          {/* BLOCKCHAIN EXPLORER LINK */}
+          {tx.blockchainTxHash && hasBlockchainExplorer(tx.currency) && (
+            <a
+              href={getBlockchainTxUrl(tx.currency, tx.blockchainTxHash) || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 rounded-2xl bg-cyan-600/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-widest hover:bg-cyan-600/20 transition-colors flex items-center justify-center gap-2"
+            >
+              <ExternalLink size={14} />
+              Verifier sur {getExplorerName(tx.currency)}
+            </a>
+          )}
 
           {/* BOUTON REÇU */}
           <button
