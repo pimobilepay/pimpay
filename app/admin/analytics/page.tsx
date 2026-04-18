@@ -9,7 +9,7 @@ import {
   Wallet, Headphones, Settings, Shield, Menu,
   Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target,
   Laptop, Tablet, Radio, XCircle, Timer, MousePointerClick,
-  Layers, ArrowRight, Wifi
+  Layers, ArrowRight, Wifi, ZoomIn, ZoomOut, Crosshair, RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -420,6 +420,12 @@ export default function AdminAnalyticsPage() {
   const [selectedMapUser, setSelectedMapUser] = useState<OnlineUserGeo | null>(null);
   const [showPageDetail, setShowPageDetail] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  
+  // Map zoom state
+  const [mapPosition, setMapPosition] = useState<{ coordinates: [number, number]; zoom: number }>({
+    coordinates: [15, 5],
+    zoom: 1
+  });
 
   const fetchAnalytics = async () => {
     try {
@@ -502,6 +508,45 @@ export default function AdminAnalyticsPage() {
     
     return () => clearInterval(interval);
   }, [autoRefresh, selectedUserId, fetchUserSession]);
+
+  // Map zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setMapPosition(prev => ({
+      ...prev,
+      zoom: Math.min(prev.zoom * 1.5, 10)
+    }));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setMapPosition(prev => ({
+      ...prev,
+      zoom: Math.max(prev.zoom / 1.5, 0.5)
+    }));
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setMapPosition({
+      coordinates: mapView === "africa" ? [15, 5] : [0, 20],
+      zoom: 1
+    });
+  }, [mapView]);
+
+  const handleZoomToUser = useCallback((user: OnlineUserGeo) => {
+    if (user.longitude && user.latitude) {
+      setMapPosition({
+        coordinates: [user.longitude, user.latitude],
+        zoom: 5
+      });
+    }
+  }, []);
+
+  // Update map center when view changes
+  useEffect(() => {
+    setMapPosition(prev => ({
+      coordinates: mapView === "africa" ? [15, 5] : [0, 20],
+      zoom: prev.zoom > 1 ? 1 : prev.zoom
+    }));
+  }, [mapView]);
 
   // Fetch session when user is selected
   useEffect(() => {
@@ -699,7 +744,52 @@ export default function AdminAnalyticsPage() {
             </div>
             
             {/* Map */}
-            <div className="h-64 bg-slate-950/50">
+            <div className="h-80 bg-slate-950/50 relative">
+              {/* Zoom Controls */}
+              <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
+                <button
+                  onClick={handleZoomIn}
+                  className="w-8 h-8 bg-slate-800/90 hover:bg-slate-700 border border-white/10 rounded-lg flex items-center justify-center text-white transition-all active:scale-95"
+                  title="Zoom avant"
+                >
+                  <ZoomIn size={14} />
+                </button>
+                <button
+                  onClick={handleZoomOut}
+                  className="w-8 h-8 bg-slate-800/90 hover:bg-slate-700 border border-white/10 rounded-lg flex items-center justify-center text-white transition-all active:scale-95"
+                  title="Zoom arriere"
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className="w-8 h-8 bg-slate-800/90 hover:bg-slate-700 border border-white/10 rounded-lg flex items-center justify-center text-white transition-all active:scale-95"
+                  title="Reinitialiser"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              
+              {/* Zoom level indicator */}
+              <div className="absolute bottom-3 left-3 z-10 px-2 py-1 bg-slate-800/90 rounded-lg border border-white/10">
+                <span className="text-[9px] font-bold text-slate-400">
+                  Zoom: {mapPosition.zoom.toFixed(1)}x
+                </span>
+              </div>
+
+              {/* Online users count on map */}
+              {onlineUsersGeo.filter(u => u.latitude && u.longitude).length > 0 && (
+                <div className="absolute top-3 left-3 z-10 px-2.5 py-1.5 bg-emerald-500/20 rounded-lg border border-emerald-500/30 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  <span className="text-[9px] font-bold text-emerald-400">
+                    {onlineUsersGeo.filter(u => u.latitude && u.longitude).length} en ligne
+                  </span>
+                </div>
+              )}
+
               <ComposableMap
                 projection="geoMercator"
                 projectionConfig={{
@@ -708,84 +798,104 @@ export default function AdminAnalyticsPage() {
                 }}
                 style={{ width: "100%", height: "100%" }}
               >
-                <Geographies geography={geoUrl}>
-                  {({ geographies }) =>
-                    geographies.map((geo) => (
-                      <Geography
-                        key={geo.rsmKey}
-                        geography={geo}
-                        fill="#1e293b"
-                        stroke="#334155"
-                        strokeWidth={0.5}
-                        style={{
-                          default: { outline: "none" },
-                          hover: { fill: "#334155", outline: "none" },
-                          pressed: { outline: "none" },
-                        }}
-                      />
-                    ))
-                  }
-                </Geographies>
-                {countryMarkers.map((marker) => (
-                  <Marker
-                    key={marker.country}
-                    coordinates={marker.coordinates}
-                    onClick={() => setSelectedCountry(marker)}
-                  >
-                    <circle
-                      r={Math.min(Math.max(marker.count / 5, 4), 15)}
-                      fill="#3b82f6"
-                      fillOpacity={0.7}
-                      stroke="#60a5fa"
-                      strokeWidth={1.5}
-                      className="cursor-pointer hover:fill-opacity-100 transition-all"
-                    />
-                    <circle
-                      r={Math.min(Math.max(marker.count / 5, 4), 15)}
-                      fill="transparent"
-                      className="animate-ping"
-                      style={{ animationDuration: "3s" }}
-                    />
-                  </Marker>
-                ))}
-                {/* Online user markers with device icons */}
-                {onlineUsersGeo.filter(u => u.latitude && u.longitude).map((user) => {
-                  const DeviceIcon = getDeviceIcon(user.device);
-                  return (
+                <ZoomableGroup
+                  center={mapPosition.coordinates}
+                  zoom={mapPosition.zoom}
+                  onMoveEnd={({ coordinates, zoom }) => setMapPosition({ coordinates: coordinates as [number, number], zoom })}
+                  minZoom={0.5}
+                  maxZoom={10}
+                >
+                  <Geographies geography={geoUrl}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill="#1e293b"
+                          stroke="#334155"
+                          strokeWidth={0.5}
+                          style={{
+                            default: { outline: "none" },
+                            hover: { fill: "#334155", outline: "none" },
+                            pressed: { outline: "none" },
+                          }}
+                        />
+                      ))
+                    }
+                  </Geographies>
+                  {countryMarkers.map((marker) => (
                     <Marker
-                      key={`online-${user.userId}`}
-                      coordinates={[user.longitude!, user.latitude!]}
-                      onClick={() => {
-                        setSelectedMapUser(user);
-                        setSelectedUserId(user.userId);
-                      }}
+                      key={marker.country}
+                      coordinates={marker.coordinates}
+                      onClick={() => setSelectedCountry(marker)}
                     >
-                      <g className="cursor-pointer">
-                        {/* Pulse animation */}
-                        <circle
-                          r={12}
-                          fill="#10b981"
-                          fillOpacity={0.2}
-                          className="animate-ping"
-                          style={{ animationDuration: "2s" }}
-                        />
-                        {/* Device icon background */}
-                        <circle
-                          r={10}
-                          fill={selectedMapUser?.userId === user.userId ? "#10b981" : "#1e293b"}
-                          stroke="#10b981"
-                          strokeWidth={2}
-                        />
-                        {/* Device icon using foreignObject */}
-                        <foreignObject x={-6} y={-6} width={12} height={12}>
-                          <div className="flex items-center justify-center w-full h-full">
-                            <DeviceIcon size={8} className="text-emerald-400" />
-                          </div>
-                        </foreignObject>
-                      </g>
+                      <circle
+                        r={Math.min(Math.max(marker.count / 5, 4), 15) / mapPosition.zoom}
+                        fill="#3b82f6"
+                        fillOpacity={0.7}
+                        stroke="#60a5fa"
+                        strokeWidth={1.5 / mapPosition.zoom}
+                        className="cursor-pointer hover:fill-opacity-100 transition-all"
+                      />
+                      <circle
+                        r={Math.min(Math.max(marker.count / 5, 4), 15) / mapPosition.zoom}
+                        fill="transparent"
+                        className="animate-ping"
+                        style={{ animationDuration: "3s" }}
+                      />
                     </Marker>
-                  );
-                })}
+                  ))}
+                  {/* Online user markers with device icons */}
+                  {onlineUsersGeo.filter(u => u.latitude && u.longitude).map((user) => {
+                    const DeviceIcon = getDeviceIcon(user.device);
+                    const isSelected = selectedMapUser?.userId === user.userId;
+                    const baseSize = isSelected ? 14 : 12;
+                    const scaledSize = baseSize / Math.max(mapPosition.zoom * 0.5, 0.8);
+                    
+                    return (
+                      <Marker
+                        key={`online-${user.userId}`}
+                        coordinates={[user.longitude!, user.latitude!]}
+                        onClick={() => {
+                          setSelectedMapUser(user);
+                          setSelectedUserId(user.userId);
+                        }}
+                      >
+                        <g className="cursor-pointer" style={{ transform: `scale(${1 / Math.max(mapPosition.zoom * 0.3, 0.5)})` }}>
+                          {/* Pulse animation */}
+                          <circle
+                            r={scaledSize + 4}
+                            fill="#10b981"
+                            fillOpacity={0.3}
+                            className="animate-ping"
+                            style={{ animationDuration: "2s" }}
+                          />
+                          {/* Device icon background */}
+                          <circle
+                            r={scaledSize}
+                            fill={isSelected ? "#10b981" : "#0f172a"}
+                            stroke={isSelected ? "#34d399" : "#10b981"}
+                            strokeWidth={isSelected ? 3 : 2}
+                          />
+                          {/* Device icon using foreignObject */}
+                          <foreignObject 
+                            x={-scaledSize * 0.6} 
+                            y={-scaledSize * 0.6} 
+                            width={scaledSize * 1.2} 
+                            height={scaledSize * 1.2}
+                          >
+                            <div className="flex items-center justify-center w-full h-full">
+                              <DeviceIcon 
+                                size={scaledSize * 0.7} 
+                                className={isSelected ? "text-white" : "text-emerald-400"} 
+                              />
+                            </div>
+                          </foreignObject>
+                        </g>
+                      </Marker>
+                    );
+                  })}
+                </ZoomableGroup>
               </ComposableMap>
             </div>
 
@@ -844,16 +954,29 @@ export default function AdminAnalyticsPage() {
                       <p className="text-[9px] text-slate-500">{selectedMapUser.userEmail}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedMapUser(null);
-                      setSelectedUserId(null);
-                      setUserSession(null);
-                    }}
-                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Zoom to user button */}
+                    {selectedMapUser.latitude && selectedMapUser.longitude && (
+                      <button
+                        onClick={() => handleZoomToUser(selectedMapUser)}
+                        className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 hover:text-emerald-300 transition-all flex items-center gap-1"
+                        title="Zoomer sur l'emplacement"
+                      >
+                        <Crosshair size={14} />
+                        <span className="text-[8px] font-bold uppercase">Localiser</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedMapUser(null);
+                        setSelectedUserId(null);
+                        setUserSession(null);
+                      }}
+                      className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Location & Device Info */}
@@ -1000,6 +1123,21 @@ export default function AdminAnalyticsPage() {
                       <Clock size={9} className="text-slate-500 ml-auto" />
                       <span className="text-[8px] text-slate-600">{formatTimeAgo(user.lastSeen)}</span>
                     </div>
+                    {/* Locate on map button */}
+                    {user.latitude && user.longitude && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedUserId(user.userId);
+                          setSelectedMapUser(user);
+                          handleZoomToUser(user);
+                        }}
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg text-emerald-400 transition-all"
+                      >
+                        <Crosshair size={10} />
+                        <span className="text-[8px] font-bold uppercase">Localiser sur la carte</span>
+                      </button>
+                    )}
                   </button>
                 );
               })}
