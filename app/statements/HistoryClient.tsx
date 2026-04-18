@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, Search, ArrowUpRight, ArrowDownLeft,
   Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, FileText,
-  User, ChevronDown, ChevronUp
+  User, ChevronDown, ChevronUp, Send, Download, CreditCard, RefreshCw, BatteryCharging
 } from "lucide-react";
 import Link from "next/link";
 import { format, subDays, endOfDay } from "date-fns";
@@ -36,9 +36,23 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       let type = "transfer";
       const purpose = (tx.purpose || "").toLowerCase();
       const description = (tx.description || "").toLowerCase();
-      if (purpose.includes("recharge") || description.includes("recharge")) type = "recharge";
-      else if (purpose.includes("retrait") || purpose.includes("withdraw")) type = "withdraw";
-      else if (purpose.includes("dépôt") || purpose.includes("depot") || purpose.includes("deposit")) type = "deposit";
+      const combined = `${purpose} ${description}`;
+      
+      if (combined.includes("recharge") || combined.includes("top-up") || combined.includes("topup")) {
+        type = "recharge";
+      } else if (combined.includes("retrait") || combined.includes("withdraw") || combined.includes("cashout")) {
+        type = "withdraw";
+      } else if (combined.includes("dépôt") || combined.includes("depot") || combined.includes("deposit")) {
+        type = "deposit";
+      } else if (combined.includes("paiement") || combined.includes("payment") || combined.includes("achat") || combined.includes("purchase")) {
+        type = "payment";
+      } else if (combined.includes("swap") || combined.includes("exchange") || combined.includes("conversion") || combined.includes("convert")) {
+        type = "swap";
+      } else if (combined.includes("incoming") || combined.includes("réception") || combined.includes("received")) {
+        type = "incoming";
+      } else if (combined.includes("outgoing") || combined.includes("envoi") || combined.includes("sent")) {
+        type = "outgoing";
+      }
 
       const currency = (tx.currency || "XAF").toUpperCase();
 
@@ -245,10 +259,14 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {[
               { id: "all",      label: "Tout" },
+              { id: "incoming", label: "Entrants" },
+              { id: "outgoing", label: "Sortants" },
+              { id: "payment",  label: "Paiements" },
+              { id: "transfer", label: "Transferts" },
+              { id: "swap",     label: "Swaps" },
+              { id: "recharge", label: "Recharges" },
               { id: "deposit",  label: "Dépôts" },
               { id: "withdraw", label: "Retraits" },
-              { id: "transfer", label: "Transferts" },
-              { id: "recharge", label: "Recharges" },
             ].map((s) => (
               <button
                 key={s.id}
@@ -324,10 +342,14 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   const icons: any = {
-    transfer: <ArrowRightLeft size={18} className="text-blue-400" />,
-    deposit:  <ArrowDownLeft  size={18} className="text-green-500" />,
-    withdraw: <Wallet         size={18} className="text-red-400" />,
-    recharge: <Smartphone     size={18} className="text-purple-400" />,
+    transfer: <Send           size={18} className="text-blue-400" />,
+    deposit:  <Download       size={18} className="text-green-500" />,
+    withdraw: <ArrowUpRight   size={18} className="text-red-400" />,
+    recharge: <BatteryCharging size={18} className="text-purple-400" />,
+    payment:  <CreditCard     size={18} className="text-amber-400" />,
+    swap:     <RefreshCw      size={18} className="text-cyan-400" />,
+    incoming: <ArrowDownLeft  size={18} className="text-emerald-400" />,
+    outgoing: <ArrowUpRight   size={18} className="text-rose-400" />,
   };
 
   const statusStyles: any = {
