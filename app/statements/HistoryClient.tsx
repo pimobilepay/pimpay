@@ -23,10 +23,92 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   const [endDate, setEndDate] = useState(new Date());
 
   // Résoudre le nom affiché d'un user
-  const resolveUserName = (user: any): string => {
-    if (!user) return "Inconnu";
+  const resolveUserName = (user: any): string | null => {
+    if (!user) return null;
     const full = `${user.firstName || ""} ${user.lastName || ""}`.trim();
-    return full || user.username || user.name || user.email || "Inconnu";
+    return full || user.username || user.name || user.email || null;
+  };
+
+  // Inférer l'expéditeur ou le destinataire depuis le contexte de la transaction
+  const inferPartyName = (tx: any, role: "from" | "to"): string => {
+    const purpose     = (tx.purpose     || "").toLowerCase();
+    const description = (tx.description || "").toLowerCase();
+    const reference   = (tx.reference   || "").toLowerCase();
+    const combined    = `${purpose} ${description} ${reference}`;
+    const currency    = (tx.currency    || "").toUpperCase();
+    const isIncome    = tx.toUserId === currentUserId;
+
+    // Réseau/blockchain selon la devise
+    const blockchainName: Record<string, string> = {
+      PI:   "Pi Network",
+      SDA:  "Sidra Chain",
+      BTC:  "Bitcoin Network",
+      ETH:  "Ethereum Network",
+      BNB:  "BNB Chain",
+      SOL:  "Solana Network",
+      TRX:  "TRON Network",
+      TON:  "TON Blockchain",
+      XRP:  "XRP Ledger",
+      XLM:  "Stellar Network",
+      ADA:  "Cardano Network",
+      DOGE: "Dogecoin Network",
+      USDT: combined.includes("tron") || combined.includes("trx") ? "TRON Network" : "USDT Network",
+      USDC: "USDC Network",
+      DAI:  "DAI Network",
+    };
+
+    // Depot blockchain externe → l'expéditeur est le réseau blockchain
+    const isBlockchainDeposit =
+      combined.includes("depot") || combined.includes("deposit") ||
+      combined.includes("dépôt") || combined.includes("réception") ||
+      (isIncome && !tx.fromUser);
+
+    const isBlockchainWithdraw =
+      combined.includes("retrait") || combined.includes("withdraw") ||
+      combined.includes("cashout") || (!isIncome && !tx.toUser);
+
+    // Recharge de carte / service mobile money
+    if (combined.includes("carte") || combined.includes("card") || combined.includes("visa") || combined.includes("mastercard")) {
+      return role === "from" ? "Recharge Carte" : "PimPay Card";
+    }
+    if (combined.includes("mobile money") || combined.includes("momo") || combined.includes("airtel") || combined.includes("mtn")) {
+      const op = combined.includes("airtel") ? "Airtel Money"
+               : combined.includes("mtn")    ? "MTN Mobile Money"
+               : "Mobile Money";
+      return role === "from" ? op : "PimPay Wallet";
+    }
+    if (combined.includes("wave")) {
+      return role === "from" ? "Wave" : "PimPay Wallet";
+    }
+    if (combined.includes("paypal")) {
+      return role === "from" ? "PayPal" : "PimPay Wallet";
+    }
+    // Swap / exchange interne
+    if (combined.includes("swap") || combined.includes("exchange") || combined.includes("conversion") || combined.includes("convert")) {
+      return role === "from" ? "PimPay Exchange" : "PimPay Wallet";
+    }
+    // Depot ou réception depuis blockchain
+    if (role === "from" && isBlockchainDeposit && !tx.fromUser) {
+      return blockchainName[currency] || `${currency} Network`;
+    }
+    // Retrait vers blockchain
+    if (role === "to" && isBlockchainWithdraw && !tx.toUser) {
+      return blockchainName[currency] || `${currency} Network`;
+    }
+    // Transfert PimPay interne
+    if (combined.includes("pimpay") || combined.includes("pim-pay") || combined.includes("transfer")) {
+      return role === "from" ? "PimPay" : "PimPay";
+    }
+    // Recharge téléphone
+    if (combined.includes("recharge") || combined.includes("top-up") || combined.includes("topup")) {
+      return role === "from" ? "PimPay Wallet" : "Opérateur Télécom";
+    }
+    // Paiement marchand
+    if (combined.includes("paiement") || combined.includes("payment") || combined.includes("achat") || combined.includes("purchase")) {
+      return role === "from" ? "PimPay Wallet" : "Marchand";
+    }
+
+    return role === "from" ? "PimPay" : "PimPay";
   };
 
   // Mapping des transactions
@@ -57,8 +139,8 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
       const currency = (tx.currency || "XAF").toUpperCase();
 
-      const fromName = resolveUserName(tx.fromUser);
-      const toName   = resolveUserName(tx.toUser);
+      const fromName = resolveUserName(tx.fromUser) ?? inferPartyName(tx, "from");
+      const toName   = resolveUserName(tx.toUser)   ?? inferPartyName(tx, "to");
 
       return {
         id: tx.id,
@@ -492,22 +574,70 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
   );
 }
 
+// Détecter si un nom est un service/réseau externe (pas un utilisateur PimPay)
+function isExternalService(name: string): boolean {
+  const services = [
+    "network", "chain", "blockchain", "ledger", "exchange",
+    "mobile money", "wave", "paypal", "carte", "card", "visa", "mastercard",
+    "airtel", "mtn", "opérateur", "marchand", "pimpay exchange", "pimpay card",
+    "bitcoin", "ethereum", "solana", "tron", "stellar",
+  ];
+  return services.some((s) => name.toLowerCase().includes(s));
+}
+
+function getServiceIcon(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("pi network"))       return "π";
+  if (n.includes("sidra"))            return "S";
+  if (n.includes("bitcoin"))          return "₿";
+  if (n.includes("ethereum"))         return "Ξ";
+  if (n.includes("bnb"))              return "B";
+  if (n.includes("solana"))           return "◎";
+  if (n.includes("tron"))             return "T";
+  if (n.includes("ton"))              return "◈";
+  if (n.includes("xrp"))             return "X";
+  if (n.includes("stellar"))          return "★";
+  if (n.includes("wave"))             return "~";
+  if (n.includes("paypal"))           return "P";
+  if (n.includes("airtel"))           return "A";
+  if (n.includes("mtn"))              return "M";
+  if (n.includes("mobile money"))     return "$";
+  if (n.includes("card") || n.includes("carte")) return "▣";
+  if (n.includes("exchange"))         return "⇄";
+  return null;
+}
+
 // --- PARTY CARD (expéditeur / destinataire) ---
 function PartyCard({ label, name, username, email, phone, isCurrentUser }: {
   label: string; name: string; username?: string | null;
   email?: string | null; phone?: string | null; isCurrentUser?: boolean;
 }) {
+  const external = isExternalService(name);
+  const serviceIcon = external ? getServiceIcon(name) : null;
+
   return (
-    <div className={`rounded-2xl p-3 border space-y-1 ${isCurrentUser ? "bg-blue-600/10 border-blue-500/20" : "bg-slate-950/60 border-white/5"}`}>
-      <span className={`text-[8px] font-black uppercase tracking-widest ${isCurrentUser ? "text-blue-400" : "text-slate-600"}`}>
+    <div className={`rounded-2xl p-3 border space-y-1 ${
+      isCurrentUser  ? "bg-blue-600/10 border-blue-500/20"
+      : external     ? "bg-slate-900/80 border-cyan-500/15"
+                     : "bg-slate-950/60 border-white/5"
+    }`}>
+      <span className={`text-[8px] font-black uppercase tracking-widest ${
+        isCurrentUser ? "text-blue-400" : external ? "text-cyan-600" : "text-slate-600"
+      }`}>
         {label}
       </span>
       <div className="flex items-center gap-2 mt-1">
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isCurrentUser ? "bg-blue-600/20" : "bg-slate-800"}`}>
-          <User size={12} className={isCurrentUser ? "text-blue-400" : "text-slate-500"} />
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${
+          isCurrentUser  ? "bg-blue-600/20 text-blue-400"
+          : external     ? "bg-cyan-600/15 text-cyan-300"
+                         : "bg-slate-800 text-slate-500"
+        }`}>
+          {serviceIcon || <User size={12} />}
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-bold text-white truncate leading-tight">{name}</p>
+          <p className={`text-xs font-bold truncate leading-tight ${external ? "text-cyan-200" : "text-white"}`}>
+            {name}
+          </p>
           {username && <p className="text-[9px] text-slate-500 truncate">@{username}</p>}
         </div>
       </div>
