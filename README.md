@@ -160,7 +160,7 @@ pimpay/
 ├── lib/                    # Utilitaires, geo-restriction et API blockchain
 │   └── blockchain/         # Integration Sidra Chain (ethers.js)
 ├── services/               # Logique de chiffrement, conformite et securite (AES-256)
-└── prisma/                 # Schema de la base de donnees
+└── prisma/                 # Schéma de la base de donnees
 ```
 
 ---
