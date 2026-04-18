@@ -5,7 +5,7 @@ import {
   Bell, Check, Trash2, ArrowLeft, RefreshCcw,
   CheckCheck, Info, ShieldCheck, ArrowDownLeft,
   ArrowUpRight, Store, LogIn, Clock, Loader2,
-  Smartphone, Globe, MapPin, Repeat
+  Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -60,6 +60,113 @@ interface Notification {
     walletAddress?: string;
     network?: string;
   };
+}
+
+// Map devise → nom du réseau blockchain source
+const BLOCKCHAIN_NAMES: Record<string, string> = {
+  PI:   "Pi Network",
+  SDA:  "Sidra Chain",
+  BTC:  "Bitcoin Network",
+  ETH:  "Ethereum Network",
+  BNB:  "BNB Chain",
+  SOL:  "Solana Network",
+  TRX:  "TRON Network",
+  TON:  "TON Blockchain",
+  XRP:  "XRP Ledger",
+  XLM:  "Stellar Network",
+  ADA:  "Cardano Network",
+  DOGE: "Dogecoin Network",
+  USDT: "USDT Network",
+  USDC: "USDC Network",
+  DAI:  "DAI Network",
+};
+
+// Inférer l'expéditeur et le destinataire depuis le contexte d'une notification
+function inferTxParties(notif: Notification): { sender: string; recipient: string } {
+  const meta     = notif.metadata;
+  const currency = (meta?.currency || "PI").toUpperCase();
+  const text     = `${notif.title} ${notif.message}`.toLowerCase();
+
+  // Si les metadata fournissent des noms explicites, on les privilégie
+  const explicitSender    = meta?.senderName    || meta?.senderUsername    || null;
+  const explicitRecipient = meta?.recipientName || meta?.recipientUsername || null;
+
+  // Adresse wallet externe → nom de réseau
+  const networkName = BLOCKCHAIN_NAMES[currency] || `${currency} Network`;
+
+  // Catégories de services détectés dans le texte
+  const isCard    = text.includes("carte") || text.includes("card") || text.includes("visa") || text.includes("mastercard");
+  const isAirtel  = text.includes("airtel");
+  const isMtn     = text.includes("mtn");
+  const isMoMo    = text.includes("mobile money") || text.includes("momo");
+  const isWave    = text.includes("wave");
+  const isPaypal  = text.includes("paypal");
+  const isSwap    = text.includes("swap") || text.includes("exchange") || text.includes("conversion");
+  const isDeposit = text.includes("depot") || text.includes("deposit") || text.includes("dépôt") || text.includes("recharge") || text.includes("réception");
+  const isWithdraw= text.includes("retrait") || text.includes("withdraw") || text.includes("cashout");
+  const isRecharge= text.includes("recharge") || text.includes("top-up");
+  const isPayment = text.includes("paiement") || text.includes("payment") || text.includes("achat");
+
+  const serviceName = isCard   ? "Recharge Carte"
+    : isAirtel  ? "Airtel Money"
+    : isMtn     ? "MTN Mobile Money"
+    : isMoMo    ? "Mobile Money"
+    : isWave    ? "Wave"
+    : isPaypal  ? "PayPal"
+    : isSwap    ? "PimPay Exchange"
+    : isRecharge? "Operateur Telecom"
+    : isPayment ? "Marchand"
+    : null;
+
+  if (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") {
+    // Argent recu : expediteur = source externe ou utilisateur
+    const sender    = explicitSender    || serviceName || (isDeposit ? networkName : "PimPay");
+    const recipient = explicitRecipient || "Vous";
+    return { sender, recipient };
+  }
+
+  if (notif.type === "PAYMENT_SENT") {
+    // Argent envoye : destinataire = cible externe ou utilisateur
+    const sender    = explicitSender    || "Vous";
+    const recipient = explicitRecipient || serviceName || (isWithdraw ? networkName : "Destinataire");
+    return { sender, recipient };
+  }
+
+  // Types generiques avec montant (MERCHANT, SYSTEM, etc.)
+  return {
+    sender:    explicitSender    || "PimPay",
+    recipient: explicitRecipient || "Vous",
+  };
+}
+
+// Icone et couleur selon qu'il s'agit d'un service externe ou d'un utilisateur
+function PartyPill({ label, name, isYou }: { label: string; name: string; isYou?: boolean }) {
+  const isExternal = ["network","chain","blockchain","money","wave","paypal","carte","card","marchand","exchange","operateur","airtel","mtn","pimpay"]
+    .some(k => name.toLowerCase().includes(k));
+
+  return (
+    <div className={`flex-1 rounded-2xl p-3 border ${
+      isYou     ? "bg-blue-600/10 border-blue-500/20"
+      : isExternal ? "bg-cyan-600/10 border-cyan-500/15"
+      : "bg-white/5 border-white/5"
+    }`}>
+      <p className={`text-[8px] font-black uppercase tracking-widest mb-2 ${
+        isYou ? "text-blue-400" : isExternal ? "text-cyan-600" : "text-slate-500"
+      }`}>{label}</p>
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+          isYou     ? "bg-blue-600/20"
+          : isExternal ? "bg-cyan-600/20"
+          : "bg-slate-800"
+        }`}>
+          {isExternal ? <Building2 size={12} className="text-cyan-400" /> : <User size={12} className={isYou ? "text-blue-400" : "text-slate-400"} />}
+        </div>
+        <p className={`text-[11px] font-bold truncate leading-tight ${
+          isYou ? "text-blue-200" : isExternal ? "text-cyan-200" : "text-white"
+        }`}>{name}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function NotificationsPage() {
@@ -238,86 +345,76 @@ export default function NotificationsPage() {
             </div>
 
             {/* Transaction Details for Payment */}
-            {metadata && (notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (
-              <div className="space-y-4">
-                {metadata.amount && (
-                  <div className={`rounded-2xl p-4 border ${
-                    notification.type === "PAYMENT_SENT" 
-                      ? "bg-blue-500/5 border-blue-500/20" 
-                      : "bg-emerald-500/5 border-emerald-500/20"
-                  }`}>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant</p>
-                    <p className={`text-2xl font-black ${
-                      notification.type === "PAYMENT_SENT" ? "text-blue-400" : "text-emerald-400"
-                    }`}>
-                      {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
-                    </p>
-                  </div>
-                )}
+            {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (() => {
+              const { sender, recipient } = inferTxParties(notification);
+              const isSent = notification.type === "PAYMENT_SENT";
+              return (
+                <div className="space-y-4">
+                  {/* Montant */}
+                  {metadata?.amount && (
+                    <div className={`rounded-2xl p-4 border ${isSent ? "bg-blue-500/5 border-blue-500/20" : "bg-emerald-500/5 border-emerald-500/20"}`}>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Montant</p>
+                      <p className={`text-2xl font-black ${isSent ? "text-blue-400" : "text-emerald-400"}`}>
+                        {isSent ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
+                      </p>
+                    </div>
+                  )}
 
-                {(metadata.senderName || metadata.senderUsername) && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Expediteur</p>
-                    <p className="text-sm font-bold text-white">{metadata.senderName || metadata.senderUsername}</p>
+                  {/* Expediteur & Destinataire cote a cote */}
+                  <div className="flex gap-3">
+                    <PartyPill label="Expediteur" name={sender} isYou={isSent} />
+                    <PartyPill label="Destinataire" name={recipient} isYou={!isSent} />
                   </div>
-                )}
 
-                {(metadata.recipientName || metadata.recipientUsername) && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Destinataire</p>
-                    <p className="text-sm font-bold text-white">{metadata.recipientName || metadata.recipientUsername}</p>
-                  </div>
-                )}
+                  {/* Réseau / Méthode */}
+                  {(metadata?.network || metadata?.method) && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex items-center gap-3">
+                      <Wifi size={16} className="text-slate-500 shrink-0" />
+                      <div>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{metadata?.network ? "Reseau" : "Methode"}</p>
+                        <p className="text-sm font-bold text-white">{metadata?.network || metadata?.method}</p>
+                      </div>
+                    </div>
+                  )}
 
-                {metadata.method && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Methode</p>
-                    <p className="text-sm font-bold text-white">{metadata.method}</p>
-                  </div>
-                )}
+                  {/* Adresse Wallet */}
+                  {metadata?.walletAddress && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Adresse Wallet</p>
+                      <p className="text-xs font-mono text-slate-300 break-all">{metadata.walletAddress}</p>
+                    </div>
+                  )}
 
-                {metadata.network && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Reseau</p>
-                    <p className="text-sm font-bold text-white">{metadata.network}</p>
+                  {/* Frais + Statut en ligne */}
+                  <div className="flex gap-3">
+                    {metadata?.fee && metadata.fee > 0 && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Frais</p>
+                        <p className="text-sm font-bold text-amber-400">{formatPiAmount(metadata.fee, metadata.currency)} {metadata.currency || "PI"}</p>
+                      </div>
+                    )}
+                    {metadata?.status && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Statut</p>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
+                          metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-red-500/20 text-red-400"
+                        }`}>{metadata.status}</span>
+                      </div>
+                    )}
                   </div>
-                )}
 
-                {metadata.walletAddress && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Adresse Wallet</p>
-                    <p className="text-xs font-mono text-slate-300 break-all">{metadata.walletAddress}</p>
-                  </div>
-                )}
-
-                {metadata.fee && metadata.fee > 0 && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Frais</p>
-                    <p className="text-sm font-bold text-amber-400">{formatPiAmount(metadata.fee, metadata.currency)} {metadata.currency || "PI"}</p>
-                  </div>
-                )}
-
-                {metadata.status && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Statut</p>
-                    <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                      metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
-                      metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
-                      "bg-red-500/20 text-red-400"
-                    }`}>
-                      {metadata.status}
-                    </span>
-                  </div>
-                )}
-
-                {(metadata.reference || metadata.transactionId) && (
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Reference</p>
-                    <p className="text-xs font-mono text-slate-300">{metadata.reference || metadata.transactionId}</p>
-                  </div>
-                )}
-              </div>
-            )}
+                  {/* Reference */}
+                  {(metadata?.reference || metadata?.transactionId) && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Reference</p>
+                      <p className="text-xs font-mono text-slate-300">{metadata?.reference || metadata?.transactionId}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Swap Details */}
             {metadata && notification.type === "SWAP" && (
@@ -569,83 +666,47 @@ export default function NotificationsPage() {
                         </div>
                       )}
 
-                      {/* Métadonnées de paiement recu (depot/reception) */}
-                      {notif.metadata && (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") && (notif.metadata.amount || notif.metadata.senderName) && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-emerald-500/10">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                                <ArrowDownLeft size={14} className="text-emerald-400" />
+                      {/* Métadonnées de paiement recu / envoye — toujours afficher expediteur + destinataire */}
+                      {(notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS" || notif.type === "PAYMENT_SENT") && (() => {
+                        const { sender, recipient } = inferTxParties(notif);
+                        const isSent = notif.type === "PAYMENT_SENT";
+                        return (
+                          <div className={`mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border ${isSent ? "border-blue-500/10" : "border-emerald-500/10"}`}>
+                            {/* Montant */}
+                            {notif.metadata?.amount && (
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSent ? "bg-blue-500/20" : "bg-emerald-500/20"}`}>
+                                  {isSent ? <ArrowUpRight size={14} className="text-blue-400" /> : <ArrowDownLeft size={14} className="text-emerald-400" />}
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-slate-500 uppercase tracking-wider">{isSent ? "Montant envoye" : "Montant recu"}</span>
+                                  <p className={`text-sm font-black ${isSent ? "text-blue-400" : "text-emerald-400"}`}>
+                                    {isSent ? "-" : "+"}{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant recu</span>
-                                <p className="text-sm font-black text-emerald-400">
-                                  +{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
-                                </p>
+                            )}
+                            {/* Expediteur → Destinataire */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[8px] text-slate-500 uppercase tracking-widest">De</p>
+                                <p className="text-[10px] font-bold text-white truncate">{sender}</p>
+                              </div>
+                              <ArrowUpRight size={12} className="text-slate-600 shrink-0" />
+                              <div className="flex-1 min-w-0 text-right">
+                                <p className="text-[8px] text-slate-500 uppercase tracking-widest">Vers</p>
+                                <p className="text-[10px] font-bold text-white truncate">{recipient}</p>
                               </div>
                             </div>
+                            {/* Ref */}
+                            {(notif.metadata?.reference || notif.metadata?.transactionId) && (
+                              <div className="text-[9px] text-slate-600 font-mono pt-1 border-t border-white/5">
+                                Ref: {notif.metadata?.reference || notif.metadata?.transactionId}
+                              </div>
+                            )}
                           </div>
-                          {(notif.metadata.senderName || notif.metadata.senderUsername) && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-2 border-t border-white/5">
-                              <span className="text-slate-500">De:</span>
-                              <span className="font-bold text-white">{notif.metadata.senderName || notif.metadata.senderUsername}</span>
-                            </div>
-                          )}
-                          {notif.metadata.method && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                              <Info size={10} />
-                              <span>Methode: {notif.metadata.method}</span>
-                            </div>
-                          )}
-                          {(notif.metadata.reference || notif.metadata.transactionId) && (
-                            <div className="text-[9px] text-slate-600 font-mono">
-                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Métadonnées de paiement envoye (transfert/retrait) */}
-                      {notif.metadata && notif.type === "PAYMENT_SENT" && (notif.metadata.amount || notif.metadata.recipientName) && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-blue-500/10">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                                <ArrowUpRight size={14} className="text-blue-400" />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant envoye</span>
-                                <p className="text-sm font-black text-blue-400">
-                                  -{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                          {(notif.metadata.recipientName || notif.metadata.recipientUsername) && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-2 border-t border-white/5">
-                              <span className="text-slate-500">Vers:</span>
-                              <span className="font-bold text-white">{notif.metadata.recipientName || notif.metadata.recipientUsername}</span>
-                            </div>
-                          )}
-                          {notif.metadata.walletAddress && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                              <Globe size={10} />
-                              <span className="font-mono truncate">{notif.metadata.walletAddress.slice(0, 12)}...{notif.metadata.walletAddress.slice(-8)}</span>
-                            </div>
-                          )}
-                          {notif.metadata.fee && notif.metadata.fee > 0 && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                              <Info size={10} />
-                              <span>Frais: {formatPiAmount(notif.metadata.fee, notif.metadata.currency)} {notif.metadata.currency || "PI"}</span>
-                            </div>
-                          )}
-                          {(notif.metadata.reference || notif.metadata.transactionId) && (
-                            <div className="text-[9px] text-slate-600 font-mono">
-                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Métadonnées KYC */}
                       {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (
