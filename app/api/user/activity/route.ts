@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const browser = extractBrowser(userAgent);
     const os = extractOS(userAgent);
 
-    await prisma.userActivity.create({
+    const activity = await prisma.userActivity.create({
       data: {
         userId: payload.id,
         page,
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, activityId: activity.id });
   } catch (error) {
     console.error("[USER_ACTIVITY_ERROR]:", error);
     return NextResponse.json(

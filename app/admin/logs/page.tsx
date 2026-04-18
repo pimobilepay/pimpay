@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import {
   ArrowLeft, RefreshCw, Loader2, Search, Eye, Monitor, Smartphone,
   Globe, Clock, Users, ChevronLeft, ChevronRight, Filter, X, Wifi,
-  Server, AlertTriangle, AlertCircle, Info, Bug, Trash2, Activity
+  Server, AlertTriangle, AlertCircle, Info, Bug, Trash2, Activity,
+  MousePointerClick, Timer, ArrowRight, MapPin, Layers, 
+  Radio, XCircle, ChevronDown, ChevronUp, LayoutGrid
 } from "lucide-react";
 
 // ===== TYPES =====
@@ -73,6 +75,48 @@ type SystemLogsData = {
   totalPages: number;
   stats: Record<string, number>;
   sources: string[];
+};
+
+type UserSessionData = {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    username: string | null;
+    avatar: string | null;
+    role: string;
+    status: string;
+    lastLogin: string | null;
+    createdAt: string;
+  };
+  isOnline: boolean;
+  currentPage: string | null;
+  currentDevice: string | null;
+  currentBrowser: string | null;
+  currentOS: string | null;
+  currentIP: string | null;
+  sessionStartTime: string | null;
+  totalDuration: number;
+  totalPageViews: number;
+  totalClicks: number;
+  pageVisits: { page: string; count: number }[];
+  pageJourney: {
+    page: string;
+    timestamp: string;
+    duration: number;
+    nextPage: string | null;
+  }[];
+  recentActivities: {
+    id: string;
+    page: string;
+    action: string;
+    duration: number | null;
+    device: string | null;
+    browser: string | null;
+    os: string | null;
+    ip: string | null;
+    createdAt: string;
+  }[];
 };
 
 // ===== HELPERS =====
@@ -179,6 +223,13 @@ export default function AdminLogsPage() {
   const [levelFilter, setLevelFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  
+  // User session panel state
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userSession, setUserSession] = useState<UserSessionData | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [showPageDetail, setShowPageDetail] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Fetch user logs
   const fetchUserLogs = useCallback(async () => {
@@ -232,6 +283,40 @@ export default function AdminLogsPage() {
       fetchSystemLogs();
     }
   }, [activeTab, fetchUserLogs, fetchSystemLogs]);
+
+  // Fetch user session details
+  const fetchUserSession = useCallback(async (userId: string) => {
+    try {
+      setSessionLoading(true);
+      const res = await fetch(`/api/admin/user-session/${userId}`);
+      if (!res.ok) throw new Error("Erreur API");
+      const json = await res.json();
+      setUserSession(json);
+    } catch {
+      toast.error("Impossible de charger la session utilisateur");
+      setUserSession(null);
+    } finally {
+      setSessionLoading(false);
+    }
+  }, []);
+
+  // Auto-refresh user session every 5 seconds when enabled
+  useEffect(() => {
+    if (!autoRefresh || !selectedUserId) return;
+    
+    const interval = setInterval(() => {
+      fetchUserSession(selectedUserId);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [autoRefresh, selectedUserId, fetchUserSession]);
+
+  // Fetch session when user is selected
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchUserSession(selectedUserId);
+    }
+  }, [selectedUserId, fetchUserSession]);
 
   const handleUserSearch = () => {
     setUserPage(1);
@@ -350,13 +435,21 @@ export default function AdminLogsPage() {
                 </SectionTitle>
                 <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                   {userData.onlineUsers.map((user) => (
-                    <div
+                    <button
                       key={user.userId}
-                      className="flex-shrink-0 bg-slate-900/60 border border-emerald-500/10 rounded-2xl p-4 min-w-[160px]"
+                      onClick={() => setSelectedUserId(user.userId)}
+                      className={`flex-shrink-0 bg-slate-900/60 border rounded-2xl p-4 min-w-[160px] text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                        selectedUserId === user.userId 
+                          ? "border-emerald-500/50 ring-2 ring-emerald-500/20" 
+                          : "border-emerald-500/10 hover:border-emerald-500/30"
+                      }`}
                     >
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[10px]">
-                          {user.userName.charAt(0).toUpperCase()}
+                        <div className="relative">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[10px]">
+                            {user.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-black text-white truncate">{user.userName}</p>
@@ -379,9 +472,259 @@ export default function AdminLogsPage() {
                         <Clock size={9} className="text-slate-500 ml-auto" />
                         <span className="text-[8px] text-slate-600">{formatTimeAgo(user.lastSeen)}</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* USER SESSION PANEL */}
+            {selectedUserId && (
+              <div className="bg-slate-900/80 border border-emerald-500/20 rounded-2xl overflow-hidden">
+                {/* Session Panel Header */}
+                <div className="flex items-center justify-between p-4 border-b border-white/5 bg-emerald-500/5">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Radio size={16} className={`${userSession?.isOnline ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-white uppercase tracking-wider">
+                        Session en Temps Reel
+                      </p>
+                      <p className="text-[8px] text-slate-500">
+                        {userSession?.user.name || userSession?.user.email || "Chargement..."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAutoRefresh(!autoRefresh)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all ${
+                        autoRefresh 
+                          ? "bg-emerald-600 text-white" 
+                          : "bg-white/5 text-slate-400 hover:bg-white/10"
+                      }`}
+                    >
+                      <RefreshCw size={10} className={autoRefresh ? "animate-spin" : ""} />
+                      Auto
+                    </button>
+                    <button
+                      onClick={() => fetchUserSession(selectedUserId)}
+                      disabled={sessionLoading}
+                      className="p-2 bg-white/5 rounded-lg text-white hover:bg-white/10 transition-all"
+                    >
+                      <RefreshCw size={12} className={sessionLoading ? "animate-spin" : ""} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedUserId(null);
+                        setUserSession(null);
+                        setAutoRefresh(false);
+                      }}
+                      className="p-2 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      <XCircle size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {sessionLoading && !userSession ? (
+                  <div className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-3" />
+                    <p className="text-[9px] text-slate-500 uppercase tracking-widest">Chargement de la session...</p>
+                  </div>
+                ) : userSession ? (
+                  <div className="p-4 space-y-4">
+                    {/* Current Status */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <LayoutGrid size={12} className="text-emerald-400" />
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Page Actuelle</span>
+                        </div>
+                        <p className={`text-[11px] font-black ${getPageColor(userSession.currentPage || "").replace("bg-", "text-").replace("/10", "")}`}>
+                          {userSession.currentPage ? getPageLabel(userSession.currentPage) : "Hors ligne"}
+                        </p>
+                        {userSession.currentPage && (
+                          <p className="text-[8px] text-slate-600 mt-0.5 truncate">{userSession.currentPage}</p>
+                        )}
+                      </div>
+                      <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Timer size={12} className="text-blue-400" />
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Duree Session</span>
+                        </div>
+                        <p className="text-[11px] font-black text-white">
+                          {Math.floor(userSession.totalDuration / 60)}min {userSession.totalDuration % 60}s
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                        <p className="text-[14px] font-black text-blue-400">{userSession.totalPageViews}</p>
+                        <p className="text-[7px] font-bold text-slate-600 uppercase">Pages</p>
+                      </div>
+                      <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                        <p className="text-[14px] font-black text-amber-400">{userSession.totalClicks}</p>
+                        <p className="text-[7px] font-bold text-slate-600 uppercase">Clics</p>
+                      </div>
+                      <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                        <p className="text-[14px] font-black text-emerald-400">
+                          {userSession.currentDevice === "Mobile" ? (
+                            <Smartphone size={14} className="mx-auto" />
+                          ) : (
+                            <Monitor size={14} className="mx-auto" />
+                          )}
+                        </p>
+                        <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentDevice || "N/A"}</p>
+                      </div>
+                      <div className="bg-black/30 rounded-xl p-2.5 text-center border border-white/5">
+                        <p className="text-[14px] font-black text-cyan-400">
+                          <Globe size={14} className="mx-auto" />
+                        </p>
+                        <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentBrowser || "N/A"}</p>
+                      </div>
+                    </div>
+
+                    {/* Page Journey Schema */}
+                    {userSession.pageJourney.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                            <Layers size={12} />
+                            Parcours de Navigation
+                          </p>
+                          <span className="text-[8px] text-slate-600">{userSession.pageJourney.length} pages</span>
+                        </div>
+                        <div className="bg-black/30 rounded-xl p-3 border border-white/5 overflow-x-auto">
+                          <div className="flex items-center gap-1 min-w-max">
+                            {userSession.pageJourney.slice(-10).map((step, i, arr) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setShowPageDetail(showPageDetail === step.page ? null : step.page)}
+                                  className={`flex flex-col items-center p-2 rounded-lg transition-all hover:scale-105 ${
+                                    showPageDetail === step.page 
+                                      ? "bg-blue-600/20 border border-blue-500/30" 
+                                      : "bg-white/5 hover:bg-white/10"
+                                  } ${i === arr.length - 1 ? "ring-2 ring-emerald-500/30" : ""}`}
+                                >
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded ${getPageColor(step.page)}`}>
+                                    {getPageLabel(step.page)}
+                                  </span>
+                                  {step.duration > 0 && (
+                                    <span className="text-[7px] text-slate-500 mt-1">{step.duration}s</span>
+                                  )}
+                                </button>
+                                {i < arr.length - 1 && (
+                                  <ArrowRight size={10} className="text-slate-600 flex-shrink-0" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Page Detail Panel */}
+                    {showPageDetail && (
+                      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider">
+                            Details: {getPageLabel(showPageDetail)}
+                          </p>
+                          <button
+                            onClick={() => setShowPageDetail(null)}
+                            className="p-1 text-slate-500 hover:text-white transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {userSession.recentActivities
+                            .filter(a => a.page === showPageDetail)
+                            .slice(0, 10)
+                            .map((activity) => (
+                              <div 
+                                key={activity.id}
+                                className="flex items-center justify-between p-2 bg-black/20 rounded-lg"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {activity.action === "CLICK" ? (
+                                    <MousePointerClick size={10} className="text-amber-400" />
+                                  ) : (
+                                    <Eye size={10} className="text-blue-400" />
+                                  )}
+                                  <span className="text-[9px] font-bold text-white">{activity.action}</span>
+                                  {activity.duration && (
+                                    <span className="text-[8px] text-slate-500">({activity.duration}s)</span>
+                                  )}
+                                </div>
+                                <span className="text-[8px] text-slate-600">
+                                  {formatTimeAgo(activity.createdAt)}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Top Pages Visited */}
+                    {userSession.pageVisits.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                          Pages les plus visitees
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {userSession.pageVisits.slice(0, 6).map((pv) => (
+                            <button
+                              key={pv.page}
+                              onClick={() => setShowPageDetail(showPageDetail === pv.page ? null : pv.page)}
+                              className="bg-black/30 rounded-lg p-2 text-center border border-white/5 hover:border-blue-500/30 transition-all"
+                            >
+                              <p className="text-[8px] font-bold text-white truncate">{getPageLabel(pv.page)}</p>
+                              <p className="text-[10px] font-black text-blue-400">{pv.count}x</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recent Activities */}
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                        Activites Recentes
+                      </p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {userSession.recentActivities.slice(0, 15).map((activity) => (
+                          <div 
+                            key={activity.id}
+                            className="flex items-center justify-between p-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              {activity.action === "CLICK" ? (
+                                <MousePointerClick size={10} className="text-amber-400" />
+                              ) : (
+                                <Eye size={10} className="text-blue-400" />
+                              )}
+                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${getPageColor(activity.page)}`}>
+                                {getPageLabel(activity.page)}
+                              </span>
+                              <span className="text-[9px] text-slate-400">{activity.action}</span>
+                            </div>
+                            <span className="text-[8px] text-slate-600">{formatTimeAgo(activity.createdAt)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <AlertCircle className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                    <p className="text-[10px] text-slate-500">Aucune donnee de session disponible</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -493,9 +836,14 @@ export default function AdminLogsPage() {
               {userData && userData.activities.length > 0 ? (
                 <div className="space-y-2">
                   {userData.activities.map((activity) => (
-                    <div
+                    <button
                       key={activity.id}
-                      className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4 hover:bg-white/[0.03] transition-all group"
+                      onClick={() => setSelectedUserId(activity.userId)}
+                      className={`w-full text-left bg-slate-900/60 border rounded-2xl p-4 hover:bg-white/[0.03] transition-all group ${
+                        selectedUserId === activity.userId 
+                          ? "border-blue-500/30 ring-1 ring-blue-500/20" 
+                          : "border-white/[0.06]"
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-white font-black text-[10px] border border-white/5 flex-shrink-0">
@@ -542,7 +890,7 @@ export default function AdminLogsPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
