@@ -35,7 +35,7 @@ PimPay évolue pour devenir une plateforme bancaire hybride et conforme :
 | **Sécurité/Hash** | Bcryptjs | v3.0.3 |
 | **JWT/Signature** | Jose | v6.1.3 |
 | **Blockchain Lib** | Pi Network SDK | v2.0 |
-| **Base de données** | PostgreSQL / Prisma | - |
+| **Base de données** | PostgreSQL / Prisma | v6 |
 | **Chiffrement** | Web Crypto API | AES-256 |
 
 ---
