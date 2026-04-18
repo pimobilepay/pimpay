@@ -3,53 +3,78 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import {
-  ArrowLeft, Search, Download, ArrowUpRight, ArrowDownLeft,
-  Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, Bitcoin, DollarSign, Coins, FileText, X } from "lucide-react";
+  ArrowLeft, Search, ArrowUpRight, ArrowDownLeft,
+  Calendar, CircleDot, Wallet, ArrowRightLeft, Smartphone, Zap, FileText,
+  User, ChevronDown, ChevronUp
+} from "lucide-react";
 import Link from "next/link";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
-
+import { toast } from "sonner";
 
 export default function HistoryClient({ initialTransactions, stats, currentUserId }: any) {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
   const [referenceSearch, setReferenceSearch] = useState("");
   const [activeService, setActiveService] = useState("all");
   const [startDate, setStartDate] = useState<Date | null>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState(new Date());
 
-  // Mapping des transactions avec détection automatique du type
+  // Résoudre le nom affiché d'un user
+  const resolveUserName = (user: any): string => {
+    if (!user) return "Inconnu";
+    const full = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+    return full || user.username || user.name || user.email || "Inconnu";
+  };
+
+  // Mapping des transactions
   const formattedTransactions = useMemo(() => {
     return initialTransactions.map((tx: any) => {
       const isIncome = tx.toUserId === currentUserId;
-      
-      // Détection du type pour le filtrage et les icônes
-      let type = 'transfer';
+
+      let type = "transfer";
       const purpose = (tx.purpose || "").toLowerCase();
       const description = (tx.description || "").toLowerCase();
+      if (purpose.includes("recharge") || description.includes("recharge")) type = "recharge";
+      else if (purpose.includes("retrait") || purpose.includes("withdraw")) type = "withdraw";
+      else if (purpose.includes("dépôt") || purpose.includes("depot") || purpose.includes("deposit")) type = "deposit";
 
-      if (purpose.includes('recharge') || description.includes('recharge')) type = 'recharge';
-      else if (purpose.includes('retrait') || purpose.includes('withdraw')) type = 'withdraw';
-      else if (purpose.includes('dépôt') || purpose.includes('deposit')) type = 'deposit';
-
-      // Détection de la devise
       const currency = (tx.currency || "XAF").toUpperCase();
+
+      const fromName = resolveUserName(tx.fromUser);
+      const toName   = resolveUserName(tx.toUser);
 
       return {
         id: tx.id,
         reference: tx.reference || null,
         title: tx.description || tx.purpose || (isIncome ? "Réception" : "Envoi"),
-        type: type,
+        type,
         amount: tx.amount,
-        currency: currency,
-        piAmount: tx.amount.toFixed(6),
-        date: format(new Date(tx.createdAt), "d MMM, HH:mm", { locale: fr }),
-        status: tx.status.toLowerCase() === 'completed' || tx.status.toLowerCase() === 'success' ? 'success' :
-                tx.status.toLowerCase() === 'failed' ? 'failed' : 'pending',
-        isIncome
+        fee: tx.fee || 0,
+        netAmount: tx.netAmount ?? null,
+        currency,
+        date: format(new Date(tx.createdAt), "d MMM yyyy, HH:mm", { locale: fr }),
+        status:
+          tx.status?.toLowerCase() === "completed" || tx.status?.toLowerCase() === "success"
+            ? "success"
+            : tx.status?.toLowerCase() === "failed"
+            ? "failed"
+            : "pending",
+        isIncome,
+        // Expéditeur / Destinataire
+        fromName,
+        fromUsername: tx.fromUser?.username || null,
+        fromEmail:    tx.fromUser?.email    || null,
+        fromPhone:    tx.fromUser?.phone    || null,
+        toName,
+        toUsername:   tx.toUser?.username   || null,
+        toEmail:      tx.toUser?.email      || null,
+        toPhone:      tx.toUser?.phone      || null,
+        // Extra
+        note: tx.note || null,
+        accountName:   tx.accountName   || null,
+        accountNumber: tx.accountNumber || null,
       };
     });
   }, [initialTransactions, currentUserId]);
@@ -57,16 +82,21 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   const filteredTransactions = useMemo(() => {
     return formattedTransactions.filter((tx: any) => {
       const matchesService = activeService === "all" || tx.type === activeService;
-      const matchesSearch = tx.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesReference = !referenceSearch || (tx.reference && tx.reference.toLowerCase().includes(referenceSearch.toLowerCase()));
-      
-      // Filtrage par date
-      const txDate = new Date(initialTransactions.find((t: any) => t.id === tx.id)?.createdAt);
-      const matchesDate = (!startDate || txDate >= startDate) && (!endDate || txDate <= endOfDay(endDate));
-      
-      return matchesService && matchesSearch && matchesReference && matchesDate;
+      const matchesReference =
+        !referenceSearch ||
+        (tx.reference &&
+          tx.reference.toLowerCase().includes(referenceSearch.toLowerCase()));
+
+      const txDate = new Date(
+        initialTransactions.find((t: any) => t.id === tx.id)?.createdAt
+      );
+      const matchesDate =
+        (!startDate || txDate >= startDate) &&
+        (!endDate   || txDate <= endOfDay(endDate));
+
+      return matchesService && matchesReference && matchesDate;
     });
-  }, [activeService, searchQuery, referenceSearch, startDate, endDate, formattedTransactions, initialTransactions]);
+  }, [activeService, referenceSearch, startDate, endDate, formattedTransactions, initialTransactions]);
 
   const handleExportPDF = () => {
     if (filteredTransactions.length === 0) {
@@ -74,58 +104,47 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       return;
     }
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape" });
     const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // En-tête
+
     doc.setFontSize(16);
-    doc.text("Rapport d'historique des transactions", pageWidth / 2, 15, { align: "center" });
-    
-    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Rapport d'historique des transactions - PimPay", pageWidth / 2, 14, { align: "center" });
+
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    const dateRange = `Du ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} au ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
-    doc.text(dateRange, pageWidth / 2, 22, { align: "center" });
-    
-    // Tableau
+    const dateRange = `Période : ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} → ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
+    doc.text(dateRange, pageWidth / 2, 20, { align: "center" });
+
     const tableData = filteredTransactions.map((tx: any) => [
       tx.reference || "N/A",
-      tx.title,
-      tx.type === 'deposit' ? 'Dépôt' : tx.type === 'withdraw' ? 'Retrait' : tx.type === 'transfer' ? 'Transfert' : 'Recharge',
+      tx.type === "deposit" ? "Dépôt" : tx.type === "withdraw" ? "Retrait" : tx.type === "transfer" ? "Transfert" : "Recharge",
+      tx.fromName,
+      tx.toName,
       tx.date,
-      `${tx.isIncome ? '+' : '-'} ${tx.amount.toFixed(2)} ${tx.currency}`,
-      tx.status === 'success' ? 'Complété' : tx.status === 'pending' ? 'En attente' : 'Échoué'
+      `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)} ${tx.currency}`,
+      tx.fee > 0 ? `${tx.fee.toFixed(4)} ${tx.currency}` : "—",
+      tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué",
     ]);
 
     autoTable(doc, {
-      head: [["Référence", "Description", "Type", "Date", "Montant", "Statut"]],
+      head: [["Référence", "Type", "Expéditeur", "Destinataire", "Date", "Montant", "Frais", "Statut"]],
       body: tableData,
-      startY: 30,
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
-      bodyStyles: { textColor: 50 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+      startY: 26,
+      theme: "grid",
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: "bold", fontSize: 8 },
+      bodyStyles: { textColor: 50, fontSize: 8 },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
       margin: 10,
-      columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 30 },
-        5: { cellWidth: 25 },
-      }
     });
 
-    // Pied de page
-    const finalY = (doc as any).lastAutoTable.finalY || 30;
-    doc.setFontSize(9);
+    const finalY = (doc as any).lastAutoTable.finalY || 26;
+    doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text(`Total: ${filteredTransactions.length} transaction(s)`, 10, finalY + 10);
-    doc.text(`Généré le: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 10, finalY + 16);
+    doc.text(`${filteredTransactions.length} transaction(s) — Généré le ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 10, finalY + 10);
 
-    // Télécharger
-    doc.save(`historique_transactions_${format(new Date(), "ddMMyyyy_HHmm")}.pdf`);
-    toast.success("Rapport exporté avec succès!");
+    doc.save(`pimpay_statements_${format(new Date(), "ddMMyyyy_HHmm")}.pdf`);
+    toast.success("Rapport PDF exporté !");
   };
 
   return (
@@ -141,48 +160,42 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
               </div>
             </Link>
             <div>
-              <h1 className="text-1xl font-black tracking-tighter text-white uppercase">Statements</h1>
+              <h1 className="text-xl font-black tracking-tighter text-white uppercase">Statements</h1>
               <div className="flex items-center gap-2 mt-1">
                 <CircleDot size={10} className="text-blue-500 animate-pulse" />
                 <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">REAL-TIME LEDGER</span>
               </div>
             </div>
           </div>
-          <button onClick={handleExportPDF} className="p-3 rounded-2xl bg-emerald-600/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-600/20 transition-all" title="Exporter en PDF">
+          <button
+            onClick={handleExportPDF}
+            className="p-3 rounded-2xl bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/20 transition-all"
+            title="Exporter en PDF"
+          >
             <FileText size={20} />
           </button>
         </div>
 
-        {/* STATS SANS FOND BLANC */}
+        {/* STATS */}
         <div className="grid grid-cols-2 gap-4">
           <StatMiniCard
             label="Entrées"
-            value={`$${stats.income.toLocaleString()}`}
+            value={`+${stats.income.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowDownLeft size={16} />}
             color="text-green-400"
             bg="from-green-600/20"
           />
           <StatMiniCard
             label="Sorties"
-            value={`$${stats.outcome.toLocaleString()}`}
+            value={`-${stats.outcome.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowUpRight size={16} />}
-            color="text-purple-400"
-            bg="from-purple-600/20"
+            color="text-red-400"
+            bg="from-red-600/20"
           />
         </div>
       </div>
 
-      <div className="px-6 space-y-6">
-        {/* RECHERCHE PAR TITRE */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none focus:border-blue-500/30 text-white placeholder:text-slate-600"
-            placeholder="Rechercher par description..."
-          />
-        </div>
+      <div className="px-6 space-y-5">
 
         {/* RECHERCHE PAR RÉFÉRENCE */}
         <div className="relative">
@@ -190,85 +203,98 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           <input
             value={referenceSearch}
             onChange={(e) => setReferenceSearch(e.target.value)}
-            className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 text-xs font-bold outline-none focus:border-emerald-500/30 text-white placeholder:text-slate-600"
-            placeholder="Rechercher par référence transaction..."
+            className="w-full h-13 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-xs font-bold outline-none focus:border-emerald-500/40 text-white placeholder:text-slate-600 transition-colors"
+            placeholder="Rechercher par référence..."
           />
         </div>
 
         {/* FILTRES PAR DATE */}
         <div className="space-y-3">
-          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Période (30 jours max)</h4>
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Période</h4>
           <div className="grid grid-cols-2 gap-3">
             <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={13} />
               <input
                 type="date"
                 value={startDate ? format(startDate, "yyyy-MM-dd") : ""}
                 onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : null)}
-                className="w-full h-12 bg-slate-900/50 border border-white/5 rounded-xl pl-10 pr-4 text-xs font-bold outline-none focus:border-blue-500/30 text-white [color-scheme:dark]"
+                className="w-full h-12 bg-slate-900/50 border border-white/5 rounded-xl pl-9 pr-3 text-xs font-bold outline-none focus:border-blue-500/30 text-white [color-scheme:dark]"
               />
             </div>
             <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={13} />
               <input
                 type="date"
                 value={endDate ? format(endDate, "yyyy-MM-dd") : ""}
                 onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : new Date())}
-                className="w-full h-12 bg-slate-900/50 border border-white/5 rounded-xl pl-10 pr-4 text-xs font-bold outline-none focus:border-blue-500/30 text-white [color-scheme:dark]"
+                className="w-full h-12 bg-slate-900/50 border border-white/5 rounded-xl pl-9 pr-3 text-xs font-bold outline-none focus:border-blue-500/30 text-white [color-scheme:dark]"
               />
             </div>
           </div>
           <button
-            onClick={() => {
-              setStartDate(subDays(new Date(), 30));
-              setEndDate(new Date());
-            }}
+            onClick={() => { setStartDate(subDays(new Date(), 30)); setEndDate(new Date()); }}
             className="w-full text-[10px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest py-2 rounded-lg bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/20"
           >
-            Réinitialiser (30 derniers jours)
+            30 derniers jours
           </button>
         </div>
 
         {/* FILTRES PAR TYPE */}
         <div className="space-y-2">
-          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Filtrer par type</h4>
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-            {["all", "deposit", "withdraw", "transfer", "recharge"].map((s) => (
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Type</h4>
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {[
+              { id: "all",      label: "Tout" },
+              { id: "deposit",  label: "Dépôts" },
+              { id: "withdraw", label: "Retraits" },
+              { id: "transfer", label: "Transferts" },
+              { id: "recharge", label: "Recharges" },
+            ].map((s) => (
               <button
-                key={s}
-                onClick={() => setActiveService(s)}
-                className={`px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 ${
-                  activeService === s
+                key={s.id}
+                onClick={() => setActiveService(s.id)}
+                className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 ${
+                  activeService === s.id
                     ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20"
                     : "bg-slate-900/50 border-white/5 text-slate-500 hover:border-white/10"
                 }`}
               >
-                {s === 'all' ? 'Tout' : s === 'deposit' ? 'Depots' : s === 'withdraw' ? 'Retraits' : s === 'transfer' ? 'Transferts' : 'Recharges'}
+                {s.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* LISTE DES TRANSACTIONS */}
-        <div className="space-y-6">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] flex items-center gap-2 px-2">
-            <Calendar size={12} className="text-blue-500" /> {format(new Date(), "MMMM yyyy", { locale: fr }).toUpperCase()}
-          </h3>
-
-          <div className="space-y-4">
-            {filteredTransactions.length > 0 ? (
-              filteredTransactions.map((tx: any) => (
-                <TransactionItem key={tx.id} tx={tx} onPress={() => {
-                  const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
-                  router.push(`/deposit/receipt?${query}`);
-                }} />
-              ))
-            ) : (
-              <div className="text-center py-10 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
-                Aucune transaction trouvée
-              </div>
-            )}
+        {/* LISTE */}
+        <div className="space-y-3 pb-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] flex items-center gap-2">
+              <Calendar size={12} className="text-blue-500" />
+              {format(endDate, "MMMM yyyy", { locale: fr }).toUpperCase()}
+            </h3>
+            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+              {filteredTransactions.length} transaction{filteredTransactions.length > 1 ? "s" : ""}
+            </span>
           </div>
+
+          {filteredTransactions.length > 0 ? (
+            filteredTransactions.map((tx: any) => (
+              <TransactionItem
+                key={tx.id}
+                tx={tx}
+                onPress={() => {
+                  const q = tx.reference
+                    ? `ref=${encodeURIComponent(tx.reference)}`
+                    : `id=${encodeURIComponent(tx.id)}`;
+                  router.push(`/deposit/receipt?${q}`);
+                }}
+              />
+            ))
+          ) : (
+            <div className="text-center py-14 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
+              Aucune transaction trouvée
+            </div>
+          )}
         </div>
       </div>
 
@@ -277,78 +303,189 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   );
 }
 
-// --- SOUS-COMPOSANTS OPTIMISÉS ---
-
+// --- STAT CARD ---
 function StatMiniCard({ label, value, icon, color, bg }: any) {
   return (
-    <div className={`relative overflow-hidden bg-slate-900/40 border border-white/5 p-5 rounded-[2rem] h-28 flex flex-col justify-center`}>
+    <div className="relative overflow-hidden bg-slate-900/40 border border-white/5 p-5 rounded-[2rem] h-28 flex flex-col justify-center">
       <div className={`absolute inset-0 bg-gradient-to-br ${bg} to-transparent opacity-30`} />
       <div className="relative z-10">
         <div className={`flex items-center gap-2 ${color} mb-1`}>
           {icon}
           <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
         </div>
-        <p className="text-xl font-black text-white tracking-tighter truncate leading-none">
-          {value}
-        </p>
+        <p className="text-lg font-black text-white tracking-tighter truncate leading-none">{value}</p>
       </div>
     </div>
   );
 }
 
+// --- TRANSACTION CARD ---
 function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
   const icons: any = {
     transfer: <ArrowRightLeft size={18} className="text-blue-400" />,
-    deposit: <ArrowDownLeft size={18} className="text-green-500" />,
-    withdraw: <Wallet size={18} className="text-red-400" />,
-    recharge: <Smartphone size={18} className="text-purple-400" />,
+    deposit:  <ArrowDownLeft  size={18} className="text-green-500" />,
+    withdraw: <Wallet         size={18} className="text-red-400" />,
+    recharge: <Smartphone     size={18} className="text-purple-400" />,
   };
 
-  const statusColors: any = {
-    success: "bg-green-500/10 text-green-500 border-green-500/20",
-    pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-    failed: "bg-red-500/10 text-red-500 border-red-500/20",
+  const statusStyles: any = {
+    success: "bg-green-500/10 text-green-400 border-green-500/20",
+    pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    failed:  "bg-red-500/10  text-red-400  border-red-500/20",
+  };
+
+  const currencyBadge: any = {
+    PI:  "bg-amber-500/20  text-amber-400",
+    SDA: "bg-emerald-500/20 text-emerald-400",
+    BTC: "bg-orange-500/20 text-orange-400",
+    XAF: "bg-blue-500/20   text-blue-400",
+    XOF: "bg-blue-500/20   text-blue-400",
   };
 
   return (
-    <div onClick={onPress} className="group p-5 bg-slate-900/40 border border-white/5 rounded-[2.5rem] hover:bg-slate-900/60 transition-all cursor-pointer active:scale-[0.98]">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-slate-950 border border-white/5 flex items-center justify-center relative">
-            {icons[tx.type] || <Zap size={18} className="text-blue-500" />}
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white line-clamp-1">{tx.title}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-               <span className="text-[8px] font-black text-blue-500 uppercase">{tx.type}</span>
-               <span className="w-1 h-1 rounded-full bg-slate-700" />
-               <p className="text-[10px] text-slate-500 font-bold uppercase">{tx.date}</p>
-            </div>
-          </div>
+    <div className="bg-slate-900/40 border border-white/5 rounded-[2rem] overflow-hidden transition-all">
+
+      {/* LIGNE PRINCIPALE — cliquable pour expand */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full p-5 flex items-center gap-4 hover:bg-white/[0.02] transition-colors active:scale-[0.99] text-left"
+      >
+        {/* Icone type */}
+        <div className="w-11 h-11 rounded-2xl bg-slate-950 border border-white/5 flex items-center justify-center shrink-0">
+          {icons[tx.type] || <Zap size={18} className="text-blue-500" />}
         </div>
-        <div className="text-right">
-          <p className={`text-lg font-black tracking-tighter ${tx.isIncome ? 'text-green-400' : 'text-white'}`}>
-            {tx.isIncome ? '+' : '-'}{tx.currency === 'PI' && tx.amount < 0.01 ? tx.amount.toFixed(8) : tx.amount.toFixed(2)} {tx.currency}
+
+        {/* Infos centre */}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm text-white truncate leading-tight">{tx.title}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">{tx.type}</span>
+            <span className="w-1 h-1 rounded-full bg-slate-700" />
+            <span className="text-[9px] text-slate-500 font-bold">{tx.date}</span>
+          </div>
+          {tx.reference && (
+            <span className="text-[8px] font-mono text-slate-600 mt-0.5 block truncate">#{tx.reference}</span>
+          )}
+        </div>
+
+        {/* Montant + chevron */}
+        <div className="text-right shrink-0 flex flex-col items-end gap-1">
+          <p className={`text-base font-black tracking-tighter ${tx.isIncome ? "text-green-400" : "text-white"}`}>
+            {tx.isIncome ? "+" : "-"}
+            {tx.currency === "PI" && tx.amount < 0.01
+              ? tx.amount.toFixed(8)
+              : tx.amount.toFixed(2)}{" "}
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${currencyBadge[tx.currency] || "bg-slate-500/20 text-slate-400"}`}>
+              {tx.currency === "PI" ? "π" : tx.currency}
+            </span>
           </p>
-          <div className="flex items-center justify-end gap-2">
-             <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${
-               tx.currency === 'PI' ? 'bg-amber-500/20 text-amber-400' :
-               tx.currency === 'SDA' ? 'bg-emerald-500/20 text-emerald-400' :
-               tx.currency === 'BTC' ? 'bg-orange-500/20 text-orange-400' :
-               tx.currency === 'XAF' || tx.currency === 'XOF' ? 'bg-blue-500/20 text-blue-400' :
-               'bg-slate-500/20 text-slate-400'
-             }`}>
-               {tx.currency === 'PI' ? 'π' : tx.currency === 'BTC' ? '₿' : tx.currency}
-             </span>
+          <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border ${statusStyles[tx.status]}`}>
+            {tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué"}
+          </span>
+          {expanded
+            ? <ChevronUp size={12} className="text-slate-600 mt-1" />
+            : <ChevronDown size={12} className="text-slate-600 mt-1" />
+          }
+        </div>
+      </button>
+
+      {/* DÉTAILS EXPANDABLES */}
+      {expanded && (
+        <div className="px-5 pb-5 space-y-4 border-t border-white/5">
+
+          {/* FROM / TO */}
+          <div className="grid grid-cols-2 gap-3 pt-4">
+            <PartyCard
+              label="Expéditeur"
+              name={tx.fromName}
+              username={tx.fromUsername}
+              email={tx.fromEmail}
+              phone={tx.fromPhone}
+              isCurrentUser={!tx.isIncome}
+            />
+            <PartyCard
+              label="Destinataire"
+              name={tx.toName}
+              username={tx.toUsername}
+              email={tx.toEmail}
+              phone={tx.toPhone}
+              isCurrentUser={tx.isIncome}
+            />
           </div>
+
+          {/* DONNÉES FINANCIÈRES */}
+          <div className="bg-slate-950/60 rounded-2xl p-4 space-y-2">
+            <DetailRow label="Montant brut"  value={`${tx.amount.toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} />
+            {tx.fee > 0 && (
+              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed(4)} ${tx.currency}`} accent="text-amber-400" />
+            )}
+            {tx.netAmount !== null && tx.netAmount !== undefined && (
+              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed(2)} ${tx.currency}`} accent="text-green-400" />
+            )}
+            {tx.reference && (
+              <DetailRow label="Référence"    value={tx.reference} mono />
+            )}
+            {tx.accountName && (
+              <DetailRow label="Compte"       value={tx.accountName} />
+            )}
+            {tx.accountNumber && (
+              <DetailRow label="N° compte"    value={tx.accountNumber} mono />
+            )}
+            {tx.note && (
+              <DetailRow label="Note"         value={tx.note} />
+            )}
+          </div>
+
+          {/* BOUTON REÇU */}
+          <button
+            onClick={onPress}
+            className="w-full py-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600/20 transition-colors"
+          >
+            Voir le reçu complet
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- PARTY CARD (expéditeur / destinataire) ---
+function PartyCard({ label, name, username, email, phone, isCurrentUser }: {
+  label: string; name: string; username?: string | null;
+  email?: string | null; phone?: string | null; isCurrentUser?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl p-3 border space-y-1 ${isCurrentUser ? "bg-blue-600/10 border-blue-500/20" : "bg-slate-950/60 border-white/5"}`}>
+      <span className={`text-[8px] font-black uppercase tracking-widest ${isCurrentUser ? "text-blue-400" : "text-slate-600"}`}>
+        {label}
+      </span>
+      <div className="flex items-center gap-2 mt-1">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isCurrentUser ? "bg-blue-600/20" : "bg-slate-800"}`}>
+          <User size={12} className={isCurrentUser ? "text-blue-400" : "text-slate-500"} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-white truncate leading-tight">{name}</p>
+          {username && <p className="text-[9px] text-slate-500 truncate">@{username}</p>}
         </div>
       </div>
-      <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-        <span className={`text-[8px] px-3 py-1 rounded-full font-black uppercase tracking-[1px] border ${statusColors[tx.status]}`}>
-            {tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué"}
-        </span>
-        <ArrowRightLeft size={12} className="text-slate-700 group-hover:text-blue-500 transition-colors" />
-      </div>
+      {email && <p className="text-[9px] text-slate-600 truncate">{email}</p>}
+      {phone && <p className="text-[9px] text-slate-600 truncate">{phone}</p>}
+    </div>
+  );
+}
+
+// --- DETAIL ROW ---
+function DetailRow({ label, value, accent, mono }: {
+  label: string; value: string; accent?: string; mono?: boolean;
+}) {
+  return (
+    <div className="flex justify-between items-center gap-2">
+      <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest shrink-0">{label}</span>
+      <span className={`text-[10px] font-bold truncate text-right ${accent || "text-slate-300"} ${mono ? "font-mono" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }
