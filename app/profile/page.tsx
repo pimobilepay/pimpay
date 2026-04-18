@@ -419,7 +419,8 @@ export default function ProfilePage() {
                 return (
                   <div
                     key={iIdx}
-                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none"
+                    onClick={() => item.path && !item.toggle && !item.editable && router.push(item.path)}
+                    className={`w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none ${item.path && !item.toggle && !item.editable ? "cursor-pointer" : ""}`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 text-blue-400 shrink-0">{item.icon}</div>
