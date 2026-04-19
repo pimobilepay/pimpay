@@ -312,41 +312,6 @@ export default function DepositPage() {
         )}
         {activeTab === "card" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            {/* Card Preview */}
-            <div className="relative bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 rounded-[2rem] p-6 border border-white/10 shadow-2xl overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl" />
-              
-              <div className="flex justify-between items-start mb-8 relative z-10">
-                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Carte Bancaire</div>
-                <div className="w-10 h-8">
-                  {cardType === "visa" && <VisaIcon className="w-10 h-8" />}
-                  {cardType === "mastercard" && <MastercardIcon className="w-10 h-8" />}
-                  {cardType === "unknown" && <UnknownCardIcon className="w-10 h-8" />}
-                </div>
-              </div>
-              
-              <div className="space-y-4 relative z-10">
-                <div className="text-xl font-black tracking-[0.2em] text-white/90">
-                  {cardNumber || "•••• •••• •••• ••••"}
-                </div>
-                <div className="flex justify-between items-end">
-                  <div>
-                    <div className="text-[8px] font-bold text-slate-600 uppercase mb-1">Titulaire</div>
-                    <div className="text-xs font-black text-white/80 uppercase tracking-wider">
-                      {cardHolder || "NOM DU TITULAIRE"}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[8px] font-bold text-slate-600 uppercase mb-1">Expire</div>
-                    <div className="text-xs font-black text-white/80">
-                      {cardExpiry || "MM/AA"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Card Input Form */}
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
               {/* Card Number with detection icon */}
