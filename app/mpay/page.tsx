@@ -9,7 +9,7 @@ import {
   Clock, ArrowUpRight, ArrowDownLeft,
   Eye, EyeOff, ChevronRight, Star,
   Wallet, Plus, TrendingUp, BarChart3,
-  X, Delete, Info, Cpu, Landmark
+  X, Delete, Info, Cpu, Landmark, CreditCard
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -768,22 +768,23 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
 
         {/* QUICK ACTIONS */}
         <section>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-2">
             {[
               { icon: Scan, label: "Scanner", color: "from-blue-600 to-blue-700", action: () => setActiveView("scanner") },
               { icon: Store, label: "Payer", color: "from-indigo-600 to-indigo-700", action: () => { setActiveView("pay-merchant"); setPayStep(1); } },
               { icon: Send, label: "Envoyer", color: "from-cyan-600 to-cyan-700", action: () => router.push("/mpay/send") },
               { icon: QrCode, label: "Recevoir", color: "from-emerald-600 to-emerald-700", action: () => setActiveView("receive") },
+              { icon: CreditCard, label: "Depot", color: "from-purple-600 to-purple-700", action: () => router.push("/deposit") },
             ].map((item) => (
               <button
                 key={item.label}
                 onClick={item.action}
-                className="flex flex-col items-center gap-2.5 group"
+                className="flex flex-col items-center gap-2 group"
               >
-                <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-lg group-active:scale-90 transition-all`}>
-                  <item.icon size={22} className="text-white" />
+                <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center shadow-lg group-active:scale-90 transition-all`}>
+                  <item.icon size={20} className="text-white" />
                 </div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{item.label}</span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">{item.label}</span>
               </button>
             ))}
           </div>
