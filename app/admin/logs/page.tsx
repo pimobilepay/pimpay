@@ -304,12 +304,20 @@ export default function AdminLogsPage() {
     try {
       setSessionLoading(true);
       setSessionError(null);
-      const res = await fetch(`/api/admin/user-session/${userId}`);
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Erreur API");
-      }
+      
+      const res = await fetch(`/api/admin/user-session/${userId}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
       const json = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(json.error || json.details || "Erreur API");
+      }
+      
       setUserSession(json);
       setSessionError(null);
     } catch (err) {
