@@ -11,6 +11,7 @@ type RouteContext = {
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
     const payload = await adminAuth(req);
+    
     if (!payload) {
       return NextResponse.json(
         { error: "Acces refuse. Droits administrateur requis." },
@@ -42,27 +43,38 @@ export async function GET(req: NextRequest, context: RouteContext) {
     }
 
     // Get recent activities (last 24 hours)
-    const activities = await prisma.userActivity.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    let activities: Awaited<ReturnType<typeof prisma.userActivity.findMany>> = [];
+    let currentSession: Awaited<ReturnType<typeof prisma.userActivity.findFirst>> = null;
+    
+    try {
+      activities = await prisma.userActivity.findMany({
+        where: {
+          userId,
+          createdAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+    } catch {
+      // Continue with empty activities if table doesn't exist or query fails
+    }
 
     // Get current session (last 5 minutes)
-    const currentSession = await prisma.userActivity.findFirst({
-      where: {
-        userId,
-        createdAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000),
+    try {
+      currentSession = await prisma.userActivity.findFirst({
+        where: {
+          userId,
+          createdAt: {
+            gte: new Date(Date.now() - 5 * 60 * 1000),
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      });
+    } catch {
+      // Continue with null session if table doesn't exist or query fails
+    }
 
     // Calculate session stats
     const sessionStartTime = activities.length > 0 
