@@ -107,17 +107,23 @@ export default function MPayNotificationsPage() {
   // Mark single notification as read
   const markAsRead = async (id: string) => {
     try {
-      await fetch("/api/notifications/mark-read", {
+      // Use the correct API endpoint /api/notifications with POST
+      const res = await fetch("/api/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
       
-      setNotifications(prev => 
-        prev.map(n => n.id === id ? { ...n, read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      if (res.ok) {
+        setNotifications(prev => 
+          prev.map(n => n.id === id ? { ...n, read: true } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } else {
+        throw new Error("Failed to mark as read");
+      }
     } catch (error) {
+      console.error("Mark as read error:", error);
       toast.error("Erreur de mise a jour");
     }
   };
@@ -125,14 +131,21 @@ export default function MPayNotificationsPage() {
   // Mark all as read
   const markAllAsRead = async () => {
     try {
-      await fetch("/api/user/notifications", {
-        method: "PUT",
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
       });
       
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      setUnreadCount(0);
-      toast.success("Toutes les notifications marquees comme lues");
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+        toast.success("Toutes les notifications marquees comme lues");
+      } else {
+        throw new Error("Failed to mark all as read");
+      }
     } catch (error) {
+      console.error("Mark all as read error:", error);
       toast.error("Erreur de mise a jour");
     }
   };
@@ -140,13 +153,18 @@ export default function MPayNotificationsPage() {
   // Delete notification
   const deleteNotification = async (id: string) => {
     try {
-      await fetch(`/api/notifications/${id}`, {
+      const res = await fetch(`/api/notifications?id=${id}`, {
         method: "DELETE",
       });
       
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      toast.success("Notification supprimee");
+      if (res.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+        toast.success("Notification supprimee");
+      } else {
+        throw new Error("Failed to delete");
+      }
     } catch (error) {
+      console.error("Delete notification error:", error);
       toast.error("Erreur de suppression");
     }
   };

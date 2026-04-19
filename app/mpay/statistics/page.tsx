@@ -23,12 +23,67 @@ interface Transaction {
   fee: number;
   type: string;
   status: string;
+  currency: string;
+  description?: string;
   createdAt: string;
   fromUserId: string;
   toUserId: string;
-  fromUser?: { username: string; name: string };
-  toUser?: { username: string; name: string };
+  fromUser?: { username: string; name: string; displayName?: string };
+  toUser?: { username: string; name: string; displayName?: string };
 }
+
+// Helper function to get transaction display name and currency
+const getTransactionInfo = (tx: Transaction, userId: string): { name: string; currency: string; isSent: boolean } => {
+  const isSent = tx.fromUserId === userId;
+  const txType = tx.type?.toUpperCase() || "";
+  const currency = tx.currency || "Pi";
+  
+  // Handle blockchain deposits
+  if (txType === "DEPOSIT" && !tx.fromUserId) {
+    if (currency === "SDA" || tx.description?.toLowerCase().includes("sidra")) {
+      return { name: "Depot Sidra Chain", currency: "SDA", isSent: false };
+    } else if (currency === "PI" || tx.description?.toLowerCase().includes("pi network")) {
+      return { name: "Depot Pi Network", currency: "PI", isSent: false };
+    } else if (currency === "XRP") {
+      return { name: "Depot XRP Ledger", currency: "XRP", isSent: false };
+    } else if (currency === "BTC") {
+      return { name: "Depot Bitcoin", currency: "BTC", isSent: false };
+    } else if (currency === "ETH") {
+      return { name: "Depot Ethereum", currency: "ETH", isSent: false };
+    } else {
+      return { name: "Depot Blockchain", currency, isSent: false };
+    }
+  }
+  
+  // Handle withdrawals
+  if (txType === "WITHDRAW" || txType === "WITHDRAWAL") {
+    if (currency === "SDA") {
+      return { name: "Retrait Sidra Chain", currency: "SDA", isSent: true };
+    } else if (currency === "PI") {
+      return { name: "Retrait Pi Network", currency: "PI", isSent: true };
+    }
+    return { name: "Retrait Externe", currency, isSent: true };
+  }
+  
+  // Handle card purchases
+  if (txType === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY")) {
+    return { name: "Achat Carte PimPay", currency, isSent: true };
+  }
+  
+  // Handle card recharge/withdraw
+  if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW") {
+    return { name: tx.description || (txType === "CARD_RECHARGE" ? "Recharge Carte" : "Retrait Carte"), currency, isSent };
+  }
+  
+  // Default: use user display name
+  if (isSent) {
+    const name = tx.toUser?.displayName || tx.toUser?.name || tx.toUser?.username || "Utilisateur";
+    return { name, currency, isSent: true };
+  } else {
+    const name = tx.fromUser?.displayName || tx.fromUser?.name || tx.fromUser?.username || "Utilisateur";
+    return { name, currency, isSent: false };
+  }
+};
 
 type Period = "jour" | "semaine" | "mois";
 
@@ -107,17 +162,17 @@ export default function MPayStatisticsPage() {
 
     let totalSent = 0;
     let totalReceived = 0;
-    const recentTx: { type: string; name: string; amount: string; time: string }[] = [];
+    const recentTx: { id: string; type: string; name: string; amount: string; currency: string; time: string }[] = [];
     const dayData: Record<string, { sent: number; received: number }> = {};
     const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
     filteredTransactions.forEach((tx) => {
-      const isSent = tx.fromUserId === userId;
+      const txInfo = getTransactionInfo(tx, userId);
       const amount = tx.amount || 0;
       const date = new Date(tx.createdAt);
       const dayName = dayNames[date.getDay()];
 
-      if (isSent) {
+      if (txInfo.isSent) {
         totalSent += amount;
       } else {
         totalReceived += amount;
@@ -127,7 +182,7 @@ export default function MPayStatisticsPage() {
       if (!dayData[dayName]) {
         dayData[dayName] = { sent: 0, received: 0 };
       }
-      if (isSent) {
+      if (txInfo.isSent) {
         dayData[dayName].sent += amount;
       } else {
         dayData[dayName].received += amount;
@@ -135,13 +190,12 @@ export default function MPayStatisticsPage() {
 
       // Build recent transactions (first 4)
       if (recentTx.length < 4) {
-        const contactName = isSent 
-          ? (tx.toUser?.name || tx.toUser?.username || "Utilisateur")
-          : (tx.fromUser?.name || tx.fromUser?.username || "Utilisateur");
         recentTx.push({
-          type: isSent ? "sent" : "received",
-          name: contactName,
+          id: tx.id,
+          type: txInfo.isSent ? "sent" : "received",
+          name: txInfo.name,
           amount: amount.toFixed(1),
+          currency: txInfo.currency,
           time: date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
         });
       }
@@ -371,8 +425,14 @@ export default function MPayStatisticsPage() {
 
         {/* Recent Transactions Mini */}
         <section className="bg-slate-900/40 border border-white/10 rounded-[2rem] overflow-hidden animate-in fade-in duration-500 delay-300">
-          <div className="p-6 pb-3">
+          <div className="p-6 pb-3 flex items-center justify-between">
             <h2 className="text-sm font-black uppercase tracking-tight">Dernieres Transactions</h2>
+            <button 
+              onClick={() => router.push("/mpay")}
+              className="text-[9px] font-bold text-blue-400 uppercase tracking-wide hover:underline"
+            >
+              Voir tout
+            </button>
           </div>
           <div className="divide-y divide-white/5">
             {stats.recentTx.length === 0 ? (
@@ -381,18 +441,22 @@ export default function MPayStatisticsPage() {
               </div>
             ) : (
               stats.recentTx.map((tx, i) => (
-                <div key={i} className="flex items-center gap-4 px-6 py-4">
+                <button 
+                  key={i} 
+                  onClick={() => router.push(`/mpay/transaction/${tx.id}`)}
+                  className="w-full flex items-center gap-4 px-6 py-4 hover:bg-white/[0.03] transition-all"
+                >
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${tx.type === "sent" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
                     {tx.type === "sent" ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 text-left">
                     <p className="text-xs font-black uppercase tracking-tight">{tx.name}</p>
                     <p className="text-[9px] font-bold text-slate-600">{tx.time}</p>
                   </div>
                   <p className={`text-sm font-black ${tx.type === "sent" ? "text-red-400" : "text-emerald-400"}`}>
-                    {tx.type === "sent" ? "-" : "+"}{tx.amount} Pi
+                    {tx.type === "sent" ? "-" : "+"}{tx.amount} {tx.currency}
                   </p>
-                </div>
+                </button>
               ))
             )}
           </div>

@@ -97,6 +97,8 @@ const getTransactionDisplayName = (
   const txType = tx.type?.toUpperCase() || "";
   const ref = tx.reference?.toUpperCase() || "";
   const desc = tx.description?.toUpperCase() || "";
+  const currency = tx.currency?.toUpperCase() || "PI";
+  const descLower = tx.description?.toLowerCase() || "";
   
   // Handle CARD_RECHARGE and CARD_WITHDRAW transactions - use description if available
   if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW" || desc.includes("CARTE")) {
@@ -112,14 +114,25 @@ const getTransactionDisplayName = (
     return "Achat Carte PimPay";
   }
   
-  // Handle external withdrawals
-  if (txType === "WITHDRAWAL" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+  // Handle external withdrawals with blockchain detection
+  if (txType === "WITHDRAWAL" || txType === "WITHDRAW" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+    if (currency === "SDA" || descLower.includes("sidra")) return "Retrait Sidra Chain";
+    if (currency === "PI" || descLower.includes("pi network")) return "Retrait Pi Network";
+    if (currency === "XRP") return "Retrait XRP Ledger";
+    if (currency === "BTC") return "Retrait Bitcoin";
+    if (currency === "ETH") return "Retrait Ethereum";
     return "Retrait Externe";
   }
   
-  // Handle deposits
-  if (txType === "DEPOSIT") {
-    return "Depot";
+  // Handle deposits with blockchain detection
+  if (txType === "DEPOSIT" && !tx.fromUserId) {
+    if (currency === "SDA" || descLower.includes("sidra")) return "Depot Sidra Chain";
+    if (currency === "PI" || descLower.includes("pi network")) return "Depot Pi Network";
+    if (currency === "XRP") return "Depot XRP Ledger";
+    if (currency === "BTC") return "Depot Bitcoin";
+    if (currency === "ETH") return "Depot Ethereum";
+    if (["USDT", "USDC", "DAI", "BUSD"].includes(currency)) return "Depot Stablecoin";
+    return "Depot Blockchain";
   }
   
   // Default: use user display name
@@ -128,6 +141,24 @@ const getTransactionDisplayName = (
   } else {
     return tx.fromUser?.displayName || tx.fromUser?.name || tx.fromUser?.username || "Utilisateur Inconnu";
   }
+};
+
+// Helper to check if transaction is sent (for deposits and withdrawals without userId)
+const isTransactionSent = (tx: TransactionHistory, userId: string): boolean => {
+  const txType = tx.type?.toUpperCase() || "";
+  
+  // For deposits without fromUserId, it's received
+  if (txType === "DEPOSIT" && !tx.fromUserId) {
+    return false;
+  }
+  
+  // For withdrawals without toUserId, it's sent
+  if ((txType === "WITHDRAWAL" || txType === "WITHDRAW") && !tx.toUserId) {
+    return true;
+  }
+  
+  // Default: check fromUserId
+  return tx.fromUserId === userId;
 };
 
 type ActiveView = "hub" | "scanner" | "receive" | "pay-merchant";
@@ -986,7 +1017,8 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
               </div>
             ) : (
               transactions.map((tx) => {
-                const isSent = tx.fromUserId === userId;
+                // Use helper to correctly determine if transaction is sent (handles deposits/withdrawals)
+                const isSent = isTransactionSent(tx, userId);
                 // Use helper function to get proper display name for all transaction types
                 const displayName = getTransactionDisplayName(tx, isSent);
                 const statusLower = tx.status.toLowerCase();

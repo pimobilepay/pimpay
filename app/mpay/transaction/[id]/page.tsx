@@ -171,21 +171,43 @@ export default function TransactionDetailsPage() {
   
   // Handle special transaction types for display name
   const getDisplayName = (): string => {
+    const currency = transaction.currency?.toUpperCase() || "PI";
+    const desc = transaction.description?.toLowerCase() || "";
+    
     // Handle CARD_PURCHASE transactions
     if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY") || ref.includes("CARD_PURCHASE")) {
       return "Achat Carte PimPay";
     }
+    // Handle card recharge/withdraw
+    if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW") {
+      return transaction.description || (txType === "CARD_RECHARGE" ? "Recharge Carte" : "Retrait Carte");
+    }
     // Handle external withdrawals
-    if (txType === "WITHDRAWAL" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+    if (txType === "WITHDRAWAL" || txType === "WITHDRAW" || ref.startsWith("WD-") || ref.includes("EXTERNAL")) {
+      if (currency === "SDA" || desc.includes("sidra")) return "Retrait Sidra Chain";
+      if (currency === "PI" || desc.includes("pi network")) return "Retrait Pi Network";
+      if (currency === "XRP") return "Retrait XRP Ledger";
+      if (currency === "BTC") return "Retrait Bitcoin";
+      if (currency === "ETH") return "Retrait Ethereum";
       return "Retrait Externe";
     }
-    // Handle deposits
-    if (txType === "DEPOSIT") {
-      return "Depot";
+    // Handle deposits - detect blockchain based on currency
+    if (txType === "DEPOSIT" && !transaction.fromUserId) {
+      if (currency === "SDA" || desc.includes("sidra")) return "Depot Sidra Chain";
+      if (currency === "PI" || desc.includes("pi network")) return "Depot Pi Network";
+      if (currency === "XRP") return "Depot XRP Ledger";
+      if (currency === "BTC") return "Depot Bitcoin";
+      if (currency === "ETH") return "Depot Ethereum";
+      if (["USDT", "USDC", "DAI", "BUSD"].includes(currency)) return "Depot Stablecoin";
+      return "Depot Blockchain";
     }
     // Default: use user display name
     return otherUser?.displayName || otherUser?.name || otherUser?.username || "Utilisateur";
   };
+  
+  // Check if this is a blockchain transaction (deposit/withdrawal without user)
+  const isBlockchainDeposit = txType === "DEPOSIT" && !transaction.fromUserId;
+  const isBlockchainWithdraw = (txType === "WITHDRAWAL" || txType === "WITHDRAW") && !transaction.toUserId;
   
   const displayName = getDisplayName();
   const statusLower = transaction.status.toLowerCase();
@@ -315,47 +337,67 @@ export default function TransactionDetailsPage() {
         <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
           {/* Sender */}
           <div className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-red-500/10">
-              {transaction.fromUser?.avatar ? (
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isBlockchainDeposit ? "bg-purple-500/10" : "bg-red-500/10"}`}>
+              {transaction.fromUser?.avatar && !isBlockchainDeposit ? (
                 <img src={transaction.fromUser.avatar} alt="Expediteur" className="w-full h-full rounded-2xl object-cover" />
+              ) : isBlockchainDeposit ? (
+                <Wallet size={20} className="text-purple-400" />
               ) : (
                 <User size={20} className="text-red-400" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Expediteur</p>
-              <p className="text-sm font-black text-white truncate">
-                {transaction.fromUser?.displayName || transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur"}
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                {isBlockchainDeposit ? "Source" : "Expediteur"}
               </p>
-              {transaction.fromUser?.username && (
+              <p className="text-sm font-black text-white truncate">
+                {isBlockchainDeposit ? displayName : (transaction.fromUser?.displayName || transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur")}
+              </p>
+              {!isBlockchainDeposit && transaction.fromUser?.username && (
                 <p className="text-[10px] text-blue-400 truncate">@{transaction.fromUser.username}</p>
               )}
+              {isBlockchainDeposit && (
+                <p className="text-[10px] text-purple-400 truncate">Blockchain {transaction.currency}</p>
+              )}
             </div>
-            {isSent && (
+            {isSent && !isBlockchainDeposit && (
               <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg uppercase">Vous</span>
+            )}
+            {isBlockchainDeposit && (
+              <span className="text-[8px] font-black text-purple-400 bg-purple-500/10 px-2 py-1 rounded-lg uppercase">Externe</span>
             )}
           </div>
 
           {/* Recipient */}
           <div className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-500/10">
-              {transaction.toUser?.avatar ? (
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isBlockchainWithdraw ? "bg-orange-500/10" : "bg-emerald-500/10"}`}>
+              {transaction.toUser?.avatar && !isBlockchainWithdraw ? (
                 <img src={transaction.toUser.avatar} alt="Destinataire" className="w-full h-full rounded-2xl object-cover" />
+              ) : isBlockchainWithdraw ? (
+                <Wallet size={20} className="text-orange-400" />
               ) : (
                 <User size={20} className="text-emerald-400" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Destinataire</p>
-              <p className="text-sm font-black text-white truncate">
-                {transaction.toUser?.displayName || transaction.toUser?.name || transaction.toUser?.username || "Utilisateur"}
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                {isBlockchainWithdraw ? "Destination" : "Destinataire"}
               </p>
-              {transaction.toUser?.username && (
+              <p className="text-sm font-black text-white truncate">
+                {isBlockchainWithdraw ? displayName : (transaction.toUser?.displayName || transaction.toUser?.name || transaction.toUser?.username || "Utilisateur")}
+              </p>
+              {!isBlockchainWithdraw && transaction.toUser?.username && (
                 <p className="text-[10px] text-emerald-400 truncate">@{transaction.toUser.username}</p>
               )}
+              {isBlockchainWithdraw && (
+                <p className="text-[10px] text-orange-400 truncate">Blockchain {transaction.currency}</p>
+              )}
             </div>
-            {!isSent && (
+            {!isSent && !isBlockchainWithdraw && (
               <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg uppercase">Vous</span>
+            )}
+            {isBlockchainWithdraw && (
+              <span className="text-[8px] font-black text-orange-400 bg-orange-500/10 px-2 py-1 rounded-lg uppercase">Externe</span>
             )}
           </div>
         </div>
