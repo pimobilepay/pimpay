@@ -529,7 +529,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
               <DetailRow label="Frais réseau" value={`${tx.fee.toFixed(4)} ${tx.currency}`} accent="text-amber-400" />
             )}
             {tx.netAmount !== null && tx.netAmount !== undefined && (
-              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed(2)} ${tx.currency}`} accent="text-green-400" />
+              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
             )}
             {tx.reference && (
               <DetailRow label="Référence"    value={tx.reference} mono />
