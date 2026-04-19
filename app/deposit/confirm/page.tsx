@@ -13,7 +13,30 @@ import {
   XCircle,
   ArrowLeft,
   RefreshCcw,
+  CreditCard,
 } from "lucide-react";
+
+// Visa SVG Icon
+const VisaIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#1A1F71"/>
+    <path d="M19.5 31H16.5L18.5 17H21.5L19.5 31Z" fill="white"/>
+    <path d="M30.5 17.5C29.8 17.2 28.7 17 27.4 17C24.1 17 21.8 18.7 21.8 21.1C21.8 22.9 23.4 23.9 24.6 24.5C25.8 25.1 26.2 25.5 26.2 26.1C26.2 26.9 25.2 27.3 24.3 27.3C23 27.3 22.3 27.1 21.2 26.6L20.8 26.4L20.3 29.5C21.1 29.9 22.5 30.2 24 30.2C27.5 30.2 29.8 28.5 29.8 25.9C29.8 24.5 28.9 23.4 27.1 22.5C26 21.9 25.3 21.5 25.3 20.9C25.3 20.3 26 19.7 27.4 19.7C28.5 19.7 29.4 19.9 30 20.2L30.3 20.3L30.8 17.4L30.5 17.5Z" fill="white"/>
+    <path d="M35.5 17H33.2C32.4 17 31.8 17.2 31.5 18L26.5 31H30L30.7 29H34.9L35.3 31H38.5L35.5 17ZM31.7 26.3L33.3 21.6L34.2 26.3H31.7Z" fill="white"/>
+    <path d="M14.5 17L11.2 26.2L10.8 24.2C10.2 22.2 8.3 20 6.2 19L9.2 31H12.7L18 17H14.5Z" fill="white"/>
+    <path d="M8.5 17H3.2L3.1 17.3C7.3 18.3 10.1 20.9 11 24.2L10 18.1C9.8 17.3 9.2 17 8.5 17Z" fill="#F9A533"/>
+  </svg>
+);
+
+// Mastercard SVG Icon
+const MastercardIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#000"/>
+    <circle cx="18" cy="24" r="10" fill="#EB001B"/>
+    <circle cx="30" cy="24" r="10" fill="#F79E1B"/>
+    <path d="M24 17.5C26.3 19.3 27.8 22 27.8 25C27.8 28 26.3 30.7 24 32.5C21.7 30.7 20.2 28 20.2 25C20.2 22 21.7 19.3 24 17.5Z" fill="#FF5F00"/>
+  </svg>
+);
 
 function ConfirmContent() {
   const router = useRouter();
@@ -146,11 +169,19 @@ function ConfirmContent() {
           <div className="relative w-36 h-36 bg-blue-600/5 rounded-full flex items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(59,130,246,0.4)]">
             {status === "pending" && (
               <div className="relative">
-                <Smartphone
-                  className="text-white opacity-90"
-                  size={56}
-                  strokeWidth={1.5}
-                />
+                {methodParam === "card" ? (
+                  <CreditCard
+                    className="text-white opacity-90"
+                    size={56}
+                    strokeWidth={1.5}
+                  />
+                ) : (
+                  <Smartphone
+                    className="text-white opacity-90"
+                    size={56}
+                    strokeWidth={1.5}
+                  />
+                )}
                 <div className="absolute -top-3 -right-5 w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl border-2 border-[#020617] rotate-12 animate-bounce">
                   <Lock className="text-white" size={20} />
                 </div>
@@ -203,14 +234,26 @@ function ConfirmContent() {
           <div className="w-full space-y-4">
             <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-3">
               <p className="text-slate-200 text-sm font-bold uppercase tracking-wide">
-                Tapez votre code secret
+                {methodParam === "card" ? "Traitement en cours" : "Tapez votre code secret"}
               </p>
-              <p className="text-slate-400 text-[11px] leading-relaxed font-medium">
-                Un message de votre operateur est apparu sur votre ecran. Entrez
-                votre{" "}
-                <span className="text-white font-black">CODE PIN</span> pour
-                confirmer le depot de fonds{dots}
-              </p>
+              {methodParam === "card" ? (
+                <div className="space-y-3">
+                  <p className="text-slate-400 text-[11px] leading-relaxed font-medium">
+                    Votre paiement par carte bancaire est en cours de verification{dots}
+                  </p>
+                  <div className="flex items-center justify-center gap-3 py-2">
+                    <VisaIcon className="w-12 h-9 opacity-60" />
+                    <MastercardIcon className="w-12 h-9 opacity-60" />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-400 text-[11px] leading-relaxed font-medium">
+                  Un message de votre operateur est apparu sur votre ecran. Entrez
+                  votre{" "}
+                  <span className="text-white font-black">CODE PIN</span> pour
+                  confirmer le depot de fonds{dots}
+                </p>
+              )}
             </div>
 
             {/* Montant */}
