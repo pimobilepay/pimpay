@@ -356,5 +356,5 @@ if (data.requireMFA) {
 
 ---
 
-**Implémentation complétée le**: 2024
+**Implémentation complétée le**: 21/04/2026
 **Version**: 1.0
