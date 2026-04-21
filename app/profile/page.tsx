@@ -229,7 +229,18 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch("/api/auth/me");
+        const res = await fetch("/api/auth/me", {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        
+        if (res.status === 401) {
+          toast.error("Session expiree, veuillez vous reconnecter");
+          // Utiliser window.location pour eviter le cache du router
+          window.location.href = "/auth/login";
+          return;
+        }
+        
         const data = await res.json();
 
         if (res.ok && data.user) {
@@ -250,7 +261,7 @@ export default function ProfilePage() {
           });
         } else {
           toast.error("Session expiree");
-          router.push("/auth/login");
+          window.location.href = "/auth/login";
         }
       } catch {
         toast.error("Erreur de synchronisation reseau");
@@ -259,7 +270,7 @@ export default function ProfilePage() {
       }
     };
     fetchProfile();
-  }, [router]);
+  }, []);
 
   const profileSections: ProfileSection[] = [
     {

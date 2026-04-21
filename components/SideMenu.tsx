@@ -37,21 +37,34 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
   const fetchUserData = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { cache: 'no-store' });
+      const res = await fetch("/api/auth/me", { 
+        cache: 'no-store',
+        credentials: 'include'
+      });
+      
       if (res.ok) {
         const data = await res.json();
-        const userData = {
-          name: data.user?.name || data.user?.username || "Pioneer",
-          username: data.user?.username || "",
-          email: data.user?.email || "",
-          kycStatus: data.user?.kycStatus || "NON VÉRIFIÉ",
-          avatar: data.user?.avatar
-        };
-        setUser(userData);
-        localStorage.setItem("pimpay_user", JSON.stringify(userData));
+        if (data.user) {
+          const userData = {
+            name: data.user.name || data.user.firstName 
+              ? `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() 
+              : data.user.username || "Pioneer",
+            username: data.user.username || "",
+            email: data.user.email || "",
+            kycStatus: data.user.kycStatus || "NONE",
+            avatar: data.user.avatar
+          };
+          setUser(userData);
+          localStorage.setItem("pimpay_user", JSON.stringify(userData));
+        }
+      } else if (res.status === 401) {
+        // Session expiree - garder les donnees locales si disponibles
+        // Ne pas effacer, laisser le systeme d'auth gerer la deconnexion
+        console.log("[v0] SideMenu: Session expiree, utilisation des donnees locales");
       }
     } catch (err) {
-      console.error("Erreur Sync SideMenu:", err);
+      console.error("[v0] Erreur Sync SideMenu:", err);
+      // En cas d'erreur reseau, garder les donnees locales
     }
   }, []);
 

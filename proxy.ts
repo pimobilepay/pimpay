@@ -46,11 +46,14 @@ export async function proxy(req: NextRequest) {
       const secret = new TextEncoder().encode(secretStr);
       const { payload } = await jose.jwtVerify(token, secret);
       userPayload = payload;
-    } catch (e) {
+    } catch {
+      // Token invalide ou expire - ne pas rediriger ici, laisser continuer
+      // La redirection se fera plus bas si la route est protegee
       if (!piToken) {
-        const res = NextResponse.redirect(new URL("/", req.url));
+        // Supprimer le token invalide
+        const res = NextResponse.next();
         res.cookies.delete("token");
-        return res;
+        res.cookies.delete("pimpay_token");
       }
     }
   }
@@ -86,7 +89,7 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/profile");
     
   if (!userPayload && isProtectedPath) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 
   // Protection route /admin - uniquement pour ADMIN
@@ -123,9 +126,14 @@ export const config = {
     "/bank/:path*",
     "/business/:path*",
     "/hub/:path*",
+    "/profile/:path*",
+    "/transfer/:path*",
+    "/deposit/:path*",
+    "/withdraw/:path*",
+    "/settings/:path*",
+    "/wallet/:path*",
     "/login",
     "/",
     "/auth/login",
-    "/api/((?!auth).*)",
   ],
 };
