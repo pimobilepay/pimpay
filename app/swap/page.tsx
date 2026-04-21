@@ -18,7 +18,17 @@ import {
   Clock,
   Pencil,
   Info,
+  Copy,
+  ExternalLink,
+  Sparkles,
+  BadgeCheck,
+  Share2,
+  Download,
+  RotateCcw,
+  Shield,
+  Banknote,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -188,6 +198,8 @@ export default function SwapPage() {
   const [slippage, setSlippage] = useState(1);
   const [editingSlippage, setEditingSlippage] = useState(false);
   const [slippageInput, setSlippageInput] = useState("1");
+  const [transactionRef, setTransactionRef] = useState("");
+  const [transactionTime, setTransactionTime] = useState<Date | null>(null);
 
   /* ---------- FETCHERS ---------- */
 
@@ -359,8 +371,15 @@ export default function SwapPage() {
       });
 
       if (confirmRes.ok) {
+        const result = await confirmRes.json();
+        setTransactionRef(result.transactionId || `SWAP-${Date.now().toString(36).toUpperCase()}`);
+        setTransactionTime(new Date());
         setIsSuccess(true);
         setShowConfirm(false);
+        toast.success("Swap effectue avec succes!", {
+          description: `${fromAmount} ${fromAsset.symbol} converti en ${formatToAmount()} ${toAsset.symbol}`,
+          duration: 5000,
+        });
       } else {
         const err = await confirmRes.json();
         toast.error(err.error || "Le swap a echoue");
@@ -448,56 +467,294 @@ export default function SwapPage() {
 
   /* ---- SUCCESS SCREEN ---- */
   if (isSuccess) {
+    const copyRef = () => {
+      navigator.clipboard.writeText(transactionRef);
+      toast.success("Reference copiee!");
+    };
+
     return (
-      <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full" />
-          <div className="relative bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[3rem]">
-            <CheckCircle2 size={80} className="text-emerald-500 animate-bounce" />
-          </div>
+      <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative">
+        {/* Animated Background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 0.3, scale: 1.2 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px]"
+          />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.15 }}
+            transition={{ delay: 0.5, duration: 1 }}
+            className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-emerald-500/10 to-transparent"
+          />
+          {/* Floating particles */}
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 100, x: Math.random() * 400 - 200 }}
+              animate={{ 
+                opacity: [0, 1, 0],
+                y: -200,
+                x: Math.random() * 400 - 200 
+              }}
+              transition={{
+                duration: 3 + Math.random() * 2,
+                delay: Math.random() * 2,
+                repeat: Infinity,
+                repeatDelay: Math.random() * 3
+              }}
+              className="absolute bottom-0 left-1/2 w-2 h-2 bg-emerald-400/60 rounded-full"
+            />
+          ))}
         </div>
 
-        <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">
-          Swap Reussi
-        </h2>
-        <p className="text-slate-400 text-sm mb-8 font-medium px-10">
-          Vos fonds ont ete convertis avec succes au taux PimPay.
-        </p>
+        <div className="relative z-10 flex flex-col min-h-screen p-6">
+          {/* Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex items-center justify-between pt-4 mb-6"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+                <BadgeCheck size={16} className="text-emerald-400" />
+              </div>
+              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em]">
+                Transaction Confirmee
+              </span>
+            </div>
+            <button 
+              onClick={copyRef}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 text-[9px] font-bold text-slate-400 hover:bg-white/10 transition-all"
+            >
+              <Copy size={10} /> Copier Ref
+            </button>
+          </motion.div>
 
-        <div className="w-full bg-white/5 border border-white/5 rounded-[2.5rem] p-6 mb-10 space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase">
-              Vendu
-            </span>
-            <div className="flex items-center gap-2">
-              <AssetIcon asset={fromAsset} size={24} />
-              <span className="font-bold">
-                {fromAmount} {fromAsset.symbol}
-              </span>
+          {/* Success Icon */}
+          <motion.div 
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+            className="flex justify-center mb-6"
+          >
+            <div className="relative">
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute inset-0 bg-emerald-500/30 rounded-full blur-2xl"
+              />
+              <div className="relative w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
+                >
+                  <CheckCircle2 size={48} className="text-white" strokeWidth={2.5} />
+                </motion.div>
+              </div>
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="absolute -right-1 -top-1 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg"
+              >
+                <Sparkles size={14} className="text-white" />
+              </motion.div>
             </div>
-          </div>
-          <div className="flex justify-center py-2 opacity-20">
-            <ArrowDown size={16} />
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase">
-              Recu
-            </span>
-            <div className="flex items-center gap-2">
-              <AssetIcon asset={toAsset} size={24} />
-              <span className="font-bold text-emerald-400">
-                {formatToAmount()} {toAsset.symbol}
-              </span>
+          </motion.div>
+
+          {/* Title */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-center mb-8"
+          >
+            <h1 className="text-2xl font-black uppercase tracking-tight mb-2">
+              Swap <span className="text-emerald-400">Reussi</span>
+            </h1>
+            <p className="text-xs text-slate-400 font-medium">
+              Vos fonds ont ete convertis avec succes au taux PimPay
+            </p>
+          </motion.div>
+
+          {/* Main Transaction Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 mb-4 backdrop-blur-xl"
+          >
+            {/* From/To */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vendu</p>
+                <div className="flex items-center gap-3">
+                  <AssetIcon asset={fromAsset} size={40} />
+                  <div>
+                    <p className="text-xl font-black">{fromAmount}</p>
+                    <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col items-center px-4">
+                <motion.div
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20"
+                >
+                  <ArrowRight size={18} className="text-emerald-400" />
+                </motion.div>
+              </div>
+
+              <div className="flex-1 text-right">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Recu</p>
+                <div className="flex items-center gap-3 justify-end">
+                  <div>
+                    <p className="text-xl font-black text-emerald-400">{formatToAmount()}</p>
+                    <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
+                  </div>
+                  <AssetIcon asset={toAsset} size={40} />
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/5 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingUp size={10} className="text-blue-400" />
+                  <p className="text-[8px] font-black text-slate-500 uppercase">Taux</p>
+                </div>
+                <p className="text-xs font-bold text-white">1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Banknote size={10} className="text-amber-400" />
+                  <p className="text-[8px] font-black text-slate-500 uppercase">Frais</p>
+                </div>
+                <p className="text-xs font-bold text-white">{NETWORK_FEE || "0.00"}</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock size={10} className="text-purple-400" />
+                  <p className="text-[8px] font-black text-slate-500 uppercase">Date & Heure</p>
+                </div>
+                <p className="text-xs font-bold text-white">
+                  {transactionTime?.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {transactionTime?.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Shield size={10} className="text-emerald-400" />
+                  <p className="text-[8px] font-black text-slate-500 uppercase">Statut</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                  <p className="text-xs font-bold text-emerald-400">Confirme</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Transaction Reference */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Reference Transaction</p>
+                <p className="text-xs font-mono font-bold text-white">{transactionRef}</p>
+              </div>
+              <button 
+                onClick={copyRef}
+                className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all"
+              >
+                <Copy size={14} className="text-slate-400" />
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Network Info */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="flex items-center justify-center gap-4 mb-8"
+          >
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: fromAsset.color }} />
+              <span className="text-[9px] font-bold text-slate-400">{fromAsset.network || "PimPay"}</span>
+            </div>
+            <ArrowRight size={12} className="text-slate-600" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: toAsset.color }} />
+              <span className="text-[9px] font-bold text-slate-400">{toAsset.network || "PimPay"}</span>
+            </div>
+          </motion.div>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Action Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="space-y-3 pb-4"
+          >
+            {/* Secondary Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsSuccess(false);
+                  setFromAmount("");
+                  setToAmount(0);
+                }}
+                className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
+              >
+                <RotateCcw size={14} /> Nouveau Swap
+              </button>
+              <button
+                onClick={() => {
+                  const shareText = `J'ai converti ${fromAmount} ${fromAsset.symbol} en ${formatToAmount()} ${toAsset.symbol} sur PimPay!`;
+                  if (navigator.share) {
+                    navigator.share({ text: shareText });
+                  } else {
+                    navigator.clipboard.writeText(shareText);
+                    toast.success("Copie dans le presse-papier!");
+                  }
+                }}
+                className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-all"
+              >
+                <Share2 size={18} />
+              </button>
+            </div>
+
+            {/* Primary Action */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push("/dashboard")}
+              className="w-full py-5 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl shadow-emerald-500/20"
+            >
+              Retour au Dashboard <ArrowRight size={18} />
+            </motion.button>
+          </motion.div>
         </div>
-
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="w-full p-6 bg-white text-black rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all"
-        >
-          Retour au Dashboard <ArrowRight size={18} />
-        </button>
       </div>
     );
   }
@@ -825,106 +1082,221 @@ export default function SwapPage() {
       )}
 
       {/* CONFIRMATION SCREEN */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-[110] bg-[#020617] p-6 flex flex-col animate-in slide-in-from-bottom duration-300">
-          <div className="flex items-center gap-4 mb-8 pt-4">
-            <button
-              onClick={() => setShowConfirm(false)}
-              className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <h2 className="text-lg font-black uppercase tracking-tighter text-blue-500">
-              Verification PimPay
-            </h2>
-          </div>
-
-          <div className="flex-1 flex flex-col justify-center items-center space-y-8">
-            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20">
-              <RefreshCw
-                size={32}
-                className={`text-blue-500 ${loading ? "animate-spin" : ""}`}
+      <AnimatePresence>
+        {showConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-[#020617] overflow-hidden"
+          >
+            {/* Animated Background */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.2 }}
+                className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-blue-500/30 rounded-full blur-[100px]"
               />
             </div>
 
-            <div className="w-full bg-slate-900 border border-white/5 rounded-[2.5rem] p-6 space-y-6">
-              <div className="flex justify-between items-center px-4">
-                <div className="text-center">
-                  <p className="text-2xl font-black">{fromAmount}</p>
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <AssetIcon asset={fromAsset} size={20} />
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">
-                      {fromAsset.symbol}
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="text-blue-500" size={24} />
-                <div className="text-center">
-                  <p className="text-2xl font-black text-blue-400">
-                    {formatToAmount()}
+            <div className="relative z-10 flex flex-col min-h-screen p-6">
+              {/* Header */}
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-4 pt-4 mb-6"
+              >
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <div>
+                  <h2 className="text-lg font-black uppercase tracking-tight">
+                    Resume du <span className="text-blue-500">Swap</span>
+                  </h2>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                    Verifiez les details avant confirmation
                   </p>
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <AssetIcon asset={toAsset} size={20} />
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">
-                      {toAsset.symbol}
+                </div>
+              </motion.div>
+
+              {/* Main Content */}
+              <div className="flex-1 flex flex-col justify-center space-y-5">
+                {/* Swap Animation Icon */}
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1, type: "spring" }}
+                  className="flex justify-center mb-2"
+                >
+                  <div className="relative">
+                    <motion.div
+                      animate={{ rotate: loading ? 360 : 0 }}
+                      transition={{ duration: 1, repeat: loading ? Infinity : 0, ease: "linear" }}
+                      className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-full flex items-center justify-center border border-blue-500/30"
+                    >
+                      <RefreshCw size={28} className="text-blue-400" />
+                    </motion.div>
+                  </div>
+                </motion.div>
+
+                {/* Transaction Card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-gradient-to-br from-slate-900/90 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 backdrop-blur-xl"
+                >
+                  {/* From/To Display */}
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex-1">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous vendez</p>
+                      <div className="flex items-center gap-3">
+                        <AssetIcon asset={fromAsset} size={44} />
+                        <div>
+                          <p className="text-2xl font-black text-white">{fromAmount}</p>
+                          <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <motion.div
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 mx-2"
+                    >
+                      <ArrowRight size={20} className="text-blue-400" />
+                    </motion.div>
+
+                    <div className="flex-1 text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous recevez</p>
+                      <div className="flex items-center gap-3 justify-end">
+                        <div>
+                          <p className="text-2xl font-black text-blue-400">{formatToAmount()}</p>
+                          <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
+                        </div>
+                        <AssetIcon asset={toAsset} size={44} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
+
+                  {/* Details */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp size={12} className="text-blue-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Taux de change</span>
+                      </div>
+                      <span className="text-xs font-black text-white">
+                        1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Banknote size={12} className="text-amber-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Frais reseau</span>
+                      </div>
+                      <span className="text-xs font-black text-white">{NETWORK_FEE}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Zap size={12} className="text-purple-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Slippage</span>
+                      </div>
+                      <span className="text-xs font-black text-white">{slippage}%</span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Shield size={12} className="text-emerald-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Minimum recu</span>
+                      </div>
+                      <span className="text-xs font-black text-emerald-400">{getMinimumReceived()} {toAsset.symbol}</span>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Network Info */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-center justify-center gap-4"
+                >
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl border border-white/10">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: fromAsset.color }} />
+                    <span className="text-[9px] font-bold text-slate-400">{fromAsset.network || "PimPay"}</span>
+                  </div>
+                  <ArrowRight size={12} className="text-slate-600" />
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl border border-white/10">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: toAsset.color }} />
+                    <span className="text-[9px] font-bold text-slate-400">{toAsset.network || "PimPay"}</span>
+                  </div>
+                </motion.div>
+
+                {/* Warning */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl"
+                >
+                  <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={14} />
+                  <div>
+                    <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Attention</p>
+                    <p className="text-[9px] text-amber-200/60 leading-relaxed font-medium">
+                      Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer.
                     </p>
                   </div>
-                </div>
+                </motion.div>
               </div>
 
-              <div className="h-px bg-white/5 w-full" />
+              {/* Action Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="space-y-3 pb-4"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSwapExecute}
+                  disabled={loading}
+                  className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl shadow-blue-500/20 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      <span>Traitement en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>Confirmer le Swap</span>
+                    </>
+                  )}
+                </motion.button>
 
-              <div className="space-y-3 text-xs font-medium text-slate-400">
-                <div className="flex justify-between items-center">
-                  <span>Rate</span>
-                  <span className="text-white font-semibold">
-                    1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Network fee</span>
-                  <span className="text-white font-semibold">{NETWORK_FEE}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Slippage</span>
-                  <span className="text-white font-semibold">{slippage}%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Minimum received</span>
-                  <span className="text-white font-semibold">
-                    {getMinimumReceived()} {toAsset.symbol}
-                  </span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex items-center justify-center gap-1.5 pt-1">
-                  <span className="text-[11px] text-slate-500">May include 0.3% pool fee</span>
-                  <Info size={13} className="text-slate-500" />
-                </div>
-              </div>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  disabled={loading}
+                  className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all disabled:opacity-50"
+                >
+                  <X size={14} /> Annuler
+                </button>
+              </motion.div>
             </div>
-
-            <div className="flex items-start gap-3 p-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl">
-              <AlertCircle className="text-yellow-500 shrink-0" size={16} />
-              <p className="text-[9px] text-yellow-200/50 leading-relaxed font-bold uppercase italic">
-                Attention : Cette operation de conversion est irreversible dans
-                le Ledger PimPay.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSwapExecute}
-            disabled={loading}
-            className="w-full bg-blue-600 py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all mb-4 disabled:opacity-50"
-          >
-            {loading ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              "Confirmer le Swap"
-            )}
-          </button>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
