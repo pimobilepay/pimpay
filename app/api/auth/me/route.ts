@@ -58,6 +58,7 @@ export async function GET() {
         kycStatus: true,
         status: true,
         createdAt: true,
+        passwordChangedAt: true,
         wallets: {
           where: { currency: "PI" },
           select: { balance: true }
@@ -95,6 +96,7 @@ export async function GET() {
         role: user.role,
         kycStatus: user.kycStatus,
         createdAt: user.createdAt,
+        passwordChangedAt: user.passwordChangedAt,
         balance: user.wallets[0]?.balance || 0,
       }
     });

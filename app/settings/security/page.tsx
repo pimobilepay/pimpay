@@ -98,6 +98,9 @@ export default function SecurityPage() {
   const [disableLoading, setDisableLoading] = useState(false);
   const [secretCopied, setSecretCopied] = useState(false);
   const [setupStep, setSetupStep] = useState<"qr" | "verify">("qr");
+  
+  // Password change date state
+  const [passwordChangedAt, setPasswordChangedAt] = useState<Date | null>(null);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -124,6 +127,20 @@ export default function SecurityPage() {
       // silently fail
     } finally {
       setGoogle2faLoading(false);
+    }
+  }, []);
+
+  const fetchUserData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user?.passwordChangedAt) {
+          setPasswordChangedAt(new Date(data.user.passwordChangedAt));
+        }
+      }
+    } catch {
+      // silently fail
     }
   }, []);
 
@@ -594,7 +611,8 @@ export default function SecurityPage() {
     setVoiceAuth(localStorage.getItem("voiceAuth") === "true");
     fetchSessions();
     fetch2faStatus();
-  }, [fetchSessions, fetch2faStatus]);
+    fetchUserData();
+  }, [fetchSessions, fetch2faStatus, fetchUserData]);
 
   const toggleSwitch = (key: string, value: boolean, setValue: (v: boolean) => void) => {
     const newVal = !value;
@@ -797,7 +815,10 @@ export default function SecurityPage() {
             <SecurityAction
               icon={<Lock size={20} />}
               label="Mot de passe Maitre"
-              description="Derniere modification : Il y a 3 mois"
+              description={passwordChangedAt 
+                ? `Derniere modification : ${formatDistanceToNow(passwordChangedAt, { addSuffix: false, locale: fr })}`
+                : "Aucune modification recente"
+              }
               path="/settings/security/change-password"
             />
             <div className="h-[1px] w-[90%] bg-white/5 mx-auto" />

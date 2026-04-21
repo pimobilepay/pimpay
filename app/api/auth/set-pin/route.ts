@@ -38,8 +38,8 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { pin } = body;
 
-    if (!pin || typeof pin !== 'string' || pin.length !== 4 || !/^\d+$/.test(pin)) {
-      return NextResponse.json({ error: "Le PIN doit contenir 4 chiffres" }, { status: 400 });
+    if (!pin || typeof pin !== 'string' || pin.length !== 6 || !/^\d{6}$/.test(pin)) {
+      return NextResponse.json({ error: "Le PIN doit contenir 6 chiffres" }, { status: 400 });
     }
 
     const salt = await bcrypt.genSalt(10);

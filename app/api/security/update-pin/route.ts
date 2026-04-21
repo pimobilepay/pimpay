@@ -14,9 +14,9 @@ export async function PUT(req: Request) {
   try {
     const { newPin } = await req.json();
 
-    // 1. Validation du PIN
-    if (!newPin || newPin.length !== 4) {
-      return NextResponse.json({ error: "Format PIN invalide" }, { status: 400 });
+    // 1. Validation du PIN (6 chiffres)
+    if (!newPin || newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+      return NextResponse.json({ error: "Le PIN doit contenir exactement 6 chiffres" }, { status: 400 });
     }
 
     // 2. Essayer d'abord via cookie (session DB)

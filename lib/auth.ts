@@ -12,6 +12,27 @@ const getJwtSecret = () => {
   return new TextEncoder().encode(secret);
 };
 
+// Verify JWT token and return payload
+export async function verifyJWT(token: string): Promise<{ id: string; role?: string; username?: string } | null> {
+  try {
+    const secret = getJwtSecret();
+    if (!secret) return null;
+
+    const { payload } = await jose.jwtVerify(token, secret);
+    
+    if (!payload.id) return null;
+    
+    return {
+      id: payload.id as string,
+      role: payload.role as string | undefined,
+      username: payload.username as string | undefined,
+    };
+  } catch (error) {
+    console.error("JWT verification error:", error);
+    return null;
+  }
+}
+
 // 1. Pour le Middleware
 export async function verifyAuth(req: NextRequest) {
   try {

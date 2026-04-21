@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     // 2. HASHACHE HORS TRANSACTION (C'est ce qui prend du temps !)
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const hashedPin = await bcrypt.hash("0000", salt);
+    const hashedPin = await bcrypt.hash("000000", salt);
 
     // 3. TRANSACTION AVEC TIMEOUT AUGMENTÉ (20s)
     const result = await prisma.$transaction(async (tx) => {
