@@ -17,6 +17,7 @@ import {
   User,
   RotateCcw,
   ArrowLeft,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -496,6 +497,21 @@ function SuccessContent() {
               <Share2 size={18} />
             </button>
           </div>
+
+          <Link
+            href={`/transfer/receipt?ref=${encodeURIComponent(reference)}&amount=${amount}&currency=${currency}&name=${encodeURIComponent(recipientName)}`}
+            className="block w-full"
+          >
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
+            >
+              <FileText size={15} className="text-blue-400" />
+              <span>Voir le Recu Detaille</span>
+              <ArrowRight size={14} className="text-slate-500" />
+            </motion.button>
+          </Link>
 
           <motion.button
             whileHover={{ scale: 1.02 }}
