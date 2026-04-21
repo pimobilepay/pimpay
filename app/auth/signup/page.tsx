@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import {
   User, ShieldCheck, CheckCircle2,
   Loader2, ArrowLeft, Delete, Lock,
-  XCircle, AlertCircle, Gift, Building2
+  XCircle, AlertCircle, Gift, Building2,
+  Grid3X3
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -15,8 +16,39 @@ import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
+import { z } from "zod";
 
 type SignupType = "user" | "business";
+type MFAMethod = "authenticator" | "pin";
+
+// Zod validation for 6-digit PIN
+const pinSchema = z.string().length(6, "Le PIN doit contenir 6 chiffres").regex(/^\d+$/, "Le PIN ne doit contenir que des chiffres");
+
+// MFA Method Cards data
+const mfaMethods = [
+  {
+    id: "authenticator" as MFAMethod,
+    name: "Google Authenticator",
+    description: "Application TOTP securisee",
+    icon: ShieldCheck,
+    badge: "Recommande",
+    gradient: "from-emerald-500/20 to-emerald-600/10",
+    borderColor: "border-emerald-500/30",
+    iconColor: "text-emerald-400",
+    badgeColor: "bg-emerald-500/20 text-emerald-400",
+  },
+  {
+    id: "pin" as MFAMethod,
+    name: "Code PIN",
+    description: "PIN a 6 chiffres",
+    icon: Grid3X3,
+    badge: null,
+    gradient: "from-blue-500/20 to-blue-600/10",
+    borderColor: "border-blue-500/30",
+    iconColor: "text-blue-400",
+    badgeColor: "",
+  },
+];
 
 export default function SignupPage() {
   const [mounted, setMounted] = useState(false);
@@ -24,6 +56,10 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   const [signupType, setSignupType] = useState<SignupType>("user");
+  const [error, setError] = useState<string | null>(null);
+
+  // MFA Selection state
+  const [selectedMfaMethod, setSelectedMfaMethod] = useState<MFAMethod | null>(null);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -34,6 +70,9 @@ export default function SignupPage() {
   });
 
   const [pin, setPin] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [authToken, setAuthToken] = useState("");
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "valid" | "invalid" | "disposable" | "error">("idle");
   const [emailMessage, setEmailMessage] = useState("");
@@ -42,6 +81,8 @@ export default function SignupPage() {
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref") || "";
   const { t } = useLanguage();
+
+  const PIN_LENGTH = 6;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -122,7 +163,7 @@ export default function SignupPage() {
     }, 500);
   };
 
-  // --- ÉTAPE 1 : INSCRIPTION ---
+  // --- ETAPE 1 : INSCRIPTION ---
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -151,19 +192,70 @@ export default function SignupPage() {
         document.cookie = `pi_session_token=${data.token}; path=/; max-age=3600; SameSite=Lax`;
       }
 
-      setStep(2);
+      setStep(2); // Go to MFA selection
       toast.success(t("extra.accountCreated"));
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- ÉTAPE 2 : CONFIGURATION PIN (Logique) ---
+  // --- ETAPE 2: SELECTION MFA ---
+  const handleMfaMethodSelect = async (method: MFAMethod) => {
+    setSelectedMfaMethod(method);
+    setError(null);
+    setPin("");
+    setTotpCode("");
+    
+    if (method === "authenticator") {
+      // Generate TOTP secret and QR code
+      setLoading(true);
+      try {
+        const currentToken = authToken || localStorage.getItem("pimpay_token");
+        const res = await fetch("/api/auth/mfa/setup-totp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${currentToken}`
+          },
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur lors de la configuration TOTP");
+
+        setTotpSecret(data.secret);
+        setQrCodeUrl(data.qrCodeUrl);
+        setStep(3); // Go to TOTP setup
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Erreur inconnue";
+        toast.error(message);
+        setSelectedMfaMethod(null);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setStep(3); // Go to PIN setup
+    }
+  };
+
+  // --- ETAPE 3: CONFIGURATION PIN (6 chiffres) ---
   const handleSetPin = useCallback(async (finalPin: string) => {
     if (loading) return;
+    
+    // Validate PIN with Zod
+    const validation = pinSchema.safeParse(finalPin);
+    if (!validation.success) {
+      setError(validation.error.errors[0].message);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      setPin("");
+      return;
+    }
+
     setLoading(true);
+    setError(null);
 
     const currentToken = authToken || localStorage.getItem("pimpay_token");
 
@@ -180,32 +272,98 @@ export default function SignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t("auth.signup.pinError"));
 
-      setStep(3);
+      setStep(4); // Go to success
       toast.success(t("extra.securityConfigured"));
-    } catch (err: any) {
+    } catch (err: unknown) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
-      toast.error(err.message);
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      setError(message);
+      toast.error(message);
       setPin("");
     } finally {
       setLoading(false);
     }
-  }, [authToken, loading]);
+  }, [authToken, loading, t]);
 
+  // --- CONFIGURATION TOTP ---
+  const handleVerifyTotp = useCallback(async (code: string) => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+
+    const currentToken = authToken || localStorage.getItem("pimpay_token");
+
+    try {
+      const res = await fetch("/api/auth/mfa/verify-setup-totp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${currentToken}`
+        },
+        body: JSON.stringify({ code, secret: totpSecret }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Code incorrect");
+
+      setStep(4); // Go to success
+      toast.success("Google Authenticator configure avec succes");
+    } catch (err: unknown) {
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      setError(message);
+      toast.error(message);
+      setTotpCode("");
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken, loading, totpSecret]);
+
+  // Auto-submit when PIN reaches 6 digits
   useEffect(() => {
-    if (pin.length === 4 && step === 2) {
+    if (pin.length === PIN_LENGTH && step === 3 && selectedMfaMethod === "pin" && !loading) {
       handleSetPin(pin);
     }
-  }, [pin, step, handleSetPin]);
+  }, [pin, step, selectedMfaMethod, handleSetPin, loading]);
+
+  // Auto-submit when TOTP code reaches 6 digits
+  useEffect(() => {
+    if (totpCode.length === 6 && step === 3 && selectedMfaMethod === "authenticator" && !loading) {
+      handleVerifyTotp(totpCode);
+    }
+  }, [totpCode, step, selectedMfaMethod, handleVerifyTotp, loading]);
 
   const handleNumberPress = (num: number) => {
     if (loading || shake) return;
-    if (pin.length < 4) setPin(prev => prev + num);
+    setError(null);
+    
+    if (selectedMfaMethod === "pin" && pin.length < PIN_LENGTH) {
+      setPin(prev => prev + num);
+    }
+    
+    if (selectedMfaMethod === "authenticator" && totpCode.length < 6) {
+      setTotpCode(prev => prev + num);
+    }
   };
 
   const deleteDigit = () => {
     if (loading) return;
-    setPin(prev => prev.slice(0, -1));
+    if (selectedMfaMethod === "pin") {
+      setPin(prev => prev.slice(0, -1));
+    }
+    if (selectedMfaMethod === "authenticator") {
+      setTotpCode(prev => prev.slice(0, -1));
+    }
+  };
+
+  const goBackToMfaSelection = () => {
+    setStep(2);
+    setSelectedMfaMethod(null);
+    setPin("");
+    setTotpCode("");
+    setError(null);
   };
 
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
@@ -280,12 +438,12 @@ export default function SignupPage() {
             <div className="space-y-6">
               <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
                 <p className="text-xs text-amber-400 mb-3">
-                  L'inscription entreprise necessite des informations supplementaires pour la verification de votre business.
+                  L&apos;inscription entreprise necessite des informations supplementaires pour la verification de votre business.
                 </p>
                 <ul className="text-[10px] text-slate-400 space-y-1.5 mb-4">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3 h-3 text-amber-500" />
-                    Informations de l'entreprise
+                    Informations de l&apos;entreprise
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3 h-3 text-amber-500" />
@@ -301,7 +459,7 @@ export default function SignupPage() {
                 onClick={() => router.push("/auth/business-signup")}
                 className="w-full h-14 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-amber-900/20 active:scale-95 transition-all"
               >
-                Continuer l'inscription Business
+                Continuer l&apos;inscription Business
               </Button>
               <p className="text-center text-[11px] text-slate-500 uppercase font-bold tracking-widest">
                 Deja inscrit? <Link href="/auth/login" className="text-amber-500 ml-1">Se connecter</Link>
@@ -399,72 +557,233 @@ export default function SignupPage() {
         </Card>
       )}
 
-      {/* STEP 2: CONFIG PIN (Design identique au PinCodeModal) */}
+      {/* STEP 2: MFA METHOD SELECTION */}
       <AnimatePresence>
         {step === 2 && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#020617]/95 backdrop-blur-md p-4">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#020617]/95 backdrop-blur-xl p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="w-full max-w-[440px] overflow-hidden"
+            >
+              {/* Glassmorphism Card */}
+              <div className="relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
+                {/* Specular reflection effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+                {/* Header */}
+                <div className="relative px-6 pt-8 pb-4">
+                  <div className="text-center">
+                    <div className="inline-flex p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 mb-4">
+                      <Lock className="text-blue-400" size={28} />
+                    </div>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white">
+                      Configuration MFA
+                    </h2>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">
+                      Choisissez votre methode de securite
+                    </p>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="px-6 pb-8">
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {mfaMethods.map((method) => {
+                      const Icon = method.icon;
+                      
+                      return (
+                        <motion.button
+                          key={method.id}
+                          onClick={() => handleMfaMethodSelect(method.id)}
+                          disabled={loading}
+                          whileHover={{ scale: 1.02, y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`relative p-4 rounded-2xl bg-gradient-to-br ${method.gradient} border ${method.borderColor} transition-all hover:border-white/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {/* Badge */}
+                          {method.badge && (
+                            <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${method.badgeColor}`}>
+                              {method.badge}
+                            </span>
+                          )}
+                          
+                          <Icon className={`${method.iconColor} mb-3`} size={28} />
+                          <h3 className="text-sm font-bold text-white text-left">{method.name}</h3>
+                          <p className="text-[10px] text-slate-500 text-left mt-0.5">{method.description}</p>
+                        </motion.button>
+                      );
+                    })}
+                  </motion.div>
+                </div>
+
+                {/* Footer */}
+                <div className="bg-slate-950/50 py-4 border-t border-white/5">
+                  {loading ? (
+                    <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                      <Loader2 className="animate-spin text-blue-500 mb-1" size={20} />
+                      <p className="text-[9px] text-blue-500/70 uppercase font-black tracking-[0.2em]">
+                        Configuration...
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">
+                      PimPay Protocol v2.0
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* STEP 3: MFA CONFIGURATION (PIN or TOTP) */}
+      <AnimatePresence>
+        {step === 3 && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#020617]/95 backdrop-blur-xl p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="w-full max-w-[400px] bg-slate-900 border border-white/10 rounded-[40px] shadow-2xl overflow-hidden"
             >
-              <div className="px-6 pt-8 text-center">
-                <div className="inline-flex p-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 mb-3">
-                  <ShieldCheck className="text-blue-500" size={24} />
+              {/* Header */}
+              <div className="relative px-6 pt-8 text-center">
+                <button
+                  onClick={goBackToMfaSelection}
+                  className="absolute left-6 top-8 p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+
+                <div className="inline-flex p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 mb-3">
+                  {selectedMfaMethod === "pin" ? (
+                    <Grid3X3 className="text-blue-400" size={24} />
+                  ) : (
+                    <ShieldCheck className="text-emerald-400" size={24} />
+                  )}
                 </div>
-                <h2 className="text-lg font-black uppercase tracking-tighter text-white">{t("extra.setPin")}</h2>
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">{t("extra.securedByElara")}</p>
+                <h2 className="text-lg font-black uppercase tracking-tighter text-white">
+                  {selectedMfaMethod === "pin" ? "Definir le Code PIN" : "Google Authenticator"}
+                </h2>
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">
+                  {selectedMfaMethod === "pin" ? "6 chiffres requis" : "Scannez le QR code"}
+                </p>
               </div>
 
               <div className={`px-8 py-6 ${shake ? "animate-shake" : ""}`}>
-                {/* Dots */}
-                <div className="flex justify-center gap-3 mb-8">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
-                        pin.length > i
-                        ? "bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.8)] scale-110"
-                        : "bg-slate-800 border border-white/10"
-                      }`}
-                    />
-                  ))}
+                {/* Error Message */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4"
+                    >
+                      <AlertCircle className="text-red-400" size={16} />
+                      <p className="text-xs text-red-400">{error}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* TOTP QR Code (for authenticator method) */}
+                {selectedMfaMethod === "authenticator" && qrCodeUrl && (
+                  <div className="mb-6">
+                    <div className="bg-white p-4 rounded-2xl mx-auto w-fit mb-4">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={qrCodeUrl} alt="QR Code TOTP" className="w-40 h-40" />
+                    </div>
+                    <p className="text-xs text-slate-400 text-center mb-2">
+                      Scannez ce QR code avec Google Authenticator
+                    </p>
+                    <p className="text-[10px] text-slate-600 text-center">
+                      Ou entrez manuellement: <span className="text-blue-400 font-mono">{totpSecret}</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Code Indicators */}
+                <div className="flex justify-center gap-2 mb-6">
+                  {[...Array(6)].map((_, i) => {
+                    const currentCode = selectedMfaMethod === "pin" ? pin : totpCode;
+                    const active = currentCode.length > i;
+                    const isAuthenticator = selectedMfaMethod === "authenticator";
+                    
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0.8 }}
+                        animate={{
+                          scale: active ? 1.1 : 1,
+                        }}
+                        className={`w-10 h-12 rounded-xl flex items-center justify-center text-lg font-bold transition-all duration-200 ${
+                          active
+                            ? isAuthenticator 
+                              ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                              : "bg-blue-500/20 border border-blue-500/30 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                            : "bg-slate-800/50 border border-white/10 text-slate-500"
+                        }`}
+                      >
+                        {currentCode[i] || ""}
+                      </motion.div>
+                    );
+                  })}
                 </div>
 
                 {/* Numpad */}
-                <div className="grid grid-cols-3 gap-y-4 gap-x-6 max-w-[280px] mx-auto text-center">
+                <div className="grid grid-cols-3 gap-y-3 gap-x-4 max-w-[280px] mx-auto text-center">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                    <button
+                    <motion.button
                       key={num}
                       type="button"
                       onClick={() => handleNumberPress(num)}
-                      className="h-12 text-xl font-bold rounded-xl hover:bg-white/5 active:bg-blue-600/20 active:text-blue-500 transition-all text-white outline-none"
+                      whileTap={{ scale: 0.9 }}
+                      className={`h-12 text-xl font-bold rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-white outline-none ${
+                        selectedMfaMethod === "authenticator" 
+                          ? "active:bg-emerald-600/20 active:border-emerald-500/30" 
+                          : "active:bg-blue-600/20 active:border-blue-500/30"
+                      }`}
                     >
                       {num}
-                    </button>
+                    </motion.button>
                   ))}
-                  <button
+                  <motion.button
                     type="button"
-                    onClick={() => setStep(1)}
+                    onClick={goBackToMfaSelection}
+                    whileTap={{ scale: 0.9 }}
                     className="flex items-center justify-center text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-rose-500 transition-colors"
                   >
-                    {t("extra.cancelPin")}
-                  </button>
-                  <button
+                    RETOUR
+                  </motion.button>
+                  <motion.button
                     type="button"
                     onClick={() => handleNumberPress(0)}
-                    className="h-12 text-xl font-bold rounded-xl hover:bg-white/5 active:bg-blue-600/20 active:text-blue-500 transition-all text-white outline-none"
+                    whileTap={{ scale: 0.9 }}
+                    className={`h-12 text-xl font-bold rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-white outline-none ${
+                      selectedMfaMethod === "authenticator" 
+                        ? "active:bg-emerald-600/20 active:border-emerald-500/30" 
+                        : "active:bg-blue-600/20 active:border-blue-500/30"
+                    }`}
                   >
                     0
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     type="button"
                     onClick={deleteDigit}
-                    className="h-12 flex items-center justify-center rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all outline-none"
+                    whileTap={{ scale: 0.9 }}
+                    className="h-12 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all outline-none"
                   >
                     <Delete size={20} />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
@@ -476,7 +795,7 @@ export default function SignupPage() {
                     <p className="text-[9px] text-blue-500/70 uppercase font-black tracking-[0.2em]">{t("extra.initializing")}</p>
                   </div>
                 ) : (
-                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PimPay Protocol v1.0</p>
+                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PimPay Protocol v2.0</p>
                 )}
               </div>
             </motion.div>
@@ -484,14 +803,19 @@ export default function SignupPage() {
         )}
       </AnimatePresence>
 
-      {/* STEP 3: SUCCÈS FINAL */}
-      {step === 3 && (
+      {/* STEP 4: SUCCES FINAL */}
+      {step === 4 && (
         <Card className="relative z-10 w-full max-w-[400px] p-10 bg-slate-900/40 backdrop-blur-3xl border-white/10 text-center rounded-[40px] animate-in zoom-in-95">
           <div className="w-20 h-20 bg-green-500/10 border border-green-500/20 rounded-[30px] flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="text-green-500 size-10" />
           </div>
           <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">{t("extra.accountActivated")}</h3>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2 mb-8">{t("extra.protocolReady")}</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2 mb-2">
+            {selectedMfaMethod === "authenticator" 
+              ? "Google Authenticator configure" 
+              : "Code PIN a 6 chiffres configure"}
+          </p>
+          <p className="text-slate-400 text-xs mb-8">{t("extra.protocolReady")}</p>
           <Button onClick={() => router.push("/auth/login")} className="w-full h-14 bg-white text-black hover:bg-slate-200 rounded-2xl font-black tracking-widest transition-all">
             {t("extra.loginButton")}
           </Button>
