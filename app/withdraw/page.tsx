@@ -63,6 +63,10 @@ export default function WithdrawPage() {
   const [showCryptoSelector, setShowCryptoSelector] = useState(false);
   const [isValidAddress, setIsValidAddress] = useState<boolean | null>(null);
   const cryptoRef = useRef<HTMLDivElement>(null);
+  
+  // Address blockchain verification
+  const [addressVerifying, setAddressVerifying] = useState(false);
+  const [addressVerified, setAddressVerified] = useState<{ valid: boolean; exists: boolean; network?: string; error?: string } | null>(null);
 
   // Loading & confirmation
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -88,10 +92,43 @@ export default function WithdrawPage() {
   useEffect(() => {
     if (!cryptoAddress || cryptoAddress.length < 10) {
       setIsValidAddress(null);
+      setAddressVerified(null);
       return;
     }
     const result = validateAddress(cryptoAddress, selectedCrypto);
     setIsValidAddress(result.isValid);
+    
+    // If format is valid, verify on blockchain
+    if (result.isValid) {
+      const verifyOnBlockchain = async () => {
+        setAddressVerifying(true);
+        setAddressVerified(null);
+        
+        try {
+          const res = await fetch("/api/wallet/verify-address", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: cryptoAddress, currency: selectedCrypto }),
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            setAddressVerified(data);
+          }
+        } catch (error) {
+          console.error("Address verification error:", error);
+          setAddressVerified({ valid: true, exists: true }); // Assume valid if API fails
+        } finally {
+          setAddressVerifying(false);
+        }
+      };
+      
+      // Debounce the verification
+      const timer = setTimeout(verifyOnBlockchain, 800);
+      return () => clearTimeout(timer);
+    } else {
+      setAddressVerified(null);
+    }
   }, [cryptoAddress, selectedCrypto]);
 
   async function fetchWallets() {
@@ -829,6 +866,8 @@ export default function WithdrawPage() {
                                   setCryptoAddress("");
                                   setCryptoAmount("");
                                   setCryptoMemo("");
+                                  setAddressVerified(null);
+                                  setAddressVerifying(false);
                                 }}
                                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
                                   selectedCrypto === key
@@ -883,23 +922,55 @@ export default function WithdrawPage() {
                       value={cryptoAddress}
                       onChange={(e) => setCryptoAddress(e.target.value.trim())}
                       className={`w-full h-14 bg-slate-900/80 rounded-2xl border px-5 pr-12 text-xs font-mono font-bold outline-none transition-colors placeholder:text-slate-700 ${
-                        isValidAddress === true
+                        isValidAddress === true && addressVerified?.valid && addressVerified?.exists
                           ? "border-emerald-500/50 focus:border-emerald-500"
-                          : isValidAddress === false
-                            ? "border-red-500/50 focus:border-red-500"
-                            : "border-white/10 focus:border-blue-500/50"
+                          : isValidAddress === true && addressVerifying
+                            ? "border-blue-500/50 focus:border-blue-500"
+                            : isValidAddress === false
+                              ? "border-red-500/50 focus:border-red-500"
+                              : "border-white/10 focus:border-blue-500/50"
                       }`}
                     />
-                    {isValidAddress !== null && (
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                        {isValidAddress ? (
-                          <CheckCircle2 size={18} className="text-emerald-500" />
-                        ) : (
-                          <AlertTriangle size={18} className="text-red-500" />
-                        )}
-                      </div>
-                    )}
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      {addressVerifying ? (
+                        <Loader2 size={18} className="text-blue-500 animate-spin" />
+                      ) : isValidAddress === true && addressVerified?.valid && addressVerified?.exists ? (
+                        <CheckCircle2 size={18} className="text-emerald-500" />
+                      ) : isValidAddress === false ? (
+                        <AlertTriangle size={18} className="text-red-500" />
+                      ) : isValidAddress === true ? (
+                        <CheckCircle2 size={18} className="text-emerald-500" />
+                      ) : null}
+                    </div>
                   </div>
+                  
+                  {/* Address verification status */}
+                  {isValidAddress === true && addressVerified && (
+                    <div className={`mt-2 p-3 rounded-xl flex items-start gap-2 ${
+                      addressVerified.exists
+                        ? "bg-emerald-500/10 border border-emerald-500/20"
+                        : "bg-amber-500/10 border border-amber-500/20"
+                    }`}>
+                      {addressVerified.exists ? (
+                        <>
+                          <ShieldCheck size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[9px] font-black text-emerald-400 uppercase">Compte verifie</p>
+                            <p className="text-[8px] text-emerald-400/70">Adresse active sur {addressVerified.network || CRYPTO_ASSETS[selectedCrypto]?.network}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Globe size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[9px] font-black text-amber-400 uppercase">Adresse valide</p>
+                            <p className="text-[8px] text-amber-400/70">{addressVerified.error || "Compte non active - le transfert peut echouer"}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  
                   {isValidAddress === false && (
                     <p className="text-[10px] text-red-400 font-bold ml-1">
                       Adresse {CRYPTO_ASSETS[selectedCrypto]?.name || selectedCrypto} invalide — prefixe attendu: {CRYPTO_RULES[selectedCrypto]?.prefix || "?"}

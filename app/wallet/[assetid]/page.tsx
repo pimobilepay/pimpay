@@ -5,7 +5,7 @@ import {
   ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar,
   RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp,
   Send, Loader2, Scan, User, FileText, Hash,
-  CheckCircle2, XCircle
+  CheckCircle2, XCircle, AlertCircle, ShieldCheck
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -271,6 +271,10 @@ export default function AssetDetailPage() {
   const [address, setAddress] = useState("");
   const [marketPrice, setMarketPrice] = useState(MARKET_DEFAULTS[assetId] || 0);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  // Address verification state
+  const [addressVerifying, setAddressVerifying] = useState(false);
+  const [addressVerified, setAddressVerified] = useState<{ valid: boolean; exists: boolean; network?: string; error?: string } | null>(null);
+  const [sendRecipientAddress, setSendRecipientAddress] = useState("");
 
   const fetchMarketPrice = useCallback(async () => {
     if (assetId === "PI" || assetId === "SDA") return;
@@ -284,6 +288,46 @@ export default function AssetDetailPage() {
         if (price) setMarketPrice(price);
       }
     } catch { /* keep default */ }
+  }, [assetId]);
+
+  // Verify external address exists on blockchain
+  const verifyAddress = useCallback(async (addr: string) => {
+    if (!addr || addr.length < 10) {
+      setAddressVerified(null);
+      return;
+    }
+    
+    setAddressVerifying(true);
+    setAddressVerified(null);
+    
+    try {
+      const res = await fetch("/api/wallet/verify-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr, currency: assetId }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setAddressVerified(data);
+        setSendRecipientAddress(addr);
+        
+        if (data.valid && data.exists) {
+          toast.success("Adresse vérifiée avec succès");
+        } else if (data.valid && !data.exists) {
+          toast.info(data.error || "Adresse valide mais compte non actif");
+        } else {
+          toast.error(data.error || "Adresse invalide");
+        }
+      } else {
+        setAddressVerified({ valid: false, exists: false, error: "Erreur de vérification" });
+      }
+    } catch (error) {
+      console.error("Address verification error:", error);
+      setAddressVerified({ valid: false, exists: false, error: "Erreur réseau" });
+    } finally {
+      setAddressVerifying(false);
+    }
   }, [assetId]);
 
   const loadData = useCallback(async () => {
@@ -685,7 +729,7 @@ export default function AssetDetailPage() {
       {showSendModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
           <div className="bg-[#0a0f1a] w-full max-w-xs rounded-3xl border border-white/10 p-7 relative text-center">
-            <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); }} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
+            <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); setAddressVerified(null); setAddressVerifying(false); }} className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors p-1">
               <X size={20} />
             </button>
             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
@@ -702,34 +746,153 @@ export default function AssetDetailPage() {
                 <p className="text-sm font-black text-white mb-1 uppercase">
                   {sendStatus === "pending" ? "Transfert en cours" : "Transfert réussi"}
                 </p>
-                <p className="text-[10px] text-slate-400 mb-4 font-medium tracking-tight">
-                  {sendMessage || `${sendAmount} ${assetId} envoyés avec succès`}
+                <p className="text-[10px] text-slate-400 mb-3 font-medium tracking-tight">
+                  {sendMessage || `Transfert ${assetId} effectué`}
                 </p>
-                {sendTxHash && (
-                  <div className="flex items-center gap-2 bg-white/5 border border-white/10 p-3 rounded-xl mb-4 w-full">
-                    <p className="text-[9px] font-mono text-slate-400 truncate flex-1">{sendTxHash}</p>
-                    {sendTxHash.startsWith("PIM-") ? (
-                      <Copy size={14} className="text-blue-500 shrink-0 cursor-pointer" onClick={() => {
-                        navigator.clipboard.writeText(sendTxHash);
-                        toast.success("Référence copiée");
-                      }} />
-                    ) : (
-                      <a href={`${config.explorerBase}${sendTxHash}`} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink size={14} className="text-blue-500 shrink-0" />
-                      </a>
-                    )}
+                
+                {/* Enhanced Transaction Details */}
+                <div className="w-full space-y-2 mb-4">
+                  {/* Amount */}
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[8px] font-black text-slate-500 uppercase">Montant envoyé</p>
+                      <p className="text-sm font-black text-emerald-400">{sendAmount} {assetId}</p>
+                    </div>
                   </div>
-                )}
-                <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); loadData(); }} className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all">Fermer</button>
+                  
+                  {/* Recipient */}
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Destinataire</p>
+                    <p className="text-[9px] font-mono text-blue-400 truncate">{sendRecipientAddress || sendAddress}</p>
+                  </div>
+                  
+                  {/* Network */}
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[8px] font-black text-slate-500 uppercase">Réseau</p>
+                      <p className="text-[10px] font-bold text-white">{config.network}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Transaction Hash */}
+                  {sendTxHash && (
+                    <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Hash Transaction</p>
+                          <p className="text-[9px] font-mono text-slate-400 truncate">{sendTxHash}</p>
+                        </div>
+                        {sendTxHash.startsWith("PIM-") ? (
+                          <Copy size={14} className="text-blue-500 shrink-0 cursor-pointer" onClick={() => {
+                            navigator.clipboard.writeText(sendTxHash);
+                            toast.success("Référence copiée");
+                          }} />
+                        ) : (
+                          <a href={`${config.explorerBase}${sendTxHash}`} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink size={14} className="text-blue-500 shrink-0" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Date/Time */}
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[8px] font-black text-slate-500 uppercase">Date</p>
+                      <p className="text-[10px] font-bold text-white">{new Date().toLocaleString("fr-FR")}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <button onClick={() => { setShowSendModal(false); setSendAddress(""); setSendAmount(""); setSendStatus("idle"); setSendTxHash(""); setSendMessage(""); setAddressVerified(null); loadData(); }} className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-blue-500 transition-all">Fermer</button>
               </div>
             ) : (
               <div className="space-y-4 text-left">
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Adresse de destination</label>
                   <div className="relative">
-                    <input value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder={`Adresse ${assetId}...`} className="w-full bg-white/5 border border-white/10 p-4 pr-14 rounded-2xl text-[11px] font-mono text-blue-100 focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700" />
-                    <button onClick={() => QRScanner ? setShowQRScanner(true) : toast.error("Scanner indisponible")} className="absolute right-3 top-3 p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"><Scan size={16} className="text-white" /></button>
+                    <input 
+                      value={sendAddress} 
+                      onChange={(e) => { 
+                        setSendAddress(e.target.value); 
+                        setAddressVerified(null); 
+                      }} 
+                      onBlur={() => {
+                        if (sendAddress && sendAddress.length >= 10) {
+                          verifyAddress(sendAddress);
+                        }
+                      }}
+                      placeholder={`Adresse ${assetId}...`} 
+                      className={`w-full bg-white/5 border p-4 pr-24 rounded-2xl text-[11px] font-mono text-blue-100 focus:outline-none transition-all placeholder:text-slate-700 ${
+                        addressVerified?.valid && addressVerified?.exists
+                          ? "border-emerald-500/50 focus:border-emerald-500"
+                          : addressVerified && !addressVerified.valid
+                          ? "border-red-500/50 focus:border-red-500"
+                          : "border-white/10 focus:border-blue-500/50"
+                      }`} 
+                    />
+                    <div className="absolute right-3 top-3 flex items-center gap-2">
+                      {addressVerifying && (
+                        <Loader2 size={16} className="text-blue-500 animate-spin" />
+                      )}
+                      {!addressVerifying && addressVerified?.valid && addressVerified?.exists && (
+                        <CheckCircle2 size={16} className="text-emerald-500" />
+                      )}
+                      {!addressVerifying && addressVerified && !addressVerified.valid && (
+                        <XCircle size={16} className="text-red-500" />
+                      )}
+                      <button onClick={() => QRScanner ? setShowQRScanner(true) : toast.error("Scanner indisponible")} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"><Scan size={16} className="text-white" /></button>
+                    </div>
                   </div>
+                  
+                  {/* Address Verification Status */}
+                  {addressVerified && (
+                    <div className={`mt-2 p-3 rounded-xl flex items-start gap-2 ${
+                      addressVerified.valid && addressVerified.exists
+                        ? "bg-emerald-500/10 border border-emerald-500/20"
+                        : addressVerified.valid && !addressVerified.exists
+                        ? "bg-amber-500/10 border border-amber-500/20"
+                        : "bg-red-500/10 border border-red-500/20"
+                    }`}>
+                      {addressVerified.valid && addressVerified.exists ? (
+                        <>
+                          <ShieldCheck size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[9px] font-black text-emerald-400 uppercase">Adresse vérifiée</p>
+                            <p className="text-[8px] text-emerald-400/70">Compte actif sur {addressVerified.network || config.network}</p>
+                          </div>
+                        </>
+                      ) : addressVerified.valid && !addressVerified.exists ? (
+                        <>
+                          <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[9px] font-black text-amber-400 uppercase">Adresse valide</p>
+                            <p className="text-[8px] text-amber-400/70">{addressVerified.error || "Compte non activé"}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[9px] font-black text-red-400 uppercase">Adresse invalide</p>
+                            <p className="text-[8px] text-red-400/70">{addressVerified.error || "Format incorrect"}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Verify Button */}
+                  {sendAddress && sendAddress.length >= 10 && !addressVerified && !addressVerifying && (
+                    <button 
+                      onClick={() => verifyAddress(sendAddress)}
+                      className="mt-2 w-full py-2.5 bg-blue-600/20 border border-blue-500/30 rounded-xl text-[9px] font-black text-blue-400 uppercase flex items-center justify-center gap-2 hover:bg-blue-600/30 transition-colors"
+                    >
+                      <ShieldCheck size={14} />
+                      Vérifier l'adresse
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex justify-between">
