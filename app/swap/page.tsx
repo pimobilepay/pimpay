@@ -188,6 +188,8 @@ export default function SwapPage() {
     AED: 3.67,
     MGA: 4500,
   });
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
 
   const [balances, setBalances] = useState<Record<string, string>>({});
 
@@ -203,24 +205,26 @@ export default function SwapPage() {
 
   /* ---------- FETCHERS ---------- */
 
-  const fetchPrices = useCallback(async () => {
+  const fetchPrices = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsPriceLoading(true);
     try {
-      // Crypto prices
+      // Crypto prices from CoinGecko
       const cryptoRes = await fetch(
         "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(8000), cache: "no-store" }
       );
       const cryptoData = await cryptoRes.json();
 
-      // Fiat rates
+      // Fiat rates from ExchangeRate API
       const fiatRes = await fetch(
         "https://open.er-api.com/v6/latest/USD",
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(8000), cache: "no-store" }
       );
       const fiatData = await fiatRes.json();
 
       setPrices((prev) => ({
         ...prev,
+        // Crypto prices in USD
         BTC: cryptoData.bitcoin?.usd || prev.BTC,
         ETH: cryptoData.ethereum?.usd || prev.ETH,
         BNB: cryptoData.binancecoin?.usd || prev.BNB,
@@ -234,17 +238,33 @@ export default function SwapPage() {
         USDT: cryptoData.tether?.usd || 1,
         USDC: cryptoData["usd-coin"]?.usd || 1,
         DAI: cryptoData.dai?.usd || 1,
-        // Fiat from exchange-rates API
+        // Fiat rates (how many units per 1 USD)
         EUR: fiatData?.rates?.EUR || prev.EUR,
+        GBP: fiatData?.rates?.GBP || 0.79,
         XAF: fiatData?.rates?.XAF || prev.XAF,
         XOF: fiatData?.rates?.XOF || prev.XOF,
         CDF: fiatData?.rates?.CDF || prev.CDF,
         NGN: fiatData?.rates?.NGN || prev.NGN,
         AED: fiatData?.rates?.AED || prev.AED,
         MGA: fiatData?.rates?.MGA || prev.MGA,
+        CNY: fiatData?.rates?.CNY || 7.24,
+        INR: fiatData?.rates?.INR || 83.5,
+        JPY: fiatData?.rates?.JPY || 154,
+        KRW: fiatData?.rates?.KRW || 1340,
+        BRL: fiatData?.rates?.BRL || 4.95,
+        GHS: fiatData?.rates?.GHS || 15.5,
+        KES: fiatData?.rates?.KES || 129,
+        ZAR: fiatData?.rates?.ZAR || 18.5,
+        MAD: fiatData?.rates?.MAD || 10,
+        TND: fiatData?.rates?.TND || 3.12,
+        EGP: fiatData?.rates?.EGP || 49,
       }));
-    } catch {
-      // fallback prices already set
+      setLastPriceUpdate(new Date());
+      if (showLoading) toast.success("Taux mis a jour!");
+    } catch (e) {
+      console.warn("Price fetch failed, using cached values");
+    } finally {
+      setIsPriceLoading(false);
     }
   }, []);
 
@@ -282,6 +302,13 @@ export default function SwapPage() {
     setIsMounted(true);
     fetchPrices();
     loadBalances();
+    
+    // Auto-refresh prices every 30 seconds
+    const priceInterval = setInterval(() => {
+      fetchPrices();
+    }, 30000);
+    
+    return () => clearInterval(priceInterval);
   }, [fetchPrices, loadBalances]);
 
   /* ---------- CONVERSION LOGIC ---------- */
@@ -776,22 +803,22 @@ export default function SwapPage() {
               PimPay <span className="text-blue-500">Swap</span>
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <TrendingUp size={8} className="text-blue-500" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
-                Crypto & Fiat Exchange
+              <div className={`w-2 h-2 rounded-full ${isPriceLoading ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {isPriceLoading ? "Mise a jour..." : "Taux en direct"}
               </span>
             </div>
           </div>
         </div>
         <button
           onClick={() => {
-            fetchPrices();
+            fetchPrices(true);
             loadBalances();
-            toast.success("Taux actualises");
           }}
-          className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10"
+          disabled={isPriceLoading}
+          className={`w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 ${isPriceLoading ? "opacity-50" : ""}`}
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={16} className={isPriceLoading ? "animate-spin" : ""} />
         </button>
       </div>
 
@@ -940,8 +967,52 @@ export default function SwapPage() {
           </button>
         </div>
 
+        {/* Live Price Info */}
+        <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${isPriceLoading ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse"}`} />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prix du marche</span>
+            </div>
+            {lastPriceUpdate && (
+              <span className="text-[9px] font-medium text-slate-500">
+                MAJ: {lastPriceUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/5 rounded-xl p-2.5">
+              <div className="flex items-center gap-2 mb-1">
+                <AssetIcon asset={fromAsset} size={20} />
+                <span className="text-[10px] font-bold text-white">{fromAsset.symbol}</span>
+              </div>
+              <p className="text-xs font-black text-white">
+                {CRYPTO_IDS.includes(fromAsset.id) 
+                  ? `$${prices[fromAsset.id]?.toLocaleString() || "---"}`
+                  : `1 USD = ${prices[fromAsset.id]?.toLocaleString() || "---"} ${fromAsset.symbol}`
+                }
+              </p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-2.5">
+              <div className="flex items-center gap-2 mb-1">
+                <AssetIcon asset={toAsset} size={20} />
+                <span className="text-[10px] font-bold text-white">{toAsset.symbol}</span>
+              </div>
+              <p className="text-xs font-black text-white">
+                {CRYPTO_IDS.includes(toAsset.id) 
+                  ? `$${prices[toAsset.id]?.toLocaleString() || "---"}`
+                  : `1 USD = ${prices[toAsset.id]?.toLocaleString() || "---"} ${toAsset.symbol}`
+                }
+              </p>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 text-center">
+            Source: CoinGecko & ExchangeRate-API (rafraichi toutes les 30s)
+          </p>
+        </div>
+
         {/* Footer */}
-        <div className="mt-12 flex flex-col items-center opacity-30">
+        <div className="mt-8 flex flex-col items-center opacity-30">
           <div className="flex items-center gap-2">
             <AlertCircle size={12} />
             <span className="text-[8px] font-black uppercase tracking-widest text-center leading-relaxed">

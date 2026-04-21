@@ -185,6 +185,8 @@ export default function WalletSwapPage() {
     AED: 3.67,
     MGA: 4500,
   });
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
 
   const [balances, setBalances] = useState<Record<string, string>>({});
 
@@ -200,15 +202,16 @@ export default function WalletSwapPage() {
 
   /* ---------- FETCHERS ---------- */
 
-  const fetchPrices = useCallback(async () => {
+  const fetchPrices = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsPriceLoading(true);
     try {
       const [cryptoRes, fiatRes] = await Promise.all([
         fetch(
           "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
-          { signal: AbortSignal.timeout(5000) }
+          { signal: AbortSignal.timeout(8000), cache: "no-store" }
         ),
         fetch("https://open.er-api.com/v6/latest/USD", {
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(8000), cache: "no-store"
         }),
       ]);
 
@@ -230,16 +233,30 @@ export default function WalletSwapPage() {
         USDT: cryptoData.tether?.usd || 1,
         USDC: cryptoData["usd-coin"]?.usd || 1,
         DAI: cryptoData.dai?.usd || 1,
+        // Fiat rates (how many units per 1 USD)
         EUR: fiatData?.rates?.EUR || prev.EUR,
+        GBP: fiatData?.rates?.GBP || 0.79,
         XAF: fiatData?.rates?.XAF || prev.XAF,
         XOF: fiatData?.rates?.XOF || prev.XOF,
         CDF: fiatData?.rates?.CDF || prev.CDF,
         NGN: fiatData?.rates?.NGN || prev.NGN,
         AED: fiatData?.rates?.AED || prev.AED,
         MGA: fiatData?.rates?.MGA || prev.MGA,
+        CNY: fiatData?.rates?.CNY || 7.24,
+        INR: fiatData?.rates?.INR || 83.5,
+        JPY: fiatData?.rates?.JPY || 154,
+        KRW: fiatData?.rates?.KRW || 1340,
+        BRL: fiatData?.rates?.BRL || 4.95,
+        GHS: fiatData?.rates?.GHS || 15.5,
+        KES: fiatData?.rates?.KES || 129,
+        ZAR: fiatData?.rates?.ZAR || 18.5,
       }));
-    } catch {
-      // fallback prices already set
+      setLastPriceUpdate(new Date());
+      if (showLoading) toast.success("Taux mis a jour!");
+    } catch (e) {
+      console.warn("Price fetch failed, using cached values");
+    } finally {
+      setIsPriceLoading(false);
     }
   }, []);
 
@@ -276,6 +293,13 @@ export default function WalletSwapPage() {
     setIsMounted(true);
     fetchPrices();
     loadBalances();
+    
+    // Auto-refresh prices every 30 seconds
+    const priceInterval = setInterval(() => {
+      fetchPrices();
+    }, 30000);
+    
+    return () => clearInterval(priceInterval);
   }, [fetchPrices, loadBalances]);
 
   /* ---------- CONVERSION LOGIC (USD as pivot) ---------- */
@@ -744,22 +768,22 @@ export default function WalletSwapPage() {
               M<span className="text-blue-500">SWAP</span>
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <TrendingUp size={8} className="text-blue-500" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
-                Crypto & Fiat Exchange
+              <div className={`w-2 h-2 rounded-full ${isPriceLoading ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {isPriceLoading ? "Mise a jour..." : "Taux en direct"}
               </span>
             </div>
           </div>
         </div>
         <button
           onClick={() => {
-            fetchPrices();
+            fetchPrices(true);
             loadBalances();
-            toast.success("Taux actualises");
           }}
-          className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10"
+          disabled={isPriceLoading}
+          className={`w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 ${isPriceLoading ? "opacity-50" : ""}`}
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={16} className={isPriceLoading ? "animate-spin" : ""} />
         </button>
       </div>
 
