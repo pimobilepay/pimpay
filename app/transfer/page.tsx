@@ -706,8 +706,17 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
               value={recipientId}
               placeholder={t("transfer.recipientPlaceholder") || "Adresse, username…"}
               onChange={(e) => setRecipientId(e.target.value)}
-              className="w-full bg-[#0c1629] border border-white/[0.06] rounded-2xl p-4 pl-12 pr-14 text-sm text-white focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-700"
+              className={`w-full bg-[#0c1629] border rounded-2xl p-4 pl-12 pr-14 text-sm text-white outline-none transition-all placeholder:text-slate-700 ${
+                recipientData?.isExternal
+                  ? "border-emerald-500/50 focus:border-emerald-500"
+                  : "border-white/[0.06] focus:border-blue-500/50"
+              }`}
             />
+            {recipientData?.isExternal && (
+              <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                <CheckCircle2 size={18} className="text-emerald-500" />
+              </div>
+            )}
             <button
               onClick={() => setShowQRScanner(true)}
               className="absolute right-3 top-[0.75rem] p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"
@@ -726,7 +735,11 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
 
           {/* Carte destinataire */}
           {recipientData && (
-            <div className="mt-3 bg-[#0c1629] border border-white/[0.06] rounded-2xl p-3 flex items-center gap-3">
+            <div className={`mt-3 rounded-2xl p-3 flex items-center gap-3 border ${
+              recipientData.isExternal
+                ? "bg-emerald-500/5 border-emerald-500/20"
+                : "bg-[#0c1629] border-white/[0.06]"
+            }`}>
               <div className="relative flex-shrink-0">
                 <img
                   src={
@@ -741,15 +754,24 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                     <CheckCircle2 className="w-3 h-3 text-white" />
                   </div>
                 )}
+                {recipientData.isExternal && (
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <CheckCircle2 className="w-3 h-3 text-white" />
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">
                   {recipientData.firstName} {recipientData.lastName}
                 </p>
-                <p className="text-xs text-slate-500 truncate">
+                <p className={`text-xs truncate ${
+                  recipientData.isExternal
+                    ? "text-emerald-400 flex items-center gap-1"
+                    : "text-slate-500"
+                }`}>
                   {recipientData.isExternal ? (
-                    <span className="text-amber-400 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                    <span className="flex items-center gap-1">
+                      <Globe className="w-3 h-3" />
                       {t("transfer.external")}
                     </span>
                   ) : (

@@ -541,19 +541,19 @@ const filteredContacts = contacts.filter(
             {/* Search Results from API */}
             {searchedUser && (
               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${searchedUser.isExternal ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {searchedUser.isExternal ? <Globe size={12} /> : <CheckCircle2 size={12} />}
-                  {searchedUser.isExternal ? 'Adresse Pi Wallet detectee' : 'Utilisateur trouve'}
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-emerald-500`}>
+                  <CheckCircle2 size={12} />
+                  {searchedUser.isExternal ? 'Adresse Pi Wallet confirmee' : 'Utilisateur trouve'}
                 </p>
-                <div className={`rounded-2xl p-4 ${searchedUser.isExternal ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-emerald-500/5 border border-emerald-500/20'}`}>
-                  {/* External address warning */}
+                <div className={`rounded-2xl p-4 bg-emerald-500/5 border border-emerald-500/20`}>
+                  {/* External address confirmation message */}
                   {searchedUser.isExternal && (
-                    <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
-                      <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-3">
+                      <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Transfert Blockchain</p>
-                        <p className="text-[9px] text-amber-400/80 leading-relaxed">
-                          Ce transfert sera effectue directement sur la blockchain Pi Network. 
+                        <p className="text-[10px] font-black text-emerald-400 uppercase mb-1">Adresse Validee</p>
+                        <p className="text-[9px] text-emerald-400/80 leading-relaxed">
+                          Adresse externe confirmee sur la blockchain Pi Network. 
                           Verifiez bien l'adresse car les transactions sont irreversibles.
                         </p>
                       </div>
@@ -563,11 +563,11 @@ const filteredContacts = contacts.filter(
                     onClick={() => handleSelectSearchedUser(searchedUser)}
                     className="w-full flex items-center gap-4 hover:opacity-80 transition-all"
                   >
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border overflow-hidden ${searchedUser.isExternal ? 'bg-gradient-to-br from-amber-600/20 to-orange-600/20 border-amber-500/20' : 'bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 border-emerald-500/20'}`}>
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border overflow-hidden bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 border-emerald-500/20`}>
                       {searchedUser.avatar ? (
                         <img src={searchedUser.avatar} alt={searchedUser.firstName} className="w-full h-full object-cover" />
                       ) : searchedUser.isExternal ? (
-                        <Globe size={20} className="text-amber-400" />
+                        <CheckCircle2 size={20} className="text-emerald-400" />
                       ) : (
                         <span className="text-sm font-black text-emerald-400">
                           {getInitials(`${searchedUser.firstName} ${searchedUser.lastName}`.trim() || searchedUser.username || "U")}
@@ -579,7 +579,7 @@ const filteredContacts = contacts.filter(
                         {searchedUser.firstName} {searchedUser.lastName}
                       </p>
                       {searchedUser.username && (
-                        <p className={`text-[10px] font-bold ${searchedUser.isExternal ? 'text-amber-500 font-mono' : 'text-cyan-500'}`}>
+                        <p className={`text-[10px] font-bold ${searchedUser.isExternal ? 'text-emerald-500 font-mono' : 'text-cyan-500'}`}>
                           {searchedUser.isExternal ? searchedUser.username : `@${searchedUser.username.replace("@", "")}`}
                         </p>
                       )}
@@ -587,7 +587,7 @@ const filteredContacts = contacts.filter(
                         {searchedUser.isExternal ? `Pi Network ${searchedUser.lastName}` : "Utilisateur PimPay"}
                       </p>
                     </div>
-                    <ChevronRight size={18} className={searchedUser.isExternal ? 'text-amber-400' : 'text-emerald-400'} />
+                    <ChevronRight size={18} className='text-emerald-400' />
                   </button>
                   {/* Add to contacts button - only for internal users */}
                   {!searchedUser.isExternal && (
