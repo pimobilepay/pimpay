@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
       where: { id: userId },
       data: {
         pin: hashedPin,
-        // needsPinUpdate would be set to false here if we add that field
+        pinVersion: 2,        // Marquer comme PIN 6 chiffres (version 2)
+        pinUpdatedAt: new Date(),
       },
     });
 

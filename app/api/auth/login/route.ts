@@ -89,10 +89,10 @@ export async function POST(req: Request) {
     const has2FAEnabled = user.twoFactorEnabled && !!user.twoFactorSecret;
     const requireMFA = hasPinConfigured || has2FAEnabled;
     
-    // Detect if PIN needs upgrade to 6 digits (old 4-digit PINs are 60 chars bcrypt, new should also be 60 but we check length differently)
-    // We'll use a flag approach - for now we check if the pin hash exists
-    // In production, you'd track this with a dedicated field
-    const needsPinUpdate = false; // Set to true if you want to force migration for specific users
+    // Détection de la migration PIN 4 → 6 chiffres
+    // pinVersion: 1 = ancien PIN 4 chiffres, 2 = nouveau PIN 6 chiffres
+    // Si l'utilisateur a un PIN mais pinVersion = 1, il doit migrer
+    const needsPinUpdate = hasPinConfigured && (user.pinVersion === 1 || user.pinVersion === null);
 
     if (requireMFA) {
       const secretKey = new TextEncoder().encode(SECRET);
