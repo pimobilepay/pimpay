@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 // On utilise le HOOK direct
 import { usePiAuth } from "@/hooks/usePiAuth"; 
-import PinCodeModal from "@/components/modals/PinCodeModal";
+import MFASelector from "@/components/auth/MFASelector";
 import { useLanguage } from "@/context/LanguageContext";
 import ChatBubble from "@/components/ChatBubble";
 
@@ -20,9 +20,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
+  const [showMFAModal, setShowMFAModal] = useState(false);
   const [tempUserId, setTempUserId] = useState<string | null>(null);
   const [tempRole, setTempRole] = useState<string | null>(null);
+  const [tempToken, setTempToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [needsPinUpdate, setNeedsPinUpdate] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [loginType, setLoginType] = useState<LoginType>("user");
 
   const { loginWithPi, loading: piLoading } = usePiAuth();
@@ -80,10 +84,14 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.requirePin) {
+      if (data.requireMFA || data.requirePin) {
         setTempUserId(data.userId);
         setTempRole(data.role);
-        setShowPinModal(true);
+        setTempToken(data.tempToken || null);
+        setUserEmail(data.email || email);
+        setNeedsPinUpdate(data.needsPinUpdate || false);
+        setTwoFactorEnabled(data.twoFactorEnabled || false);
+        setShowMFAModal(true);
         setLoading(false);
       } else if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
@@ -122,14 +130,18 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden font-sans">
       
-      <PinCodeModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
+      <MFASelector
+        isOpen={showMFAModal}
+        onClose={() => setShowMFAModal(false)}
         onSuccess={() => {
           const destination = getRedirectPath(tempRole || "USER");
           triggerSuccessTransition(destination);
         }}
-        userId={tempUserId}
+        userId={tempUserId || ""}
+        tempToken={tempToken || undefined}
+        userEmail={userEmail || undefined}
+        needsPinUpdate={needsPinUpdate}
+        twoFactorEnabled={twoFactorEnabled}
       />
 
       {showTransition && (

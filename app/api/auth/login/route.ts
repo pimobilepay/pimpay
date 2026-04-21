@@ -84,13 +84,22 @@ export async function POST(req: Request) {
       }
     });
 
-    // 3. VÉRIFICATION SI UN PIN EST CONFIGURÉ
-    if (user.pin) {
+    // 3. VÉRIFICATION SI MFA EST REQUIS (PIN ou 2FA)
+    const hasPinConfigured = !!user.pin;
+    const has2FAEnabled = user.twoFactorEnabled && !!user.twoFactorSecret;
+    const requireMFA = hasPinConfigured || has2FAEnabled;
+    
+    // Detect if PIN needs upgrade to 6 digits (old 4-digit PINs are 60 chars bcrypt, new should also be 60 but we check length differently)
+    // We'll use a flag approach - for now we check if the pin hash exists
+    // In production, you'd track this with a dedicated field
+    const needsPinUpdate = false; // Set to true if you want to force migration for specific users
+
+    if (requireMFA) {
       const secretKey = new TextEncoder().encode(SECRET);
       const tempToken = await new SignJWT({
         userId: user.id,
         role: user.role,
-        purpose: "pin_verification"
+        purpose: "mfa_verification"
       })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
@@ -99,10 +108,14 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        requirePin: true,
+        requireMFA: true,
+        requirePin: hasPinConfigured,
         tempToken: tempToken,
         userId: user.id,
-        role: user.role
+        role: user.role,
+        email: user.email,
+        twoFactorEnabled: has2FAEnabled,
+        needsPinUpdate: needsPinUpdate,
       });
     }
 

@@ -16,7 +16,15 @@ export async function POST(req: NextRequest) {
     let userId = bodyUserId;
 
     if (!userId || !pin) {
-      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+      return NextResponse.json({ error: "Donnees manquantes" }, { status: 400 });
+    }
+
+    // Support both 4-digit (legacy) and 6-digit (new) PINs
+    if (typeof pin !== "string" || (pin.length !== 4 && pin.length !== 6) || !/^\d+$/.test(pin)) {
+      return NextResponse.json(
+        { error: "Code PIN invalide. Veuillez entrer 4 ou 6 chiffres." },
+        { status: 400 }
+      );
     }
 
     // 1. RECHERCHE USER
