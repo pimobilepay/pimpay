@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { ethers } from "ethers";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
@@ -58,23 +58,20 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
 
-    // --- AUTH: Hybrid token recovery ---
+    // --- AUTH: Hybrid token recovery via lib/auth ---
     const piToken = cookieStore.get("pi_session_token")?.value;
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     let userId: string | null = null;
-    const SECRET = process.env.JWT_SECRET;
 
     if (piToken) {
       userId = piToken;
-    } else if (classicToken && SECRET) {
-      try {
-        const secretKey = new TextEncoder().encode(SECRET);
-        const { payload } = await jwtVerify(classicToken, secretKey);
-        userId = payload.id as string;
-      } catch {
+    } else if (classicToken) {
+      const payload = await verifyJWT(classicToken);
+      if (!payload) {
         return NextResponse.json({ error: "Session expirée" }, { status: 401 });
       }
+      userId = payload.id;
     }
 
     if (!userId) {

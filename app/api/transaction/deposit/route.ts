@@ -1,20 +1,20 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authentification
+    // 1. Authentification via JWT (lib/auth)
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
     if (!token) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = payload.id as string;
+    const payload = await verifyJWT(token);
+    if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    const userId = payload.id;
 
     // 2. Récupération des données
     const body = await req.json();

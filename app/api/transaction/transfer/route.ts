@@ -2,14 +2,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { PI_CONSENSUS_RATE, calculateExchangeWithFee } from "@/lib/exchange";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. AUTHENTIFICATION SÉCURISÉE (Correction structure Pimpay)
+    // 1. AUTHENTIFICATION SÉCURISÉE (JWT via lib/auth)
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     
@@ -17,9 +17,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    const senderId = (payload.id || payload.userId) as string;
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    }
+    const senderId = payload.id;
 
     // 2. RECUPERATION ET VALIDATION
     const body = await req.json();

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
 import { ethers } from "ethers";
@@ -18,18 +18,19 @@ export async function POST(req: NextRequest) {
     console.log("[v0] [WALLET_SEND] Debut du traitement...");
     
     const cookieStore = await cookies();
-    const SECRET = process.env.JWT_SECRET;
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    if (!token || !SECRET) {
+    if (!token) {
       console.log("[v0] [WALLET_SEND] Erreur: Non authentifie");
       return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
     }
 
-    // 1. AUTHENTIFICATION
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const senderId = payload.id as string;
+    // 1. AUTHENTIFICATION via JWT (lib/auth)
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    }
+    const senderId = payload.id;
 
     const body = await req.json();
     const amount = parseFloat(body.amount);
