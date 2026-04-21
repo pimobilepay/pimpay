@@ -334,6 +334,15 @@ export default function MFASelector({
     setError(null);
   };
 
+  console.log("[v0] MFASelector render", {
+    isOpen,
+    selectedMethod,
+    step,
+    needsPinUpdate,
+    twoFactorEnabled,
+    userId
+  });
+
   if (!isOpen) return null;
 
   return (
