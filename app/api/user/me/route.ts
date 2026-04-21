@@ -2,18 +2,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose"; // ✅ Standard moderne pour Pimpay
+import { verifyJWT } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
-    // 1. GESTION ROBUSTE DES SECRETS (Empêche les crashs de build futurs)
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      console.error("CRITICAL: JWT_SECRET is not defined in environment variables.");
-      return NextResponse.json({ error: "Erreur de configuration serveur" }, { status: 500 });
-    }
-
-    // 2. EXTRACTION SÉCURISÉE DU TOKEN
+    // 1. EXTRACTION SÉCURISÉE DU TOKEN
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
@@ -21,19 +14,12 @@ export async function GET(req: Request) {
 
     const token = authHeader.split(" ")[1];
 
-    // 3. VÉRIFICATION ASYNCHRONE (Compatible avec tous les runtimes Next.js)
-    let userId: string;
-    try {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const { payload } = await jwtVerify(token, secretKey);
-      
-      if (!payload.id || typeof payload.id !== 'string') {
-        throw new Error("Payload ID missing");
-      }
-      userId = payload.id;
-    } catch (err) {
+    // 2. VÉRIFICATION via JWT (lib/auth)
+    const payload = await verifyJWT(token);
+    if (!payload || !payload.id) {
       return NextResponse.json({ error: "Session expirée ou invalide" }, { status: 401 });
     }
+    const userId = payload.id;
 
     // 4. RÉCUPÉRATION DES DONNÉES (Sélection stricte pour la performance)
     const user = await prisma.user.findUnique({

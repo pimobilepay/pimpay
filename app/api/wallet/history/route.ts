@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -17,13 +17,11 @@ export async function GET(req: Request) {
     if (piToken) {
       userId = piToken;
     } else if (classicToken) {
-      try {
-        const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
-        const { payload } = await jwtVerify(classicToken, secretKey);
-        userId = payload.id as string;
-      } catch (e) {
+      const payload = await verifyJWT(classicToken);
+      if (!payload) {
         return NextResponse.json({ error: "Session expirée" }, { status: 401 });
       }
+      userId = payload.id;
     }
 
     if (!userId) {

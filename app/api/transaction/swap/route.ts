@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -12,14 +12,14 @@ const CORS_HEADERS = {
 export async function POST(req: Request) {
   try {
     const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
-    const token = cookies['token'];
+    const cookiesObj = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
+    const token = cookiesObj['token'];
 
     if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: CORS_HEADERS });
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = payload.id as string;
+    const payload = await verifyJWT(token);
+    if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401, headers: CORS_HEADERS });
+    const userId = payload.id;
 
     const { quoteId } = await req.json();
 

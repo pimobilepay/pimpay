@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import * as jose from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { WalletType, TransactionType, TransactionStatus } from "@prisma/client";
 import { nanoid } from 'nanoid';
 
@@ -109,18 +109,18 @@ function getWalletType(currency: string): WalletType {
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
-    const SECRET = process.env.JWT_SECRET;
 
     const token =
       cookieStore.get("token")?.value ||
       cookieStore.get("pimpay_token")?.value;
 
-    if (!token || !SECRET)
+    if (!token)
       return NextResponse.json({ error: "Non authentifie" }, { status: 401, headers: CORS_HEADERS });
 
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jose.jwtVerify(token, secretKey);
-    const userId = payload.id as string;
+    const payload = await verifyJWT(token);
+    if (!payload)
+      return NextResponse.json({ error: "Token invalide" }, { status: 401, headers: CORS_HEADERS });
+    const userId = payload.id;
 
     const { amount, fromCurrency, toCurrency } = await request.json();
     const swapAmount = parseFloat(amount);

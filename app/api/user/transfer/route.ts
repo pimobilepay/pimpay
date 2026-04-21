@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
@@ -48,15 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session expiree" }, { status: 401 });
     }
 
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      console.log("[v0] [USER_TRANSFER] Erreur: JWT_SECRET manquant");
-      return NextResponse.json({ error: "Configuration serveur invalide" }, { status: 500 });
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      console.log("[v0] [USER_TRANSFER] Erreur: Token invalide");
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
-
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const senderId = (payload.id || payload.userId) as string;
+    const senderId = payload.id;
 
     const body = await req.json();
     const amount = parseFloat(body.amount);
