@@ -43,7 +43,7 @@ const OP: Record<string, string> = {
   airtel:       "https://upload.wikimedia.org/wikipedia/commons/3/3a/Airtel_logo-01.png",
   moov:         "https://upload.wikimedia.org/wikipedia/fr/1/1d/Moov_Africa_logo.png",
   wave:         "https://en.wikipedia.org/wiki/Wave_Financial#/media/File%3AWave_logo_RGB.png",
-  mpesa:        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/200px-M-PESA_LOGO-01.svg.png",
+  mpesa:        "https://pimpay.vercel.app/m-pesa.png",
   telebirr:     "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   vodacom:      "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   vodafone:     "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",

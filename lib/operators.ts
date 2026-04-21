@@ -23,7 +23,7 @@ const OP_LOGOS: Record<string, string> = {
   vodafone:       "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   tigo:           "https://upload.wikimedia.org/wikipedia/commons/4/47/Tigo.JPG",
   // East Africa
-  mpesa:          "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/200px-M-PESA_LOGO-01.svg.png",
+  mpesa:          "https://pimpay.vercel.app/m-pesa.png",
   telebirr:       "https://upload.wikimedia.org/wikipedia/en/3/34/Telebirr_logo.png",
   equity:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Equity_Bank_logo.svg/200px-Equity_Bank_logo.svg.png",
   utl:            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/UTL_logo.svg/200px-UTL_logo.svg.png",
