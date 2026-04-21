@@ -213,17 +213,38 @@ export default function SignupPage() {
       // Generate TOTP secret and QR code
       setLoading(true);
       try {
-        const currentToken = authToken || localStorage.getItem("pimpay_token");
+        // Get token from multiple sources to ensure we have it
+        const currentToken = authToken || localStorage.getItem("pimpay_token") || localStorage.getItem("token");
+        
+        if (!currentToken) {
+          toast.error("Session expiree. Veuillez vous reconnecter.");
+          setSelectedMfaMethod(null);
+          setLoading(false);
+          return;
+        }
+
         const res = await fetch("/api/auth/mfa/setup-totp", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${currentToken}`
           },
+          credentials: "include",
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Erreur lors de la configuration TOTP");
+        
+        // Handle specific error cases without redirecting
+        if (res.status === 401) {
+          toast.error("Session invalide. Completez d'abord l'inscription.");
+          setSelectedMfaMethod(null);
+          setLoading(false);
+          return;
+        }
+        
+        if (!res.ok) {
+          throw new Error(data.error || "Erreur lors de la configuration TOTP");
+        }
 
         setTotpSecret(data.secret);
         setQrCodeUrl(data.qrCodeUrl);
