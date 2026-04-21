@@ -8,7 +8,7 @@ import {
   User, ShieldCheck, CheckCircle2,
   Loader2, ArrowLeft, Delete, Lock,
   XCircle, AlertCircle, Gift, Building2,
-  Grid3X3
+  Grid3X3, ChevronDown, Search, Globe,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -20,6 +20,41 @@ import { z } from "zod";
 
 type SignupType = "user" | "business";
 type MFAMethod = "authenticator" | "pin";
+
+type Country = { code: string; name: string; flag: string; dialCode: string };
+
+const COUNTRIES: Country[] = [
+  { code: "CG", name: "Congo-Brazzaville", flag: "🇨🇬", dialCode: "+242" },
+  { code: "CD", name: "Congo-Kinshasa (RDC)", flag: "🇨🇩", dialCode: "+243" },
+  { code: "CM", name: "Cameroun", flag: "🇨🇲", dialCode: "+237" },
+  { code: "GA", name: "Gabon", flag: "🇬🇦", dialCode: "+241" },
+  { code: "SN", name: "Senegal", flag: "🇸🇳", dialCode: "+221" },
+  { code: "CI", name: "Cote d'Ivoire", flag: "🇨🇮", dialCode: "+225" },
+  { code: "ML", name: "Mali", flag: "🇲🇱", dialCode: "+223" },
+  { code: "BF", name: "Burkina Faso", flag: "🇧🇫", dialCode: "+226" },
+  { code: "NE", name: "Niger", flag: "🇳🇪", dialCode: "+227" },
+  { code: "TG", name: "Togo", flag: "🇹🇬", dialCode: "+228" },
+  { code: "BJ", name: "Benin", flag: "🇧🇯", dialCode: "+229" },
+  { code: "GN", name: "Guinee", flag: "🇬🇳", dialCode: "+224" },
+  { code: "MG", name: "Madagascar", flag: "🇲🇬", dialCode: "+261" },
+  { code: "TN", name: "Tunisie", flag: "🇹🇳", dialCode: "+216" },
+  { code: "MA", name: "Maroc", flag: "🇲🇦", dialCode: "+212" },
+  { code: "DZ", name: "Algerie", flag: "🇩🇿", dialCode: "+213" },
+  { code: "NG", name: "Nigeria", flag: "🇳🇬", dialCode: "+234" },
+  { code: "GH", name: "Ghana", flag: "🇬🇭", dialCode: "+233" },
+  { code: "FR", name: "France", flag: "🇫🇷", dialCode: "+33" },
+  { code: "BE", name: "Belgique", flag: "🇧🇪", dialCode: "+32" },
+  { code: "CH", name: "Suisse", flag: "🇨🇭", dialCode: "+41" },
+  { code: "CA", name: "Canada", flag: "🇨🇦", dialCode: "+1" },
+  { code: "US", name: "Etats-Unis", flag: "🇺🇸", dialCode: "+1" },
+  { code: "GB", name: "Royaume-Uni", flag: "🇬🇧", dialCode: "+44" },
+  { code: "DE", name: "Allemagne", flag: "🇩🇪", dialCode: "+49" },
+  { code: "IT", name: "Italie", flag: "🇮🇹", dialCode: "+39" },
+  { code: "ES", name: "Espagne", flag: "🇪🇸", dialCode: "+34" },
+  { code: "PT", name: "Portugal", flag: "🇵🇹", dialCode: "+351" },
+  { code: "BR", name: "Bresil", flag: "🇧🇷", dialCode: "+55" },
+  { code: "CN", name: "Chine", flag: "🇨🇳", dialCode: "+86" },
+];
 
 // Zod validation for 6-digit PIN
 const pinSchema = z.string().length(6, "Le PIN doit contenir 6 chiffres").regex(/^\d+$/, "Le PIN ne doit contenir que des chiffres");
@@ -67,7 +102,32 @@ export default function SignupPage() {
     phone: "",
     password: "",
     confirmPassword: "",
+    country: "CG",
   });
+
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+
+  const selectedCountry = COUNTRIES.find(c => c.code === formData.country) || COUNTRIES[0];
+  const filteredCountries = COUNTRIES.filter(c =>
+    c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+    c.dialCode.includes(countrySearch) ||
+    c.code.toLowerCase().includes(countrySearch.toLowerCase())
+  );
+
+  // Close dropdown on outside click
+  const countryDropdownRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!countryDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+        setCountryDropdownOpen(false);
+        setCountrySearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [countryDropdownOpen]);
 
   const [pin, setPin] = useState("");
   const [totpCode, setTotpCode] = useState("");
@@ -180,6 +240,7 @@ export default function SignupPage() {
           ...formData,
           username: formData.email.split('@')[0] + Math.floor(Math.random() * 100),
           referralCode: refCode || undefined,
+          country: formData.country,
         }),
       });
 
@@ -477,6 +538,70 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Country Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Pays</Label>
+              <div className="relative" ref={countryDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => { setCountryDropdownOpen(prev => !prev); setCountrySearch(""); }}
+                  className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl flex items-center gap-3 hover:border-blue-500/30 focus:border-blue-500/50 transition-all outline-none"
+                >
+                  <span className="text-xl leading-none">{selectedCountry.flag}</span>
+                  <span className="flex-1 text-left text-sm font-medium">{selectedCountry.name}</span>
+                  <span className="text-xs text-slate-500 font-mono">{selectedCountry.dialCode}</span>
+                  <ChevronDown
+                    size={16}
+                    className={`text-slate-500 transition-transform duration-200 ${countryDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {/* Dropdown */}
+                {countryDropdownOpen && (
+                  <div className="absolute z-50 top-[calc(100%+6px)] left-0 right-0 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+                    {/* Search */}
+                    <div className="p-2 border-b border-white/5">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="text"
+                          placeholder="Rechercher un pays..."
+                          value={countrySearch}
+                          onChange={e => setCountrySearch(e.target.value)}
+                          className="w-full h-9 pl-9 pr-3 bg-slate-950/50 border border-white/5 text-white text-xs rounded-xl outline-none focus:border-blue-500/40 transition-all placeholder:text-slate-600"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    {/* List */}
+                    <ul className="max-h-52 overflow-y-auto py-1">
+                      {filteredCountries.length === 0 ? (
+                        <li className="px-4 py-3 text-xs text-slate-500 text-center">Aucun resultat</li>
+                      ) : filteredCountries.map(country => (
+                        <li key={country.code}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleChange("country", country.code);
+                              setCountryDropdownOpen(false);
+                              setCountrySearch("");
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors ${
+                              formData.country === country.code ? "bg-blue-500/10 text-blue-400" : "text-white"
+                            }`}
+                          >
+                            <span className="text-lg leading-none">{country.flag}</span>
+                            <span className="flex-1 text-left text-xs font-medium">{country.name}</span>
+                            <span className="text-[10px] font-mono text-slate-500">{country.dialCode}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">Email</Label>
@@ -526,7 +651,20 @@ export default function SignupPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("extra.phone")}</Label>
-                <input type="tel" className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all" placeholder="+242..." value={formData.phone} onChange={e => handleChange("phone", e.target.value)} required />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+                    <span className="text-base leading-none">{selectedCountry.flag}</span>
+                    <span className="text-xs text-slate-500 font-mono border-r border-white/10 pr-2">{selectedCountry.dialCode}</span>
+                  </span>
+                  <input
+                    type="tel"
+                    className="w-full h-12 pl-[72px] pr-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all"
+                    placeholder="XX XXX XXXX"
+                    value={formData.phone}
+                    onChange={e => handleChange("phone", e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </div>
 

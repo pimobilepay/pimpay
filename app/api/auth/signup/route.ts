@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { fullName, username, email, phone, password, confirmPassword, referralCode, role, businessInfo } = body;
+    const { fullName, username, email, phone, password, confirmPassword, referralCode, role, businessInfo, country } = body;
 
     if (!fullName || !username || !email || !phone || !password) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
           role: userRole,
           status: "ACTIVE",
           kycStatus: "NONE",
+          country: country || "CG",
           ...(referrerId ? { referredById: referrerId } : {}),
           wallets: {
             create: {
