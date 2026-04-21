@@ -14,6 +14,7 @@ model User {
   email                String?          @unique
   username             String?          @unique
   password             String?
+  passwordUpdatedAt    DateTime?
   pin                  String?
   pinVersion           Int              @default(1)  // 1 = legacy 4-digit, 2 = new 6-digit
   pinUpdatedAt         DateTime?

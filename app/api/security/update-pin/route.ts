@@ -14,9 +14,14 @@ export async function PUT(req: Request) {
   try {
     const { newPin } = await req.json();
 
-    // 1. Validation du PIN
-    if (!newPin || newPin.length !== 4) {
-      return NextResponse.json({ error: "Format PIN invalide" }, { status: 400 });
+    // 1. Validation du PIN (support 6 chiffres)
+    if (!newPin || newPin.length !== 6) {
+      return NextResponse.json({ error: "Le PIN doit contenir 6 chiffres" }, { status: 400 });
+    }
+
+    // Verifier que le PIN ne contient que des chiffres
+    if (!/^\d{6}$/.test(newPin)) {
+      return NextResponse.json({ error: "Le PIN ne doit contenir que des chiffres" }, { status: 400 });
     }
 
     // 2. Essayer d'abord via cookie (session DB)
@@ -66,10 +71,14 @@ export async function PUT(req: Request) {
     const salt = await bcrypt.genSalt(12);
     const hashedPin = await bcrypt.hash(newPin, salt);
 
-    // 6. Mise à jour en base
+    // 6. Mise a jour en base avec pinVersion et pinUpdatedAt
     await prisma.user.update({
       where: { id: userId },
-      data: { pin: hashedPin },
+      data: { 
+        pin: hashedPin,
+        pinVersion: 2, // Version 2 = 6-digit PIN
+        pinUpdatedAt: new Date(),
+      },
     });
 
     return NextResponse.json({ 

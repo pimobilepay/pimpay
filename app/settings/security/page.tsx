@@ -85,6 +85,13 @@ export default function SecurityPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Security info states
+  const [securityInfo, setSecurityInfo] = useState<{
+    passwordUpdatedAt: string | null;
+    pinUpdatedAt: string | null;
+    pinVersion: number;
+  } | null>(null);
+
   // Google Authenticator states
   const [google2faEnabled, setGoogle2faEnabled] = useState(false);
   const [google2faLoading, setGoogle2faLoading] = useState(true);
@@ -124,6 +131,26 @@ export default function SecurityPage() {
       // silently fail
     } finally {
       setGoogle2faLoading(false);
+    }
+  }, []);
+
+  const fetchSecurityInfo = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("pimpay_token") || localStorage.getItem("token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch("/api/security/info", {
+        headers,
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSecurityInfo(data);
+      }
+    } catch {
+      // silently fail
     }
   }, []);
 
@@ -594,7 +621,8 @@ export default function SecurityPage() {
     setVoiceAuth(localStorage.getItem("voiceAuth") === "true");
     fetchSessions();
     fetch2faStatus();
-  }, [fetchSessions, fetch2faStatus]);
+    fetchSecurityInfo();
+  }, [fetchSessions, fetch2faStatus, fetchSecurityInfo]);
 
   const toggleSwitch = (key: string, value: boolean, setValue: (v: boolean) => void) => {
     const newVal = !value;
@@ -797,14 +825,20 @@ export default function SecurityPage() {
             <SecurityAction
               icon={<Lock size={20} />}
               label="Mot de passe Maitre"
-              description="Derniere modification : Il y a 3 mois"
+              description={securityInfo?.passwordUpdatedAt 
+                ? `Derniere modification : ${formatDistanceToNow(new Date(securityInfo.passwordUpdatedAt), { addSuffix: true, locale: fr })}`
+                : "Derniere modification : Jamais"
+              }
               path="/settings/security/change-password"
             />
             <div className="h-[1px] w-[90%] bg-white/5 mx-auto" />
             <SecurityAction
               icon={<KeyRound size={20} />}
               label="Code PIN Transactionnel"
-              description="Requis pour chaque retrait"
+              description={securityInfo?.pinUpdatedAt 
+                ? `Modifie ${formatDistanceToNow(new Date(securityInfo.pinUpdatedAt), { addSuffix: true, locale: fr })} - 6 chiffres`
+                : "Requis pour chaque retrait - 6 chiffres"
+              }
               path="/settings/security/pin"
             />
           </div>

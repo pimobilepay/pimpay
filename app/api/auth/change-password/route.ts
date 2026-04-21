@@ -55,12 +55,13 @@ export async function POST(req: NextRequest) {
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // 7. Mettre à jour dans Prisma
+    // 7. Mettre a jour dans Prisma avec la date de modification
     await prisma.user.update({
       where: { id: userId },
       data: { 
         password: hashedPassword,
-        // Optionnel : Enregistrer l'action dans les logs de sécurité
+        passwordUpdatedAt: new Date(),
+        // Optionnel : Enregistrer l'action dans les logs de securite
         securityLogs: {
           create: {
             action: "PASSWORD_CHANGE",
