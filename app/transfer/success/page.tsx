@@ -85,12 +85,55 @@ function SuccessContent() {
   const fee = transaction?.fee ?? (currency === "PI" ? "0.01 PI" : "0.00");
   const network = currency === "PI" ? "Pi Network" : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" : "PimPay";
 
+  // Crypto currencies that display 8 decimal places
+  const CRYPTO_CURRENCIES = ["PI", "BTC", "ETH", "USDT", "USDC", "BNB", "SOL", "XRP"];
+  const isCrypto = (cur: string) => CRYPTO_CURRENCIES.includes(cur.toUpperCase());
+
   const formatAmount = (val: number, cur: string) => {
-    if (cur === "PI")
+    if (isCrypto(cur))
       return val < 0.0001
         ? val.toFixed(10).replace(/0+$/, "").replace(/\.$/, "")
         : val.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
     return val.toLocaleString("fr-FR");
+  };
+
+  const formatFee = (rawFee: string | number, cur: string): string => {
+    if (rawFee === null || rawFee === undefined || rawFee === "") return "0.00";
+
+    // If fee is already a formatted string with currency label (e.g. "0.01 PI"), parse it
+    const strFee = String(rawFee).trim();
+    const match = strFee.match(/^([\d.]+)\s*([A-Z]*)$/);
+
+    if (match) {
+      const numVal = parseFloat(match[1]);
+      const feeCur = match[2] || cur;
+
+      if (isNaN(numVal)) return strFee;
+
+      if (isCrypto(feeCur)) {
+        const formatted = numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0");
+        return feeCur ? `${formatted} ${feeCur}` : formatted;
+      }
+
+      const formatted = numVal.toLocaleString("fr-FR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      return feeCur && !["XAF", "XOF", "USD", "EUR"].includes(feeCur)
+        ? `${formatted} ${feeCur}`
+        : formatted;
+    }
+
+    // Numeric value without label
+    const numVal = parseFloat(strFee);
+    if (!isNaN(numVal)) {
+      if (isCrypto(cur)) {
+        return numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0") + ` ${cur}`;
+      }
+      return numVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    return strFee;
   };
 
   const copyRef = () => {
@@ -377,7 +420,7 @@ function SuccessContent() {
                 <Banknote size={10} className="text-amber-400" />
                 <p className="text-[8px] font-black text-slate-500 uppercase">Frais</p>
               </div>
-              <p className="text-xs font-bold text-white">{fee || "0.00"}</p>
+              <p className="text-xs font-bold text-white">{formatFee(fee, currency)}</p>
             </div>
             <div className="bg-white/5 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1">
