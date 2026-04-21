@@ -428,6 +428,7 @@ export default function WalletSwapPage() {
     if (toAmount <= 0) return "0.00";
     if (["BTC", "PI", "ETH"].includes(toAsset.id)) return toAmount.toFixed(8);
     if (toAmount < 0.01) return toAmount.toFixed(6);
+    if (toAsset.category === "fiat") return toAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return toAmount.toLocaleString(undefined, { maximumFractionDigits: 4 });
   };
 
@@ -581,36 +582,36 @@ export default function WalletSwapPage() {
             className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 mb-4 backdrop-blur-xl"
           >
             {/* From/To */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex-1">
+            <div className="flex items-center justify-between mb-6 gap-2">
+              <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vendu</p>
-                <div className="flex items-center gap-3">
-                  <AssetIcon asset={fromAsset} size={40} />
-                  <div>
-                    <p className="text-xl font-black">{fromAmount}</p>
+                <div className="flex items-center gap-2">
+                  <AssetIcon asset={fromAsset} size={36} />
+                  <div className="min-w-0">
+                    <p className="text-lg font-black truncate">{fromAmount}</p>
                     <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
                   </div>
                 </div>
               </div>
               
-              <div className="flex flex-col items-center px-4">
+              <div className="flex flex-col items-center shrink-0">
                 <motion.div
                   animate={{ x: [0, 5, 0] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  className="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20"
+                  className="w-9 h-9 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20"
                 >
-                  <ArrowRight size={18} className="text-emerald-400" />
+                  <ArrowRight size={16} className="text-emerald-400" />
                 </motion.div>
               </div>
 
-              <div className="flex-1 text-right">
+              <div className="flex-1 min-w-0 text-right">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Recu</p>
-                <div className="flex items-center gap-3 justify-end">
-                  <div>
-                    <p className="text-xl font-black text-emerald-400">{formatToAmount()}</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="min-w-0">
+                    <p className="text-lg font-black text-emerald-400 truncate">{formatToAmount()}</p>
                     <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
                   </div>
-                  <AssetIcon asset={toAsset} size={40} />
+                  <AssetIcon asset={toAsset} size={36} />
                 </div>
               </div>
             </div>
@@ -1148,13 +1149,13 @@ export default function WalletSwapPage() {
                   className="bg-gradient-to-br from-slate-900/90 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 backdrop-blur-xl"
                 >
                   {/* From/To Display */}
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex-1">
+                  <div className="flex items-center justify-between mb-5 gap-2">
+                    <div className="flex-1 min-w-0">
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous vendez</p>
-                      <div className="flex items-center gap-3">
-                        <AssetIcon asset={fromAsset} size={44} />
-                        <div>
-                          <p className="text-2xl font-black text-white">{fromAmount}</p>
+                      <div className="flex items-center gap-2">
+                        <AssetIcon asset={fromAsset} size={40} />
+                        <div className="min-w-0">
+                          <p className="text-xl font-black text-white truncate">{fromAmount}</p>
                           <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
                         </div>
                       </div>
@@ -1163,19 +1164,19 @@ export default function WalletSwapPage() {
                     <motion.div
                       animate={{ x: [0, 5, 0] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
-                      className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 mx-2"
+                      className="w-10 h-10 shrink-0 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20"
                     >
-                      <ArrowRight size={20} className="text-blue-400" />
+                      <ArrowRight size={16} className="text-blue-400" />
                     </motion.div>
 
-                    <div className="flex-1 text-right">
+                    <div className="flex-1 min-w-0 text-right">
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous recevez</p>
-                      <div className="flex items-center gap-3 justify-end">
-                        <div>
-                          <p className="text-2xl font-black text-blue-400">{formatToAmount()}</p>
+                      <div className="flex items-center gap-2 justify-end">
+                        <div className="min-w-0">
+                          <p className="text-xl font-black text-blue-400 truncate">{formatToAmount()}</p>
                           <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
                         </div>
-                        <AssetIcon asset={toAsset} size={44} />
+                        <AssetIcon asset={toAsset} size={40} />
                       </div>
                     </div>
                   </div>
