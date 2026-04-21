@@ -5,8 +5,11 @@ import {
   Bell, Check, Trash2, ArrowLeft, RefreshCcw,
   CheckCheck, Info, ShieldCheck, ArrowDownLeft,
   ArrowUpRight, Store, LogIn, Clock, Loader2,
-  Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi
+  Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi,
+  ChevronRight, TrendingUp, Coins
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,6 +63,49 @@ interface Notification {
     walletAddress?: string;
     network?: string;
   };
+}
+
+// Couleur de fond et bordure laterale selon le type (style page mpay)
+function getNotifCardClass(type: NotificationType, read: boolean): string {
+  if (read) return "bg-white/[0.02] border border-white/10";
+  switch (type) {
+    case "PAYMENT_RECEIVED":
+    case "SUCCESS":
+      return "bg-emerald-500/5 border border-white/10 border-l-2 border-l-emerald-500";
+    case "PAYMENT_SENT":
+      return "bg-red-500/5 border border-white/10 border-l-2 border-l-red-500";
+    case "SECURITY":
+    case "LOGIN":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    case "SWAP":
+      return "bg-indigo-500/5 border border-white/10 border-l-2 border-l-indigo-500";
+    case "MERCHANT":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-400";
+    case "KYC":
+    case "KYC_APPROVED":
+      return "bg-emerald-500/5 border border-white/10 border-l-2 border-l-emerald-500";
+    case "KYC_REJECTED":
+      return "bg-rose-500/5 border border-white/10 border-l-2 border-l-rose-500";
+    case "KYC_PENDING":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    default:
+      return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
+  }
+}
+
+// Bg de l'icone rond selon le type
+function getIconBgClass(type: NotificationType, read: boolean): string {
+  if (read) return "bg-slate-800";
+  switch (type) {
+    case "PAYMENT_RECEIVED": case "SUCCESS": case "KYC_APPROVED": return "bg-emerald-500/10";
+    case "PAYMENT_SENT": return "bg-red-500/10";
+    case "SECURITY": case "LOGIN": return "bg-amber-500/10";
+    case "SWAP": return "bg-indigo-500/10";
+    case "MERCHANT": return "bg-amber-500/10";
+    case "KYC_REJECTED": return "bg-rose-500/10";
+    case "KYC_PENDING": return "bg-amber-500/10";
+    default: return "bg-blue-500/10";
+  }
 }
 
 // Map devise → nom du réseau blockchain source
@@ -573,243 +619,147 @@ export default function NotificationsPage() {
                 <motion.div
                   key={notif.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  onClick={() => {
-                    if (!notif.read) markAsRead(notif.id);
-                    setSelectedNotification(notif);
-                  }}
-                  className={cn(
-                    "relative p-5 rounded-[30px] border transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]",
-                    notif.read
-                      ? "bg-slate-900/30 border-white/5 opacity-70 hover:opacity-90"
-                      : "bg-gradient-to-br from-blue-600/10 to-slate-900/50 border-blue-500/20 shadow-lg hover:border-blue-500/40"
-                  )}
+                  className={cn("relative rounded-2xl overflow-hidden transition-all", getNotifCardClass(notif.type, notif.read))}
                 >
-                  <div className="flex gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
-                      notif.read ? "bg-slate-800" : "bg-blue-600/20 text-blue-400"
-                    )}>
+                  <button
+                    onClick={() => {
+                      if (!notif.read) markAsRead(notif.id);
+                      setSelectedNotification(notif);
+                    }}
+                    className="w-full p-4 flex items-start gap-4 text-left hover:bg-white/[0.03] transition-all"
+                  >
+                    {/* Icone */}
+                    <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shrink-0", getIconBgClass(notif.type, notif.read))}>
                       {getIcon(notif.type)}
                     </div>
 
+                    {/* Contenu */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <h3 className={cn("text-sm font-bold truncate pr-4", notif.read ? 'text-slate-400' : 'text-white')}>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className={cn("text-xs font-black uppercase tracking-tight", notif.read ? "text-slate-400" : "text-white")}>
                           {notif.title}
                         </h3>
-                        {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                          <ChevronRight size={14} className="text-slate-600" />
+                        </div>
                       </div>
 
-                      <p className={cn("text-xs mt-1 leading-relaxed", notif.read ? 'text-slate-500' : 'text-slate-300')}>
+                      <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                         {notif.message}
                       </p>
 
-                      {/* Métadonnées de session si disponibles */}
+                      {/* Badges inline — Session */}
                       {notif.metadata && (notif.type === "LOGIN" || notif.type === "SECURITY") && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-1 border border-white/5">
-                           {notif.metadata.device && (
-                             <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                               <Smartphone size={10} /> {notif.metadata.device}
-                             </div>
-                           )}
-                           {notif.metadata.ip && (
-                             <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                               <Globe size={10} /> {notif.metadata.ip}
-                             </div>
-                           )}
-                           {notif.metadata.location && (
-                             <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                               <MapPin size={10} /> {notif.metadata.location}
-                             </div>
-                           )}
-                        </div>
-                      )}
-
-                      {/* Métadonnées de swap si disponibles */}
-                      {notif.metadata && notif.type === "SWAP" && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-white/5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 bg-rose-500/20 rounded-lg flex items-center justify-center">
-                                <ArrowUpRight size={10} className="text-rose-400" />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Envoye</span>
-                                <p className="text-xs font-bold text-white">{notif.metadata.fromAmount} {notif.metadata.fromCurrency}</p>
-                              </div>
-                            </div>
-                            <Repeat size={14} className="text-slate-600" />
-                            <div className="flex items-center gap-2">
-                              <div>
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wider text-right block">Recu</span>
-                                <p className="text-xs font-bold text-emerald-400">{notif.metadata.toAmount} {notif.metadata.toCurrency}</p>
-                              </div>
-                              <div className="w-6 h-6 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                                <ArrowDownLeft size={10} className="text-emerald-400" />
-                              </div>
-                            </div>
-                          </div>
-                          {notif.metadata.rate && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-1 border-t border-white/5">
-                              <Info size={10} />
-                              <span>Taux: 1 {notif.metadata.fromCurrency} = {Number(notif.metadata.rate).toFixed(4)} {notif.metadata.toCurrency}</span>
-                            </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {notif.metadata.device && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 rounded-lg text-[9px] font-bold uppercase tracking-wide border border-amber-500/15">
+                              <Smartphone size={9} /> {notif.metadata.device}
+                            </span>
                           )}
-                          {notif.metadata.reference && (
-                            <div className="text-[9px] text-slate-600 font-mono">
-                              Ref: {notif.metadata.reference}
-                            </div>
+                          {notif.metadata.location && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-400 rounded-lg text-[9px] font-bold uppercase tracking-wide border border-white/5">
+                              <MapPin size={9} /> {notif.metadata.location}
+                            </span>
+                          )}
+                          {notif.metadata.ip && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-500 rounded-lg text-[9px] font-mono border border-white/5">
+                              <Globe size={9} /> {notif.metadata.ip}
+                            </span>
                           )}
                         </div>
                       )}
 
-                      {/* Métadonnées de paiement recu / envoye — toujours afficher expediteur + destinataire */}
+                      {/* Badges inline — Paiement recu / envoye */}
                       {(notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS" || notif.type === "PAYMENT_SENT") && (() => {
                         const { sender, recipient } = inferTxParties(notif);
                         const isSent = notif.type === "PAYMENT_SENT";
                         return (
-                          <div className={`mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border ${isSent ? "border-blue-500/10" : "border-emerald-500/10"}`}>
-                            {/* Montant */}
+                          <div className="mt-2 flex flex-wrap gap-1.5">
                             {notif.metadata?.amount && (
-                              <div className="flex items-center gap-2">
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSent ? "bg-blue-500/20" : "bg-emerald-500/20"}`}>
-                                  {isSent ? <ArrowUpRight size={14} className="text-blue-400" /> : <ArrowDownLeft size={14} className="text-emerald-400" />}
-                                </div>
-                                <div>
-                                  <span className="text-[9px] text-slate-500 uppercase tracking-wider">{isSent ? "Montant envoye" : "Montant recu"}</span>
-                                  <p className={`text-sm font-black ${isSent ? "text-blue-400" : "text-emerald-400"}`}>
-                                    {isSent ? "-" : "+"}{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
-                                  </p>
-                                </div>
-                              </div>
+                              <span className={cn(
+                                "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border",
+                                isSent ? "bg-red-500/10 text-red-400 border-red-500/15" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              )}>
+                                {isSent ? <ArrowUpRight size={9} /> : <ArrowDownLeft size={9} />}
+                                {isSent ? "-" : "+"}{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
+                              </span>
                             )}
-                            {/* Expediteur → Destinataire */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[8px] text-slate-500 uppercase tracking-widest">De</p>
-                                <p className="text-[10px] font-bold text-white truncate">{sender}</p>
-                              </div>
-                              <ArrowUpRight size={12} className="text-slate-600 shrink-0" />
-                              <div className="flex-1 min-w-0 text-right">
-                                <p className="text-[8px] text-slate-500 uppercase tracking-widest">Vers</p>
-                                <p className="text-[10px] font-bold text-white truncate">{recipient}</p>
-                              </div>
-                            </div>
-                            {/* Ref */}
-                            {(notif.metadata?.reference || notif.metadata?.transactionId) && (
-                              <div className="text-[9px] text-slate-600 font-mono pt-1 border-t border-white/5">
-                                Ref: {notif.metadata?.reference || notif.metadata?.transactionId}
-                              </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-400 rounded-lg text-[9px] font-bold border border-white/5 uppercase tracking-wide">
+                              {isSent ? sender : recipient}
+                            </span>
+                            {notif.metadata?.method && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase tracking-wide">
+                                {notif.metadata.method}
+                              </span>
                             )}
                           </div>
                         );
                       })()}
 
-                      {/* Métadonnées KYC */}
-                      {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (
-                        <div className={`mt-3 p-3 rounded-2xl space-y-2 border ${
-                          notif.type === "KYC_APPROVED" || (notif.type === "KYC" && notif.metadata?.status === "APPROVED")
-                            ? "bg-emerald-500/5 border-emerald-500/20"
-                            : notif.type === "KYC_REJECTED" || (notif.type === "KYC" && notif.metadata?.status === "REJECTED")
-                            ? "bg-rose-500/5 border-rose-500/20"
-                            : "bg-amber-500/5 border-amber-500/20"
-                        }`}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                              notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
-                                ? "bg-emerald-500/20"
-                                : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
-                                ? "bg-rose-500/20"
-                                : "bg-amber-500/20"
-                            }`}>
-                              <ShieldCheck size={16} className={
-                                notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
-                                  ? "text-emerald-400"
-                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
-                                  ? "text-rose-400"
-                                  : "text-amber-400"
-                              } />
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Statut KYC</span>
-                              <p className={`text-xs font-black uppercase ${
-                                notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
-                                  ? "text-emerald-400"
-                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
-                                  ? "text-rose-400"
-                                  : "text-amber-400"
-                              }`}>
-                                {notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED"
-                                  ? "Verifie"
-                                  : notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED"
-                                  ? "Rejete"
-                                  : "En attente"}
-                              </p>
-                            </div>
-                          </div>
-                          {notif.metadata?.reference && (
-                            <div className="text-[9px] text-slate-600 font-mono pt-1 border-t border-white/5">
-                              Ref: {notif.metadata.reference}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Métadonnées generiques pour autres types avec metadata.amount */}
-                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT"].includes(notif.type) && notif.metadata.amount && (
-                        <div className="mt-3 p-3 bg-black/40 rounded-2xl space-y-2 border border-white/5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-slate-500/20 rounded-xl flex items-center justify-center">
-                              <Info size={14} className="text-slate-400" />
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Montant</span>
-                              <p className="text-sm font-black text-white">
-                                {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "PI"}
-                              </p>
-                            </div>
-                          </div>
-                          {notif.metadata.method && (
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-2 border-t border-white/5">
-                              <Info size={10} />
-                              <span>Methode: {notif.metadata.method}</span>
-                            </div>
-                          )}
-                          {notif.metadata.status && (
-                            <div className="flex items-center gap-2 text-[10px]">
-                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
-                                notif.metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
-                                notif.metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
-                                "bg-red-500/20 text-red-400"
-                              }`}>
-                                {notif.metadata.status}
-                              </span>
-                            </div>
-                          )}
-                          {(notif.metadata.reference || notif.metadata.transactionId) && (
-                            <div className="text-[9px] text-slate-600 font-mono">
-                              Ref: {notif.metadata.reference || notif.metadata.transactionId}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between mt-4">
-                        <div className="flex items-center gap-1.5 text-slate-600">
-                          <Clock size={10} />
-                          <span className="text-[9px] font-black uppercase tracking-tighter">
-                            {new Date(notif.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
+                      {/* Badges inline — Swap */}
+                      {notif.metadata && notif.type === "SWAP" && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">
+                            <ArrowUpRight size={9} /> {notif.metadata.fromAmount} {notif.metadata.fromCurrency}
+                          </span>
+                          <Repeat size={12} className="text-slate-600 self-center" />
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                            <ArrowDownLeft size={9} /> {notif.metadata.toAmount} {notif.metadata.toCurrency}
                           </span>
                         </div>
-                        <button onClick={() => deleteNotif(notif.id)} className="w-8 h-8 flex items-center justify-center bg-red-500/10 text-red-500 rounded-xl">
-                          <Trash2 size={14} />
-                        </button>
+                      )}
+
+                      {/* Badges inline — KYC */}
+                      {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (() => {
+                        const isApproved = notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED";
+                        const isRejected = notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED";
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <span className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border uppercase tracking-wide",
+                              isApproved ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              : isRejected ? "bg-rose-500/10 text-rose-400 border-rose-500/15"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/15"
+                            )}>
+                              <ShieldCheck size={9} />
+                              {isApproved ? "KYC Verifie" : isRejected ? "KYC Rejete" : "KYC En attente"}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Badges inline — Generique avec montant */}
+                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING"].includes(notif.type) && notif.metadata.amount && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white rounded-lg text-[9px] font-black border border-white/10">
+                            {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "PI"}
+                          </span>
+                          {notif.metadata.status && (
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black border uppercase",
+                              notif.metadata.status === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              : notif.metadata.status === "PENDING" ? "bg-amber-500/10 text-amber-400 border-amber-500/15"
+                              : "bg-red-500/10 text-red-400 border-red-500/15"
+                            )}>
+                              {notif.metadata.status}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Heure relative */}
+                      <div className="flex items-center gap-1.5 mt-3">
+                        <Clock size={10} className="text-slate-600" />
+                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">
+                          {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: fr })}
+                        </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 </motion.div>
               ))}
             </AnimatePresence>
