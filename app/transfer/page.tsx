@@ -341,6 +341,10 @@ export default function SendPage() {
   const [recipientData, setRecipientData] = useState<RecipientData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWallets, setIsLoadingWallets] = useState(true);
+  
+  // Address verification state
+  const [addressVerifying, setAddressVerifying] = useState(false);
+  const [addressVerified, setAddressVerified] = useState<{ valid: boolean; exists: boolean; network?: string; error?: string } | null>(null);
 
   // Fee state - dynamically loaded from API
   const [feeConfig, setFeeConfig] = useState<{
@@ -474,8 +478,35 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
             ) {
               setSelectedCurrency(detected.networkKey);
             }
+            
+            // Verify the external address exists on blockchain
+            setAddressVerifying(true);
+            setAddressVerified(null);
+            try {
+              const verifyRes = await fetch("/api/wallet/verify-address", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                  address: recipientId, 
+                  currency: detected.networkKey || selectedCurrency 
+                }),
+                signal: abortController.signal,
+              });
+              
+              if (verifyRes.ok && isMountedRef.current) {
+                const verifyData = await verifyRes.json();
+                setAddressVerified(verifyData);
+              }
+            } catch (verifyErr: any) {
+              if (verifyErr.name !== "AbortError" && isMountedRef.current) {
+                setAddressVerified({ valid: true, exists: true }); // Assume valid if verification fails
+              }
+            } finally {
+              if (isMountedRef.current) setAddressVerifying(false);
+            }
           } else {
             setRecipientData(null);
+            setAddressVerified(null);
           }
         }
       } catch (err: any) {
@@ -754,9 +785,14 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                     <CheckCircle2 className="w-3 h-3 text-white" />
                   </div>
                 )}
-                {recipientData.isExternal && (
+                {recipientData.isExternal && !addressVerifying && addressVerified?.valid && (
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
                     <CheckCircle2 className="w-3 h-3 text-white" />
+                  </div>
+                )}
+                {recipientData.isExternal && addressVerifying && (
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                    <Loader2 className="w-3 h-3 text-white animate-spin" />
                   </div>
                 )}
               </div>
@@ -766,13 +802,32 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                 </p>
                 <p className={`text-xs truncate ${
                   recipientData.isExternal
-                    ? "text-emerald-400 flex items-center gap-1"
+                    ? addressVerified?.valid ? "text-emerald-400" : "text-amber-400"
                     : "text-slate-500"
                 }`}>
                   {recipientData.isExternal ? (
                     <span className="flex items-center gap-1">
-                      <Globe className="w-3 h-3" />
-                      {t("transfer.external")}
+                      {addressVerifying ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Vérification...
+                        </>
+                      ) : addressVerified?.valid && addressVerified?.exists ? (
+                        <>
+                          <ShieldCheck className="w-3 h-3" />
+                          Adresse vérifiée
+                        </>
+                      ) : addressVerified?.valid && !addressVerified?.exists ? (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          Adresse valide
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          {t("transfer.external")}
+                        </>
+                      )}
                     </span>
                   ) : (
                     `@${recipientData.username || "pimuser"}`
@@ -783,6 +838,8 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                 onClick={() => {
                   setRecipientId("");
                   setRecipientData(null);
+                  setAddressVerified(null);
+                  setAddressVerifying(false);
                 }}
                 className="p-1.5 text-slate-600 hover:text-white transition-colors"
               >

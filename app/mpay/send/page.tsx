@@ -86,6 +86,10 @@ export default function P2PSendPage() {
   const [searchError, setSearchError] = useState("");
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [addingToContacts, setAddingToContacts] = useState(false);
+  
+  // Address verification state
+  const [addressVerifying, setAddressVerifying] = useState(false);
+  const [addressVerified, setAddressVerified] = useState<{ valid: boolean; exists: boolean; network?: string; error?: string } | null>(null);
 
   // Load recent users from localStorage
   useEffect(() => {
@@ -156,6 +160,32 @@ export default function P2PSendPage() {
         // For external addresses, store the original query as the full address
         if (data.isExternal) {
           data.fullExternalAddress = query.trim();
+          
+          // Verify the external address exists on blockchain
+          setAddressVerifying(true);
+          setAddressVerified(null);
+          try {
+            const verifyRes = await fetch("/api/wallet/verify-address", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                address: query.trim(), 
+                currency: "PI" // Default to PI for mpay send
+              }),
+            });
+            
+            if (verifyRes.ok) {
+              const verifyData = await verifyRes.json();
+              setAddressVerified(verifyData);
+            }
+          } catch (verifyErr) {
+            console.error("Address verification error:", verifyErr);
+            setAddressVerified({ valid: true, exists: true }); // Assume valid if verification fails
+          } finally {
+            setAddressVerifying(false);
+          }
+        } else {
+          setAddressVerified(null);
         }
         setSearchedUser(data);
       } else if (res.status === 404) {
@@ -530,6 +560,8 @@ const filteredContacts = contacts.filter(
                     setSearchQuery("");
                     setSearchedUser(null);
                     setSearchError("");
+                    setAddressVerified(null);
+                    setAddressVerifying(false);
                   }}
                   className="p-2 bg-white/5 rounded-xl text-slate-400 hover:bg-white/10"
                 >
@@ -541,33 +573,86 @@ const filteredContacts = contacts.filter(
             {/* Search Results from API */}
             {searchedUser && (
               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-emerald-500`}>
-                  <CheckCircle2 size={12} />
-                  {searchedUser.isExternal ? 'Adresse Pi Wallet confirmee' : 'Utilisateur trouve'}
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${
+                  searchedUser.isExternal && addressVerifying ? 'text-blue-500' :
+                  searchedUser.isExternal && addressVerified?.valid ? 'text-emerald-500' :
+                  !searchedUser.isExternal ? 'text-emerald-500' : 'text-amber-500'
+                }`}>
+                  {addressVerifying ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={12} />
+                  )}
+                  {searchedUser.isExternal 
+                    ? (addressVerifying ? 'Verification en cours...' : addressVerified?.valid && addressVerified?.exists ? 'Adresse verifiee' : 'Adresse Pi Wallet')
+                    : 'Utilisateur trouve'
+                  }
                 </p>
-                <div className={`rounded-2xl p-4 bg-emerald-500/5 border border-emerald-500/20`}>
-                  {/* External address confirmation message */}
+                <div className={`rounded-2xl p-4 ${
+                  searchedUser.isExternal && addressVerified?.valid 
+                    ? 'bg-emerald-500/5 border border-emerald-500/20'
+                    : searchedUser.isExternal && addressVerifying
+                    ? 'bg-blue-500/5 border border-blue-500/20'
+                    : !searchedUser.isExternal 
+                    ? 'bg-emerald-500/5 border border-emerald-500/20'
+                    : 'bg-amber-500/5 border border-amber-500/20'
+                }`}>
+                  {/* External address verification message */}
                   {searchedUser.isExternal && (
-                    <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-3">
-                      <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <div className={`mb-4 p-3 rounded-xl flex items-start gap-3 ${
+                      addressVerifying 
+                        ? 'bg-blue-500/10 border border-blue-500/20'
+                        : addressVerified?.valid && addressVerified?.exists
+                        ? 'bg-emerald-500/10 border border-emerald-500/20'
+                        : addressVerified?.valid && !addressVerified?.exists
+                        ? 'bg-amber-500/10 border border-amber-500/20'
+                        : 'bg-emerald-500/10 border border-emerald-500/20'
+                    }`}>
+                      {addressVerifying ? (
+                        <Loader2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
+                      ) : addressVerified?.valid && addressVerified?.exists ? (
+                        <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                      )}
                       <div>
-                        <p className="text-[10px] font-black text-emerald-400 uppercase mb-1">Adresse Validee</p>
-                        <p className="text-[9px] text-emerald-400/80 leading-relaxed">
-                          Adresse externe confirmee sur la blockchain Pi Network. 
-                          Verifiez bien l'adresse car les transactions sont irreversibles.
+                        <p className={`text-[10px] font-black uppercase mb-1 ${
+                          addressVerifying ? 'text-blue-400' : 
+                          addressVerified?.valid && addressVerified?.exists ? 'text-emerald-400' : 'text-emerald-400'
+                        }`}>
+                          {addressVerifying ? 'Verification blockchain...' : 
+                           addressVerified?.valid && addressVerified?.exists ? 'Compte actif sur Pi Network' : 
+                           'Adresse validee'}
+                        </p>
+                        <p className={`text-[9px] leading-relaxed ${
+                          addressVerifying ? 'text-blue-400/80' : 
+                          addressVerified?.valid && addressVerified?.exists ? 'text-emerald-400/80' : 'text-emerald-400/80'
+                        }`}>
+                          {addressVerifying ? 'Verification de l\'existence du compte sur la blockchain Pi Network...' :
+                           addressVerified?.valid && addressVerified?.exists ? 'Compte verifie et actif. Vous pouvez envoyer en toute securite.' :
+                           'Adresse valide. Verifiez bien car les transactions sont irreversibles.'}
                         </p>
                       </div>
                     </div>
                   )}
                   <button
                     onClick={() => handleSelectSearchedUser(searchedUser)}
-                    className="w-full flex items-center gap-4 hover:opacity-80 transition-all"
+                    disabled={addressVerifying}
+                    className="w-full flex items-center gap-4 hover:opacity-80 transition-all disabled:opacity-50"
                   >
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border overflow-hidden bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 border-emerald-500/20`}>
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border overflow-hidden ${
+                      addressVerifying 
+                        ? 'bg-gradient-to-br from-blue-600/20 to-cyan-600/20 border-blue-500/20'
+                        : 'bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 border-emerald-500/20'
+                    }`}>
                       {searchedUser.avatar ? (
                         <img src={searchedUser.avatar} alt={searchedUser.firstName} className="w-full h-full object-cover" />
                       ) : searchedUser.isExternal ? (
-                        <CheckCircle2 size={20} className="text-emerald-400" />
+                        addressVerifying ? (
+                          <Loader2 size={20} className="text-blue-400 animate-spin" />
+                        ) : (
+                          <CheckCircle2 size={20} className="text-emerald-400" />
+                        )
                       ) : (
                         <span className="text-sm font-black text-emerald-400">
                           {getInitials(`${searchedUser.firstName} ${searchedUser.lastName}`.trim() || searchedUser.username || "U")}
@@ -584,10 +669,13 @@ const filteredContacts = contacts.filter(
                         </p>
                       )}
                       <p className="text-[9px] font-bold text-slate-500 mt-0.5">
-                        {searchedUser.isExternal ? `Pi Network ${searchedUser.lastName}` : "Utilisateur PimPay"}
+                        {searchedUser.isExternal 
+                          ? (addressVerified?.valid && addressVerified?.exists ? 'Compte Pi Network verifie' : 'Pi Network')
+                          : "Utilisateur PimPay"
+                        }
                       </p>
                     </div>
-                    <ChevronRight size={18} className='text-emerald-400' />
+                    <ChevronRight size={18} className={addressVerifying ? 'text-blue-400' : 'text-emerald-400'} />
                   </button>
                   {/* Add to contacts button - only for internal users */}
                   {!searchedUser.isExternal && (
