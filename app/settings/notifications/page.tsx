@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | string;
 
 // Helper pour formater les montants PI avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
@@ -62,6 +62,15 @@ interface Notification {
     transactionId?: string;
     walletAddress?: string;
     network?: string;
+    // Staking specific
+    stakingAmount?: number;
+    rewardAmount?: number;
+    apy?: number;
+    duration?: string;
+    stakingId?: string;
+    stakingStatus?: string;
+    unlockDate?: string;
+    type?: string;
   };
 }
 
@@ -88,6 +97,11 @@ function getNotifCardClass(type: NotificationType, read: boolean): string {
       return "bg-rose-500/5 border border-white/10 border-l-2 border-l-rose-500";
     case "KYC_PENDING":
       return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    case "STAKING":
+    case "STAKING_REWARD":
+      return "bg-purple-500/5 border border-white/10 border-l-2 border-l-purple-500";
+    case "STAKING_UNSTAKE":
+      return "bg-orange-500/5 border border-white/10 border-l-2 border-l-orange-500";
     default:
       return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
   }
@@ -104,6 +118,8 @@ function getIconBgClass(type: NotificationType, read: boolean): string {
     case "MERCHANT": return "bg-amber-500/10";
     case "KYC_REJECTED": return "bg-rose-500/10";
     case "KYC_PENDING": return "bg-amber-500/10";
+    case "STAKING": case "STAKING_REWARD": return "bg-purple-500/10";
+    case "STAKING_UNSTAKE": return "bg-orange-500/10";
     default: return "bg-blue-500/10";
   }
 }
@@ -320,6 +336,9 @@ export default function NotificationsPage() {
       case "SWAP": return <Repeat className="text-indigo-400" size={18} />;
       case "MERCHANT": return <Store className="text-amber-400" size={18} />;
       case "LOGIN": return <LogIn className="text-indigo-400" size={18} />;
+      case "STAKING":
+      case "STAKING_REWARD": return <TrendingUp className="text-purple-400" size={18} />;
+      case "STAKING_UNSTAKE": return <Coins className="text-orange-400" size={18} />;
       case "SYSTEM": return <Info className="text-blue-500" size={18} />;
       case "KYC":
       case "KYC_APPROVED": return <ShieldCheck className="text-emerald-400" size={18} />;
@@ -333,6 +352,7 @@ export default function NotificationsPage() {
     { id: "ALL", label: "Tout" },
     { id: "SUCCESS", label: "Reçus" },
     { id: "SWAP", label: "Swaps" },
+    { id: "STAKING", label: "Staking" },
     { id: "LOGIN", label: "Sessions" },
     { id: "SECURITY", label: "Sécurité" },
     { id: "KYC", label: "KYC" },
@@ -343,6 +363,7 @@ export default function NotificationsPage() {
     : notifications.filter(n => {
         if (activeTab === "SUCCESS") return n.type === "SUCCESS" || n.type === "PAYMENT_RECEIVED";
         if (activeTab === "KYC") return n.type === "KYC" || n.type === "KYC_APPROVED" || n.type === "KYC_REJECTED" || n.type === "KYC_PENDING";
+        if (activeTab === "STAKING") return n.type === "STAKING" || n.type === "STAKING_REWARD" || n.type === "STAKING_UNSTAKE" || n.metadata?.type === "STAKING" || n.metadata?.type === "UNSTAKE";
         return n.type === activeTab;
       });
 
@@ -461,6 +482,52 @@ export default function NotificationsPage() {
                 </div>
               );
             })()}
+
+            {/* Staking Details */}
+            {(notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || metadata?.type === "STAKING" || metadata?.type === "UNSTAKE") && (
+              <div className="space-y-3">
+                {metadata?.stakingAmount && (
+                  <div className="bg-purple-500/5 rounded-2xl p-4 border border-purple-500/20">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant Stake</p>
+                    <p className="text-2xl font-black text-purple-400">
+                      {Number(metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
+                    </p>
+                  </div>
+                )}
+                {metadata?.rewardAmount && (
+                  <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Recompense</p>
+                    <p className="text-2xl font-black text-emerald-400">
+                      +{Number(metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
+                    </p>
+                  </div>
+                )}
+                {metadata?.apy && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">APY</p>
+                    <p className="text-lg font-black text-blue-400">{metadata.apy}%</p>
+                  </div>
+                )}
+                {metadata?.duration && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Duree</p>
+                    <p className="text-sm font-bold text-white">{metadata.duration}</p>
+                  </div>
+                )}
+                {metadata?.unlockDate && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Date de deblocage</p>
+                    <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                )}
+                {metadata?.stakingId && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">ID Staking</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.stakingId}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Swap Details */}
             {metadata && notification.type === "SWAP" && (
@@ -732,8 +799,35 @@ export default function NotificationsPage() {
                         );
                       })()}
 
+                      {/* Badges inline — Staking */}
+                      {(notif.type === "STAKING" || notif.type === "STAKING_REWARD" || notif.type === "STAKING_UNSTAKE" || notif.metadata?.type === "STAKING" || notif.metadata?.type === "UNSTAKE") && (notif.metadata?.stakingAmount || notif.metadata?.rewardAmount) && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {notif.metadata?.stakingAmount && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[9px] font-black border border-purple-500/15">
+                              <TrendingUp size={9} />
+                              {Number(notif.metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} stake
+                            </span>
+                          )}
+                          {notif.metadata?.rewardAmount && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                              +{Number(notif.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} recompense
+                            </span>
+                          )}
+                          {notif.metadata?.apy && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-black border border-blue-500/15">
+                              {notif.metadata.apy}% APY
+                            </span>
+                          )}
+                          {notif.metadata?.duration && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-500/10 text-slate-400 rounded-lg text-[9px] font-bold border border-slate-500/15">
+                              <Clock size={9} /> {notif.metadata.duration}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Badges inline — Generique avec montant */}
-                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING"].includes(notif.type) && notif.metadata.amount && (
+                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING", "STAKING", "STAKING_REWARD", "STAKING_UNSTAKE"].includes(notif.type) && !notif.metadata.stakingAmount && !notif.metadata.rewardAmount && notif.metadata.amount && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white rounded-lg text-[9px] font-black border border-white/10">
                             {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "PI"}

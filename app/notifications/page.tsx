@@ -5,14 +5,25 @@ import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Bell, CheckCheck, Trash2, 
   ArrowDownLeft, ArrowUpRight, Shield, Loader2,
-  RefreshCw, Filter, AlertCircle,
+  RefreshCw, AlertCircle,
   Wallet, X, TrendingUp, Coins, CreditCard,
-  Info
+  Info, Repeat, Clock, Smartphone, MapPin, Globe,
+  ShieldCheck, Store, LogIn, ChevronRight, Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+
+// Helper pour formater les montants PI avec 8 decimales max
+function formatPiAmount(amount: number | undefined, currency?: string): string {
+  if (amount === undefined || amount === null) return "0";
+  const curr = (currency || "PI").toUpperCase();
+  if (curr === "PI") {
+    return Number(amount).toFixed(8).replace(/\.?0+$/, "") || "0";
+  }
+  return Number(amount).toLocaleString();
+}
 
 interface Notification {
   id: string;
@@ -27,6 +38,7 @@ interface Notification {
     from?: string;
     to?: string;
     txId?: string;
+    // Staking specific
     stakingAmount?: number;
     rewardAmount?: number;
     apy?: number;
@@ -37,6 +49,30 @@ interface Notification {
     type?: string;
     cardId?: string;
     cardLast4?: string;
+    // Payment / transaction
+    senderName?: string;
+    senderUsername?: string;
+    recipientName?: string;
+    recipientUsername?: string;
+    method?: string;
+    fee?: number;
+    status?: string;
+    transactionId?: string;
+    walletAddress?: string;
+    network?: string;
+    // Swap
+    fromCurrency?: string;
+    toCurrency?: string;
+    fromAmount?: number;
+    toAmount?: number;
+    rate?: number;
+    reference?: string;
+    // Session
+    device?: string;
+    ip?: string;
+    location?: string;
+    os?: string;
+    browser?: string;
   };
 }
 
@@ -142,13 +178,15 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: string, metadata?: Notification["metadata"]) => {
     switch (type) {
       case "PAYMENT_RECEIVED":
+      case "SUCCESS":
       case "success":
         return <ArrowDownLeft size={18} className="text-emerald-400" />;
       case "PAYMENT_SENT":
         return <ArrowUpRight size={18} className="text-red-400" />;
       case "SECURITY":
+        return <ShieldCheck size={18} className="text-rose-400" />;
       case "LOGIN":
-        return <Shield size={18} className="text-amber-400" />;
+        return <LogIn size={18} className="text-amber-400" />;
       case "STAKING":
       case "STAKING_REWARD":
         return <TrendingUp size={18} className="text-purple-400" />;
@@ -158,7 +196,13 @@ export default function NotificationsPage() {
       case "CARD_ORDER":
       case "CARD_ACTIVATED":
         return <CreditCard size={18} className="text-cyan-400" />;
+      case "SWAP":
+        return <Repeat size={18} className="text-indigo-400" />;
+      case "MERCHANT":
+        return <Store size={18} className="text-amber-400" />;
       default:
+        if (metadata?.type === "STAKING") return <TrendingUp size={18} className="text-purple-400" />;
+        if (metadata?.type === "UNSTAKE") return <Coins size={18} className="text-orange-400" />;
         return <Bell size={18} className="text-blue-400" />;
     }
   };
@@ -168,6 +212,7 @@ export default function NotificationsPage() {
     if (read) return "bg-white/[0.02]";
     switch (type) {
       case "PAYMENT_RECEIVED":
+      case "SUCCESS":
       case "success":
         return "bg-emerald-500/5 border-l-2 border-l-emerald-500";
       case "PAYMENT_SENT":
@@ -179,6 +224,13 @@ export default function NotificationsPage() {
       case "CARD_ORDER":
       case "CARD_ACTIVATED":
         return "bg-cyan-500/5 border-l-2 border-l-cyan-500";
+      case "STAKING":
+      case "STAKING_REWARD":
+        return "bg-purple-500/5 border-l-2 border-l-purple-500";
+      case "STAKING_UNSTAKE":
+        return "bg-orange-500/5 border-l-2 border-l-orange-500";
+      case "SWAP":
+        return "bg-indigo-500/5 border-l-2 border-l-indigo-500";
       default:
         return "bg-blue-500/5 border-l-2 border-l-blue-500";
     }
@@ -229,8 +281,8 @@ export default function NotificationsPage() {
               <p className="text-sm text-white leading-relaxed">{notification.message}</p>
             </div>
 
-            {/* Transaction Details */}
-            {metadata && metadata.amount && (
+            {/* Payment Details */}
+            {metadata && metadata.amount && !metadata.stakingAmount && !metadata.rewardAmount && (
               <div className={`rounded-2xl p-4 border ${
                 notification.type === "PAYMENT_SENT" 
                   ? "bg-red-500/5 border-red-500/20" 
@@ -240,8 +292,65 @@ export default function NotificationsPage() {
                 <p className={`text-2xl font-black ${
                   notification.type === "PAYMENT_SENT" ? "text-red-400" : "text-emerald-400"
                 }`}>
-                  {notification.type === "PAYMENT_SENT" ? "-" : "+"}{Number(metadata.amount).toLocaleString()} {metadata.currency || "Pi"}
+                  {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
                 </p>
+              </div>
+            )}
+
+            {/* Staking Details */}
+            {(notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || metadata?.type === "STAKING" || metadata?.type === "UNSTAKE") && (
+              <div className="space-y-3">
+                {metadata?.stakingAmount && (
+                  <div className="bg-purple-500/5 rounded-2xl p-4 border border-purple-500/20">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Montant Stake</p>
+                    <p className="text-2xl font-black text-purple-400">
+                      {Number(metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
+                    </p>
+                  </div>
+                )}
+                {metadata?.rewardAmount && (
+                  <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Recompense</p>
+                    <p className="text-2xl font-black text-emerald-400">
+                      +{Number(metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
+                    </p>
+                  </div>
+                )}
+                {metadata?.apy && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">APY</p>
+                    <p className="text-lg font-black text-blue-400">{metadata.apy}%</p>
+                  </div>
+                )}
+                {metadata?.duration && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Duree</p>
+                    <p className="text-sm font-bold text-white">{metadata.duration}</p>
+                  </div>
+                )}
+                {metadata?.unlockDate && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Date de deblocage</p>
+                    <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Swap Details */}
+            {notification.type === "SWAP" && metadata?.fromAmount && (
+              <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Envoye</p>
+                    <p className="text-lg font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
+                  </div>
+                  <Repeat size={20} className="text-white/20" />
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Recu</p>
+                    <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -376,29 +485,130 @@ export default function NotificationsPage() {
                   if (!notification.read) markAsRead(notification.id);
                   setSelectedNotification(notification);
                 }}
-                className={`p-4 rounded-2xl border border-white/10 cursor-pointer hover:bg-white/5 transition-all ${getNotificationBg(notification.type, notification.read)}`}
+                className={`rounded-2xl border border-white/10 cursor-pointer hover:bg-white/5 transition-all overflow-hidden ${getNotificationBg(notification.type, notification.read)}`}
               >
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    notification.read ? "bg-white/5" : "bg-white/10"
+                <div className="p-4 flex items-start gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    notification.read ? "bg-white/5" :
+                    notification.type === "PAYMENT_RECEIVED" || notification.type === "success" || notification.type === "SUCCESS" ? "bg-emerald-500/10" :
+                    notification.type === "PAYMENT_SENT" ? "bg-red-500/10" :
+                    notification.type === "SECURITY" || notification.type === "LOGIN" ? "bg-amber-500/10" :
+                    notification.type === "STAKING" || notification.type === "STAKING_REWARD" ? "bg-purple-500/10" :
+                    notification.type === "STAKING_UNSTAKE" ? "bg-orange-500/10" :
+                    notification.type === "SWAP" ? "bg-indigo-500/10" :
+                    notification.type === "CARD" || notification.type === "CARD_ORDER" || notification.type === "CARD_ACTIVATED" ? "bg-cyan-500/10" :
+                    "bg-white/10"
                   }`}>
                     {getNotificationIcon(notification.type, notification.metadata)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className={`text-sm font-bold truncate ${notification.read ? "text-white/60" : "text-white"}`}>
+                      <h3 className={`text-xs font-black uppercase tracking-tight ${notification.read ? "text-white/60" : "text-white"}`}>
                         {notification.title}
                       </h3>
-                      {!notification.read && (
-                        <div className="w-2 h-2 bg-purple-500 rounded-full shrink-0 mt-1.5 animate-pulse"></div>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!notification.read && (
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                        )}
+                        <ChevronRight size={14} className="text-white/20" />
+                      </div>
                     </div>
-                    <p className={`text-xs mt-0.5 line-clamp-2 ${notification.read ? "text-white/30" : "text-white/50"}`}>
+                    <p className={`text-[10px] mt-0.5 line-clamp-2 leading-relaxed ${notification.read ? "text-white/30" : "text-white/50"}`}>
                       {notification.message}
                     </p>
-                    <p className="text-[9px] text-white/30 mt-2 font-medium">
-                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
-                    </p>
+
+                    {/* Badges inline — Staking */}
+                    {(notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || notification.metadata?.type === "STAKING" || notification.metadata?.type === "UNSTAKE") && (notification.metadata?.stakingAmount || notification.metadata?.rewardAmount) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {notification.metadata?.stakingAmount && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[9px] font-black border border-purple-500/15">
+                            <TrendingUp size={9} />
+                            {Number(notification.metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} stake
+                          </span>
+                        )}
+                        {notification.metadata?.rewardAmount && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                            <Gift size={9} />
+                            +{Number(notification.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} recompense
+                          </span>
+                        )}
+                        {notification.metadata?.apy && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-black border border-blue-500/15">
+                            {notification.metadata.apy}% APY
+                          </span>
+                        )}
+                        {notification.metadata?.duration && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-500/10 text-slate-400 rounded-lg text-[9px] font-bold border border-slate-500/15">
+                            <Clock size={9} /> {notification.metadata.duration}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Badges inline — Payment */}
+                    {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "success" || notification.type === "PAYMENT_SENT") && notification.metadata?.amount && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border ${
+                          notification.type === "PAYMENT_SENT" ? "bg-red-500/10 text-red-400 border-red-500/15" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                        }`}>
+                          {notification.type === "PAYMENT_SENT" ? <ArrowUpRight size={9} /> : <ArrowDownLeft size={9} />}
+                          {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(notification.metadata.amount, notification.metadata.currency)} {notification.metadata.currency || "PI"}
+                        </span>
+                        {notification.metadata?.method && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase">
+                            {notification.metadata.method}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Badges inline — Swap */}
+                    {notification.type === "SWAP" && notification.metadata?.fromAmount && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">
+                          <ArrowUpRight size={9} /> {notification.metadata.fromAmount} {notification.metadata.fromCurrency}
+                        </span>
+                        <Repeat size={10} className="text-white/20" />
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                          <ArrowDownLeft size={9} /> {notification.metadata.toAmount} {notification.metadata.toCurrency}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Badges inline — Card */}
+                    {(notification.type === "CARD" || notification.type === "CARD_ORDER" || notification.type === "CARD_ACTIVATED") && notification.metadata?.cardLast4 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 rounded-lg text-[9px] font-black border border-cyan-500/15">
+                          <CreditCard size={9} /> **** {notification.metadata.cardLast4}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Badges inline — Session */}
+                    {(notification.type === "LOGIN" || notification.type === "SECURITY") && notification.metadata?.device && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 rounded-lg text-[9px] font-bold border border-amber-500/15">
+                          <Smartphone size={9} /> {notification.metadata.device}
+                        </span>
+                        {notification.metadata.location && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white/50 rounded-lg text-[9px] font-bold border border-white/5">
+                            <MapPin size={9} /> {notification.metadata.location}
+                          </span>
+                        )}
+                        {notification.metadata.ip && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white/40 rounded-lg text-[9px] font-mono border border-white/5">
+                            <Globe size={9} /> {notification.metadata.ip}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <Clock size={9} className="text-white/20" />
+                      <p className="text-[9px] text-white/30 font-medium">
+                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </motion.div>

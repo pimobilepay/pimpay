@@ -538,13 +538,13 @@ export default function MPayNotificationsPage() {
                         {notif.metadata?.stakingAmount && (
                           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-purple-500/10 text-purple-400">
                             <TrendingUp size={10} />
-                            {notif.metadata.stakingAmount} {notif.metadata.currency || "PI"} stake
+                            {Number(notif.metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} stake
                           </div>
                         )}
                         {notif.metadata?.rewardAmount && (
                           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-400 ml-1">
                             <Gift size={10} />
-                            +{notif.metadata.rewardAmount} {notif.metadata.currency || "PI"} recompense
+                            +{Number(notif.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} recompense
                           </div>
                         )}
                         {notif.metadata?.apy && (
