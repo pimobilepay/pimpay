@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
-import { verifyAuth } from "@/lib/auth/verify";
+import { verifyAuth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 const ConfigModel = prisma.systemConfig;

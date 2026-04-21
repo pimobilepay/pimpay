@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import * as jose from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { UAParser } from "ua-parser-js";
-
-const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET is not defined");
-  return new TextEncoder().encode(secret);
-};
 
 export async function GET(req: Request) {
   try {
@@ -19,9 +13,11 @@ export async function GET(req: Request) {
 
     const token = authHeader.split(" ")[1];
     
-    // Vérification du token avec jose (comme dans ton lib/auth.ts)
-    const secret = getJwtSecret();
-    const { payload } = await jose.jwtVerify(token, secret);
+    // Vérification du token avec verifyJWT de lib/auth.ts
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    }
     const userId = payload.id as string;
 
     // 1. Récupération des sessions de l'utilisateur

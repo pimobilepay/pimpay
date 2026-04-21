@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/auth/verify"; // Vérifie bien le chemin vers ton verifyAuth
+import { verifyAuth } from "@/lib/auth";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 
 export async function POST(req: NextRequest) {
