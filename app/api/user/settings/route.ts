@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -15,9 +15,9 @@ export async function GET() {
     if (piToken) {
       userId = piToken;
     } else if (classicToken) {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-      const { payload } = await jwtVerify(classicToken, secret);
-      userId = payload.id as string;
+      const payload = await verifyJWT(classicToken);
+      if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+      userId = payload.id;
     }
 
     if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });

@@ -2,10 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 
-// Fonction utilitaire interne pour récupérer le userId comme dans l'API profile
+// Fonction utilitaire interne pour récupérer le userId
 async function getAuthenticatedUserId() {
   const cookieStore = await cookies();
   const piToken = cookieStore.get("pi_session_token")?.value;
@@ -14,13 +14,8 @@ async function getAuthenticatedUserId() {
   if (piToken) return piToken;
 
   if (classicToken) {
-    try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-      const { payload } = await jwtVerify(classicToken, secret);
-      return (payload.id || payload.userId) as string;
-    } catch (e) {
-      return null;
-    }
+    const payload = await verifyJWT(classicToken);
+    return payload?.id || null;
   }
   return null;
 }

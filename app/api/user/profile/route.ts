@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { Wallet as EthersWallet } from "ethers";
 import crypto from "crypto";
@@ -43,13 +43,11 @@ export async function GET() {
         if (piToken) {
             userId = piToken;
         } else if (classicToken) {
-            try {
-                const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-                const { payload } = await jwtVerify(classicToken, secret);
-                userId = (payload.id || payload.userId) as string;
-            } catch {
+            const payload = await verifyJWT(classicToken);
+            if (!payload) {
                 return NextResponse.json({ error: "Session expirée" }, { status: 401 });
             }
+            userId = payload.id;
         }
 
         if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
