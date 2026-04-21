@@ -85,6 +85,13 @@ export default function LoginPage() {
       }
 
       if (data.requireMFA || data.requirePin) {
+        console.log("[v0] MFA Required - Opening MFASelector modal", {
+          requireMFA: data.requireMFA,
+          requirePin: data.requirePin,
+          needsPinUpdate: data.needsPinUpdate,
+          twoFactorEnabled: data.twoFactorEnabled,
+          userId: data.userId
+        });
         setTempUserId(data.userId);
         setTempRole(data.role);
         setTempToken(data.tempToken || null);
