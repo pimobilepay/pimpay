@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShieldAlert, Users, Settings, Zap,
-  Ban, CheckCircle, Wallet, CreditCard,
+  Ban, Wallet, CreditCard,
   Hammer, TrendingUp, AlertTriangle, RefreshCw,
-  UserCheck
+  UserCheck, Trash2
 } from "lucide-react";
-import { toast } from "sonner"; // Changé react-hot-toast par sonner pour cohérence avec ton projet
+import { toast } from "sonner";
 
 interface AdminControlProps {
   userId?: string;
@@ -17,12 +18,14 @@ interface AdminControlProps {
 }
 
 export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: AdminControlProps) => {
+  const router = useRouter();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   const runAction = async (action: string, payload: any = {}) => {
     setLoadingAction(action);
     try {
-      const res = await fetch("/api/admin", {
+      // Use /api/admin/users/action for user-specific actions
+      const res = await fetch("/api/admin/users/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -35,14 +38,30 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
       const data = await res.json();
       
       if (res.ok) {
-        toast.success(data.message || "Action effectuée avec succès");
+        toast.success(data.message || "Action effectuee avec succes");
+        
+        // Redirect to users list after deletion
+        if (action === "DELETE_USER") {
+          router.push("/admin/users");
+        }
       } else {
-        toast.error(data.error || "L'action a échoué");
+        toast.error(data.error || "L'action a echoue");
       }
     } catch (err) {
       toast.error("Erreur de connexion au noyau PimPay");
     } finally {
       setLoadingAction(null);
+    }
+  };
+  
+  const handleDeleteUser = () => {
+    if (!userId) return;
+    const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName || userId} ?\n\nCette action est IRREVERSIBLE et supprimera:\n- Le compte utilisateur\n- Tous ses portefeuilles\n- Tout son historique de transactions`);
+    if (confirmed) {
+      const doubleConfirm = confirm("DERNIERE CONFIRMATION: Etes-vous vraiment sur de vouloir supprimer cet utilisateur ?");
+      if (doubleConfirm) {
+        runAction("DELETE_USER");
+      }
     }
   };
 
@@ -150,11 +169,34 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
           </div>
         )}
 
-        {/* SECTION 3: SYSTÈME GLOBAL */}
+        {/* SECTION 3: ZONE DANGEREUSE */}
+        {userId && (
+          <div className="bg-red-950/30 border border-red-500/20 p-6 rounded-[2.5rem] space-y-4 md:col-span-2">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={18} className="text-red-500" />
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-red-400">Zone Dangereuse</h3>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
+              <div>
+                <p className="text-sm font-bold text-red-400">Supprimer cet utilisateur</p>
+                <p className="text-[10px] text-red-400/60">Cette action est irreversible. Toutes les donnees seront perdues.</p>
+              </div>
+              <AdminButton
+                label="Supprimer"
+                icon={<Trash2 size={16}/>}
+                onClick={handleDeleteUser}
+                loading={loadingAction === "DELETE_USER"}
+                variant="danger"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 4: SYSTÈME GLOBAL */}
         <div className="bg-slate-900/60 border border-white/5 p-6 rounded-[2.5rem] space-y-4 md:col-span-2">
           <div className="flex items-center gap-2 mb-2">
             <Settings size={18} className="text-purple-500" />
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Contrôle Global du Réseau</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Controle Global du Reseau</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <AdminButton
@@ -169,7 +211,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
               icon={<TrendingUp size={16}/>}
               onClick={() => {
                 const price = prompt("Nouveau prix Consensus ($) :");
-                if(price) runAction("UPDATE_CONFIG", { amount: parseFloat(price) }); // Assure-toi d'avoir UPDATE_CONFIG dans l'API
+                if(price) runAction("UPDATE_CONFIG", { amount: parseFloat(price) });
               }}
             />
             <AdminButton

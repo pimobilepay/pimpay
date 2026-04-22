@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Clock, Eye, CircleDot, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Clock, Eye, CircleDot, RefreshCw, ShieldCheck, ArrowLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type AdminUser = {
@@ -46,6 +46,32 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => { fetchUsers(); }, []);
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName} ?\n\nCette action est IRREVERSIBLE.`);
+    if (!confirmed) return;
+    
+    const doubleConfirm = confirm("DERNIERE CONFIRMATION: Etes-vous vraiment sur ?");
+    if (!doubleConfirm) return;
+    
+    try {
+      const res = await fetch("/api/admin/users/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "DELETE_USER" }),
+      });
+      
+      if (res.ok) {
+        toast.success("Utilisateur supprime avec succes");
+        fetchUsers(); // Refresh the list
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la suppression");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    }
+  };
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -218,6 +244,13 @@ export default function AdminUsersPage() {
                       title="Voir details"
                     >
                       <Eye size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user.id, user.username || user.name || "Utilisateur")}
+                      className="p-2.5 bg-red-500/10 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+                      title="Supprimer l'utilisateur"
+                    >
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>

@@ -62,10 +62,17 @@ export async function POST(req: NextRequest) {
       // --- GESTION SÉCURITÉ UTILISATEUR ---
       case "RESET_PIN":
         if (!extraData) return NextResponse.json({ error: "Code PIN requis" }, { status: 400 });
+        // Validate PIN format (4 or 6 digits)
+        if (!/^\d{4,6}$/.test(extraData)) {
+          return NextResponse.json({ error: "Le PIN doit contenir 4 ou 6 chiffres" }, { status: 400 });
+        }
         const hashedPin = await bcrypt.hash(extraData, 10);
         await prisma.user.update({
           where: { id: userId },
-          data: { pin: hashedPin },
+          data: { 
+            pin: hashedPin,
+            pinVersion: extraData.length === 6 ? 2 : 1, // Version 2 for 6-digit PIN
+          },
         });
         break;
 
@@ -180,6 +187,43 @@ export async function POST(req: NextRequest) {
           where: { id: userId },
           data: { autoApprove: !userForAuto?.autoApprove }
         });
+        break;
+
+      // --- KYC APPROVAL ---
+      case "APPROVE_KYC":
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.user.update({
+          where: { id: userId },
+          data: { kycStatus: "APPROVED" }
+        });
+        break;
+
+      // --- DELETE USER ---
+      case "DELETE_USER":
+        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        
+        // Delete in correct order to respect foreign key constraints
+        await prisma.$transaction([
+          // Delete user sessions
+          prisma.userSession.deleteMany({ where: { userId } }),
+          // Delete transactions where user is sender or receiver
+          prisma.transaction.deleteMany({ 
+            where: { 
+              OR: [
+                { fromUserId: userId },
+                { toUserId: userId }
+              ]
+            } 
+          }),
+          // Delete wallets
+          prisma.wallet.deleteMany({ where: { userId } }),
+          // Delete notifications
+          prisma.notification.deleteMany({ where: { userId } }),
+          // Delete audit logs targeting this user
+          prisma.auditLog.deleteMany({ where: { targetId: userId } }),
+          // Finally delete the user
+          prisma.user.delete({ where: { id: userId } })
+        ]);
         break;
 
       // --- ACTIONS BATCH (GROUPÉES) ---
