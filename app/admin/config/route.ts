@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // 1. Vérification de sécurité (Optionnel mais recommandé)
-    const token = (await cookies()).get("token")?.value;
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    // 1. Vérification de sécurité
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     // 2. Récupération simplifiée
     // Maintenant que la colonne 'maxWithdrawal' existe en DB, 

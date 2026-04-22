@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -121,22 +121,13 @@ function UnauthenticatedState() {
 
 export default async function SessionsPage() {
   // --------------------------------------------------------------------------
-  // Auth — read JWT from cookies and verify (using page2.tsx logic)
+  // Auth — read JWT from cookies and verify
   // --------------------------------------------------------------------------
   const cookieStore = await cookies();
   const currentToken = cookieStore.get("token")?.value;
 
-  if (!currentToken) return <UnauthenticatedState />;
-
-  let userId: string;
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(currentToken, secret);
-    userId = payload.id as string;
-  } catch {
-    return <UnauthenticatedState />;
-  }
+  const userId = await getAuthUserId();
+  if (!userId) return <UnauthenticatedState />;
 
   // --------------------------------------------------------------------------
   // Data — fetch all active sessions for this user, most recent first

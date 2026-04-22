@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import {
   ChevronLeft,
   ShieldCheck,
@@ -18,17 +17,13 @@ import VirtualCard from "@/components/cards/VirtualCard";
 import CardActions from "@/components/cards/CardActions";
 
 async function getCardDetails(cardId: string) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-  if (!token) return null;
+  const userId = await getAuthUserId();
+  if (!userId) return null;
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-
     const card = await prisma.virtualCard.findFirst({
       where: {
         id: cardId,
-        userId: payload.id as string,
+        userId,
       },
       include: {
         user: {

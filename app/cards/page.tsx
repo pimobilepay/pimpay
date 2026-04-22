@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import Link from "next/link";
 import {
   Plus,
@@ -31,14 +30,11 @@ import { CardDeleteButton } from "@/components/cards/CardDeleteButton";
 
 // Fonction d'authentification securisee
 async function getAuthenticatedUser() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-  if (!token) return null;
+  const userId = await getAuthUserId();
+  if (!userId) return null;
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
     return await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       include: {
         virtualCards: { orderBy: { createdAt: "desc" } },
         wallets: true,
