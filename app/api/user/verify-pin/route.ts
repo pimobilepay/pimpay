@@ -1,18 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose"; // ✅ Remplacement de jsonwebtoken
+import { verifyJWT } from "@/lib/auth";
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    // 1. Récupération sécurisée du secret pour le build
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Erreur de configuration serveur" }, { status: 500 });
-    }
-
-    // 2. Lecture sécurisée du body
+    // 1. Lecture sécurisée du body
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body.pin === 'undefined') {
@@ -21,26 +16,33 @@ export async function POST(req: Request) {
 
     const pin = String(body.pin);
 
-    // 3. Validation stricte du format
-    if (pin.length !== 4 || !/^\d+$/.test(pin)) {
-      return NextResponse.json({ error: "Le PIN doit contenir exactement 4 chiffres." }, { status: 400 });
+    // 2. Validation stricte du format (support 4 et 6 chiffres)
+    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
+      return NextResponse.json({ error: "Le PIN doit contenir 4 ou 6 chiffres." }, { status: 400 });
     }
 
-    // 4. Extraction et validation du Token avec JOSE (Asynchrone)
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // 3. Extraction et validation du Token
+    const cookieStore = await cookies();
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    
+    let userId: string | null = null;
+
+    // Pi Network session
+    if (piToken && piToken.length > 20) {
+      userId = piToken;
+    } 
+    // Token JWT classique via verifyJWT
+    else if (classicToken) {
+      const payload = await verifyJWT(classicToken);
+      if (!payload) {
+        return NextResponse.json({ error: "Session expirée ou invalide." }, { status: 401 });
+      }
+      userId = payload.id;
+    }
+    
+    if (!userId) {
       return NextResponse.json({ error: "Authentification requise." }, { status: 401 });
-    }
-
-    const token = authHeader.split(" ")[1];
-    let userId: string;
-
-    try {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const { payload } = await jwtVerify(token, secretKey);
-      userId = (payload.userId || payload.id) as string;
-    } catch (err) {
-      return NextResponse.json({ error: "Session expirée ou invalide." }, { status: 401 });
     }
 
     // 5. Recherche de l'utilisateur
