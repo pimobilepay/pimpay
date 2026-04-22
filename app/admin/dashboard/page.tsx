@@ -6,7 +6,7 @@ import { BottomNav } from "@/components/bottom-nav";  import { toast } from "son
 import {                                                LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,                               Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
   Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
   CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight,
-  Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor
+  Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor, Trash2
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
@@ -152,7 +152,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance, onDelete }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
   const isPiUser = !!user.piUserId;
 
@@ -220,8 +220,9 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, 
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
         }} title="Ajuster Balance" className="p-2 bg-green-500/10 text-green-500 rounded-xl shrink-0"><CreditCard size={14} /></button>
-        <button onClick={onResetBalance} title="Réinitialiser Solde" className="p-2 bg-red-500/10 text-red-500 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><Wallet size={14} /></button>
+        <button onClick={onResetBalance} title="Reinitialiser Solde" className="p-2 bg-red-500/10 text-red-500 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><Wallet size={14} /></button>
         <button onClick={onAirdrop} title="Airdrop" className="p-2 bg-amber-500/10 text-amber-500 rounded-xl shrink-0"><Gift size={14} /></button>
+        <button onClick={onDelete} title="Supprimer l'utilisateur" className="p-2 bg-red-500/20 text-red-500 rounded-xl shrink-0 hover:bg-red-500/30 transition-colors"><Trash2 size={14} /></button>
       </div>
     </div>
   );
@@ -485,6 +486,32 @@ function DashboardContent() {
       }
       else { toast.error("L'action a échoué"); }
     } catch (e) { toast.error("Erreur de connexion serveur"); }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName} ?\n\nCette action est IRREVERSIBLE et supprimera:\n- Le compte utilisateur\n- Tous ses portefeuilles\n- Tout son historique de transactions`);
+    if (!confirmed) return;
+    
+    const doubleConfirm = confirm("DERNIERE CONFIRMATION: Etes-vous vraiment sur ?");
+    if (!doubleConfirm) return;
+    
+    try {
+      const res = await fetch("/api/admin/users/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "DELETE_USER" }),
+      });
+      
+      if (res.ok) {
+        toast.success("Utilisateur supprime avec succes");
+        fetchData(); // Refresh the list
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la suppression");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    }
   };
 
   const filteredUsers = useMemo(() =>
@@ -810,6 +837,7 @@ function DashboardContent() {
                               if (msg && msg.trim()) handleAction(user.id, "SEND_SUPPORT_NOTIFICATION", 0, msg.trim());
                             }}
                             onViewBalance={() => setBalanceModalUser(user)}
+                            onDelete={() => handleDeleteUser(user.id, user.username || user.name || "Utilisateur")}
                         />
                     ))}
                     <button

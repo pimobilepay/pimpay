@@ -204,23 +204,73 @@ export async function POST(req: NextRequest) {
         
         // Delete in correct order to respect foreign key constraints
         await prisma.$transaction([
-          // Delete user sessions
-          prisma.userSession.deleteMany({ where: { userId: targetUserId } }),
-          // Delete transactions where user is sender or receiver
-          prisma.transaction.deleteMany({ 
+          // Delete user sessions (Session model in schema)
+          prisma.session.deleteMany({ where: { userId: targetUserId } }),
+          // Delete security logs
+          prisma.securityLog.deleteMany({ where: { userId: targetUserId } }),
+          // Delete user activities
+          prisma.userActivity.deleteMany({ where: { userId: targetUserId } }),
+          // Delete support tickets
+          prisma.supportTicket.deleteMany({ where: { userId: targetUserId } }),
+          // Delete notifications
+          prisma.notification.deleteMany({ where: { userId: targetUserId } }),
+          // Delete QR payments
+          prisma.qRPayment.deleteMany({ where: { userId: targetUserId } }),
+          // Delete virtual cards
+          prisma.virtualCard.deleteMany({ where: { userId: targetUserId } }),
+          // Delete staking
+          prisma.staking.deleteMany({ where: { userId: targetUserId } }),
+          // Delete vaults
+          prisma.vault.deleteMany({ where: { userId: targetUserId } }),
+          // Delete swap quotes
+          prisma.swapQuote.deleteMany({ where: { userId: targetUserId } }),
+          // Delete beneficiaries
+          prisma.beneficiary.deleteMany({ where: { userId: targetUserId } }),
+          // Delete P2P contacts (both owner and contact relations)
+          prisma.p2PContact.deleteMany({ 
             where: { 
               OR: [
-                { fromUserId: targetUserId },
-                { toUserId: targetUserId }
+                { userId: targetUserId },
+                { contactId: targetUserId }
               ]
             } 
           }),
+          // Delete savings accounts
+          prisma.savingsAccount.deleteMany({ where: { userId: targetUserId } }),
+          // Delete loans and their payments
+          prisma.loan.deleteMany({ where: { userId: targetUserId } }),
+          // Delete credit score
+          prisma.creditScore.deleteMany({ where: { userId: targetUserId } }),
+          // Nullify transaction references (don't delete - keep history but remove user link)
+          prisma.transaction.updateMany({ 
+            where: { fromUserId: targetUserId },
+            data: { fromUserId: null }
+          }),
+          prisma.transaction.updateMany({ 
+            where: { toUserId: targetUserId },
+            data: { toUserId: null }
+          }),
+          // Nullify audit log references
+          prisma.auditLog.updateMany({ 
+            where: { adminId: targetUserId },
+            data: { adminId: null }
+          }),
+          prisma.auditLog.updateMany({ 
+            where: { targetId: targetUserId },
+            data: { targetId: null }
+          }),
+          // Nullify merchant profile
+          prisma.merchant.updateMany({ 
+            where: { userId: targetUserId },
+            data: { userId: null }
+          }),
           // Delete wallets
           prisma.wallet.deleteMany({ where: { userId: targetUserId } }),
-          // Delete notifications
-          prisma.notification.deleteMany({ where: { userId: targetUserId } }),
-          // Delete audit logs targeting this user
-          prisma.auditLog.deleteMany({ where: { targetId: targetUserId } }),
+          // Update referrals to remove the reference
+          prisma.user.updateMany({ 
+            where: { referredById: targetUserId },
+            data: { referredById: null }
+          }),
           // Finally delete the user
           prisma.user.delete({ where: { id: targetUserId } })
         ]);
