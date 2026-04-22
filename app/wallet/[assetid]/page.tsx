@@ -13,7 +13,6 @@ import { QRCodeSVG } from "qrcode.react";
 // Importation du scanner QR
 import { QRScanner } from "@/components/qr-scanner"; 
 import { toast } from "sonner";
-import { initPiSDK } from "@/lib/pi-sdk";
 
 /**
  * CONFIGURATION DES ACTIFS
