@@ -9,12 +9,17 @@ const SESSION_CHECK_INTERVAL = 30000; // 30 seconds - reduced frequency for bett
 // Pages publiques qui ne nécessitent pas de vérification de session
 const PUBLIC_PATHS = [
   "/",
+  "/auth",
   "/auth/login",
+  "/auth/signup",
   "/auth/register",
   "/auth/forgot-password",
   "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/business-signup",
   "/login",
   "/register",
+  "/signup",
 ];
 
 interface SessionGuardProps {
@@ -75,16 +80,22 @@ export default function SessionGuard({ children }: SessionGuardProps) {
       const response = await fetch("/api/auth/session/verify", {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        // Session invalide - forcer la déconnexion
-        await forceLogout(data.reason || "unknown");
+        const data = await response.json().catch(() => ({}));
+        // Ne pas deconnecter si c'est juste "no_token" - l'utilisateur n'etait peut-etre pas connecte
+        if (data.reason === "no_token") {
+          return;
+        }
+        // Session revoquee ou expiree - forcer la deconnexion
+        if (data.reason === "session_revoked" || data.reason === "session_expired" || data.reason === "invalid_token") {
+          await forceLogout(data.reason);
+        }
       }
-    } catch (error) {
-      // Erreur réseau - on ne déconnecte pas (peut être temporaire)
-      console.error("[SessionGuard] Network error during session check:", error);
+    } catch {
+      // Erreur reseau - on ne deconnecte pas (peut etre temporaire)
     } finally {
       isCheckingRef.current = false;
     }

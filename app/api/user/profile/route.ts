@@ -37,12 +37,15 @@ export async function GET() {
     try {
         const cookieStore = await cookies();
         const piToken = cookieStore.get("pi_session_token")?.value;
-        const classicToken = cookieStore.get("token")?.value;
+        const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
         let userId: string | null = null;
 
-        if (piToken) {
+        // 1. Pi Network session (pi_session_token contient directement le userId)
+        if (piToken && piToken.length > 20) {
             userId = piToken;
-        } else if (classicToken) {
+        } 
+        // 2. Token JWT classique
+        else if (classicToken) {
             const payload = await verifyJWT(classicToken);
             if (!payload) {
                 return NextResponse.json({ error: "Session expirée" }, { status: 401 });
