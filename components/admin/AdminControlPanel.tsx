@@ -9,6 +9,7 @@ import {
   UserCheck, Trash2
 } from "lucide-react";
 import { toast } from "sonner";
+import { Admin2FAModal } from "./Admin2FAModal";
 
 interface AdminControlProps {
   userId?: string;
@@ -20,6 +21,13 @@ interface AdminControlProps {
 export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: AdminControlProps) => {
   const router = useRouter();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  
+  // 2FA Modal state
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [pending2FAAction, setPending2FAAction] = useState<{
+    type: "DELETE" | "AIRDROP" | "AIRDROP_ALL";
+    amount?: number;
+  } | null>(null);
 
   const runAction = async (action: string, payload: any = {}) => {
     setLoadingAction(action);
@@ -60,12 +68,74 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
     if (confirmed) {
       const doubleConfirm = confirm("DERNIERE CONFIRMATION: Etes-vous vraiment sur de vouloir supprimer cet utilisateur ?");
       if (doubleConfirm) {
-        runAction("DELETE_USER");
+        // Require 2FA verification
+        setPending2FAAction({ type: "DELETE" });
+        setShow2FAModal(true);
       }
     }
   };
 
+  const handleAirdropWith2FA = (amount: number) => {
+    setPending2FAAction({ type: "AIRDROP", amount });
+    setShow2FAModal(true);
+  };
+
+  const handleAirdropAllWith2FA = (amount: number) => {
+    setPending2FAAction({ type: "AIRDROP_ALL", amount });
+    setShow2FAModal(true);
+  };
+
+  const on2FAVerified = () => {
+    if (!pending2FAAction) return;
+    
+    switch (pending2FAAction.type) {
+      case "DELETE":
+        runAction("DELETE_USER");
+        break;
+      case "AIRDROP":
+        if (pending2FAAction.amount) {
+          runAction("AIRDROP", { amount: pending2FAAction.amount });
+        }
+        break;
+      case "AIRDROP_ALL":
+        if (pending2FAAction.amount) {
+          runAction("AIRDROP_ALL", { amount: pending2FAAction.amount });
+        }
+        break;
+    }
+    
+    setPending2FAAction(null);
+  };
+
   return (
+    <>
+    {/* 2FA Verification Modal */}
+    <Admin2FAModal
+      isOpen={show2FAModal}
+      onClose={() => {
+        setShow2FAModal(false);
+        setPending2FAAction(null);
+      }}
+      onVerified={on2FAVerified}
+      actionTitle={
+        pending2FAAction?.type === "DELETE" 
+          ? `Supprimer ${userName || "l'utilisateur"}`
+          : pending2FAAction?.type === "AIRDROP"
+          ? `Airdrop de ${pending2FAAction.amount} Pi`
+          : pending2FAAction?.type === "AIRDROP_ALL"
+          ? `Airdrop Global de ${pending2FAAction.amount} Pi`
+          : "Action sensible"
+      }
+      actionDescription={
+        pending2FAAction?.type === "DELETE"
+          ? "Cette action supprimera definitivement le compte et toutes ses donnees."
+          : pending2FAAction?.type === "AIRDROP_ALL"
+          ? "Cette action creditera TOUS les utilisateurs du montant specifie."
+          : undefined
+      }
+      variant={pending2FAAction?.type === "DELETE" ? "danger" : "warning"}
+    />
+    
     <div className="w-full max-w-4xl mx-auto space-y-6 p-4">
       {/* HEADER SECTION */}
       <div className="bg-blue-600/10 border border-blue-500/20 p-6 rounded-[2.5rem] flex items-center justify-between backdrop-blur-md">
@@ -138,7 +208,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
               <AdminButton
                 label="+10 Pi (Airdrop)"
                 icon={<Zap size={16}/>}
-                onClick={() => runAction("AIRDROP", { amount: 10 })}
+                onClick={() => handleAirdropWith2FA(10)}
                 loading={loadingAction === "AIRDROP"}
                 variant="primary"
               />
@@ -219,7 +289,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
               icon={<Zap size={16}/>}
               onClick={() => {
                 const amt = prompt("Montant pour TOUS les utilisateurs :");
-                if(amt) runAction("AIRDROP_ALL", { amount: parseFloat(amt) });
+                if(amt) handleAirdropAllWith2FA(parseFloat(amt));
               }}
               variant="primary"
               loading={loadingAction === "AIRDROP_ALL"}
@@ -236,6 +306,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
         </div>
       </div>
     </div>
+    </>
   );
 };
 

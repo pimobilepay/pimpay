@@ -9,6 +9,7 @@ import {                                                LogOut, Shield, Users, Z
   Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor, Trash2
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { Admin2FAModal } from "@/components/admin/Admin2FAModal";
 
 // --- TYPES ---
 type LedgerUser = {
@@ -278,6 +279,16 @@ function DashboardContent() {
   const [twoFaCode, setTwoFaCode] = useState("");
   const [twoFaLoading, setTwoFaLoading] = useState(false);
   const [twoFaError, setTwoFaError] = useState("");
+  
+  // 2FA Modal state for DELETE and AIRDROP actions
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [pending2FAAction, setPending2FAAction] = useState<{
+    type: "DELETE" | "AIRDROP" | "AIRDROP_ALL" | "BATCH_AIRDROP";
+    userId?: string;
+    userName?: string;
+    amount?: number;
+    userIds?: string[];
+  } | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -488,13 +499,19 @@ function DashboardContent() {
     } catch (e) { toast.error("Erreur de connexion serveur"); }
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
+  const handleDeleteUser = (userId: string, userName: string) => {
     const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName} ?\n\nCette action est IRREVERSIBLE et supprimera:\n- Le compte utilisateur\n- Tous ses portefeuilles\n- Tout son historique de transactions`);
     if (!confirmed) return;
     
     const doubleConfirm = confirm("DERNIERE CONFIRMATION: Etes-vous vraiment sur ?");
     if (!doubleConfirm) return;
     
+    // Require 2FA verification
+    setPending2FAAction({ type: "DELETE", userId, userName });
+    setShow2FAModal(true);
+  };
+
+  const executeDeleteUser = async (userId: string) => {
     try {
       const res = await fetch("/api/admin/users/action", {
         method: "POST",
@@ -504,7 +521,7 @@ function DashboardContent() {
       
       if (res.ok) {
         toast.success("Utilisateur supprime avec succes");
-        fetchData(); // Refresh the list
+        fetchData();
       } else {
         const data = await res.json();
         toast.error(data.error || "Erreur lors de la suppression");
@@ -512,6 +529,50 @@ function DashboardContent() {
     } catch {
       toast.error("Erreur de connexion");
     }
+  };
+
+  const handleAirdropWith2FA = (userId: string, userName: string, amount: number) => {
+    setPending2FAAction({ type: "AIRDROP", userId, userName, amount });
+    setShow2FAModal(true);
+  };
+
+  const handleAirdropAllWith2FA = (amount: number) => {
+    setPending2FAAction({ type: "AIRDROP_ALL", amount });
+    setShow2FAModal(true);
+  };
+
+  const handleBatchAirdropWith2FA = (userIds: string[], amount: number) => {
+    setPending2FAAction({ type: "BATCH_AIRDROP", userIds, amount });
+    setShow2FAModal(true);
+  };
+
+  const on2FAVerified = () => {
+    if (!pending2FAAction) return;
+    
+    switch (pending2FAAction.type) {
+      case "DELETE":
+        if (pending2FAAction.userId) {
+          executeDeleteUser(pending2FAAction.userId);
+        }
+        break;
+      case "AIRDROP":
+        if (pending2FAAction.userId && pending2FAAction.amount) {
+          handleAction(pending2FAAction.userId, "AIRDROP", pending2FAAction.amount);
+        }
+        break;
+      case "AIRDROP_ALL":
+        if (pending2FAAction.amount) {
+          handleAction(null, "AIRDROP_ALL", pending2FAAction.amount);
+        }
+        break;
+      case "BATCH_AIRDROP":
+        if (pending2FAAction.userIds && pending2FAAction.amount) {
+          handleAction(null, "BATCH_AIRDROP", pending2FAAction.amount, "", pending2FAAction.userIds);
+        }
+        break;
+    }
+    
+    setPending2FAAction(null);
   };
 
   const filteredUsers = useMemo(() =>
@@ -562,8 +623,8 @@ function DashboardContent() {
             <span className="text-xs font-black uppercase text-white ml-4">{selectedUserIds.length} Sél.</span>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const a = prompt("Airdrop Groupé (π):");
-                if(a) handleAction(null, "BATCH_AIRDROP", parseFloat(a), "", selectedUserIds);
+                const a = prompt("Airdrop Groupe (π):");
+                if(a) handleBatchAirdropWith2FA(selectedUserIds, parseFloat(a));
               }} className="h-10 bg-white/10 rounded-xl px-4 text-[10px] font-black uppercase">Airdrop</Button>
               <Button onClick={() => handleAction(null, "BATCH_BAN", 0, "", selectedUserIds)} className="h-10 bg-red-500 rounded-xl px-4 text-[10px] font-black uppercase">Bannir</Button>
             </div>
@@ -822,7 +883,7 @@ function DashboardContent() {
                               `Le solde de ${user.username || user.name} sera remis à 0. Confirmez avec votre code Google Authenticator.`,
                               () => handleAction(user.id, 'RESET_USER_BALANCE')
                             )}
-                            onAirdrop={() => { const a = prompt("Airdrop (π):"); if(a) handleAction(user.id, 'AIRDROP', parseFloat(a)); }}
+                            onAirdrop={() => { const a = prompt("Airdrop (π):"); if(a) handleAirdropWith2FA(user.id, user.username || user.name || "Utilisateur", parseFloat(a)); }}
                             onBan={() => handleAction(user.id, user.status === 'BANNED' ? 'UNBAN' : 'BAN')}
                             onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, "", [], "", p); }}
                             onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, "", [], "", p); }}
@@ -859,7 +920,7 @@ function DashboardContent() {
 
             {activeTab === "finance" && (
                 <div className="space-y-6">
-                    <Button onClick={() => { const a = prompt("Airdrop GLOBAL (π):"); if(a) handleAction(null, "AIRDROP_ALL", parseFloat(a)); }} className="w-full h-16 bg-emerald-500 rounded-2xl font-black text-[10px] uppercase flex items-center justify-between px-6">
+                    <Button onClick={() => { const a = prompt("Airdrop GLOBAL (π):"); if(a) handleAirdropAllWith2FA(parseFloat(a)); }} className="w-full h-16 bg-emerald-500 rounded-2xl font-black text-[10px] uppercase flex items-center justify-between px-6">
                         <div className="flex items-center gap-4"><Flame size={20} /> Exécuter Airdrop Global</div>
                         <ArrowUpRight size={18} />
                     </Button>
@@ -1592,7 +1653,7 @@ function DashboardContent() {
                 onClick={() => {
                   const amount = prompt(`Airdrop pour ${balanceModalUser.username || balanceModalUser.name} (π):`);
                   if (amount) {
-                    handleAction(balanceModalUser.id, 'AIRDROP', parseFloat(amount));
+                    handleAirdropWith2FA(balanceModalUser.id, balanceModalUser.username || balanceModalUser.name || "Utilisateur", parseFloat(amount));
                     setBalanceModalUser(null);
                   }
                 }}
@@ -1839,6 +1900,37 @@ function DashboardContent() {
       )}
 
       <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
+
+      {/* MODAL 2FA pour DELETE et AIRDROP */}
+      <Admin2FAModal
+        isOpen={show2FAModal}
+        onClose={() => {
+          setShow2FAModal(false);
+          setPending2FAAction(null);
+        }}
+        onVerified={on2FAVerified}
+        actionTitle={
+          pending2FAAction?.type === "DELETE" 
+            ? `Supprimer ${pending2FAAction.userName || "l'utilisateur"}`
+            : pending2FAAction?.type === "AIRDROP"
+            ? `Airdrop de ${pending2FAAction.amount} Pi pour ${pending2FAAction.userName}`
+            : pending2FAAction?.type === "AIRDROP_ALL"
+            ? `Airdrop Global de ${pending2FAAction.amount} Pi`
+            : pending2FAAction?.type === "BATCH_AIRDROP"
+            ? `Airdrop de ${pending2FAAction.amount} Pi pour ${pending2FAAction.userIds?.length} utilisateurs`
+            : "Action sensible"
+        }
+        actionDescription={
+          pending2FAAction?.type === "DELETE"
+            ? "Cette action supprimera definitivement le compte et toutes ses donnees."
+            : pending2FAAction?.type === "AIRDROP_ALL"
+            ? "Cette action creditera TOUS les utilisateurs du montant specifie."
+            : pending2FAAction?.type === "BATCH_AIRDROP"
+            ? `${pending2FAAction.userIds?.length} utilisateurs selectionnes recevront ${pending2FAAction.amount} Pi chacun.`
+            : undefined
+        }
+        variant={pending2FAAction?.type === "DELETE" ? "danger" : "warning"}
+      />
 
       {/* MODAL 2FA — Confirmation Google Authenticator */}
       {/* Audit Log Detail Modal */}
