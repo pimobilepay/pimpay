@@ -17,7 +17,7 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const { firstName, lastName, username, name, email, phone, country, birthDate } = body;
 
-    const user = await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         firstName,
@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
       },
     });
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user: updatedUser });
   } catch (err: any) {
     console.error("PUT_USER_ERROR:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

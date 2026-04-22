@@ -13,18 +13,18 @@ export async function GET(request: Request) {
 
   try {
     // AUTHENTICATION via lib/auth.ts
-    const user = await auth();
-    if (!user) {
+    const authUser = await auth();
+    if (!authUser) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
     // --- 1. RECHERCHE INTERNE (PimPay Database) ---
-    let user = null;
+    let foundUser = null;
     
     // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
     if (query.toUpperCase().startsWith("PIMPAY-")) {
       const userIdPart = query.replace(/PIMPAY-/i, "").toLowerCase();
-      user = await prisma.user.findFirst({
+      foundUser = await prisma.user.findFirst({
         where: {
           id: { startsWith: userIdPart }
         },
@@ -43,8 +43,8 @@ export async function GET(request: Request) {
     }
     
     // Si pas trouve par PIMPAY, rechercher par autres identifiants
-    if (!user) {
-      user = await prisma.user.findFirst({
+    if (!foundUser) {
+      foundUser = await prisma.user.findFirst({
         where: {
           OR: [
             { email: { equals: query, mode: 'insensitive' } },
@@ -70,9 +70,9 @@ export async function GET(request: Request) {
       });
     }
 
-    if (user) {
+    if (foundUser) {
       return NextResponse.json({
-        ...user,
+        ...foundUser,
         isExternal: false
       });
     }

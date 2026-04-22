@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { userId, action, amount, extraData, userIds } = body;
+    const { userId: targetUserId, action, amount, extraData, userIds } = body;
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         }
         const hashedPin = await bcrypt.hash(extraData, 10);
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { 
             pin: hashedPin,
             pinVersion: extraData.length === 6 ? 2 : 1, // Version 2 for 6-digit PIN
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         if (!extraData) return NextResponse.json({ error: "Mot de passe requis" }, { status: 400 });
         const hashedPassword = await bcrypt.hash(extraData, 10);
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { password: hashedPassword },
         });
         break;
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       // --- GESTION DES TRANSACTIONS ---
       case "APPROVE_WITHDRAW":
         const txToApprove = await prisma.transaction.findFirst({
-          where: { fromUserId: userId, status: "PENDING", type: "WITHDRAW" },
+          where: { fromUserId: targetUserId, status: "PENDING", type: "WITHDRAW" },
           orderBy: { createdAt: "desc" },
         });
         if (!txToApprove) return NextResponse.json({ error: "Aucun retrait" }, { status: 404 });
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
       case "REJECT_WITHDRAW":
         const txToReject = await prisma.transaction.findFirst({
-          where: { fromUserId: userId, status: "PENDING", type: "WITHDRAW" },
+          where: { fromUserId: targetUserId, status: "PENDING", type: "WITHDRAW" },
           orderBy: { createdAt: "desc" },
         });
         if (!txToReject) return NextResponse.json({ error: "Aucun retrait" }, { status: 404 });
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
             data: { status: "FAILED", note: extraData || "Rejeté par l'admin" },
           }),
           prisma.wallet.updateMany({
-            where: { userId: userId, currency: "PI" },
+            where: { userId: targetUserId, currency: "PI" },
             data: { balance: { increment: txToReject.amount } },
           }),
         ]);
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       case "BAN":
       case "UNBAN":
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { status: action === "BAN" ? "BANNED" : "ACTIVE" },
         });
         break;
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
       case "FREEZE":
       case "UNFREEZE":
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { status: action === "FREEZE" ? "FROZEN" : "ACTIVE" },
         });
         break;
@@ -138,16 +138,16 @@ export async function POST(req: NextRequest) {
         const validRoles = ["ADMIN", "USER", "MERCHANT", "AGENT"];
         if (extraData && validRoles.includes(extraData.toUpperCase())) {
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: targetUserId },
             data: { role: extraData.toUpperCase() as any },
           });
         } else {
-          const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+          const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
           const roleOrder = ["USER", "AGENT", "MERCHANT", "ADMIN"];
           const currentIdx = roleOrder.indexOf(targetUser?.role || "USER");
           const nextRole = roleOrder[(currentIdx + 1) % roleOrder.length];
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: targetUserId },
             data: { role: nextRole as any },
           });
         }
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
       case "AIRDROP":
         if (!amount) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
         await prisma.wallet.updateMany({
-          where: { userId: userId, currency: "PI" },
+          where: { userId: targetUserId, currency: "PI" },
           data: { balance: { increment: parseFloat(amount) } },
         });
         break;
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
       case "UPDATE_BALANCE":
         if (amount === undefined) return NextResponse.json({ error: "Montant requis" }, { status: 400 });
         await prisma.wallet.updateMany({
-          where: { userId: userId, currency: "PI" },
+          where: { userId: targetUserId, currency: "PI" },
           data: { balance: parseFloat(amount) },
         });
         break;
@@ -181,48 +181,48 @@ export async function POST(req: NextRequest) {
 
       // AUTO-APPROVE TOGGLE
       case "TOGGLE_AUTO_APPROVE":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
-        const userForAuto = await prisma.user.findUnique({ where: { id: userId }, select: { autoApprove: true } });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForAuto = await prisma.user.findUnique({ where: { id: targetUserId }, select: { autoApprove: true } });
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { autoApprove: !userForAuto?.autoApprove }
         });
         break;
 
       // --- KYC APPROVAL ---
       case "APPROVE_KYC":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { kycStatus: "APPROVED" }
         });
         break;
 
       // --- DELETE USER ---
       case "DELETE_USER":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         
         // Delete in correct order to respect foreign key constraints
         await prisma.$transaction([
           // Delete user sessions
-          prisma.userSession.deleteMany({ where: { userId } }),
+          prisma.userSession.deleteMany({ where: { userId: targetUserId } }),
           // Delete transactions where user is sender or receiver
           prisma.transaction.deleteMany({ 
             where: { 
               OR: [
-                { fromUserId: userId },
-                { toUserId: userId }
+                { fromUserId: targetUserId },
+                { toUserId: targetUserId }
               ]
             } 
           }),
           // Delete wallets
-          prisma.wallet.deleteMany({ where: { userId } }),
+          prisma.wallet.deleteMany({ where: { userId: targetUserId } }),
           // Delete notifications
-          prisma.notification.deleteMany({ where: { userId } }),
+          prisma.notification.deleteMany({ where: { userId: targetUserId } }),
           // Delete audit logs targeting this user
-          prisma.auditLog.deleteMany({ where: { targetId: userId } }),
+          prisma.auditLog.deleteMany({ where: { targetId: targetUserId } }),
           // Finally delete the user
-          prisma.user.delete({ where: { id: userId } })
+          prisma.user.delete({ where: { id: targetUserId } })
         ]);
         break;
 
@@ -244,15 +244,15 @@ export async function POST(req: NextRequest) {
     try {
       // Vérification : l'ID doit être un UUID/CUID valide présent en base pour targetId
       // Si c'est "SYSTEM" ou un "BATCH", on met targetId à null pour respecter la FK
-      const isValidUserTarget = userId && userId !== "SYSTEM" && userId !== "BATCH_ACTION";
+      const isValidUserTarget = targetUserId && targetUserId !== "SYSTEM" && targetUserId !== "BATCH_ACTION";
 
       await prisma.auditLog.create({
         data: {
           adminId: requester.id,
           adminName: requester.name || requester.email || "Admin",
           action: action,
-          targetId: isValidUserTarget ? userId : null,
-          details: `Action: ${action} | Target: ${userId || (userIds ? userIds.length + ' users' : 'SYSTEM')} | Data: ${extraData || amount || 'N/A'}`,
+          targetId: isValidUserTarget ? targetUserId : null,
+          details: `Action: ${action} | Target: ${targetUserId || (userIds ? userIds.length + ' users' : 'SYSTEM')} | Data: ${extraData || amount || 'N/A'}`,
         },
       });
     } catch (auditErr) {

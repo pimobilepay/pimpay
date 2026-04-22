@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // 2. EXTRACTION ET PARSING DU BODY
     const body = await req.json();
-    const { userId, action, amount, extraData, transactionId, newSecret, userIds } = body;
+    const { userId: targetUserId, action, amount, extraData, transactionId, newSecret, userIds } = body;
 
     if (!action) return NextResponse.json({ error: "Action manquante" }, { status: 400 });
 
@@ -37,20 +37,20 @@ export async function POST(req: NextRequest) {
       
       // RÉINITIALISATION MOT DE PASSE
       case "RESET_PASSWORD":
-        if (!userId || !newSecret) return NextResponse.json({ error: "ID ou secret manquant" }, { status: 400 });
+        if (!targetUserId || !newSecret) return NextResponse.json({ error: "ID ou secret manquant" }, { status: 400 });
         const hashedPw = await bcrypt.hash(newSecret, 10);
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { password: hashedPw }
         });
         break;
 
       // RÉINITIALISATION CODE PIN (Corrigé selon ton Schéma: champ "pin")
       case "RESET_PIN":
-        if (!userId || !newSecret) return NextResponse.json({ error: "ID ou PIN manquant" }, { status: 400 });
+        if (!targetUserId || !newSecret) return NextResponse.json({ error: "ID ou PIN manquant" }, { status: 400 });
         const hashedPin = await bcrypt.hash(newSecret, 10);
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { pin: hashedPin } // Utilise le champ 'pin' défini dans ton Prisma
         });
         break;
@@ -141,30 +141,30 @@ export async function POST(req: NextRequest) {
 
       // AJUSTEMENT MANUEL DE SOLDE
       case "UPDATE_BALANCE":
-        if (!userId || amount === undefined) return NextResponse.json({ error: "Données incomplètes" }, { status: 400 });
+        if (!targetUserId || amount === undefined) return NextResponse.json({ error: "Données incomplètes" }, { status: 400 });
         await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "PI" } },
+          where: { userId_currency: { userId: targetUserId, currency: "PI" } },
           update: { balance: parseFloat(amount.toString()) },
-          create: { userId, currency: "PI", balance: parseFloat(amount.toString()) },
+          create: { userId: targetUserId, currency: "PI", balance: parseFloat(amount.toString()) },
         });
         break;
 
       // GESTION DU STATUT UTILISATEUR
       case "BAN":
-        await prisma.user.update({ where: { id: userId }, data: { status: UserStatus.BANNED } });
+        await prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.BANNED } });
         break;
 
       case "UNBAN":
-        await prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } });
+        await prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.ACTIVE } });
         break;
 
       case "FREEZE":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.$transaction([
-          prisma.user.update({ where: { id: userId }, data: { status: UserStatus.FROZEN } }),
+          prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.FROZEN } }),
           prisma.notification.create({
             data: {
-              userId,
+              userId: targetUserId,
               title: "Compte Gele",
               message: "Votre compte a ete gele par l'administration. Contactez le support pour plus d'informations.",
               type: "WARNING"
@@ -174,12 +174,12 @@ export async function POST(req: NextRequest) {
         break;
 
       case "UNFREEZE":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.$transaction([
-          prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } }),
+          prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.ACTIVE } }),
           prisma.notification.create({
             data: {
-              userId,
+              userId: targetUserId,
               title: "Compte Reactive",
               message: "Votre compte a ete reactive. Vous pouvez a nouveau utiliser tous les services PimPay.",
               type: "SUCCESS"
@@ -190,10 +190,10 @@ export async function POST(req: NextRequest) {
 
       // ENVOI DE NOTIFICATION INDIVIDUELLE (Support)
       case "SEND_SUPPORT_NOTIFICATION":
-        if (!userId || !extraData) return NextResponse.json({ error: "ID utilisateur et message requis" }, { status: 400 });
+        if (!targetUserId || !extraData) return NextResponse.json({ error: "ID utilisateur et message requis" }, { status: 400 });
         await prisma.notification.create({
           data: {
-            userId,
+            userId: targetUserId,
             title: "Message du Support PimPay",
             message: extraData,
             type: "INFO"
@@ -204,21 +204,21 @@ export async function POST(req: NextRequest) {
       // CHANGEMENT DE ROLE (ADMIN/USER/MERCHANT/AGENT)
       case "TOGGLE_ROLE":
       case "SET_ROLE": {
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         const validRoles = ["ADMIN", "USER", "MERCHANT", "AGENT"];
         if (extraData && validRoles.includes(extraData.toUpperCase())) {
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: targetUserId },
             data: { role: extraData.toUpperCase() as UserRole }
           });
         } else {
           // Fallback: cycle through roles if no specific role given
-          const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+          const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
           const roleOrder: UserRole[] = [UserRole.USER, UserRole.AGENT, UserRole.MERCHANT, UserRole.ADMIN];
           const currentIdx = roleOrder.indexOf(target?.role || UserRole.USER);
           const nextRole = roleOrder[(currentIdx + 1) % roleOrder.length];
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: targetUserId },
             data: { role: nextRole }
           });
         }
@@ -227,10 +227,10 @@ export async function POST(req: NextRequest) {
 
       // AUTO-APPROVE TOGGLE
       case "TOGGLE_AUTO_APPROVE":
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
-        const userForAutoApprove = await prisma.user.findUnique({ where: { id: userId }, select: { autoApprove: true } });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForAutoApprove = await prisma.user.findUnique({ where: { id: targetUserId }, select: { autoApprove: true } });
         await prisma.user.update({
-          where: { id: userId },
+          where: { id: targetUserId },
           data: { autoApprove: !userForAutoApprove?.autoApprove }
         });
         break;
@@ -247,21 +247,21 @@ export async function POST(req: NextRequest) {
 
       // AIRDROP INDIVIDUEL
       case "AIRDROP": {
-        if (!userId || amount === undefined) return NextResponse.json({ error: "ID utilisateur et montant requis" }, { status: 400 });
+        if (!targetUserId || amount === undefined) return NextResponse.json({ error: "ID utilisateur et montant requis" }, { status: 400 });
         const airdropAmount = parseFloat(amount.toString());
         if (isNaN(airdropAmount) || airdropAmount <= 0) {
           return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
         }
         await prisma.$transaction([
           prisma.wallet.upsert({
-            where: { userId_currency: { userId, currency: "PI" } },
+            where: { userId_currency: { userId: targetUserId, currency: "PI" } },
             update: { balance: { increment: airdropAmount } },
-            create: { userId, currency: "PI", balance: airdropAmount },
+            create: { userId: targetUserId, currency: "PI", balance: airdropAmount },
           }),
           prisma.transaction.create({
             data: {
               fromUserId: requester.id,
-              toUserId: userId,
+              toUserId: targetUserId,
               amount: airdropAmount,
               currency: "PI",
               type: "AIRDROP",
@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
           }),
           prisma.notification.create({
             data: {
-              userId,
+              userId: targetUserId,
               title: "Airdrop Recu",
               message: `Vous avez recu un airdrop de ${airdropAmount} PI de la part de PimPay.`,
               type: "SUCCESS"
@@ -345,15 +345,15 @@ export async function POST(req: NextRequest) {
 
       // MAINTENANCE INDIVIDUELLE (Suspend l'utilisateur temporairement)
       case "USER_SPECIFIC_MAINTENANCE": {
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
-        const userForMaint = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        const userForMaint = await prisma.user.findUnique({ where: { id: targetUserId }, select: { status: true } });
         if (userForMaint?.status === "SUSPENDED") {
           // Re-activer l'utilisateur
           await prisma.$transaction([
-            prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } }),
+            prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.ACTIVE } }),
             prisma.notification.create({
               data: {
-                userId,
+                userId: targetUserId,
                 title: "Maintenance Terminee",
                 message: "La maintenance de votre compte est terminee. Vous pouvez a nouveau utiliser tous les services PimPay.",
                 type: "SUCCESS"
@@ -366,10 +366,10 @@ export async function POST(req: NextRequest) {
             ? `Votre compte est en maintenance jusqu'au ${new Date(extraData).toLocaleString("fr-FR")}. Veuillez patienter.`
             : "Votre compte est temporairement en maintenance. Veuillez patienter.";
           await prisma.$transaction([
-            prisma.user.update({ where: { id: userId }, data: { status: UserStatus.SUSPENDED } }),
+            prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.SUSPENDED } }),
             prisma.notification.create({
               data: {
-                userId,
+                userId: targetUserId,
                 title: "Compte en Maintenance",
                 message: maintMsg,
                 type: "WARNING"
@@ -382,14 +382,14 @@ export async function POST(req: NextRequest) {
 
       // RÉINITIALISATION SOLDE INDIVIDUEL (un seul utilisateur)
       case "RESET_USER_BALANCE": {
-        if (!userId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.wallet.updateMany({
-          where: { userId },
+          where: { userId: targetUserId },
           data: { balance: 0 },
         });
         await prisma.notification.create({
           data: {
-            userId,
+            userId: targetUserId,
             title: "Solde Réinitialisé",
             message: "Votre solde a été réinitialisé à 0 par l'administration.",
             type: "WARNING"
@@ -439,7 +439,7 @@ export async function POST(req: NextRequest) {
     // 4. LOG D'AUDIT (Robuste contre les erreurs de FK)
     try {
       // On vérifie si targetId existe vraiment avant de lier le log
-      const targetExists = userId ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true } }) : null;
+      const targetExists = targetUserId ? await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } }) : null;
 
       await prisma.auditLog.create({
         data: {
@@ -447,7 +447,7 @@ export async function POST(req: NextRequest) {
           adminName: requester.name || requester.email || "Système",
           action: action,
           targetId: targetExists ? targetExists.id : null,
-          details: `Action: ${action} | Target: ${userId || 'Global'} | Data: ${extraData || amount || 'N/A'}`
+          details: `Action: ${action} | Target: ${targetUserId || 'Global'} | Data: ${extraData || amount || 'N/A'}`
         }
       });
     } catch (logErr) {
