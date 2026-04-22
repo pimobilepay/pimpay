@@ -63,8 +63,8 @@ export default function SessionGuard({ children }: SessionGuardProps) {
       return;
     }
 
-    // Vérifier si un token existe côté client
-    const hasToken = document.cookie.includes("token=");
+    // Vérifier si un token existe côté client (token JWT ou pi_session_token)
+    const hasToken = document.cookie.includes("token=") || document.cookie.includes("pi_session_token=");
     if (!hasToken) {
       return; // Pas connecté, pas besoin de vérifier
     }
