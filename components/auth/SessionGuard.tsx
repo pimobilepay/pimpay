@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 
-const SESSION_CHECK_INTERVAL = 10000; // 10 seconds
+const SESSION_CHECK_INTERVAL = 30000; // 30 seconds - reduced frequency for better performance
 
 // Pages publiques qui ne nécessitent pas de vérification de session
 const PUBLIC_PATHS = [

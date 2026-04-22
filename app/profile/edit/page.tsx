@@ -150,29 +150,34 @@ export default function EditProfilePage() {
     setMounted(true);
     const fetchUserData = async () => {
       try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        if (res.ok && data.user) {
+        const res = await fetch("/api/user/profile", {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await res.json();
+        const data = result.user || result;
+        if (res.ok && data) {
           setFormData({
-            id: data.user.id || "",
-            firstName: data.user.firstName || "",
-            lastName: data.user.lastName || "",
-            username: data.user.username || "",
-            email: data.user.email || "",
-            phone: data.user.phone || "",
-            birthDate: data.user.birthDate ? data.user.birthDate.split('T')[0] : "",
-            nationality: data.user.nationality || "",
-            gender: data.user.gender || "",
-            country: data.user.country || "",
-            city: data.user.city || "",
-            address: data.user.address || "",
-            postalCode: data.user.postalCode || "",
-            occupation: data.user.occupation || "",
-            sourceOfFunds: data.user.sourceOfFunds || "",
-            idType: data.user.idType || "",
-            idNumber: data.user.idNumber || "",
-            walletAddress: data.user.walletAddress || "",
-            avatar: data.user.avatar || "",
+            id: data.id || "",
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            username: data.username || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            birthDate: data.birthDate ? data.birthDate.split('T')[0] : "",
+            nationality: data.nationality || "",
+            gender: data.gender || "",
+            country: data.country || "",
+            city: data.city || "",
+            address: data.address || "",
+            postalCode: data.postalCode || "",
+            occupation: data.occupation || "",
+            sourceOfFunds: data.sourceOfFunds || "",
+            idType: data.idType || "",
+            idNumber: data.idNumber || "",
+            walletAddress: data.walletAddress || "",
+            avatar: data.avatar || "",
           });
         }
       } catch {

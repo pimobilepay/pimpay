@@ -132,11 +132,16 @@ export default function SecurityPage() {
 
   const fetchUserData = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/user/profile", {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' }
+      });
       if (res.ok) {
-        const data = await res.json();
-        if (data.user?.passwordChangedAt) {
-          setPasswordChangedAt(new Date(data.user.passwordChangedAt));
+        const result = await res.json();
+        const data = result.user || result;
+        if (data?.passwordChangedAt) {
+          setPasswordChangedAt(new Date(data.passwordChangedAt));
         }
       }
     } catch {

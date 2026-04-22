@@ -229,35 +229,36 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch("/api/auth/me", {
+        const res = await fetch("/api/user/profile", {
           credentials: 'include',
-          cache: 'no-store'
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }
         });
         
         if (res.status === 401) {
           toast.error("Session expiree, veuillez vous reconnecter");
-          // Utiliser window.location pour eviter le cache du router
           window.location.href = "/auth/login";
           return;
         }
         
-        const data = await res.json();
+        const result = await res.json();
+        const userData = result.user || result;
 
-        if (res.ok && data.user) {
+        if (res.ok && userData) {
           const fullName =
-            data.user.name ||
-            (data.user.firstName && data.user.lastName
-              ? `${data.user.firstName} ${data.user.lastName}`
-              : data.user.username || "Pioneer");
+            userData.name ||
+            (userData.firstName && userData.lastName
+              ? `${userData.firstName} ${userData.lastName}`
+              : userData.username || "Pioneer");
 
           setUser({
-            ...data.user,
+            ...userData,
             name: fullName,
-            joinedAt: new Date(data.user.createdAt || Date.now()).toLocaleDateString("fr-FR", {
+            joinedAt: new Date(userData.createdAt || Date.now()).toLocaleDateString("fr-FR", {
               month: "long",
               year: "numeric",
             }),
-            isVerified: data.user.kycStatus === "VERIFIED" || data.user.kycStatus === "APPROVED",
+            isVerified: userData.kycStatus === "VERIFIED" || userData.kycStatus === "APPROVED",
           });
         } else {
           toast.error("Session expiree");
