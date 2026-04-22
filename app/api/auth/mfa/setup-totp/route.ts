@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { generateSecret, generateOtpAuthUri } from "@/lib/totp";
-import QRCode from "qrcode";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,16 +44,6 @@ export async function POST(req: NextRequest) {
     const accountName = user.email || user.username || userId;
     const otpAuthUri = generateOtpAuthUri(secret, accountName);
 
-    // Generate QR code as data URL
-    const qrCodeUrl = await QRCode.toDataURL(otpAuthUri, {
-      width: 200,
-      margin: 2,
-      color: {
-        dark: "#000000",
-        light: "#FFFFFF",
-      },
-    });
-
     // Store secret temporarily (not enabled yet until verification)
     await prisma.user.update({
       where: { id: userId },
@@ -64,10 +53,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // QR code is now generated client-side using qrcode.react
+    // We only return the otpAuthUri for the client to render
     return NextResponse.json({
       success: true,
       secret,
-      qrCodeUrl,
       otpAuthUri,
     });
   } catch (error) {
