@@ -1,12 +1,12 @@
 
 export const PI_NETWORK_CONFIG = {
   SDK_URL: "https://sdk.minepi.com/pi-sdk.js",
-  SANDBOX: true, // Testnet mode
+  SANDBOX: false, // Mainnet mode - Production
 } as const;
 
 export const BACKEND_CONFIG = {
   BASE_URL: "https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com",
-  BLOCKCHAIN_BASE_URL: process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
+  BLOCKCHAIN_BASE_URL: process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com",
 } as const;
 
 export const BACKEND_URLS = {

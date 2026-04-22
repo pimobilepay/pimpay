@@ -12,13 +12,13 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 const RPC_URLS = {
   XRP: "wss://s2.ripple.com",
   XLM: "https://horizon.stellar.org",
-  PI: process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com", // Testnet par défaut
+  PI: process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com", // Mainnet par défaut
   SIDRA: "https://node.sidrachain.com",
   EVM_DEFAULT: "https://bsc-dataseed.binance.org"
 };
 
-// Passphrase réseau Pi Network - Testnet ou Mainnet
-const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
+// Passphrase réseau Pi Network - Mainnet par défaut
+const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
 
 export async function GET(req: NextRequest) {
   console.log(`[v0] [WORKER] Demarrage du worker process...`);
