@@ -137,16 +137,31 @@ export default function MFASelector({
   const [error, setError] = useState<string | null>(null);
 
   // Reset state when modal opens/closes
+  // Auto-select method based on user's configured MFA
   useEffect(() => {
     if (isOpen) {
-      setStep("select");
-      setSelectedMethod(null);
       setPin("");
       setTotpCode("");
       setPhoneNumber("");
       setError(null);
+      
+      // If user has Google 2FA enabled, go directly to TOTP verification
+      if (twoFactorEnabled) {
+        setSelectedMethod("authenticator");
+        setStep("verify");
+      } 
+      // If user needs to update PIN (migration), go to PIN step
+      else if (needsPinUpdate) {
+        setSelectedMethod("pin");
+        setStep("verify");
+      }
+      // Otherwise show selection screen
+      else {
+        setStep("select");
+        setSelectedMethod(null);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, twoFactorEnabled, needsPinUpdate]);
 
   // PIN verification
   const verifyPin = useCallback(async (finalPin: string) => {

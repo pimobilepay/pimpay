@@ -82,7 +82,9 @@ export async function POST(req: Request) {
     });
 
     // 3. VÉRIFICATION SI MFA EST REQUIS (PIN ou 2FA)
-    const hasPinConfigured = !!user.pin;
+    // Detecter le PIN par defaut "000000" - ce n'est pas un vrai PIN configure
+    const isDefaultPin = user.pin ? await bcrypt.compare("000000", user.pin) : false;
+    const hasPinConfigured = !!user.pin && !isDefaultPin;
     const has2FAEnabled = user.twoFactorEnabled && !!user.twoFactorSecret;
     const requireMFA = hasPinConfigured || has2FAEnabled;
     
@@ -101,13 +103,18 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         requireMFA: true,
-        requirePin: hasPinConfigured,
+        requirePin: hasPinConfigured && !has2FAEnabled, // Only require PIN if no 2FA
         tempToken: tempToken,
         userId: user.id,
         role: user.role,
         email: user.email,
         twoFactorEnabled: has2FAEnabled,
-        needsPinUpdate: needsPinUpdate,
+        needsPinUpdate: needsPinUpdate && !has2FAEnabled, // Don't require PIN update if 2FA is enabled
+        // New: indicate which methods are available
+        availableMethods: {
+          pin: hasPinConfigured,
+          authenticator: has2FAEnabled,
+        },
       });
     }
 
