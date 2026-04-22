@@ -7,20 +7,21 @@ import bcrypt from "bcryptjs";
 export async function POST(req: NextRequest) {
   try {
     // 1. VÉRIFICATION DE SÉCURITÉ (ADMIN SEULEMENT)
-    const userId = await getAuthUserId();
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const adminId = await getAuthUserId();
+    if (!adminId) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
 
     const requester = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: adminId },
       select: { id: true, role: true, name: true, email: true }
     });
 
     if (!requester || requester.role !== "ADMIN") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { userId, action, amount, extraData, userIds } = body;
+    const { userId: targetUserId, action, amount, extraData, userIds } = body;
+    const userId = targetUserId; // Alias for compatibility with switch cases
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {

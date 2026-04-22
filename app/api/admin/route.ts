@@ -13,22 +13,23 @@ import { UserStatus, UserRole } from "@prisma/client";
 export async function POST(req: NextRequest) {
   try {
     // 1. AUTHENTIFICATION & SÉCURITÉ
-    const userId = await getAuthUserId();
-    if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    const adminId = await getAuthUserId();
+    if (!adminId) return NextResponse.json({ error: "Session expiree" }, { status: 401 });
 
     // Vérification de l'existence et du rôle de l'admin
     const requester = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: adminId },
       select: { id: true, role: true, name: true, email: true }
     });
 
     if (!requester || requester.role !== UserRole.ADMIN) {
-      return NextResponse.json({ error: "Privilèges insuffisants" }, { status: 403 });
+      return NextResponse.json({ error: "Privileges insuffisants" }, { status: 403 });
     }
 
     // 2. EXTRACTION ET PARSING DU BODY
     const body = await req.json();
-    const { userId, action, amount, extraData, transactionId, newSecret, userIds } = body;
+    const { userId: targetUserId, action, amount, extraData, transactionId, newSecret, userIds } = body;
+    const userId = targetUserId; // Alias for compatibility with switch cases
 
     if (!action) return NextResponse.json({ error: "Action manquante" }, { status: 400 });
 
@@ -48,10 +49,17 @@ export async function POST(req: NextRequest) {
       // RÉINITIALISATION CODE PIN (Corrigé selon ton Schéma: champ "pin")
       case "RESET_PIN":
         if (!userId || !newSecret) return NextResponse.json({ error: "ID ou PIN manquant" }, { status: 400 });
+        // Validate PIN format (4 or 6 digits)
+        if (!/^\d{4,6}$/.test(newSecret)) {
+          return NextResponse.json({ error: "Le PIN doit contenir 4 ou 6 chiffres" }, { status: 400 });
+        }
         const hashedPin = await bcrypt.hash(newSecret, 10);
         await prisma.user.update({
           where: { id: userId },
-          data: { pin: hashedPin } // Utilise le champ 'pin' défini dans ton Prisma
+          data: { 
+            pin: hashedPin,
+            pinVersion: newSecret.length === 6 ? 2 : 1, // Version 2 for 6-digit PIN
+          }
         });
         break;
 
