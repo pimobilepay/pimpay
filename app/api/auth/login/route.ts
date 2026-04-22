@@ -3,15 +3,12 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SignJWT } from "jose";
+import { signSessionToken, signTempToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 
 export async function POST(req: Request) {
   try {
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) return NextResponse.json({ error: "Config Error" }, { status: 500 });
-
     const body = await req.json().catch(() => ({}));
     const { email: identifier, password, loginType = "user" } = body;
     if (!identifier || !password) {
@@ -95,16 +92,11 @@ export async function POST(req: Request) {
     const needsPinUpdate = hasPinConfigured && (user.pinVersion === 1 || user.pinVersion === null);
 
     if (requireMFA) {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const tempToken = await new SignJWT({
+      const tempToken = await signTempToken({
         userId: user.id,
         role: user.role,
         purpose: "mfa_verification"
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('5m')
-        .sign(secretKey);
+      }, "5m");
 
       return NextResponse.json({
         success: true,
@@ -120,17 +112,12 @@ export async function POST(req: Request) {
     }
 
     // 4. SI PAS DE PIN (CONNEXION DIRECTE)
-    const secretKey = new TextEncoder().encode(SECRET);
-    const token = await new SignJWT({
+    const token = await signSessionToken({
       id: user.id,
       role: user.role,
       email: user.email,
       username: user.username
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('7d')
-      .sign(secretKey);
+    }, "7d");
 
     // CRÉATION DE LA SESSION DANS LA DB
     try {

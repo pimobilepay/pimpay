@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SignJWT } from "jose";
+import { signSessionToken } from "@/lib/jwt";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 
 export async function POST(req: NextRequest) {
   try {
-    const SECRET = process.env.JWT_SECRET || "";
     const body = await req.json();
     const { pin, userId: bodyUserId } = body;
 
@@ -43,17 +42,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. GÉNÉRATION DU TOKEN FINAL
-    const secretKey = new TextEncoder().encode(SECRET);
-    const newToken = await new SignJWT({
-        id: user.id,
-        role: user.role,
-        email: user.email,
-        username: user.username
-      })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("24h")
-      .sign(secretKey);
+    const newToken = await signSessionToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      username: user.username
+    }, "24h");
 
     // --- DEBUT DES CORRECTIONS SESSIONS & LOGS ---
     const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";

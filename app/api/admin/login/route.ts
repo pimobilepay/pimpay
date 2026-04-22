@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose"; // On utilise jose ici
+import { signSessionToken } from "@/lib/jwt";
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const JWT_SECRET = process.env.JWT_SECRET;
-
-    if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not defined");
-      return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
-    }
-
     const { email, password } = await req.json();
 
     const admin = await prisma.user.findUnique({
@@ -28,14 +21,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mot de passe invalide" }, { status: 401 });
     }
 
-    // --- Config avec JOSE ---
-    const secret = new TextEncoder().encode(JWT_SECRET);
-    const token = await new SignJWT({ id: admin.id, role: admin.role })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("7d")
-      .sign(secret);
-    // ------------------------
+    // Génération du token avec lib/jwt
+    const token = await signSessionToken({ id: admin.id, role: admin.role }, "7d");
 
     return NextResponse.json({
       token,

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SignJWT } from "jose";
+import { signSessionToken } from "@/lib/jwt";
 
 /**
  * POST /api/auth/pi-login
@@ -74,22 +74,12 @@ export async function POST(request: Request) {
     });
 
     // Creation du JWT PimPay
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Config JWT manquante" }, { status: 500 });
-    }
-
-    const secretKey = new TextEncoder().encode(SECRET);
-    const token = await new SignJWT({
+    const token = await signSessionToken({
       id: user.id,
       role: user.role,
       username: user.username,
       piUserId: user.piUserId,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("30d")
-      .sign(secretKey);
+    }, "30d");
 
     // Creation de la session en DB
     const userAgent = request.headers.get("user-agent") || "Pi Browser";

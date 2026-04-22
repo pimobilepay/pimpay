@@ -2,14 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SignJWT } from "jose";
+import { signSessionToken } from "@/lib/jwt";
 import { cookies } from "next/headers";
 import { verifyTotp } from "@/lib/totp";
 import { UAParser } from "ua-parser-js";
 
 export async function POST(req: NextRequest) {
   try {
-    const SECRET = process.env.JWT_SECRET || "";
     const body = await req.json();
     const { code, userId: bodyUserId, tempToken } = body;
 
@@ -60,17 +59,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate final JWT token
-    const secretKey = new TextEncoder().encode(SECRET);
-    const newToken = await new SignJWT({
+    const newToken = await signSessionToken({
       id: user.id,
       role: user.role,
       email: user.email,
       username: user.username,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("24h")
-      .sign(secretKey);
+    }, "24h");
 
     // Parse user agent for session logging
     const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";

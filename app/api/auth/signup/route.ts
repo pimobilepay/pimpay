@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
+import { signSessionToken } from "@/lib/jwt";
 import { NextResponse } from "next/server";
 
 // Simple email format validation
@@ -10,11 +10,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
   try {
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Configuration serveur incomplète" }, { status: 500 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const { fullName, username, email, phone, password, confirmPassword, referralCode, role, businessInfo, country } = body;
 
@@ -171,12 +166,7 @@ export async function POST(req: Request) {
       }
 
       // Génération du token
-      const secretKey = new TextEncoder().encode(SECRET);
-      const token = await new SignJWT({ id: user.id, role: user.role, username: user.username })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('30d')
-        .sign(secretKey);
+      const token = await signSessionToken({ id: user.id, role: user.role, username: user.username }, "30d");
 
       // Création de la session
       await tx.session.create({
