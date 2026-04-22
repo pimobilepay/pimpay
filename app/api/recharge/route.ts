@@ -2,30 +2,17 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose"; // ✅ Changement : jose au lieu de jsonwebtoken
+import { auth } from "@/lib/auth";
 import { sendNotification } from "@/lib/notifications";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. SÉCURITÉ CONFIGURATION (Build-safe)
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
+    // 1. AUTHENTICATION via lib/auth.ts
+    const user = await auth();
+    if (!user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // 2. AUTHENTICATION (Cookies & Jose)
-    const cookieStore = await cookies();
-    const token = cookieStore.get("pimpay_token")?.value;
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-
-    let userId: string;
-    try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET));
-      userId = payload.id as string;
-    } catch (err) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
-    }
+    const userId = user.id;
 
     // 3. RÉCUPÉRATION ET VALIDATION NUMÉRIQUE
     const body = await req.json().catch(() => ({}));

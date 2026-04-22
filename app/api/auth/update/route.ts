@@ -2,35 +2,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose"; // ✅ Remplacement de jsonwebtoken
+import { auth } from "@/lib/auth";
 
 export async function PUT(req: Request) {
   try {
-    // 1. SÉCURITÉ DU SECRET (Lazy-loading pour éviter le crash au build)
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      console.error("JWT_SECRET is missing");
-      return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
-    }
-
-    // 2. AUTHENTICATION VIA COOKIES
-    const token = cookies().get("pimpay_token")?.value;
-    if (!token) {
+    // 1. AUTHENTICATION via lib/auth.ts
+    const user = await auth();
+    if (!user) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // 3. VÉRIFICATION ASYNCHRONE AVEC JOSE
-    let userId: string;
-    try {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const { payload } = await jwtVerify(token, secretKey);
-      userId = payload.id as string;
-
-      if (!userId) throw new Error("ID manquant dans le payload");
-    } catch (err) {
-      return NextResponse.json({ error: "Session expirée ou invalide" }, { status: 401 });
-    }
+    const userId = user.id;
 
     // 4. RÉCUPÉRATION ET VALIDATION DU BODY
     const body = await req.json().catch(() => ({}));

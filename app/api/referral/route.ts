@@ -2,32 +2,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
-
-async function getUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const piToken = cookieStore.get("pi_session_token")?.value;
-  const classicToken = cookieStore.get("token")?.value;
-
-  if (piToken) return piToken;
-  if (classicToken) {
-    try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-      const { payload } = await jwtVerify(classicToken, secret);
-      return (payload.id || payload.userId) as string;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
+import { auth } from "@/lib/auth";
 
 // GET - Fetch referral stats for the current user
 export async function GET() {
   try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const currentUser = await auth();
+    if (!currentUser) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const userId = currentUser.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -72,8 +54,9 @@ export async function GET() {
 // POST - Apply a referral code
 export async function POST(req: Request) {
   try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const currentAuthUser = await auth();
+    if (!currentAuthUser) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const userId = currentAuthUser.id;
 
     const body = await req.json().catch(() => ({}));
     const { referralCode } = body;

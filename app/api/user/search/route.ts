@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { auth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,26 +12,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    // --- LE VACCIN : PROTECTION DE L'API ---
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value;
-
-    let isAuthenticated = false;
-
-    if (piToken) {
-      isAuthenticated = true; // L'ID utilisateur Pi est présent
-    } else if (classicToken) {
-      try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-        await jwtVerify(classicToken, secret);
-        isAuthenticated = true;
-      } catch (e) {
-        isAuthenticated = false;
-      }
-    }
-
-    if (!isAuthenticated) {
+    // AUTHENTICATION via lib/auth.ts
+    const user = await auth();
+    if (!user) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
