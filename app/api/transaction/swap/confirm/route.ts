@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import * as jose from "jose";
+import { getAuthUserIdFromRequest } from "@/lib/auth";
 
 // VACCIN : Configuration des headers pour Pi Browser & CORS
 const CORS_HEADERS = {
@@ -11,30 +11,11 @@ const CORS_HEADERS = {
   "Cache-Control": "no-store, max-age=0, must-revalidate",
 };
 
-const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-  return new TextEncoder().encode(secret);
-};
-
 export async function POST(req: Request) {
   try {
     // 1. Authentification
-    const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
-    const token = cookies['token'];
-
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: CORS_HEADERS });
-
-    let userId: string;
-    try {
-      const secret = getJwtSecret();
-      if (!secret) throw new Error();
-      const { payload } = await jose.jwtVerify(token, secret);
-      userId = payload.id as string;
-    } catch (e) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 401, headers: CORS_HEADERS });
-    }
+    const userId = await getAuthUserIdFromRequest(req);
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: CORS_HEADERS });
 
     const body = await req.json().catch(() => ({}));
     const { quoteId } = body;

@@ -1,23 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
     // 1. SÉCURITÉ : Vérifier que l'appelant est bien connecté
-    const cookieStore = await cookies();
-    const token = cookieStore.get("pimpay_token")?.value || cookieStore.get("token")?.value;
-    const SECRET = process.env.JWT_SECRET;
-
-    if (!token || !SECRET) {
+    const authUserId = await getAuthUserId();
+    if (!authUserId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const authUserId = payload.id as string;
 
     const { reference } = await req.json();
 

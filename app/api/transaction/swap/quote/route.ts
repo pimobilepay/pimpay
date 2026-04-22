@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { getAuthUserIdFromRequest } from "@/lib/auth";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 const PI_GCV = 314159;
@@ -15,15 +15,8 @@ export async function POST(req: Request) {
       "Cache-Control": "no-store, max-age=0",
     };
 
-    const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
-    const token = cookies['token'];
-
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers });
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = payload.id as string;
+    const userId = await getAuthUserIdFromRequest(req);
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers });
 
     const { amount, sourceCurrency, targetCurrency } = await req.json();
     const fromCurr = sourceCurrency.toUpperCase();

@@ -2,23 +2,18 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-    if (!token) {
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-
     // 1. Vérifier si l'utilisateur existe et s'il a déjà une carte
     const user = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       include: { virtualCards: true }
     });
 

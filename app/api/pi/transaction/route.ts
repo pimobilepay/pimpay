@@ -1,27 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { nanoid } from 'nanoid';
-
-// FONCTION DE VÉRIFICATION DU TOKEN
-async function getAuthUser() {
-  const cookieStore = await cookies();
-  const SECRET = process.env.JWT_SECRET;
-  const token = cookieStore.get("pimpay_token")?.value || cookieStore.get("token")?.value;
-  if (!token || !SECRET) return null;
-  try {
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    return payload.id as string;
-  } catch { return null; }
-}
 
 // POST : CRÉATION DE LA TRANSACTION
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getAuthUser();
+    const userId = await getAuthUserId();
     if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     
     const body = await req.json();
@@ -76,7 +62,7 @@ export async function POST(req: NextRequest) {
 // GET : RÉCUPÉRATION DU DÉTAIL
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getAuthUser();
+    const userId = await getAuthUserId();
     if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     
     const { searchParams } = new URL(req.url);

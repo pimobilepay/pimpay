@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { sendNotification } from "@/lib/notifications";
 
 // Helper to log to AuditLog for admin visibility
@@ -28,26 +27,12 @@ export async function POST(req: NextRequest) {
   let logContext = "";
   
   try {
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      await logToAdmin("CARD_RECHARGE_ERROR", "JWT_SECRET non configure");
-      return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
-    }
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get("pimpay_token")?.value;
-    if (!token) {
-      await logToAdmin("CARD_RECHARGE_ERROR", "Token manquant");
+    const authUserId = await getAuthUserId();
+    if (!authUserId) {
+      await logToAdmin("CARD_RECHARGE_ERROR", "Token manquant ou invalide");
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
-
-    try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET));
-      userId = payload.id as string;
-    } catch {
-      await logToAdmin("CARD_RECHARGE_ERROR", "Token invalide ou expire");
-      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
-    }
+    userId = authUserId;
 
     const body = await req.json().catch(() => ({}));
     const { cardId, amount, currency } = body;

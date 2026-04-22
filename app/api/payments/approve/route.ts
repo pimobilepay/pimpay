@@ -3,8 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 // Import des Enums pour garantir la compatibilité avec ton schéma
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
@@ -12,16 +11,10 @@ export async function POST(req: Request) {
   try {
     const { paymentId, amount, memo, txid, toAddress, currency } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
-    const JWT_SECRET = process.env.JWT_SECRET;
 
     // 1. AUTHENTIFICATION
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    if (!token || !JWT_SECRET) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-
-    const secret = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
     // Determine if this is a withdraw (external send) or deposit
     const isWithdraw = !!toAddress && currency === "PI";

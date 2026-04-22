@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -15,18 +14,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Identifiant manquant" }, { status: 400 });
     }
 
-    // 1. Vérification de la session (Correction await pour Next.js 15)
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-    if (!token) {
+    // 1. Vérification de la session
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // Décodage du token
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = (payload.userId || payload.id) as string;
 
     // 2. Recherche flexible sécurisée
     // On construit l'objet OR dynamiquement pour éviter de passer des strings vides à Prisma

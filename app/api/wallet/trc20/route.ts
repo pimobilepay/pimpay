@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 // Importation TronWeb sécurisée
 const TronWebModule = require('tronweb');
@@ -10,26 +9,7 @@ const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-
-    // --- LE VACCIN HYBRIDE (Indispensable pour Pi Browser) ---
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-    let userId: string | null = null;
-
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken) {
-      try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-        const { payload } = await jose.jwtVerify(classicToken, secret);
-        userId = payload.id as string;
-      } catch (e) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-    }
-
+    const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }

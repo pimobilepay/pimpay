@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 
 const CARD_CONFIG: any = {
   // MASTERCARD
@@ -22,27 +21,10 @@ const ALLOWED_CURRENCIES = ["USD", "EUR"];
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. SÉCURITÉ DU SECRET (Build-safe)
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Configuration serveur manquante" }, { status: 500 });
-    }
-
-    // 2. AUTHENTICATION (Harmonisé avec pimpay_token)
-    const cookieStore = await cookies();
-    const token = cookieStore.get("pimpay_token")?.value;
-
-    if (!token) {
+    // 1. AUTHENTICATION
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Session expirée, reconnectez-vous" }, { status: 401 });
-    }
-
-    let userId: string;
-    try {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const { payload } = await jwtVerify(token, secretKey);
-      userId = payload.id as string;
-    } catch (authError) {
-      return NextResponse.json({ error: "Authentification invalide" }, { status: 401 });
     }
 
     // 3. VALIDATION DU PALIER

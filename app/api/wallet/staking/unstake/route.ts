@@ -1,34 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { logSystemEvent } from "@/lib/systemLogger";
-
-// Helper to get authenticated user ID
-async function getAuthenticatedUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const piToken = cookieStore.get("pi_session_token")?.value;
-  const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-  if (piToken) {
-    return piToken;
-  } else if (classicToken) {
-    try {
-      const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "");
-      const { payload } = await jwtVerify(classicToken, secretKey);
-      return payload.id as string;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
 
 // POST - Unstake (withdraw staking position)
 export async function POST(req: Request) {
   try {
-    const userId = await getAuthenticatedUserId();
+    const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }

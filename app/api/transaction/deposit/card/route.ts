@@ -2,23 +2,9 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 const prisma = new PrismaClient();
-
-// Auth via JWT cookie (same pattern as /api/pi/transaction)
-async function getAuthUser(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const SECRET = process.env.JWT_SECRET;
-  const token = cookieStore.get("pimpay_token")?.value || cookieStore.get("token")?.value;
-  if (!token || !SECRET) return null;
-  try {
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    return payload.id as string;
-  } catch { return null; }
-}
 
 // Validate card number using Luhn algorithm
 function isValidCardNumber(cardNumber: string): boolean {
@@ -69,8 +55,7 @@ function isValidExpiry(expiry: string): boolean {
 
 export async function POST(req: Request) {
   try {
-    const userId = await getAuthUser();
-    
+    const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ success: false, message: "Session expiree. Veuillez vous reconnecter." }, { status: 401 });
     }

@@ -3,8 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import {
   TransactionStatus,
   TransactionType,
@@ -24,24 +23,9 @@ import { getSidraBalance } from "@/lib/blockchain/sidra";
 export async function POST(req: Request) {
   try {
     // 1. AUTHENTIFICATION
-    const cookieStore = await cookies();
-    const token =
-      cookieStore.get("token")?.value ||
-      cookieStore.get("pimpay_token")?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
-    }
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = (payload.id || payload.userId) as string;
-
+    const userId = await getAuthUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Utilisateur non identifie" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
     // 2. LECTURE DU BODY (optionnel)

@@ -2,24 +2,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function DELETE(req: NextRequest) {
   try {
     // 1. Verify authentication
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-    
-    if (!token) {
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
-    }
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-
-    if (!payload.id) {
-      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
     // 2. Get card ID from request body
@@ -33,7 +23,7 @@ export async function DELETE(req: NextRequest) {
     const card = await prisma.virtualCard.findFirst({
       where: {
         id: cardId,
-        userId: payload.id as string,
+        userId,
       },
     });
 
@@ -58,7 +48,7 @@ export async function DELETE(req: NextRequest) {
     try {
       await prisma.notification.create({
         data: {
-          userId: payload.id as string,
+          userId,
           title: "Carte supprimee",
           message: `Votre carte virtuelle se terminant par ${card.number.slice(-4)} a ete supprimee avec succes.`,
           type: "CARD",

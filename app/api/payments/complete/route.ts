@@ -3,23 +3,16 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
     const PI_API_KEY = process.env.PI_API_KEY;
-    const JWT_SECRET = process.env.JWT_SECRET;
 
     // --- 1. AUTHENTIFICATION ---
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    if (!token || !JWT_SECRET) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-
-    const secretKey = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-    const userId = payload.id as string;
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {

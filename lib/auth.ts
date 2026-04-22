@@ -33,6 +33,60 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
   }
 }
 
+/**
+ * Get authenticated user ID from cookies (supports Pi Browser and classic tokens)
+ * This is the primary auth helper for API routes
+ */
+export async function getAuthUserId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    
+    // Pi Browser token (direct userId)
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    if (piToken) {
+      return piToken;
+    }
+    
+    // Classic JWT tokens
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    if (!classicToken) return null;
+    
+    const payload = await verifyJWT(classicToken);
+    return payload?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get authenticated user ID from request headers (for CORS/Pi Browser scenarios)
+ * Use this when cookies() is not available or for manual cookie parsing
+ */
+export async function getAuthUserIdFromRequest(req: Request): Promise<string | null> {
+  try {
+    const cookieHeader = req.headers.get("cookie") || "";
+    const parsedCookies = Object.fromEntries(
+      cookieHeader.split('; ').filter(Boolean).map(c => {
+        const [key, ...rest] = c.trim().split('=');
+        return [key, rest.join('=')];
+      })
+    );
+    
+    // Pi Browser token
+    const piToken = parsedCookies['pi_session_token'];
+    if (piToken) return piToken;
+    
+    // Classic JWT tokens
+    const token = parsedCookies['token'] || parsedCookies['pimpay_token'];
+    if (!token) return null;
+    
+    const payload = await verifyJWT(token);
+    return payload?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 // 1. Pour le Middleware
 export async function verifyAuth(req: NextRequest) {
   try {
