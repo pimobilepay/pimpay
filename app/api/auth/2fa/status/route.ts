@@ -2,21 +2,30 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import * as jose from "jose";
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    if (!token) {
-      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    let userId: string | null = null;
+
+    if (piToken && piToken.length > 20) {
+      userId = piToken;
+    } else if (token) {
+      const payload = await verifyJWT(token);
+      if (!payload) {
+        return NextResponse.json({ error: "Session expiree" }, { status: 401 });
+      }
+      userId = payload.id;
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
