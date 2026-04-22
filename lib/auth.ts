@@ -87,6 +87,43 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
   }
 }
 
+/**
+ * Get authenticated user ID from Bearer token in Authorization header
+ * Use for APIs that receive tokens via Authorization: Bearer <token>
+ */
+export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) return null;
+    
+    const token = authHeader.split(" ")[1];
+    if (!token) return null;
+    
+    const payload = await verifyJWT(token);
+    return payload?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get full JWT payload from cookies (includes role)
+ * Use when you need role verification for admin routes
+ */
+export async function getAuthPayload(): Promise<{ id: string; role?: string; username?: string } | null> {
+  try {
+    const cookieStore = await cookies();
+    
+    // Pi Browser token doesn't have role info, so skip it for admin routes
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    if (!classicToken) return null;
+    
+    return await verifyJWT(classicToken);
+  } catch {
+    return null;
+  }
+}
+
 // 1. Pour le Middleware
 export async function verifyAuth(req: NextRequest) {
   try {

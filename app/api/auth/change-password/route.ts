@@ -1,33 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Ajuste le chemin selon ton projet
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import * as jose from "jose";
-
-const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-  return new TextEncoder().encode(secret);
-};
+import { getAuthUserIdFromBearer } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Extraire le token du header Authorization
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.split(" ")[1];
-
-    if (!token) {
+    const userId = await getAuthUserIdFromBearer(req);
+    if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // 2. Vérifier le token
-    const secret = getJwtSecret();
-    if (!secret) {
-      return NextResponse.json({ error: "Erreur configuration serveur" }, { status: 500 });
-    }
-
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
 
     // 3. Récupérer les données du corps de la requête
     const { oldPassword, newPassword } = await req.json();

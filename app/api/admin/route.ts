@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { UserStatus, UserRole } from "@prisma/client";
 
@@ -14,17 +13,12 @@ import { UserStatus, UserRole } from "@prisma/client";
 export async function POST(req: NextRequest) {
   try {
     // 1. AUTHENTIFICATION & SÉCURITÉ
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-
-    if (!token) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
 
     // Vérification de l'existence et du rôle de l'admin
     const requester = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       select: { id: true, role: true, name: true, email: true }
     });
 

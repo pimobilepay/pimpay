@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function DELETE(
   request: Request,
@@ -11,11 +11,9 @@ export async function DELETE(
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
-    if (!token) return new NextResponse("Non autorise", { status: 401 });
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
+    
+    const userId = await getAuthUserId();
+    if (!userId) return new NextResponse("Non autorise", { status: 401 });
 
     const { id } = await params;
 

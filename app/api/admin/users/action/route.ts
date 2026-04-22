@@ -1,21 +1,17 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
     // 1. VÉRIFICATION DE SÉCURITÉ (ADMIN SEULEMENT)
-    const token = (await cookies()).get("token")?.value;
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const requester = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       select: { id: true, role: true, name: true, email: true }
     });
 

@@ -2,22 +2,15 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 import { verifyTotp } from "@/lib/totp";
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-
-    if (!token) {
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-    const userId = payload.id as string;
 
     const { code } = await req.json();
 

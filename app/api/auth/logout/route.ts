@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import * as jose from "jose";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function POST() {
   try {
@@ -12,19 +12,13 @@ export async function POST() {
     // --- 1. Invalider la session en base de donnees ---
     if (token) {
       try {
-        const secretStr = process.env.JWT_SECRET;
-        if (secretStr) {
-          const secret = new TextEncoder().encode(secretStr);
-          const { payload } = await jose.jwtVerify(token, secret);
-          const userId = payload.id as string;
-
-          if (userId) {
-            // Desactiver la session actuelle
-            await prisma.session.updateMany({
-              where: { userId, token, isActive: true },
-              data: { isActive: false },
-            });
-          }
+        const userId = await getAuthUserId();
+        if (userId) {
+          // Desactiver la session actuelle
+          await prisma.session.updateMany({
+            where: { userId, token, isActive: true },
+            data: { isActive: false },
+          });
         }
       } catch {
         // Token expire ou invalide -- on continue la suppression des cookies

@@ -1,29 +1,16 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose"; // Utilisation de jose
+import { getAuthUserIdFromBearer } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    // 1. Récupération sécurisée du secret
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
+    const userId = await getAuthUserIdFromBearer(req);
+    if (!userId) {
+      return NextResponse.json({ error: "Token manquant ou invalide" }, { status: 401 });
     }
 
-    // 2. Extraction et vérification du token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
-
-    if (!token) {
-      return NextResponse.json({ error: "Token manquant" }, { status: 401 });
-    }
-
-    // 3. Vérification asynchrone avec jose
-    const secretKey = new TextEncoder().encode(SECRET);
-    const { payload } = await jwtVerify(token, secretKey);
-
-    // 4. Traitement des données
+    // Traitement des données
     const { latitude, longitude } = await req.json();
 
     if (!latitude || !longitude) {
@@ -31,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     await prisma.user.update({
-      where: { id: payload.id as string },
+      where: { id: userId },
       data: { latitude, longitude },
     });
 

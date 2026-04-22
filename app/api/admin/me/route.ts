@@ -1,44 +1,26 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose"; // ✅ Migration Jose pour la compatibilité Edge/Vercel
+import { getAuthPayload } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // 1. SÉCURITÉ DU SECRET (Prévention du crash au build)
-    const SECRET = process.env.JWT_SECRET;
-    if (!SECRET) {
-      console.error("JWT_SECRET is not defined");
-      return NextResponse.json({ error: "Erreur de configuration" }, { status: 500 });
-    }
-
-    // 2. EXTRACTION DU TOKEN DEPUIS LES COOKIES
-    const token = cookies().get("pimpay_token")?.value;
-    if (!token) {
+    // 1. AUTHENTIFICATION
+    const payload = await getAuthPayload();
+    if (!payload) {
       return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
     }
 
-    // 3. VÉRIFICATION ASYNCHRONE ET SÉCURISÉE
-    let payload;
-    try {
-      const secretKey = new TextEncoder().encode(SECRET);
-      const { payload: verifiedPayload } = await jwtVerify(token, secretKey);
-      payload = verifiedPayload;
-    } catch (err) {
-      return NextResponse.json({ error: "Session invalide ou expirée" }, { status: 401 });
-    }
-
-    // 4. VÉRIFICATION DU RÔLE ADMIN (Protection renforcée)
+    // 2. VÉRIFICATION DU RÔLE ADMIN (Protection renforcée)
     if (payload.role !== "ADMIN") {
       console.warn(`Tentative d'accès admin non autorisée: User ID ${payload.id}`);
       return NextResponse.json({ error: "Accès refusé : privilèges insuffisants" }, { status: 403 });
     }
 
-    // 5. RÉCUPÉRATION DES DONNÉES DEPUIS LA DB
+    // 3. RÉCUPÉRATION DES DONNÉES DEPUIS LA DB
     const admin = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: payload.id },
       select: {
         id: true,
         name: true,

@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import { verifyTotp } from "@/lib/totp";
 
 /**
@@ -13,18 +12,13 @@ import { verifyTotp } from "@/lib/totp";
  */
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-
-    if (!token) {
+    const userId = await getAuthUserId();
+    if (!userId) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-
     const admin = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       select: {
         id: true,
         role: true,
