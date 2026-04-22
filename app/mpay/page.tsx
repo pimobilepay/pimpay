@@ -100,6 +100,24 @@ const getTransactionDisplayName = (
   const currency = tx.currency?.toUpperCase() || "PI";
   const descLower = tx.description?.toLowerCase() || "";
   
+  // Handle STAKING transactions (Pi added to staking = sent, rewards/unstake = received)
+  if (txType === "STAKING" || txType === "STAKE" || descLower.includes("staking") || descLower.includes("stake")) {
+    if (descLower.includes("unstake") || descLower.includes("retrait") || descLower.includes("clotur")) {
+      return "Retrait Staking";
+    }
+    return "Depot Staking";
+  }
+  
+  // Handle STAKING_REWARD transactions (rewards earned from staking)
+  if (txType === "STAKING_REWARD" || descLower.includes("recompense") || descLower.includes("reward")) {
+    return "Recompense Staking";
+  }
+  
+  // Handle UNSTAKE transactions (Pi withdrawn from staking)
+  if (txType === "UNSTAKE" || txType === "STAKING_UNSTAKE") {
+    return "Retrait Staking";
+  }
+  
   // Handle CARD_RECHARGE and CARD_WITHDRAW transactions - use description if available
   if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW" || desc.includes("CARTE")) {
     if (tx.description) {
@@ -146,6 +164,27 @@ const getTransactionDisplayName = (
 // Helper to check if transaction is sent (for deposits and withdrawals without userId)
 const isTransactionSent = (tx: TransactionHistory, userId: string): boolean => {
   const txType = tx.type?.toUpperCase() || "";
+  const descLower = tx.description?.toLowerCase() || "";
+  
+  // For STAKING - depositing Pi into staking = sent (money leaves wallet)
+  if (txType === "STAKING" || txType === "STAKE") {
+    // If it's an unstake/withdrawal from staking, it's received
+    if (descLower.includes("unstake") || descLower.includes("retrait") || descLower.includes("clotur")) {
+      return false;
+    }
+    // Regular stake = money sent to staking
+    return true;
+  }
+  
+  // For UNSTAKE - withdrawing Pi from staking = received (money comes back to wallet)
+  if (txType === "UNSTAKE" || txType === "STAKING_UNSTAKE") {
+    return false;
+  }
+  
+  // For STAKING_REWARD - rewards earned = received
+  if (txType === "STAKING_REWARD") {
+    return false;
+  }
   
   // For deposits without fromUserId, it's received
   if (txType === "DEPOSIT" && !tx.fromUserId) {
