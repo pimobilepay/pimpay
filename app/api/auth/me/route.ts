@@ -28,9 +28,9 @@ export async function GET() {
       return NextResponse.json({ user: null, error: "Non authentifié" }, { status: 401 });
     }
 
-    // 2. Recherche complète de l'utilisateur avec tous les champs du schéma Prisma
+    // 2. Recherche de l'utilisateur - optimisée avec seulement les champs essentiels
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, status: "ACTIVE" },
       select: {
         id: true,
         username: true,
@@ -59,12 +59,13 @@ export async function GET() {
         passwordChangedAt: true,
         wallets: {
           where: { currency: "PI" },
-          select: { balance: true }
+          select: { balance: true },
+          take: 1
         }
       }
     });
 
-    if (!user || user.status !== "ACTIVE") {
+    if (!user) {
       return NextResponse.json({ user: null, error: "Compte introuvable ou inactif" }, { status: 401 });
     }
 
