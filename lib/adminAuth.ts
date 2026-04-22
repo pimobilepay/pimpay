@@ -26,15 +26,27 @@ export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null>
       token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
     }
 
-    // 3. If still no token, try Pi Network session token (contains userId directly)
+    // 3. If still no token, try Pi Network session token
     if (!token) {
       const piToken = req.cookies.get("pi_session_token")?.value;
-      if (piToken && piToken.length > 20) {
-        // Pi token contains the userId directly, fetch user from DB
-        const user = await prisma.user.findUnique({
+      if (piToken && piToken.length > 10) {
+        // Pi token can contain either:
+        // - The user's database ID (for new sessions)
+        // - The piUserId (for Pi Network authenticated users)
+        
+        // First try to find by database ID
+        let user = await prisma.user.findUnique({
           where: { id: piToken, status: "ACTIVE" },
           select: { id: true, role: true, email: true, name: true }
         });
+        
+        // If not found, try to find by piUserId
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: { piUserId: piToken, status: "ACTIVE" },
+            select: { id: true, role: true, email: true, name: true }
+          });
+        }
         
         if (user) {
           return {

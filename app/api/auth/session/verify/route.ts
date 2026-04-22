@@ -22,13 +22,21 @@ export async function GET() {
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     const piToken = cookieStore.get("pi_session_token")?.value;
 
-    // 1. Vérification pour Pi Network session (pi_session_token contient directement le userId)
-    if (piToken && piToken.length > 20) {
-      // Vérifier que l'utilisateur existe et est actif
-      const user = await prisma.user.findUnique({
+    // 1. Vérification pour Pi Network session (pi_session_token peut contenir id ou piUserId)
+    if (piToken && piToken.length > 10) {
+      // Essayer de trouver par ID direct
+      let user = await prisma.user.findUnique({
         where: { id: piToken, status: "ACTIVE" },
         select: { id: true }
       });
+
+      // Si non trouvé, essayer par piUserId
+      if (!user) {
+        user = await prisma.user.findFirst({
+          where: { piUserId: piToken, status: "ACTIVE" },
+          select: { id: true }
+        });
+      }
 
       if (!user) {
         return NextResponse.json({ valid: false, reason: "user_not_found" }, { status: 401 });
@@ -37,7 +45,7 @@ export async function GET() {
       // Vérifier que la session existe toujours dans la DB (déconnexion globale)
       const session = await prisma.session.findFirst({
         where: { 
-          userId: piToken,
+          userId: user.id,
           isActive: true 
         },
         select: { id: true }
