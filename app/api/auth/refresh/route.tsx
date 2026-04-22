@@ -14,7 +14,7 @@ export async function POST() {
 
   try {
     // 2. Vérification du payload du refresh token
-    const payload = verifyRefreshToken(token) as { id: string };
+    const payload = await verifyRefreshToken(token) as { id: string };
 
     if (!payload || !payload.id) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 403 });
@@ -38,7 +38,7 @@ export async function POST() {
 
     // 4. Génération du nouvel Access Token
     // On s'assure que 'role' existe, sinon on met 'USER' par défaut
-    const accessToken = signAccessToken({ 
+    const accessToken = await signAccessToken({ 
       id: userData.id, 
       role: userData.role || "USER" 
     });

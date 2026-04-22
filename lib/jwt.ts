@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import * as jose from "jose";
 
 function getJwtSecrets() {
   const accessSecret = process.env.JWT_SECRET;
@@ -8,31 +8,38 @@ function getJwtSecrets() {
     throw new Error("JWT secrets are not defined");
   }
 
-  return { accessSecret, refreshSecret };
+  return { 
+    accessSecret: new TextEncoder().encode(accessSecret), 
+    refreshSecret: new TextEncoder().encode(refreshSecret) 
+  };
 }
 
-export function signAccessToken(payload: object) {
+export async function signAccessToken(payload: Record<string, unknown>) {
   const { accessSecret } = getJwtSecrets();
 
-  return jwt.sign(payload, accessSecret, {
-    expiresIn: "15m",
-  });
+  return await new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("15m")
+    .sign(accessSecret);
 }
 
-export function signRefreshToken(payload: object) {
+export async function signRefreshToken(payload: Record<string, unknown>) {
   const { refreshSecret } = getJwtSecrets();
 
-  return jwt.sign(payload, refreshSecret, {
-    expiresIn: "7d",
-  });
+  return await new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(refreshSecret);
 }
 
-export function verifyAccessToken(token: string) {
+export async function verifyAccessToken(token: string) {
   const { accessSecret } = getJwtSecrets();
-  return jwt.verify(token, accessSecret);
+  const { payload } = await jose.jwtVerify(token, accessSecret);
+  return payload;
 }
 
-export function verifyRefreshToken(token: string) {
+export async function verifyRefreshToken(token: string) {
   const { refreshSecret } = getJwtSecrets();
-  return jwt.verify(token, refreshSecret);
+  const { payload } = await jose.jwtVerify(token, refreshSecret);
+  return payload;
 }
