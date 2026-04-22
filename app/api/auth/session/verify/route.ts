@@ -9,8 +9,12 @@ import { verifyJWT } from "@/lib/auth";
  * Cette API est appelée périodiquement par le client pour détecter une déconnexion forcée.
  * 
  * Supporte deux types de sessions:
- * 1. Token JWT classique (cookie "token" ou "pimpay_token") - vérifié via verifyJWT
- * 2. Pi Network session (cookie "pi_session_token") - vérifie l'existence de l'utilisateur
+ * 1. Token JWT classique (cookie "token" ou "pimpay_token") - vérifié via verifyJWT + existence en DB
+ * 2. Pi Network session (cookie "pi_session_token") - vérifie l'existence de la session en DB
+ * 
+ * IMPORTANT: Cette API vérifie que la session existe toujours dans la table Session.
+ * Quand un utilisateur déconnecte toutes les sessions, les sessions sont supprimées de la DB,
+ * ce qui déclenche une déconnexion immédiate sur tous les appareils.
  */
 export async function GET() {
   try {
@@ -20,16 +24,30 @@ export async function GET() {
 
     // 1. Vérification pour Pi Network session (pi_session_token contient directement le userId)
     if (piToken && piToken.length > 20) {
+      // Vérifier que l'utilisateur existe et est actif
       const user = await prisma.user.findUnique({
         where: { id: piToken, status: "ACTIVE" },
         select: { id: true }
       });
 
-      if (user) {
-        return NextResponse.json({ valid: true, sessionType: "pi_network" });
+      if (!user) {
+        return NextResponse.json({ valid: false, reason: "user_not_found" }, { status: 401 });
       }
-      
-      return NextResponse.json({ valid: false, reason: "user_not_found" }, { status: 401 });
+
+      // Vérifier que la session existe toujours dans la DB (déconnexion globale)
+      const session = await prisma.session.findFirst({
+        where: { 
+          userId: piToken,
+          isActive: true 
+        },
+        select: { id: true }
+      });
+
+      if (!session) {
+        return NextResponse.json({ valid: false, reason: "session_revoked" }, { status: 401 });
+      }
+
+      return NextResponse.json({ valid: true, sessionType: "pi_network" });
     }
 
     // 2. Vérification pour token JWT classique via verifyJWT (lib/auth.ts)
@@ -50,6 +68,23 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ valid: false, reason: "user_not_found" }, { status: 401 });
+    }
+
+    // CRUCIAL: Vérifier que la session existe toujours dans la DB
+    // Si la session a été supprimée via "Déconnecter les autres appareils", 
+    // le token sera toujours valide mais la session n'existera plus en DB
+    const session = await prisma.session.findFirst({
+      where: { 
+        token: token,
+        userId: payload.id,
+        isActive: true 
+      },
+      select: { id: true }
+    });
+
+    if (!session) {
+      // La session n'existe plus en DB - elle a été révoquée
+      return NextResponse.json({ valid: false, reason: "session_revoked" }, { status: 401 });
     }
 
     return NextResponse.json({ valid: true, userId: user.id, sessionType: "jwt" });

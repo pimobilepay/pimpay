@@ -23,6 +23,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
+import LogoutAllButton from "@/components/sessions/LogoutAllButton";
 import RevokeSessionButton from "@/components/sessions/RevokeSessionButton";
 import SessionsContent from "@/components/sessions/SessionsContent";
 import "flag-icons/css/flag-icons.min.css";
@@ -341,11 +342,15 @@ export default async function SessionsPage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/* LOGOUT ALL OTHER SESSIONS                                       */}
+        {/* SESSION ACTIONS                                                  */}
         {/* ---------------------------------------------------------------- */}
-        {sessions.length > 1 && (
-          <div className="mt-6 flex justify-center">
-            <LogoutOthersButton />
+        {sessions.length > 0 && (
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {/* Déconnecter les autres appareils (garde la session actuelle) */}
+            {sessions.length > 1 && <LogoutOthersButton />}
+            
+            {/* Déconnecter TOUTES les sessions (y compris la session actuelle) */}
+            <LogoutAllButton />
           </div>
         )}
 
