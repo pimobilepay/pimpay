@@ -2,9 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET!;
+import { verifyJWT } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,9 +12,8 @@ export async function GET(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  try {
-    jwt.verify(token, JWT_SECRET);
-  } catch (err) {
+  const payload = await verifyJWT(token);
+  if (!payload) {
     return new Response("Invalid token", { status: 401 });
   }
 

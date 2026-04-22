@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
-import * as jose from "jose";
+import { verifyJWT } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -14,8 +14,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    }
     const userId = payload.id as string;
 
     const body = await req.json();
