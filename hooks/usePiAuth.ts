@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 
 declare global {
   interface Window {
     Pi: any;
     __PI_SDK_READY__: boolean;
+    __PI_SDK_INITIALIZING__: boolean;
   }
 }
 
@@ -19,55 +20,101 @@ declare global {
 export const usePiAuth = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const authInProgressRef = useRef(false);
 
   /**
    * Gestion des paiements incomplets (Checklist Mainnet #10)
+   * Cette fonction DOIT retourner une Promise pour que le SDK Pi puisse continuer
    */
   const handleIncompletePayment = useCallback(async (payment: any) => {
-    console.warn("[PimPay] Paiement incomplet detecte:", payment.identifier);
+    console.warn("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+    
     try {
       const response = await fetch("/api/payments/incomplete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // Important pour les cookies
         body: JSON.stringify({
           paymentId: payment.identifier,
-          txid: payment.transaction?.txid,
+          txid: payment.transaction?.txid || null,
         }),
       });
 
+      const data = await response.json();
+      
       if (response.ok) {
-        console.log("[PimPay] Paiement incomplet traite:", payment.identifier);
+        console.log("[PimPay] Paiement incomplet traite:", payment.identifier, data.action);
+        if (data.action === "completed") {
+          toast.success(`Paiement recupere: ${data.message}`);
+        }
+      } else {
+        console.error("[PimPay] Echec traitement paiement incomplet:", data);
       }
     } catch (error) {
-      console.error("[PimPay] Erreur traitement paiement incomplet:", error);
+      console.error("[PimPay] Erreur reseau traitement paiement incomplet:", error);
+    }
+  }, []);
+
+  /**
+   * Initialiser le SDK Pi de maniere thread-safe
+   */
+  const initializePiSDK = useCallback((): boolean => {
+    if (typeof window === "undefined" || !window.Pi) {
+      return false;
+    }
+
+    // Deja initialise
+    if (window.__PI_SDK_READY__) {
+      return true;
+    }
+
+    // En cours d'initialisation par un autre thread
+    if (window.__PI_SDK_INITIALIZING__) {
+      return false;
+    }
+
+    try {
+      window.__PI_SDK_INITIALIZING__ = true;
+      window.Pi.init({ version: "2.0", sandbox: false });
+      window.__PI_SDK_READY__ = true;
+      window.__PI_SDK_INITIALIZING__ = false;
+      console.log("[PimPay] SDK Pi 2.0 initialise par usePiAuth");
+      return true;
+    } catch (e: any) {
+      window.__PI_SDK_INITIALIZING__ = false;
+      // Si l'erreur dit "already initialized", c'est OK
+      if (e?.message?.includes("already")) {
+        window.__PI_SDK_READY__ = true;
+        return true;
+      }
+      console.error("[PimPay] Erreur init SDK Pi:", e);
+      return false;
     }
   }, []);
 
   /**
    * Attendre que le SDK Pi soit disponible et initialise
    */
-  const waitForPiSDK = useCallback(async (maxWait = 5000): Promise<boolean> => {
+  const waitForPiSDK = useCallback(async (maxWait = 8000): Promise<boolean> => {
     const start = Date.now();
+    const checkInterval = 150;
     
     while (Date.now() - start < maxWait) {
       if (window.Pi) {
-        // SDK charge, on l'initialise si pas encore fait
-        if (!window.__PI_SDK_READY__) {
-          try {
-            window.Pi.init({ version: "2.0", sandbox: false });
-            window.__PI_SDK_READY__ = true;
-          } catch (e: any) {
-            // Deja initialise
-            window.__PI_SDK_READY__ = true;
-          }
+        // SDK charge, on tente l'initialisation
+        if (initializePiSDK()) {
+          return true;
         }
-        return true;
+        // Si en cours d'init par un autre, attendre un peu plus
+        if (window.__PI_SDK_INITIALIZING__) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (window.__PI_SDK_READY__) return true;
+        }
       }
-      // Attendre 100ms avant de reessayer
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
-    return false;
-  }, []);
+    return window.__PI_SDK_READY__ || false;
+  }, [initializePiSDK]);
 
   /**
    * Authentification Pi Network synchronisee avec Prisma
@@ -77,11 +124,18 @@ export const usePiAuth = () => {
       return { success: false, error: "SSR non supporte" };
     }
 
+    // Eviter les doubles authentifications
+    if (authInProgressRef.current) {
+      console.warn("[PimPay] Authentification deja en cours");
+      return { success: false, error: "Authentification en cours" };
+    }
+
+    authInProgressRef.current = true;
     setLoading(true);
 
     try {
-      // Attendre que le SDK soit charge et initialise (max 5s)
-      const sdkReady = await waitForPiSDK(5000);
+      // Attendre que le SDK soit charge et initialise (max 8s)
+      const sdkReady = await waitForPiSDK(8000);
       
       if (!sdkReady || !window.Pi) {
         toast.error("Veuillez ouvrir PimPay via le Pi Browser.", { duration: 5000 });
@@ -91,10 +145,12 @@ export const usePiAuth = () => {
       // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
       const scopes = ["username", "payments"];
       
-      // Timeout de 30s pour l'authentification Pi
+      console.log("[PimPay] Demarrage authentification Pi...");
+      
+      // Timeout de 60s pour l'authentification Pi (l'utilisateur peut prendre du temps)
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("timed out")), 30000)
+        setTimeout(() => reject(new Error("timed out")), 60000)
       );
       
       const auth = await Promise.race([authPromise, timeoutPromise]);
@@ -103,10 +159,13 @@ export const usePiAuth = () => {
         throw new Error("Autorisation refusee par l'utilisateur.");
       }
 
+      console.log("[PimPay] Authentification Pi reussie, sync backend...");
+
       // Synchronisation avec le backend PimPay
       const response = await fetch("/api/auth/pi-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // Important pour recevoir les cookies
         body: JSON.stringify({
           accessToken: auth.accessToken,
           piUserId: auth.user.uid,
@@ -120,6 +179,8 @@ export const usePiAuth = () => {
         throw new Error(result.error || "Echec de synchronisation PimPay");
       }
 
+      console.log("[PimPay] Connexion reussie:", result.user?.username);
+
       // Les cookies httpOnly sont poses automatiquement par la reponse API
       // On stocke uniquement les infos non-sensibles cote client
       setUser(result.user);
@@ -130,17 +191,29 @@ export const usePiAuth = () => {
       console.error("[PimPay] Erreur authentification Pi:", error);
 
       let errorMsg = "Echec de la connexion securisee";
-      if (error.message?.includes("User cancelled")) errorMsg = "Connexion annulee";
-      if (error.message?.includes("disallowed")) errorMsg = "Permissions refusees";
-      if (error.message?.includes("timed out")) errorMsg = "Le SDK Pi ne repond pas";
-      if (error.message?.includes("not initialized")) errorMsg = "SDK Pi non initialise. Rechargez la page.";
+      
+      // Messages d'erreur plus clairs
+      if (error.message?.includes("User cancelled") || error.message?.includes("cancelled")) {
+        errorMsg = "Connexion annulee par l'utilisateur";
+      } else if (error.message?.includes("disallowed") || error.message?.includes("scope")) {
+        errorMsg = "Veuillez autoriser l'acces a votre compte Pi";
+      } else if (error.message?.includes("timed out") || error.message?.includes("timeout")) {
+        errorMsg = "Connexion expir\u00e9e. Veuillez reessayer.";
+      } else if (error.message?.includes("not initialized") || error.message?.includes("init")) {
+        errorMsg = "SDK Pi non initialise. Rechargez la page.";
+      } else if (error.message?.includes("network") || error.message?.includes("fetch")) {
+        errorMsg = "Erreur reseau. Verifiez votre connexion.";
+      } else if (error.message?.includes("Pi Browser") || error.message?.includes("browser")) {
+        errorMsg = "Veuillez utiliser le Pi Browser";
+      }
 
-      toast.error(errorMsg);
+      toast.error(errorMsg, { duration: 5000 });
       return { success: false, error: errorMsg };
     } finally {
       setLoading(false);
+      authInProgressRef.current = false;
     }
-  }, [handleIncompletePayment]);
+  }, [handleIncompletePayment, waitForPiSDK]);
 
   return {
     loginWithPi,

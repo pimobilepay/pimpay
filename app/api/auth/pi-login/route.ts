@@ -130,17 +130,35 @@ export async function POST(request: Request) {
     });
 
     // Cookies de session - compatibles Pi Browser HTTPS
+    // Pi Browser utilise un contexte HTTPS avec des restrictions sur les cookies
     const isProduction = process.env.NODE_ENV === "production";
+    
+    // Configuration optimisee pour Pi Browser
     const cookieOptions = {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 jours
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      secure: isProduction,
+      // SameSite=Lax est plus compatible avec Pi Browser que None
+      // None requiert Secure et peut causer des problemes avec certains Pi Browser
+      sameSite: "lax" as const,
+      secure: isProduction, // HTTPS en prod
       httpOnly: true,
     };
 
+    // Cookies avec SameSite=None pour les requetes cross-origin si necessaire
+    const crossOriginCookieOptions = {
+      ...cookieOptions,
+      sameSite: "none" as const,
+      secure: true, // Obligatoire avec SameSite=None
+    };
+
+    // Cookie principal avec Lax (plus compatible)
     response.cookies.set("pimpay_token", token, cookieOptions);
     response.cookies.set("token", token, cookieOptions);
+    
+    // Cookie backup pour les scenarios cross-origin (si en production HTTPS)
+    if (isProduction) {
+      response.cookies.set("pimpay_session", token, crossOriginCookieOptions);
+    }
 
     return response;
   } catch (error: any) {

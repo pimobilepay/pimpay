@@ -12,9 +12,21 @@ export async function POST(req: Request) {
     const { paymentId, amount, memo, txid, toAddress, currency } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
 
+    if (!PI_API_KEY) {
+      console.error("[PIMPAY] PI_API_KEY non configuree");
+      return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
+    }
+
+    if (!paymentId) {
+      return NextResponse.json({ error: "paymentId requis" }, { status: 400 });
+    }
+
     // 1. AUTHENTIFICATION
     const userId = await getAuthUserId();
-    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    if (!userId) {
+      console.error("[PIMPAY] Utilisateur non authentifie pour approve");
+      return NextResponse.json({ error: "Non authentifie. Veuillez vous reconnecter." }, { status: 401 });
+    }
 
     // Determine if this is a withdraw (external send) or deposit
     const isWithdraw = !!toAddress && currency === "PI";

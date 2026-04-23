@@ -10,14 +10,25 @@ export async function POST(request: Request) {
   try {
     const PI_API_KEY = process.env.PI_API_KEY;
 
+    if (!PI_API_KEY) {
+      console.error("[PIMPAY] PI_API_KEY non configuree");
+      return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
+    }
+
     // --- 1. AUTHENTIFICATION ---
     const userId = await getAuthUserId();
-    if (!userId) return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+    if (!userId) {
+      console.error("[PIMPAY] Utilisateur non authentifie pour complete");
+      return NextResponse.json({ error: "Session expiree. Veuillez vous reconnecter." }, { status: 401 });
+    }
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {
-      return NextResponse.json({ error: "Données incomplètes" }, { status: 400 });
+      console.error("[PIMPAY] Donnees incompletes pour complete:", { paymentId, txid });
+      return NextResponse.json({ error: "Donnees incompletes (paymentId et txid requis)" }, { status: 400 });
     }
+
+    console.log(`[PIMPAY] Complete paiement: ${paymentId}, txid: ${txid}, user: ${userId}`);
 
     // --- 2. VALIDATION PI NETWORK (S2S) ---
     // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)

@@ -5,7 +5,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
 
-const PI_API_KEY = () => process.env.PI_API_KEY;
+const PI_API_KEY = () => {
+  const key = process.env.PI_API_KEY;
+  if (!key) {
+    console.warn("[PIMPAY] PI_API_KEY non configuree");
+  }
+  return key;
+};
 
 // ── Helper: Get payment details from Pi Network ──────────────────────────────
 async function getPiPaymentDetails(paymentId: string) {
@@ -56,6 +62,16 @@ async function cancelPayment(paymentId: string) {
 // ── POST: Handle a single incomplete payment from the client SDK callback ────
 export async function POST(req: Request) {
   try {
+    const apiKey = PI_API_KEY();
+    if (!apiKey) {
+      console.warn("[PIMPAY] POST /api/payments/incomplete: PI_API_KEY non configuree");
+      return NextResponse.json({ 
+        success: false, 
+        action: "skipped", 
+        message: "Configuration Pi Network en attente" 
+      });
+    }
+
     const { paymentId, txid } = await req.json();
 
     if (!paymentId) {
@@ -244,7 +260,9 @@ export async function GET() {
   try {
     const apiKey = PI_API_KEY();
     if (!apiKey) {
-      return NextResponse.json({ error: "Cle API Pi manquante" }, { status: 500 });
+      // En mode dev sans cle API, on retourne juste vide au lieu d'une erreur
+      console.warn("[PIMPAY] GET /api/payments/incomplete: PI_API_KEY non configuree");
+      return NextResponse.json({ message: "Configuration en attente", count: 0, details: [] });
     }
 
     // 1. Fetch incomplete payments from Pi Network

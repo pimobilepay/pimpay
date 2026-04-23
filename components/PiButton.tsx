@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -8,6 +8,7 @@ declare global {
   interface Window {
     Pi: any;
     __PI_SDK_READY__: boolean;
+    __PI_SDK_INITIALIZING__: boolean;
   }
 }
 
@@ -32,8 +33,9 @@ interface PiButtonProps {
  */
 export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonProps) {
   const [loading, setLoading] = useState(false);
+  const paymentInProgressRef = useRef(false);
 
-  const ensureSdkReady = useCallback((): boolean => {
+  const ensureSdkReady = useCallback(async (): Promise<boolean> => {
     if (typeof window === "undefined") return false;
 
     if (!window.Pi) {
@@ -41,57 +43,91 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
       return false;
     }
 
-    // Si le SDK est present mais pas encore initialise, on tente l'init
-    if (!window.__PI_SDK_READY__) {
-      try {
-        window.Pi.init({ version: "2.0", sandbox: false });
-        window.__PI_SDK_READY__ = true;
-      } catch {
-        // Deja initialise - on continue
-        window.__PI_SDK_READY__ = true;
+    // Deja pret
+    if (window.__PI_SDK_READY__) return true;
+
+    // En cours d'init
+    if (window.__PI_SDK_INITIALIZING__) {
+      // Attendre max 3s
+      const start = Date.now();
+      while (Date.now() - start < 3000) {
+        await new Promise(r => setTimeout(r, 100));
+        if (window.__PI_SDK_READY__) return true;
       }
+      return false;
     }
 
-    return true;
+    // Tenter l'init
+    try {
+      window.__PI_SDK_INITIALIZING__ = true;
+      window.Pi.init({ version: "2.0", sandbox: false });
+      window.__PI_SDK_READY__ = true;
+      window.__PI_SDK_INITIALIZING__ = false;
+      return true;
+    } catch (e: any) {
+      window.__PI_SDK_INITIALIZING__ = false;
+      if (e?.message?.includes("already")) {
+        window.__PI_SDK_READY__ = true;
+        return true;
+      }
+      return false;
+    }
   }, []);
 
   const handleIncompletePayment = useCallback(async (payment: any) => {
-    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier);
+    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     try {
-      await fetch("/api/payments/incomplete", {
+      const res = await fetch("/api/payments/incomplete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           paymentId: payment.identifier,
-          txid: payment.transaction?.txid,
+          txid: payment.transaction?.txid || null,
         }),
       });
+      const data = await res.json();
+      if (res.ok && data.action === "completed") {
+        toast.success(`Paiement recupere: ${data.message}`);
+      }
     } catch (error) {
       console.error("[PimPay] Erreur traitement paiement incomplet:", error);
     }
   }, []);
 
   const handlePayment = async () => {
-    if (!ensureSdkReady()) return;
+    // Eviter les doubles paiements
+    if (paymentInProgressRef.current) {
+      console.warn("[PimPay] Paiement deja en cours");
+      return;
+    }
+
+    const sdkReady = await ensureSdkReady();
+    if (!sdkReady) return;
 
     if (!amount || amount <= 0) {
       toast.error("Veuillez entrer un montant valide.");
       return;
     }
 
+    paymentInProgressRef.current = true;
     setLoading(true);
     const loadingToast = toast.loading("Connexion au reseau Pi...");
 
     try {
       // Etape 1: Authentification pour obtenir les scopes payments
+      console.log("[PimPay] Authentification pour paiement...");
       const auth = await window.Pi.authenticate(
-        ["username", "payments", "wallet_address"],
+        ["username", "payments"],
         handleIncompletePayment
       );
 
       if (!auth || !auth.user) {
         throw new Error("Autorisation refusee par l'utilisateur.");
       }
+
+      console.log("[PimPay] Authentifie, creation du paiement...");
+      toast.loading("Ouverture du wallet Pi...", { id: loadingToast });
 
       // Etape 2: Creation du paiement
       const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;
@@ -109,10 +145,12 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
         {
           onReadyForServerApproval: async (paymentId: string) => {
             console.log("[PimPay] Approbation serveur pour:", paymentId);
+            toast.loading("Approbation en cours...", { id: loadingToast });
 
             const res = await fetch("/api/payments/approve", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({
                 paymentId,
                 amount,
@@ -122,27 +160,34 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
 
             if (!res.ok) {
               const errorData = await res.json();
+              console.error("[PimPay] Erreur approbation:", errorData);
               throw new Error(errorData.error || "Approbation refusee par le serveur.");
             }
 
+            console.log("[PimPay] Paiement approuve, en attente signature utilisateur...");
+            toast.loading("Signez la transaction dans Pi Browser...", { id: loadingToast });
             return res.json();
           },
 
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-            console.log("[PimPay] Paiement blockchain detecte, txid:", txid);
+            console.log("[PimPay] Transaction blockchain confirmee, txid:", txid);
+            toast.loading("Finalisation du depot...", { id: loadingToast });
 
             const res = await fetch("/api/payments/complete", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({ paymentId, txid }),
             });
 
             toast.dismiss(loadingToast);
+            paymentInProgressRef.current = false;
 
             if (res.ok) {
               toast.success(`Depot de ${amount} Pi reussi !`, { duration: 5000 });
               onSuccess?.(txid);
             } else {
+              // Meme si la completion echoue, le paiement sera recupere plus tard
               toast.info("Le solde sera mis a jour dans quelques instants.");
               onSuccess?.(txid);
             }
@@ -153,6 +198,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
             toast.dismiss(loadingToast);
             toast.info("Paiement annule.");
             setLoading(false);
+            paymentInProgressRef.current = false;
           },
 
           onError: (error: Error) => {
@@ -162,20 +208,27 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
             toast.error(msg);
             onError?.(msg);
             setLoading(false);
+            paymentInProgressRef.current = false;
           },
         }
       );
     } catch (err: any) {
       toast.dismiss(loadingToast);
       console.error("[PimPay] Erreur critique:", err);
+      paymentInProgressRef.current = false;
 
       let errorMsg = "Action impossible pour le moment.";
-      if (err.message?.includes("User cancelled")) errorMsg = "Connexion annulee.";
-      if (err.message?.includes("disallowed")) errorMsg = "Permissions refusees.";
-      if (err.message?.includes("timed out")) errorMsg = "Le SDK Pi ne repond pas.";
-      if (err.message?.includes("not initialized")) errorMsg = "SDK Pi non initialise. Rechargez la page.";
+      if (err.message?.includes("User cancelled") || err.message?.includes("cancelled")) {
+        errorMsg = "Paiement annule.";
+      } else if (err.message?.includes("disallowed") || err.message?.includes("scope")) {
+        errorMsg = "Veuillez autoriser l'acces aux paiements.";
+      } else if (err.message?.includes("timed out") || err.message?.includes("timeout")) {
+        errorMsg = "Connexion expiree. Veuillez reessayer.";
+      } else if (err.message?.includes("not initialized") || err.message?.includes("init")) {
+        errorMsg = "SDK Pi non initialise. Rechargez la page.";
+      }
 
-      toast.error(errorMsg);
+      toast.error(errorMsg, { duration: 5000 });
       onError?.(errorMsg);
       setLoading(false);
     }
