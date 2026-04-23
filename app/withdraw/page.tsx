@@ -15,6 +15,7 @@ import { countries, searchCountries, type Country, type Bank } from "@/lib/count
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
+import { formatBalance } from "@/lib/formatters";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { CRYPTO_ASSETS } from "@/lib/crypto-config";
@@ -256,6 +257,7 @@ export default function WithdrawPage() {
       )
     : { total: 0, fee: 0, subtotal: 0 };
 
+  // formatValue pour les montants fiat (toujours 2 decimales)
   const formatValue = (val: number) =>
     new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
@@ -391,7 +393,7 @@ export default function WithdrawPage() {
 
             <div className="flex items-baseline gap-2 relative z-10">
               <span className="text-3xl font-black tracking-tighter text-white">
-                {currentWallet.currency === "PI" ? "\u03c0" : ""} {formatValue(balance)}
+                {currentWallet.currency === "PI" ? "\u03c0" : ""} {formatBalance(balance)}
               </span>
               <span className="text-sm font-black text-blue-400">{currentWallet.currency}</span>
             </div>
