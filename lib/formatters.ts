@@ -50,6 +50,77 @@ export const STATUS_CONFIG: Record<
   'card:expired':  { color: '#9CA3AF', label: 'Carte expirée' },
 };
 
+// ─── Balance Formatters ───────────────────────────────────────────────────────
+
+/**
+ * Formats a crypto balance with dynamic decimals.
+ * - Default: 2 decimals (0.00)
+ * - If balance is very small (< 0.01), shows more decimals up to 8 max
+ * - Examples:
+ *   - 1.5 → "1,50"
+ *   - 0.005 → "0,005"
+ *   - 0.00001234 → "0,00001234"
+ *   - 0.000000001 → "0,00000000" (max 8 decimals)
+ */
+export function formatBalance(balance: number, locale: string = 'fr-FR'): string {
+  if (!isFinite(balance)) return '0,00';
+  
+  // For zero or very close to zero, use 2 decimals
+  if (balance === 0 || Math.abs(balance) < 1e-8) {
+    return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  
+  const absBalance = Math.abs(balance);
+  
+  // If balance >= 0.01, use default 2 decimals
+  if (absBalance >= 0.01) {
+    return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  
+  // For small balances, calculate how many decimals are needed (max 8)
+  // Find the first significant digit after decimal point
+  let decimalsNeeded = 2;
+  let testValue = absBalance;
+  
+  while (testValue < 1 && decimalsNeeded < 8) {
+    testValue *= 10;
+    if (testValue >= 1) {
+      // Add 2 more decimals after the first significant digit for precision
+      decimalsNeeded = Math.min(decimalsNeeded + 2, 8);
+      break;
+    }
+    decimalsNeeded++;
+  }
+  
+  return balance.toLocaleString(locale, { 
+    minimumFractionDigits: decimalsNeeded, 
+    maximumFractionDigits: decimalsNeeded 
+  });
+}
+
+/**
+ * Formats a crypto balance for display in wallet cards.
+ * Shows appropriate decimals based on the balance value.
+ * @param balance - The balance amount
+ * @param currency - The crypto currency code (PI, BTC, ETH, etc.)
+ * @param locale - The locale for number formatting
+ */
+export function formatCryptoBalance(
+  balance: number, 
+  currency: string = 'PI', 
+  locale: string = 'fr-FR'
+): string {
+  if (!isFinite(balance)) return '0,00';
+  
+  // Stablecoins always use 2 decimals
+  const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'XAF', 'XOF'];
+  if (stablecoins.includes(currency.toUpperCase())) {
+    return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  
+  return formatBalance(balance, locale);
+}
+
 // ─── Amount Formatters ────────────────────────────────────────────────────────
 
 /**
@@ -449,7 +520,7 @@ export function getCurrencySymbol(currency: string): string {
   }
 }
 
-// ─── Compound / Utility Helpers ───────────────────────────────────────────────
+// ─── Compound / Utility Helpers ─────────────────��─────────────────────────────
 
 /**
  * Formats a complete monetary amount with currency label and optional conversion hint.
