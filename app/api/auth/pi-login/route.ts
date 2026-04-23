@@ -41,43 +41,92 @@ export async function POST(request: Request) {
     // Pi Network peut retourner le phone dans credentials ou dans user
     const finalPhone = verifiedUser?.credentials?.phone_number || phone || null;
 
-    // Upsert de l'utilisateur dans Prisma
-    const user = await prisma.user.upsert({
-      where: { piUserId: finalPiUserId },
-      update: {
-        username: finalUsername,
-        lastLoginAt: new Date(),
-        lastLoginIp: request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown",
-        // Mettre a jour le phone seulement s'il est fourni et different
-        ...(finalPhone && { phone: finalPhone }),
+    // Champs selectionnes apres chaque lecture/ecriture du User
+    const userSelect = {
+      id: true,
+      username: true,
+      role: true,
+      piUserId: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      phone: true,
+      wallets: {
+        select: { currency: true, balance: true, type: true },
       },
-      create: {
+    } as const;
+
+    // 1) On tente de retrouver un utilisateur existant par son piUserId.
+    //    Si trouve -> update. Sinon -> create avec gestion des collisions de username.
+    let user = await prisma.user.findUnique({
+      where: { piUserId: finalPiUserId },
+      select: userSelect,
+    });
+
+    if (user) {
+      // Utilisateur existant : on met a jour les champs de session et, si fourni, le phone.
+      user = await prisma.user.update({
+        where: { piUserId: finalPiUserId },
+        data: {
+          // On conserve le username existant en base; on ne l'ecrase pas avec celui de Pi
+          // pour eviter une collision avec un autre compte ayant deja ce username.
+          lastLoginAt: new Date(),
+          lastLoginIp: request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown",
+          ...(finalPhone && { phone: finalPhone }),
+        },
+        select: userSelect,
+      });
+    } else {
+      // Nouvel utilisateur : on tente de creer avec le username fourni par Pi.
+      // Si ce username est deja pris par un autre compte, on genere un username unique.
+      const baseCreateData = {
         piUserId: finalPiUserId,
-        username: finalUsername,
         phone: finalPhone,
-        role: "USER",
-        status: "ACTIVE",
+        role: "USER" as const,
+        status: "ACTIVE" as const,
         wallets: {
           create: [
-            { currency: "PI", balance: 0, type: "PI" },
-            { currency: "XAF", balance: 0, type: "FIAT" },
+            { currency: "PI", balance: 0, type: "PI" as const },
+            { currency: "XAF", balance: 0, type: "FIAT" as const },
           ],
         },
-      },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        piUserId: true,
-        firstName: true,
-        lastName: true,
-        avatar: true,
-        phone: true,
-        wallets: {
-          select: { currency: true, balance: true, type: true },
-        },
-      },
-    });
+      };
+
+      const tryCreate = async (usernameToUse: string) => {
+        return prisma.user.create({
+          data: { ...baseCreateData, username: usernameToUse },
+          select: userSelect,
+        });
+      };
+
+      const isP2002OnUsername = (e: any) =>
+        e?.code === "P2002" &&
+        (Array.isArray(e?.meta?.target)
+          ? e.meta.target.includes("username")
+          : typeof e?.meta?.target === "string" && e.meta.target.includes("username"));
+
+      try {
+        user = await tryCreate(finalUsername);
+      } catch (e1: any) {
+        if (!isP2002OnUsername(e1)) {
+          throw e1;
+        }
+        // Retry 1 : suffixe deterministe a partir du piUserId
+        const suffix1 = String(finalPiUserId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6) || "pi";
+        const candidate2 = `${finalUsername}_${suffix1}`;
+        try {
+          user = await tryCreate(candidate2);
+        } catch (e2: any) {
+          if (!isP2002OnUsername(e2)) {
+            throw e2;
+          }
+          // Retry 2 : suffixe aleatoire 4 caracteres
+          const rand = Math.random().toString(36).slice(2, 6).padEnd(4, "x");
+          const candidate3 = `${finalUsername}_${rand}`;
+          user = await tryCreate(candidate3);
+        }
+      }
+    }
 
     // Creation du JWT PimPay
     const SECRET = process.env.JWT_SECRET;
@@ -173,7 +222,35 @@ export async function POST(request: Request) {
     return response;
   } catch (error: any) {
     console.error("[PimPay] Pi Login Error:", error);
-    
+
+    // Gestion explicite d'une violation d'unicite residuelle -> 409 au lieu d'un 500 opaque
+    if (error?.code === "P2002") {
+      const target = error?.meta?.target;
+      const field = Array.isArray(target) ? target.join(", ") : String(target || "champ unique");
+
+      // Log l'erreur (non-bloquant)
+      prisma.systemLog.create({
+        data: {
+          level: "WARN",
+          source: "PI_LOGIN",
+          action: "LOGIN_CONFLICT",
+          message: `Conflit d'unicite Prisma sur ${field}`,
+          details: { error: error.message, code: error.code, target },
+          ip: request.headers.get("x-forwarded-for")?.split(",")[0] || null,
+          userAgent: request.headers.get("user-agent") || null,
+        },
+      }).catch(() => {});
+
+      return NextResponse.json(
+        {
+          error: "Conflit d'unicite lors de la synchronisation du compte Pi",
+          field,
+          code: "P2002",
+        },
+        { status: 409 }
+      );
+    }
+
     // Log l'erreur (non-bloquant)
     prisma.systemLog.create({
       data: {
