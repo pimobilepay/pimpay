@@ -66,6 +66,51 @@ export default function RootLayout({
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
         />
+        
+        {/* Initialisation immediate du SDK Pi apres chargement */}
+        <Script
+          id="pi-sdk-init"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function initPiSDK() {
+                if (typeof window === "undefined") return;
+                
+                function tryInit() {
+                  if (window.Pi && !window.__PI_SDK_READY__ && !window.__PI_SDK_INITIALIZING__) {
+                    try {
+                      window.__PI_SDK_INITIALIZING__ = true;
+                      window.Pi.init({ version: "2.0", sandbox: false });
+                      window.__PI_SDK_READY__ = true;
+                      window.__PI_SDK_INITIALIZING__ = false;
+                      console.log("[PimPay] SDK Pi 2.0 initialise via script inline");
+                    } catch (e) {
+                      window.__PI_SDK_INITIALIZING__ = false;
+                      if (e && e.message && e.message.includes("already")) {
+                        window.__PI_SDK_READY__ = true;
+                        console.log("[PimPay] SDK Pi deja initialise");
+                      } else {
+                        console.error("[PimPay] Erreur init SDK Pi:", e);
+                      }
+                    }
+                  } else if (!window.Pi) {
+                    // Reessayer dans 100ms si le SDK n'est pas encore charge
+                    setTimeout(tryInit, 100);
+                  }
+                }
+                
+                // Essayer immediatement puis avec un delai
+                if (document.readyState === "complete") {
+                  tryInit();
+                } else {
+                  window.addEventListener("load", tryInit);
+                }
+                // Aussi essayer apres un court delai au cas ou
+                setTimeout(tryInit, 500);
+              })();
+            `,
+          }}
+        />
 
         {/* Google Analytics */}
         <Script

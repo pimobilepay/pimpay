@@ -95,24 +95,41 @@ export const usePiAuth = () => {
   /**
    * Attendre que le SDK Pi soit disponible et initialise
    */
-  const waitForPiSDK = useCallback(async (maxWait = 8000): Promise<boolean> => {
+  const waitForPiSDK = useCallback(async (maxWait = 10000): Promise<boolean> => {
     const start = Date.now();
-    const checkInterval = 150;
+    const checkInterval = 100;
+    let attempts = 0;
+    
+    console.log("[PimPay] Attente du SDK Pi...");
     
     while (Date.now() - start < maxWait) {
+      attempts++;
+      
+      // Verifier si deja pret
+      if (window.__PI_SDK_READY__) {
+        console.log(`[PimPay] SDK Pi deja pret (tentative ${attempts})`);
+        return true;
+      }
+      
       if (window.Pi) {
         // SDK charge, on tente l'initialisation
         if (initializePiSDK()) {
+          console.log(`[PimPay] SDK Pi initialise avec succes (tentative ${attempts})`);
           return true;
         }
         // Si en cours d'init par un autre, attendre un peu plus
         if (window.__PI_SDK_INITIALIZING__) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          if (window.__PI_SDK_READY__) return true;
+          await new Promise(resolve => setTimeout(resolve, 50));
+          if (window.__PI_SDK_READY__) {
+            console.log(`[PimPay] SDK Pi initialise par un autre processus (tentative ${attempts})`);
+            return true;
+          }
         }
       }
       await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
+    
+    console.warn(`[PimPay] SDK Pi non disponible apres ${maxWait}ms (${attempts} tentatives). window.Pi=${!!window.Pi}, __PI_SDK_READY__=${window.__PI_SDK_READY__}`);
     return window.__PI_SDK_READY__ || false;
   }, [initializePiSDK]);
 
@@ -134,18 +151,24 @@ export const usePiAuth = () => {
     setLoading(true);
 
     try {
-      // Attendre que le SDK soit charge et initialise (max 8s)
-      const sdkReady = await waitForPiSDK(8000);
+      // Verifier d'abord si on est dans un environnement avec Pi SDK
+      if (typeof window.Pi === "undefined") {
+        console.warn("[PimPay] window.Pi n'existe pas - pas dans Pi Browser?");
+      }
+      
+      // Attendre que le SDK soit charge et initialise (max 10s)
+      const sdkReady = await waitForPiSDK(10000);
       
       if (!sdkReady || !window.Pi) {
-        toast.error("Veuillez ouvrir PimPay via le Pi Browser.", { duration: 5000 });
-        return { success: false, error: "SDK Pi non disponible" };
+        const errorMsg = !window.Pi 
+          ? "Veuillez ouvrir PimPay dans le Pi Browser pour vous connecter."
+          : "Le SDK Pi n'a pas pu s'initialiser. Rechargez la page.";
+        toast.error(errorMsg, { duration: 5000 });
+        return { success: false, error: errorMsg };
       }
-
+      
       // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
       const scopes = ["username", "payments"];
-      
-      console.log("[PimPay] Demarrage authentification Pi...");
       
       // Timeout de 60s pour l'authentification Pi (l'utilisateur peut prendre du temps)
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
