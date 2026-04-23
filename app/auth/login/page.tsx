@@ -113,14 +113,24 @@ export default function LoginPage() {
   // Login Pi Browser utilisant le Hook stable
   const handlePiBrowserLogin = async () => {
     try {
+      // Verifier si on est dans Pi Browser
+      if (typeof window !== "undefined" && !window.Pi) {
+        toast.error("Veuillez ouvrir cette page dans le Pi Browser", { duration: 5000 });
+        return;
+      }
+
       // Le hook gere l'attente du SDK et son initialisation
       const result = await loginWithPi();
       
       if (result && result.success) {
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
         triggerSuccessTransition(getRedirectPath(result.user?.role || "USER"));
+      } else if (result && !result.success) {
+        // L'erreur est deja affichee par le hook via toast
+        console.log("[v0] Pi login failed:", result.error);
       }
     } catch (error: any) {
+      console.error("[v0] Pi login exception:", error);
       toast.error(t("auth.login.piError"));
     }
   };

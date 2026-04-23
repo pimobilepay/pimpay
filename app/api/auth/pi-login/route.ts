@@ -163,6 +163,19 @@ export async function POST(request: Request) {
     return response;
   } catch (error: any) {
     console.error("[PimPay] Pi Login Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    
+    // Messages d'erreur plus clairs pour le client
+    let errorMessage = "Erreur de connexion. Veuillez reessayer.";
+    let statusCode = 500;
+    
+    if (error?.code === "P2002") {
+      errorMessage = "Conflit de donnees utilisateur. Veuillez contacter le support.";
+    } else if (error?.message?.includes("prisma") || error?.message?.includes("database")) {
+      errorMessage = "Erreur serveur temporaire. Veuillez reessayer.";
+    } else if (error?.message?.includes("fetch") || error?.message?.includes("network")) {
+      errorMessage = "Erreur de connexion au serveur Pi. Veuillez reessayer.";
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
 }

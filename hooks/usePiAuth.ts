@@ -192,19 +192,27 @@ export const usePiAuth = () => {
 
       let errorMsg = "Echec de la connexion securisee";
       
-      // Messages d'erreur plus clairs
-      if (error.message?.includes("User cancelled") || error.message?.includes("cancelled")) {
+      // Messages d'erreur plus clairs selon le type d'erreur
+      const errStr = String(error?.message || error || "").toLowerCase();
+      
+      if (errStr.includes("user cancelled") || errStr.includes("cancelled") || errStr.includes("canceled")) {
         errorMsg = "Connexion annulee par l'utilisateur";
-      } else if (error.message?.includes("disallowed") || error.message?.includes("scope")) {
+      } else if (errStr.includes("disallowed") || errStr.includes("scope") || errStr.includes("permission")) {
         errorMsg = "Veuillez autoriser l'acces a votre compte Pi";
-      } else if (error.message?.includes("timed out") || error.message?.includes("timeout")) {
-        errorMsg = "Connexion expir\u00e9e. Veuillez reessayer.";
-      } else if (error.message?.includes("not initialized") || error.message?.includes("init")) {
+      } else if (errStr.includes("timed out") || errStr.includes("timeout")) {
+        errorMsg = "Connexion expiree. Veuillez reessayer.";
+      } else if (errStr.includes("not initialized") || errStr.includes("init")) {
         errorMsg = "SDK Pi non initialise. Rechargez la page.";
-      } else if (error.message?.includes("network") || error.message?.includes("fetch")) {
-        errorMsg = "Erreur reseau. Verifiez votre connexion.";
-      } else if (error.message?.includes("Pi Browser") || error.message?.includes("browser")) {
+      } else if (errStr.includes("network") || errStr.includes("fetch") || errStr.includes("failed to fetch")) {
+        errorMsg = "Erreur reseau. Verifiez votre connexion internet.";
+      } else if (errStr.includes("pi browser") || errStr.includes("browser")) {
         errorMsg = "Veuillez utiliser le Pi Browser";
+      } else if (errStr.includes("unauthorized") || errStr.includes("401")) {
+        errorMsg = "Session expiree. Veuillez reessayer.";
+      } else if (errStr.includes("server") || errStr.includes("500") || errStr.includes("503")) {
+        errorMsg = "Erreur serveur. Veuillez reessayer dans quelques instants.";
+      } else if (errStr.includes("access token") || errStr.includes("token")) {
+        errorMsg = "Probleme d'authentification. Veuillez reessayer.";
       }
 
       toast.error(errorMsg, { duration: 5000 });

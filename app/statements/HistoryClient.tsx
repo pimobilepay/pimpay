@@ -221,8 +221,8 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       tx.fromName,
       tx.toName,
       tx.date,
-      `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)} ${tx.currency}`,
-      tx.fee > 0 ? `${tx.fee.toFixed(4)} ${tx.currency}` : "—",
+      `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`,
+      tx.fee >= 0 ? `${tx.fee.toFixed(tx.currency === "PI" ? 8 : 4)} ${tx.currency}` : "—",
       tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué",
     ]);
 
@@ -525,8 +525,8 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
           {/* DONNÉES FINANCIÈRES */}
           <div className="bg-slate-950/60 rounded-2xl p-4 space-y-2">
             <DetailRow label="Montant brut"  value={`${tx.amount.toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} />
-            {tx.fee > 0 && (
-              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed(4)} ${tx.currency}`} accent="text-amber-400" />
+            {tx.fee >= 0 && (
+              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed(tx.currency === "PI" ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
             )}
             {tx.netAmount !== null && tx.netAmount !== undefined && (
               <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
