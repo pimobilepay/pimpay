@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { signSessionToken } from "@/lib/jwt";
+import { SignJWT } from "jose";
 
 /**
  * POST /api/auth/pi-login
@@ -73,13 +73,24 @@ export async function POST(request: Request) {
       },
     });
 
-    // Creation du JWT PimPay
-    const token = await signSessionToken({
+    // Creation du JWT PimPay - utiliser jose directement pour eviter les exceptions
+    const SECRET = process.env.JWT_SECRET;
+    if (!SECRET) {
+      console.error("[PimPay] JWT_SECRET non configure");
+      return NextResponse.json({ error: "Config JWT manquante" }, { status: 500 });
+    }
+
+    const secretKey = new TextEncoder().encode(SECRET);
+    const token = await new SignJWT({
       id: user.id,
       role: user.role,
       username: user.username,
       piUserId: user.piUserId,
-    }, "30d");
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("30d")
+      .sign(secretKey);
 
     // Creation de la session en DB
     const userAgent = request.headers.get("user-agent") || "Pi Browser";
@@ -130,35 +141,21 @@ export async function POST(request: Request) {
     });
 
     // Cookies de session - compatibles Pi Browser HTTPS
-    // Pi Browser utilise un contexte HTTPS avec des restrictions sur les cookies
+    // Pi Browser necessite SameSite=None avec Secure=true pour fonctionner correctement
     const isProduction = process.env.NODE_ENV === "production";
     
-    // Configuration optimisee pour Pi Browser
+    // Configuration pour Pi Browser (cross-origin context)
     const cookieOptions = {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 jours
-      // SameSite=Lax est plus compatible avec Pi Browser que None
-      // None requiert Secure et peut causer des problemes avec certains Pi Browser
-      sameSite: "lax" as const,
-      secure: isProduction, // HTTPS en prod
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      secure: isProduction, // HTTPS requis pour SameSite=None
       httpOnly: true,
     };
 
-    // Cookies avec SameSite=None pour les requetes cross-origin si necessaire
-    const crossOriginCookieOptions = {
-      ...cookieOptions,
-      sameSite: "none" as const,
-      secure: true, // Obligatoire avec SameSite=None
-    };
-
-    // Cookie principal avec Lax (plus compatible)
+    // Definir les cookies de session
     response.cookies.set("pimpay_token", token, cookieOptions);
     response.cookies.set("token", token, cookieOptions);
-    
-    // Cookie backup pour les scenarios cross-origin (si en production HTTPS)
-    if (isProduction) {
-      response.cookies.set("pimpay_session", token, crossOriginCookieOptions);
-    }
 
     return response;
   } catch (error: any) {
@@ -166,7 +163,6 @@ export async function POST(request: Request) {
     
     // Messages d'erreur plus clairs pour le client
     let errorMessage = "Erreur de connexion. Veuillez reessayer.";
-    let statusCode = 500;
     
     if (error?.code === "P2002") {
       errorMessage = "Conflit de donnees utilisateur. Veuillez contacter le support.";
@@ -174,8 +170,10 @@ export async function POST(request: Request) {
       errorMessage = "Erreur serveur temporaire. Veuillez reessayer.";
     } else if (error?.message?.includes("fetch") || error?.message?.includes("network")) {
       errorMessage = "Erreur de connexion au serveur Pi. Veuillez reessayer.";
+    } else if (error?.message?.includes("JWT") || error?.message?.includes("jwt")) {
+      errorMessage = "Erreur de configuration serveur.";
     }
     
-    return NextResponse.json({ error: errorMessage }, { status: statusCode });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

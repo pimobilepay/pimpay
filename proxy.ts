@@ -29,9 +29,16 @@ export async function proxy(req: NextRequest) {
   // 2. EXCLUSIONS (On laisse passer les fichiers statiques et l'auth)
   const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|css|js)$/);
   const isAuthApi = pathname.startsWith("/api/auth");
+  const isApiRoute = pathname.startsWith("/api/");
   const isLoginPage = pathname === "/login" || pathname === "/" || pathname === "/auth/login";
 
+  // Laisser passer les assets, les routes API auth et les routes API generales
   if (isPublicAsset || isAuthApi) {
+    return NextResponse.next();
+  }
+  
+  // Pour les autres routes API, on continue sans redirection mais avec validation
+  if (isApiRoute) {
     return NextResponse.next();
   }
 
@@ -73,7 +80,13 @@ export async function proxy(req: NextRequest) {
   // Redirection depuis la page de login si deja connecte
   if (userPayload && isLoginPage) {
     const dest = getDestinationByRole(userRole);
-    return NextResponse.redirect(new URL(dest, req.url));
+    // Utiliser redirect 302 au lieu de 307 pour eviter les problemes de cache
+    const response = NextResponse.redirect(new URL(dest, req.url), 302);
+    // Desactiver le cache pour les pages d'auth
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+    return response;
   }
 
   // Protection des routes
@@ -89,7 +102,11 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/profile");
     
   if (!userPayload && isProtectedPath) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+    // Utiliser redirect 302 pour eviter les problemes de cache
+    const response = NextResponse.redirect(new URL("/auth/login", req.url), 302);
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    return response;
   }
 
   // Protection route /admin - uniquement pour ADMIN
