@@ -1045,7 +1045,7 @@ export default function AdminLogsPage() {
                 </button>
                 <button
                   onClick={() => {
-                    setSourceFilter("PI_API");
+                    setSourceFilter(sourceFilter === "PI_API" ? "" : "PI_API");
                     setSystemPage(1);
                   }}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -1057,7 +1057,22 @@ export default function AdminLogsPage() {
                   <Server size={14} />
                   API Pi Network
                 </button>
+                <button
+                  onClick={() => {
+                    setSourceFilter(sourceFilter === "PI_LOGIN" ? "" : "PI_LOGIN");
+                    setSystemPage(1);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                    sourceFilter === "PI_LOGIN"
+                      ? "bg-amber-600 text-white"
+                      : "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                  }`}
+                >
+                  <Server size={14} />
+                  Pi Login
+                </button>
               </div>
+            </div>
             </div>
 
             {/* SYSTEM SEARCH & FILTERS */}
