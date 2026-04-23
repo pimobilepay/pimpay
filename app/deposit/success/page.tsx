@@ -84,7 +84,7 @@ function SuccessContent() {
   const reference = transaction?.reference || ref || txid || "PIMPAY-TX";
   const createdAt = transaction?.createdAt ? new Date(transaction.createdAt) : new Date();
 
-  const fee = transaction?.fee ?? (currency === "PI" ? "0.01 PI" : "0.00");
+  const fee = transaction?.fee ?? (currency === "PI" ? 0.01 : 0);
   const network = currency === "PI" ? "Pi Network" : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" : "PimPay";
 
   // Crypto currencies that display 8 decimal places
@@ -100,19 +100,23 @@ function SuccessContent() {
   };
 
   const formatFee = (rawFee: string | number, cur: string): string => {
-    if (rawFee === null || rawFee === undefined || rawFee === "") return "0.00";
+    if (rawFee === null || rawFee === undefined || rawFee === "") {
+      // Valeur par defaut avec 8 decimales pour crypto
+      return isCrypto(cur) ? `0.00000000 ${cur}` : "0.00";
+    }
 
     const strFee = String(rawFee).trim();
-    const match = strFee.match(/^([\d.]+)\s*([A-Z]*)$/);
+    const match = strFee.match(/^([\d.]+)\s*([A-Z]*)$/i);
 
     if (match) {
       const numVal = parseFloat(match[1]);
-      const feeCur = match[2] || cur;
+      const feeCur = match[2]?.toUpperCase() || cur;
 
       if (isNaN(numVal)) return strFee;
 
       if (isCrypto(feeCur)) {
-        const formatted = numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0");
+        // Toujours afficher 8 decimales pour les cryptos
+        const formatted = numVal.toFixed(8);
         return feeCur ? `${formatted} ${feeCur}` : formatted;
       }
 
@@ -128,7 +132,8 @@ function SuccessContent() {
     const numVal = parseFloat(strFee);
     if (!isNaN(numVal)) {
       if (isCrypto(cur)) {
-        return numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0") + ` ${cur}`;
+        // Toujours afficher 8 decimales pour les cryptos
+        return numVal.toFixed(8) + ` ${cur}`;
       }
       return numVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
