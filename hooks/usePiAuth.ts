@@ -167,8 +167,8 @@ export const usePiAuth = () => {
         return { success: false, error: errorMsg };
       }
       
-      // Scopes standards uniquement (wallet_address requiert approbation mainnet supplementaire)
-      const scopes = ["username", "payments"];
+      // Scopes: username, payments, et phone_number pour recuperer le numero
+      const scopes = ["username", "payments", "phone_number"];
       
       // Timeout de 60s pour l'authentification Pi (l'utilisateur peut prendre du temps)
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);
@@ -185,6 +185,9 @@ export const usePiAuth = () => {
       console.log("[PimPay] Authentification Pi reussie, sync backend...");
 
       // Synchronisation avec le backend PimPay
+      // Pi Network retourne le phone dans auth.user.credentials.phone_number si le scope est approuve
+      const phone = auth.user?.credentials?.phone_number || null;
+      
       const response = await fetch("/api/auth/pi-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,6 +196,7 @@ export const usePiAuth = () => {
           accessToken: auth.accessToken,
           piUserId: auth.user.uid,
           username: auth.user.username,
+          phone: phone,
         }),
       });
 
