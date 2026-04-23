@@ -31,9 +31,9 @@ export async function GET() {
 
     if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // New Reward: 0.0005 PI per referral
+    // Reward: 0.0000318 PI per referral (~10 USD selon GCV $314,159)
     const totalReferrals = user.referrals.length;
-    const rewardPerReferral = 0.0005;
+    const rewardPerReferral = 0.0000318;
     const totalRewards = totalReferrals * rewardPerReferral;
 
     return NextResponse.json({
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       data: { referredById: referrer.id },
     });
 
-    // Grant bonus to referrer (0.0005 PI)
+    // Grant bonus to referrer: 0.0000318 PI (~10 USD selon GCV $314,159)
     const referrerPiWallet = await prisma.wallet.findFirst({
       where: { userId: referrer.id, currency: "PI" },
     });
@@ -103,13 +103,13 @@ export async function POST(req: Request) {
     if (referrerPiWallet) {
       await prisma.wallet.update({
         where: { id: referrerPiWallet.id },
-        data: { balance: { increment: 0.0005 } },
+        data: { balance: { increment: 0.0000318 } },
       });
 
       await prisma.transaction.create({
         data: {
           reference: `REF-BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.0005,
+          amount: 0.0000318,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Grant bonus to new user (0.00025 PI)
+    // Grant bonus to new user: 0.0000159 PI (~5 USD selon GCV $314,159)
     const userPiWallet = await prisma.wallet.findFirst({
       where: { userId, currency: "PI" },
     });
@@ -128,13 +128,13 @@ export async function POST(req: Request) {
     if (userPiWallet) {
       await prisma.wallet.update({
         where: { id: userPiWallet.id },
-        data: { balance: { increment: 0.00025 } },
+        data: { balance: { increment: 0.0000159 } },
       });
 
       await prisma.transaction.create({
         data: {
           reference: `REF-WELCOME-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.00025,
+          amount: 0.0000159,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Parrainage appliqué ! Bonus: +0.00025 PI pour vous, +0.0005 PI pour ${referrer.name || referrer.username}`,
+      message: `Parrainage appliqué ! Bonus: +0.0000159 PI (~5$) pour vous, +0.0000318 PI (~10$) pour ${referrer.name || referrer.username}`,
       referrerName: referrer.name || referrer.username,
     });
   } catch (error: any) {
