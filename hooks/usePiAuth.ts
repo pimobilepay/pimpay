@@ -167,8 +167,10 @@ export const usePiAuth = () => {
         return { success: false, error: errorMsg };
       }
       
-      // Scopes: username, payments, et phone_number pour recuperer le numero
-      const scopes = ["username", "payments", "phone_number"];
+      // Scopes: username et payments uniquement (conformement a la config Mainnet de l'app)
+      // phone_number retire car il necessite une approbation separee et declenche
+      // une redemande d'autorisation bloquante dans le Pi Browser.
+      const scopes = ["username", "payments"];
       
       // Timeout de 60s pour l'authentification Pi (l'utilisateur peut prendre du temps)
       const authPromise = window.Pi.authenticate(scopes, handleIncompletePayment);

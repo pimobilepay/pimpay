@@ -21,6 +21,15 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     const { userId } = await context.params;
 
+    // Validation: userId est un String (cuid) dans le schema Prisma.
+    // Pas de parseInt. On verifie juste qu'il est non vide.
+    if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
+      return NextResponse.json(
+        { error: "userId invalide" },
+        { status: 400 }
+      );
+    }
+
     // Get user info with country
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -32,7 +41,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         avatar: true,
         role: true,
         status: true,
-        lastLogin: true,
+        lastLoginAt: true,
         createdAt: true,
         country: true,
       },
@@ -106,8 +115,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
     // Is user currently online (active in last 5 minutes)?
     const isOnline = currentSession !== null;
 
+    // Remap lastLoginAt -> lastLogin to preserve the existing API contract
+    // consumed by /admin/logs and /admin/analytics.
+    const { lastLoginAt, ...userRest } = user;
+    const userResponse = { ...userRest, lastLogin: lastLoginAt };
+
     return NextResponse.json({
-      user,
+      user: userResponse,
       isOnline,
       currentPage: currentSession?.page || null,
       currentDevice: currentSession?.device || null,
