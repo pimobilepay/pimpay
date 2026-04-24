@@ -3,8 +3,8 @@
 import { Suspense } from "react";
 import {
   CheckCircle2, ArrowRight, Receipt, Wallet, Loader2,
-  Share2, Lock, Copy, Smartphone, Building2, ShieldCheck,
-  Clock, Activity, Coins
+  Share2, Copy, Smartphone, Building2, ShieldCheck,
+  Clock, Activity, Coins, TrendingUp, Banknote, Shield, User
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -145,20 +145,138 @@ function SuccessContent() {
         transition={{ duration: 0.5, delay: 0.15 }}
         className="w-full max-w-sm relative z-10 space-y-3"
       >
-        {/* Beneficiary detail */}
+        {/* Main Transaction Card - Similar to transfer success */}
+        <div className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 backdrop-blur-xl">
+          {/* Amount -> Recipient flow */}
+          <div className="flex items-center justify-between mb-5 gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                Montant Retire
+              </p>
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-black text-white text-sm"
+                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
+                >
+                  {currency === "PI" ? "PI" : currency.slice(0, 2)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-lg font-black truncate text-white">
+                    {formatAmount(amount)}
+                  </p>
+                  <p className="text-xs text-slate-400 font-bold">{currency}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center shrink-0">
+              <motion.div
+                animate={{ x: [0, 5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="w-9 h-9 rounded-full flex items-center justify-center border bg-emerald-500/10 border-emerald-500/20"
+              >
+                <ArrowRight size={16} className="text-emerald-400" />
+              </motion.div>
+            </div>
+
+            <div className="flex-1 min-w-0 text-right">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                Destinataire
+              </p>
+              <div className="flex items-center gap-2 justify-end">
+                <div className="min-w-0">
+                  <p className="text-lg font-black truncate text-emerald-400">
+                    {isCrypto ? "Wallet Externe" : isMobile ? provider || "Mobile" : bankName || "Banque"}
+                  </p>
+                  <p className="text-xs text-slate-400 font-bold">
+                    {isCrypto ? currency : isMobile ? phone : accountNumber}
+                  </p>
+                </div>
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-black text-white text-sm border border-white/10"
+                  style={{ background: "linear-gradient(135deg, #64748b, #334155)" }}
+                >
+                  {isCrypto ? <Coins size={16} /> : isMobile ? <Smartphone size={16} /> : <Building2 size={16} />}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
+
+          {/* Fiat equivalent */}
+          {formatFiat(fiatAmount) && (
+            <div className="flex justify-center mb-4">
+              <span className="text-[11px] font-black uppercase tracking-widest py-1 px-4 rounded-full border inline-block bg-emerald-500/5 border-emerald-500/10 text-emerald-500/80">
+                ≈ {formatFiat(fiatAmount)} {fiatCurrency}
+              </span>
+            </div>
+          )}
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/5 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <TrendingUp size={10} className="text-blue-400" />
+                <p className="text-[8px] font-black text-slate-500 uppercase">Reseau</p>
+              </div>
+              <p className="text-xs font-bold text-white">
+                {isCrypto ? `${currency} Network` : isMobile ? "Mobile Money" : "Virement Bancaire"}
+              </p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Banknote size={10} className="text-amber-400" />
+                <p className="text-[8px] font-black text-slate-500 uppercase">Frais</p>
+              </div>
+              <p className="text-xs font-bold text-white">
+                {isCrypto ? "0.001 " + currency : isMobile ? "0 " + fiatCurrency : "Variable"}
+              </p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Clock size={10} className="text-purple-400" />
+                <p className="text-[8px] font-black text-slate-500 uppercase">Date & Heure</p>
+              </div>
+              <p className="text-xs font-bold text-white">
+                {new Date().toLocaleDateString("fr-FR", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Shield size={10} className="text-amber-400" />
+                <p className="text-[8px] font-black text-slate-500 uppercase">Statut</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full animate-pulse bg-amber-500" />
+                <p className="text-xs font-bold text-amber-400">En traitement</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Beneficiary details card */}
         {isCrypto ? (
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-left space-y-2">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse Crypto</p>
             {cryptoAddress && (
               <div className="flex justify-between items-start">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currency} Address</span>
-                <span className="text-[11px] font-mono font-bold text-slate-300 max-w-[180px] text-right">{cryptoAddress}</span>
+                <span className="text-[11px] font-mono font-bold text-slate-300 max-w-[180px] text-right break-all">{cryptoAddress}</span>
               </div>
             )}
           </div>
         ) : isMobile ? (
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-left space-y-2">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Beneficiaire</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Details Beneficiaire</p>
             {provider && (
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Operateur</span>
@@ -171,10 +289,16 @@ function SuccessContent() {
                 <span className="text-[11px] font-mono font-bold text-slate-300">{phone}</span>
               </div>
             )}
+            {country && (
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pays</span>
+                <span className="text-[11px] font-bold text-slate-300">{country}</span>
+              </div>
+            )}
           </div>
         ) : bankName || accountNumber ? (
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-left space-y-2">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Beneficiaire Bancaire</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Details Beneficiaire Bancaire</p>
             {bankName && (
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Banque</span>
