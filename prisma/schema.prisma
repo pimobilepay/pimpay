@@ -184,6 +184,8 @@ model SystemConfig {
   billPaymentFee     Float     @default(0.015)
   qrPaymentFee       Float     @default(0.01)
   fiatTransferFee    Float     @default(0.005)
+  referralBonus      Float     @default(0.0005)
+  referralWelcomeBonus Float   @default(0.00025)
 }
 
 model DailyStats {

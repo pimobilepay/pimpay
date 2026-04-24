@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getFeeConfig, getFeeRate, type FeeType } from "@/lib/fees";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,6 +15,20 @@ export async function GET(req: NextRequest) {
 
     // Récupère la config centralisée
     const feeConfig = await getFeeConfig();
+    
+    // Récupère les bonus de parrainage
+    let referralBonus = 0.0005;
+    let referralWelcomeBonus = 0.00025;
+    try {
+      const systemConfig = await prisma.systemConfig.findUnique({
+        where: { id: "GLOBAL_CONFIG" },
+        select: { referralBonus: true, referralWelcomeBonus: true }
+      });
+      if (systemConfig) {
+        referralBonus = systemConfig.referralBonus ?? 0.0005;
+        referralWelcomeBonus = systemConfig.referralWelcomeBonus ?? 0.00025;
+      }
+    } catch { /* Use defaults */ }
 
     // Fee pour le type demandé
     const fee = getFeeRate(feeConfig, type);
@@ -49,6 +64,11 @@ export async function GET(req: NextRequest) {
           merchantPaymentFee: feeConfig.merchantPaymentFee,
           billPaymentFee: feeConfig.billPaymentFee,
           qrPaymentFee: feeConfig.qrPaymentFee,
+        },
+        // Referral bonuses
+        referral: {
+          referralBonus,
+          referralWelcomeBonus,
         },
         minWithdrawal: feeConfig.minWithdrawal,
         maxWithdrawal: feeConfig.maxWithdrawal,

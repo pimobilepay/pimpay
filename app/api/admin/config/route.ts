@@ -20,6 +20,8 @@ const FALLBACK_CONFIG = {
   minWithdrawal: 10.0,
   globalAnnouncement: "",
   forceUpdate: false,
+  referralBonus: 0.0005,
+  referralWelcomeBonus: 0.00025,
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
@@ -198,7 +200,9 @@ export async function POST(req: NextRequest) {
       // Payment fee fields
       cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee,
       // Limits
-      maxWithdrawal
+      maxWithdrawal,
+      // Referral bonus
+      referralBonus, referralWelcomeBonus
     } = body;
 
     // Build update data, handling maintenanceUntil properly
@@ -232,6 +236,9 @@ export async function POST(req: NextRequest) {
     if (merchantPaymentFee !== undefined) updateData.merchantPaymentFee = Number(merchantPaymentFee);
     if (billPaymentFee !== undefined) updateData.billPaymentFee = Number(billPaymentFee);
     if (qrPaymentFee !== undefined) updateData.qrPaymentFee = Number(qrPaymentFee);
+    // Referral bonus fields
+    if (referralBonus !== undefined) updateData.referralBonus = Number(referralBonus);
+    if (referralWelcomeBonus !== undefined) updateData.referralWelcomeBonus = Number(referralWelcomeBonus);
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },

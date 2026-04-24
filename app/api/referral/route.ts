@@ -4,6 +4,22 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+// Helper to get referral config from SystemConfig
+async function getReferralConfig() {
+  try {
+    const config = await prisma.systemConfig.findUnique({
+      where: { id: "GLOBAL_CONFIG" },
+      select: { referralBonus: true, referralWelcomeBonus: true }
+    });
+    return {
+      referralBonus: config?.referralBonus ?? 0.0005,
+      referralWelcomeBonus: config?.referralWelcomeBonus ?? 0.00025
+    };
+  } catch {
+    return { referralBonus: 0.0005, referralWelcomeBonus: 0.00025 };
+  }
+}
+
 // GET - Fetch referral stats for the current user
 export async function GET() {
   try {
@@ -31,9 +47,10 @@ export async function GET() {
 
     if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-    // New Reward: 0.0005 PI per referral
+    // Get referral bonus from centralized config
+    const referralConfig = await getReferralConfig();
     const totalReferrals = user.referrals.length;
-    const rewardPerReferral = 0.0005;
+    const rewardPerReferral = referralConfig.referralBonus;
     const totalRewards = totalReferrals * rewardPerReferral;
 
     return NextResponse.json({
@@ -89,13 +106,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Code de parrainage invalide" }, { status: 404 });
     }
 
+    // Get referral config from centralized settings
+    const referralConfig = await getReferralConfig();
+    const { referralBonus, referralWelcomeBonus } = referralConfig;
+
     // Apply referral
     await prisma.user.update({
       where: { id: userId },
       data: { referredById: referrer.id },
     });
 
-    // Grant bonus to referrer (0.0005 PI)
+    // Grant bonus to referrer
     const referrerPiWallet = await prisma.wallet.findFirst({
       where: { userId: referrer.id, currency: "PI" },
     });
@@ -103,13 +124,13 @@ export async function POST(req: Request) {
     if (referrerPiWallet) {
       await prisma.wallet.update({
         where: { id: referrerPiWallet.id },
-        data: { balance: { increment: 0.0005 } },
+        data: { balance: { increment: referralBonus } },
       });
 
       await prisma.transaction.create({
         data: {
           reference: `REF-BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.0005,
+          amount: referralBonus,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
@@ -120,7 +141,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Grant bonus to new user (0.00025 PI)
+    // Grant bonus to new user
     const userPiWallet = await prisma.wallet.findFirst({
       where: { userId, currency: "PI" },
     });
@@ -128,13 +149,13 @@ export async function POST(req: Request) {
     if (userPiWallet) {
       await prisma.wallet.update({
         where: { id: userPiWallet.id },
-        data: { balance: { increment: 0.00025 } },
+        data: { balance: { increment: referralWelcomeBonus } },
       });
 
       await prisma.transaction.create({
         data: {
           reference: `REF-WELCOME-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          amount: 0.00025,
+          amount: referralWelcomeBonus,
           currency: "PI",
           type: "AIRDROP",
           status: "SUCCESS",
@@ -147,7 +168,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Parrainage appliqué ! Bonus: +0.00025 PI pour vous, +0.0005 PI pour ${referrer.name || referrer.username}`,
+      message: `Parrainage appliqué ! Bonus: +${referralWelcomeBonus} PI pour vous, +${referralBonus} PI pour ${referrer.name || referrer.username}`,
       referrerName: referrer.name || referrer.username,
     });
   } catch (error: any) {
