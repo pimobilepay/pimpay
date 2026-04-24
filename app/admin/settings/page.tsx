@@ -660,34 +660,46 @@ export default function SystemSettings() {
                     <span className="text-emerald-500 text-xs">Bonus Parrain (PI)</span>
                   </div>
                   <input 
-                    type="number" 
-                    step="0.0001" 
+                    type="text" 
+                    inputMode="decimal"
                     min="0"
                     value={config.referralBonus} 
-                    onChange={(e) => setConfig({...config, referralBonus: parseFloat(e.target.value) || 0})} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        setConfig({...config, referralBonus: value === '' ? 0 : parseFloat(value) || 0});
+                      }
+                    }} 
+                    placeholder="0.0000000"
                     className="w-full bg-slate-950/50 border border-white/5 rounded-xl p-4 text-white font-mono focus:border-emerald-500/50 outline-none transition-all shadow-inner" 
                   />
-                  <p className="text-[8px] text-slate-500 ml-1">Bonus attribue au parrain lors d&apos;une inscription</p>
+                  <p className="text-[8px] text-slate-500 ml-1">Bonus attribue au parrain (ex: 0.0000001)</p>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 ml-1">
                     <span className="text-emerald-500 text-xs">Bonus Bienvenue (PI)</span>
                   </div>
                   <input 
-                    type="number" 
-                    step="0.0001" 
+                    type="text" 
+                    inputMode="decimal"
                     min="0"
                     value={config.referralWelcomeBonus} 
-                    onChange={(e) => setConfig({...config, referralWelcomeBonus: parseFloat(e.target.value) || 0})} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        setConfig({...config, referralWelcomeBonus: value === '' ? 0 : parseFloat(value) || 0});
+                      }
+                    }} 
+                    placeholder="0.0000000"
                     className="w-full bg-slate-950/50 border border-white/5 rounded-xl p-4 text-white font-mono focus:border-emerald-500/50 outline-none transition-all shadow-inner" 
                   />
-                  <p className="text-[8px] text-slate-500 ml-1">Bonus attribue au nouvel utilisateur parraine</p>
+                  <p className="text-[8px] text-slate-500 ml-1">Bonus attribue au filleul (ex: 0.0000001)</p>
                 </div>
                 <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 mt-2">
                   <p className="text-[9px] text-emerald-400 font-bold">Valeurs actuelles:</p>
                   <div className="flex gap-4 mt-1">
-                    <span className="text-[10px] text-white font-mono">Parrain: <span className="text-emerald-400">{config.referralBonus} PI</span></span>
-                    <span className="text-[10px] text-white font-mono">Filleul: <span className="text-emerald-400">{config.referralWelcomeBonus} PI</span></span>
+                    <span className="text-[10px] text-white font-mono">Parrain: <span className="text-emerald-400">{Number(config.referralBonus).toFixed(10).replace(/\.?0+$/, '')} PI</span></span>
+                    <span className="text-[10px] text-white font-mono">Filleul: <span className="text-emerald-400">{Number(config.referralWelcomeBonus).toFixed(10).replace(/\.?0+$/, '')} PI</span></span>
                   </div>
                 </div>
               </div>
