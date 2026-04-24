@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,44 +17,42 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { z } from "zod";
+import worldCountries from "world-countries";
 
 type SignupType = "user" | "business";
 type MFAMethod = "authenticator" | "pin";
 
-type Country = { code: string; name: string; flag: string; dialCode: string };
+type Country = { code: string; name: string; dialCode: string };
 
-const COUNTRIES: Country[] = [
-  { code: "CG", name: "Congo-Brazzaville", flag: "🇨🇬", dialCode: "+242" },
-  { code: "CD", name: "Congo-Kinshasa (RDC)", flag: "🇨🇩", dialCode: "+243" },
-  { code: "CM", name: "Cameroun", flag: "🇨🇲", dialCode: "+237" },
-  { code: "GA", name: "Gabon", flag: "🇬🇦", dialCode: "+241" },
-  { code: "SN", name: "Senegal", flag: "🇸🇳", dialCode: "+221" },
-  { code: "CI", name: "Cote d'Ivoire", flag: "🇨🇮", dialCode: "+225" },
-  { code: "ML", name: "Mali", flag: "🇲🇱", dialCode: "+223" },
-  { code: "BF", name: "Burkina Faso", flag: "🇧🇫", dialCode: "+226" },
-  { code: "NE", name: "Niger", flag: "🇳🇪", dialCode: "+227" },
-  { code: "TG", name: "Togo", flag: "🇹🇬", dialCode: "+228" },
-  { code: "BJ", name: "Benin", flag: "🇧🇯", dialCode: "+229" },
-  { code: "GN", name: "Guinee", flag: "🇬🇳", dialCode: "+224" },
-  { code: "MG", name: "Madagascar", flag: "🇲🇬", dialCode: "+261" },
-  { code: "TN", name: "Tunisie", flag: "🇹🇳", dialCode: "+216" },
-  { code: "MA", name: "Maroc", flag: "🇲🇦", dialCode: "+212" },
-  { code: "DZ", name: "Algerie", flag: "🇩🇿", dialCode: "+213" },
-  { code: "NG", name: "Nigeria", flag: "🇳🇬", dialCode: "+234" },
-  { code: "GH", name: "Ghana", flag: "🇬🇭", dialCode: "+233" },
-  { code: "FR", name: "France", flag: "🇫🇷", dialCode: "+33" },
-  { code: "BE", name: "Belgique", flag: "🇧🇪", dialCode: "+32" },
-  { code: "CH", name: "Suisse", flag: "🇨🇭", dialCode: "+41" },
-  { code: "CA", name: "Canada", flag: "🇨🇦", dialCode: "+1" },
-  { code: "US", name: "Etats-Unis", flag: "🇺🇸", dialCode: "+1" },
-  { code: "GB", name: "Royaume-Uni", flag: "🇬🇧", dialCode: "+44" },
-  { code: "DE", name: "Allemagne", flag: "🇩🇪", dialCode: "+49" },
-  { code: "IT", name: "Italie", flag: "🇮🇹", dialCode: "+39" },
-  { code: "ES", name: "Espagne", flag: "🇪🇸", dialCode: "+34" },
-  { code: "PT", name: "Portugal", flag: "🇵🇹", dialCode: "+351" },
-  { code: "BR", name: "Bresil", flag: "🇧🇷", dialCode: "+55" },
-  { code: "CN", name: "Chine", flag: "🇨🇳", dialCode: "+86" },
+// Build country list from world-countries with dial codes
+const COUNTRIES: Country[] = worldCountries
+  .map((country) => ({
+    code: country.cca2,
+    name: country.translations?.fra?.common || country.name.common,
+    dialCode: country.idd?.root
+      ? `${country.idd.root}${country.idd.suffixes?.[0] || ""}`
+      : "",
+  }))
+  .filter((c) => c.dialCode) // Only countries with dial codes
+  .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+
+// Priority countries to show at top (African French-speaking countries first)
+const PRIORITY_CODES = [
+  "CG", "CD", "CM", "GA", "SN", "CI", "ML", "BF", "NE", "TG", "BJ", "GN",
+  "MG", "TN", "MA", "DZ", "NG", "GH", "FR", "BE", "CH", "CA", "US", "GB"
 ];
+
+function getSortedCountries(countries: Country[]): Country[] {
+  const priorityCountries = PRIORITY_CODES
+    .map((code) => countries.find((c) => c.code === code))
+    .filter(Boolean) as Country[];
+  
+  const otherCountries = countries.filter(
+    (c) => !PRIORITY_CODES.includes(c.code)
+  );
+  
+  return [...priorityCountries, ...otherCountries];
+}
 
 // Zod validation for 6-digit PIN
 const pinSchema = z.string().length(6, "Le PIN doit contenir 6 chiffres").regex(/^\d+$/, "Le PIN ne doit contenir que des chiffres");
@@ -108,8 +106,11 @@ export default function SignupPage() {
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
 
-  const selectedCountry = COUNTRIES.find(c => c.code === formData.country) || COUNTRIES[0];
-  const filteredCountries = COUNTRIES.filter(c =>
+  // Memoize sorted countries list
+  const sortedCountries = useMemo(() => getSortedCountries(COUNTRIES), []);
+  
+  const selectedCountry = sortedCountries.find(c => c.code === formData.country) || sortedCountries[0];
+  const filteredCountries = sortedCountries.filter(c =>
     c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
     c.dialCode.includes(countrySearch) ||
     c.code.toLowerCase().includes(countrySearch.toLowerCase())
@@ -442,7 +443,7 @@ export default function SignupPage() {
               <Gift className="text-emerald-400 flex-shrink-0" size={20} />
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Bonus Parrainage</p>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{"Inscrivez-vous et recevez 0.25 PI de bonus !"}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{"Inscrivez-vous et recevez 0.0000159π de bonus !"}</p>
               </div>
             </div>
           )}
@@ -547,7 +548,7 @@ export default function SignupPage() {
                   onClick={() => { setCountryDropdownOpen(prev => !prev); setCountrySearch(""); }}
                   className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl flex items-center gap-3 hover:border-blue-500/30 focus:border-blue-500/50 transition-all outline-none"
                 >
-                  <span className="text-xl leading-none">{selectedCountry.flag}</span>
+                  <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-xl rounded-sm`} />
                   <span className="flex-1 text-left text-sm font-medium">{selectedCountry.name}</span>
                   <span className="text-xs text-slate-500 font-mono">{selectedCountry.dialCode}</span>
                   <ChevronDown
@@ -590,7 +591,7 @@ export default function SignupPage() {
                               formData.country === country.code ? "bg-blue-500/10 text-blue-400" : "text-white"
                             }`}
                           >
-                            <span className="text-lg leading-none">{country.flag}</span>
+                            <span className={`fi fi-${country.code.toLowerCase()} text-lg rounded-sm`} />
                             <span className="flex-1 text-left text-xs font-medium">{country.name}</span>
                             <span className="text-[10px] font-mono text-slate-500">{country.dialCode}</span>
                           </button>
@@ -653,12 +654,12 @@ export default function SignupPage() {
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("extra.phone")}</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
-                    <span className="text-base leading-none">{selectedCountry.flag}</span>
+                    <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-base rounded-sm`} />
                     <span className="text-xs text-slate-500 font-mono border-r border-white/10 pr-2">{selectedCountry.dialCode}</span>
                   </span>
                   <input
                     type="tel"
-                    className="w-full h-12 pl-[72px] pr-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all"
+                    className="w-full h-12 pl-[76px] pr-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl outline-none focus:border-blue-500/50 transition-all"
                     placeholder="XX XXX XXXX"
                     value={formData.phone}
                     onChange={e => handleChange("phone", e.target.value)}

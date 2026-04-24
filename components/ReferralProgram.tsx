@@ -103,8 +103,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
   function handleShare() {
     if (!data?.referralCode) return;
     const link = `${typeof window !== "undefined" ? window.location.origin : ""}/auth/signup?ref=${data.referralCode}`;
-    // Correction ici : 0.00025 PI pour le bonus filleul
-    const text = `Rejoins PimPay et gagne 0.00025 PI de bonus ! Utilise mon lien : ${link}`;
+    const text = `Rejoins PimPay et gagne 0.0000159π de bonus ! Utilise mon lien : ${link}`;
     if (navigator.share) {
       navigator.share({ title: "PimPay - Programme de Parrainage", text, url: link }).catch(() => null);
     } else {
@@ -223,8 +222,7 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
                   {[
                     { step: "01", text: "Partagez votre lien unique avec vos amis" },
                     { step: "02", text: "Votre ami s'inscrit via votre lien" },
-                    // Correction ici : 0.0005 PI et 0.00025 PI
-                    { step: "03", text: "Vous recevez 0.0005 PI et votre ami 0.00025 PI" },
+                    { step: "03", text: "Vous recevez 0.0000318π et votre ami 0.0000159π" },
                   ].map((item) => (
                     <div key={item.step} className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -301,9 +299,8 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      {/* Correction ici : +0.0005 PI */}
                       <p className="text-[10px] font-black text-emerald-400">
-                        +0.0005 PI
+                        +0.0000318π
                       </p>
                       <p className="text-[8px] text-slate-600 font-bold">
                         {new Date(referral.createdAt).toLocaleDateString("fr-FR")}
@@ -347,9 +344,8 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
                         Entrez un code de parrainage
                       </span>
                     </div>
-                    {/* Correction ici : 0.00025 PI */}
                     <p className="text-[10px] text-slate-500 font-bold mb-4">
-                      Si un ami vous a invite, entrez son code pour recevoir un bonus de 0.00025 PI.
+                      Si un ami vous a invite, entrez son code pour recevoir un bonus de 0.0000159π.
                     </p>
                     <div className="flex items-center gap-3">
                       <input
