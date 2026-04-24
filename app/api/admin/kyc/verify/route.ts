@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { grantReferrerBonusIfEligible } from "@/app/api/referral/route";
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
         kycReason: status === "REJECTED" ? reason : null,
       },
     });
+
+    // Si KYC approuve, verifier et accorder le bonus de parrainage si eligible
+    if (status === "APPROVED") {
+      await grantReferrerBonusIfEligible(userId);
+    }
 
     return NextResponse.json({ message: "Statut mis à jour", user: updatedUser });
   } catch (error) {

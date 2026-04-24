@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { grantReferrerBonusIfEligible } from "@/app/api/referral/route";
 
 export async function POST(req: NextRequest) {
   try {
@@ -100,6 +101,9 @@ export async function POST(req: NextRequest) {
         }),
       }
     });
+
+    // 8. Verifier et accorder le bonus de parrainage si eligible (KYC + premier depot)
+    await grantReferrerBonusIfEligible(userId);
 
     return NextResponse.json({
       success: true,
