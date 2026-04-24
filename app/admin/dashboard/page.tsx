@@ -499,6 +499,29 @@ function DashboardContent() {
     } catch (e) { toast.error("Erreur de connexion serveur"); }
   };
 
+  const handlePrivateMessage = async (userId: string, userName: string, message: string) => {
+    try {
+      const res = await fetch("/api/admin/users/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "SEND_PRIVATE_MESSAGE", extraData: message }),
+      });
+      
+      if (res.ok) {
+        toast.success(`Message prive envoye a ${userName}`, {
+          description: "L'utilisateur recevra une notification",
+          icon: "📧",
+          duration: 4000,
+        });
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de l'envoi du message");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    }
+  };
+
   const handleDeleteUser = (userId: string, userName: string) => {
     const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName} ?\n\nCette action est IRREVERSIBLE et supprimera:\n- Le compte utilisateur\n- Tous ses portefeuilles\n- Tout son historique de transactions`);
     if (!confirmed) return;
@@ -888,7 +911,7 @@ function DashboardContent() {
                             onResetPin={() => { const p = prompt("Nouveau PIN :"); if(p) handleAction(user.id, 'RESET_PIN', 0, "", [], "", p); }}
                             onResetPassword={() => { const p = prompt("Nouveau Password :"); if(p) handleAction(user.id, 'RESET_PASSWORD', 0, "", [], "", p); }}
                             onIndividualMaintenance={() => setMaintModalUser(user)}
-                            onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handleAction(user.id, "SEND_NETWORK_ANNOUNCEMENT", 0, msg); }}
+                            onSendMessage={() => { const msg = prompt("Message privé pour l'utilisateur :"); if(msg) handlePrivateMessage(user.id, user.username || user.name || "Utilisateur", msg); }}
                             onViewSessions={() => fetchUserSessions(user)}
                             onToggleRole={() => setRoleModalUser(user)}
                             onFreeze={() => handleAction(user.id, user.status === 'FROZEN' ? 'UNFREEZE' : 'FREEZE')}

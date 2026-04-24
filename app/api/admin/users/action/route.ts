@@ -43,6 +43,29 @@ export async function POST(req: NextRequest) {
         });
         break;
 
+      case "SEND_PRIVATE_MESSAGE":
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        if (!extraData) return NextResponse.json({ error: "Message vide" }, { status: 400 });
+        
+        // Create a private notification for the specific user
+        await prisma.notification.create({
+          data: {
+            userId: targetUserId,
+            title: "Message du Support",
+            message: extraData,
+            type: "SUPPORT_MESSAGE",
+            read: false,
+            metadata: {
+              fromAdmin: true,
+              adminId: requester.id,
+              adminName: requester.name || requester.email || "Support PimPay",
+              canReply: true,
+              sentAt: new Date().toISOString(),
+            },
+          },
+        });
+        break;
+
       case "PLAN_MAINTENANCE":
         if (!extraData) return NextResponse.json({ error: "Date requise" }, { status: 400 });
         await prisma.systemConfig.upsert({

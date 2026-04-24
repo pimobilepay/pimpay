@@ -8,7 +8,7 @@ import {
   RefreshCw, AlertCircle,
   Wallet, X, TrendingUp, Coins, CreditCard,
   Info, Repeat, Clock, Smartphone, MapPin, Globe,
-  ShieldCheck, Store, LogIn, ChevronRight, Gift
+  ShieldCheck, Store, LogIn, ChevronRight, Gift, Mail, MessageCircle, Headphones
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -73,10 +73,16 @@ interface Notification {
     location?: string;
     os?: string;
     browser?: string;
+    // Support Message
+    fromAdmin?: boolean;
+    adminId?: string;
+    adminName?: string;
+    canReply?: boolean;
+    sentAt?: string;
   };
 }
 
-type FilterType = "all" | "payment" | "security" | "unread" | "card";
+type FilterType = "all" | "payment" | "security" | "unread" | "card" | "support";
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -171,6 +177,7 @@ export default function NotificationsPage() {
     if (activeFilter === "payment") return n.type === "PAYMENT_RECEIVED" || n.type === "PAYMENT_SENT" || n.type === "success";
     if (activeFilter === "security") return n.type === "SECURITY" || n.type === "LOGIN";
     if (activeFilter === "card") return n.type === "CARD" || n.type === "CARD_ORDER" || n.type === "CARD_ACTIVATED";
+    if (activeFilter === "support") return n.type === "SUPPORT_MESSAGE";
     return true;
   });
 
@@ -200,6 +207,8 @@ export default function NotificationsPage() {
         return <Repeat size={18} className="text-indigo-400" />;
       case "MERCHANT":
         return <Store size={18} className="text-amber-400" />;
+      case "SUPPORT_MESSAGE":
+        return <Mail size={18} className="text-blue-400" />;
       default:
         if (metadata?.type === "STAKING") return <TrendingUp size={18} className="text-purple-400" />;
         if (metadata?.type === "UNSTAKE") return <Coins size={18} className="text-orange-400" />;
@@ -231,6 +240,8 @@ export default function NotificationsPage() {
         return "bg-orange-500/5 border-l-2 border-l-orange-500";
       case "SWAP":
         return "bg-indigo-500/5 border-l-2 border-l-indigo-500";
+      case "SUPPORT_MESSAGE":
+        return "bg-blue-500/5 border-l-2 border-l-blue-500";
       default:
         return "bg-blue-500/5 border-l-2 border-l-blue-500";
     }
@@ -361,6 +372,42 @@ export default function NotificationsPage() {
               </div>
             )}
 
+            {/* Support Message Details & Reply Button */}
+            {notification.type === "SUPPORT_MESSAGE" && (
+              <div className="space-y-3">
+                <div className="bg-blue-500/5 rounded-2xl p-4 border border-blue-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Headphones size={14} className="text-blue-400" />
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Message du Support</p>
+                  </div>
+                  <p className="text-sm text-white/80 leading-relaxed">{notification.message}</p>
+                  {metadata?.sentAt && (
+                    <p className="text-[9px] text-white/30 mt-2 font-mono">
+                      Envoye le {new Date(metadata.sentAt as string).toLocaleDateString("fr-FR", { 
+                        day: "2-digit", 
+                        month: "long", 
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  )}
+                </div>
+                
+                {/* Reply Button */}
+                <button 
+                  onClick={() => { 
+                    onClose(); 
+                    router.push("/support"); 
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                >
+                  <MessageCircle size={16} />
+                  Repondre au Support
+                </button>
+              </div>
+            )}
+
             {/* Delete Button */}
             <button 
               onClick={() => { deleteNotification(notification.id); onClose(); }}
@@ -427,6 +474,7 @@ export default function NotificationsPage() {
             { id: "payment", label: "Paiements", icon: Wallet },
             { id: "card", label: "Cartes", icon: CreditCard },
             { id: "security", label: "Securite", icon: Shield },
+            { id: "support", label: "Support", icon: Mail },
           ].map((filter) => (
             <button
               key={filter.id}
