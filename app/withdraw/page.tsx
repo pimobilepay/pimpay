@@ -840,7 +840,7 @@ export default function WithdrawPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-[10px] font-black text-slate-400">
-                          {formatValue(getCryptoWalletBalance())} disponible
+                          {formatBalance(getCryptoWalletBalance())} disponible
                         </span>
                         <ChevronDown size={16} className={`text-slate-500 transition-transform ${showCryptoSelector ? "rotate-180" : ""}`} />
                       </div>
@@ -897,7 +897,7 @@ export default function WithdrawPage() {
                                 <div className="flex items-center gap-2">
                                   <div className="text-right">
                                     <span className={`text-[10px] font-black block ${walletBalance > 0 ? "text-white" : "text-slate-600"}`}>
-                                      {walletBalance > 0 ? walletBalance.toFixed(asset.decimals > 4 ? 4 : asset.decimals) : "0.00"}
+                                      {formatBalance(walletBalance)}
                                     </span>
                                     <span className="text-[8px] text-slate-600 font-bold uppercase">{asset.symbol}</span>
                                   </div>
@@ -1053,7 +1053,7 @@ export default function WithdrawPage() {
                     <span className="text-[10px] font-black text-slate-500 uppercase">Solde disponible</span>
                   </div>
                   <span className={`text-sm font-black ${CRYPTO_ASSETS[selectedCrypto]?.accentColor || "text-white"}`}>
-                    {getCryptoWalletBalance().toFixed(Math.min(CRYPTO_ASSETS[selectedCrypto]?.decimals ?? 8, 8))} {selectedCrypto}
+                    {formatBalance(getCryptoWalletBalance())} {selectedCrypto}
                   </span>
                 </div>
 
