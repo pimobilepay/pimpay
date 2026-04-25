@@ -9,6 +9,7 @@ import Link from "next/link";
 // On utilise le HOOK direct
 import { usePiAuth } from "@/hooks/usePiAuth"; 
 import MFASelector from "@/components/auth/MFASelector";
+import AccountStatusModal from "@/components/AccountStatusModal";
 import { useLanguage } from "@/context/LanguageContext";
 import ChatBubble from "@/components/ChatBubble";
 
@@ -28,6 +29,14 @@ export default function LoginPage() {
   const [needsPinUpdate, setNeedsPinUpdate] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [loginType, setLoginType] = useState<LoginType>("user");
+  
+  // Account status modal states
+  const [showAccountStatusModal, setShowAccountStatusModal] = useState(false);
+  const [accountStatusData, setAccountStatusData] = useState<{
+    status: "SUSPENDED" | "MAINTENANCE" | "FROZEN" | "BANNED";
+    reason?: string;
+    maintenanceUntil?: string;
+  } | null>(null);
 
   const { loginWithPi, loading: piLoading } = usePiAuth();
   const { t } = useLanguage();
@@ -79,6 +88,17 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        // Verifier si c'est une erreur de compte suspendu/maintenance
+        if (data?.accountStatus && ["SUSPENDED", "MAINTENANCE", "FROZEN", "BANNED"].includes(data.accountStatus)) {
+          setAccountStatusData({
+            status: data.accountStatus,
+            reason: data.reason,
+            maintenanceUntil: data.maintenanceUntil
+          });
+          setShowAccountStatusModal(true);
+          setLoading(false);
+          return;
+        }
         toast.error(data?.error ?? t("auth.login.invalidCredentials"));
         setLoading(false);
         return;
@@ -160,6 +180,25 @@ export default function LoginPage() {
         needsPinUpdate={needsPinUpdate}
         twoFactorEnabled={twoFactorEnabled}
       />
+
+      {/* Modal pour compte suspendu/maintenance */}
+      {accountStatusData && (
+        <AccountStatusModal
+          isOpen={showAccountStatusModal}
+          onClose={() => {
+            setShowAccountStatusModal(false);
+            setAccountStatusData(null);
+          }}
+          status={accountStatusData.status}
+          reason={accountStatusData.reason}
+          maintenanceUntil={accountStatusData.maintenanceUntil}
+          onMaintenanceEnd={() => {
+            setShowAccountStatusModal(false);
+            setAccountStatusData(null);
+            toast.success("La maintenance est terminee. Vous pouvez maintenant vous connecter.");
+          }}
+        />
+      )}
 
       {showTransition && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">

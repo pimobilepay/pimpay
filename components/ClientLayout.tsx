@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ActivityTracker } from "@/components/ActivityTracker";
 import TransactionConfirmListener from "@/components/TransactionConfirmListener";
+import AccountStatusListener from "@/components/AccountStatusListener";
 import useSWR from "swr";
 
 // Fetcher for user data
@@ -58,6 +59,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           userId={userData.user.id}
           twoFactorEnabled={userData.user.twoFactorEnabled || false}
         />
+      )}
+      {/* Global account status listener - verifie si le compte est suspendu/maintenance */}
+      {userData?.user?.id && (
+        <AccountStatusListener userId={userData.user.id} />
       )}
       {!isAuthPage ? (
         <>

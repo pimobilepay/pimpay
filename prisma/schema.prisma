@@ -45,6 +45,8 @@ model User {
   role                 UserRole         @default(USER)
   kycStatus            KycStatus        @default(NONE)
   status               UserStatus       @default(ACTIVE)
+  statusReason         String?          // Raison de la suspension/maintenance
+  maintenanceUntil     DateTime?        // Date de fin de maintenance pour cet utilisateur
   autoApprove          Boolean          @default(false)
   twoFactorEnabled     Boolean          @default(false)
   twoFactorSecret      String?
@@ -716,6 +718,7 @@ enum UserStatus {
   PENDING
   FROZEN
   SUSPENDED
+  MAINTENANCE
 }
 
 enum KycStatus {
