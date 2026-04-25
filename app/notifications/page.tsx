@@ -10,6 +10,7 @@ import {
   Info, Repeat, Clock, Smartphone, MapPin, Globe,
   ShieldCheck, Store, LogIn, ChevronRight, Gift, Mail, MessageCircle, Headphones
 } from "lucide-react";
+import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -84,6 +85,15 @@ interface Notification {
 
 type FilterType = "all" | "payment" | "security" | "unread" | "card" | "support";
 
+interface ConfirmTx {
+  id: string;
+  type: "DEPOSIT" | "WITHDRAWAL";
+  amount: number;
+  currency: string;
+  agentName?: string;
+  createdAt: string;
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -92,6 +102,11 @@ export default function NotificationsPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  // État pour le modal MFA de confirmation de transaction
+  const [confirmTx, setConfirmTx] = useState<ConfirmTx | null>(null);
+  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (showRefresh = false) => {
@@ -123,6 +138,69 @@ export default function NotificationsPage() {
     }, 15000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
+
+  // Récupérer les infos utilisateur (id + 2FA) pour le modal MFA
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.user?.id) {
+          setCurrentUserId(data.user.id);
+          setTwoFactorEnabled(data.user.twoFactorEnabled || false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Ouvrir le modal MFA depuis la page notifications
+  const openConfirmModal = useCallback(
+    (notification: Notification) => {
+      const meta = notification.metadata;
+      if (!meta?.transactionId) return;
+      setConfirmTx({
+        id: meta.transactionId,
+        type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
+        amount: meta.amount || 0,
+        currency: meta.currency || "USD",
+        agentName: meta.senderName,
+        createdAt: notification.createdAt,
+      });
+      setIsMfaModalOpen(true);
+    },
+    []
+  );
+
+  // Refus direct depuis la page notifications (sans modal MFA)
+  const rejectTransaction = useCallback(
+    async (notification: Notification) => {
+      const meta = notification.metadata;
+      if (!meta?.transactionId) return;
+      try {
+        const res = await fetch("/api/transaction/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactionId: meta.transactionId,
+            userId: currentUserId,
+            action: "reject",
+          }),
+        });
+        if (res.ok) {
+          toast.success("Transaction refusée");
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.id === notification.id ? { ...n, read: true } : n
+            )
+          );
+        } else {
+          toast.error("Erreur lors du refus");
+        }
+      } catch {
+        toast.error("Erreur réseau");
+      }
+    },
+    [currentUserId]
+  );
 
   // Mark single notification as read
   const markAsRead = async (id: string) => {
@@ -440,6 +518,15 @@ export default function NotificationsPage() {
         )}
       </AnimatePresence>
 
+      {/* Modal MFA pour confirmation de transaction depuis la page notifications */}
+      <TransactionConfirmModal
+        isOpen={isMfaModalOpen}
+        onClose={() => { setIsMfaModalOpen(false); setConfirmTx(null); fetchNotifications(); }}
+        transaction={confirmTx}
+        userId={currentUserId}
+        twoFactorEnabled={twoFactorEnabled}
+      />
+
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-6 pt-8 pb-4 flex items-center justify-between bg-[#030014]/80 backdrop-blur-xl sticky top-0 border-b border-white/5">
         <button 
@@ -657,6 +744,28 @@ export default function NotificationsPage() {
                         {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
                       </p>
                     </div>
+
+                    {/* Boutons Confirmer / Annuler pour les transactions en attente */}
+                    {notification.type === "TRANSACTION_CONFIRM" && notification.metadata?.transactionId && (
+                      <div
+                        className="flex gap-2 mt-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => rejectTransaction(notification)}
+                          className="flex-1 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all"
+                        >
+                          ✗ Annuler
+                        </button>
+                        <button
+                          onClick={() => openConfirmModal(notification)}
+                          className="flex-1 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-1"
+                        >
+                          <ShieldCheck size={10} />
+                          Confirmer
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
