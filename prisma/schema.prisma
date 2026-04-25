@@ -749,9 +749,12 @@ enum TransactionType {
 
 enum TransactionStatus {
   PENDING
+  PENDING_CONFIRMATION
   SUCCESS
   FAILED
   CANCELLED
+  EXPIRED
+  REJECTED
 }
 
 enum SupportStatus {
