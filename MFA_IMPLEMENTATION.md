@@ -129,7 +129,7 @@ Actions:
 - Vérification TOTP avec library totp
 - Création session
 - Création notification de connexion
-- Mise à jour lastLoginAt
+- Mise à jour lastLoginAt 
 ```
 
 #### POST /api/auth/update-pin
