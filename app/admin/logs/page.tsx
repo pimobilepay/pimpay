@@ -231,6 +231,61 @@ export default function AdminLogsPage() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showPageDetail, setShowPageDetail] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  
+  // Track previous online users for detecting new connections
+  const [prevOnlineUserIds, setPrevOnlineUserIds] = useState<Set<string>>(new Set());
+
+  // Real-time detection of new user connections
+  useEffect(() => {
+    let lastOnlineIds = new Set<string>();
+    let isFirstLoad = true;
+    
+    const checkOnlineUsers = async () => {
+      try {
+        const res = await fetch("/api/admin/user-activity?limit=1&page=1", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          const currentOnlineUsers: OnlineUser[] = json.onlineUsers || [];
+          const currentIds = new Set(currentOnlineUsers.map((u: OnlineUser) => u.userId));
+          
+          // Skip toast on first load
+          if (!isFirstLoad && currentOnlineUsers.length > 0) {
+            // Find newly connected users
+            currentOnlineUsers.forEach((user: OnlineUser) => {
+              if (!lastOnlineIds.has(user.userId)) {
+                // New user connected!
+                toast.success("Nouvelle connexion detectee !", {
+                  description: `${user.userName} vient de se connecter sur ${getPageLabel(user.currentPage)}`,
+                  duration: 5000,
+                  style: {
+                    background: "rgba(16, 185, 129, 0.95)",
+                    border: "1px solid rgba(52, 211, 153, 0.3)",
+                    color: "#fff",
+                  },
+                });
+              }
+            });
+          }
+          
+          lastOnlineIds = currentIds;
+          isFirstLoad = false;
+          
+          // Update userData with new online users without full reload
+          if (userData) {
+            setUserData(prev => prev ? { ...prev, onlineUsers: currentOnlineUsers } : prev);
+          }
+        }
+      } catch {
+        // Silent fail for polling
+      }
+    };
+    
+    // Check immediately and then every 8 seconds
+    checkOnlineUsers();
+    const interval = setInterval(checkOnlineUsers, 8000);
+    
+    return () => clearInterval(interval);
+  }, [userData]);
 
   // Fetch user logs
   const fetchUserLogs = useCallback(async () => {

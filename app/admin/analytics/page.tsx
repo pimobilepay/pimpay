@@ -487,16 +487,61 @@ export default function AdminAnalyticsPage() {
     }
   }, []);
 
-  // Initial fetch + polling every 15 seconds
+  // Real-time detection of new user connections with toast notifications
   useEffect(() => {
-    fetchOnlineUsers();
-    fetchOnlineUsersGeo();
-    const interval = setInterval(() => {
-      fetchOnlineUsers();
-      fetchOnlineUsersGeo();
-    }, 15000);
+    let lastOnlineIds = new Set<string>();
+    let isFirstLoad = true;
+    
+    const checkOnlineUsersWithNotification = async () => {
+      try {
+        // Fetch online users
+        const res = await fetch("/api/admin/user-activity?limit=1&page=1", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          const currentOnlineUsers: OnlineUser[] = json.onlineUsers || [];
+          const currentIds = new Set(currentOnlineUsers.map((u: OnlineUser) => u.userId));
+          
+          // Skip toast on first load
+          if (!isFirstLoad && currentOnlineUsers.length > 0) {
+            // Find newly connected users
+            currentOnlineUsers.forEach((user: OnlineUser) => {
+              if (!lastOnlineIds.has(user.userId)) {
+                // New user connected!
+                toast.success("Nouvelle connexion detectee !", {
+                  description: `${user.userName} vient de se connecter sur ${getPageLabel(user.currentPage)}`,
+                  duration: 5000,
+                  style: {
+                    background: "rgba(16, 185, 129, 0.95)",
+                    border: "1px solid rgba(52, 211, 153, 0.3)",
+                    color: "#fff",
+                  },
+                });
+              }
+            });
+          }
+          
+          lastOnlineIds = currentIds;
+          isFirstLoad = false;
+          setOnlineUsers(currentOnlineUsers);
+        }
+        
+        // Also fetch geo data
+        const geoRes = await fetch("/api/admin/online-users-geo", { cache: "no-store" });
+        if (geoRes.ok) {
+          const geoJson = await geoRes.json();
+          setOnlineUsersGeo(geoJson.onlineUsers || []);
+        }
+      } catch {
+        // Silent fail for polling
+      }
+    };
+    
+    // Check immediately and then every 8 seconds for real-time updates
+    checkOnlineUsersWithNotification();
+    const interval = setInterval(checkOnlineUsersWithNotification, 8000);
+    
     return () => clearInterval(interval);
-  }, [fetchOnlineUsers, fetchOnlineUsersGeo]);
+  }, []);
 
   // Auto-refresh user session every 5 seconds when enabled
   useEffect(() => {
