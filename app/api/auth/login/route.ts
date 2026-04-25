@@ -30,6 +30,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
+    // 2.5 VÉRIFICATION DU STATUT DU COMPTE
+    if (user.status === "SUSPENDED" || user.status === "BANNED") {
+      return NextResponse.json({ 
+        error: "Compte suspendu",
+        accountStatus: "SUSPENDED",
+        reason: (user as any).statusReason || "Votre compte a ete suspendu. Contactez le support pour plus d'informations."
+      }, { status: 403 });
+    }
+
+    if (user.status === "MAINTENANCE") {
+      const maintenanceUntil = (user as any).maintenanceUntil;
+      // Verifier si la maintenance est terminee
+      if (maintenanceUntil && new Date(maintenanceUntil) <= new Date()) {
+        // Maintenance terminee, reactiver le compte automatiquement
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { status: "ACTIVE", statusReason: null, maintenanceUntil: null }
+        });
+      } else {
+        return NextResponse.json({ 
+          error: "Compte en maintenance",
+          accountStatus: "MAINTENANCE",
+          maintenanceUntil: maintenanceUntil,
+          reason: (user as any).statusReason || "Votre compte est temporairement en maintenance."
+        }, { status: 403 });
+      }
+    }
+
+    if (user.status === "FROZEN") {
+      return NextResponse.json({ 
+        error: "Compte gele",
+        accountStatus: "FROZEN",
+        reason: (user as any).statusReason || "Votre compte a ete gele. Contactez le support."
+      }, { status: 403 });
+    }
+
     // 3. VALIDATION DU ROLE SELON LE TYPE DE CONNEXION
     // L'ADMIN peut se connecter depuis n'importe quel onglet
     const isAdmin = user.role === "ADMIN";
