@@ -6,7 +6,7 @@ import {
   CheckCheck, Info, ShieldCheck, ArrowDownLeft,
   ArrowUpRight, Store, LogIn, Clock, Loader2,
   Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi,
-  ChevronRight, TrendingUp, Coins
+  ChevronRight, TrendingUp, Coins, MessageSquare, Send, X, Headphones
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | string;
 
 // Helper pour formater les montants PI avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
@@ -71,6 +71,12 @@ interface Notification {
     stakingStatus?: string;
     unlockDate?: string;
     type?: string;
+    // Support message specific
+    fromAdmin?: boolean;
+    adminId?: string;
+    adminName?: string;
+    canReply?: boolean;
+    sentAt?: string;
   };
 }
 
@@ -102,6 +108,8 @@ function getNotifCardClass(type: NotificationType, read: boolean): string {
       return "bg-purple-500/5 border border-white/10 border-l-2 border-l-purple-500";
     case "STAKING_UNSTAKE":
       return "bg-orange-500/5 border border-white/10 border-l-2 border-l-orange-500";
+    case "SUPPORT_MESSAGE":
+      return "bg-cyan-500/5 border border-white/10 border-l-2 border-l-cyan-500";
     default:
       return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
   }
@@ -120,6 +128,7 @@ function getIconBgClass(type: NotificationType, read: boolean): string {
     case "KYC_PENDING": return "bg-amber-500/10";
     case "STAKING": case "STAKING_REWARD": return "bg-purple-500/10";
     case "STAKING_UNSTAKE": return "bg-orange-500/10";
+    case "SUPPORT_MESSAGE": return "bg-cyan-500/10";
     default: return "bg-blue-500/10";
   }
 }
@@ -344,6 +353,7 @@ export default function NotificationsPage() {
       case "KYC_APPROVED": return <ShieldCheck className="text-emerald-400" size={18} />;
       case "KYC_REJECTED": return <ShieldCheck className="text-rose-500" size={18} />;
       case "KYC_PENDING": return <ShieldCheck className="text-amber-400" size={18} />;
+      case "SUPPORT_MESSAGE": return <MessageSquare className="text-cyan-400" size={18} />;
       default: return <Bell className="text-slate-400" size={18} />;
     }
   };
@@ -356,6 +366,7 @@ export default function NotificationsPage() {
     { id: "LOGIN", label: "Sessions" },
     { id: "SECURITY", label: "Sécurité" },
     { id: "KYC", label: "KYC" },
+    { id: "SUPPORT_MESSAGE", label: "Support" },
   ];
 
   const filteredNotifications = activeTab === "ALL"
@@ -364,6 +375,7 @@ export default function NotificationsPage() {
         if (activeTab === "SUCCESS") return n.type === "SUCCESS" || n.type === "PAYMENT_RECEIVED";
         if (activeTab === "KYC") return n.type === "KYC" || n.type === "KYC_APPROVED" || n.type === "KYC_REJECTED" || n.type === "KYC_PENDING";
         if (activeTab === "STAKING") return n.type === "STAKING" || n.type === "STAKING_REWARD" || n.type === "STAKING_UNSTAKE" || n.metadata?.type === "STAKING" || n.metadata?.type === "UNSTAKE";
+        if (activeTab === "SUPPORT_MESSAGE") return n.type === "SUPPORT_MESSAGE";
         return n.type === activeTab;
       });
 
@@ -604,6 +616,38 @@ export default function NotificationsPage() {
               </div>
             )}
 
+            {/* Support Chat Button for SUPPORT_MESSAGE */}
+            {notification.type === "SUPPORT_MESSAGE" && metadata?.canReply && (
+              <div className="space-y-4">
+                <div className="bg-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                      <Headphones size={18} className="text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Support PimPay</p>
+                      <p className="text-[9px] text-slate-500">{metadata.adminName || "Equipe Support"}</p>
+                    </div>
+                  </div>
+                  {metadata.sentAt && (
+                    <p className="text-[9px] text-slate-500 mb-2">
+                      Envoye le {new Date(metadata.sentAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  )}
+                </div>
+                <button 
+                  onClick={() => {
+                    onClose();
+                    router.push("/chat?support=true");
+                  }}
+                  className="w-full py-4 bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-cyan-400 transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageSquare size={16} />
+                  Lancer un chat avec le support
+                </button>
+              </div>
+            )}
+
             {/* Delete Button */}
             <button 
               onClick={() => { deleteNotif(notification.id); onClose(); }}
@@ -799,6 +843,21 @@ export default function NotificationsPage() {
                         );
                       })()}
 
+                      {/* Badges inline — Support Message */}
+                      {notif.type === "SUPPORT_MESSAGE" && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 rounded-lg text-[9px] font-black border border-cyan-500/15 uppercase tracking-wide">
+                            <Headphones size={9} />
+                            {notif.metadata?.adminName || "Support PimPay"}
+                          </span>
+                          {notif.metadata?.canReply && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase tracking-wide">
+                              <MessageSquare size={9} /> Repondre
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Badges inline — Staking */}
                       {(notif.type === "STAKING" || notif.type === "STAKING_REWARD" || notif.type === "STAKING_UNSTAKE" || notif.metadata?.type === "STAKING" || notif.metadata?.type === "UNSTAKE") && (notif.metadata?.stakingAmount || notif.metadata?.rewardAmount) && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -827,7 +886,7 @@ export default function NotificationsPage() {
                       )}
 
                       {/* Badges inline — Generique avec montant */}
-                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING", "STAKING", "STAKING_REWARD", "STAKING_UNSTAKE"].includes(notif.type) && !notif.metadata.stakingAmount && !notif.metadata.rewardAmount && notif.metadata.amount && (
+                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING", "STAKING", "STAKING_REWARD", "STAKING_UNSTAKE", "SUPPORT_MESSAGE"].includes(notif.type) && !notif.metadata.stakingAmount && !notif.metadata.rewardAmount && notif.metadata.amount && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white rounded-lg text-[9px] font-black border border-white/10">
                             {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "PI"}
