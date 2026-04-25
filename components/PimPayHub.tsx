@@ -216,24 +216,53 @@ function TransactionModal({
   type: 'cash-in' | 'cash-out'
   onSuccess: () => void
 }) {
-  const [step, setStep] = React.useState<'search' | 'confirm'>('search')
+  const [step, setStep] = React.useState<'search' | 'confirm' | 'pending'>('search')
   const [searchQuery, setSearchQuery] = React.useState('')
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
   const [amount, setAmount] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isSearching, setIsSearching] = React.useState(false)
   const [error, setError] = React.useState('')
+  const [pendingTxId, setPendingTxId] = React.useState<string | null>(null)
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
-  // Recherche de clients
-  const { data: searchResults, isLoading: isSearching } = useSWR(
-    searchQuery.length >= 2 ? `/api/agent/customer?q=${encodeURIComponent(searchQuery)}` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  )
+  // Background search function - no dropdown suggestions
+  const handleSearch = async () => {
+    if (searchQuery.length < 2) {
+      setError('Entrez au moins 2 caracteres')
+      return
+    }
 
-  const handleSelectCustomer = (customer: Customer) => {
-    setSelectedCustomer(customer)
-    setStep('confirm')
-    setSearchQuery('')
+    setIsSearching(true)
+    setError('')
+
+    try {
+      const res = await fetch(`/api/agent/customer?q=${encodeURIComponent(searchQuery)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur de recherche')
+      }
+
+      if (data.customers && data.customers.length > 0) {
+        // Select the first matching customer
+        setSelectedCustomer(data.customers[0])
+        setStep('confirm')
+      } else {
+        setError('Aucun client trouve avec cet identifiant')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur de recherche')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Handle Enter key press for search
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
   }
 
   const handleSubmit = async () => {
@@ -250,7 +279,8 @@ function TransactionModal({
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           amount: parseFloat(amount),
-          currency: 'USD'
+          currency: 'USD',
+          requireConfirmation: true // Demande confirmation MFA cote client
         })
       })
 
@@ -260,8 +290,14 @@ function TransactionModal({
         throw new Error(data.error || 'Erreur lors de la transaction')
       }
 
-      onSuccess()
-      handleClose()
+      // Transaction initiee, en attente de confirmation client
+      if (data.pendingConfirmation) {
+        setPendingTxId(data.transactionId)
+        setStep('pending')
+      } else {
+        onSuccess()
+        handleClose()
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -269,12 +305,39 @@ function TransactionModal({
     }
   }
 
+  // Poll for transaction confirmation status
+  React.useEffect(() => {
+    if (step !== 'pending' || !pendingTxId) return
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/agent/transaction-status?id=${pendingTxId}`)
+        const data = await res.json()
+
+        if (data.status === 'SUCCESS') {
+          onSuccess()
+          handleClose()
+        } else if (data.status === 'REJECTED' || data.status === 'EXPIRED') {
+          setError(data.status === 'REJECTED' ? 'Transaction refusee par le client' : 'Transaction expiree')
+          setStep('confirm')
+          setPendingTxId(null)
+        }
+      } catch (err) {
+        // Continue polling
+      }
+    }
+
+    const interval = setInterval(checkStatus, 3000)
+    return () => clearInterval(interval)
+  }, [step, pendingTxId, onSuccess])
+
   const handleClose = () => {
     setStep('search')
     setSearchQuery('')
     setSelectedCustomer(null)
     setAmount('')
     setError('')
+    setPendingTxId(null)
     onClose()
   }
 
@@ -298,6 +361,8 @@ function TransactionModal({
           <DialogDescription>
             {step === 'search' 
               ? 'Recherchez le client par nom, telephone ou username'
+              : step === 'pending'
+              ? 'En attente de confirmation du client...'
               : `Confirmez le ${type === 'cash-in' ? 'depot' : 'retrait'} pour ${selectedCustomer?.name || selectedCustomer?.username}`
             }
           </DialogDescription>
@@ -311,42 +376,53 @@ function TransactionModal({
                 placeholder="Rechercher un client..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyPress}
                 className="pl-10"
+                autoFocus
               />
             </div>
 
-            {isSearching && (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+            {error && (
+              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                {error}
+              </p>
             )}
 
-            {searchResults?.customers && searchResults.customers.length > 0 && (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {searchResults.customers.map((customer: Customer) => (
-                  <button
-                    key={customer.id}
-                    onClick={() => handleSelectCustomer(customer)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors text-left"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                      <User className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{customer.name || customer.username}</p>
-                      <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                    </div>
-                    <Badge variant="outline" className="shrink-0">
-                      {customer.kycStatus}
-                    </Badge>
-                  </button>
-                ))}
+            <Button 
+              onClick={handleSearch} 
+              disabled={isSearching || searchQuery.length < 2}
+              className="w-full"
+            >
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Rechercher
+            </Button>
+          </div>
+        ) : step === 'pending' ? (
+          <div className="space-y-6 py-8">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                  <ShieldCheck className="h-3 w-3 text-white" />
+                </div>
               </div>
-            )}
-
-            {searchQuery.length >= 2 && searchResults?.customers?.length === 0 && (
-              <p className="text-center text-muted-foreground py-4">Aucun client trouve</p>
-            )}
+              <div className="text-center">
+                <p className="font-semibold text-lg">Confirmation MFA requise</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Le client doit confirmer la transaction avec son code de securite
+                </p>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-sm font-medium">En attente...</span>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

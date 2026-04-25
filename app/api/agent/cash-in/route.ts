@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, amount, currency = 'XAF', description } = body;
+    const { customerId, amount, currency = 'XAF', description, requireConfirmation = false } = body;
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       // Vérifier que le client existe
       const customer = await tx.user.findUnique({
         where: { id: customerId },
-        select: { id: true, name: true, username: true }
+        select: { id: true, name: true, username: true, twoFactorEnabled: true }
       });
 
       if (!customer) {
@@ -69,22 +69,32 @@ export async function POST(req: NextRequest) {
         throw new Error("Float insuffisant");
       }
 
-      // Débiter le float de l'agent
-      await tx.wallet.update({
-        where: { id: agentWallet.id },
-        data: { balance: { decrement: amountNum - agentCommission } }
+      // Get agent name for notification
+      const agent = await tx.user.findUnique({
+        where: { id: authUser.id },
+        select: { name: true, username: true }
       });
+      const agentName = agent?.name || agent?.username || 'Agent';
 
-      // Créditer le wallet du client
+      // Créditer ou créer le wallet du client (sans ajouter le solde pour l'instant si confirmation requise)
       const customerWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId: customerId, currency } },
-        update: { balance: { increment: netAmount } },
+        update: requireConfirmation ? {} : { balance: { increment: netAmount } },
         create: {
           userId: customerId,
           currency,
-          balance: netAmount,
+          balance: requireConfirmation ? 0 : netAmount,
           type: currency === 'PI' ? WalletType.PI : WalletType.FIAT
         }
+      });
+
+      // Déterminer le statut de la transaction
+      const transactionStatus = requireConfirmation ? 'PENDING_CONFIRMATION' : 'SUCCESS';
+
+      // Débiter le float de l'agent (toujours, même si en attente)
+      await tx.wallet.update({
+        where: { id: agentWallet.id },
+        data: { balance: { decrement: amountNum - agentCommission } }
       });
 
       // Créer l'enregistrement de transaction
@@ -95,7 +105,7 @@ export async function POST(req: NextRequest) {
           fee,
           netAmount,
           type: 'DEPOSIT',
-          status: 'SUCCESS',
+          status: transactionStatus,
           description: description || `Dépôt agent - ${currency}`,
           fromUserId: authUser.id,
           toUserId: customerId,
@@ -106,41 +116,73 @@ export async function POST(req: NextRequest) {
       });
 
       // Notification au client
-      await tx.notification.create({
-        data: {
-          userId: customerId,
-          title: "Dépôt reçu !",
-          message: `Votre compte a été crédité de ${netAmount.toLocaleString()} ${currency}.`,
-          type: "DEPOSIT",
-          metadata: {
-            amount: netAmount,
-            currency,
-            agentId: authUser.id,
-            reference: transaction.reference
+      if (requireConfirmation) {
+        // Notification de demande de confirmation MFA
+        await tx.notification.create({
+          data: {
+            userId: customerId,
+            title: "Confirmer le dépôt",
+            message: `Un dépôt de ${amountNum.toLocaleString()} ${currency} requiert votre confirmation.`,
+            type: "TRANSACTION_CONFIRM",
+            metadata: {
+              transactionId: transaction.id,
+              amount: amountNum,
+              netAmount,
+              currency,
+              agentId: authUser.id,
+              agentName,
+              reference: transaction.reference,
+              requireMFA: true,
+              twoFactorEnabled: customer.twoFactorEnabled || false,
+              expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
+            }
           }
-        }
-      });
+        });
+      } else {
+        await tx.notification.create({
+          data: {
+            userId: customerId,
+            title: "Dépôt reçu !",
+            message: `Votre compte a été crédité de ${netAmount.toLocaleString()} ${currency}.`,
+            type: "DEPOSIT",
+            metadata: {
+              amount: netAmount,
+              currency,
+              agentId: authUser.id,
+              reference: transaction.reference
+            }
+          }
+        });
+      }
 
-      // Mise à jour des stats globales
-      await tx.systemConfig.upsert({
-        where: { id: "GLOBAL_CONFIG" },
-        update: {
-          totalVolumePi: currency === 'PI' ? { increment: amountNum } : undefined,
-          totalProfit: { increment: fee - agentCommission }
-        },
-        create: {
-          id: "GLOBAL_CONFIG",
-          totalProfit: fee - agentCommission
-        }
-      }).catch(() => {});
+      // Mise à jour des stats globales (seulement si transaction confirmée)
+      if (!requireConfirmation) {
+        await tx.systemConfig.upsert({
+          where: { id: "GLOBAL_CONFIG" },
+          update: {
+            totalVolumePi: currency === 'PI' ? { increment: amountNum } : undefined,
+            totalProfit: { increment: fee - agentCommission }
+          },
+          create: {
+            id: "GLOBAL_CONFIG",
+            totalProfit: fee - agentCommission
+          }
+        }).catch(() => {});
+      }
 
-      return { transaction, newAgentBalance: agentWallet.balance - (amountNum - agentCommission) };
+      return { 
+        transaction, 
+        newAgentBalance: agentWallet.balance - (amountNum - agentCommission),
+        pendingConfirmation: requireConfirmation
+      };
     }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({
       success: true,
       transaction: result.transaction,
-      newFloatBalance: result.newAgentBalance
+      transactionId: result.transaction.id,
+      newFloatBalance: result.newAgentBalance,
+      pendingConfirmation: result.pendingConfirmation
     });
 
   } catch (error: any) {
