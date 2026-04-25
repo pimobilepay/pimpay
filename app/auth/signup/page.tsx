@@ -548,7 +548,7 @@ export default function SignupPage() {
                   onClick={() => { setCountryDropdownOpen(prev => !prev); setCountrySearch(""); }}
                   className="w-full h-12 px-4 bg-slate-950/50 border border-white/5 text-white rounded-2xl flex items-center gap-3 hover:border-blue-500/30 focus:border-blue-500/50 transition-all outline-none"
                 >
-                  <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-xl rounded-sm`} />
+                  <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-sm`} />
                   <span className="flex-1 text-left text-sm font-medium">{selectedCountry.name}</span>
                   <span className="text-xs text-slate-500 font-mono">{selectedCountry.dialCode}</span>
                   <ChevronDown
@@ -591,7 +591,7 @@ export default function SignupPage() {
                               formData.country === country.code ? "bg-blue-500/10 text-blue-400" : "text-white"
                             }`}
                           >
-                            <span className={`fi fi-${country.code.toLowerCase()} text-lg rounded-sm`} />
+                            <span className={`fi fi-${country.code.toLowerCase()} text-sm`} />
                             <span className="flex-1 text-left text-xs font-medium">{country.name}</span>
                             <span className="text-[10px] font-mono text-slate-500">{country.dialCode}</span>
                           </button>
@@ -654,7 +654,7 @@ export default function SignupPage() {
                 <Label className="text-slate-400 ml-1 text-[10px] font-bold uppercase tracking-widest">{t("extra.phone")}</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
-                    <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-base rounded-sm`} />
+                    <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-sm`} />
                     <span className="text-xs text-slate-500 font-mono border-r border-white/10 pr-2">{selectedCountry.dialCode}</span>
                   </span>
                   <input
