@@ -10,6 +10,7 @@ import {                                                LogOut, Shield, Users, Z
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { Admin2FAModal } from "@/components/admin/Admin2FAModal";
+import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
 // --- TYPES ---
 type LedgerUser = {
@@ -655,17 +656,17 @@ function DashboardContent() {
         </div>
       )}
 
-      <div className="px-6 pt-12 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <CircleDot size={12} className="text-blue-500 animate-pulse" />
-              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">PIMPAY ADMIN v4.0</span>
-            </div>
-            <h1 className="text-xl font-black text-white italic uppercase tracking-tighter">PIMPAY<span className="text-blue-500">CORE</span></h1>
-          </div>
-          <button onClick={fetchData} className="p-3 bg-white/5 border border-white/10 rounded-2xl"><RefreshCw size={20}/></button>
-        </div>
+      {/* TOP NAV WITH NOTIFICATIONS */}
+      <div className="px-6">
+        <AdminTopNav 
+          title="Dashboard" 
+          subtitle="PimPay Core"
+          onRefresh={fetchData}
+          backPath="/admin"
+        />
+      </div>
+
+      <div className="px-6 pt-4 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="grid grid-cols-2 gap-4">
           <StatCard label="Volume Ledger" value={`π ${users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0).toLocaleString()}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
           <StatCard label="Live Users" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
