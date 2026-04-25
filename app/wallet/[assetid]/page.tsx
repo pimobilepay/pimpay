@@ -512,6 +512,34 @@ export default function AssetDetailPage() {
 
         const txType = tx.type?.toUpperCase() || "";
         const ref = tx.reference?.toUpperCase() || "";
+        // Helper function to truncate blockchain address
+        const truncateAddress = (addr: string): string => {
+          if (!addr || addr.length < 15) return addr;
+          return `${addr.substring(0, 6)}....${addr.substring(addr.length - 5)}`;
+        };
+
+        // Extract blockchain address from description or metadata
+        const extractBlockchainAddress = (): string | null => {
+          // Check metadata for sender/receiver address
+          const metadata = tx.metadata as Record<string, unknown> | undefined;
+          if (metadata?.senderAddress && typeof metadata.senderAddress === 'string') {
+            return metadata.senderAddress;
+          }
+          if (metadata?.recipientAddress && typeof metadata.recipientAddress === 'string') {
+            return metadata.recipientAddress;
+          }
+          // Check externalId for blockchain address format
+          if (tx.externalId && (tx.externalId.startsWith('0x') || tx.externalId.length > 30)) {
+            return tx.externalId;
+          }
+          // Extract from description if it contains blockchain address
+          if (tx.description) {
+            const match = tx.description.match(/0x[a-fA-F0-9]{40}/);
+            if (match) return match[0];
+          }
+          return null;
+        };
+
         const getDisplayName = (): string => {
           if (tx.description && (txType.includes("CARD") || tx.description.toUpperCase().includes("CARTE"))) {
             return tx.description.charAt(0).toUpperCase() + tx.description.slice(1).toLowerCase();
@@ -519,12 +547,27 @@ export default function AssetDetailPage() {
           if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY")) return "Achat Carte PimPay";
           if (txType === "WITHDRAWAL" || ref.startsWith("WD-")) return "Retrait Externe";
           if (txType === "DEPOSIT") return "Depot";
+          
+          // For crypto transactions (SDA, PI, etc.), prioritize blockchain address
+          const isCryptoTx = ["SDA", "PI", "ETH", "BTC", "BNB", "USDT"].includes((tx.currency || "").toUpperCase());
+          const blockchainAddr = extractBlockchainAddress();
+          
+          if (isCryptoTx && blockchainAddr) {
+            return truncateAddress(blockchainAddr);
+          }
+          
           const u = otherUser;
           const fullName = `${u?.name || ""}`.trim();
           if (fullName) return fullName;
           if (u?.displayName) return u.displayName;
           if (u?.username) return `@${u.username}`;
-          return "Utilisateur PimPay";
+          
+          // For crypto without user info, try to get blockchain address
+          if (isCryptoTx && blockchainAddr) {
+            return truncateAddress(blockchainAddr);
+          }
+          
+          return "Sidra Chain";
         };
         const displayName = getDisplayName();
 
