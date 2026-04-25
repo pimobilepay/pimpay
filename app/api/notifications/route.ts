@@ -27,10 +27,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
+    const unreadOnly = searchParams.get("unread") === "true";
 
     const whereClause: any = { userId: userId };
     if (type && type !== "ALL") {
       whereClause.type = type;
+    }
+    if (unreadOnly) {
+      whereClause.read = false;
     }
 
     const notifications = await prisma.notification.findMany({

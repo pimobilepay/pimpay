@@ -6,6 +6,15 @@ import { BottomNav } from "@/components/bottom-nav";
 import { usePathname } from "next/navigation";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ActivityTracker } from "@/components/ActivityTracker";
+import TransactionConfirmListener from "@/components/TransactionConfirmListener";
+import useSWR from "swr";
+
+// Fetcher for user data
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return res.json();
+};
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -14,6 +23,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
+
+  // Get current user info for transaction confirmation
+  const { data: userData } = useSWR('/api/auth/me', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000, // Only refetch every minute
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -37,6 +52,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       }`}
     >
       <ActivityTracker />
+      {/* Global transaction confirmation listener */}
+      {userData?.user?.id && (
+        <TransactionConfirmListener 
+          userId={userData.user.id}
+          twoFactorEnabled={userData.user.twoFactorEnabled || false}
+        />
+      )}
       {!isAuthPage ? (
         <>
           {/* SideMenu : Il prend sa place à gauche sur Desktop */}
