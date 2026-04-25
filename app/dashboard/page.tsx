@@ -173,20 +173,98 @@ export default function UserDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Real-time notification polling (like mpay page)
+  // Real-time notification polling with toast and balance refresh (like mpay page)
   useEffect(() => {
+    let lastNotifId = sessionStorage.getItem("dashboard_last_notif_id") || "";
+    let lastTxCount = parseInt(sessionStorage.getItem("dashboard_last_tx_count") || "0", 10);
+    
     const checkNotifications = async () => {
       try {
-        const res = await fetch("/api/notifications", { cache: "no-store" });
+        // Check for new notifications
+        const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
         if (res.ok) {
           const result = await res.json();
-          setUnreadCount(result.unreadCount || 0);
+          
+          if (result.notifications && result.notifications.length > 0) {
+            const unreadPayments = result.notifications.filter(
+              (n: any) => !n.read && (n.type === "PAYMENT_RECEIVED" || n.type === "success" || n.type === "DEPOSIT" || n.type === "TRANSFER")
+            );
+            
+            setUnreadCount(result.unreadCount || 0);
+            
+            // Show toast for new payment received
+            if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
+              const latest = unreadPayments[0];
+              lastNotifId = latest.id;
+              sessionStorage.setItem("dashboard_last_notif_id", latest.id);
+              
+              // Extract amount from notification if available
+              const amount = latest.amount ? ` de ${latest.amount}` : "";
+              const currency = latest.currency || "PI";
+              
+              toast.success("Transaction recue !", {
+                description: latest.message || `Vous avez recu un nouveau paiement${amount} ${currency}`,
+                duration: 6000,
+                style: {
+                  background: "rgba(16, 185, 129, 0.95)",
+                  border: "1px solid rgba(52, 211, 153, 0.3)",
+                  color: "#fff",
+                },
+              });
+              
+              // Refresh dashboard data to update balance
+              fetchDashboardData();
+            }
+          }
         }
-      } catch { }
+        
+        // Also check transaction history for new incoming transactions
+        const historyRes = await fetch("/api/wallet/history?limit=5", { cache: "no-store" });
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          const transactions = historyData.transactions || [];
+          
+          if (transactions.length > lastTxCount && lastTxCount > 0) {
+            // New transaction detected - find incoming ones
+            const newIncoming = transactions.find((tx: any) => 
+              !tx.isDebit && 
+              (tx.type === "DEPOSIT" || tx.type === "TRANSFER" || tx.type === "PAYMENT_RECEIVED")
+            );
+            
+            if (newIncoming && !sessionStorage.getItem(`tx_toast_${newIncoming.id}`)) {
+              sessionStorage.setItem(`tx_toast_${newIncoming.id}`, "1");
+              
+              const txCurrency = newIncoming.currency || "PI";
+              const txAmount = newIncoming.amount || 0;
+              
+              toast.success(`+${txAmount.toFixed(8)} ${txCurrency} recu !`, {
+                description: newIncoming.description || "Nouvelle transaction entrante",
+                duration: 6000,
+                style: {
+                  background: "rgba(16, 185, 129, 0.95)",
+                  border: "1px solid rgba(52, 211, 153, 0.3)",
+                  color: "#fff",
+                },
+              });
+              
+              // Refresh dashboard to update balance
+              fetchDashboardData();
+            }
+          }
+          
+          sessionStorage.setItem("dashboard_last_tx_count", transactions.length.toString());
+          lastTxCount = transactions.length;
+        }
+      } catch (error) {
+        console.error("Notification check error:", error);
+      }
     };
     
-    // Poll every 10 seconds for real-time updates
-    const interval = setInterval(checkNotifications, 10000);
+    // Check immediately on mount
+    checkNotifications();
+    
+    // Poll every 8 seconds for real-time updates
+    const interval = setInterval(checkNotifications, 8000);
     return () => clearInterval(interval);
   }, []);
 
