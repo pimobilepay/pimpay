@@ -147,7 +147,7 @@ Validation Zod:
 Actions:
 - Hash avec bcrypt (salt: 12)
 - Mise à jour utilisateur
-- Création session
+- Création session  
 - Création notification (type: SECURITY)
 - Création SecurityLog (action: PIN_UPDATED_TO_6_DIGITS)
 ```
