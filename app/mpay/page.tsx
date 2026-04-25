@@ -71,18 +71,18 @@ interface TransactionHistory {
 
 // Helper function to format amounts with proper decimals
 const formatAmount = (amount: number, currency: string = "Pi"): string => {
-  // For crypto, max 6 decimals; for fiat, max 2 decimals
+  // For crypto, max 8 decimals; for fiat, max 2 decimals
   const isFiat = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN"].includes(currency.toUpperCase());
-  const maxDecimals = isFiat ? 2 : 6;
+  const maxDecimals = isFiat ? 2 : 8;
   
   // Handle very small numbers (avoid scientific notation)
-  if (Math.abs(amount) < 0.000001 && amount !== 0) {
+  if (Math.abs(amount) < 0.00000001 && amount !== 0) {
     return amount.toFixed(maxDecimals);
   }
   
   // Format with appropriate decimals
   const formatted = amount.toLocaleString("fr-FR", {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: maxDecimals,
   });
   

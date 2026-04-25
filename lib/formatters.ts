@@ -53,48 +53,21 @@ export const STATUS_CONFIG: Record<
 // ─── Balance Formatters ───────────────────────────────────────────────────────
 
 /**
- * Formats a crypto balance with dynamic decimals.
- * - Default: 2 decimals (0.00)
- * - If balance is very small (< 0.01), shows more decimals up to 8 max
+ * Formats a crypto balance with 8 decimals for crypto currencies.
+ * - Default: 8 decimals for crypto (SDA, PI, etc.)
  * - Examples:
- *   - 1.5 → "1,50"
- *   - 0.005 → "0,005"
+ *   - 1.5 → "1,50000000"
+ *   - 0.005 → "0,00500000"
  *   - 0.00001234 → "0,00001234"
  *   - 0.000000001 → "0,00000000" (max 8 decimals)
  */
 export function formatBalance(balance: number, locale: string = 'fr-FR'): string {
-  if (!isFinite(balance)) return '0,00';
+  if (!isFinite(balance)) return '0,00000000';
   
-  // For zero or very close to zero, use 2 decimals
-  if (balance === 0 || Math.abs(balance) < 1e-8) {
-    return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  
-  const absBalance = Math.abs(balance);
-  
-  // If balance >= 0.01, use default 2 decimals
-  if (absBalance >= 0.01) {
-    return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  
-  // For small balances, calculate how many decimals are needed (max 8)
-  // Find the first significant digit after decimal point
-  let decimalsNeeded = 2;
-  let testValue = absBalance;
-  
-  while (testValue < 1 && decimalsNeeded < 8) {
-    testValue *= 10;
-    if (testValue >= 1) {
-      // Add 2 more decimals after the first significant digit for precision
-      decimalsNeeded = Math.min(decimalsNeeded + 2, 8);
-      break;
-    }
-    decimalsNeeded++;
-  }
-  
+  // Always use 8 decimals for crypto balances
   return balance.toLocaleString(locale, { 
-    minimumFractionDigits: decimalsNeeded, 
-    maximumFractionDigits: decimalsNeeded 
+    minimumFractionDigits: 8, 
+    maximumFractionDigits: 8 
   });
 }
 

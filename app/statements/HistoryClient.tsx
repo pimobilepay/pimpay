@@ -221,8 +221,8 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       tx.fromName,
       tx.toName,
       tx.date,
-      `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`,
-      tx.fee >= 0 ? `${tx.fee.toFixed(tx.currency === "PI" ? 8 : 4)} ${tx.currency}` : "—",
+      `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`,
+      tx.fee >= 0 ? `${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}` : "—",
       tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué",
     ]);
 
@@ -481,11 +481,13 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
         <div className="text-right shrink-0 flex flex-col items-end gap-1">
           <p className={`text-base font-black tracking-tighter ${tx.isIncome ? "text-green-400" : "text-white"}`}>
             {tx.isIncome ? "+" : "-"}
-            {tx.currency === "PI" && tx.amount < 0.01
+            {(tx.currency === "PI" || tx.currency === "SDA") && tx.amount < 0.01
               ? tx.amount.toFixed(8)
-              : tx.amount.toFixed(2)}{" "}
+              : (tx.currency === "PI" || tx.currency === "SDA")
+                ? tx.amount.toFixed(8)
+                : tx.amount.toFixed(2)}{" "}
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${currencyBadge[tx.currency] || "bg-slate-500/20 text-slate-400"}`}>
-              {tx.currency === "PI" ? "π" : tx.currency}
+              {tx.currency === "PI" ? "π" : tx.currency === "SDA" ? "SDA" : tx.currency}
             </span>
           </p>
           <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border ${statusStyles[tx.status]}`}>
@@ -524,12 +526,12 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
 
           {/* DONNÉES FINANCIÈRES */}
           <div className="bg-slate-950/60 rounded-2xl p-4 space-y-2">
-            <DetailRow label="Montant brut"  value={`${tx.amount.toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} />
+            <DetailRow label="Montant brut"  value={`${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} />
             {tx.fee >= 0 && (
-              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed(tx.currency === "PI" ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
+              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
             )}
             {tx.netAmount !== null && tx.netAmount !== undefined && (
-              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed(tx.currency === "PI" ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
+              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
             )}
             {tx.reference && (
               <DetailRow label="Référence"    value={tx.reference} mono />

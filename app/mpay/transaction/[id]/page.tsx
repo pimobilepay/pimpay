@@ -241,17 +241,17 @@ export default function TransactionDetailsPage() {
     }
   };
   
-  // Format amount with proper decimals
+  // Format amount with proper decimals (8 decimals for crypto like SDA, PI)
   const formatAmount = (amount: number, currency: string = "Pi"): string => {
     const isFiat = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN"].includes(currency.toUpperCase());
-    const maxDecimals = isFiat ? 2 : 6;
+    const maxDecimals = isFiat ? 2 : 8;
     
-    if (Math.abs(amount) < 0.000001 && amount !== 0) {
+    if (Math.abs(amount) < 0.00000001 && amount !== 0) {
       return amount.toFixed(maxDecimals);
     }
     
     return amount.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 2,
       maximumFractionDigits: maxDecimals,
     });
   };
@@ -321,7 +321,7 @@ export default function TransactionDetailsPage() {
             
             {transaction.fee > 0 && (
               <p className="text-[10px] font-bold text-slate-500 mt-2">
-                Frais: {transaction.fee} {transaction.currency}
+                Frais: {formatAmount(transaction.fee, transaction.currency)} {transaction.currency}
               </p>
             )}
 
