@@ -5,18 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 // Helper to get referral config from SystemConfig
+// IMPORTANT: Les valeurs par defaut ici doivent correspondre a celles de la page admin settings
 async function getReferralConfig() {
   try {
     const config = await prisma.systemConfig.findUnique({
       where: { id: "GLOBAL_CONFIG" },
       select: { referralBonus: true, referralWelcomeBonus: true }
     });
+    // Utiliser les valeurs de la base de donnees, sinon les valeurs par defaut du schema Prisma
     return {
-      referralBonus: config?.referralBonus ?? 0.0005,
-      referralWelcomeBonus: config?.referralWelcomeBonus ?? 0.00025
+      referralBonus: config?.referralBonus ?? 0.0000318,  // Bonus pour le parrain
+      referralWelcomeBonus: config?.referralWelcomeBonus ?? 0.0000159  // Bonus pour le filleul
     };
   } catch {
-    return { referralBonus: 0.0005, referralWelcomeBonus: 0.00025 };
+    return { referralBonus: 0.0000318, referralWelcomeBonus: 0.0000159 };
   }
 }
 

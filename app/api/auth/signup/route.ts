@@ -63,7 +63,8 @@ export async function POST(req: Request) {
         if (referrer) referrerId = referrer.id;
       }
 
-      // Création de l'utilisateur
+      // Création de l'utilisateur - PAS de bonus a l'inscription
+      // Les bonus seront accordes apres KYC + premier depot via grantReferrerBonusIfEligible
       const user = await tx.user.create({
         data: {
           name: fullName,
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
           ...(referrerId ? { referredById: referrerId } : {}),
           wallets: {
             create: {
-              balance: referrerId ? 0.25 : 0,
+              balance: 0, // Pas de bonus initial - sera accorde apres KYC + depot
               currency: "PI",
               type: "PI",
             }
@@ -140,30 +141,11 @@ export async function POST(req: Request) {
         });
       }
 
-      // Grant referral bonus to referrer
-      if (referrerId) {
-        const referrerPiWallet = await tx.wallet.findFirst({
-          where: { userId: referrerId, currency: "PI" },
-        });
-        if (referrerPiWallet) {
-          await tx.wallet.update({
-            where: { id: referrerPiWallet.id },
-            data: { balance: { increment: 0.5 } },
-          });
-          await tx.transaction.create({
-            data: {
-              reference: `REF-BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-              amount: 0.5,
-              currency: "PI",
-              type: "AIRDROP",
-              status: "SUCCESS",
-              description: `Bonus parrainage - Filleul: ${user.username}`,
-              toUserId: referrerId,
-              toWalletId: referrerPiWallet.id,
-            },
-          });
-        }
-      }
+      // NOTE: Le bonus de parrainage N'EST PLUS accorde ici a l'inscription
+      // Il sera accorde via grantReferrerBonusIfEligible() APRES:
+      // 1. Verification KYC du filleul (kycStatus = VERIFIED/APPROVED)
+      // 2. Premier depot du filleul (transaction DEPOSIT avec SUCCESS)
+      // Cela se fait dans /api/admin/kyc/verify et /api/transaction/deposit
 
       // Génération du token
       const token = await signSessionToken({ id: user.id, role: user.role, username: user.username }, "30d");

@@ -65,9 +65,9 @@ export default function SystemSettings() {
     merchantPaymentFee: 0.02,    // Merchant Payment
     billPaymentFee: 0.015,       // Bill Payment
     qrPaymentFee: 0.01,          // QR Code Payment
-    // Referral Bonuses
-    referralBonus: 0.0005,       // Bonus for referrer (PI)
-    referralWelcomeBonus: 0.00025, // Bonus for new user (PI)
+    // Referral Bonuses (valeurs centralisees - modifiables depuis l'interface)
+    referralBonus: 0.0000318,       // Bonus for referrer (PI) - accorde apres KYC + depot du filleul
+    referralWelcomeBonus: 0.0000159, // Bonus for new user (PI) - accorde apres son KYC + depot
   });
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);

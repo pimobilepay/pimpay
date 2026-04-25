@@ -184,8 +184,8 @@ model SystemConfig {
   billPaymentFee     Float     @default(0.015)
   qrPaymentFee       Float     @default(0.01)
   fiatTransferFee    Float     @default(0.005)
-  referralBonus      Float     @default(0.0005)
-  referralWelcomeBonus Float   @default(0.00025)
+  referralBonus        Float     @default(0.0000318)  // Bonus parrain - apres KYC + depot du filleul
+  referralWelcomeBonus Float     @default(0.0000159)  // Bonus filleul - apres son KYC + depot
 }
 
 model DailyStats {

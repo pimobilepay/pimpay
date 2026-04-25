@@ -20,8 +20,8 @@ const FALLBACK_CONFIG = {
   minWithdrawal: 10.0,
   globalAnnouncement: "",
   forceUpdate: false,
-  referralBonus: 0.0005,
-  referralWelcomeBonus: 0.00025,
+  referralBonus: 0.0000318,       // Bonus parrain - apres KYC + depot du filleul
+  referralWelcomeBonus: 0.0000159, // Bonus filleul - apres son KYC + depot
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
