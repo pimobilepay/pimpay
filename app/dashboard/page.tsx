@@ -176,6 +176,7 @@ export default function UserDashboard() {
   // Real-time notification polling with toast and balance refresh (like mpay page)
   useEffect(() => {
     let lastNotifId = sessionStorage.getItem("dashboard_last_notif_id") || "";
+    let lastSupportMsgId = sessionStorage.getItem("dashboard_last_support_msg_id") || "";
     let lastTxCount = parseInt(sessionStorage.getItem("dashboard_last_tx_count") || "0", 10);
     
     const checkNotifications = async () => {
@@ -190,7 +191,34 @@ export default function UserDashboard() {
               (n: any) => !n.read && (n.type === "PAYMENT_RECEIVED" || n.type === "success" || n.type === "DEPOSIT" || n.type === "TRANSFER")
             );
             
+            // Check for new SUPPORT_MESSAGE from admin
+            const supportMessages = result.notifications.filter(
+              (n: any) => !n.read && n.type === "SUPPORT_MESSAGE"
+            );
+            
             setUnreadCount(result.unreadCount || 0);
+            
+            // Show toast for new support message from admin
+            if (supportMessages.length > 0 && supportMessages[0].id !== lastSupportMsgId) {
+              const supportMsg = supportMessages[0];
+              lastSupportMsgId = supportMsg.id;
+              sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
+              
+              toast("Message du Support", {
+                description: supportMsg.message || "Vous avez recu un message du support PimPay",
+                duration: 8000,
+                icon: "📧",
+                style: {
+                  background: "rgba(59, 130, 246, 0.95)",
+                  border: "1px solid rgba(96, 165, 250, 0.3)",
+                  color: "#fff",
+                },
+                action: {
+                  label: "Voir",
+                  onClick: () => router.push("/settings/notifications"),
+                },
+              });
+            }
             
             // Show toast for new payment received
             if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
@@ -215,6 +243,38 @@ export default function UserDashboard() {
               // Refresh dashboard data to update balance
               fetchDashboardData();
             }
+          }
+        }
+        
+        // Also check main notifications API for support messages
+        const notifRes = await fetch("/api/notifications", { cache: "no-store" });
+        if (notifRes.ok) {
+          const notifData = await notifRes.json();
+          const allNotifs = Array.isArray(notifData) ? notifData : (notifData.notifications || []);
+          
+          const newSupportMsgs = allNotifs.filter(
+            (n: any) => !n.read && n.type === "SUPPORT_MESSAGE" && n.id !== lastSupportMsgId
+          );
+          
+          if (newSupportMsgs.length > 0) {
+            const supportMsg = newSupportMsgs[0];
+            lastSupportMsgId = supportMsg.id;
+            sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
+            
+            toast("Message du Support", {
+              description: supportMsg.message || "Vous avez recu un message du support PimPay",
+              duration: 8000,
+              icon: "📧",
+              style: {
+                background: "rgba(59, 130, 246, 0.95)",
+                border: "1px solid rgba(96, 165, 250, 0.3)",
+                color: "#fff",
+              },
+              action: {
+                label: "Voir",
+                onClick: () => router.push("/settings/notifications"),
+              },
+            });
           }
         }
         

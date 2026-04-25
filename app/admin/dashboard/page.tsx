@@ -659,7 +659,7 @@ function DashboardContent() {
       {/* TOP NAV WITH NOTIFICATIONS */}
       <div className="px-6">
         <AdminTopNav 
-          title="Dashboard" 
+          title="Admin Dashboard" 
           subtitle="PimPay Core"
           onRefresh={fetchData}
           backPath="/admin"
