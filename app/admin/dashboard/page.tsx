@@ -154,7 +154,7 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
   </Card>
 );
 
-const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance, onDelete }: any) => {
+const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance, onDelete, onDisconnect }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
   const isPiUser = !!user.piUserId;
 
@@ -210,6 +210,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, 
       <div className="flex items-center justify-between pt-3 border-t border-white/5 gap-1 overflow-x-auto no-scrollbar">
         <button onClick={onViewBalance} title="Voir Soldes" className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl shrink-0 hover:bg-emerald-500/20 transition-colors"><Wallet size={14} /></button>
         <button onClick={onViewSessions} title="Infos Session" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><MonitorSmartphone size={14} /></button>
+        <button onClick={onDisconnect} title="Deconnecter l'utilisateur" className="p-2 bg-red-500/10 text-red-400 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><LogOut size={14} /></button>
         <button onClick={onResetPin} title="PIN" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Hash size={14} /></button>
         <button onClick={onResetPassword} title="Password" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><Key size={14} /></button>
         <button onClick={onToggleRole} title="Rôle" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-white shrink-0"><UserCog size={14} /></button>
@@ -533,6 +534,31 @@ function DashboardContent() {
     // Require 2FA verification
     setPending2FAAction({ type: "DELETE", userId, userName });
     setShow2FAModal(true);
+  };
+
+  const handleDisconnectUser = async (userId: string, userName: string) => {
+    const confirmed = confirm(`Deconnecter ${userName} ?\n\nCette action va fermer toutes ses sessions actives et l'obliger a se reconnecter.`);
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/sessions`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`${userName} deconnecte - ${data.count} session(s) fermee(s)`);
+        // Refresh session info if modal is open for this user
+        if (sessionInfo?.user.id === userId) {
+          fetchUserSessions(sessionInfo.user);
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la deconnexion");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    }
   };
 
   const executeDeleteUser = async (userId: string) => {
@@ -923,6 +949,7 @@ function DashboardContent() {
                             }}
                             onViewBalance={() => setBalanceModalUser(user)}
                             onDelete={() => handleDeleteUser(user.id, user.username || user.name || "Utilisateur")}
+                            onDisconnect={() => handleDisconnectUser(user.id, user.username || user.name || "Utilisateur")}
                         />
                     ))}
                     <button
