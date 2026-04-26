@@ -177,11 +177,8 @@ export default function TransactionConfirmListener({
 
         lastCheckedId.current = metadata.transactionId;
 
-        fetch("/api/notifications/mark-read", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notificationId: latestNotif.id }),
-        }).catch(() => {});
+        // Ne pas marquer comme lu automatiquement - laisser l'utilisateur confirmer/refuser
+        // La notification sera marquee comme lue apres confirmation ou refus
 
         showTransactionToast(tx);
       }

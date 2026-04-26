@@ -287,6 +287,8 @@ export default function NotificationsPage() {
         return <Store size={18} className="text-amber-400" />;
       case "SUPPORT_MESSAGE":
         return <Mail size={18} className="text-blue-400" />;
+      case "TRANSACTION_CONFIRM":
+        return <ShieldCheck size={18} className="text-amber-400" />;
       default:
         if (metadata?.type === "STAKING") return <TrendingUp size={18} className="text-purple-400" />;
         if (metadata?.type === "UNSTAKE") return <Coins size={18} className="text-orange-400" />;
@@ -320,6 +322,8 @@ export default function NotificationsPage() {
         return "bg-indigo-500/5 border-l-2 border-l-indigo-500";
       case "SUPPORT_MESSAGE":
         return "bg-blue-500/5 border-l-2 border-l-blue-500";
+      case "TRANSACTION_CONFIRM":
+        return "bg-amber-500/5 border-l-2 border-l-amber-500";
       default:
         return "bg-blue-500/5 border-l-2 border-l-blue-500";
     }
@@ -483,6 +487,49 @@ export default function NotificationsPage() {
                   <MessageCircle size={16} />
                   Repondre au Support
                 </button>
+              </div>
+            )}
+
+            {/* Transaction Confirmation Buttons */}
+            {notification.type === "TRANSACTION_CONFIRM" && metadata?.transactionId && (
+              <div className="space-y-3">
+                <div className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/20">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                      <ShieldCheck size={24} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">Confirmation requise</p>
+                      <p className="text-[10px] text-white/40">Cette transaction attend votre validation</p>
+                    </div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-amber-400">
+                      {formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "USD"}
+                    </p>
+                    {(metadata as any).agentName && (
+                      <p className="text-[9px] text-white/40 uppercase tracking-widest mt-1">
+                        Agent: {(metadata as any).agentName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { rejectTransaction(notification); onClose(); }}
+                    className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <X size={16} />
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => { openConfirmModal(notification); onClose(); }}
+                    className="flex-1 py-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+                  >
+                    <ShieldCheck size={16} />
+                    Confirmer
+                  </button>
+                </div>
               </div>
             )}
 

@@ -13,8 +13,9 @@ import { fr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "TRANSACTION_CONFIRM" | string;
 
 // Helper pour formater les montants PI avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
@@ -110,6 +111,8 @@ function getNotifCardClass(type: NotificationType, read: boolean): string {
       return "bg-orange-500/5 border border-white/10 border-l-2 border-l-orange-500";
     case "SUPPORT_MESSAGE":
       return "bg-cyan-500/5 border border-white/10 border-l-2 border-l-cyan-500";
+    case "TRANSACTION_CONFIRM":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
     default:
       return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
   }
@@ -129,6 +132,7 @@ function getIconBgClass(type: NotificationType, read: boolean): string {
     case "STAKING": case "STAKING_REWARD": return "bg-purple-500/10";
     case "STAKING_UNSTAKE": return "bg-orange-500/10";
     case "SUPPORT_MESSAGE": return "bg-cyan-500/10";
+    case "TRANSACTION_CONFIRM": return "bg-amber-500/10";
     default: return "bg-blue-500/10";
   }
 }
@@ -250,6 +254,19 @@ export default function NotificationsPage() {
 
   const [activeTab, setActiveTab] = useState<string>("ALL");
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  
+  // MFA Transaction Confirmation
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  const [confirmTx, setConfirmTx] = useState<{
+    id: string;
+    type: "DEPOSIT" | "WITHDRAWAL";
+    amount: number;
+    currency: string;
+    agentName?: string;
+    createdAt: string;
+  } | null>(null);
 
   const fetchNotifications = useCallback(async (showSilent = false) => {
     if (!showSilent) setIsRefreshing(true);
@@ -290,6 +307,63 @@ export default function NotificationsPage() {
       clearInterval(interval);
     };
   }, [fetchNotifications]);
+
+  // Fetch user info for MFA
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.user?.id) {
+          setCurrentUserId(data.user.id);
+          setTwoFactorEnabled(data.user.twoFactorEnabled || false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Open MFA confirmation modal
+  const openConfirmModal = useCallback((notification: Notification) => {
+    const meta = notification.metadata;
+    if (!meta?.transactionId) return;
+    setConfirmTx({
+      id: meta.transactionId,
+      type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
+      amount: meta.amount || 0,
+      currency: meta.currency || "USD",
+      agentName: meta.senderName || (meta as any).agentName,
+      createdAt: notification.createdAt,
+    });
+    setIsMfaModalOpen(true);
+    setSelectedNotification(null);
+  }, []);
+
+  // Reject transaction
+  const rejectTransaction = useCallback(async (notification: Notification) => {
+    const meta = notification.metadata;
+    if (!meta?.transactionId) return;
+    try {
+      const res = await fetch("/api/transaction/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: meta.transactionId,
+          userId: currentUserId,
+          action: "reject",
+        }),
+      });
+      if (res.ok) {
+        toast.success("Transaction refusee");
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+        );
+        setSelectedNotification(null);
+      } else {
+        toast.error("Erreur lors du refus");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    }
+  }, [currentUserId]);
 
   const markAllAsRead = async () => {
     try {
@@ -354,6 +428,7 @@ export default function NotificationsPage() {
       case "KYC_REJECTED": return <ShieldCheck className="text-rose-500" size={18} />;
       case "KYC_PENDING": return <ShieldCheck className="text-amber-400" size={18} />;
       case "SUPPORT_MESSAGE": return <MessageSquare className="text-cyan-400" size={18} />;
+      case "TRANSACTION_CONFIRM": return <ShieldCheck className="text-amber-400" size={18} />;
       default: return <Bell className="text-slate-400" size={18} />;
     }
   };
@@ -648,6 +723,49 @@ export default function NotificationsPage() {
               </div>
             )}
 
+            {/* Transaction Confirmation Buttons */}
+            {notification.type === "TRANSACTION_CONFIRM" && metadata?.transactionId && (
+              <div className="space-y-3">
+                <div className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/20">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                      <ShieldCheck size={24} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">Confirmation requise</p>
+                      <p className="text-[10px] text-slate-400">Cette transaction attend votre validation</p>
+                    </div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-amber-400">
+                      {formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "USD"}
+                    </p>
+                    {(metadata as any).agentName && (
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">
+                        Agent: {(metadata as any).agentName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => rejectTransaction(notification)}
+                    className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <X size={16} />
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => openConfirmModal(notification)}
+                    className="flex-1 py-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+                  >
+                    <ShieldCheck size={16} />
+                    Confirmer
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Delete Button */}
             <button 
               onClick={() => { deleteNotif(notification.id); onClose(); }}
@@ -664,6 +782,18 @@ export default function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
+      {/* MFA Transaction Confirmation Modal */}
+      <TransactionConfirmModal
+        isOpen={isMfaModalOpen}
+        onClose={() => {
+          setIsMfaModalOpen(false);
+          setConfirmTx(null);
+        }}
+        transaction={confirmTx}
+        userId={currentUserId}
+        twoFactorEnabled={twoFactorEnabled}
+      />
+
       {/* Notification Detail Modal */}
       <AnimatePresence>
         {selectedNotification && (
