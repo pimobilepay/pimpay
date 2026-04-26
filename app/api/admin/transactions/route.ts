@@ -7,8 +7,10 @@ export async function GET() {
   try {
     const transactions = await prisma.transaction.findMany({
       where: {
-        // Utilisation de l'Enum correct pour éviter les erreurs de type
-        status: TransactionStatus.PENDING,
+        // Include both PENDING and PENDING_CONFIRMATION transactions
+        status: {
+          in: [TransactionStatus.PENDING, TransactionStatus.PENDING_CONFIRMATION]
+        },
       },
       include: {
         fromUser: true,
