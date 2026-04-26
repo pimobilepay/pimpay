@@ -6,7 +6,7 @@ import {
   ShieldAlert, Users, Settings, Zap,
   Ban, Wallet, CreditCard,
   Hammer, TrendingUp, AlertTriangle, RefreshCw,
-  UserCheck, Trash2
+  UserCheck, Trash2, LogOut
 } from "lucide-react";
 import { toast } from "sonner";
 import { Admin2FAModal } from "./Admin2FAModal";
@@ -28,6 +28,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
     type: "DELETE" | "AIRDROP" | "AIRDROP_ALL";
     amount?: number;
   } | null>(null);
+  const [disconnectLoading, setDisconnectLoading] = useState(false);
 
   const runAction = async (action: string, payload: any = {}) => {
     setLoadingAction(action);
@@ -72,6 +73,31 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
         setPending2FAAction({ type: "DELETE" });
         setShow2FAModal(true);
       }
+    }
+  };
+
+  const handleDisconnectUser = async () => {
+    if (!userId) return;
+    const confirmed = confirm(`Deconnecter ${userName || "cet utilisateur"} ?\n\nCette action va fermer toutes ses sessions actives et l'obliger a se reconnecter.`);
+    if (!confirmed) return;
+
+    setDisconnectLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/sessions`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`${userName || "Utilisateur"} deconnecte - ${data.count} session(s) fermee(s)`);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la deconnexion");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setDisconnectLoading(false);
     }
   };
 
@@ -192,6 +218,13 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
                 icon={<RefreshCw size={16}/>}
                 onClick={() => runAction("TOGGLE_ROLE")}
                 loading={loadingAction === "TOGGLE_ROLE"}
+              />
+              <AdminButton
+                label="Deconnecter"
+                icon={<LogOut size={16}/>}
+                onClick={handleDisconnectUser}
+                loading={disconnectLoading}
+                variant="danger"
               />
             </div>
           </div>
