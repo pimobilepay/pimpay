@@ -746,24 +746,37 @@ export default function NotificationsPage() {
                     </div>
 
                     {/* Boutons Confirmer / Annuler pour les transactions en attente */}
-                    {notification.type === "TRANSACTION_CONFIRM" && notification.metadata?.transactionId && (
-                      <div
-                        className="flex gap-2 mt-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => rejectTransaction(notification)}
-                          className="flex-1 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all"
-                        >
-                          ✗ Annuler
-                        </button>
-                        <button
-                          onClick={() => openConfirmModal(notification)}
-                          className="flex-1 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-1"
-                        >
-                          <ShieldCheck size={10} />
-                          Confirmer
-                        </button>
+                    {notification.type === "TRANSACTION_CONFIRM" && notification.metadata?.transactionId && !notification.read && (
+                      <div className="mt-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+                        {/* Badge montant */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[10px] font-black border border-amber-500/20">
+                            <ShieldCheck size={12} />
+                            {formatPiAmount(notification.metadata.amount, notification.metadata.currency)} {notification.metadata.currency || "USD"}
+                          </span>
+                          {notification.metadata.senderName && (
+                            <span className="text-[9px] text-white/40">
+                              de {notification.metadata.senderName}
+                            </span>
+                          )}
+                        </div>
+                        {/* Boutons d'action */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => rejectTransaction(notification)}
+                            className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-1"
+                          >
+                            <X size={12} />
+                            Annuler
+                          </button>
+                          <button
+                            onClick={() => openConfirmModal(notification)}
+                            className="flex-1 py-2.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/10"
+                          >
+                            <ShieldCheck size={12} />
+                            Confirmer
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

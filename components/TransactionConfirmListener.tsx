@@ -138,7 +138,7 @@ export default function TransactionConfirmListener({
           </div>
         ),
         {
-          duration: Infinity,
+          duration: 30000, // 30 secondes
           id: `tx-confirm-${tx.id}`,
         }
       );
