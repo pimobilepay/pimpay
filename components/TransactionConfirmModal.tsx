@@ -69,23 +69,31 @@ export default function TransactionConfirmModal({
   // Confirm transaction with PIN
   const confirmWithPin = useCallback(
     async (finalPin: string) => {
-      if (!userId || !transaction) return;
+      console.log("[v0] confirmWithPin called - userId:", userId, "transactionId:", transaction?.id);
+      if (!userId || !transaction) {
+        console.log("[v0] Missing userId or transaction - userId:", userId, "transaction:", transaction);
+        return;
+      }
       setLoading(true);
       setError(null);
+
+      const payload = {
+        transactionId: transaction.id,
+        userId,
+        pin: finalPin,
+        method: "pin",
+      };
+      console.log("[v0] Sending confirm request with payload:", JSON.stringify(payload));
 
       try {
         const res = await fetch("/api/transaction/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transactionId: transaction.id,
-            userId,
-            pin: finalPin,
-            method: "pin",
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
+        console.log("[v0] Confirm response:", res.status, data);
 
         if (res.ok && data.success) {
           setSuccess(true);

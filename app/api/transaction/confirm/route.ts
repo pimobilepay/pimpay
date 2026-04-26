@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { transactionId, userId, pin, code, method, action } = body;
 
+    console.log("[v0] Transaction confirm request:", { transactionId, userId, method, action, hasPin: !!pin, hasCode: !!code });
+
     if (!transactionId || !userId) {
+      console.log("[v0] Missing data - transactionId:", transactionId, "userId:", userId);
       return NextResponse.json(
         { error: "Donnees manquantes" },
         { status: 400 }
@@ -45,7 +48,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the user is the recipient
+    console.log("[v0] Transaction toUserId:", transaction.toUserId, "Request userId:", userId);
     if (transaction.toUserId !== userId) {
+      console.log("[v0] User mismatch - transaction.toUserId:", transaction.toUserId, "!== userId:", userId);
       return NextResponse.json(
         { error: "Non autorise" },
         { status: 403 }
@@ -111,6 +116,7 @@ export async function POST(req: NextRequest) {
       verified = verifyTOTP(code, user.twoFactorSecret);
     } else if (method === 'pin' && pin) {
       // Verify PIN
+      console.log("[v0] Verifying PIN - user has pin:", !!user?.pin);
       if (!user?.pin) {
         return NextResponse.json(
           { error: "PIN non configure" },
@@ -119,7 +125,9 @@ export async function POST(req: NextRequest) {
       }
 
       verified = await bcrypt.compare(pin, user.pin);
+      console.log("[v0] PIN verification result:", verified);
     } else {
+      console.log("[v0] Invalid verification method - method:", method, "hasPin:", !!pin, "hasCode:", !!code);
       return NextResponse.json(
         { error: "Methode de verification invalide" },
         { status: 400 }

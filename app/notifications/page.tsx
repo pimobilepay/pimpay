@@ -156,7 +156,15 @@ export default function NotificationsPage() {
   const openConfirmModal = useCallback(
     (notification: Notification) => {
       const meta = notification.metadata;
-      if (!meta?.transactionId) return;
+      console.log("[v0] openConfirmModal - meta:", meta, "currentUserId:", currentUserId);
+      if (!meta?.transactionId) {
+        console.log("[v0] No transactionId in metadata");
+        return;
+      }
+      if (!currentUserId) {
+        toast.error("Erreur: Utilisateur non identifie. Veuillez rafraichir la page.");
+        return;
+      }
       setConfirmTx({
         id: meta.transactionId,
         type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
@@ -167,7 +175,7 @@ export default function NotificationsPage() {
       });
       setIsMfaModalOpen(true);
     },
-    []
+    [currentUserId]
   );
 
   // Refus direct depuis la page notifications (sans modal MFA)
