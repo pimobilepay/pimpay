@@ -82,6 +82,7 @@ export default function TransactionConfirmModal({
             userId,
             pin: finalPin,
             method: "pin",
+            action: "confirm",
           }),
         });
 
@@ -91,6 +92,8 @@ export default function TransactionConfirmModal({
           setSuccess(true);
           setTimeout(() => {
             onClose();
+            // Force page refresh to update notifications
+            window.location.reload();
           }, 1500);
         } else {
           triggerShake();
@@ -124,6 +127,7 @@ export default function TransactionConfirmModal({
             userId,
             code,
             method: "totp",
+            action: "confirm",
           }),
         });
 
@@ -133,6 +137,8 @@ export default function TransactionConfirmModal({
           setSuccess(true);
           setTimeout(() => {
             onClose();
+            // Force page refresh to update notifications
+            window.location.reload();
           }, 1500);
         } else {
           triggerShake();
@@ -177,15 +183,17 @@ export default function TransactionConfirmModal({
   const handleNumberPress = (num: number) => {
     if (loading || shake) return;
 
-    if (method === "pin" && pin.length < 6) {
+    // PIN uses 4 digits
+    if (method === "pin" && pin.length < 4) {
       const newPin = pin + num;
       setPin(newPin);
 
-      if (newPin.length === 6 && !loading) {
+      if (newPin.length === 4 && !loading) {
         confirmWithPin(newPin);
       }
     }
 
+    // TOTP uses 6 digits
     if (method === "authenticator" && totpCode.length < 6) {
       const newCode = totpCode + num;
       setTotpCode(newCode);
@@ -228,9 +236,9 @@ export default function TransactionConfirmModal({
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-            {/* Close button */}
+            {/* Close button - just closes the modal without rejecting */}
             <button
-              onClick={rejectTransaction}
+              onClick={onClose}
               className="absolute right-4 top-4 p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all z-10"
             >
               <X size={18} />
@@ -350,11 +358,11 @@ export default function TransactionConfirmModal({
                   </motion.div>
                 )}
 
-                {/* Code Indicators */}
+                {/* Code Indicators - 4 for PIN, 6 for TOTP */}
                 <div
                   className={`flex justify-center gap-3 py-4 ${shake ? "animate-shake" : ""}`}
                 >
-                  {[...Array(6)].map((_, i) => (
+                  {[...Array(method === "pin" ? 4 : 6)].map((_, i) => (
                     <motion.div
                       key={i}
                       initial={{ scale: 0.8 }}

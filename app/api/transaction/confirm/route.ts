@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Handle rejection
+    // Handle rejection (explicit reject action)
     if (action === 'reject') {
       await prisma.transaction.update({
         where: { id: transactionId },

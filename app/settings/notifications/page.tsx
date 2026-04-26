@@ -340,7 +340,10 @@ export default function NotificationsPage() {
   // Reject transaction
   const rejectTransaction = useCallback(async (notification: Notification) => {
     const meta = notification.metadata;
-    if (!meta?.transactionId) return;
+    if (!meta?.transactionId) {
+      toast.error("Transaction introuvable");
+      return;
+    }
     try {
       const res = await fetch("/api/transaction/confirm", {
         method: "POST",
@@ -351,19 +354,24 @@ export default function NotificationsPage() {
           action: "reject",
         }),
       });
+      const data = await res.json();
+      
       if (res.ok) {
-        toast.success("Transaction refusee");
+        toast.success("Transaction annulee");
+        // Remove the notification from the list
         setNotifications((prev) =>
-          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+          prev.filter((n) => n.id !== notification.id)
         );
         setSelectedNotification(null);
+        // Refresh notifications
+        fetchNotifications(true);
       } else {
-        toast.error("Erreur lors du refus");
+        toast.error(data.error || "Erreur lors du refus");
       }
     } catch {
       toast.error("Erreur reseau");
     }
-  }, [currentUserId]);
+  }, [currentUserId, fetchNotifications]);
 
   const markAllAsRead = async () => {
     try {
@@ -788,6 +796,8 @@ export default function NotificationsPage() {
         onClose={() => {
           setIsMfaModalOpen(false);
           setConfirmTx(null);
+          // Refresh notifications after closing
+          fetchNotifications(true);
         }}
         transaction={confirmTx}
         userId={currentUserId}
