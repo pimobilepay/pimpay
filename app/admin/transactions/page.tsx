@@ -46,6 +46,10 @@ interface Transaction {
   method?: string;
   blockchainTx?: string;
   fee?: number;
+  netAmount?: number;
+  fromWalletId?: string;
+  toWalletId?: string;
+  toUserId?: string;
 }
 
 function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing }: { 
@@ -62,6 +66,8 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
 
   const isSuccess = tx.status === "SUCCESS";
   const isPending = tx.status === "PENDING";
+  const isPendingConfirmation = tx.status === "PENDING_CONFIRMATION";
+  const needsAction = isPending || isPendingConfirmation;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -84,20 +90,22 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
 
         {/* Status Header */}
         <div className={`py-4 px-6 flex items-center justify-between ${
-          isSuccess ? "bg-emerald-500/10" : isPending ? "bg-amber-500/10" : "bg-red-500/10"
+          isSuccess ? "bg-emerald-500/10" : isPendingConfirmation ? "bg-purple-500/10" : isPending ? "bg-amber-500/10" : "bg-red-500/10"
         }`}>
           <div className="flex items-center gap-2">
             {isSuccess ? (
               <CheckCircle size={16} className="text-emerald-500" />
+            ) : isPendingConfirmation ? (
+              <ShieldCheck size={16} className="text-purple-500" />
             ) : isPending ? (
               <Clock size={16} className="text-amber-500" />
             ) : (
               <XCircle size={16} className="text-red-500" />
             )}
             <span className={`text-[10px] font-black uppercase tracking-widest ${
-              isSuccess ? "text-emerald-500" : isPending ? "text-amber-500" : "text-red-500"
+              isSuccess ? "text-emerald-500" : isPendingConfirmation ? "text-purple-500" : isPending ? "text-amber-500" : "text-red-500"
             }`}>
-              {tx.status}
+              {isPendingConfirmation ? "CONFIRMATION AGENT" : tx.status}
             </span>
           </div>
           <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{tx.type}</span>
@@ -190,24 +198,33 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
           </div>
 
           {/* Action Buttons */}
-          {tx.status === "PENDING" && (
-            <div className="flex gap-3 pt-6 border-t border-white/5">
-              <button
-                onClick={() => onReject(tx.id)}
-                disabled={isProcessing}
-                className="flex-1 h-14 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
-              >
-                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={18} />}
-                Rejeter
-              </button>
-              <button
-                onClick={() => onApprove(tx.id)}
-                disabled={isProcessing}
-                className="flex-1 h-14 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
-              >
-                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={18} />}
-                Approuver
-              </button>
+          {needsAction && (
+            <div className="space-y-4 pt-6 border-t border-white/5">
+              {isPendingConfirmation && (
+                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                  <p className="text-[10px] font-bold text-purple-400 text-center">
+                    Transaction initiee par un agent - En attente de confirmation client
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => onReject(tx.id)}
+                  disabled={isProcessing}
+                  className="flex-1 h-14 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
+                >
+                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={18} />}
+                  {isPendingConfirmation ? "Annuler" : "Rejeter"}
+                </button>
+                <button
+                  onClick={() => onApprove(tx.id)}
+                  disabled={isProcessing}
+                  className="flex-1 h-14 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
+                >
+                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={18} />}
+                  {isPendingConfirmation ? "Confirmer" : "Approuver"}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -247,11 +264,14 @@ function DetailRow({ icon, label, value, onCopy, copyable, valueClassName }: {
   );
 }
 
+type StatusFilter = 'ALL' | 'PENDING' | 'PENDING_CONFIRMATION';
+
 export default function AdminTransactionsPage() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
@@ -264,7 +284,10 @@ export default function AdminTransactionsPage() {
       const data = await response.json();
       const transactionsArray = Array.isArray(data) ? data : (data.transactions || []);
 
-      setTransactions(transactionsArray.filter((t: Transaction) => t.status === 'PENDING'));
+      // Filter for both PENDING and PENDING_CONFIRMATION statuses
+      setTransactions(transactionsArray.filter((t: Transaction) => 
+        t.status === 'PENDING' || t.status === 'PENDING_CONFIRMATION'
+      ));
     } catch (error) {
       toast.error("PimPay : Impossible de charger les flux");
       console.error(error);
@@ -278,26 +301,48 @@ export default function AdminTransactionsPage() {
   }, []);
 
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
-    if (!confirm(`Confirmer la ${action === 'approve' ? 'validation' : 'rejection'} ?`)) return;
+    // Find the transaction to check its status
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
+
+    const isAgentTransaction = tx.status === 'PENDING_CONFIRMATION';
+    const actionLabel = action === 'approve' ? 'validation' : 'annulation';
+    
+    if (!confirm(`Confirmer la ${actionLabel} ${isAgentTransaction ? 'de la transaction agent' : ''} ?`)) return;
 
     setIsProcessing(id);
     try {
-      const response = await fetch(`/api/admin/transactions/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: id, action }),
-      });
+      let response;
+      
+      if (isAgentTransaction) {
+        // Use the transaction confirm API for agent-initiated transactions
+        response = await fetch('/api/admin/transactions/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            transactionId: id, 
+            action: action === 'approve' ? 'confirm' : 'reject'
+          }),
+        });
+      } else {
+        // Use the standard update API for regular pending transactions
+        response = await fetch('/api/admin/transactions/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId: id, action }),
+        });
+      }
 
       const result = await response.json();
 
       if (response.ok) {
         setTransactions(prev => prev.filter(t => t.id !== id));
         setSelectedTx(null);
-        toast.success(`Flux ${action === 'approve' ? 'valide' : 'rejete'} avec succes`);
+        toast.success(`Transaction ${action === 'approve' ? 'validee' : 'annulee'} avec succes`);
       } else {
         toast.error(result.error || "Echec de l'operation");
       }
-    } catch (error) {
+    } catch {
       toast.error("Erreur de communication avec le serveur PimPay");
     } finally {
       setIsProcessing(null);
@@ -305,6 +350,10 @@ export default function AdminTransactionsPage() {
   };
 
   const filteredTransactions = transactions.filter(t => {
+    // Apply status filter
+    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+    
+    // Apply search filter
     const searchLower = filter.toLowerCase();
     const user = t.fromUser || t.toUser;
     const { displayName, subLabel } = resolveUserName(user);
@@ -315,6 +364,10 @@ export default function AdminTransactionsPage() {
       (t.accountNumber && t.accountNumber.toLowerCase().includes(searchLower))
     );
   });
+  
+  // Count transactions by status
+  const pendingCount = transactions.filter(t => t.status === 'PENDING').length;
+  const confirmationCount = transactions.filter(t => t.status === 'PENDING_CONFIRMATION').length;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
@@ -338,6 +391,42 @@ export default function AdminTransactionsPage() {
 
         <div className="p-6">
 
+        {/* STATUS FILTER TABS */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+              statusFilter === 'ALL' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+            Toutes ({transactions.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('PENDING')}
+            className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+              statusFilter === 'PENDING' 
+                ? 'bg-amber-500 text-white' 
+                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+            <Clock size={12} className="inline mr-1.5" />
+            En Attente ({pendingCount})
+          </button>
+          <button
+            onClick={() => setStatusFilter('PENDING_CONFIRMATION')}
+            className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+              statusFilter === 'PENDING_CONFIRMATION' 
+                ? 'bg-purple-500 text-white' 
+                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+            <ShieldCheck size={12} className="inline mr-1.5" />
+            Confirmation Agent ({confirmationCount})
+          </button>
+        </div>
+
         {/* SEARCH */}
         <div className="mb-8 relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
@@ -357,6 +446,7 @@ export default function AdminTransactionsPage() {
               <thead>
                 <tr className="bg-white/5 border-b border-white/5">
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Reference</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-500">Statut</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Client</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Montant</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Type / Compte</th>
@@ -366,9 +456,9 @@ export default function AdminTransactionsPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr><td colSpan={6} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
+                  <tr><td colSpan={7} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
                 ) : filteredTransactions.length === 0 ? (
-                  <tr><td colSpan={6} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
+                  <tr><td colSpan={7} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
                 ) : (
                   filteredTransactions.map((tx) => (
                     <tr 
@@ -381,6 +471,19 @@ export default function AdminTransactionsPage() {
                           <Hash size={14} className="text-blue-500" />
                           <span className="font-black text-xs uppercase">{tx.id.slice(-8)}</span>
                         </div>
+                      </td>
+                      <td className="p-6">
+                        {tx.status === 'PENDING_CONFIRMATION' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[9px] font-black uppercase">
+                            <ShieldCheck size={10} />
+                            Agent
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-lg text-[9px] font-black uppercase">
+                            <Clock size={10} />
+                            En Attente
+                          </span>
+                        )}
                       </td>
                       <td className="p-6">
                         {(() => {
