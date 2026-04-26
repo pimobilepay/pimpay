@@ -183,12 +183,12 @@ export default function TransactionConfirmModal({
   const handleNumberPress = (num: number) => {
     if (loading || shake) return;
 
-    // PIN uses 4 digits
-    if (method === "pin" && pin.length < 4) {
+    // PIN uses 6 digits (same as registration/login PIN)
+    if (method === "pin" && pin.length < 6) {
       const newPin = pin + num;
       setPin(newPin);
 
-      if (newPin.length === 4 && !loading) {
+      if (newPin.length === 6 && !loading) {
         confirmWithPin(newPin);
       }
     }
@@ -358,11 +358,11 @@ export default function TransactionConfirmModal({
                   </motion.div>
                 )}
 
-                {/* Code Indicators - 4 for PIN, 6 for TOTP */}
+                {/* Code Indicators - 6 digits for both PIN and TOTP */}
                 <div
                   className={`flex justify-center gap-3 py-4 ${shake ? "animate-shake" : ""}`}
                 >
-                  {[...Array(method === "pin" ? 4 : 6)].map((_, i) => (
+                  {[...Array(6)].map((_, i) => (
                     <motion.div
                       key={i}
                       initial={{ scale: 0.8 }}
