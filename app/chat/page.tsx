@@ -5,8 +5,9 @@ import {
   ArrowLeft, Send, Sparkles, Plus, Clock,
   Loader2, MessageCircle, ChevronRight,
   ShieldCheck, X, Paperclip, FileText, Image as ImageIcon,
-  Bot, Headphones, User, Zap, HelpCircle
+  Bot, Headphones, User, Zap, HelpCircle, Phone
 } from "lucide-react";
+import VoipCallOverlay from "@/components/VoipCallOverlay";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -120,6 +121,7 @@ export default function ChatPage() {
   const [mounted, setMounted] = useState(false);
   const [showFAQ, setShowFAQ] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [showVoipCall, setShowVoipCall] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -251,11 +253,26 @@ export default function ChatPage() {
               </div>
             </div>
           </div>
-          <button onClick={() => setShowHistory(true)} className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
-            <Clock size={18} className="text-slate-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowVoipCall(true)} 
+              className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl active:scale-90 transition-transform hover:bg-emerald-500/20"
+              aria-label="Appeler le support"
+            >
+              <Phone size={18} className="text-emerald-400" />
+            </button>
+            <button onClick={() => setShowHistory(true)} className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
+              <Clock size={18} className="text-slate-400" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* VoIP Call Overlay */}
+      <VoipCallOverlay 
+        isOpen={showVoipCall} 
+        onClose={() => setShowVoipCall(false)} 
+      />
 
       {/* History Sidebar */}
       {showHistory && (
