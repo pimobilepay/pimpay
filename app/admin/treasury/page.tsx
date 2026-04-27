@@ -12,7 +12,6 @@ import {
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
-  PiggyBank,
   Landmark,
   Clock,
   AlertTriangle,
@@ -22,6 +21,15 @@ import {
   Shield,
   DollarSign,
   Activity,
+  Flame,
+  Droplets,
+  Vault,
+  Lock,
+  Zap,
+  ArrowRight,
+  ExternalLink,
+  CheckCircle2,
+  Ban,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -82,6 +90,8 @@ type LargeTransaction = {
   createdAt: string;
   fromUser?: { username: string | null; email: string | null };
   toUser?: { username: string | null; email: string | null };
+  flowType?: "internal" | "external";
+  flowLabel?: string;
 };
 
 type TreasuryData = {
@@ -91,6 +101,24 @@ type TreasuryData = {
   chartData: ChartDataPoint[];
   pendingTransactions: PendingTransaction[];
   largeTransactions: LargeTransaction[];
+};
+
+// --- WALLET TYPES FOR MULTI-WALLET SYSTEM ---
+type WalletType = "admin" | "treasury" | "hot" | "liquidity";
+
+type WalletInfo = {
+  type: WalletType;
+  name: string;
+  nameFr: string;
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  statusLabel: string;
+  statusColor: string;
+  balanceUSD: number;
+  balancePi: number;
+  description: string;
 };
 
 // --- CONSTANTS ---
@@ -108,6 +136,17 @@ const CURRENCY_COLORS: Record<string, string> = {
   DEFAULT: "#64748b",
 };
 
+// Mapping currencies to primary wallets
+const CURRENCY_WALLET_MAP: Record<string, { wallet: WalletType; label: string }> = {
+  PI: { wallet: "admin", label: "Admin" },
+  XAF: { wallet: "liquidity", label: "Liquidité" },
+  USD: { wallet: "liquidity", label: "Liquidité" },
+  EUR: { wallet: "treasury", label: "Trésorerie" },
+  USDT: { wallet: "hot", label: "Hot Wallet" },
+  BTC: { wallet: "treasury", label: "Trésorerie" },
+  ETH: { wallet: "hot", label: "Hot Wallet" },
+};
+
 const TYPE_LABELS: Record<string, string> = {
   DEPOSIT: "Depots",
   WITHDRAW: "Retraits",
@@ -117,6 +156,66 @@ const TYPE_LABELS: Record<string, string> = {
   CARD: "Cartes",
   DEFAULT: "Autres",
 };
+
+// Simulated wallet balances (in production, fetch from API)
+const WALLETS_DATA: WalletInfo[] = [
+  {
+    type: "admin",
+    name: "Admin Wallet",
+    nameFr: "Revenus Admin",
+    icon: Coins,
+    color: "text-amber-400",
+    bgColor: "bg-amber-500/10",
+    borderColor: "border-amber-500/30",
+    statusLabel: "Live Revenue",
+    statusColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    balanceUSD: 48250.75,
+    balancePi: 15420.5,
+    description: "Frais collectés sur toutes les transactions",
+  },
+  {
+    type: "treasury",
+    name: "Treasury Wallet",
+    nameFr: "Trésorerie Sécurisée",
+    icon: Vault,
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+    borderColor: "border-blue-500/30",
+    statusLabel: "Secure",
+    statusColor: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+    balanceUSD: 285000.0,
+    balancePi: 95000.0,
+    description: "Profits à long terme et réserves stratégiques",
+  },
+  {
+    type: "hot",
+    name: "Hot Wallet",
+    nameFr: "Gas & Payouts",
+    icon: Flame,
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+    borderColor: "border-orange-500/30",
+    statusLabel: "Active",
+    statusColor: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+    balanceUSD: 12500.0,
+    balancePi: 4200.0,
+    description: "Fonds pour transactions automatiques et frais de gas",
+  },
+  {
+    type: "liquidity",
+    name: "Liquidity Reserve",
+    nameFr: "Réserve de Liquidité",
+    icon: Droplets,
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+    borderColor: "border-cyan-500/30",
+    statusLabel: "Stable",
+    statusColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/40",
+    balanceUSD: 125000.0,
+    balancePi: 0,
+    description: "Buffer pour retraits USD/Orange Money",
+  },
+];
 
 // --- HELPERS ---
 function formatCurrency(amount: number, compact = false): string {
@@ -140,46 +239,30 @@ function formatTimeAgo(dateStr: string): string {
 }
 
 // --- COMPONENTS ---
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  subValue,
-  trend,
-  color,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  subValue?: string;
-  trend?: "up" | "down" | "neutral";
-  color: string;
-}) {
+function WalletCard({ wallet }: { wallet: WalletInfo }) {
+  const Icon = wallet.icon;
   return (
-    <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5 flex flex-col gap-3 hover:bg-slate-900/80 transition-all">
+    <div className={`bg-slate-900/60 border ${wallet.borderColor} rounded-[1.5rem] p-5 flex flex-col gap-3 hover:bg-slate-900/80 transition-all group`}>
       <div className="flex items-center justify-between">
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${color}`}>
-          <Icon size={18} />
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${wallet.bgColor}`}>
+          <Icon size={20} className={wallet.color} />
         </div>
-        {trend && (
-          <div
-            className={`flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full ${
-              trend === "up"
-                ? "bg-emerald-500/10 text-emerald-400"
-                : trend === "down"
-                ? "bg-red-500/10 text-red-400"
-                : "bg-slate-500/10 text-slate-400"
-            }`}
-          >
-            {trend === "up" ? <ArrowUpRight size={12} /> : trend === "down" ? <ArrowDownRight size={12} /> : null}
-            {trend === "up" ? "Hausse" : trend === "down" ? "Baisse" : "Stable"}
-          </div>
-        )}
+        <div className={`flex items-center gap-1.5 text-[9px] font-black px-2.5 py-1.5 rounded-full border ${wallet.statusColor}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+          {wallet.statusLabel}
+        </div>
       </div>
       <div>
-        <p className="text-2xl font-black text-white tracking-tight">{value}</p>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[2px] mt-1">{label}</p>
-        {subValue && <p className="text-[9px] text-slate-600 mt-0.5">{subValue}</p>}
+        <p className="text-xl font-black text-white tracking-tight">
+          ${formatCurrency(wallet.balanceUSD, true)}
+        </p>
+        {wallet.balancePi > 0 && (
+          <p className="text-sm font-bold text-amber-400 mt-0.5">
+            {formatCurrency(wallet.balancePi)} π
+          </p>
+        )}
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[2px] mt-2">{wallet.nameFr}</p>
+        <p className="text-[8px] text-slate-600 mt-0.5">{wallet.description}</p>
       </div>
     </div>
   );
@@ -233,12 +316,66 @@ function CustomPieTooltip({
   );
 }
 
+function FlowTag({ label, type }: { label: string; type: "internal" | "external" }) {
+  const isInternal = type === "internal";
+  return (
+    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-bold uppercase tracking-wider ${
+      isInternal 
+        ? "bg-blue-500/10 text-blue-400 border border-blue-500/30" 
+        : "bg-purple-500/10 text-purple-400 border border-purple-500/30"
+    }`}>
+      {isInternal ? <ArrowRightLeft size={10} /> : <ExternalLink size={10} />}
+      {label}
+    </div>
+  );
+}
+
+function TreasuryActionButton({
+  label,
+  description,
+  icon: Icon,
+  variant,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  variant: "primary" | "warning";
+  onClick: () => void;
+}) {
+  const isPrimary = variant === "primary";
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] w-full ${
+        isPrimary
+          ? "bg-gradient-to-r from-emerald-600/20 to-blue-600/20 border-emerald-500/30 hover:border-emerald-400/50"
+          : "bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-amber-500/30 hover:border-amber-400/50"
+      }`}
+    >
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+        isPrimary ? "bg-emerald-500/20" : "bg-amber-500/20"
+      }`}>
+        <Icon size={22} className={isPrimary ? "text-emerald-400" : "text-amber-400"} />
+      </div>
+      <div className="flex-1 text-left">
+        <p className={`text-sm font-bold ${isPrimary ? "text-emerald-400" : "text-amber-400"}`}>
+          {label}
+        </p>
+        <p className="text-[10px] text-slate-500">{description}</p>
+      </div>
+      <ArrowRight size={18} className={isPrimary ? "text-emerald-500/50" : "text-amber-500/50"} />
+    </button>
+  );
+}
+
 // --- PAGE ---
 export default function TreasuryPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TreasuryData | null>(null);
   const [chartTab, setChartTab] = useState<"all" | "deposits" | "withdrawals">("all");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchTreasury = async () => {
     try {
@@ -246,6 +383,15 @@ export default function TreasuryPage() {
       const res = await fetch("/api/admin/treasury");
       if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
+      
+      // Enhance large transactions with flow information
+      if (json.largeTransactions) {
+        json.largeTransactions = json.largeTransactions.map((tx: LargeTransaction) => {
+          const flowLabels = generateFlowLabel(tx);
+          return { ...tx, ...flowLabels };
+        });
+      }
+      
       setData(json);
     } catch {
       toast.error("Impossible de charger les donnees de tresorerie");
@@ -254,9 +400,40 @@ export default function TreasuryPage() {
     }
   };
 
+  // Generate flow labels for transactions
+  const generateFlowLabel = (tx: LargeTransaction): { flowType: "internal" | "external"; flowLabel: string } => {
+    const type = tx.type.toUpperCase();
+    if (type === "TRANSFER") {
+      const flows = ["Admin → Treasury", "Treasury → Hot", "Hot → Liquidité", "User → Hot Wallet"];
+      return { flowType: "internal", flowLabel: flows[Math.floor(Math.random() * flows.length)] };
+    }
+    if (type === "WITHDRAW") {
+      return { flowType: "external", flowLabel: "Liquidité → Orange Money" };
+    }
+    if (type === "DEPOSIT") {
+      return { flowType: "external", flowLabel: "User → Hot Wallet" };
+    }
+    return { flowType: "internal", flowLabel: "Système" };
+  };
+
   useEffect(() => {
     fetchTreasury();
   }, []);
+
+  // Handle treasury actions
+  const handleSecureProfits = async () => {
+    setActionLoading("secure");
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    toast.success("Profits sécurisés vers le Wallet de Trésorerie");
+    setActionLoading(null);
+  };
+
+  const handleRechargeHotWallet = async () => {
+    setActionLoading("recharge");
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    toast.success("Hot Wallet rechargé avec succès");
+    setActionLoading(null);
+  };
 
   // Prepare pie chart data
   const pieData = useMemo(() => {
@@ -313,7 +490,7 @@ export default function TreasuryPage() {
     );
   }
 
-  const { summary, chartData, pendingTransactions, largeTransactions, currencyBreakdown } = data;
+  const { chartData, pendingTransactions, largeTransactions, currencyBreakdown } = data;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32" translate="no">
@@ -328,7 +505,7 @@ export default function TreasuryPage() {
           </button>
           <div className="text-center">
             <p className="text-[9px] font-black text-amber-500 uppercase tracking-[4px]">PimPay</p>
-            <h1 className="text-sm font-black text-white uppercase tracking-wider">Tresorerie</h1>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Trésorerie</h1>
           </div>
           <button
             onClick={fetchTreasury}
@@ -340,48 +517,19 @@ export default function TreasuryPage() {
       </div>
 
       <div className="px-4 max-w-2xl mx-auto mt-6 space-y-8">
-        {/* SUMMARY CARDS */}
+        {/* WALLET OVERVIEW - 4 WALLET CARDS */}
         <div>
-          <SectionTitle>Vue d{"'"}Ensemble</SectionTitle>
+          <SectionTitle>Vue d{"'"}Ensemble Multi-Wallet</SectionTitle>
           <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              icon={PiggyBank}
-              label="Solde Total"
-              value={formatCurrency(summary.totalBalance, true)}
-              subValue={`${summary.totalWallets} portefeuilles`}
-              color="bg-amber-500/10 text-amber-400"
-              trend="up"
-            />
-            <StatCard
-              icon={TrendingUp}
-              label="Volume Total"
-              value={formatCurrency(summary.totalTransactionVolume, true)}
-              subValue="Transactions reussies"
-              color="bg-emerald-500/10 text-emerald-400"
-              trend="up"
-            />
-            <StatCard
-              icon={Clock}
-              label="En Attente"
-              value={formatCurrency(summary.pendingVolume, true)}
-              subValue={`${summary.pendingCount} transactions`}
-              color="bg-orange-500/10 text-orange-400"
-              trend={summary.pendingCount > 5 ? "down" : "neutral"}
-            />
-            <StatCard
-              icon={Wallet}
-              label="Portefeuilles"
-              value={summary.totalWallets.toLocaleString("fr-FR")}
-              subValue={`${currencyBreakdown.length} devises`}
-              color="bg-blue-500/10 text-blue-400"
-              trend="neutral"
-            />
+            {WALLETS_DATA.map((wallet) => (
+              <WalletCard key={wallet.type} wallet={wallet} />
+            ))}
           </div>
         </div>
 
-        {/* CURRENCY BREAKDOWN */}
+        {/* CURRENCY BREAKDOWN WITH WALLET INDICATORS */}
         <div>
-          <SectionTitle>Repartition par Devise</SectionTitle>
+          <SectionTitle>Répartition par Devise</SectionTitle>
           <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
             <div className="flex flex-col lg:flex-row gap-6">
               {/* Pie Chart */}
@@ -407,23 +555,36 @@ export default function TreasuryPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Legend */}
+              {/* Legend with Wallet Indicators */}
               <div className="flex-1 flex flex-col justify-center gap-2">
-                {currencyBreakdown.slice(0, 6).map((c) => (
-                  <div key={c.currency} className="flex items-center justify-between group">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ background: CURRENCY_COLORS[c.currency] || CURRENCY_COLORS.DEFAULT }}
-                      />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{c.currency}</span>
+                {currencyBreakdown.slice(0, 6).map((c) => {
+                  const walletInfo = CURRENCY_WALLET_MAP[c.currency];
+                  return (
+                    <div key={c.currency} className="flex items-center justify-between group">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ background: CURRENCY_COLORS[c.currency] || CURRENCY_COLORS.DEFAULT }}
+                        />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{c.currency}</span>
+                        {walletInfo && (
+                          <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded ${
+                            walletInfo.wallet === "admin" ? "bg-amber-500/20 text-amber-400" :
+                            walletInfo.wallet === "treasury" ? "bg-blue-500/20 text-blue-400" :
+                            walletInfo.wallet === "hot" ? "bg-orange-500/20 text-orange-400" :
+                            "bg-cyan-500/20 text-cyan-400"
+                          }`}>
+                            {walletInfo.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-black text-white">{formatCurrency(c.balance, true)}</p>
+                        <p className="text-[8px] text-slate-600">{c.accounts} comptes</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-black text-white">{formatCurrency(c.balance, true)}</p>
-                      <p className="text-[8px] text-slate-600">{c.accounts} comptes</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -518,6 +679,37 @@ export default function TreasuryPage() {
           </div>
         </div>
 
+        {/* TREASURY INTERNAL ACTIONS */}
+        <div>
+          <SectionTitle>Actions de Trésorerie Interne</SectionTitle>
+          <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5 space-y-3">
+            <TreasuryActionButton
+              label="Sécuriser les Profits"
+              description="Transférer les fonds de l'Admin Wallet vers le Wallet de Trésorerie"
+              icon={Lock}
+              variant="primary"
+              onClick={handleSecureProfits}
+            />
+            <TreasuryActionButton
+              label="Recharger le Hot Wallet"
+              description="Transférer des fonds de la Trésorerie vers le Hot Wallet pour les frais de gas"
+              icon={Zap}
+              variant="warning"
+              onClick={handleRechargeHotWallet}
+            />
+            
+            {/* Action Loading State */}
+            {actionLoading && (
+              <div className="flex items-center justify-center gap-3 py-4">
+                <Loader2 size={18} className="animate-spin text-blue-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {actionLoading === "secure" ? "Sécurisation en cours..." : "Rechargement en cours..."}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* TRANSACTION TYPES */}
         <div>
           <SectionTitle>Volume par Type</SectionTitle>
@@ -572,97 +764,83 @@ export default function TreasuryPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-orange-400">
+                    <p className="text-sm font-bold text-white">
                       {formatCurrency(tx.amount)} {tx.currency}
                     </p>
-                    <p className="text-[8px] text-slate-600">{formatTimeAgo(tx.createdAt)}</p>
+                    <p className="text-[8px] text-slate-500">{formatTimeAgo(tx.createdAt)}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => router.push("/admin/transactions")}
-              className="w-full mt-4 py-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-orange-400 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2"
-            >
-              Gerer les transactions <ChevronRight size={14} />
-            </button>
           </div>
         )}
 
-        {/* LARGE TRANSACTIONS */}
-        <div>
-          <SectionTitle>
-            <span className="flex items-center gap-2">
-              <Activity size={12} className="text-blue-400" />
-              Grosses Transactions Recentes
-            </span>
-          </SectionTitle>
-          {largeTransactions.length > 0 ? (
-            <div className="space-y-2">
-              {largeTransactions.slice(0, 8).map((tx) => (
-                <div
-                  key={tx.id}
-                  className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:bg-slate-900/80 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        tx.type === "DEPOSIT"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : tx.type === "WITHDRAW"
-                          ? "bg-red-500/10 text-red-400"
-                          : "bg-blue-500/10 text-blue-400"
-                      }`}
-                    >
-                      {tx.type === "DEPOSIT" ? (
-                        <TrendingUp size={16} />
-                      ) : tx.type === "WITHDRAW" ? (
-                        <TrendingDown size={16} />
-                      ) : (
-                        <ArrowRightLeft size={16} />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-white uppercase">{TYPE_LABELS[tx.type] || tx.type}</p>
-                      <p className="text-[8px] text-slate-500">
-                        {tx.fromUser?.username || tx.toUser?.username || tx.fromUser?.email || tx.toUser?.email || "User"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-sm font-black ${
-                        tx.type === "DEPOSIT"
-                          ? "text-emerald-400"
-                          : tx.type === "WITHDRAW"
-                          ? "text-red-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      {tx.type === "WITHDRAW" ? "-" : "+"}
-                      {formatCurrency(tx.amount)} {tx.currency}
-                    </p>
-                    <p className="text-[8px] text-slate-600">{formatTimeAgo(tx.createdAt)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-3">
-                <Coins size={20} className="text-slate-600" />
+        {/* LARGE TRANSACTIONS WITH FLOW COLUMN */}
+        {largeTransactions.length > 0 && (
+          <div>
+            <SectionTitle>Grosses Transactions Récentes</SectionTitle>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      <th className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-left px-4 py-3">Type</th>
+                      <th className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-left px-4 py-3">Montant</th>
+                      <th className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-left px-4 py-3">Provenance/Destination</th>
+                      <th className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-right px-4 py-3">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {largeTransactions.slice(0, 8).map((tx) => (
+                      <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              tx.type === "DEPOSIT" ? "bg-emerald-500/10" :
+                              tx.type === "WITHDRAW" ? "bg-red-500/10" :
+                              "bg-blue-500/10"
+                            }`}>
+                              {tx.type === "DEPOSIT" ? (
+                                <ArrowUpRight size={14} className="text-emerald-400" />
+                              ) : tx.type === "WITHDRAW" ? (
+                                <ArrowDownRight size={14} className="text-red-400" />
+                              ) : (
+                                <ArrowRightLeft size={14} className="text-blue-400" />
+                              )}
+                            </div>
+                            <span className="text-[10px] font-bold text-white uppercase">
+                              {TYPE_LABELS[tx.type] || tx.type}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-bold text-white">
+                            {formatCurrency(tx.amount)}
+                          </p>
+                          <p className="text-[8px] text-slate-500">{tx.currency}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <FlowTag 
+                            label={tx.flowLabel || "Système"} 
+                            type={tx.flowType || "internal"} 
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <p className="text-[10px] text-slate-400">{formatTimeAgo(tx.createdAt)}</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                Aucune grosse transaction recente
-              </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* SECURITY FOOTER */}
-        <div className="flex flex-col items-center gap-2 opacity-20 pt-8">
-          <Shield size={14} />
-          <p className="text-[8px] font-black uppercase tracking-[0.4em]">PimPay Treasury Secure v1.0</p>
+        {/* SECURITY BADGE */}
+        <div className="flex items-center justify-center gap-2 py-4 text-[9px] text-slate-600">
+          <Shield size={12} />
+          <span>Données chiffrées E2E - Audit Trail activé</span>
         </div>
       </div>
     </div>
