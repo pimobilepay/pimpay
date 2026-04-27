@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   RefreshCw,
@@ -30,6 +31,14 @@ import {
   ExternalLink,
   CheckCircle2,
   Ban,
+  Settings,
+  X,
+  Copy,
+  ShieldCheck,
+  ShieldAlert,
+  LockKeyhole,
+  Sliders,
+  Send,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -45,6 +54,15 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 // --- TYPES ---
 type TreasurySummary = {
@@ -119,7 +137,13 @@ type WalletInfo = {
   balanceUSD: number;
   balancePi: number;
   description: string;
+  publicAddress: string;
+  dailyLimit: number;
+  monthlyLimit: number;
+  isLocked: boolean;
 };
+
+type WalletAction = "transfer" | "block" | "adjust" | null;
 
 // --- CONSTANTS ---
 const CURRENCY_COLORS: Record<string, string> = {
@@ -133,18 +157,25 @@ const CURRENCY_COLORS: Record<string, string> = {
   XRP: "#0ea5e9",
   XLM: "#14b8a6",
   SIDRA: "#ec4899",
+  SDA: "#22d3ee",
+  CDF: "#a3e635",
+  BUSD: "#facc15",
+  DAI: "#f472b6",
   DEFAULT: "#64748b",
 };
 
 // Mapping currencies to primary wallets
 const CURRENCY_WALLET_MAP: Record<string, { wallet: WalletType; label: string }> = {
   PI: { wallet: "admin", label: "Admin" },
-  XAF: { wallet: "liquidity", label: "Liquidité" },
-  USD: { wallet: "liquidity", label: "Liquidité" },
-  EUR: { wallet: "treasury", label: "Trésorerie" },
+  XAF: { wallet: "liquidity", label: "Liquidite" },
+  USD: { wallet: "liquidity", label: "Liquidite" },
+  EUR: { wallet: "treasury", label: "Tresorerie" },
   USDT: { wallet: "hot", label: "Hot Wallet" },
-  BTC: { wallet: "treasury", label: "Trésorerie" },
+  BTC: { wallet: "treasury", label: "Tresorerie" },
   ETH: { wallet: "hot", label: "Hot Wallet" },
+  XLM: { wallet: "treasury", label: "Tresorerie" },
+  SDA: { wallet: "admin", label: "Admin" },
+  BUSD: { wallet: "liquidity", label: "Liquidite" },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -154,6 +185,10 @@ const TYPE_LABELS: Record<string, string> = {
   EXCHANGE: "Echanges",
   AIRTIME: "Recharges",
   CARD: "Cartes",
+  CARD_WITHDRAW: "Card Withdraw",
+  CARD_RECHARGE: "Card Recharge",
+  ECHANGES: "Echanges",
+  TRANSFERTS: "Transferts",
   DEFAULT: "Autres",
 };
 
@@ -171,12 +206,16 @@ const WALLETS_DATA: WalletInfo[] = [
     statusColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
     balanceUSD: 48250.75,
     balancePi: 15420.5,
-    description: "Frais collectés sur toutes les transactions",
+    description: "Frais collectes sur toutes les transactions",
+    publicAddress: "GBH4...X7KM",
+    dailyLimit: 50000,
+    monthlyLimit: 500000,
+    isLocked: false,
   },
   {
     type: "treasury",
     name: "Treasury Wallet",
-    nameFr: "Trésorerie Sécurisée",
+    nameFr: "Tresorerie Securisee",
     icon: Vault,
     color: "text-blue-400",
     bgColor: "bg-blue-500/10",
@@ -185,7 +224,11 @@ const WALLETS_DATA: WalletInfo[] = [
     statusColor: "bg-blue-500/20 text-blue-400 border-blue-500/40",
     balanceUSD: 285000.0,
     balancePi: 95000.0,
-    description: "Profits à long terme et réserves stratégiques",
+    description: "Profits a long terme et reserves strategiques",
+    publicAddress: "GDQP...M3NR",
+    dailyLimit: 100000,
+    monthlyLimit: 1000000,
+    isLocked: false,
   },
   {
     type: "hot",
@@ -200,11 +243,15 @@ const WALLETS_DATA: WalletInfo[] = [
     balanceUSD: 12500.0,
     balancePi: 4200.0,
     description: "Fonds pour transactions automatiques et frais de gas",
+    publicAddress: "GCFH...P9QZ",
+    dailyLimit: 25000,
+    monthlyLimit: 250000,
+    isLocked: false,
   },
   {
     type: "liquidity",
     name: "Liquidity Reserve",
-    nameFr: "Réserve de Liquidité",
+    nameFr: "Reserve de Liquidite",
     icon: Droplets,
     color: "text-cyan-400",
     bgColor: "bg-cyan-500/10",
@@ -214,6 +261,10 @@ const WALLETS_DATA: WalletInfo[] = [
     balanceUSD: 125000.0,
     balancePi: 0,
     description: "Buffer pour retraits USD/Orange Money",
+    publicAddress: "GBVK...L2WX",
+    dailyLimit: 75000,
+    monthlyLimit: 750000,
+    isLocked: false,
   },
 ];
 
@@ -238,11 +289,449 @@ function formatTimeAgo(dateStr: string): string {
   return `${Math.floor(diff / 86400)}j`;
 }
 
+// --- MFA MODAL COMPONENT ---
+function MFAModal({
+  isOpen,
+  onClose,
+  onVerify,
+  actionTitle,
+  isVerifying,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onVerify: (code: string) => void;
+  actionTitle: string;
+  isVerifying: boolean;
+}) {
+  const [code, setCode] = useState<string[]>(["", "", "", "", "", ""]);
+  const [error, setError] = useState<string | null>(null);
+  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleInputChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    
+    const newCode = [...code];
+    newCode[index] = value.slice(-1);
+    setCode(newCode);
+    setError(null);
+
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").slice(0, 6);
+    if (!/^\d+$/.test(pastedData)) return;
+    
+    const newCode = [...code];
+    pastedData.split("").forEach((char, i) => {
+      if (i < 6) newCode[i] = char;
+    });
+    setCode(newCode);
+    
+    const nextIndex = Math.min(pastedData.length, 5);
+    inputRefs.current[nextIndex]?.focus();
+  };
+
+  const handleVerify = () => {
+    const fullCode = code.join("");
+    if (fullCode.length !== 6) {
+      setError("Veuillez entrer le code complet a 6 chiffres");
+      return;
+    }
+    onVerify(fullCode);
+  };
+
+  const resetModal = useCallback(() => {
+    setCode(["", "", "", "", "", ""]);
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetModal();
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    }
+  }, [isOpen, resetModal]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-slate-900 border border-cyan-500/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl shadow-cyan-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wide">
+                    Verification 2FA
+                  </h3>
+                  <p className="text-[9px] text-slate-500">Google Authenticator</p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <X size={16} className="text-slate-400" />
+              </button>
+            </div>
+
+            {/* Action being verified */}
+            <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-6">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Action a valider
+              </p>
+              <p className="text-sm font-bold text-white">{actionTitle}</p>
+            </div>
+
+            {/* Code Input */}
+            <div className="mb-6">
+              <p className="text-[10px] text-slate-400 text-center mb-4">
+                Entrez le code a 6 chiffres affiche sur votre application Google Authenticator
+              </p>
+              <div className="flex justify-center gap-2" onPaste={handlePaste}>
+                {code.map((digit, index) => (
+                  <motion.input
+                    key={index}
+                    ref={(el) => { inputRefs.current[index] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleInputChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    className={`w-12 h-14 text-center text-xl font-black rounded-xl border-2 bg-slate-800/50 text-white outline-none transition-all
+                      ${error ? "border-red-500/50 animate-shake" : digit ? "border-cyan-500/50" : "border-white/10"}
+                      focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20`}
+                    whileFocus={{ scale: 1.05 }}
+                  />
+                ))}
+              </div>
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-[10px] text-red-400 text-center mt-3"
+                >
+                  {error}
+                </motion.p>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={isVerifying}
+                className="flex-1 py-4 rounded-2xl bg-white/5 text-slate-400 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleVerify}
+                disabled={isVerifying || code.some((d) => !d)}
+                className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold text-[10px] uppercase tracking-wider hover:from-cyan-500 hover:to-blue-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isVerifying ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Verification...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={14} />
+                    Valider
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Security Notice */}
+            <div className="mt-4 flex items-center justify-center gap-2 text-[8px] text-slate-600">
+              <Lock size={10} />
+              <span>Connexion securisee - Chiffrement E2E</span>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// --- WALLET DRAWER COMPONENT ---
+function WalletDrawer({
+  wallet,
+  isOpen,
+  onClose,
+  onAction,
+}: {
+  wallet: WalletInfo | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAction: (action: WalletAction, wallet: WalletInfo) => void;
+}) {
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  if (!wallet) return null;
+
+  const Icon = wallet.icon;
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(wallet.publicAddress);
+    setCopiedAddress(true);
+    toast.success("Adresse copiee");
+    setTimeout(() => setCopiedAddress(false), 2000);
+  };
+
+  return (
+    <Drawer open={isOpen} onOpenChange={onClose} direction="right">
+      <DrawerContent className="bg-slate-900 border-l border-white/10 h-full">
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Header */}
+          <DrawerHeader className="border-b border-white/5 pb-4">
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wallet.bgColor} border ${wallet.borderColor}`}>
+                <Icon size={24} className={wallet.color} />
+              </div>
+              <div className="flex-1">
+                <DrawerTitle className="text-lg font-black text-white">
+                  {wallet.nameFr}
+                </DrawerTitle>
+                <DrawerDescription className="text-[10px] text-slate-500">
+                  {wallet.description}
+                </DrawerDescription>
+              </div>
+              <DrawerClose className="p-2 rounded-xl bg-white/5 hover:bg-white/10">
+                <X size={18} className="text-slate-400" />
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+
+          {/* Balance Section */}
+          <div className="p-4 border-b border-white/5">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2">
+              Solde Actuel
+            </p>
+            <p className="text-3xl font-black text-white">
+              ${formatCurrency(wallet.balanceUSD)}
+            </p>
+            {wallet.balancePi > 0 && (
+              <p className="text-lg font-bold text-amber-400 mt-1">
+                {formatCurrency(wallet.balancePi)} Pi
+              </p>
+            )}
+            <div className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full border text-[9px] font-black ${wallet.statusColor}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              {wallet.statusLabel}
+            </div>
+          </div>
+
+          {/* Wallet Details */}
+          <div className="p-4 space-y-4 border-b border-white/5">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">
+              Informations du Wallet
+            </p>
+            
+            {/* Public Address */}
+            <div className="bg-slate-800/50 rounded-xl p-3">
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Adresse Publique
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-xs font-mono text-cyan-400">{wallet.publicAddress}</code>
+                <button
+                  onClick={copyAddress}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  {copiedAddress ? (
+                    <CheckCircle2 size={14} className="text-emerald-400" />
+                  ) : (
+                    <Copy size={14} className="text-slate-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Limits */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Limite Journaliere
+                </p>
+                <p className="text-sm font-bold text-white">
+                  ${formatCurrency(wallet.dailyLimit)}
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Limite Mensuelle
+                </p>
+                <p className="text-sm font-bold text-white">
+                  ${formatCurrency(wallet.monthlyLimit)}
+                </p>
+              </div>
+            </div>
+
+            {/* Lock Status */}
+            <div className={`flex items-center gap-3 p-3 rounded-xl ${
+              wallet.isLocked 
+                ? "bg-red-500/10 border border-red-500/30" 
+                : "bg-emerald-500/10 border border-emerald-500/30"
+            }`}>
+              {wallet.isLocked ? (
+                <>
+                  <ShieldAlert size={18} className="text-red-400" />
+                  <div>
+                    <p className="text-xs font-bold text-red-400">Wallet Bloque</p>
+                    <p className="text-[8px] text-red-400/70">Aucune transaction autorisee</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={18} className="text-emerald-400" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-400">Wallet Actif</p>
+                    <p className="text-[8px] text-emerald-400/70">Transactions autorisees</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <DrawerFooter className="mt-auto pt-4">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-3">
+              Actions Securisees (2FA Requis)
+            </p>
+            
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onAction("transfer", wallet)}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 to-cyan-600/20 border border-emerald-500/30 hover:border-emerald-400/50 transition-all"
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <Send size={18} className="text-emerald-400" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-emerald-400">Transferer vers Tresorerie</p>
+                <p className="text-[9px] text-slate-500">Securiser les fonds vers le cold wallet</p>
+              </div>
+              <LockKeyhole size={16} className="text-emerald-500/50" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onAction("block", wallet)}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                wallet.isLocked
+                  ? "bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border-emerald-500/30 hover:border-emerald-400/50"
+                  : "bg-gradient-to-r from-red-600/20 to-orange-600/20 border-red-500/30 hover:border-red-400/50"
+              }`}
+            >
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                wallet.isLocked ? "bg-emerald-500/20" : "bg-red-500/20"
+              }`}>
+                {wallet.isLocked ? (
+                  <CheckCircle2 size={18} className="text-emerald-400" />
+                ) : (
+                  <Ban size={18} className="text-red-400" />
+                )}
+              </div>
+              <div className="flex-1 text-left">
+                <p className={`text-sm font-bold ${wallet.isLocked ? "text-emerald-400" : "text-red-400"}`}>
+                  {wallet.isLocked ? "Debloquer ce Wallet" : "Bloquer ce Wallet"}
+                </p>
+                <p className="text-[9px] text-slate-500">
+                  {wallet.isLocked ? "Reactiver les transactions" : "Suspendre toutes les transactions"}
+                </p>
+              </div>
+              <LockKeyhole size={16} className={wallet.isLocked ? "text-emerald-500/50" : "text-red-500/50"} />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onAction("adjust", wallet)}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 hover:border-blue-400/50 transition-all"
+            >
+              <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <Sliders size={18} className="text-blue-400" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-blue-400">Ajuster Liquidite</p>
+                <p className="text-[9px] text-slate-500">Modifier les limites de transaction</p>
+              </div>
+              <LockKeyhole size={16} className="text-blue-500/50" />
+            </motion.button>
+
+            {/* Security Notice */}
+            <div className="flex items-center justify-center gap-2 mt-4 text-[8px] text-slate-600">
+              <Shield size={10} />
+              <span>Toutes les actions requierent une validation 2FA</span>
+            </div>
+          </DrawerFooter>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
 // --- COMPONENTS ---
-function WalletCard({ wallet }: { wallet: WalletInfo }) {
+function WalletCard({ 
+  wallet, 
+  onSettings 
+}: { 
+  wallet: WalletInfo;
+  onSettings: () => void;
+}) {
   const Icon = wallet.icon;
   return (
-    <div className={`bg-slate-900/60 border ${wallet.borderColor} rounded-[1.5rem] p-5 flex flex-col gap-3 hover:bg-slate-900/80 transition-all group`}>
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className={`relative bg-slate-900/60 border ${wallet.borderColor} rounded-[1.5rem] p-5 flex flex-col gap-3 hover:bg-slate-900/80 transition-all group cursor-pointer`}
+    >
+      {/* Settings Button */}
+      <motion.button
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        whileHover={{ scale: 1.1, rotate: 45 }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSettings();
+        }}
+        className="absolute top-3 right-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
+      >
+        <Settings size={14} className="text-slate-400" />
+      </motion.button>
+
       <div className="flex items-center justify-between">
         <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${wallet.bgColor}`}>
           <Icon size={20} className={wallet.color} />
@@ -258,13 +747,20 @@ function WalletCard({ wallet }: { wallet: WalletInfo }) {
         </p>
         {wallet.balancePi > 0 && (
           <p className="text-sm font-bold text-amber-400 mt-0.5">
-            {formatCurrency(wallet.balancePi)} π
+            {formatCurrency(wallet.balancePi)} Pi
           </p>
         )}
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-[2px] mt-2">{wallet.nameFr}</p>
         <p className="text-[8px] text-slate-600 mt-0.5">{wallet.description}</p>
       </div>
-    </div>
+      
+      {/* Lock indicator */}
+      {wallet.isLocked && (
+        <div className="absolute bottom-3 right-3">
+          <Lock size={14} className="text-red-400" />
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -336,18 +832,23 @@ function TreasuryActionButton({
   icon: Icon,
   variant,
   onClick,
+  isLoading,
 }: {
   label: string;
   description: string;
   icon: React.ElementType;
   variant: "primary" | "warning";
   onClick: () => void;
+  isLoading?: boolean;
 }) {
   const isPrimary = variant === "primary";
   return (
-    <button
+    <motion.button
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
       onClick={onClick}
-      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] w-full ${
+      disabled={isLoading}
+      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all w-full disabled:opacity-50 ${
         isPrimary
           ? "bg-gradient-to-r from-emerald-600/20 to-blue-600/20 border-emerald-500/30 hover:border-emerald-400/50"
           : "bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-amber-500/30 hover:border-amber-400/50"
@@ -356,7 +857,11 @@ function TreasuryActionButton({
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
         isPrimary ? "bg-emerald-500/20" : "bg-amber-500/20"
       }`}>
-        <Icon size={22} className={isPrimary ? "text-emerald-400" : "text-amber-400"} />
+        {isLoading ? (
+          <Loader2 size={22} className={`animate-spin ${isPrimary ? "text-emerald-400" : "text-amber-400"}`} />
+        ) : (
+          <Icon size={22} className={isPrimary ? "text-emerald-400" : "text-amber-400"} />
+        )}
       </div>
       <div className="flex-1 text-left">
         <p className={`text-sm font-bold ${isPrimary ? "text-emerald-400" : "text-amber-400"}`}>
@@ -365,7 +870,7 @@ function TreasuryActionButton({
         <p className="text-[10px] text-slate-500">{description}</p>
       </div>
       <ArrowRight size={18} className={isPrimary ? "text-emerald-500/50" : "text-amber-500/50"} />
-    </button>
+    </motion.button>
   );
 }
 
@@ -376,6 +881,18 @@ export default function TreasuryPage() {
   const [data, setData] = useState<TreasuryData | null>(null);
   const [chartTab, setChartTab] = useState<"all" | "deposits" | "withdrawals">("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Wallet drawer state
+  const [selectedWallet, setSelectedWallet] = useState<WalletInfo | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
+  // MFA modal state
+  const [isMFAOpen, setIsMFAOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ action: WalletAction; wallet: WalletInfo } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  
+  // Wallets state (can be updated after actions)
+  const [wallets, setWallets] = useState<WalletInfo[]>(WALLETS_DATA);
 
   const fetchTreasury = async () => {
     try {
@@ -403,36 +920,106 @@ export default function TreasuryPage() {
   // Generate flow labels for transactions
   const generateFlowLabel = (tx: LargeTransaction): { flowType: "internal" | "external"; flowLabel: string } => {
     const type = tx.type.toUpperCase();
-    if (type === "TRANSFER") {
-      const flows = ["Admin → Treasury", "Treasury → Hot", "Hot → Liquidité", "User → Hot Wallet"];
+    if (type === "TRANSFER" || type === "TRANSFERTS") {
+      const flows = ["Admin -> Treasury", "Treasury -> Hot", "Hot -> Liquidite", "User -> Hot Wallet"];
       return { flowType: "internal", flowLabel: flows[Math.floor(Math.random() * flows.length)] };
     }
     if (type === "WITHDRAW") {
-      return { flowType: "external", flowLabel: "Liquidité → Orange Money" };
+      return { flowType: "external", flowLabel: "Liquidite -> Orange Money" };
     }
     if (type === "DEPOSIT") {
-      return { flowType: "external", flowLabel: "User → Hot Wallet" };
+      return { flowType: "external", flowLabel: "User -> Hot Wallet" };
     }
-    return { flowType: "internal", flowLabel: "Système" };
+    return { flowType: "internal", flowLabel: "Systeme" };
   };
 
   useEffect(() => {
     fetchTreasury();
   }, []);
 
-  // Handle treasury actions
-  const handleSecureProfits = async () => {
-    setActionLoading("secure");
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    toast.success("Profits sécurisés vers le Wallet de Trésorerie");
-    setActionLoading(null);
+  // Handle wallet settings click
+  const handleWalletSettings = (wallet: WalletInfo) => {
+    setSelectedWallet(wallet);
+    setIsDrawerOpen(true);
   };
 
-  const handleRechargeHotWallet = async () => {
-    setActionLoading("recharge");
+  // Handle wallet action (requires MFA)
+  const handleWalletAction = (action: WalletAction, wallet: WalletInfo) => {
+    setPendingAction({ action, wallet });
+    setIsMFAOpen(true);
+  };
+
+  // Handle MFA verification
+  const handleMFAVerify = async (code: string) => {
+    if (!pendingAction) return;
+    
+    setIsVerifying(true);
+    
+    // Simulate API call with 2FA verification
     await new Promise(resolve => setTimeout(resolve, 1500));
-    toast.success("Hot Wallet rechargé avec succès");
-    setActionLoading(null);
+    
+    // Simulated validation: "123456" is the valid code
+    if (code === "123456") {
+      const { action, wallet } = pendingAction;
+      
+      switch (action) {
+        case "transfer":
+          toast.success(`Transfert de ${wallet.nameFr} vers Tresorerie effectue`);
+          break;
+        case "block":
+          // Toggle lock state
+          setWallets(prev => prev.map(w => 
+            w.type === wallet.type ? { ...w, isLocked: !w.isLocked } : w
+          ));
+          toast.success(wallet.isLocked 
+            ? `${wallet.nameFr} debloque avec succes` 
+            : `${wallet.nameFr} bloque avec succes`
+          );
+          break;
+        case "adjust":
+          toast.success(`Limites de ${wallet.nameFr} ajustees`);
+          break;
+      }
+      
+      setIsMFAOpen(false);
+      setPendingAction(null);
+      setIsDrawerOpen(false);
+    } else {
+      toast.error("Code 2FA incorrect. Verifiez votre application Google Authenticator.");
+    }
+    
+    setIsVerifying(false);
+  };
+
+  // Handle treasury actions with MFA
+  const handleSecureProfits = () => {
+    const adminWallet = wallets.find(w => w.type === "admin");
+    if (adminWallet) {
+      handleWalletAction("transfer", adminWallet);
+    }
+  };
+
+  const handleRechargeHotWallet = () => {
+    const hotWallet = wallets.find(w => w.type === "hot");
+    if (hotWallet) {
+      handleWalletAction("transfer", hotWallet);
+    }
+  };
+
+  // Get action title for MFA modal
+  const getActionTitle = (): string => {
+    if (!pendingAction) return "";
+    const { action, wallet } = pendingAction;
+    switch (action) {
+      case "transfer":
+        return `Transferer ${wallet.nameFr} vers Tresorerie`;
+      case "block":
+        return wallet.isLocked ? `Debloquer ${wallet.nameFr}` : `Bloquer ${wallet.nameFr}`;
+      case "adjust":
+        return `Ajuster limites de ${wallet.nameFr}`;
+      default:
+        return "Action securisee";
+    }
   };
 
   // Prepare pie chart data
@@ -505,31 +1092,44 @@ export default function TreasuryPage() {
           </button>
           <div className="text-center">
             <p className="text-[9px] font-black text-amber-500 uppercase tracking-[4px]">PimPay</p>
-            <h1 className="text-sm font-black text-white uppercase tracking-wider">Trésorerie</h1>
+            <h1 className="text-sm font-black text-white uppercase tracking-wider">Tresorerie</h1>
           </div>
-          <button
-            onClick={fetchTreasury}
-            className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform"
-          >
-            <RefreshCw size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/admin/treasury/security")}
+              className="p-2.5 bg-cyan-500/10 rounded-2xl text-cyan-400 active:scale-95 transition-transform border border-cyan-500/30"
+              title="Configuration Securite 2FA"
+            >
+              <Shield size={18} />
+            </button>
+            <button
+              onClick={fetchTreasury}
+              className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="px-4 max-w-2xl mx-auto mt-6 space-y-8">
-        {/* WALLET OVERVIEW - 4 WALLET CARDS */}
+        {/* WALLET OVERVIEW - 4 WALLET CARDS WITH SETTINGS */}
         <div>
           <SectionTitle>Vue d{"'"}Ensemble Multi-Wallet</SectionTitle>
           <div className="grid grid-cols-2 gap-3">
-            {WALLETS_DATA.map((wallet) => (
-              <WalletCard key={wallet.type} wallet={wallet} />
+            {wallets.map((wallet) => (
+              <WalletCard 
+                key={wallet.type} 
+                wallet={wallet} 
+                onSettings={() => handleWalletSettings(wallet)}
+              />
             ))}
           </div>
         </div>
 
         {/* CURRENCY BREAKDOWN WITH WALLET INDICATORS */}
         <div>
-          <SectionTitle>Répartition par Devise</SectionTitle>
+          <SectionTitle>Repartition par Devise</SectionTitle>
           <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
             <div className="flex flex-col lg:flex-row gap-6">
               {/* Pie Chart */}
@@ -681,32 +1281,30 @@ export default function TreasuryPage() {
 
         {/* TREASURY INTERNAL ACTIONS */}
         <div>
-          <SectionTitle>Actions de Trésorerie Interne</SectionTitle>
+          <SectionTitle>Actions de Tresorerie Interne</SectionTitle>
           <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5 space-y-3">
             <TreasuryActionButton
-              label="Sécuriser les Profits"
-              description="Transférer les fonds de l'Admin Wallet vers le Wallet de Trésorerie"
+              label="Securiser les Profits"
+              description="Transferer les fonds de l'Admin Wallet vers le Wallet de Tresorerie"
               icon={Lock}
               variant="primary"
               onClick={handleSecureProfits}
+              isLoading={actionLoading === "secure"}
             />
             <TreasuryActionButton
               label="Recharger le Hot Wallet"
-              description="Transférer des fonds de la Trésorerie vers le Hot Wallet pour les frais de gas"
+              description="Transferer des fonds de la Tresorerie vers le Hot Wallet pour les frais de gas"
               icon={Zap}
               variant="warning"
               onClick={handleRechargeHotWallet}
+              isLoading={actionLoading === "recharge"}
             />
             
-            {/* Action Loading State */}
-            {actionLoading && (
-              <div className="flex items-center justify-center gap-3 py-4">
-                <Loader2 size={18} className="animate-spin text-blue-500" />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {actionLoading === "secure" ? "Sécurisation en cours..." : "Rechargement en cours..."}
-                </span>
-              </div>
-            )}
+            {/* 2FA Security Notice */}
+            <div className="flex items-center justify-center gap-2 pt-2 text-[9px] text-cyan-500/70">
+              <ShieldCheck size={12} />
+              <span>Toutes les actions requierent une validation Google Authenticator</span>
+            </div>
           </div>
         </div>
 
@@ -750,8 +1348,10 @@ export default function TreasuryPage() {
             </SectionTitle>
             <div className="space-y-2">
               {pendingTransactions.map((tx) => (
-                <div
+                <motion.div
                   key={tx.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
                   className="bg-slate-900/60 border border-orange-500/10 rounded-2xl p-4 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
@@ -769,7 +1369,7 @@ export default function TreasuryPage() {
                     </p>
                     <p className="text-[8px] text-slate-500">{formatTimeAgo(tx.createdAt)}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -778,7 +1378,7 @@ export default function TreasuryPage() {
         {/* LARGE TRANSACTIONS WITH FLOW COLUMN */}
         {largeTransactions.length > 0 && (
           <div>
-            <SectionTitle>Grosses Transactions Récentes</SectionTitle>
+            <SectionTitle>Grosses Transactions Recentes</SectionTitle>
             <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -821,7 +1421,7 @@ export default function TreasuryPage() {
                         </td>
                         <td className="px-4 py-3">
                           <FlowTag 
-                            label={tx.flowLabel || "Système"} 
+                            label={tx.flowLabel || "Systeme"} 
                             type={tx.flowType || "internal"} 
                           />
                         </td>
@@ -840,9 +1440,29 @@ export default function TreasuryPage() {
         {/* SECURITY BADGE */}
         <div className="flex items-center justify-center gap-2 py-4 text-[9px] text-slate-600">
           <Shield size={12} />
-          <span>Données chiffrées E2E - Audit Trail activé</span>
+          <span>Donnees chiffrees E2E - Audit Trail active</span>
         </div>
       </div>
+
+      {/* WALLET DRAWER */}
+      <WalletDrawer
+        wallet={selectedWallet}
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onAction={handleWalletAction}
+      />
+
+      {/* MFA VERIFICATION MODAL */}
+      <MFAModal
+        isOpen={isMFAOpen}
+        onClose={() => {
+          setIsMFAOpen(false);
+          setPendingAction(null);
+        }}
+        onVerify={handleMFAVerify}
+        actionTitle={getActionTitle()}
+        isVerifying={isVerifying}
+      />
     </div>
   );
 }
