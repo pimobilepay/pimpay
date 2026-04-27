@@ -3,10 +3,12 @@ import { useEffect, useState, useRef } from "react";
 import {
   ArrowLeft, Clock, User,
   ChevronRight, Inbox, ShieldAlert,
-  Send, X, Loader2, CheckCircle, RefreshCw
+  Send, X, Loader2, CheckCircle, RefreshCw,
+  Phone, PhoneIncoming, PhoneOff
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import AdminCallReceiver, { CallState } from "@/components/AdminCallReceiver";
 
 interface TicketMessage {
   id: string;
@@ -43,6 +45,32 @@ export default function AdminSupportPage() {
   const [sending, setSending] = useState(false);
   const [closingTicket, setClosingTicket] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // State for incoming calls
+  const [currentCallState, setCurrentCallState] = useState<CallState>("idle");
+  const [currentCallerId, setCurrentCallerId] = useState<string | null>(null);
+
+  const handleCallStateChange = (state: CallState, callerId?: string) => {
+    setCurrentCallState(state);
+    if (callerId) setCurrentCallerId(callerId);
+    if (state === "idle") setCurrentCallerId(null);
+    
+    // Show toast notifications for call events
+    if (state === "incoming") {
+      toast.info("Appel entrant d'un utilisateur", {
+        duration: 5000,
+        icon: <PhoneIncoming size={18} className="text-amber-400" />,
+      });
+    } else if (state === "connected") {
+      toast.success("Appel connecte", {
+        icon: <Phone size={18} className="text-emerald-400" />,
+      });
+    } else if (state === "ended") {
+      toast.info("Appel termine", {
+        icon: <PhoneOff size={18} className="text-slate-400" />,
+      });
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -137,10 +165,21 @@ export default function AdminSupportPage() {
     </div>
   );
 
+  // Common AdminCallReceiver component for all views
+  const CallReceiverComponent = (
+    <AdminCallReceiver
+      adminId="admin_support"
+      onCallStateChange={handleCallStateChange}
+    />
+  );
+
   // ============ TICKET DETAIL VIEW ============
   if (selectedTicket) {
     return (
       <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
+        {/* Admin Call Receiver */}
+        {CallReceiverComponent}
+
         {/* Header */}
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-4 mb-4">
@@ -254,6 +293,8 @@ export default function AdminSupportPage() {
   // ============ TICKETS LIST VIEW ============
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans selection:bg-blue-500/30">
+      {/* Admin Call Receiver */}
+      {CallReceiverComponent}
 
       {/* Header Admin */}
       <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
@@ -265,9 +306,27 @@ export default function AdminSupportPage() {
             <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Support</h1>
           </div>
-          <button onClick={fetchTickets} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
-            <RefreshCw size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Incoming Call Indicator */}
+            {currentCallState === "incoming" && (
+              <div className="relative">
+                <div className="p-2.5 bg-amber-500/20 rounded-2xl border border-amber-500/30 animate-pulse">
+                  <PhoneIncoming size={18} className="text-amber-400" />
+                </div>
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-ping" />
+              </div>
+            )}
+            {/* Connected Call Indicator */}
+            {currentCallState === "connected" && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/20 rounded-2xl border border-emerald-500/30">
+                <Phone size={14} className="text-emerald-400" />
+                <span className="text-[9px] font-black text-emerald-400 uppercase">En appel</span>
+              </div>
+            )}
+            <button onClick={fetchTickets} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+              <RefreshCw size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
