@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { WalletType } from "@prisma/client";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: Request) {
   try {
@@ -125,13 +126,25 @@ export async function POST(req: Request) {
         }
       }).catch(() => {});
 
-      return transactionRecord;
+      return { transactionRecord, fee };
     }, {
       maxWait: 10000,
       timeout: 30000,
     });
 
-    return NextResponse.json({ success: true, data: result });
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        "PI",
+        result.transactionRecord.id,
+        result.transactionRecord.reference
+      ).catch((err) => {
+        console.error("[SEND] Fee conversion error (non-blocking):", err.message);
+      });
+    }
+
+    return NextResponse.json({ success: true, data: result.transactionRecord });
 
   } catch (error: any) {
     console.error("TRANSACTION_SEND_ERROR:", error.message);

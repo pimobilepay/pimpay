@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { calculateExchangeWithFee, PI_CONSENSUS_RATE } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig } from "@/lib/fees";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
   try {
@@ -111,8 +112,20 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      return { transaction, newBalance: updatedWallet.balance };
+      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / PI_CONSENSUS_RATE };
     }, { maxWait: 10000, timeout: 30000 });
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        "PI",
+        result.transaction.id,
+        result.transaction.reference
+      ).catch((err) => {
+        console.error("[WITHDRAW] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({
       success: true,

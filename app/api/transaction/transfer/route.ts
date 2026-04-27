@@ -6,6 +6,7 @@ import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { PI_CONSENSUS_RATE, calculateExchangeWithFee } from "@/lib/exchange";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
   try {
@@ -169,6 +170,18 @@ export async function POST(req: NextRequest) {
           adminName: "SYSTEM_MONITOR",
           adminId: sender.id // On utilise adminId car c'est le champ du schéma
         }
+      });
+    }
+
+    // 7. AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (transferFeeAmount > 0) {
+      autoConvertFeeToPi(
+        transferFeeAmount,
+        "PI",
+        transactionResult.id,
+        transactionResult.reference
+      ).catch((err) => {
+        console.error("[v0] [TRANSFER] Fee conversion error (non-blocking):", err.message);
       });
     }
 
