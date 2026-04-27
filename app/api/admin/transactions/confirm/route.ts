@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 /**
  * POST /api/admin/transactions/confirm
@@ -150,6 +151,18 @@ export async function POST(req: NextRequest) {
         details: `Confirmation de la transaction agent ${transactionId}`
       }
     }).catch(() => null);
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (transaction.fee && transaction.fee > 0) {
+      autoConvertFeeToPi(
+        transaction.fee,
+        transaction.currency,
+        transaction.id,
+        transaction.reference
+      ).catch((err) => {
+        console.error("[ADMIN_CONFIRM] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({ success: true, status: 'SUCCESS', data: result });
 

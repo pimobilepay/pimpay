@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: Request) {
   try {
@@ -146,20 +147,32 @@ export async function POST(req: Request) {
         // Ignore if systemConfig doesn't exist
       }
 
-      return transactionRecord;
+      return { transactionRecord, fee };
     }, {
       maxWait: 10000,
       timeout: 30000,
     });
 
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        "PI",
+        result.transactionRecord.id,
+        result.transactionRecord.reference
+      ).catch((err) => {
+        console.error("[MPAY_CONFIRM] Fee conversion error (non-blocking):", err.message);
+      });
+    }
+
     return NextResponse.json({ 
       success: true, 
       message: "Transaction confirmee",
       data: {
-        txid: result.reference,
-        amount: result.amount,
-        fee: result.fee,
-        status: result.status
+        txid: result.transactionRecord.reference,
+        amount: result.transactionRecord.amount,
+        fee: result.transactionRecord.fee,
+        status: result.transactionRecord.status
       }
     });
 

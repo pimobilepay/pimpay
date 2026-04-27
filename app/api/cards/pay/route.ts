@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
         data: { balance: { decrement: amountInPi } }
       });
 
-      return await tx.transaction.create({
+      const txRecord = await tx.transaction.create({
         data: {
           reference: `VPAY-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: amount,
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
           status: "SUCCESS",
           description: `Paiement Carte chez ${merchantName}`,
           fromUserId: userPayload.id,
+          currency: "PI",
           metadata: {
             cardNumber: cardNumber.slice(-4),
             currency: currency,
@@ -99,11 +101,24 @@ export async function POST(req: NextRequest) {
           }
         }
       });
+      return { txRecord, cardFee };
     }, { maxWait: 10000, timeout: 30000 });
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (payment.cardFee > 0) {
+      autoConvertFeeToPi(
+        payment.cardFee,
+        "USD", // Les frais de carte sont en USD
+        payment.txRecord.id,
+        payment.txRecord.reference
+      ).catch((err) => {
+        console.error("[CARD_PAY] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      transactionId: payment.id,
+      transactionId: payment.txRecord.id,
       remainingLimit: dailyLimit - (spentToday + amount)
     });
 

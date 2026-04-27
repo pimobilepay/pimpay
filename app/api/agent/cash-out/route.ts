@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
+import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
 
 /**
  * POST /api/agent/cash-out
@@ -133,8 +134,21 @@ export async function POST(req: NextRequest) {
         }
       }).catch(() => {});
 
-      return { transaction, newAgentBalance: agentWallet.balance };
+      return { transaction, newAgentBalance: agentWallet.balance, platformFee: fee - agentCommission };
     }, { maxWait: 10000, timeout: 30000 });
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent
+    if (result.platformFee > 0) {
+      autoConvertFeeToPi(
+        result.platformFee,
+        currency,
+        result.transaction.id,
+        result.transaction.reference
+      ).catch((err) => {
+        console.error("[AGENT_CASH_OUT] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: Request) {
   try {
@@ -88,8 +89,20 @@ export async function POST(req: Request) {
         }
       });
 
-      return { completedTx, wallet };
+      return { completedTx, wallet, fee };
     }, { maxWait: 10000, timeout: 30000 });
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        transaction.currency,
+        result.completedTx.id,
+        result.completedTx.reference
+      ).catch((err) => {
+        console.error("[DEPOSIT_CONFIRM] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

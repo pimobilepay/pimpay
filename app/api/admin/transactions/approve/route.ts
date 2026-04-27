@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth"; // Utilisation de adminAuth pour la cohérence
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,6 +49,18 @@ export async function POST(req: NextRequest) {
         details: `Approbation de la transaction ${transactionId}`
       }
     }).catch(() => null); // On ne bloque pas la réponse si le log échoue
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.fee && result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        result.currency,
+        result.id,
+        result.reference
+      ).catch((err) => {
+        console.error("[ADMIN_APPROVE] Fee conversion error (non-blocking):", err.message);
+      });
+    }
 
     return NextResponse.json({ success: true, data: result });
 

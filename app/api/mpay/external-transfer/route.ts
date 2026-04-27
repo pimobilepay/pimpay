@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { TransactionStatus, TransactionType } from '@prisma/client';
 import { logSystemEvent, logApiError } from '@/lib/systemLogger';
+import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
 
 /**
  * POST /api/mpay/external-transfer

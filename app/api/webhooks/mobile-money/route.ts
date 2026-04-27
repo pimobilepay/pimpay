@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 const prisma = new PrismaClient();
 
@@ -68,6 +69,18 @@ export async function POST(req: Request) {
           }
         })
       ]);
+
+      // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+      if (transaction.fee && transaction.fee > 0) {
+        autoConvertFeeToPi(
+          transaction.fee,
+          transaction.currency,
+          transaction.id,
+          transaction.reference
+        ).catch((err) => {
+          console.error("[WEBHOOK_MOBILE_MONEY] Fee conversion error (non-blocking):", err.message);
+        });
+      }
 
       return NextResponse.json({ success: true, message: "Solde mis à jour" });
     } else {

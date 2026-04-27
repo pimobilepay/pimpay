@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { ethers } from "ethers";
 import { decrypt } from "@/lib/crypto";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
@@ -304,6 +305,19 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[v0] [USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
+
+    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    if (result.transaction.fee && result.transaction.fee > 0) {
+      autoConvertFeeToPi(
+        result.transaction.fee,
+        result.transaction.currency,
+        result.transaction.id,
+        result.transaction.reference
+      ).catch((err) => {
+        console.error("[USER_TRANSFER] Fee conversion error (non-blocking):", err.message);
+      });
+    }
+
     return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction });
   } catch (error: any) {
     console.error("[v0] [USER_TRANSFER] ERREUR:", error.message);

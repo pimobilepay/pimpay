@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 // VACCIN : Configuration des headers pour Pi Browser & CORS
 const CORS_HEADERS = {
