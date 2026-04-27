@@ -122,9 +122,28 @@ type TreasuryData = {
 };
 
 // --- WALLET TYPES FOR MULTI-WALLET SYSTEM ---
-type WalletType = "admin" | "treasury" | "hot" | "liquidity";
+type WalletType = "ADMIN" | "TREASURY" | "HOT" | "LIQUIDITY";
+
+type SystemWalletData = {
+  id: string;
+  type: WalletType;
+  name: string;
+  nameFr: string;
+  description: string | null;
+  publicAddress: string;
+  balanceUSD: number;
+  balancePi: number;
+  balanceXAF: number;
+  dailyLimit: number;
+  monthlyLimit: number;
+  isLocked: boolean;
+  lockReason: string | null;
+  lockedAt: string | null;
+  lastActivity: string | null;
+};
 
 type WalletInfo = {
+  id: string;
   type: WalletType;
   name: string;
   nameFr: string;
@@ -136,11 +155,13 @@ type WalletInfo = {
   statusColor: string;
   balanceUSD: number;
   balancePi: number;
+  balanceXAF: number;
   description: string;
   publicAddress: string;
   dailyLimit: number;
   monthlyLimit: number;
   isLocked: boolean;
+  lockReason: string | null;
 };
 
 type WalletAction = "transfer" | "block" | "adjust" | null;
@@ -166,16 +187,59 @@ const CURRENCY_COLORS: Record<string, string> = {
 
 // Mapping currencies to primary wallets
 const CURRENCY_WALLET_MAP: Record<string, { wallet: WalletType; label: string }> = {
-  PI: { wallet: "admin", label: "Admin" },
-  XAF: { wallet: "liquidity", label: "Liquidite" },
-  USD: { wallet: "liquidity", label: "Liquidite" },
-  EUR: { wallet: "treasury", label: "Tresorerie" },
-  USDT: { wallet: "hot", label: "Hot Wallet" },
-  BTC: { wallet: "treasury", label: "Tresorerie" },
-  ETH: { wallet: "hot", label: "Hot Wallet" },
-  XLM: { wallet: "treasury", label: "Tresorerie" },
-  SDA: { wallet: "admin", label: "Admin" },
-  BUSD: { wallet: "liquidity", label: "Liquidite" },
+  PI: { wallet: "ADMIN", label: "Admin" },
+  XAF: { wallet: "LIQUIDITY", label: "Liquidite" },
+  USD: { wallet: "LIQUIDITY", label: "Liquidite" },
+  EUR: { wallet: "TREASURY", label: "Tresorerie" },
+  USDT: { wallet: "HOT", label: "Hot Wallet" },
+  BTC: { wallet: "TREASURY", label: "Tresorerie" },
+  ETH: { wallet: "HOT", label: "Hot Wallet" },
+  XLM: { wallet: "TREASURY", label: "Tresorerie" },
+  SDA: { wallet: "ADMIN", label: "Admin" },
+  BUSD: { wallet: "LIQUIDITY", label: "Liquidite" },
+};
+
+// Wallet display config based on type
+const WALLET_CONFIG: Record<WalletType, {
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  statusLabel: string;
+  statusColor: string;
+}> = {
+  ADMIN: {
+    icon: Coins,
+    color: "text-amber-400",
+    bgColor: "bg-amber-500/10",
+    borderColor: "border-amber-500/30",
+    statusLabel: "Live Revenue",
+    statusColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+  },
+  TREASURY: {
+    icon: Vault,
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+    borderColor: "border-blue-500/30",
+    statusLabel: "Secure",
+    statusColor: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+  },
+  HOT: {
+    icon: Flame,
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+    borderColor: "border-orange-500/30",
+    statusLabel: "Active",
+    statusColor: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+  },
+  LIQUIDITY: {
+    icon: Droplets,
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+    borderColor: "border-cyan-500/30",
+    statusLabel: "Stable",
+    statusColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/40",
+  },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -192,81 +256,33 @@ const TYPE_LABELS: Record<string, string> = {
   DEFAULT: "Autres",
 };
 
-// Simulated wallet balances (in production, fetch from API)
-const WALLETS_DATA: WalletInfo[] = [
-  {
-    type: "admin",
-    name: "Admin Wallet",
-    nameFr: "Revenus Admin",
-    icon: Coins,
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/10",
-    borderColor: "border-amber-500/30",
-    statusLabel: "Live Revenue",
-    statusColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
-    balanceUSD: 48250.75,
-    balancePi: 15420.5,
-    description: "Frais collectes sur toutes les transactions",
-    publicAddress: "GBH4...X7KM",
-    dailyLimit: 50000,
-    monthlyLimit: 500000,
-    isLocked: false,
-  },
-  {
-    type: "treasury",
-    name: "Treasury Wallet",
-    nameFr: "Tresorerie Securisee",
-    icon: Vault,
-    color: "text-blue-400",
-    bgColor: "bg-blue-500/10",
-    borderColor: "border-blue-500/30",
-    statusLabel: "Secure",
-    statusColor: "bg-blue-500/20 text-blue-400 border-blue-500/40",
-    balanceUSD: 285000.0,
-    balancePi: 95000.0,
-    description: "Profits a long terme et reserves strategiques",
-    publicAddress: "GDQP...M3NR",
-    dailyLimit: 100000,
-    monthlyLimit: 1000000,
-    isLocked: false,
-  },
-  {
-    type: "hot",
-    name: "Hot Wallet",
-    nameFr: "Gas & Payouts",
-    icon: Flame,
-    color: "text-orange-400",
-    bgColor: "bg-orange-500/10",
-    borderColor: "border-orange-500/30",
-    statusLabel: "Active",
-    statusColor: "bg-orange-500/20 text-orange-400 border-orange-500/40",
-    balanceUSD: 12500.0,
-    balancePi: 4200.0,
-    description: "Fonds pour transactions automatiques et frais de gas",
-    publicAddress: "GCFH...P9QZ",
-    dailyLimit: 25000,
-    monthlyLimit: 250000,
-    isLocked: false,
-  },
-  {
-    type: "liquidity",
-    name: "Liquidity Reserve",
-    nameFr: "Reserve de Liquidite",
-    icon: Droplets,
-    color: "text-cyan-400",
-    bgColor: "bg-cyan-500/10",
-    borderColor: "border-cyan-500/30",
-    statusLabel: "Stable",
-    statusColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/40",
-    balanceUSD: 125000.0,
-    balancePi: 0,
-    description: "Buffer pour retraits USD/Orange Money",
-    publicAddress: "GBVK...L2WX",
-    dailyLimit: 75000,
-    monthlyLimit: 750000,
-    isLocked: false,
-  },
-];
+// Helper to transform API wallet data to display format
+function transformWalletData(apiWallet: SystemWalletData): WalletInfo {
+  const config = WALLET_CONFIG[apiWallet.type];
+  return {
+    id: apiWallet.id,
+    type: apiWallet.type,
+    name: apiWallet.name,
+    nameFr: apiWallet.nameFr,
+    icon: config.icon,
+    color: config.color,
+    bgColor: config.bgColor,
+    borderColor: config.borderColor,
+    statusLabel: apiWallet.isLocked ? "Bloque" : config.statusLabel,
+    statusColor: apiWallet.isLocked 
+      ? "bg-red-500/20 text-red-400 border-red-500/40" 
+      : config.statusColor,
+    balanceUSD: apiWallet.balanceUSD,
+    balancePi: apiWallet.balancePi,
+    balanceXAF: apiWallet.balanceXAF,
+    description: apiWallet.description || "",
+    publicAddress: apiWallet.publicAddress,
+    dailyLimit: apiWallet.dailyLimit,
+    monthlyLimit: apiWallet.monthlyLimit,
+    isLocked: apiWallet.isLocked,
+    lockReason: apiWallet.lockReason,
+  };
+}
 
 // --- HELPERS ---
 function formatCurrency(amount: number, compact = false): string {
@@ -563,10 +579,12 @@ function WalletDrawer({
                 Adresse Publique
               </p>
               <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono text-cyan-400">{wallet.publicAddress}</code>
+                <code className="text-xs font-mono text-cyan-400 break-all">
+                  {wallet.publicAddress}
+                </code>
                 <button
                   onClick={copyAddress}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors shrink-0"
                 >
                   {copiedAddress ? (
                     <CheckCircle2 size={14} className="text-emerald-400" />
@@ -576,6 +594,18 @@ function WalletDrawer({
                 </button>
               </div>
             </div>
+
+            {/* XAF Balance if available */}
+            {wallet.balanceXAF > 0 && (
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Solde XAF
+                </p>
+                <p className="text-sm font-bold text-white">
+                  {formatCurrency(wallet.balanceXAF)} XAF
+                </p>
+              </div>
+            )}
 
             {/* Limits */}
             <div className="grid grid-cols-2 gap-3">
@@ -891,8 +921,29 @@ export default function TreasuryPage() {
   const [pendingAction, setPendingAction] = useState<{ action: WalletAction; wallet: WalletInfo } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   
-  // Wallets state (can be updated after actions)
-  const [wallets, setWallets] = useState<WalletInfo[]>(WALLETS_DATA);
+  // Wallets state (fetched from API)
+  const [wallets, setWallets] = useState<WalletInfo[]>([]);
+  const [walletsLoading, setWalletsLoading] = useState(true);
+
+  // Fetch system wallets from API
+  const fetchSystemWallets = async () => {
+    try {
+      setWalletsLoading(true);
+      const res = await fetch("/api/admin/system-wallets");
+      if (!res.ok) throw new Error("Erreur API wallets");
+      const json = await res.json();
+      
+      if (json.success && json.wallets) {
+        const transformedWallets = json.wallets.map(transformWalletData);
+        setWallets(transformedWallets);
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching system wallets:", err);
+      toast.error("Impossible de charger les wallets systeme");
+    } finally {
+      setWalletsLoading(false);
+    }
+  };
 
   const fetchTreasury = async () => {
     try {
@@ -935,6 +986,7 @@ export default function TreasuryPage() {
 
   useEffect(() => {
     fetchTreasury();
+    fetchSystemWallets();
   }, []);
 
   // Handle wallet settings click
@@ -949,43 +1001,64 @@ export default function TreasuryPage() {
     setIsMFAOpen(true);
   };
 
-  // Handle MFA verification
+  // Handle MFA verification with real API
   const handleMFAVerify = async (code: string) => {
     if (!pendingAction) return;
     
     setIsVerifying(true);
     
-    // Simulate API call with 2FA verification
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const { action, wallet } = pendingAction;
     
-    // Simulated validation: "123456" is the valid code
-    if (code === "123456") {
-      const { action, wallet } = pendingAction;
-      
+    try {
+      // Call the real API with MFA verification
+      const res = await fetch("/api/admin/system-wallets/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletId: wallet.id,
+          action: action === "block" ? (wallet.isLocked ? "unblock" : "block") : action,
+          totpCode: code,
+          data: action === "transfer" 
+            ? { amount: wallet.balanceUSD * 0.5, currency: "USD" }
+            : action === "adjust"
+            ? { dailyLimit: wallet.dailyLimit, monthlyLimit: wallet.monthlyLimit }
+            : {},
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        toast.error(json.error || "Erreur lors de l'action");
+        setIsVerifying(false);
+        return;
+      }
+
+      // Success - update UI
       switch (action) {
         case "transfer":
-          toast.success(`Transfert de ${wallet.nameFr} vers Tresorerie effectue`);
+          toast.success(json.message || `Transfert de ${wallet.nameFr} vers Tresorerie effectue`);
           break;
         case "block":
-          // Toggle lock state
-          setWallets(prev => prev.map(w => 
-            w.type === wallet.type ? { ...w, isLocked: !w.isLocked } : w
-          ));
-          toast.success(wallet.isLocked 
+          toast.success(json.message || (wallet.isLocked 
             ? `${wallet.nameFr} debloque avec succes` 
             : `${wallet.nameFr} bloque avec succes`
-          );
+          ));
           break;
         case "adjust":
-          toast.success(`Limites de ${wallet.nameFr} ajustees`);
+          toast.success(json.message || `Limites de ${wallet.nameFr} ajustees`);
           break;
       }
+      
+      // Refresh wallets data
+      await fetchSystemWallets();
       
       setIsMFAOpen(false);
       setPendingAction(null);
       setIsDrawerOpen(false);
-    } else {
-      toast.error("Code 2FA incorrect. Verifiez votre application Google Authenticator.");
+    } catch (err) {
+      console.error("[v0] MFA verification error:", err);
+      toast.error("Erreur de connexion. Veuillez reessayer.");
     }
     
     setIsVerifying(false);
@@ -993,16 +1066,20 @@ export default function TreasuryPage() {
 
   // Handle treasury actions with MFA
   const handleSecureProfits = () => {
-    const adminWallet = wallets.find(w => w.type === "admin");
+    const adminWallet = wallets.find(w => w.type === "ADMIN");
     if (adminWallet) {
       handleWalletAction("transfer", adminWallet);
+    } else {
+      toast.error("Wallet Admin introuvable");
     }
   };
 
   const handleRechargeHotWallet = () => {
-    const hotWallet = wallets.find(w => w.type === "hot");
-    if (hotWallet) {
-      handleWalletAction("transfer", hotWallet);
+    const treasuryWallet = wallets.find(w => w.type === "TREASURY");
+    if (treasuryWallet) {
+      handleWalletAction("transfer", treasuryWallet);
+    } else {
+      toast.error("Wallet Tresorerie introuvable");
     }
   };
 

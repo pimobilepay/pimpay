@@ -77,21 +77,28 @@ export default function SecurityConfigPage() {
 
   const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
-  // Fetch security status
+  // Fetch security status from real API
   const fetchSecurityStatus = async () => {
     try {
       setLoading(true);
-      // Simulated API call - in production, fetch from /api/auth/2fa/status
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = await fetch("/api/admin/security/status");
       
-      // Simulate status
-      setSecurityStatus({
-        twoFactorEnabled: false,
-        lastVerified: null,
-        backupCodesRemaining: 0,
-        trustedDevices: 0,
-      });
-    } catch {
+      if (!res.ok) {
+        throw new Error("Erreur API");
+      }
+      
+      const json = await res.json();
+      
+      if (json.success && json.status) {
+        setSecurityStatus({
+          twoFactorEnabled: json.status.twoFactorEnabled,
+          lastVerified: json.status.lastVerified,
+          backupCodesRemaining: json.status.backupCodesRemaining,
+          trustedDevices: json.status.trustedDevices,
+        });
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching security status:", err);
       toast.error("Erreur lors du chargement du statut de securite");
     } finally {
       setLoading(false);
@@ -102,20 +109,36 @@ export default function SecurityConfigPage() {
     fetchSecurityStatus();
   }, []);
 
-  // Start 2FA setup
+  // Start 2FA setup - call real API
   const startSetup = async () => {
     setIsSettingUp(true);
     setSetupStep("qr");
     
-    // Generate a fake TOTP secret for demo
-    // In production: call /api/auth/mfa/setup-totp
-    const fakeSecret = "JBSWY3DPEHPK3PXP";
-    const accountName = "admin@pimpay.com";
-    const issuer = "PimPay";
-    const otpAuthUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${fakeSecret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
-    
-    setTotpSecret(fakeSecret);
-    setQrCodeUrl(otpAuthUri);
+    try {
+      const res = await fetch("/api/auth/mfa/setup-totp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Erreur de configuration");
+      }
+      
+      const json = await res.json();
+      
+      if (json.success) {
+        setTotpSecret(json.secret);
+        setQrCodeUrl(json.otpAuthUri);
+      } else {
+        throw new Error("Echec de la generation du secret");
+      }
+    } catch (err) {
+      console.error("[v0] Error setting up 2FA:", err);
+      toast.error("Erreur lors de la configuration du 2FA");
+      setIsSettingUp(false);
+      setSetupStep("intro");
+    }
   };
 
   // Copy secret to clipboard
@@ -166,7 +189,7 @@ export default function SecurityConfigPage() {
     setVerifyError(null);
   }, []);
 
-  // Verify code and complete setup
+  // Verify code and complete setup - call real API
   const verifyAndComplete = async () => {
     const fullCode = verificationCode.join("");
     if (fullCode.length !== 6) {
@@ -176,11 +199,22 @@ export default function SecurityConfigPage() {
 
     setIsVerifying(true);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Simulated validation: "123456" is the valid code
-    if (fullCode === "123456") {
+    try {
+      const res = await fetch("/api/admin/security/enable-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: fullCode }),
+      });
+      
+      const json = await res.json();
+      
+      if (!res.ok) {
+        setVerifyError(json.error || "Code incorrect");
+        setIsVerifying(false);
+        return;
+      }
+      
+      // Success
       setSetupStep("complete");
       setSecurityStatus((prev) => ({
         ...prev,
@@ -189,8 +223,9 @@ export default function SecurityConfigPage() {
         backupCodesRemaining: 10,
       }));
       toast.success("Google Authenticator active avec succes!");
-    } else {
-      setVerifyError("Code incorrect. Verifiez votre application Google Authenticator.");
+    } catch (err) {
+      console.error("[v0] Error verifying 2FA:", err);
+      setVerifyError("Erreur de connexion. Veuillez reessayer.");
     }
 
     setIsVerifying(false);
@@ -205,15 +240,70 @@ export default function SecurityConfigPage() {
     resetVerificationCode();
   };
 
-  // Disable 2FA
+  // Disable 2FA state
+  const [showDisableModal, setShowDisableModal] = useState(false);
+  const [disableCode, setDisableCode] = useState<string[]>(["", "", "", "", "", ""]);
+  const [disableError, setDisableError] = useState<string | null>(null);
+  const [isDisabling, setIsDisabling] = useState(false);
+  const disableInputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
+
+  // Disable 2FA - requires current code
   const disable2FA = async () => {
-    // In production, this would require MFA verification first
-    setSecurityStatus((prev) => ({
-      ...prev,
-      twoFactorEnabled: false,
-      backupCodesRemaining: 0,
-    }));
-    toast.success("2FA desactive");
+    const fullCode = disableCode.join("");
+    if (fullCode.length !== 6) {
+      setDisableError("Veuillez entrer le code complet a 6 chiffres");
+      return;
+    }
+
+    setIsDisabling(true);
+    
+    try {
+      const res = await fetch("/api/admin/security/disable-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: fullCode }),
+      });
+      
+      const json = await res.json();
+      
+      if (!res.ok) {
+        setDisableError(json.error || "Code incorrect");
+        setIsDisabling(false);
+        return;
+      }
+      
+      // Success
+      setSecurityStatus((prev) => ({
+        ...prev,
+        twoFactorEnabled: false,
+        backupCodesRemaining: 0,
+      }));
+      setShowDisableModal(false);
+      setDisableCode(["", "", "", "", "", ""]);
+      toast.success("2FA desactive avec succes");
+    } catch (err) {
+      console.error("[v0] Error disabling 2FA:", err);
+      setDisableError("Erreur de connexion. Veuillez reessayer.");
+    }
+
+    setIsDisabling(false);
+  };
+
+  const handleDisableCodeChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newCode = [...disableCode];
+    newCode[index] = value.slice(-1);
+    setDisableCode(newCode);
+    setDisableError(null);
+    if (value && index < 5) {
+      disableInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDisableCodeKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !disableCode[index] && index > 0) {
+      disableInputRefs.current[index - 1]?.focus();
+    }
   };
 
   if (loading) {
@@ -529,16 +619,16 @@ export default function SecurityConfigPage() {
                 )}
               </div>
 
-              {/* Test Code Hint */}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-6">
+              {/* Security Notice */}
+              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-2xl p-4 mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle size={14} className="text-amber-400" />
-                  <p className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">
-                    Mode Demo
+                  <Shield size={14} className="text-cyan-400" />
+                  <p className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
+                    Verification Requise
                   </p>
                 </div>
-                <p className="text-[10px] text-amber-400/80">
-                  Pour tester, utilisez le code: <span className="font-mono font-bold">123456</span>
+                <p className="text-[10px] text-cyan-400/80">
+                  Entrez le code genere par Google Authenticator pour activer la protection 2FA.
                 </p>
               </div>
 
@@ -693,7 +783,12 @@ export default function SecurityConfigPage() {
                   Zone Dangereuse
                 </h3>
                 <button
-                  onClick={disable2FA}
+                  onClick={() => {
+                    setShowDisableModal(true);
+                    setDisableCode(["", "", "", "", "", ""]);
+                    setDisableError(null);
+                    setTimeout(() => disableInputRefs.current[0]?.focus(), 100);
+                  }}
                   className="w-full flex items-center gap-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 hover:border-red-500/50 transition-all"
                 >
                   <div className="w-11 h-11 rounded-xl bg-red-500/20 flex items-center justify-center">
@@ -740,6 +835,108 @@ export default function SecurityConfigPage() {
           <span>Securite de niveau bancaire - Chiffrement E2E</span>
         </div>
       </div>
+
+      {/* Disable 2FA Modal */}
+      <AnimatePresence>
+        {showDisableModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+            onClick={() => setShowDisableModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-slate-900 border border-red-500/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl shadow-red-500/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                  <ShieldAlert size={28} className="text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-red-400">
+                    Desactiver le 2FA
+                  </h3>
+                  <p className="text-[10px] text-slate-500">
+                    Cette action reduira la securite de votre compte
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-6">
+                <p className="text-[10px] text-red-400">
+                  Pour confirmer la desactivation, entrez le code a 6 chiffres de Google Authenticator.
+                </p>
+              </div>
+
+              {/* Code Input */}
+              <div className="mb-6">
+                <div className="flex justify-center gap-2">
+                  {disableCode.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => { disableInputRefs.current[index] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleDisableCodeChange(index, e.target.value)}
+                      onKeyDown={(e) => handleDisableCodeKeyDown(index, e)}
+                      className={`w-12 h-14 text-center text-xl font-black rounded-xl border-2 bg-slate-800/50 text-white outline-none transition-all
+                        ${disableError ? "border-red-500/50" : digit ? "border-red-500/50" : "border-white/10"}
+                        focus:border-red-500 focus:ring-2 focus:ring-red-500/20`}
+                    />
+                  ))}
+                </div>
+                {disableError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-red-400 text-center mt-3"
+                  >
+                    {disableError}
+                  </motion.p>
+                )}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDisableModal(false)}
+                  disabled={isDisabling}
+                  className="flex-1 py-4 rounded-2xl bg-white/5 text-slate-400 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={disable2FA}
+                  disabled={isDisabling || disableCode.some((d) => !d)}
+                  className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold text-[10px] uppercase tracking-wider hover:from-red-500 hover:to-orange-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDisabling ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Desactivation...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert size={14} />
+                      Desactiver
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
