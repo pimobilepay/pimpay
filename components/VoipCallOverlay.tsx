@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PhoneOff,
@@ -11,51 +11,25 @@ import {
   Bot,
   X,
   Phone,
+  PhoneIncoming,
+  Shield,
 } from "lucide-react";
+import { useWebRTC } from "@/hooks/useWebRTC";
 
-export type CallState = "idle" | "calling" | "connected";
+export type { CallState } from "@/hooks/useWebRTC";
 
 interface VoipCallOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  onCallStateChange?: (state: CallState) => void;
-}
-
-// Hook for call timer
-function useCallTimer(isConnected: boolean) {
-  const [seconds, setSeconds] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (isConnected) {
-      intervalRef.current = setInterval(() => {
-        setSeconds((s) => s + 1);
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      setSeconds(0);
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isConnected]);
-
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  return formatTime(seconds);
+  userId?: string;
+  targetUserId?: string;
+  onCallStateChange?: (state: string) => void;
 }
 
 // Pulsing rings animation component
-function PulsingRings({ isActive }: { isActive: boolean }) {
+function PulsingRings({ isActive, color = "blue" }: { isActive: boolean; color?: "blue" | "amber" }) {
+  const colorClass = color === "amber" ? "border-amber-500/40" : "border-blue-500/40";
+  
   return (
     <div className="absolute inset-0 flex items-center justify-center">
       {isActive && (
@@ -63,7 +37,7 @@ function PulsingRings({ isActive }: { isActive: boolean }) {
           {[1, 2, 3].map((ring) => (
             <motion.div
               key={ring}
-              className="absolute rounded-full border-2 border-blue-500/40"
+              className={`absolute rounded-full border-2 ${colorClass}`}
               initial={{ width: 96, height: 96, opacity: 0.6 }}
               animate={{
                 width: [96, 160 + ring * 40],
@@ -87,94 +61,92 @@ function PulsingRings({ isActive }: { isActive: boolean }) {
 export default function VoipCallOverlay({
   isOpen,
   onClose,
+  userId,
+  targetUserId = "elara_support",
   onCallStateChange,
 }: VoipCallOverlayProps) {
-  const [callState, setCallState] = useState<CallState>("idle");
-  const [isMuted, setIsMuted] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+  // Generate stable user ID on mount
+  const [stableUserId] = useState(() => userId || `user_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const callTime = useCallTimer(callState === "connected");
-
-  // Refs for future SDK integration (Twilio, WebRTC, Agora)
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-
-  const updateCallState = useCallback(
-    (newState: CallState) => {
-      setCallState(newState);
-      onCallStateChange?.(newState);
+  const {
+    callState,
+    callDuration,
+    isMuted,
+    isSpeakerOn,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+    toggleSpeaker,
+    cleanup,
+  } = useWebRTC({
+    userId: stableUserId,
+    onCallStateChange: (state) => {
+      onCallStateChange?.(state);
     },
-    [onCallStateChange]
-  );
+    onError: (error) => {
+      setErrorMessage(error);
+      setTimeout(() => setErrorMessage(null), 3000);
+    },
+  });
 
-  // Start call - simulate connecting
-  const startCall = useCallback(async () => {
-    updateCallState("calling");
+  // Format call duration as MM:SS
+  const formattedDuration = useMemo(() => {
+    const minutes = Math.floor(callDuration / 60);
+    const seconds = callDuration % 60;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }, [callDuration]);
 
-    // TODO: Replace with actual VoIP SDK initialization
-    // Example for WebRTC:
-    // const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // localStreamRef.current = stream;
-    // Initialize peer connection here
+  // Get status text based on call state
+  const statusText = useMemo(() => {
+    switch (callState) {
+      case "calling":
+        return "Connexion en cours...";
+      case "incoming":
+        return "Appel entrant...";
+      case "connected":
+        return "Appel en cours";
+      case "ended":
+        return "Appel terminé";
+      default:
+        return "Initialisation...";
+    }
+  }, [callState]);
 
-    // Simulate connection delay
-    setTimeout(() => {
-      updateCallState("connected");
-    }, 2500);
-  }, [updateCallState]);
-
-  // End call
-  const endCall = useCallback(() => {
-    // TODO: Clean up VoIP SDK resources
-    // if (localStreamRef.current) {
-    //   localStreamRef.current.getTracks().forEach(track => track.stop());
-    // }
-    // if (peerConnectionRef.current) {
-    //   peerConnectionRef.current.close();
-    // }
-
-    updateCallState("idle");
-    setIsMuted(false);
-    setIsSpeakerOn(false);
-    onClose();
-  }, [updateCallState, onClose]);
-
-  // Toggle mute
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev);
-
-    // TODO: Mute local audio track
-    // if (localStreamRef.current) {
-    //   localStreamRef.current.getAudioTracks().forEach(track => {
-    //     track.enabled = isMuted;
-    //   });
-    // }
-  }, []);
-
-  // Toggle speaker
-  const toggleSpeaker = useCallback(() => {
-    setIsSpeakerOn((prev) => !prev);
-
-    // TODO: Toggle audio output device
-    // This typically requires Web Audio API or platform-specific SDK methods
-  }, []);
-
-  // Auto-start call when overlay opens
+  // Auto-initiate call when overlay opens
   useEffect(() => {
     if (isOpen && callState === "idle") {
-      startCall();
+      initiateCall(targetUserId);
     }
-  }, [isOpen, callState, startCall]);
+  }, [isOpen, callState, initiateCall, targetUserId]);
 
-  // Reset state when closed
+  // Cleanup on unmount or close
   useEffect(() => {
-    if (!isOpen) {
-      setCallState("idle");
-      setIsMuted(false);
-      setIsSpeakerOn(false);
+    if (!isOpen && callState !== "idle") {
+      cleanup();
     }
+    return () => {
+      if (callState !== "idle") {
+        cleanup();
+      }
+    };
   }, [isOpen]);
+
+  // Handle end call and close
+  const handleEndCall = useCallback(() => {
+    endCall();
+    setTimeout(() => {
+      onClose();
+    }, 300);
+  }, [endCall, onClose]);
+
+  // Handle reject and close
+  const handleReject = useCallback(() => {
+    rejectCall();
+    onClose();
+  }, [rejectCall, onClose]);
 
   return (
     <AnimatePresence>
@@ -191,12 +163,26 @@ export default function VoipCallOverlay({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            onClick={endCall}
+            onClick={handleEndCall}
             className="absolute top-12 right-6 p-3 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform z-10"
             aria-label="Fermer l'appel"
           >
             <X size={20} className="text-white/70" />
           </motion.button>
+
+          {/* Error message toast */}
+          <AnimatePresence>
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute top-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl"
+              >
+                <p className="text-sm text-red-400">{errorMessage}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Top section - Status */}
           <motion.div
@@ -209,9 +195,7 @@ export default function VoipCallOverlay({
               Support Elara
             </h2>
             <p className="text-xs text-slate-500 mt-1 font-medium uppercase tracking-widest">
-              {callState === "calling" && "Connexion en cours..."}
-              {callState === "connected" && "Appel en cours"}
-              {callState === "idle" && "Initialisation..."}
+              {statusText}
             </p>
           </motion.div>
 
@@ -220,7 +204,13 @@ export default function VoipCallOverlay({
             <div className="relative">
               <PulsingRings
                 isActive={callState === "calling" || callState === "connected"}
+                color={callState === "incoming" ? "amber" : "blue"}
               />
+
+              {/* Incoming call specific rings */}
+              {callState === "incoming" && (
+                <PulsingRings isActive={true} color="amber" />
+              )}
 
               {/* Elara Avatar */}
               <motion.div
@@ -245,13 +235,19 @@ export default function VoipCallOverlay({
                       ? "bg-emerald-500"
                       : callState === "calling"
                         ? "bg-amber-500"
-                        : "bg-slate-600"
+                        : callState === "incoming"
+                          ? "bg-blue-500"
+                          : "bg-slate-600"
                   }`}
                 >
-                  <Phone
-                    size={14}
-                    className={`text-white ${callState === "calling" ? "animate-pulse" : ""}`}
-                  />
+                  {callState === "incoming" ? (
+                    <PhoneIncoming size={14} className="text-white animate-pulse" />
+                  ) : (
+                    <Phone
+                      size={14}
+                      className={`text-white ${callState === "calling" ? "animate-pulse" : ""}`}
+                    />
+                  )}
                 </motion.div>
               </motion.div>
             </div>
@@ -267,7 +263,7 @@ export default function VoipCallOverlay({
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-3xl font-black text-white tracking-wider font-mono">
-                    {callTime}
+                    {formattedDuration}
                   </span>
                 </div>
               ) : callState === "calling" ? (
@@ -278,11 +274,23 @@ export default function VoipCallOverlay({
                     className="flex items-center gap-1"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="w-2 h-2 rounded-full bg-amber-500 delay-100" />
-                    <span className="w-2 h-2 rounded-full bg-amber-500 delay-200" />
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
                   </motion.div>
                   <span className="text-sm text-amber-400 font-bold uppercase tracking-wider">
                     Appel...
+                  </span>
+                </div>
+              ) : callState === "incoming" ? (
+                <div className="flex items-center gap-2">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 0.5, repeat: Infinity }}
+                  >
+                    <PhoneIncoming size={20} className="text-blue-400" />
+                  </motion.div>
+                  <span className="text-sm text-blue-400 font-bold uppercase tracking-wider">
+                    Appel entrant
                   </span>
                 </div>
               ) : null}
@@ -316,76 +324,113 @@ export default function VoipCallOverlay({
             transition={{ delay: 0.3 }}
             className="pb-16 px-6 w-full max-w-sm"
           >
-            <div className="flex items-center justify-center gap-6">
-              {/* Mute Button */}
-              <button
-                onClick={toggleMute}
-                disabled={callState !== "connected"}
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isMuted
-                    ? "bg-red-500/20 border-2 border-red-500/50"
-                    : "bg-white/10 border border-white/10"
-                }`}
-                aria-label={isMuted ? "Activer le micro" : "Couper le micro"}
-              >
-                {isMuted ? (
-                  <MicOff size={24} className="text-red-400" />
-                ) : (
-                  <Mic size={24} className="text-white" />
-                )}
-              </button>
+            {/* Incoming call controls */}
+            {callState === "incoming" ? (
+              <div className="flex items-center justify-center gap-8">
+                {/* Reject Button */}
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={handleReject}
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
+                    aria-label="Refuser l'appel"
+                  >
+                    <PhoneOff size={28} className="text-white" />
+                  </button>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Refuser
+                  </span>
+                </div>
 
-              {/* End Call Button */}
-              <button
-                onClick={endCall}
-                className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
-                aria-label="Terminer l'appel"
-              >
-                <PhoneOff size={32} className="text-white" />
-              </button>
+                {/* Accept Button */}
+                <div className="flex flex-col items-center gap-2">
+                  <motion.button
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                    onClick={acceptCall}
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30 active:scale-90 transition-all"
+                    aria-label="Accepter l'appel"
+                  >
+                    <Phone size={28} className="text-white" />
+                  </motion.button>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Accepter
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-center gap-6">
+                  {/* Mute Button */}
+                  <button
+                    onClick={toggleMute}
+                    disabled={callState !== "connected"}
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isMuted
+                        ? "bg-red-500/20 border-2 border-red-500/50"
+                        : "bg-white/10 border border-white/10"
+                    }`}
+                    aria-label={isMuted ? "Activer le micro" : "Couper le micro"}
+                  >
+                    {isMuted ? (
+                      <MicOff size={24} className="text-red-400" />
+                    ) : (
+                      <Mic size={24} className="text-white" />
+                    )}
+                  </button>
 
-              {/* Speaker Button */}
-              <button
-                onClick={toggleSpeaker}
-                disabled={callState !== "connected"}
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isSpeakerOn
-                    ? "bg-blue-500/20 border-2 border-blue-500/50"
-                    : "bg-white/10 border border-white/10"
-                }`}
-                aria-label={
-                  isSpeakerOn
-                    ? "Desactiver le haut-parleur"
-                    : "Activer le haut-parleur"
-                }
-              >
-                {isSpeakerOn ? (
-                  <Volume2 size={24} className="text-blue-400" />
-                ) : (
-                  <VolumeX size={24} className="text-white" />
-                )}
-              </button>
-            </div>
+                  {/* End Call Button */}
+                  <button
+                    onClick={handleEndCall}
+                    className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
+                    aria-label="Terminer l'appel"
+                  >
+                    <PhoneOff size={32} className="text-white" />
+                  </button>
 
-            {/* Control labels */}
-            <div className="flex items-center justify-center gap-6 mt-3">
-              <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                {isMuted ? "Muet" : "Micro"}
-              </span>
-              <span className="w-20 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                Fin
-              </span>
-              <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                {isSpeakerOn ? "HP On" : "HP Off"}
-              </span>
-            </div>
+                  {/* Speaker Button */}
+                  <button
+                    onClick={toggleSpeaker}
+                    disabled={callState !== "connected"}
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !isSpeakerOn
+                        ? "bg-amber-500/20 border-2 border-amber-500/50"
+                        : "bg-white/10 border border-white/10"
+                    }`}
+                    aria-label={
+                      isSpeakerOn
+                        ? "Desactiver le haut-parleur"
+                        : "Activer le haut-parleur"
+                    }
+                  >
+                    {isSpeakerOn ? (
+                      <Volume2 size={24} className="text-white" />
+                    ) : (
+                      <VolumeX size={24} className="text-amber-400" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Control labels */}
+                <div className="flex items-center justify-center gap-6 mt-3">
+                  <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                    {isMuted ? "Muet" : "Micro"}
+                  </span>
+                  <span className="w-20 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                    Fin
+                  </span>
+                  <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                    {isSpeakerOn ? "HP On" : "HP Off"}
+                  </span>
+                </div>
+              </>
+            )}
 
             {/* Encrypted call badge */}
             <div className="flex justify-center mt-8">
               <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <Shield size={12} className="text-emerald-500" />
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Appel Chiffre E2E
+                  Appel Chiffré E2E • WebRTC
                 </span>
               </div>
             </div>

@@ -254,13 +254,16 @@ export default function ChatPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowVoipCall(true)} 
-              className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl active:scale-90 transition-transform hover:bg-emerald-500/20"
-              aria-label="Appeler le support"
-            >
-              <Phone size={18} className="text-emerald-400" />
-            </button>
+            {/* Phone button - only visible when conversation is active */}
+            {activeTicket && (
+              <button 
+                onClick={() => setShowVoipCall(true)} 
+                className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl active:scale-90 transition-transform hover:bg-emerald-500/20"
+                aria-label="Appeler le support"
+              >
+                <Phone size={18} className="text-emerald-400" />
+              </button>
+            )}
             <button onClick={() => setShowHistory(true)} className="p-2.5 bg-white/5 border border-white/10 rounded-2xl active:scale-90 transition-transform">
               <Clock size={18} className="text-slate-400" />
             </button>
