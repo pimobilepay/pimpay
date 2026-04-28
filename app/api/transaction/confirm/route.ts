@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
-import { verifyTOTP } from '@/lib/totp';
+import { verifyTotp } from '@/lib/totp';
 
 /**
  * POST /api/transaction/confirm
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      verified = verifyTOTP(code, user.twoFactorSecret);
+      verified = verifyTotp(user.twoFactorSecret, code);
     } else if (method === 'pin' && pin) {
       // Verify PIN
       if (!user?.pin) {
