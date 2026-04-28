@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PhoneOff,
@@ -26,10 +26,8 @@ interface VoipCallOverlayProps {
   onCallStateChange?: (state: string) => void;
 }
 
-// Pulsing rings animation component
 function PulsingRings({ isActive, color = "blue" }: { isActive: boolean; color?: "blue" | "amber" }) {
   const colorClass = color === "amber" ? "border-amber-500/40" : "border-blue-500/40";
-  
   return (
     <div className="absolute inset-0 flex items-center justify-center">
       {isActive && (
@@ -65,9 +63,13 @@ export default function VoipCallOverlay({
   targetUserId = "elara_support",
   onCallStateChange,
 }: VoipCallOverlayProps) {
-  // Generate stable user ID on mount
-  const [stableUserId] = useState(() => userId || `user_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+  const [stableUserId] = useState(() =>
+    userId || `user_${Date.now()}_${Math.random().toString(36).substring(7)}`
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // FIX: Track whether we've already initiated the call to avoid double-init
+  const callInitiatedRef = useRef(false);
 
   const {
     callState,
@@ -92,57 +94,48 @@ export default function VoipCallOverlay({
     },
   });
 
-  // Format call duration as MM:SS
   const formattedDuration = useMemo(() => {
     const minutes = Math.floor(callDuration / 60);
     const seconds = callDuration % 60;
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }, [callDuration]);
 
-  // Get status text based on call state
   const statusText = useMemo(() => {
     switch (callState) {
-      case "calling":
-        return "Connexion en cours...";
-      case "incoming":
-        return "Appel entrant...";
-      case "connected":
-        return "Appel en cours";
-      case "ended":
-        return "Appel terminé";
-      default:
-        return "Initialisation...";
+      case "calling":   return "Connexion en cours...";
+      case "incoming":  return "Appel entrant...";
+      case "connected": return "Appel en cours";
+      case "ended":     return "Appel terminé";
+      default:          return "Initialisation...";
     }
   }, [callState]);
 
-  // Auto-initiate call when overlay opens
+  // FIX: Only initiate the call once when overlay opens.
+  // Previously the effect ran on every callState change, causing repeated initiateCall() calls.
   useEffect(() => {
-    if (isOpen && callState === "idle") {
+    if (isOpen && !callInitiatedRef.current) {
+      callInitiatedRef.current = true;
       initiateCall(targetUserId);
     }
-  }, [isOpen, callState, initiateCall, targetUserId]);
-
-  // Cleanup on unmount or close
-  useEffect(() => {
-    if (!isOpen && callState !== "idle") {
-      cleanup();
+    if (!isOpen) {
+      callInitiatedRef.current = false;
     }
-    return () => {
-      if (callState !== "idle") {
-        cleanup();
-      }
-    };
-  }, [isOpen]);
+  }, [isOpen, initiateCall, targetUserId]);
 
-  // Handle end call and close
+  // FIX: Cleanup only when overlay actually closes (isOpen goes false → true transition)
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      cleanup();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleEndCall = useCallback(() => {
     endCall();
-    setTimeout(() => {
-      onClose();
-    }, 300);
+    setTimeout(onClose, 300);
   }, [endCall, onClose]);
 
-  // Handle reject and close
   const handleReject = useCallback(() => {
     rejectCall();
     onClose();
@@ -170,7 +163,7 @@ export default function VoipCallOverlay({
             <X size={20} className="text-white/70" />
           </motion.button>
 
-          {/* Error message toast */}
+          {/* Error toast */}
           <AnimatePresence>
             {errorMessage && (
               <motion.div
@@ -184,35 +177,26 @@ export default function VoipCallOverlay({
             )}
           </AnimatePresence>
 
-          {/* Top section - Status */}
+          {/* Top section */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             className="pt-24 text-center"
           >
-            <h2 className="text-lg font-black text-white tracking-tight">
-              Support Elara
-            </h2>
-            <p className="text-xs text-slate-500 mt-1 font-medium uppercase tracking-widest">
-              {statusText}
-            </p>
+            <h2 className="text-lg font-black text-white tracking-tight">Support Elara</h2>
+            <p className="text-xs text-slate-500 mt-1 font-medium uppercase tracking-widest">{statusText}</p>
           </motion.div>
 
-          {/* Center section - Avatar with pulsing rings */}
+          {/* Center section */}
           <div className="flex-1 flex flex-col items-center justify-center">
             <div className="relative">
               <PulsingRings
                 isActive={callState === "calling" || callState === "connected"}
                 color={callState === "incoming" ? "amber" : "blue"}
               />
+              {callState === "incoming" && <PulsingRings isActive color="amber" />}
 
-              {/* Incoming call specific rings */}
-              {callState === "incoming" && (
-                <PulsingRings isActive={true} color="amber" />
-              )}
-
-              {/* Elara Avatar */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -220,39 +204,26 @@ export default function VoipCallOverlay({
                 className="relative w-28 h-28 rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-violet-600 flex items-center justify-center shadow-2xl shadow-blue-500/30"
               >
                 <Bot size={52} className="text-white" />
-
-                {/* Status indicator */}
                 <motion.div
-                  animate={{
-                    scale: callState === "connected" ? [1, 1.2, 1] : 1,
-                  }}
-                  transition={{
-                    duration: 1,
-                    repeat: callState === "connected" ? Infinity : 0,
-                  }}
+                  animate={{ scale: callState === "connected" ? [1, 1.2, 1] : 1 }}
+                  transition={{ duration: 1, repeat: callState === "connected" ? Infinity : 0 }}
                   className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-xl flex items-center justify-center border-4 border-[#020617] ${
-                    callState === "connected"
-                      ? "bg-emerald-500"
-                      : callState === "calling"
-                        ? "bg-amber-500"
-                        : callState === "incoming"
-                          ? "bg-blue-500"
-                          : "bg-slate-600"
+                    callState === "connected" ? "bg-emerald-500"
+                    : callState === "calling"  ? "bg-amber-500"
+                    : callState === "incoming" ? "bg-blue-500"
+                    : "bg-slate-600"
                   }`}
                 >
                   {callState === "incoming" ? (
                     <PhoneIncoming size={14} className="text-white animate-pulse" />
                   ) : (
-                    <Phone
-                      size={14}
-                      className={`text-white ${callState === "calling" ? "animate-pulse" : ""}`}
-                    />
+                    <Phone size={14} className={`text-white ${callState === "calling" ? "animate-pulse" : ""}`} />
                   )}
                 </motion.div>
               </motion.div>
             </div>
 
-            {/* Call Timer */}
+            {/* Timer / Status */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -277,9 +248,7 @@ export default function VoipCallOverlay({
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
                   </motion.div>
-                  <span className="text-sm text-amber-400 font-bold uppercase tracking-wider">
-                    Appel...
-                  </span>
+                  <span className="text-sm text-amber-400 font-bold uppercase tracking-wider">Appel...</span>
                 </div>
               ) : callState === "incoming" ? (
                 <div className="flex items-center gap-2">
@@ -289,14 +258,11 @@ export default function VoipCallOverlay({
                   >
                     <PhoneIncoming size={20} className="text-blue-400" />
                   </motion.div>
-                  <span className="text-sm text-blue-400 font-bold uppercase tracking-wider">
-                    Appel entrant
-                  </span>
+                  <span className="text-sm text-blue-400 font-bold uppercase tracking-wider">Appel entrant</span>
                 </div>
               ) : null}
             </motion.div>
 
-            {/* Connection quality indicator */}
             {callState === "connected" && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -310,24 +276,20 @@ export default function VoipCallOverlay({
                   <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                   <div className="w-1 h-3 bg-emerald-400/50 rounded-full" />
                 </div>
-                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider ml-1">
-                  Excellente
-                </span>
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider ml-1">Excellente</span>
               </motion.div>
             )}
           </div>
 
-          {/* Bottom section - Controls */}
+          {/* Bottom controls */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="pb-16 px-6 w-full max-w-sm"
           >
-            {/* Incoming call controls */}
             {callState === "incoming" ? (
               <div className="flex items-center justify-center gap-8">
-                {/* Reject Button */}
                 <div className="flex flex-col items-center gap-2">
                   <button
                     onClick={handleReject}
@@ -336,12 +298,8 @@ export default function VoipCallOverlay({
                   >
                     <PhoneOff size={28} className="text-white" />
                   </button>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Refuser
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Refuser</span>
                 </div>
-
-                {/* Accept Button */}
                 <div className="flex flex-col items-center gap-2">
                   <motion.button
                     animate={{ scale: [1, 1.1, 1] }}
@@ -352,15 +310,13 @@ export default function VoipCallOverlay({
                   >
                     <Phone size={28} className="text-white" />
                   </motion.button>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Accepter
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Accepter</span>
                 </div>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-center gap-6">
-                  {/* Mute Button */}
+                  {/* Mute */}
                   <button
                     onClick={toggleMute}
                     disabled={callState !== "connected"}
@@ -371,14 +327,10 @@ export default function VoipCallOverlay({
                     }`}
                     aria-label={isMuted ? "Activer le micro" : "Couper le micro"}
                   >
-                    {isMuted ? (
-                      <MicOff size={24} className="text-red-400" />
-                    ) : (
-                      <Mic size={24} className="text-white" />
-                    )}
+                    {isMuted ? <MicOff size={24} className="text-red-400" /> : <Mic size={24} className="text-white" />}
                   </button>
 
-                  {/* End Call Button */}
+                  {/* End call */}
                   <button
                     onClick={handleEndCall}
                     className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
@@ -387,37 +339,28 @@ export default function VoipCallOverlay({
                     <PhoneOff size={32} className="text-white" />
                   </button>
 
-                  {/* Speaker Button */}
+                  {/* FIX: Speaker button — always enabled, always shows correct state */}
                   <button
                     onClick={toggleSpeaker}
-                    disabled={callState !== "connected"}
-                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${
                       !isSpeakerOn
                         ? "bg-amber-500/20 border-2 border-amber-500/50"
                         : "bg-white/10 border border-white/10"
                     }`}
-                    aria-label={
-                      isSpeakerOn
-                        ? "Desactiver le haut-parleur"
-                        : "Activer le haut-parleur"
-                    }
+                    aria-label={isSpeakerOn ? "Desactiver le haut-parleur" : "Activer le haut-parleur"}
                   >
-                    {isSpeakerOn ? (
-                      <Volume2 size={24} className="text-white" />
-                    ) : (
-                      <VolumeX size={24} className="text-amber-400" />
-                    )}
+                    {isSpeakerOn
+                      ? <Volume2 size={24} className="text-white" />
+                      : <VolumeX size={24} className="text-amber-400" />
+                    }
                   </button>
                 </div>
 
-                {/* Control labels */}
                 <div className="flex items-center justify-center gap-6 mt-3">
                   <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                     {isMuted ? "Muet" : "Micro"}
                   </span>
-                  <span className="w-20 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                    Fin
-                  </span>
+                  <span className="w-20 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">Fin</span>
                   <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                     {isSpeakerOn ? "HP On" : "HP Off"}
                   </span>
@@ -425,7 +368,6 @@ export default function VoipCallOverlay({
               </>
             )}
 
-            {/* Encrypted call badge */}
             <div className="flex justify-center mt-8">
               <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
                 <Shield size={12} className="text-emerald-500" />

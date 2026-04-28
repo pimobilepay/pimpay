@@ -27,7 +27,6 @@ interface WebRTCHook {
   cleanup: () => void;
 }
 
-// ICE servers configuration with Google STUN
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -57,16 +56,26 @@ export function useWebRTC({
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
-  // Update call state with callback
+  // FIX: Keep mutable refs for values used inside stable callbacks
+  // This breaks stale-closure issues without re-creating callbacks on every state change.
+  const remoteUserIdRef = useRef<string | null>(null);
+  const callStateRef = useRef<CallState>("idle");
+  const isSpeakerOnRef = useRef(true);
+
+  // Keep refs in sync with state
+  useEffect(() => { remoteUserIdRef.current = remoteUserId; }, [remoteUserId]);
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
+  useEffect(() => { isSpeakerOnRef.current = isSpeakerOn; }, [isSpeakerOn]);
+
   const updateCallState = useCallback(
     (newState: CallState) => {
+      callStateRef.current = newState;
       setCallState(newState);
       onCallStateChange?.(newState);
     },
     [onCallStateChange]
   );
 
-  // Send signaling event via API
   const sendSignalingEvent = useCallback(
     async (event: string, data: Record<string, unknown>) => {
       try {
@@ -78,10 +87,7 @@ export function useWebRTC({
             data: { ...data, fromUserId: userId },
           }),
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to send signaling event");
-        }
+        if (!response.ok) throw new Error("Failed to send signaling event");
       } catch (error) {
         console.error("[WebRTC] Signaling error:", error);
         onError?.("Erreur de signalisation");
@@ -90,21 +96,64 @@ export function useWebRTC({
     [userId, onError]
   );
 
-  // Initialize peer connection
+  const startTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setCallDuration(0);
+    timerRef.current = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // FIX: endCall reads remoteUserId from ref — no stale closure, no dep on state
+  const endCall = useCallback(() => {
+    const currentRemoteId = remoteUserIdRef.current;
+    if (currentRemoteId) {
+      sendSignalingEvent(VOIP_EVENTS.CALL_ENDED, { targetUserId: currentRemoteId });
+    }
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+
+    stopTimer();
+    remoteUserIdRef.current = null;
+    setRemoteUserId(null);
+    pendingOfferRef.current = null;
+    pendingCandidatesRef.current = [];
+    updateCallState("idle");
+    setCallDuration(0);
+  }, [sendSignalingEvent, stopTimer, updateCallState]);
+
+  // FIX: createPeerConnection reads remoteUserId from ref
   const createPeerConnection = useCallback(() => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignalingEvent(VOIP_EVENTS.ICE_CANDIDATE, {
           candidate: event.candidate.toJSON(),
-          targetUserId: remoteUserId,
+          targetUserId: remoteUserIdRef.current,
         });
       }
     };
 
-    // Handle connection state changes
     pc.onconnectionstatechange = () => {
       console.log("[WebRTC] Connection state:", pc.connectionState);
       if (pc.connectionState === "connected") {
@@ -118,12 +167,9 @@ export function useWebRTC({
       }
     };
 
-    // Handle remote track
     pc.ontrack = (event) => {
       console.log("[WebRTC] Remote track received");
       remoteStreamRef.current = event.streams[0];
-
-      // Create audio element if not exists
       if (!remoteAudioRef.current) {
         remoteAudioRef.current = new Audio();
         remoteAudioRef.current.autoplay = true;
@@ -133,9 +179,8 @@ export function useWebRTC({
 
     peerConnectionRef.current = pc;
     return pc;
-  }, [sendSignalingEvent, remoteUserId, updateCallState]);
+  }, [sendSignalingEvent, updateCallState, startTimer, endCall]);
 
-  // Get local audio stream
   const getLocalStream = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -155,47 +200,22 @@ export function useWebRTC({
     }
   }, [onError]);
 
-  // Start call timer
-  const startTimer = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setCallDuration(0);
-    timerRef.current = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
-    }, 1000);
-  }, []);
-
-  // Stop call timer
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  // Initiate a call
   const initiateCall = useCallback(
     async (targetUserId: string) => {
       try {
+        remoteUserIdRef.current = targetUserId;
         setRemoteUserId(targetUserId);
         updateCallState("calling");
 
-        // Get local audio
         const stream = await getLocalStream();
-
-        // Create peer connection
         const pc = createPeerConnection();
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-        // Add local tracks to connection
-        stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
-        });
-
-        // Create and send offer
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
         await sendSignalingEvent(VOIP_EVENTS.CALL_OFFER, {
-          offer: offer,
+          offer,
           targetUserId,
         });
       } catch (error) {
@@ -204,51 +224,30 @@ export function useWebRTC({
         onError?.("Impossible d'initier l'appel");
       }
     },
-    [
-      getLocalStream,
-      createPeerConnection,
-      sendSignalingEvent,
-      updateCallState,
-      onError,
-    ]
+    [getLocalStream, createPeerConnection, sendSignalingEvent, updateCallState, onError]
   );
 
-  // Accept incoming call
   const acceptCall = useCallback(async () => {
     try {
-      if (!pendingOfferRef.current) {
-        throw new Error("No pending offer");
-      }
+      if (!pendingOfferRef.current) throw new Error("No pending offer");
 
-      // Get local audio
       const stream = await getLocalStream();
-
-      // Create peer connection
       const pc = createPeerConnection();
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Add local tracks
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
 
-      // Set remote description (the offer)
-      await pc.setRemoteDescription(
-        new RTCSessionDescription(pendingOfferRef.current)
-      );
-
-      // Add any pending ICE candidates
       for (const candidate of pendingCandidatesRef.current) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       }
       pendingCandidatesRef.current = [];
 
-      // Create and send answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       await sendSignalingEvent(VOIP_EVENTS.CALL_ANSWER, {
-        answer: answer,
-        targetUserId: remoteUserId,
+        answer,
+        targetUserId: remoteUserIdRef.current,
       });
 
       updateCallState("connected");
@@ -258,63 +257,20 @@ export function useWebRTC({
       onError?.("Impossible d'accepter l'appel");
       updateCallState("idle");
     }
-  }, [
-    getLocalStream,
-    createPeerConnection,
-    sendSignalingEvent,
-    remoteUserId,
-    updateCallState,
-    startTimer,
-    onError,
-  ]);
+  }, [getLocalStream, createPeerConnection, sendSignalingEvent, updateCallState, startTimer, onError]);
 
-  // Reject incoming call
+  // FIX: rejectCall reads remoteUserId from ref
   const rejectCall = useCallback(() => {
     sendSignalingEvent(VOIP_EVENTS.CALL_REJECTED, {
-      targetUserId: remoteUserId,
+      targetUserId: remoteUserIdRef.current,
     });
     pendingOfferRef.current = null;
     pendingCandidatesRef.current = [];
+    remoteUserIdRef.current = null;
     setRemoteUserId(null);
     updateCallState("idle");
-  }, [sendSignalingEvent, remoteUserId, updateCallState]);
+  }, [sendSignalingEvent, updateCallState]);
 
-  // End call
-  const endCall = useCallback(() => {
-    // Notify remote user
-    if (remoteUserId) {
-      sendSignalingEvent(VOIP_EVENTS.CALL_ENDED, {
-        targetUserId: remoteUserId,
-      });
-    }
-
-    // Stop local tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-
-    // Clean up audio
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-    }
-
-    // Reset state
-    stopTimer();
-    setRemoteUserId(null);
-    pendingOfferRef.current = null;
-    pendingCandidatesRef.current = [];
-    updateCallState("idle");
-    setCallDuration(0);
-  }, [remoteUserId, sendSignalingEvent, stopTimer, updateCallState]);
-
-  // Toggle mute
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -325,15 +281,16 @@ export function useWebRTC({
     }
   }, []);
 
-  // Toggle speaker
+  // FIX: toggleSpeaker reads isSpeakerOn from ref — no stale value
   const toggleSpeaker = useCallback(() => {
     if (remoteAudioRef.current) {
-      remoteAudioRef.current.muted = isSpeakerOn;
-      setIsSpeakerOn(!isSpeakerOn);
+      const nextSpeakerOn = !isSpeakerOnRef.current;
+      remoteAudioRef.current.muted = !nextSpeakerOn;
+      isSpeakerOnRef.current = nextSpeakerOn;
+      setIsSpeakerOn(nextSpeakerOn);
     }
-  }, [isSpeakerOn]);
+  }, []);
 
-  // Cleanup function
   const cleanup = useCallback(() => {
     endCall();
     if (channelRef.current) {
@@ -343,18 +300,17 @@ export function useWebRTC({
     }
   }, [endCall]);
 
-  // Set up Pusher channel and listeners
+  // FIX: Pusher listeners are set up ONCE on mount (userId is stable).
+  // remoteUserId is read from ref inside handlers — no dependency on remoteUserId state.
+  // Previously, putting remoteUserId in deps caused the channel to re-subscribe mid-call,
+  // dropping signaling events and breaking the WebRTC handshake between two devices.
   useEffect(() => {
     const pusher = getPusherClient();
-
-    // Configure auth endpoint
     pusher.config.authEndpoint = "/api/pusher/auth";
 
-    // Subscribe to presence channel
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
     channelRef.current = channel;
 
-    // Handle incoming call offer
     channel.bind(
       VOIP_EVENTS.CALL_OFFER,
       async (data: {
@@ -362,24 +318,20 @@ export function useWebRTC({
         fromUserId: string;
         targetUserId?: string;
       }) => {
-        // Ignore if it's our own offer or not targeted at us
         if (data.fromUserId === userId) return;
         if (data.targetUserId && data.targetUserId !== userId) return;
 
         console.log("[WebRTC] Incoming call from:", data.fromUserId);
         pendingOfferRef.current = data.offer;
+        remoteUserIdRef.current = data.fromUserId;
         setRemoteUserId(data.fromUserId);
         updateCallState("incoming");
       }
     );
 
-    // Handle call answer
     channel.bind(
       VOIP_EVENTS.CALL_ANSWER,
-      async (data: {
-        answer: RTCSessionDescriptionInit;
-        fromUserId: string;
-      }) => {
+      async (data: { answer: RTCSessionDescriptionInit; fromUserId: string }) => {
         if (data.fromUserId === userId) return;
         if (!peerConnectionRef.current) return;
 
@@ -388,12 +340,8 @@ export function useWebRTC({
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(data.answer)
           );
-
-          // Add any pending ICE candidates
           for (const candidate of pendingCandidatesRef.current) {
-            await peerConnectionRef.current.addIceCandidate(
-              new RTCIceCandidate(candidate)
-            );
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
           }
           pendingCandidatesRef.current = [];
         } catch (error) {
@@ -402,59 +350,46 @@ export function useWebRTC({
       }
     );
 
-    // Handle ICE candidates
     channel.bind(
       VOIP_EVENTS.ICE_CANDIDATE,
       async (data: { candidate: RTCIceCandidateInit; fromUserId: string }) => {
         if (data.fromUserId === userId) return;
 
         console.log("[WebRTC] Received ICE candidate");
-        if (
-          peerConnectionRef.current &&
-          peerConnectionRef.current.remoteDescription
-        ) {
+        if (peerConnectionRef.current?.remoteDescription) {
           try {
-            await peerConnectionRef.current.addIceCandidate(
-              new RTCIceCandidate(data.candidate)
-            );
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
           } catch (error) {
             console.error("[WebRTC] Error adding ICE candidate:", error);
           }
         } else {
-          // Queue candidate if remote description not set yet
           pendingCandidatesRef.current.push(data.candidate);
         }
       }
     );
 
-    // Handle call ended
-    channel.bind(
-      VOIP_EVENTS.CALL_ENDED,
-      (data: { fromUserId: string }) => {
-        if (data.fromUserId === userId) return;
-        if (data.fromUserId === remoteUserId) {
-          endCall();
-        }
+    channel.bind(VOIP_EVENTS.CALL_ENDED, (data: { fromUserId: string }) => {
+      if (data.fromUserId === userId) return;
+      // FIX: compare against ref, not stale state
+      if (data.fromUserId === remoteUserIdRef.current) {
+        endCall();
       }
-    );
+    });
 
-    // Handle call rejected
-    channel.bind(
-      VOIP_EVENTS.CALL_REJECTED,
-      (data: { fromUserId: string }) => {
-        if (data.fromUserId === userId) return;
-        if (data.fromUserId === remoteUserId) {
-          endCall();
-          onError?.("L'appel a été refusé");
-        }
+    channel.bind(VOIP_EVENTS.CALL_REJECTED, (data: { fromUserId: string }) => {
+      if (data.fromUserId === userId) return;
+      if (data.fromUserId === remoteUserIdRef.current) {
+        endCall();
+        onError?.("L'appel a été refusé");
       }
-    );
+    });
 
     return () => {
       channel.unbind_all();
       pusher.unsubscribe(VOIP_CHANNEL);
     };
-  }, [userId, updateCallState, endCall, onError, remoteUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]); // intentionally only userId — all other values accessed via refs
 
   return {
     callState,
