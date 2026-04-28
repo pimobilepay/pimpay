@@ -10,14 +10,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    // 1. Get all wallets grouped by currency
+    // 1. Get real system wallet balances (exact platform balances)
+    const systemWallets = await prisma.systemWallet.findMany({
+      select: {
+        type: true,
+        name: true,
+        nameFr: true,
+        balanceUSD: true,
+        balancePi: true,
+        balanceXAF: true,
+        publicAddress: true,
+        isLocked: true,
+      },
+    });
+
+    // 2. Get all user wallets grouped by currency (for breakdown stats)
     const wallets = await prisma.wallet.groupBy({
       by: ['currency'],
       _sum: { balance: true },
       _count: { id: true },
     });
 
-    // 2. Get total transactions volume by currency
+    // 3. Get total transactions volume by currency
     const transactions = await prisma.transaction.groupBy({
       by: ['currency'],
       where: { status: 'SUCCESS' },
@@ -25,7 +39,7 @@ export async function GET(req: NextRequest) {
       _count: { id: true },
     });
 
-    // 3. Get pending transactions
+    // 4. Get pending transactions
     const pendingTransactions = await prisma.transaction.findMany({
       where: { status: 'PENDING' },
       select: {
@@ -39,7 +53,7 @@ export async function GET(req: NextRequest) {
       take: 10,
     });
 
-    // 4. Get recent large transactions (> 1000 units)
+    // 5. Get recent large transactions (> 1000 units)
     const largeTransactions = await prisma.transaction.findMany({
       where: { 
         status: 'SUCCESS',
@@ -58,7 +72,7 @@ export async function GET(req: NextRequest) {
       take: 15,
     });
 
-    // 5. Get transaction stats by type
+    // 6. Get transaction stats by type
     const transactionsByType = await prisma.transaction.groupBy({
       by: ['type'],
       where: { status: 'SUCCESS' },
@@ -66,7 +80,7 @@ export async function GET(req: NextRequest) {
       _count: { id: true },
     });
 
-    // 6. Get daily volume for the last 7 days
+    // 7. Get daily volume for the last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -81,6 +95,17 @@ export async function GET(req: NextRequest) {
         type: true,
         createdAt: true,
       },
+    });
+
+    // 8. Aggregate total fees by currency (exact fee amounts collected)
+    const feesByCurrency = await prisma.transaction.groupBy({
+      by: ['currency'],
+      where: {
+        status: 'SUCCESS',
+        fee: { gt: 0 },
+      },
+      _sum: { fee: true },
+      _count: { id: true },
     });
 
     // Group by day
@@ -114,12 +139,21 @@ export async function GET(req: NextRequest) {
       transfers: Math.round(data.transfers),
     }));
 
-    // 7. Calculate totals
-    const totalBalance = wallets.reduce((sum, w) => sum + (w._sum.balance || 0), 0);
+    // 9. Calculate exact totals from system wallets (real platform balances)
+    const totalSystemBalanceUSD = systemWallets.reduce((sum, w) => sum + w.balanceUSD, 0);
+    const totalSystemBalancePi = systemWallets.reduce((sum, w) => sum + w.balancePi, 0);
+    const totalSystemBalanceXAF = systemWallets.reduce((sum, w) => sum + w.balanceXAF, 0);
+
+    const totalUserBalance = wallets.reduce((sum, w) => sum + (w._sum.balance || 0), 0);
     const totalTransactionVolume = transactions.reduce((sum, t) => sum + (t._sum.amount || 0), 0);
     const pendingVolume = pendingTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-    // 8. Get currency breakdown for pie chart
+    // Total fees collected per currency (exact amounts from transaction.fee field)
+    const totalFeesCollected = feesByCurrency.reduce((acc, f) => {
+      acc[f.currency] = f._sum.fee || 0;
+      return acc;
+    }, {} as Record<string, number>);
+
     const currencyBreakdown = wallets.map((w) => ({
       currency: w.currency,
       balance: w._sum.balance || 0,
@@ -128,12 +162,17 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       summary: {
-        totalBalance,
+        totalSystemBalanceUSD,
+        totalSystemBalancePi,
+        totalSystemBalanceXAF,
+        totalBalance: totalUserBalance,
         totalTransactionVolume,
         pendingVolume,
         pendingCount: pendingTransactions.length,
         totalWallets: wallets.reduce((sum, w) => sum + w._count.id, 0),
       },
+      systemWallets,
+      totalFeesCollected,
       currencyBreakdown,
       transactionsByType: transactionsByType.map((t) => ({
         type: t.type,

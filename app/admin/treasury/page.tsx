@@ -71,11 +71,27 @@ import {
 
 // --- TYPES ---
 type TreasurySummary = {
+  // Exact system wallet balances (platform funds)
+  totalSystemBalanceUSD: number;
+  totalSystemBalancePi: number;
+  totalSystemBalanceXAF: number;
+  // User wallet stats
   totalBalance: number;
   totalTransactionVolume: number;
   pendingVolume: number;
   pendingCount: number;
   totalWallets: number;
+};
+
+type SystemWalletSnapshot = {
+  type: string;
+  name: string;
+  nameFr: string;
+  balanceUSD: number;
+  balancePi: number;
+  balanceXAF: number;
+  publicAddress: string;
+  isLocked: boolean;
 };
 
 type CurrencyBreakdown = {
@@ -119,6 +135,8 @@ type LargeTransaction = {
 
 type TreasuryData = {
   summary: TreasurySummary;
+  systemWallets: SystemWalletSnapshot[];
+  totalFeesCollected: Record<string, number>;
   currencyBreakdown: CurrencyBreakdown[];
   transactionsByType: TransactionByType[];
   chartData: ChartDataPoint[];
@@ -158,6 +176,8 @@ type CentralizedFeesData = {
     piToUsd: number;
     piToXaf: number;
   };
+  // Exact raw fee amounts per currency (from transaction.fee field)
+  exactFeesByCurrency: Record<string, number>;
 };
 
 type WalletBalances = {
@@ -1613,7 +1633,7 @@ export default function TreasuryPage() {
     );
   }
 
-  const { chartData, pendingTransactions, largeTransactions, currencyBreakdown } = data;
+  const { chartData, pendingTransactions, largeTransactions, currencyBreakdown, systemWallets: systemWalletsSnapshot, totalFeesCollected } = data;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32" translate="no">
@@ -1661,6 +1681,65 @@ export default function TreasuryPage() {
               />
             ))}
           </div>
+
+          {/* EXACT PLATFORM BALANCE TOTALS - from system wallets */}
+          {data.summary.totalSystemBalanceUSD !== undefined && (
+            <div className="mt-4 bg-gradient-to-r from-blue-900/30 to-cyan-900/20 border border-blue-500/20 rounded-2xl p-4">
+              <p className="text-[9px] font-black text-blue-400 uppercase tracking-[3px] mb-3 flex items-center gap-2">
+                <Landmark size={12} />
+                Soldes Exacts Plateforme (Tous Wallets)
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-xl font-black text-white">
+                    ${formatCurrency(data.summary.totalSystemBalanceUSD, true)}
+                  </p>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase">USD Total</p>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-amber-400">
+                    {formatCurrency(data.summary.totalSystemBalancePi, true)}
+                  </p>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase">Pi Total</p>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-white">
+                    {formatCurrency(data.summary.totalSystemBalanceXAF, true)}
+                  </p>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase">XAF Total</p>
+                </div>
+              </div>
+              {/* Per-wallet breakdown */}
+              {systemWalletsSnapshot && systemWalletsSnapshot.length > 0 && (
+                <div className="mt-3 space-y-1.5 border-t border-white/5 pt-3">
+                  {systemWalletsSnapshot.map((sw) => (
+                    <div key={sw.type} className="flex items-center justify-between text-[9px]">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          sw.isLocked ? "bg-red-400" : "bg-emerald-400"
+                        }`} />
+                        <span className="text-slate-400 font-bold uppercase">{sw.type}</span>
+                        {sw.isLocked && (
+                          <span className="text-[7px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
+                            Bloque
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {sw.balancePi > 0 && (
+                          <span className="text-amber-400 font-bold">{formatCurrency(sw.balancePi, true)} Pi</span>
+                        )}
+                        {sw.balanceXAF > 0 && (
+                          <span className="text-blue-400 font-bold">{formatCurrency(sw.balanceXAF, true)} XAF</span>
+                        )}
+                        <span className="text-white font-bold">${formatCurrency(sw.balanceUSD, true)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* CURRENCY BREAKDOWN WITH WALLET INDICATORS */}
@@ -1852,6 +1931,26 @@ export default function TreasuryPage() {
               Frais Plateforme Centralises
             </span>
           </SectionTitle>
+
+          {/* Exact fees from transactions (raw totals per currency) */}
+          {totalFeesCollected && Object.keys(totalFeesCollected).length > 0 && (
+            <div className="bg-slate-900/60 border border-emerald-500/20 rounded-[1.5rem] p-4 mb-4">
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[3px] mb-3 flex items-center gap-2">
+                <Activity size={12} />
+                Frais Exacts Collectes (champ fee des transactions)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(totalFeesCollected).map(([currency, amount]) => (
+                  <div key={currency} className="flex items-center gap-2 bg-slate-800/50 border border-white/5 rounded-xl px-3 py-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: CURRENCY_COLORS[currency] || CURRENCY_COLORS.DEFAULT }} />
+                    <span className="text-[10px] font-black text-white">{formatCurrency(amount)}</span>
+                    <span className="text-[8px] font-bold text-slate-500 uppercase">{currency}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-900/60 border border-amber-500/20 rounded-[1.5rem] p-5">
             {feesLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -1880,22 +1979,54 @@ export default function TreasuryPage() {
                   </div>
                 </div>
 
-                {/* Total Fees Summary */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-gradient-to-br from-emerald-600/10 to-emerald-600/5 border border-emerald-500/20 rounded-2xl p-4 text-center">
-                    <DollarSign size={18} className="text-emerald-400 mx-auto mb-2" />
-                    <p className="text-lg font-black text-white">${formatCurrency(walletBalance.usd, true)}</p>
-                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">USD</p>
+                {/* Total Fees Summary - Exact amounts per currency */}
+                <div className="mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    Frais Collectes (Montants Exacts)
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gradient-to-br from-emerald-600/10 to-emerald-600/5 border border-emerald-500/20 rounded-2xl p-4 text-center">
+                      <DollarSign size={18} className="text-emerald-400 mx-auto mb-2" />
+                      <p className="text-lg font-black text-white">
+                        {formatCurrency(feesData.exactFeesByCurrency?.["USD"] || 0, true)}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">USD Frais</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-blue-600/10 to-blue-600/5 border border-blue-500/20 rounded-2xl p-4 text-center">
+                      <Banknote size={18} className="text-blue-400 mx-auto mb-2" />
+                      <p className="text-lg font-black text-white">
+                        {formatCurrency(feesData.exactFeesByCurrency?.["XAF"] || 0, true)}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">XAF Frais</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-amber-600/10 to-amber-600/5 border border-amber-500/20 rounded-2xl p-4 text-center">
+                      <Coins size={18} className="text-amber-400 mx-auto mb-2" />
+                      <p className="text-lg font-black text-amber-400">
+                        {formatCurrency(feesData.exactFeesByCurrency?.["PI"] || 0, true)}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Pi Frais</p>
+                    </div>
                   </div>
-                  <div className="bg-gradient-to-br from-blue-600/10 to-blue-600/5 border border-blue-500/20 rounded-2xl p-4 text-center">
-                    <Banknote size={18} className="text-blue-400 mx-auto mb-2" />
-                    <p className="text-lg font-black text-white">{formatCurrency(walletBalance.xaf, true)}</p>
-                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">XAF</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-amber-600/10 to-amber-600/5 border border-amber-500/20 rounded-2xl p-4 text-center">
-                    <Coins size={18} className="text-amber-400 mx-auto mb-2" />
-                    <p className="text-lg font-black text-amber-400">{formatCurrency(walletBalance.pi, true)}</p>
-                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Pi</p>
+                </div>
+
+                {/* Admin Wallet Real Balance */}
+                <div className="bg-slate-800/50 border border-amber-500/20 rounded-2xl p-4 mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    Solde Reel Admin Wallet
+                  </p>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="text-sm font-black text-white">${formatCurrency(walletBalance.usd, true)}</p>
+                      <p className="text-[8px] text-slate-500">USD</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{formatCurrency(walletBalance.xaf, true)}</p>
+                      <p className="text-[8px] text-slate-500">XAF</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-amber-400">{formatCurrency(walletBalance.pi, true)}</p>
+                      <p className="text-[8px] text-slate-500">Pi</p>
+                    </div>
                   </div>
                 </div>
 

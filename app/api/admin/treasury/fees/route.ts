@@ -4,12 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
-// Fee category types
-type FeeCategory = 
-  | "CRYPTO_FEES"      // transferFee, withdrawFee, depositCryptoFee, exchangeFee
-  | "FIAT_FEES"        // depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee
-  | "PAYMENT_FEES"     // cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee
-  | "OTHER_FEES";      // transactionFee, fiatTransferFee
+type FeeCategory =
+  | "CRYPTO_FEES"
+  | "FIAT_FEES"
+  | "PAYMENT_FEES"
+  | "OTHER_FEES";
 
 interface FeeBreakdown {
   category: FeeCategory;
@@ -27,23 +26,6 @@ interface FeeBreakdown {
   }[];
 }
 
-interface CentralizedFees {
-  totalFeesUSD: number;
-  totalFeesPi: number;
-  totalFeesXAF: number;
-  centralAddress: string;
-  breakdown: FeeBreakdown[];
-  lastUpdated: string;
-  conversionRate: {
-    piToUsd: number;
-    piToXaf: number;
-  };
-}
-
-/**
- * GET - Fetch all centralized platform fees
- * Aggregates fees from all transactions and organizes by category
- */
 export async function GET(req: NextRequest) {
   try {
     const payload = await verifyAuth(req);
@@ -68,20 +50,11 @@ export async function GET(req: NextRequest) {
       select: { consensusPrice: true },
     });
     const piPrice = systemConfig?.consensusPrice || 314159.0;
-    const xafRate = 603; // XAF per USD
+    const xafRate = 603;
 
-    // Aggregate fees from all successful transactions
-    const feeStats = await prisma.transaction.aggregate({
-      _sum: { fee: true },
-      _count: true,
-      where: { 
-        status: "SUCCESS",
-        fee: { gt: 0 },
-      },
-    });
-
-    // Get fees breakdown by transaction type
-    const feesByType = await prisma.transaction.groupBy({
+    // === FIX: Aggregate fees grouped by BOTH type AND currency ===
+    // This gives exact fee amounts per transaction type and currency
+    const feesByTypeAndCurrency = await prisma.transaction.groupBy({
       by: ["type", "currency"],
       _sum: { fee: true },
       _count: true,
@@ -91,66 +64,30 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Calculate fees by category
-    const cryptoTypes = ["EXCHANGE", "STAKING_REWARD", "AIRDROP"];
-    const fiatDepositTypes = ["DEPOSIT"];
-    const withdrawTypes = ["WITHDRAW", "WITHDRAWAL"];
-    const paymentTypes = ["PAYMENT", "CARD_PURCHASE", "CARD_RECHARGE", "CARD_WITHDRAW"];
-    const transferTypes = ["TRANSFER"];
+    // === FIX: Also get total fees per currency for exact wallet balance display ===
+    const feesByCurrency = await prisma.transaction.groupBy({
+      by: ["currency"],
+      _sum: { fee: true },
+      _count: true,
+      where: {
+        status: "SUCCESS",
+        fee: { gt: 0 },
+      },
+    });
 
-    // Helper to convert to USD
+    // Helper to convert any currency to USD
     const toUSD = (amount: number, currency: string): number => {
       if (currency === "PI") return amount * piPrice;
       if (currency === "XAF") return amount / xafRate;
       if (currency === "USD") return amount;
       if (currency === "EUR") return amount * 1.08;
-      return amount; // Default 1:1
+      return amount;
     };
 
-    // Helper to convert to Pi
     const toPi = (usdAmount: number): number => usdAmount / piPrice;
-
-    // Helper to convert to XAF
     const toXAF = (usdAmount: number): number => usdAmount * xafRate;
 
-    // Build breakdown by category
-    const cryptoFees: FeeBreakdown = {
-      category: "CRYPTO_FEES",
-      categoryLabel: "Frais Crypto",
-      totalUSD: 0,
-      totalPi: 0,
-      totalXAF: 0,
-      items: [],
-    };
-
-    const fiatFees: FeeBreakdown = {
-      category: "FIAT_FEES",
-      categoryLabel: "Frais Fiat",
-      totalUSD: 0,
-      totalPi: 0,
-      totalXAF: 0,
-      items: [],
-    };
-
-    const paymentFees: FeeBreakdown = {
-      category: "PAYMENT_FEES",
-      categoryLabel: "Frais Paiements",
-      totalUSD: 0,
-      totalPi: 0,
-      totalXAF: 0,
-      items: [],
-    };
-
-    const otherFees: FeeBreakdown = {
-      category: "OTHER_FEES",
-      categoryLabel: "Autres Frais",
-      totalUSD: 0,
-      totalPi: 0,
-      totalXAF: 0,
-      items: [],
-    };
-
-    // Type labels mapping
+    // Type labels
     const typeLabels: Record<string, string> = {
       TRANSFER: "Transferts",
       WITHDRAW: "Retraits",
@@ -165,24 +102,39 @@ export async function GET(req: NextRequest) {
       CARD_WITHDRAW: "Retraits Carte",
     };
 
-    // Process each fee group
-    for (const group of feesByType) {
+    // Category classifiers
+    const cryptoTypes = ["EXCHANGE", "STAKING_REWARD", "AIRDROP"];
+    const fiatDepositTypes = ["DEPOSIT"];
+    const withdrawTypes = ["WITHDRAW", "WITHDRAWAL"];
+    const paymentTypes = ["PAYMENT", "CARD_PURCHASE", "CARD_RECHARGE", "CARD_WITHDRAW"];
+
+    const cryptoFees: FeeBreakdown = { category: "CRYPTO_FEES", categoryLabel: "Frais Crypto", totalUSD: 0, totalPi: 0, totalXAF: 0, items: [] };
+    const fiatFees: FeeBreakdown = { category: "FIAT_FEES", categoryLabel: "Frais Fiat", totalUSD: 0, totalPi: 0, totalXAF: 0, items: [] };
+    const paymentFees: FeeBreakdown = { category: "PAYMENT_FEES", categoryLabel: "Frais Paiements", totalUSD: 0, totalPi: 0, totalXAF: 0, items: [] };
+    const otherFees: FeeBreakdown = { category: "OTHER_FEES", categoryLabel: "Autres Frais", totalUSD: 0, totalPi: 0, totalXAF: 0, items: [] };
+
+    // Process each fee group (type + currency combination)
+    for (const group of feesByTypeAndCurrency) {
       const feeSum = group._sum.fee || 0;
+      if (feeSum <= 0) continue;
+
       const feeUSD = toUSD(feeSum, group.currency);
       const feePi = toPi(feeUSD);
       const feeXAF = toXAF(feeUSD);
 
       const item = {
-        type: group.type,
-        label: typeLabels[group.type] || group.type,
+        type: `${group.type}_${group.currency}`,
+        label: `${typeLabels[group.type] || group.type} (${group.currency})`,
         amountUSD: feeUSD,
         amountPi: feePi,
         amountXAF: feeXAF,
         count: group._count,
       };
 
-      // Categorize
-      if (cryptoTypes.includes(group.type) || (group.currency !== "XAF" && group.currency !== "USD" && group.currency !== "EUR")) {
+      const isCrypto = cryptoTypes.includes(group.type) ||
+        (group.currency !== "XAF" && group.currency !== "USD" && group.currency !== "EUR");
+
+      if (isCrypto) {
         cryptoFees.items.push(item);
         cryptoFees.totalUSD += feeUSD;
         cryptoFees.totalPi += feePi;
@@ -210,32 +162,42 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Total centralized fees
     const totalFeesUSD = cryptoFees.totalUSD + fiatFees.totalUSD + paymentFees.totalUSD + otherFees.totalUSD;
     const totalFeesPi = cryptoFees.totalPi + fiatFees.totalPi + paymentFees.totalPi + otherFees.totalPi;
     const totalFeesXAF = cryptoFees.totalXAF + fiatFees.totalXAF + paymentFees.totalXAF + otherFees.totalXAF;
 
-    const response: CentralizedFees = {
-      totalFeesUSD,
-      totalFeesPi,
-      totalFeesXAF,
-      centralAddress: adminWallet?.publicAddress || "GB_ADMIN_WALLET_ADDRESS_PI_NETWORK",
-      breakdown: [cryptoFees, fiatFees, paymentFees, otherFees].filter(b => b.items.length > 0),
-      lastUpdated: new Date().toISOString(),
-      conversionRate: {
-        piToUsd: piPrice,
-        piToXaf: piPrice * xafRate,
-      },
+    // === FIX: Exact fee amounts per currency (from transaction.fee field) ===
+    const exactFeesByCurrency: Record<string, number> = {};
+    for (const f of feesByCurrency) {
+      exactFeesByCurrency[f.currency] = f._sum.fee || 0;
+    }
+
+    // === FIX: The wallet balance shown is the ADMIN system wallet real balance ===
+    // This is the actual money in the platform's admin wallet
+    const walletBalance = {
+      usd: adminWallet?.balanceUSD ?? 0,
+      pi: adminWallet?.balancePi ?? 0,
+      xaf: adminWallet?.balanceXAF ?? 0,
     };
 
     return NextResponse.json({
       success: true,
-      data: response,
-      walletBalance: {
-        usd: adminWallet?.balanceUSD || 0,
-        pi: adminWallet?.balancePi || 0,
-        xaf: adminWallet?.balanceXAF || 0,
+      data: {
+        totalFeesUSD,
+        totalFeesPi,
+        totalFeesXAF,
+        centralAddress: adminWallet?.publicAddress || "ADMIN_WALLET_NOT_CONFIGURED",
+        breakdown: [cryptoFees, fiatFees, paymentFees, otherFees].filter((b) => b.items.length > 0),
+        lastUpdated: new Date().toISOString(),
+        conversionRate: {
+          piToUsd: piPrice,
+          piToXaf: piPrice * xafRate,
+        },
+        // Exact fee amounts per currency (raw, before conversion)
+        exactFeesByCurrency,
       },
+      // Real admin wallet balance
+      walletBalance,
     });
   } catch (error: unknown) {
     console.error("CENTRALIZED_FEES_GET_ERROR:", error);
