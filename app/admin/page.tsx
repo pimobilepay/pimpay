@@ -84,8 +84,8 @@ export default function AdminDashboard() {
             { label: "Banque", desc: "Portail bancaire", icon: <Landmark size={20} />, path: "/bank", color: "blue" },
             { label: "Business", desc: "Portail entreprise", icon: <Globe size={20} />, path: "/business", color: "emerald" },
             { label: "Hub Agent", desc: "Operations agents", icon: <Wallet size={20} />, path: "/hub", color: "cyan" },
-            { label: "Messages", desc: "Messagerie", icon: <MessageSquare size={20} />, path: "/messages", color: "rose" },
-            { label: "Recrutement", desc: "Nouveaux agents", icon: <Users size={20} />, path: "/recruit", color: "purple" },
+            { label: "Messages", desc: "Messagerie admin", icon: <MessageSquare size={20} />, path: "/admin/messages", color: "rose" },
+            { label: "Recrutement", desc: "Gestion agents", icon: <Users size={20} />, path: "/admin/recruitment", color: "purple" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
               blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
