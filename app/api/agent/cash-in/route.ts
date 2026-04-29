@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
             type: "TRANSACTION_CONFIRM",
             metadata: {
               transactionId: transaction.id,
+              type: 'DEPOSIT',
               amount: amountNum,
               netAmount,
               currency,

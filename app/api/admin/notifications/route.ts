@@ -55,7 +55,7 @@ export async function GET() {
     const pendingTransactions = await prisma.transaction.findMany({
       where: { 
         status: "PENDING",
-        type: { in: ["WITHDRAW", "TRANSFER", "EXTERNAL_TRANSFER"] },
+        type: { in: ["WITHDRAW", "WITHDRAWAL", "TRANSFER"] },
       },
       include: {
         fromUser: { select: { firstName: true, lastName: true, username: true } },

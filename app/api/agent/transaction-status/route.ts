@@ -43,9 +43,12 @@ export async function GET(req: NextRequest) {
         id: true,
         status: true,
         amount: true,
+        fee: true,
         netAmount: true,
         currency: true,
         createdAt: true,
+        fromWalletId: true,
+        reference: true,
         toUser: {
           select: {
             name: true,
@@ -66,12 +69,26 @@ export async function GET(req: NextRequest) {
     const createdAt = new Date(transaction.createdAt);
     const now = new Date();
     const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-    
+
     if (transaction.status === 'PENDING_CONFIRMATION' && diffMinutes > 5) {
-      // Mark as expired
-      await prisma.transaction.update({
-        where: { id: transactionId },
-        data: { status: 'EXPIRED' }
+      // BUG FIX: Mark as EXPIRED et rembourser le float agent atomiquement.
+      // Sans remboursement, le float de l'agent est perdu définitivement à l'expiration.
+      await prisma.$transaction(async (tx) => {
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: 'EXPIRED' }
+        });
+
+        // Remboursement du float agent :
+        // Débit initial = amount - agentCommission = amount - fee*0.5
+        // On lui rend exactement ce montant.
+        if (transaction.fromWalletId) {
+          const refundAmount = transaction.amount - (transaction.fee * 0.5);
+          await tx.wallet.update({
+            where: { id: transaction.fromWalletId },
+            data: { balance: { increment: refundAmount } }
+          });
+        }
       });
 
       return NextResponse.json({

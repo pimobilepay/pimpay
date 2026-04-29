@@ -96,6 +96,33 @@ export function useWebRTC({
     [userId, onError]
   );
 
+  // Helper: send WebRTC error log to admin system logs
+  const sendWebRTCErrorLog = useCallback(
+    async (action: string, error: unknown, context?: Record<string, unknown>) => {
+      try {
+        const nav = typeof navigator !== "undefined" ? navigator : null;
+        await fetch("/api/voip/log-error", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            userId,
+            errorMessage: error instanceof Error ? error.message : String(error),
+            errorName: error instanceof Error ? error.name : "UnknownError",
+            errorStack: error instanceof Error ? error.stack?.substring(0, 1000) : null,
+            userAgent: nav?.userAgent || null,
+            platform: nav?.platform || null,
+            timestamp: new Date().toISOString(),
+            ...context,
+          }),
+        });
+      } catch {
+        // Silent — don't throw if logging fails
+      }
+    },
+    [userId]
+  );
+
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCallDuration(0);
@@ -222,9 +249,18 @@ export function useWebRTC({
         console.error("[WebRTC] Call initiation error:", error);
         updateCallState("idle");
         onError?.("Impossible d'initier l'appel");
+
+        // Send detailed log to admin panel
+        await sendWebRTCErrorLog("CALL_INITIATION_FAILED", error, {
+          targetUserId,
+          hasMicPermission: await navigator.permissions
+            ?.query({ name: "microphone" as PermissionName })
+            .then((r) => r.state)
+            .catch(() => "unknown"),
+        });
       }
     },
-    [getLocalStream, createPeerConnection, sendSignalingEvent, updateCallState, onError]
+    [getLocalStream, createPeerConnection, sendSignalingEvent, sendWebRTCErrorLog, updateCallState, onError]
   );
 
   const acceptCall = useCallback(async () => {
