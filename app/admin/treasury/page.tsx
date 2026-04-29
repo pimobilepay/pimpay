@@ -1784,9 +1784,9 @@ export default function TreasuryPage() {
                         <span className="text-[10px] font-bold text-slate-400 uppercase">{c.currency}</span>
                         {walletInfo && (
                           <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded ${
-                            walletInfo.wallet === "admin" ? "bg-amber-500/20 text-amber-400" :
-                            walletInfo.wallet === "treasury" ? "bg-blue-500/20 text-blue-400" :
-                            walletInfo.wallet === "hot" ? "bg-orange-500/20 text-orange-400" :
+                            walletInfo.wallet === "ADMIN" ? "bg-amber-500/20 text-amber-400" :
+                            walletInfo.wallet === "TREASURY" ? "bg-blue-500/20 text-blue-400" :
+                            walletInfo.wallet === "HOT" ? "bg-orange-500/20 text-orange-400" :
                             "bg-cyan-500/20 text-cyan-400"
                           }`}>
                             {walletInfo.label}
