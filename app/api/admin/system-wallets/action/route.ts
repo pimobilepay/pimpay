@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
         // Check if source has sufficient balance
         const balanceField = currency === "PI" ? "balancePi" : currency === "XAF" ? "balanceXAF" : "balanceUSD";
-        if ((wallet as Record<string, number>)[balanceField] < amount) {
+        if ((wallet as unknown as Record<string, number>)[balanceField] < amount) {
           return NextResponse.json({ error: "Solde insuffisant" }, { status: 400 });
         }
 
