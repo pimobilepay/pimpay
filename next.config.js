@@ -3,10 +3,6 @@ const nextConfig = {
   // 1. Sécurité et Stabilité
   reactStrictMode: true, 
 
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // 2. Gestion des Images
   images: {
     unoptimized: true,
@@ -33,7 +29,7 @@ const nextConfig = {
         source: "/api/:path*",
         headers: [
           { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" }, 
+          { key: "Access-Control-Allow-Origin", value: process.env.NEXT_PUBLIC_APP_URL || "https://pimpay.vercel.app" },
           { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT" },
           { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
           { key: "X-Frame-Options", value: "DENY" },

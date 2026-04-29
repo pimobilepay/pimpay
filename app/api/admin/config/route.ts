@@ -177,7 +177,12 @@ export async function POST(req: NextRequest) {
 
     // 2. ACTION : TOGGLE SPECIFIQUE (Maintenance ou Coming Soon)
     if (action === "TOGGLE_MODE") {
-      const { modeType } = body; // 'maintenanceMode' ou 'comingSoonMode'
+      const { modeType } = body;
+      // Whitelist stricte pour éviter la mass assignment
+      const ALLOWED_MODES = ["maintenanceMode", "comingSoonMode"] as const;
+      if (!ALLOWED_MODES.includes(modeType)) {
+        return NextResponse.json({ error: "Mode invalide" }, { status: 400 });
+      }
       const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
       
       const updated = await ConfigModel.update({

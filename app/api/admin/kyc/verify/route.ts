@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { grantReferrerBonusIfEligible } from "@/app/api/referral/route";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export async function POST(req: Request) {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     const { userId, status, reason } = await req.json();
 

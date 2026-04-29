@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth"; // Assure-toi que le chemin pointe vers le fichier où tu as ajouté l'export 'auth'
+import { auth } from "@/lib/auth";
 import { CardType } from "@prisma/client";
+import { randomInt, randomBytes } from "crypto";
 
 export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
   try {
@@ -40,7 +41,7 @@ export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
       // B. Création de la transaction (Sans le champ 'type' manquant)
       await tx.transaction.create({
         data: {
-          reference: `CARD-PUB-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
+          reference: `CARD-PUB-${Date.now()}-${randomBytes(4).toString("hex").toUpperCase()}`,
           amount: priceInPi,
           status: "SUCCESS",
           fromUserId: userId,
@@ -56,9 +57,9 @@ export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
       });
 
       // C. Génération des données MasterCard
-      const cardNumber = "5412" + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
+      const cardNumber = "5412" + randomInt(100000000000, 999999999999).toString();
       const expiry = "01/31";
-      const cvv = Math.floor(Math.random() * 900 + 100).toString();
+      const cvv = randomInt(100, 999).toString();
 
       // D. Création de la carte virtuelle
       const newCard = await tx.virtualCard.create({

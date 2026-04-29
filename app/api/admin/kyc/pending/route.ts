@@ -1,7 +1,11 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     // Selon ton schéma, on cherche dans la table User
     const pendingUsers = await prisma.user.findMany({

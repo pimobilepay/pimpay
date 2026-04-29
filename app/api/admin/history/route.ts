@@ -1,8 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdminFromRequest } from "@/lib/requireAdmin";
 
 export async function GET(req: NextRequest) {
+  const { error } = await requireAdminFromRequest(req);
+  if (error) return error;
+
   try {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');

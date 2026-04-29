@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { subHours, formatDistanceToNow } from "date-fns";
@@ -17,6 +18,9 @@ interface AdminNotification {
 }
 
 export async function GET() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     const notifications: AdminNotification[] = [];
     const last24h = subHours(new Date(), 24);

@@ -12,16 +12,12 @@ const getJwtSecret = () => {
   return new TextEncoder().encode(secret);
 };
 
-// Verify JWT token and return payload
 export async function verifyJWT(token: string): Promise<{ id: string; role?: string; username?: string } | null> {
   try {
     const secret = getJwtSecret();
     if (!secret) return null;
-
     const { payload } = await jose.jwtVerify(token, secret);
-    
     if (!payload.id) return null;
-    
     return {
       id: payload.id as string,
       role: payload.role as string | undefined,
@@ -34,23 +30,13 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 }
 
 /**
- * Get authenticated user ID from cookies (supports Pi Browser and classic tokens)
- * This is the primary auth helper for API routes
+ * Récupère l'userId depuis le cookie JWT uniquement (jamais depuis pi_session_token brut)
  */
 export async function getAuthUserId(): Promise<string | null> {
   try {
     const cookieStore = await cookies();
-    
-    // Pi Browser token (direct userId)
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    if (piToken) {
-      return piToken;
-    }
-    
-    // Classic JWT tokens
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     if (!classicToken) return null;
-    
     const payload = await verifyJWT(classicToken);
     return payload?.id || null;
   } catch {
@@ -59,8 +45,7 @@ export async function getAuthUserId(): Promise<string | null> {
 }
 
 /**
- * Get authenticated user ID from request headers (for CORS/Pi Browser scenarios)
- * Use this when cookies() is not available or for manual cookie parsing
+ * Récupère l'userId depuis les headers de requête (JWT uniquement)
  */
 export async function getAuthUserIdFromRequest(req: Request): Promise<string | null> {
   try {
@@ -71,15 +56,8 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
         return [key, rest.join('=')];
       })
     );
-    
-    // Pi Browser token
-    const piToken = parsedCookies['pi_session_token'];
-    if (piToken) return piToken;
-    
-    // Classic JWT tokens
     const token = parsedCookies['token'] || parsedCookies['pimpay_token'];
     if (!token) return null;
-    
     const payload = await verifyJWT(token);
     return payload?.id || null;
   } catch {
@@ -87,18 +65,12 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
   }
 }
 
-/**
- * Get authenticated user ID from Bearer token in Authorization header
- * Use for APIs that receive tokens via Authorization: Bearer <token>
- */
 export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
   try {
     const authHeader = req.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) return null;
-    
     const token = authHeader.split(" ")[1];
     if (!token) return null;
-    
     const payload = await verifyJWT(token);
     return payload?.id || null;
   } catch {
@@ -106,91 +78,57 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
   }
 }
 
-/**
- * Get full JWT payload from cookies (includes role)
- * Use when you need role verification for admin routes
- */
 export async function getAuthPayload(): Promise<{ id: string; role?: string; username?: string } | null> {
   try {
     const cookieStore = await cookies();
-    
-    // Pi Browser token doesn't have role info, so skip it for admin routes
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     if (!classicToken) return null;
-    
     return await verifyJWT(classicToken);
   } catch {
     return null;
   }
 }
 
-// 1. Pour le Middleware
+// Pour le Middleware
 export async function verifyAuth(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const cookieToken = req.cookies.get('token')?.value;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
-
     if (!token) return null;
-
     const secret = getJwtSecret();
     if (!secret) return null;
-
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
-
     const user = await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
-      select: { 
-        id: true, 
-        username: true, 
-        role: true,
-        piUserId: true // Utile pour les transactions Pi Network
-      }
+      select: { id: true, username: true, role: true, piUserId: true }
     });
-
     return user;
   } catch (error) {
     return null;
   }
 }
 
-// 2. Pour tes pages et Server Actions
+// Pour les pages et Server Actions
 export const auth = async () => {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value || cookieStore.get('pimpay_token')?.value;
-
     if (!token) return null;
-
     const secret = getJwtSecret();
     if (!secret) return null;
-
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
-
     const user = await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
       select: {
-        id: true,
-        username: true,
-        role: true,
-        piUserId: true,
-        // Pour récupérer le solde, on passe par la relation 'wallets'
-        wallets: {
-          where: { currency: "PI" },
-          select: { balance: true }
-        }
+        id: true, username: true, role: true, piUserId: true,
+        wallets: { where: { currency: "PI" }, select: { balance: true } }
       }
     });
-
     if (!user) return null;
-
-    // On transforme un peu l'objet pour qu'il soit plus facile à utiliser
-    return {
-      ...user,
-      balance: user.wallets[0]?.balance || 0 // On aplatit la balance ici
-    };
+    return { ...user, balance: user.wallets[0]?.balance || 0 };
   } catch (error) {
     console.error("Auth error:", error);
     return null;

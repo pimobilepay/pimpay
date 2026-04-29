@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +8,9 @@ import { prisma } from "@/lib/prisma";
  * Exclu les utilisateurs avec kycStatus = NONE (jamais soumis)
  */
 export async function GET() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     // Récupérer les utilisateurs qui ont soumis un KYC (exclu NONE)
     const users = await prisma.user.findMany({

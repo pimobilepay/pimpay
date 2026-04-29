@@ -21,6 +21,14 @@ const RPC_URLS = {
 const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
 
 export async function GET(req: NextRequest) {
+  // Protection par secret partagé (défini dans WORKER_SECRET env var)
+  const workerSecret = process.env.WORKER_SECRET;
+  const authHeader = req.headers.get("authorization");
+  if (!workerSecret || authHeader !== `Bearer ${workerSecret}`) {
+    console.warn("[WORKER] Accès refusé - secret invalide");
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
   console.log(`[v0] [WORKER] Demarrage du worker process...`);
   console.log(`[v0] [WORKER] Config Pi:`, {
     PI_HORIZON_URL: process.env.PI_HORIZON_URL,

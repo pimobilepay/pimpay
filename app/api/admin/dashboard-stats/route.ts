@@ -1,8 +1,12 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, subDays, format } from "date-fns";
 
 export async function GET() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     // 1. STATISTIQUES GLOBALES
     const [totalUsers, pendingKyc, totalWallets] = await Promise.all([

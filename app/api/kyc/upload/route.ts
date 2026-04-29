@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { getAuthUserId } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -24,14 +21,19 @@ function isAllowedField(field: string): field is KycField {
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentification depuis le token de session (jamais depuis le body)
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const userId = formData.get('userId') as string | null;
     const type = formData.get('type') as string | null;
 
-    if (!file || !userId || !type) {
+    if (!file || !type) {
       return NextResponse.json(
-        { error: "Donnees manquantes (file, userId ou type)" },
+        { error: "Donnees manquantes (file ou type)" },
         { status: 400 }
       );
     }

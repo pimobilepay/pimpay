@@ -1,9 +1,13 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus } from '@prisma/client';
 
 export async function GET() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     const transactions = await prisma.transaction.findMany({
       where: {

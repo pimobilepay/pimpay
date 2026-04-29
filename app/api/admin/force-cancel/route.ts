@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdminFromRequest } from "@/lib/requireAdmin";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const { error } = await requireAdminFromRequest(req);
+  if (error) return error;
+
   try {
     const { paymentId } = await req.json();
 
@@ -57,7 +61,10 @@ export async function POST(req: Request) {
 }
 
 // Keep GET for quick one-off cancels via browser (fetches all incomplete and cancels)
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { error: authErr } = await requireAdminFromRequest(req);
+  if (authErr) return authErr;
+
   try {
     const PI_API_KEY = process.env.PI_API_KEY;
 

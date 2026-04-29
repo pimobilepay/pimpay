@@ -24,7 +24,9 @@ function bytesToWif(privKey: Buffer): string {
 
 const encrypt = (text: string) => {
   const iv = crypto.randomBytes(12);
-  const key = Buffer.from((process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars").padEnd(32).slice(0, 32));
+  const encKey = process.env.ENCRYPTION_KEY;
+  if (!encKey || encKey.length < 32) throw new Error("[PIMPAY] ENCRYPTION_KEY manquante ou invalide");
+  const key = Buffer.from(encKey.slice(0, 32));
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
   return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;

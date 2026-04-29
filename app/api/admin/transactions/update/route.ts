@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/requireAdmin";
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -26,6 +27,9 @@ async function executeWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T
 }
 
 export async function POST(req: Request) {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
   try {
     const { transactionId, action, adminId } = await req.json();
 

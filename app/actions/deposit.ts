@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { randomBytes } from "crypto";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,15 +21,18 @@ export async function processDeposit(formData: {
   method: string;
   phone: string;
   currency: string;
-  userId: string; // Ajout de l'ID utilisateur pour la précision
 }) {
   const mtnReferenceId = uuidv4();
-  const pimpayReference = `PIM-DEP-${Math.random().toString(36).toUpperCase().substring(2, 10)}`;
+  const pimpayReference = `PIM-DEP-${randomBytes(4).toString("hex").toUpperCase()}`;
 
   try {
+    // Authentification depuis la session (jamais depuis les paramètres)
+    const session = await auth();
+    if (!session?.id) return { success: false, error: "Session expirée." };
+
     // 1. Récupérer l'utilisateur et son Wallet USD
     const user = await prisma.user.findUnique({
-      where: { id: formData.userId },
+      where: { id: session.id },
       include: { wallets: { where: { currency: "USD" } } }
     });
 
