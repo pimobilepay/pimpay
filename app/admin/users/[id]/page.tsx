@@ -11,7 +11,7 @@ import {
 
 // Note : Pas de "use client" ici. Prisma doit rester côté serveur.
 
-export default async function AdminUserPage({ params }: { params: { id: string } }) {
+export default async function AdminUserPage({ params }: { params: Promise<{ id: string }> }) {
   // Extraction correcte de l'ID avec await pour Next.js 15+
   const { id } = await params;
 
