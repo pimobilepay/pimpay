@@ -11,7 +11,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    if (payload.role !== "ADMIN" && payload.role !== "SUPER_ADMIN") {
+    if (payload.role !== "ADMIN") {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
@@ -36,9 +36,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
     }
 
-    if (targetUser.role === "SUPER_ADMIN" && payload.role !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Impossible de modifier un super admin" }, { status: 403 });
-    }
 
     const updateData: Record<string, unknown> = {
       status,
@@ -90,7 +87,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "userId requis" }, { status: 400 });
     }
 
-    const isAdmin = payload.role === "ADMIN" || payload.role === "SUPER_ADMIN";
+    const isAdmin = payload.role === "ADMIN";
     const isOwnAccount = payload.id === userId;
 
     if (!isAdmin && !isOwnAccount) {
