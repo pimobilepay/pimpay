@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     // Default settings
     const settings = {
       general: {
-        institutionName: platformConfig?.siteName || "PimPay Institution Financiere",
+        institutionName: "PimPay Institution Financiere",
         timezone: "Africa/Kinshasa",
         language: "fr",
         currency: "USD",

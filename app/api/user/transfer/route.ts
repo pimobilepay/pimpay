@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
           const txRes = await wallet.sendTransaction({ to: recipientInput, value: ethers.parseEther(amount.toString()) });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
-          txStatus = TransactionStatus.SUCCESS;
+          txStatus = "SUCCESS" as TransactionStatus;
         } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
       }
 
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
       // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
       if (currency === "PI") {
         blockchainTxHash = null; // Sera rempli par le worker après broadcast
-        txStatus = TransactionStatus.SUCCESS; // SUCCESS + statusClass QUEUED = prêt pour le worker
+        txStatus = "SUCCESS" as TransactionStatus; // SUCCESS + statusClass QUEUED = prêt pour le worker
         
         // Créer une notification pour l'utilisateur
         await tx.notification.create({

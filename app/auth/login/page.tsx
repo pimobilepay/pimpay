@@ -192,11 +192,6 @@ export default function LoginPage() {
           status={accountStatusData.status}
           reason={accountStatusData.reason}
           maintenanceUntil={accountStatusData.maintenanceUntil}
-          onMaintenanceEnd={() => {
-            setShowAccountStatusModal(false);
-            setAccountStatusData(null);
-            toast.success("La maintenance est terminee. Vous pouvez maintenant vous connecter.");
-          }}
         />
       )}
 
@@ -307,7 +302,7 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label className="text-slate-400 ml-1 text-[10px] font-black uppercase tracking-widest">{t("auth.login.password")}</Label>
-              <Link href="/auth/forgot-password" size="sm" className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">{t("auth.login.forgot")}</Link>
+              <Link href="/auth/forgot-password" className="text-blue-500 text-[9px] font-bold uppercase tracking-widest">{t("auth.login.forgot")}</Link>
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 w-5 h-5" />

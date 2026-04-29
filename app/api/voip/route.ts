@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
           ? error.message
           : "Échec de l'événement de signalisation VoIP",
       ip,
-      userAgent: request.headers.get("user-agent") || null,
+      userAgent: request.headers.get("user-agent") ?? undefined,
       details: {
         errorName: error instanceof Error ? error.name : "UnknownError",
         errorStack:

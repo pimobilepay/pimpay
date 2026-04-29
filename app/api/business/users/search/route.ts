@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET - Search platform users by name, phone, or email
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {

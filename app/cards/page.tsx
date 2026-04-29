@@ -304,7 +304,7 @@ export default async function GlobalCardsPage({
                       <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-2xl blur-2xl transform scale-95 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                       <div className="relative">
-                        <VirtualCard card={activeCard} user={user} />
+                        <VirtualCard card={activeCard} />
 
                         {activeCard.isFrozen && (
                           <div className="absolute inset-0 bg-[#030014]/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center border border-red-500/30">

@@ -81,8 +81,7 @@ export async function POST(req: Request) {
       data: {
         userId,
         action: `DEPOSIT_INITIATED`,
-        details: `Reference: ${reference}, Amount: ${amount} ${currency}`,
-        device: req.headers.get("user-agent") || "unknown"
+        ip: req.headers.get("x-forwarded-for") || "unknown"
       }
     });
 

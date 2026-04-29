@@ -130,7 +130,7 @@ export default async function CardDetailsPage({
             {/* Left Side: Card Visual + Actions */}
             <div className="space-y-6">
               <div className="relative group">
-                <VirtualCard card={card} user={card.user} />
+                <VirtualCard card={card} />
 
                 {card.isFrozen && (
                   <div className="absolute inset-0 bg-[#030014]/90 backdrop-blur-md rounded-[28px] flex flex-col items-center justify-center border border-red-500/30">

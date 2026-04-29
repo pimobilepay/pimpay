@@ -2,11 +2,11 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { sendNotification } from "@/lib/notifications";
 
 // GET - Get payroll info and history
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
@@ -87,7 +87,7 @@ export async function GET(req: Request) {
 }
 
 // POST - Process payroll payment
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
@@ -307,7 +307,6 @@ export async function POST(req: Request) {
               message: `Vous avez recu votre salaire de ${salary.toLocaleString()} USD de ${business.name}.`,
               type: "PAYMENT_RECEIVED",
               metadata: {
-                type: "SALARY",
                 amount: salary,
                 currency: "USD",
                 senderName: business.name,

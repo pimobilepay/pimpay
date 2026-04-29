@@ -55,7 +55,7 @@ export async function GET() {
 
         if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-        let user = await prisma.user.findUnique({
+        let user: any = await prisma.user.findUnique({
             where: { id: userId },
             include: { wallets: true, virtualCards: true, referrals: { select: { id: true, name: true, username: true, avatar: true, createdAt: true } } }
         });

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     for (const stake of stakings) {
       const reward = (stake.amount * stake.apy) / 100 / 365; // Gain journalier
       const newTotalRewards = (stake.rewardsEarned || 0) + reward;
-      const currency = stake.currency || 'PI';
+      const currency = 'PI'; // Default currency for staking
       
       // Calculer la date de fin si elle existe
       const endDate = stake.endDate 

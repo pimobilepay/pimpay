@@ -96,7 +96,6 @@ export async function POST(req: Request) {
       data: {
         userId,
         action: "CRYPTO_DEPOSIT_COMPLETED",
-        details: `TX: ${blockchainTx} | Amount: ${amount} ${currency}`,
         ip: req.headers.get("x-forwarded-for") || "unknown"
       }
     });
