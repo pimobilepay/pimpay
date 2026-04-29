@@ -363,7 +363,7 @@ export async function POST(req: NextRequest) {
           const alreadyRefunded =
             updated.metadata &&
             typeof updated.metadata === "object" &&
-            updated.metadata.refunded === true;
+            (updated.metadata as { refunded?: boolean }).refunded === true;
 
           if (!alreadyRefunded) {
             const total = (updated.amount || 0) + (updated.fee || 0);

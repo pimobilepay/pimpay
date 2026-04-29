@@ -128,7 +128,6 @@ export async function POST(req: Request) {
           userId,
           currency,
           balance: 0,
-          availableBalance: 0,
         }
       });
     }
@@ -178,8 +177,7 @@ export async function POST(req: Request) {
         await prisma.wallet.update({
           where: { id: wallet!.id },
           data: {
-            balance: { increment: netAmount },
-            availableBalance: { increment: netAmount }
+            balance: { increment: netAmount }
           }
         });
         
@@ -190,8 +188,7 @@ export async function POST(req: Request) {
             type: "TRANSACTION",
             title: "Depot par carte reussi",
             message: `Votre depot de ${amount} ${currency} par carte ${detectedType} ${maskedCard} a ete credite.`,
-            read: false,
-            data: { transactionId: transaction.id, reference }
+            metadata: { transactionId: transaction.id, reference }
           }
         });
       } catch (err) {
@@ -204,7 +201,6 @@ export async function POST(req: Request) {
       data: {
         userId,
         action: "CARD_DEPOSIT_INITIATED",
-        details: `Ref: ${reference} | Amount: ${amount} ${currency} | Card: ${detectedType} ${maskedCard}`,
         ip: req.headers.get("x-forwarded-for") || "unknown"
       }
     });

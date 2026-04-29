@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
 // Helper to check if user has bank admin access
-async function checkBankAccess(req: Request) {
+async function checkBankAccess(req: NextRequest) {
   const session = await verifyAuth(req);
   if (!session) {
     return { error: "Non autorise", status: 401 };
@@ -14,7 +14,7 @@ async function checkBankAccess(req: Request) {
   return { session };
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const access = await checkBankAccess(req);
     if ("error" in access) {
@@ -78,14 +78,14 @@ export async function GET(req: Request) {
       },
       take: 10,
       include: {
-        sender: {
+        fromUser: {
           select: {
             id: true,
             name: true,
             email: true,
           },
         },
-        receiver: {
+        toUser: {
           select: {
             id: true,
             name: true,
@@ -101,7 +101,7 @@ export async function GET(req: Request) {
         createdAt: {
           gte: startDate,
         },
-        status: "COMPLETED",
+        status: "SUCCESS",
       },
       _sum: {
         amount: true,
@@ -151,7 +151,7 @@ export async function GET(req: Request) {
         activeUsers,
         pendingKyc,
         businessCount,
-        transactionVolume: transactionVolume._sum.amount || 0,
+        transactionVolume: transactionVolume._sum?.amount || 0,
         transactionCount: transactionVolume._count || 0,
       },
       recentTransactions: recentTransactions.map((tx) => ({
@@ -160,8 +160,8 @@ export async function GET(req: Request) {
         amount: tx.amount,
         currency: tx.currency,
         status: tx.status,
-        sender: tx.sender?.name || "Externe",
-        receiver: tx.receiver?.name || "Externe",
+        sender: tx.fromUser?.name || "Externe",
+        receiver: tx.toUser?.name || "Externe",
         createdAt: tx.createdAt,
       })),
       kycPendingList: kycPendingList.map((user) => ({

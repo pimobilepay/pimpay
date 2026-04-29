@@ -61,7 +61,7 @@ export async function GET(req: Request) {
           const transactionVolume = await prisma.transaction.aggregate({
             where: {
               createdAt: { gte: startDate },
-              status: "COMPLETED",
+              status: "SUCCESS",
             },
             _sum: { amount: true },
             _count: true,
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
             totalDeposits: walletStats._sum.balance || 0,
             reserves: (walletStats._sum.balance || 0) * 0.45,
             reserveRatio: 45,
-            transactionVolume: transactionVolume._sum.amount || 0,
+            transactionVolume: transactionVolume._sum?.amount || 0,
             transactionCount: transactionVolume._count || 0,
           };
           break;

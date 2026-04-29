@@ -36,7 +36,8 @@ export async function POST() {
     }
 
     // Génération du compte Tron
-    const account = await TronWeb.createAccount();
+    const tronWeb = new TronWeb({ fullHost: 'https://api.trongrid.io' });
+    const account = await tronWeb.createAccount();
 
     const updatedUser = await prisma.user.update({
       where: { id: session.id },

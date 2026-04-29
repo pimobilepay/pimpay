@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
         // Fallback : créer le wallet si nécessaire
         await tx.wallet.upsert({
           where: { userId_currency: { userId: userId, currency: transaction.currency } },
-          update: { balance: { increment: transaction.netAmount } },
+          update: { balance: { increment: transaction.netAmount ?? 0 } },
           create: {
             userId: userId,
             currency: transaction.currency,

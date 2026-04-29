@@ -83,7 +83,7 @@ export async function POST(req: Request) {
             currency: transaction.currency,
             fee: fee,
             reference: transaction.reference,
-            method: transaction.method || "Depot PimPay",
+            method: "Depot PimPay",
             status: "SUCCESS",
           }),
         }

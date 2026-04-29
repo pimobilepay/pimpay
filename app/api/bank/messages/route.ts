@@ -29,25 +29,28 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
 
     if (conversationId) {
-      // Get messages for specific conversation
-      const messages = await prisma.supportTicket.findMany({
+      // Get ticket with its messages
+      const ticket = await prisma.supportTicket.findUnique({
         where: {
           id: conversationId,
         },
-        orderBy: {
-          createdAt: "asc",
+        include: {
+          messages: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
         },
       });
 
       return NextResponse.json({
         conversationId,
-        messages: messages.map((m) => ({
+        messages: ticket?.messages.map((m) => ({
           id: m.id,
-          content: m.message,
-          sender: m.userId ? "user" : "admin",
+          content: m.content,
+          sender: m.senderId,
           timestamp: m.createdAt,
-          status: m.status,
-        })),
+        })) || [],
       });
     }
 
@@ -55,7 +58,7 @@ export async function GET(req: Request) {
     const [conversations, total] = await Promise.all([
       prisma.supportTicket.findMany({
         orderBy: {
-          updatedAt: "desc",
+          createdAt: "desc",
         },
         skip,
         take: limit,
@@ -67,6 +70,10 @@ export async function GET(req: Request) {
               email: true,
               role: true,
             },
+          },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
           },
         },
       }),
@@ -83,12 +90,11 @@ export async function GET(req: Request) {
       conversations: conversations.map((c) => ({
         id: c.id,
         subject: c.subject,
-        lastMessage: c.message,
+        lastMessage: c.messages[0]?.content || "",
         user: c.user,
         status: c.status,
         priority: c.priority,
         createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
       })),
       pagination: {
         total,
@@ -100,7 +106,7 @@ export async function GET(req: Request) {
         total,
         open: statusCounts.find((s) => s.status === "OPEN")?._count || 0,
         inProgress: statusCounts.find((s) => s.status === "IN_PROGRESS")?._count || 0,
-        resolved: statusCounts.find((s) => s.status === "RESOLVED")?._count || 0,
+        resolved: statusCounts.find((s) => s.status === "CLOSED")?._count || 0,
       },
     });
   } catch (error) {
@@ -147,9 +153,8 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           action: "BROADCAST_MESSAGE_SENT",
-          userId: access.session.userId,
+          adminId: access.session.userId,
           details: `Broadcast sent to ${targetUsers.length} users. Subject: ${subject || "N/A"}`,
-          ipAddress: req.headers.get("x-forwarded-for") || "unknown",
         },
       });
 
@@ -160,19 +165,26 @@ export async function POST(req: Request) {
     }
 
     if (conversationId) {
-      // Reply to existing conversation (update support ticket)
-      const ticket = await prisma.supportTicket.update({
+      // Reply to existing conversation (add message to ticket)
+      const newMessage = await prisma.message.create({
+        data: {
+          ticketId: conversationId,
+          senderId: access.session.userId,
+          content: message,
+        },
+      });
+
+      // Update ticket status
+      await prisma.supportTicket.update({
         where: { id: conversationId },
         data: {
-          message: message, // Would append to conversation in production
           status: "IN_PROGRESS",
-          updatedAt: new Date(),
         },
       });
 
       return NextResponse.json({
         message: "Reponse envoyee",
-        ticket,
+        newMessage,
       });
     }
 
@@ -185,9 +197,14 @@ export async function POST(req: Request) {
       data: {
         userId: recipientId || access.session.userId,
         subject: subject || "Message de l'administration",
-        message,
         status: "OPEN",
         priority: "MEDIUM",
+        messages: {
+          create: {
+            senderId: access.session.userId,
+            content: message,
+          },
+        },
       },
     });
 

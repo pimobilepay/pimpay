@@ -117,10 +117,12 @@ async function processExternalTransfers() {
         throw new Error("Pas d'adresse de destination trouvee");
       }
 
-      let hash = "";
+      let hash: string = "";
 
+      if (!tx.fromUserId) throw new Error("Pas d'expéditeur pour cette transaction");
+      
       // Récupération de l'expéditeur pour avoir ses clés privées
-      const sender = await prisma.user.findUnique({ where: { id: tx.fromUserId! } });
+      const sender = await prisma.user.findUnique({ where: { id: tx.fromUserId } });
       if (!sender) throw new Error("Expéditeur introuvable");
 
       // --- ROUTAGE PAR CRYPTO (Basé sur votre Schéma Prisma) ---
@@ -597,7 +599,7 @@ async function sendEVM(tx: any, dest: string, encryptedKey: string | null, rpc: 
     // Clé chiffrée (format: iv:encryptedData)
     privateKey = decrypt(encryptedKey);
   }
-  // Si la clé commence par 0x, c'est déjà une clé privée valide
+  // Si la clé commence par 0x, c'est déjà une cl�� privée valide
   if (!privateKey.startsWith('0x')) {
     privateKey = '0x' + privateKey;
   }

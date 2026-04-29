@@ -117,14 +117,14 @@ export async function GET(req: Request) {
           amount: {
             gte: 10000, // Transactions over 10k
           },
-          status: "COMPLETED",
+          status: "SUCCESS",
         },
         orderBy: {
           createdAt: "desc",
         },
         take: 20,
         include: {
-          sender: {
+          fromUser: {
             select: {
               name: true,
               email: true,
@@ -145,8 +145,8 @@ export async function GET(req: Request) {
         })),
         highValueTransactions: highValueTransactions.map((tx) => ({
           id: tx.id,
-          account: tx.senderId,
-          senderName: tx.sender?.name,
+          account: tx.fromUserId,
+          senderName: tx.fromUser?.name,
           amount: tx.amount,
           currency: tx.currency,
           date: tx.createdAt,
@@ -213,9 +213,8 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           action: `KYC_${action.toUpperCase()}`,
-          userId: access.session.userId,
+          adminId: access.session.userId,
           details: `KYC ${action} for user ${user.email}. Reason: ${reason || "N/A"}`,
-          ipAddress: req.headers.get("x-forwarded-for") || "unknown",
         },
       });
 
@@ -228,9 +227,8 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           action: `AML_${action.toUpperCase()}`,
-          userId: access.session.userId,
+          adminId: access.session.userId,
           details: `AML alert ${targetId} ${action}. Reason: ${reason || "N/A"}`,
-          ipAddress: req.headers.get("x-forwarded-for") || "unknown",
         },
       });
 

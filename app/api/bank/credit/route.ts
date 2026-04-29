@@ -106,7 +106,7 @@ export async function GET(req: Request) {
               select: { balance: true },
             },
             _count: {
-              select: { sentTransactions: true },
+              select: { transactionsFrom: true },
             },
           },
         });
@@ -119,19 +119,19 @@ export async function GET(req: Request) {
         const accountAge = Math.floor(
           (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
         );
-        const totalBalance = user.wallets.reduce((sum, w) => sum + w.balance, 0);
-        const loanDefaults = user.loans.filter((l) => l.status === "DEFAULTED").length;
-        const paidLoans = user.loans.filter((l) => l.status === "COMPLETED").length;
+        const totalBalance = user.wallets.reduce((sum: number, w: { balance: number }) => sum + w.balance, 0);
+        const loanDefaults = user.loans.filter((l: { status: string }) => l.status === "DEFAULTED").length;
+        const paidLoans = user.loans.filter((l: { status: string }) => l.status === "PAID").length;
         const totalLoans = user.loans.length;
         const paymentHistory = totalLoans > 0 ? (paidLoans / totalLoans) * 100 : 80;
-        const totalDebt = user.loans.reduce((sum, l) => sum + (l.remainingBalance || 0), 0);
+        const totalDebt = user.loans.reduce((sum: number, l: { remainingBalance: number | null }) => sum + (l.remainingBalance || 0), 0);
         const debtRatio = totalBalance > 0 ? totalDebt / (totalBalance + totalDebt) : 0.5;
 
         const { score, riskLevel } = calculateCreditScore({
           paymentHistory,
           debtRatio,
           accountAge,
-          transactionVolume: user._count.sentTransactions * 1000,
+          transactionVolume: user._count.transactionsFrom * 1000,
           loanDefaults,
           kycVerified: user.kycStatus === "VERIFIED" || user.kycStatus === "APPROVED",
         });
@@ -145,7 +145,7 @@ export async function GET(req: Request) {
               paymentHistory,
               debtRatio,
               accountAge,
-              transactionVolume: user._count.sentTransactions,
+              transactionVolume: user._count.transactionsFrom,
               loanDefaults,
             },
             user: {
@@ -250,7 +250,7 @@ export async function POST(req: Request) {
           select: { balance: true },
         },
         _count: {
-          select: { sentTransactions: true },
+          select: { transactionsFrom: true },
         },
       },
     });
@@ -263,19 +263,19 @@ export async function POST(req: Request) {
     const accountAge = Math.floor(
       (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
     );
-    const totalBalance = user.wallets.reduce((sum, w) => sum + w.balance, 0);
-    const loanDefaults = user.loans.filter((l) => l.status === "DEFAULTED").length;
-    const paidLoans = user.loans.filter((l) => l.status === "COMPLETED").length;
+    const totalBalance = user.wallets.reduce((sum: number, w: { balance: number }) => sum + w.balance, 0);
+    const loanDefaults = user.loans.filter((l: { status: string }) => l.status === "DEFAULTED").length;
+    const paidLoans = user.loans.filter((l: { status: string }) => l.status === "PAID").length;
     const totalLoans = user.loans.length;
     const paymentHistory = totalLoans > 0 ? (paidLoans / totalLoans) * 100 : 80;
-    const totalDebt = user.loans.reduce((sum, l) => sum + (l.remainingBalance || 0), 0);
+    const totalDebt = user.loans.reduce((sum: number, l: { remainingBalance: number | null }) => sum + (l.remainingBalance || 0), 0);
     const debtRatio = totalBalance > 0 ? totalDebt / (totalBalance + totalDebt) : 0.5;
 
     const factors = {
       paymentHistory,
       debtRatio,
       accountAge,
-      transactionVolume: user._count.sentTransactions * 1000,
+      transactionVolume: user._count.transactionsFrom * 1000,
       loanDefaults,
       kycVerified: user.kycStatus === "VERIFIED" || user.kycStatus === "APPROVED",
     };
