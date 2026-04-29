@@ -8,7 +8,10 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import AdminCallReceiver, { CallState } from "@/components/AdminCallReceiver";
+// FIX #3b: AdminCallReceiver removed from here — it is now mounted globally
+// in app/admin/layout.tsx via AdminGlobalCallReceiver, so it works on every
+// admin page, not just this one.
+import type { CallState } from "@/components/AdminCallReceiver";
 
 interface TicketMessage {
   id: string;
@@ -82,6 +85,24 @@ export default function AdminSupportPage() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [selectedTicket?.messages]);
+
+  // FIX #2: Poll for new user messages every 5s while a ticket is open.
+  // Previously there was no auto-refresh — the admin had to manually reload
+  // or close/reopen the ticket to see new messages from the user.
+  useEffect(() => {
+    if (!selectedTicket?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/support/${selectedTicket.id}`);
+        if (!res.ok) return;
+        const updated = await res.json();
+        if (updated?.messages?.length !== selectedTicket.messages.length) {
+          setSelectedTicket(updated);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [selectedTicket?.id, selectedTicket?.messages.length]);
 
   const fetchTickets = async () => {
     try {
@@ -165,21 +186,10 @@ export default function AdminSupportPage() {
     </div>
   );
 
-  // Common AdminCallReceiver component for all views
-  const CallReceiverComponent = (
-    <AdminCallReceiver
-      adminId="admin_support"
-      onCallStateChange={handleCallStateChange}
-    />
-  );
-
   // ============ TICKET DETAIL VIEW ============
   if (selectedTicket) {
     return (
       <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
-        {/* Admin Call Receiver */}
-        {CallReceiverComponent}
-
         {/* Header */}
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-4 mb-4">
@@ -293,9 +303,6 @@ export default function AdminSupportPage() {
   // ============ TICKETS LIST VIEW ============
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans selection:bg-blue-500/30">
-      {/* Admin Call Receiver */}
-      {CallReceiverComponent}
-
       {/* Header Admin */}
       <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Bell, ArrowLeft, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -45,8 +45,14 @@ export function AdminTopNav({
   const [showPreview, setShowPreview] = useState(false);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [counts, setCounts] = useState<NotificationCounts>({ kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
-  const [lastNotifIds, setLastNotifIds] = useState<Set<string>>(new Set());
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // FIX: Use refs instead of state for tracking values used inside useCallback.
+  // Putting isFirstLoad and lastNotifIds in useState caused the useCallback to
+  // rebuild on every fetch (because setLastNotifIds triggered a re-render),
+  // which rebuilt the interval, causing an infinite polling loop and stale
+  // closures where new notifications were never detected correctly.
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLoadRef = useRef(true);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -59,11 +65,9 @@ export function AdminTopNav({
         setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
 
         // Detect new notifications and show toast (skip first load)
-        if (!isFirstLoad && data.notifications?.length > 0) {
-          const currentIds = new Set(data.notifications.map((n: AdminNotification) => n.id));
-          
+        if (!isFirstLoadRef.current && data.notifications?.length > 0) {
           data.notifications.forEach((notif: AdminNotification) => {
-            if (!lastNotifIds.has(notif.id) && lastNotifIds.size > 0) {
+            if (!knownIdsRef.current.has(notif.id) && knownIdsRef.current.size > 0) {
               // New notification detected
               const priorityColors: Record<string, string> = {
                 urgent: "rgba(239, 68, 68, 0.95)",
@@ -83,17 +87,20 @@ export function AdminTopNav({
               });
             }
           });
-          
-          setLastNotifIds(currentIds);
-        } else if (isFirstLoad && data.notifications?.length > 0) {
-          setLastNotifIds(new Set(data.notifications.map((n: AdminNotification) => n.id)));
-          setIsFirstLoad(false);
+        }
+
+        // Update refs — no state update, no re-render, no dep loop
+        if (data.notifications?.length > 0) {
+          knownIdsRef.current = new Set(data.notifications.map((n: AdminNotification) => n.id));
+        }
+        if (isFirstLoadRef.current) {
+          isFirstLoadRef.current = false;
         }
       }
     } catch {
       // Silent fail
     }
-  }, [isFirstLoad, lastNotifIds]);
+  }, []); // FIX: stable — no state dependencies, uses refs only
 
   useEffect(() => {
     fetchNotifications();

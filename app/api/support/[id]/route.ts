@@ -49,11 +49,18 @@ export async function POST(
       return NextResponse.json({ error: "Ticket introuvable" }, { status: 404 });
     }
 
-    // Create the message
+    // FIX #1: Normalize senderId so chat/page.tsx renders admin replies correctly.
+    // chat/page.tsx checks senderId === "SUPPORT" for the agent badge + left-aligned bubble.
+    // Anything else (including "ADMIN") was treated as a user message (right-aligned, blue).
+    const normalizedSenderId =
+      !senderId || senderId === "ADMIN" || senderId === "SUPPORT"
+        ? "SUPPORT"
+        : senderId;
+
     const message = await prisma.message.create({
       data: {
         ticketId: id,
-        senderId: senderId || "ADMIN",
+        senderId: normalizedSenderId,
         content: content.trim(),
       }
     });

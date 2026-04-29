@@ -141,7 +141,13 @@ export default function NotificationCenter() {
     try {
       const res = await fetch('/api/notifications');
       const data = await res.json();
-      const notifsArray = Array.isArray(data) ? data : [];
+      // FIX: /api/notifications returns { notifications: [...], unreadCount: N }
+      // not a bare array — extract the nested array correctly
+      const notifsArray: Notification[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.notifications)
+        ? data.notifications
+        : [];
       
       // Detecter les nouvelles notifications pour afficher un toast instantane
       if (!isFirstFetch.current && notifsArray.length > 0) {
@@ -175,9 +181,13 @@ export default function NotificationCenter() {
 
   const markAsRead = async (id?: string) => {
     try {
-      await fetch('/api/notifications/mark-read', {
+      // FIX: /api/notifications/mark-read doesn't exist.
+      // The correct endpoint is POST /api/notifications which handles
+      // both single-id mark-read and { all: true } mark-all-read.
+      await fetch('/api/notifications', {
         method: 'POST',
-        body: JSON.stringify({ id }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(id ? { id } : { all: true }),
       });
       fetchNotifications();
     } catch (error) {
