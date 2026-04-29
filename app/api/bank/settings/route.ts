@@ -25,8 +25,8 @@ export async function GET(req: Request) {
     }
 
     // Get platform configuration
-    const platformConfig = await prisma.platformConfig.findFirst({
-      where: { id: "main" },
+    const platformConfig = await prisma.systemConfig.findFirst({
+      where: { id: "GLOBAL_CONFIG" },
     });
 
     // Get current user info
@@ -45,9 +45,7 @@ export async function GET(req: Request) {
     // Get active sessions count
     const activeSessions = await prisma.session.count({
       where: {
-        expiresAt: {
-          gt: new Date(),
-        },
+        isActive: true,
       },
     });
 
@@ -56,7 +54,7 @@ export async function GET(req: Request) {
       server: { status: "operational", uptime: "99.9%" },
       database: { status: "operational", latency: "12ms" },
       api: { status: "operational", responseTime: "45ms" },
-      maintenance: platformConfig?.maintenanceMode ? { scheduled: true, message: platformConfig.maintenanceMessage } : null,
+      maintenance: platformConfig?.maintenanceMode ? { scheduled: true, message: "Maintenance en cours" } : null,
     };
 
     // Default settings
@@ -130,16 +128,13 @@ export async function PUT(req: Request) {
 
     switch (section) {
       case "general":
-        // Update platform config
-        await prisma.platformConfig.upsert({
-          where: { id: "main" },
-          update: {
-            siteName: settings.institutionName,
-          },
-          create: {
-            id: "main",
-            siteName: settings.institutionName,
-            maintenanceMode: false,
+        // Log the settings update (SystemConfig doesn't have siteName, so we just log)
+        await prisma.auditLog.create({
+          data: {
+            action: "GENERAL_SETTINGS_UPDATED",
+            adminId: access.session.id,
+            adminName: access.session.username,
+            details: `General settings updated: institutionName = ${settings.institutionName}`,
           },
         });
         updateResult = { institutionName: settings.institutionName };
@@ -186,17 +181,14 @@ export async function PUT(req: Request) {
 
       case "maintenance":
         // Toggle maintenance mode
-        await prisma.platformConfig.upsert({
-          where: { id: "main" },
+        await prisma.systemConfig.upsert({
+          where: { id: "GLOBAL_CONFIG" },
           update: {
             maintenanceMode: settings.enabled,
-            maintenanceMessage: settings.message,
           },
           create: {
-            id: "main",
-            siteName: "PimPay",
+            id: "GLOBAL_CONFIG",
             maintenanceMode: settings.enabled,
-            maintenanceMessage: settings.message,
           },
         });
         updateResult = { maintenanceMode: settings.enabled };

@@ -2,10 +2,10 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // GET - List all employees for a business
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
@@ -74,7 +74,7 @@ export async function GET(req: Request) {
 }
 
 // POST - Add a new employee
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
 }
 
 // PUT - Update an employee
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
@@ -220,7 +220,7 @@ export async function PUT(req: Request) {
 }
 
 // DELETE - Remove an employee
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {

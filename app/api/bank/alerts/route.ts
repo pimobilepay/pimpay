@@ -92,7 +92,6 @@ export async function GET(req: Request) {
         description: alert.details || "",
         time: alert.createdAt,
         status: "open", // Would be stored in database in production
-        ipAddress: alert.ipAddress,
       };
     });
 
@@ -158,9 +157,8 @@ export async function POST(req: Request) {
     const alert = await prisma.auditLog.create({
       data: {
         action,
-        userId: access.session.userId,
+        adminId: access.session.userId,
         details: `${title}: ${description || ""}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
@@ -201,9 +199,8 @@ export async function PUT(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: `ALERT_${action.toUpperCase()}`,
-        userId: access.session.userId,
+        adminId: access.session.userId,
         details: `Alert ${alertId} ${action}. Notes: ${notes || "N/A"}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 

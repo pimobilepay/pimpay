@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 // Helper to check if user has bank admin access
-async function checkBankAccess(req: Request) {
+async function checkBankAccess(req: NextRequest) {
   const session = await verifyAuth(req);
   if (!session) {
     return { error: "Non autorise", status: 401 };
@@ -16,7 +16,7 @@ async function checkBankAccess(req: Request) {
 }
 
 // GET - List all users with filters
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const access = await checkBankAccess(req);
     if ("error" in access) {
@@ -74,8 +74,8 @@ export async function GET(req: Request) {
           updatedAt: true,
           _count: {
             select: {
-              sentTransactions: true,
-              receivedTransactions: true,
+              transactionsFrom: true,
+              transactionsTo: true,
               wallets: true,
             },
           },
@@ -107,7 +107,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       users: users.map((user) => ({
         ...user,
-        transactionCount: user._count.sentTransactions + user._count.receivedTransactions,
+        transactionCount: user._count.transactionsFrom + user._count.transactionsTo,
         walletCount: user._count.wallets,
       })),
       pagination: {
@@ -130,7 +130,7 @@ export async function GET(req: Request) {
 }
 
 // POST - Create a new bank user
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const access = await checkBankAccess(req);
     if ("error" in access) {
@@ -238,7 +238,7 @@ export async function POST(req: Request) {
 }
 
 // PUT - Update user status or details
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
     const access = await checkBankAccess(req);
     if ("error" in access) {

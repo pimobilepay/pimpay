@@ -72,12 +72,12 @@ export async function GET(req: Request) {
         skip,
         take: limit,
         include: {
-          sender: {
+          fromUser: {
             select: {
               name: true,
             },
           },
-          receiver: {
+          toUser: {
             select: {
               name: true,
             },
@@ -144,7 +144,7 @@ export async function GET(req: Request) {
       transfers: transfers.map((tx) => ({
         id: tx.id,
         reference: tx.reference || `IB-${tx.id.slice(0, 8)}`,
-        institution: tx.sender?.name || tx.receiver?.name || "Institution Externe",
+        institution: tx.fromUser?.name || tx.toUser?.name || "Institution Externe",
         swift: "XXXX" + tx.id.slice(0, 4).toUpperCase(),
         amount: tx.amount,
         currency: tx.currency,
@@ -209,9 +209,8 @@ export async function POST(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: "INTERBANK_TRANSFER_CREATED",
-        userId: access.session.userId,
+        adminId: access.session.userId,
         details: `Interbank transfer ${type}: ${amount} ${currency} ${type === "outgoing" ? "to" : "from"} ${institution}. Notes: ${notes || "N/A"}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
@@ -250,16 +249,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "transferId et action requis" }, { status: 400 });
     }
 
-    let status: "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+    let newStatus: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED";
     switch (action) {
       case "approve":
-        status = "COMPLETED";
+        newStatus = "SUCCESS";
         break;
       case "reject":
-        status = "FAILED";
+        newStatus = "FAILED";
         break;
       case "cancel":
-        status = "CANCELLED";
+        newStatus = "CANCELLED";
         break;
       default:
         return NextResponse.json({ error: "Action non reconnue" }, { status: 400 });
@@ -267,16 +266,15 @@ export async function PUT(req: Request) {
 
     const transfer = await prisma.transaction.update({
       where: { id: transferId },
-      data: { status },
+      data: { status: newStatus },
     });
 
     // Log the action
     await prisma.auditLog.create({
       data: {
         action: `INTERBANK_TRANSFER_${action.toUpperCase()}`,
-        userId: access.session.userId,
+        adminId: access.session.userId,
         details: `Transfer ${transferId} ${action}. Reason: ${reason || "N/A"}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 

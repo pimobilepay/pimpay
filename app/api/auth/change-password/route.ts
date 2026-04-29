@@ -42,12 +42,11 @@ export async function POST(req: NextRequest) {
       where: { id: userId },
       data: { 
         password: hashedPassword,
-        passwordChangedAt: new Date(),
         // Optionnel : Enregistrer l'action dans les logs de sécurité
         securityLogs: {
           create: {
             action: "PASSWORD_CHANGE",
-            ip: req.ip || "unknown",
+            ip: req.headers.get("x-forwarded-for") || "unknown",
           }
         }
       },

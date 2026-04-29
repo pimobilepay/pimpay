@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const session = await verifyAuth(req);
     if (!session) {

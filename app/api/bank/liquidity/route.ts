@@ -58,7 +58,7 @@ export async function GET(req: Request) {
     const inflows24h = await prisma.transaction.aggregate({
       where: {
         type: "DEPOSIT",
-        status: "COMPLETED",
+        status: "SUCCESS",
         createdAt: {
           gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
         },
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     const outflows24h = await prisma.transaction.aggregate({
       where: {
         type: "WITHDRAWAL",
-        status: "COMPLETED",
+        status: "SUCCESS",
         createdAt: {
           gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
         },
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
       },
       take: 10,
       include: {
-        sender: {
+        fromUser: {
           select: {
             name: true,
             role: true,
@@ -148,14 +148,14 @@ export async function GET(req: Request) {
         totalDeposits,
         reserveRatio: reserveRatio * 100,
         inflows24h: {
-          amount: inflows24h._sum.amount || 0,
+          amount: inflows24h._sum?.amount || 0,
           count: inflows24h._count || 0,
         },
         outflows24h: {
-          amount: outflows24h._sum.amount || 0,
+          amount: outflows24h._sum?.amount || 0,
           count: outflows24h._count || 0,
         },
-        netFlow24h: (inflows24h._sum.amount || 0) - (outflows24h._sum.amount || 0),
+        netFlow24h: (inflows24h._sum?.amount || 0) - (outflows24h._sum?.amount || 0),
       },
       trend: dailyVolumes.map((d: any) => ({
         date: d.date,
@@ -170,7 +170,7 @@ export async function GET(req: Request) {
         currency: m.currency,
         date: m.createdAt,
         status: m.status.toLowerCase(),
-        senderName: m.sender?.name,
+        senderName: m.fromUser?.name,
       })),
       reserveRequirements,
       assetDistribution,
@@ -201,9 +201,8 @@ export async function POST(req: Request) {
     await prisma.auditLog.create({
       data: {
         action: `LIQUIDITY_${type.toUpperCase()}`,
-        userId: access.session.userId,
+        adminId: access.session.userId,
         details: `${type} of ${amount} ${currency}. Reason: ${reason || "N/A"}`,
-        ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
