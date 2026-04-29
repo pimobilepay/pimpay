@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { use, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeftIcon,
@@ -179,7 +179,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AccountDetailPage({ params }: { params: { id: string } }) {
+export default function AccountDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [generatingStatement, setGeneratingStatement] = useState(false);

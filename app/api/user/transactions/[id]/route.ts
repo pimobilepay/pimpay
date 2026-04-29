@@ -5,22 +5,22 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth"; // Utilisation du helper standard pour Pimpay
 
 export async function GET(
-  req: NextRequest, 
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. Correction : Ajout du await pour résoudre la promesse
+    const { id } = await params;
+
     const payload = await verifyAuth(req) as any;
-    
+
     if (!payload || !payload.id) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. Récupération de la transaction avec les relations correctes
+    // Récupération de la transaction avec les relations correctes
     const tx = await prisma.transaction.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
-        // CORRECTION : Utilisation de 'avatar' à la place de 'image'
         fromUser: { 
           select: { 
             username: true, 
