@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
           ]
         },
         data: {
-          forcePasswordReset: true
+          statusReason: "FORCE_PASSWORD_RESET"
         }
       });
 
