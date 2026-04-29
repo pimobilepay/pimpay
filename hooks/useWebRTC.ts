@@ -56,6 +56,10 @@ export function useWebRTC({
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
+  // Ringtone refs
+  const outgoingRingRef = useRef<HTMLAudioElement | null>(null);
+  const incomingRingRef = useRef<HTMLAudioElement | null>(null);
+
   // FIX: Keep mutable refs for values used inside stable callbacks
   // This breaks stale-closure issues without re-creating callbacks on every state change.
   const remoteUserIdRef = useRef<string | null>(null);
@@ -66,6 +70,113 @@ export function useWebRTC({
   useEffect(() => { remoteUserIdRef.current = remoteUserId; }, [remoteUserId]);
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { isSpeakerOnRef.current = isSpeakerOn; }, [isSpeakerOn]);
+
+  // ── Ringtone helpers ──────────────────────────────────────────────────────
+
+  const stopAllRings = useCallback(() => {
+    if (outgoingRingRef.current) {
+      outgoingRingRef.current.pause();
+      outgoingRingRef.current.currentTime = 0;
+    }
+    if (incomingRingRef.current) {
+      incomingRingRef.current.pause();
+      incomingRingRef.current.currentTime = 0;
+    }
+  }, []);
+
+  // Synthesise a ringtone using the Web Audio API (no external file needed)
+  const playOutgoingRing = useCallback(() => {
+    stopAllRings();
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+
+      // French "ringback" tone: 440 Hz + 480 Hz, 1 s on / 4 s off pattern
+      const playBeep = () => {
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        osc1.frequency.value = 440;
+        osc2.frequency.value = 480;
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
+
+        osc1.start();
+        osc2.start();
+        osc1.stop(ctx.currentTime + 1);
+        osc2.stop(ctx.currentTime + 1);
+      };
+
+      playBeep();
+      // Repeat every 5 s (1 s tone + 4 s silence)
+      const interval = setInterval(() => {
+        if (callStateRef.current !== "calling") {
+          clearInterval(interval);
+          ctx.close();
+          return;
+        }
+        playBeep();
+      }, 5000);
+
+      // Store ctx close ref so we can clean up
+      outgoingRingRef.current = { pause: () => { clearInterval(interval); ctx.close(); }, currentTime: 0 } as unknown as HTMLAudioElement;
+    } catch {
+      // Web Audio not supported — silently ignore
+    }
+  }, [stopAllRings]);
+
+  const playIncomingRing = useCallback(() => {
+    stopAllRings();
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+
+      // Classic phone ring: two short 480 Hz bursts, repeated
+      const playBurst = (offset: number) => {
+        [offset, offset + 0.4].forEach((t) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = 480;
+          osc.type = "sine";
+          gain.gain.setValueAtTime(0.2, ctx.currentTime + t);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + t);
+          osc.stop(ctx.currentTime + t + 0.35);
+        });
+      };
+
+      playBurst(0);
+      const interval = setInterval(() => {
+        if (callStateRef.current !== "incoming") {
+          clearInterval(interval);
+          ctx.close();
+          return;
+        }
+        playBurst(0);
+      }, 3000);
+
+      incomingRingRef.current = { pause: () => { clearInterval(interval); ctx.close(); }, currentTime: 0 } as unknown as HTMLAudioElement;
+    } catch {
+      // Web Audio not supported — silently ignore
+    }
+  }, [stopAllRings]);
+
+  // Play / stop ring based on call state
+  useEffect(() => {
+    if (callState === "calling") {
+      playOutgoingRing();
+    } else if (callState === "incoming") {
+      playIncomingRing();
+    } else {
+      stopAllRings();
+    }
+  }, [callState, playOutgoingRing, playIncomingRing, stopAllRings]);
 
   const updateCallState = useCallback(
     (newState: CallState) => {

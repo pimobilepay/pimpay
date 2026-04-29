@@ -316,54 +316,66 @@ export default function VoipCallOverlay({
             ) : (
               <>
                 <div className="flex items-center justify-center gap-6">
-                  {/* Mute */}
-                  <button
-                    onClick={toggleMute}
-                    disabled={callState !== "connected"}
-                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isMuted
-                        ? "bg-red-500/20 border-2 border-red-500/50"
-                        : "bg-white/10 border border-white/10"
-                    }`}
-                    aria-label={isMuted ? "Activer le micro" : "Couper le micro"}
-                  >
-                    {isMuted ? <MicOff size={24} className="text-red-400" /> : <Mic size={24} className="text-white" />}
-                  </button>
+                  {/* Mute button */}
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={toggleMute}
+                      disabled={callState !== "connected"}
+                      className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed ${
+                        isMuted
+                          ? "bg-red-500/25 border-2 border-red-500 shadow-lg shadow-red-500/20"
+                          : "bg-emerald-500/15 border-2 border-emerald-500/60 shadow-lg shadow-emerald-500/10"
+                      }`}
+                      aria-label={isMuted ? "Activer le micro" : "Couper le micro"}
+                    >
+                      {isMuted
+                        ? <MicOff size={24} className="text-red-400" />
+                        : <Mic size={24} className="text-emerald-400" />
+                      }
+                    </button>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${isMuted ? "text-red-400" : "text-emerald-400"}`}>
+                        {isMuted ? "Muet" : "Actif"}
+                      </span>
+                      <span className="text-[8px] font-medium text-slate-600 uppercase tracking-wider">Micro</span>
+                    </div>
+                  </div>
 
                   {/* End call */}
-                  <button
-                    onClick={handleEndCall}
-                    className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
-                    aria-label="Terminer l'appel"
-                  >
-                    <PhoneOff size={32} className="text-white" />
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={handleEndCall}
+                      className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-xl shadow-red-500/30 active:scale-90 transition-all"
+                      aria-label="Terminer l'appel"
+                    >
+                      <PhoneOff size={32} className="text-white" />
+                    </button>
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Fin</span>
+                  </div>
 
-                  {/* FIX: Speaker button — always enabled, always shows correct state */}
-                  <button
-                    onClick={toggleSpeaker}
-                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${
-                      !isSpeakerOn
-                        ? "bg-amber-500/20 border-2 border-amber-500/50"
-                        : "bg-white/10 border border-white/10"
-                    }`}
-                    aria-label={isSpeakerOn ? "Desactiver le haut-parleur" : "Activer le haut-parleur"}
-                  >
-                    {isSpeakerOn
-                      ? <Volume2 size={24} className="text-white" />
-                      : <VolumeX size={24} className="text-amber-400" />
-                    }
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-center gap-6 mt-3">
-                  <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                    {isMuted ? "Muet" : "Micro"}
-                  </span>
-                  <span className="w-20 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">Fin</span>
-                  <span className="w-16 text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                    {isSpeakerOn ? "HP On" : "HP Off"}
-                  </span>
+                  {/* Speaker button */}
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={toggleSpeaker}
+                      className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${
+                        isSpeakerOn
+                          ? "bg-blue-500/15 border-2 border-blue-500/60 shadow-lg shadow-blue-500/10"
+                          : "bg-white/5 border-2 border-white/15"
+                      }`}
+                      aria-label={isSpeakerOn ? "Désactiver le haut-parleur" : "Activer le haut-parleur"}
+                    >
+                      {isSpeakerOn
+                        ? <Volume2 size={24} className="text-blue-400" />
+                        : <VolumeX size={24} className="text-slate-500" />
+                      }
+                    </button>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${isSpeakerOn ? "text-blue-400" : "text-slate-500"}`}>
+                        {isSpeakerOn ? "Activé" : "Désactivé"}
+                      </span>
+                      <span className="text-[8px] font-medium text-slate-600 uppercase tracking-wider">HP</span>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
