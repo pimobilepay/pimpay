@@ -1,55 +1,59 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Endpoint pour déclencher manuellement le worker
- * Utile pour le diagnostic et les tests
+ * SECURITY FIX [CRITIQUE] — Route debug/run-worker
+ * Même logique que debug/transactions : clé obligatoire, bloqué en prod.
  */
-export async function GET(req: NextRequest) {
-  try {
-    // Optionnel: Verifier une clé API pour la securite
-    const apiKey = req.headers.get('x-debug-key');
-    const expectedKey = process.env.DEBUG_API_KEY;
-    
-    if (expectedKey && apiKey !== expectedKey) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    console.log("[v0] [DEBUG] Declenchement manuel du worker...");
-    
-    // Appeler le worker
-    const workerResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/worker/process`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
+function checkDebugAuth(req: NextRequest): NextResponse | null {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  }
+
+  const expectedKey = process.env.DEBUG_API_KEY;
+  if (!expectedKey) {
+    return NextResponse.json(
+      { error: "DEBUG_API_KEY non configurée. Ajoutez-la dans .env.local." },
+      { status: 503 }
     );
+  }
+
+  const apiKey = req.headers.get("x-debug-key");
+  if (apiKey !== expectedKey) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return null;
+}
+
+export async function GET(req: NextRequest) {
+  const authError = checkDebugAuth(req);
+  if (authError) return authError;
+
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+    const workerResponse = await fetch(`${baseUrl}/api/worker/process`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     const result = await workerResponse.json();
-
-    console.log("[v0] [DEBUG] Resultat du worker:", result);
+    console.log("[DEBUG] Résultat worker:", result);
 
     return NextResponse.json({
       success: true,
       message: "Worker déclenché avec succès",
       workerResult: result,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
-  } catch (error: any) {
-    console.error("[v0] [DEBUG] ERREUR lors du declenchement du worker:", error.message);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error.message,
-        stack: error.stack 
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    // FIX: error.stack jamais dans la réponse
+    const message = error instanceof Error ? error.message : "Erreur interne";
+    console.error("[DEBUG] ERREUR worker:", error);
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

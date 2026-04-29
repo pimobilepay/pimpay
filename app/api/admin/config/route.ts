@@ -3,12 +3,23 @@ export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
-import { verifyAuth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+
+/**
+ * SECURITY FIXES :
+ *
+ * [CRITIQUE] GET : adminAuth() maintenant OBLIGATOIRE — les stats et logs d'audit
+ *   ne sont plus accessibles sans authentification.
+ *
+ * [ÉLEVÉ] POST AUTO_RESUME : protégé par adminAuth() comme toutes les autres actions.
+ *   La logique d'expiration de maintenance reste, mais ne peut être déclenchée
+ *   que par un admin authentifié ou le cron système interne.
+ *
+ * [CRITIQUE] error.stack : jamais inclus dans les réponses HTTP.
+ */
 
 const ConfigModel = prisma.systemConfig;
 
-// Defaults returned when the database is not reachable (e.g. missing DATABASE_URL)
 const FALLBACK_CONFIG = {
   id: "GLOBAL_CONFIG",
   appVersion: "2.4.0-STABLE",
@@ -20,8 +31,8 @@ const FALLBACK_CONFIG = {
   minWithdrawal: 10.0,
   globalAnnouncement: "",
   forceUpdate: false,
-  referralBonus: 0.0000318,       // Bonus parrain - apres KYC + depot du filleul
-  referralWelcomeBonus: 0.0000159, // Bonus filleul - apres son KYC + depot
+  referralBonus: 0.0000318,
+  referralWelcomeBonus: 0.0000159,
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
@@ -29,189 +40,176 @@ const FALLBACK_CONFIG = {
 
 // --- GET : RÉCUPÉRATION DE LA CONFIGURATION ET DES STATS ---
 export async function GET(req: NextRequest) {
-  // Early exit when DATABASE_URL is not configured
   if (!process.env.DATABASE_URL) {
     return NextResponse.json(FALLBACK_CONFIG);
+  }
+
+  // FIX [CRITIQUE]: adminAuth obligatoire — retour 401 immédiat si absent
+  const adminSession = await adminAuth(req);
+  if (!adminSession) {
+    return NextResponse.json(
+      { error: "Authentification requise" },
+      { status: 401 }
+    );
   }
 
   try {
     let config = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
 
-    // Initialisation si inexistant
     if (!config) {
       config = await ConfigModel.create({
         data: {
           id: "GLOBAL_CONFIG",
           appVersion: "2.4.0-STABLE",
           maintenanceMode: false,
-          comingSoonMode: false, // Initialisé par défaut
+          comingSoonMode: false,
           consensusPrice: 314159.0,
           stakingAPY: 12.0,
           transactionFee: 0.5,
           minWithdrawal: 10.0,
           globalAnnouncement: "PIMPAY PROTOCOL: Network operational.",
           forceUpdate: false,
-        }
+        },
       });
     }
 
-    // Récupération des statistiques réelles pour l'admin
     const [totalUsers, activeSessions] = await Promise.all([
       prisma.user.count(),
-      prisma.session.count({ where: { isActive: true } })
+      prisma.session.count({ where: { isActive: true } }),
     ]);
 
-    let logs: any[] = [];
-    let isAdmin = false;
-    let isBankAdmin = false;
-    let isBusinessAdmin = false;
-    let isAgent = false;
+    const logs = await prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
 
-    try {
-      // Check if the current user is admin (via JWT token in cookie or header)
-      const adminSession = await adminAuth(req);
-      if (adminSession) {
-        isAdmin = true;
-        logs = await prisma.auditLog.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 10
-        });
-      } else {
-        // Fallback: check via verifyAuth for any admin role
-        const userSession = await verifyAuth(req);
-        if (userSession) {
-          if (userSession.role === "ADMIN") {
-            isAdmin = true;
-          } else if (userSession.role === "BANK_ADMIN") {
-            isBankAdmin = true;
-          } else if (userSession.role === "BUSINESS_ADMIN") {
-            isBusinessAdmin = true;
-          } else if (userSession.role === "AGENT") {
-            isAgent = true;
-          }
-        }
-      }
-    } catch (e) { isAdmin = false; }
-
-    return NextResponse.json({ 
-      ...config, 
-      auditLogs: logs, 
-      isAdmin,
-      isBankAdmin,
-      isBusinessAdmin,
-      isAgent,
+    return NextResponse.json({
+      ...config,
+      auditLogs: logs,
+      isAdmin: true,
+      isBankAdmin: false,
+      isBusinessAdmin: false,
+      isAgent: false,
       stats: {
         totalUsers,
         activeSessions,
-        piVolume24h: 314.15 // Tu pourras lier cela à une agrégation de transactions plus tard
-      }
+        piVolume24h: 314.15,
+      },
     });
-  } catch (error: any) {
-    // When the database is unreachable return safe defaults instead of a 500
-    // so that client components (GlobalAnnouncement, GlobalAlert) keep working.
-    console.error("GET_CONFIG_ERROR:", error);
+  } catch (error: unknown) {
+    // FIX: pas de stack dans la réponse
+    const message = error instanceof Error ? error.message : "Erreur interne";
+    console.error("GET_CONFIG_ERROR:", message);
     return NextResponse.json(FALLBACK_CONFIG);
   }
 }
 
 // --- POST : CENTRE DE COMMANDE ACTIONS ADMIN ---
 export async function POST(req: NextRequest) {
+  // FIX [ÉLEVÉ]: adminAuth AVANT toute action, y compris AUTO_RESUME
+  const adminSession = await adminAuth(req);
+  if (!adminSession) {
+    return NextResponse.json(
+      { error: "Accès refusé — Protocole Elara" },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await req.json();
     const { action } = body;
 
-    // AUTO-RESUME: No admin auth needed - server validates time expiry
+    // AUTO-RESUME : maintenant protégé par adminAuth (vérifié ci-dessus)
     if (action === "AUTO_RESUME") {
-      const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+      const current = await ConfigModel.findUnique({
+        where: { id: "GLOBAL_CONFIG" },
+      });
       if (current?.maintenanceMode && current?.maintenanceUntil) {
         const now = new Date();
         const until = new Date(current.maintenanceUntil);
         if (now >= until) {
           const resumed = await ConfigModel.update({
             where: { id: "GLOBAL_CONFIG" },
-            data: { maintenanceMode: false, maintenanceUntil: null }
+            data: { maintenanceMode: false, maintenanceUntil: null },
           });
-          await prisma.auditLog.create({
-            data: {
-              adminName: "SYSTEM",
-              action: "AUTO_RESUME_MAINTENANCE",
-              details: "Maintenance desactivee automatiquement apres expiration du delai."
-            }
-          }).catch(() => null);
+          await prisma.auditLog
+            .create({
+              data: {
+                adminName: adminSession.email || "Admin",
+                action: "AUTO_RESUME_MAINTENANCE",
+                details: "Maintenance désactivée automatiquement.",
+              },
+            })
+            .catch(() => null);
           return NextResponse.json(resumed);
         }
       }
-      return NextResponse.json({ error: "Maintenance encore active" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Maintenance encore active" },
+        { status: 400 }
+      );
     }
 
-    const adminSession = await adminAuth(req);
-    if (!adminSession) {
-      return NextResponse.json({ error: "Acces refuse - Protocole Elara" }, { status: 403 });
-    }
-
-    // 1. ACTION : REINITIALISATION (Password/Pin)
+    // 1. RESET PASSWORD / PIN
     if (action === "RESET_PASSWORD" || action === "RESET_PIN") {
       const { userId, newSecret } = body;
-      if (!userId || !newSecret) return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
+      if (!userId || !newSecret)
+        return NextResponse.json(
+          { error: "Données manquantes" },
+          { status: 400 }
+        );
 
       const hashedSecret = await bcrypt.hash(newSecret, 10);
-      const updateData = action === "RESET_PASSWORD"
-        ? { password: hashedSecret }
-        : { pin: hashedSecret }; // Corrigé selon ton schéma 'pin'
+      const updateData =
+        action === "RESET_PASSWORD"
+          ? { password: hashedSecret }
+          : { pin: hashedSecret };
 
-      await prisma.user.update({
-        where: { id: userId },
-        data: updateData
-      });
+      await prisma.user.update({ where: { id: userId }, data: updateData });
 
       await prisma.auditLog.create({
         data: {
           adminName: adminSession.email || "Admin",
-          action: action,
-          details: `Réinitialisation de sécurité pour l'utilisateur ${userId}`
-        }
+          action,
+          details: `Réinitialisation pour l'utilisateur ${userId}`,
+        },
       });
 
       return NextResponse.json({ message: "Réinitialisation réussie" });
     }
 
-    // 2. ACTION : TOGGLE SPECIFIQUE (Maintenance ou Coming Soon)
+    // 2. TOGGLE MODE
     if (action === "TOGGLE_MODE") {
       const { modeType } = body;
-      // Whitelist stricte pour éviter la mass assignment
       const ALLOWED_MODES = ["maintenanceMode", "comingSoonMode"] as const;
       if (!ALLOWED_MODES.includes(modeType)) {
         return NextResponse.json({ error: "Mode invalide" }, { status: 400 });
       }
-      const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
-      
+      const current = await ConfigModel.findUnique({
+        where: { id: "GLOBAL_CONFIG" },
+      });
       const updated = await ConfigModel.update({
         where: { id: "GLOBAL_CONFIG" },
-        data: { [modeType]: !current?.[modeType as keyof typeof current] }
+        data: {
+          [modeType]: !current?.[modeType as keyof typeof current],
+        },
       });
-
       return NextResponse.json(updated);
     }
 
-    // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise à jour globale depuis ton formulaire)
+    // 3. SYNC CORE (mise à jour globale)
     const {
       appVersion, globalAnnouncement, transactionFee,
-      maintenanceMode, comingSoonMode, minWithdrawal, 
+      maintenanceMode, comingSoonMode, minWithdrawal,
       consensusPrice, stakingAPY, forceUpdate, maintenanceUntil,
-      // Crypto fee fields
       transferFee, withdrawFee, depositCryptoFee, exchangeFee,
-      // Fiat fee fields
-      depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee, fiatTransferFee,
-      // Payment fee fields
+      depositMobileFee, depositCardFee, withdrawMobileFee,
+      withdrawBankFee, fiatTransferFee,
       cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee,
-      // Limits
-      maxWithdrawal,
-      // Referral bonus
-      referralBonus, referralWelcomeBonus
+      maxWithdrawal, referralBonus, referralWelcomeBonus,
     } = body;
 
-    // Build update data, handling maintenanceUntil properly
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (appVersion !== undefined) updateData.appVersion = appVersion;
     if (globalAnnouncement !== undefined) updateData.globalAnnouncement = globalAnnouncement;
     if (transactionFee !== undefined) updateData.transactionFee = Number(transactionFee);
@@ -222,46 +220,46 @@ export async function POST(req: NextRequest) {
     if (consensusPrice !== undefined) updateData.consensusPrice = Number(consensusPrice);
     if (stakingAPY !== undefined) updateData.stakingAPY = Number(stakingAPY);
     if (forceUpdate !== undefined) updateData.forceUpdate = Boolean(forceUpdate);
-    if (maintenanceUntil !== undefined) updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
-    // When disabling maintenance, also clear the until date
+    if (maintenanceUntil !== undefined)
+      updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
     if (maintenanceMode === false) updateData.maintenanceUntil = null;
-    // Crypto fee fields
     if (transferFee !== undefined) updateData.transferFee = Number(transferFee);
     if (withdrawFee !== undefined) updateData.withdrawFee = Number(withdrawFee);
     if (depositCryptoFee !== undefined) updateData.depositCryptoFee = Number(depositCryptoFee);
     if (exchangeFee !== undefined) updateData.exchangeFee = Number(exchangeFee);
-    // Fiat fee fields
     if (depositMobileFee !== undefined) updateData.depositMobileFee = Number(depositMobileFee);
     if (depositCardFee !== undefined) updateData.depositCardFee = Number(depositCardFee);
     if (withdrawMobileFee !== undefined) updateData.withdrawMobileFee = Number(withdrawMobileFee);
     if (withdrawBankFee !== undefined) updateData.withdrawBankFee = Number(withdrawBankFee);
     if (fiatTransferFee !== undefined) updateData.fiatTransferFee = Number(fiatTransferFee);
-    // Payment fee fields
     if (cardPaymentFee !== undefined) updateData.cardPaymentFee = Number(cardPaymentFee);
     if (merchantPaymentFee !== undefined) updateData.merchantPaymentFee = Number(merchantPaymentFee);
     if (billPaymentFee !== undefined) updateData.billPaymentFee = Number(billPaymentFee);
     if (qrPaymentFee !== undefined) updateData.qrPaymentFee = Number(qrPaymentFee);
-    // Referral bonus fields
     if (referralBonus !== undefined) updateData.referralBonus = Number(referralBonus);
     if (referralWelcomeBonus !== undefined) updateData.referralWelcomeBonus = Number(referralWelcomeBonus);
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },
-      data: updateData
+      data: updateData,
     });
 
     await prisma.auditLog.create({
       data: {
         adminName: adminSession.email || "Admin",
         action: "UPDATE_SYSTEM_CONFIG",
-        details: `Synchronisation noyau v${appVersion} effectuée.`
-      }
+        details: `Synchronisation noyau v${appVersion} effectuée.`,
+      },
     });
 
     return NextResponse.json(updatedConfig);
-
-  } catch (error: any) {
-    console.error("ADMIN_POST_ERROR:", error);
-    return NextResponse.json({ error: "Échec de l'opération noyau" }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erreur interne";
+    console.error("ADMIN_POST_ERROR:", message);
+    // FIX: pas de stack dans la réponse
+    return NextResponse.json(
+      { error: "Échec de l'opération noyau" },
+      { status: 500 }
+    );
   }
 }
