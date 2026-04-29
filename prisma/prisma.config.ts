@@ -7,7 +7,9 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
-    // Le "!" à la fin dit à TypeScript : "Fais-moi confiance, elle sera là"
     url: process.env.DATABASE_URL!,
+  },
+  seed: {
+    script: "prisma/seed.js",
   },
 });

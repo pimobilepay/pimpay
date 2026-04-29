@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
           }
         },
         data: {
-          notes: "FLAGGED_FOR_REVIEW"
+          note: "FLAGGED_FOR_REVIEW"
         }
       });
 
