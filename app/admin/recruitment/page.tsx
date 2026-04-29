@@ -30,7 +30,7 @@ interface Agent {
   status: AgentStatus;
   kycStatus: string;
   createdAt: string;
-  lastLogin: string | null;
+  lastLoginAt: string | null;
   wallet?: { balance: number } | null;
 }
 
@@ -142,7 +142,7 @@ function AgentRow({ agent, onAction, onView }: {
         <p className="text-[11px] font-bold text-white">
           {agent.wallet?.balance !== undefined ? `${agent.wallet.balance.toLocaleString("fr")} F` : "—"}
         </p>
-        <p className="text-[9px] text-slate-600">{timeSince(agent.lastLogin)}</p>
+        <p className="text-[9px] text-slate-600">{timeSince(agent.lastLoginAt)}</p>
       </div>
 
       {/* Status badge */}
@@ -261,7 +261,7 @@ function AgentDrawer({ agent, onClose, onAction }: {
                   { icon: <MapPin size={12} />, label: "Ville", value: agent.city },
                   { icon: <Globe size={12} />, label: "Pays", value: agent.country },
                   { icon: <Calendar size={12} />, label: "Inscription", value: new Date(agent.createdAt).toLocaleDateString("fr-FR") },
-                  { icon: <Activity size={12} />, label: "Dernière connexion", value: timeSince(agent.lastLogin) },
+                  { icon: <Activity size={12} />, label: "Dernière connexion", value: timeSince(agent.lastLoginAt) },
                   { icon: <Wallet size={12} />, label: "Solde", value: agent.wallet?.balance !== undefined ? `${agent.wallet.balance.toLocaleString("fr")} FCFA` : "—" },
                 ].map(({ icon, label, value }) => value ? (
                   <div key={label} className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
@@ -530,7 +530,7 @@ export default function RecruitmentPage() {
   const sortedAgents = [...agents].sort((a, b) => {
     if (sortKey === "name") return (a.name || "").localeCompare(b.name || "");
     if (sortKey === "balance") return (b.wallet?.balance || 0) - (a.wallet?.balance || 0);
-    if (sortKey === "lastLogin") return new Date(b.lastLogin || 0).getTime() - new Date(a.lastLogin || 0).getTime();
+    if (sortKey === "lastLogin") return new Date(b.lastLoginAt || 0).getTime() - new Date(a.lastLoginAt || 0).getTime();
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 

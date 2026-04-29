@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
           : undefined;
     }
 
-    const [agents, total, stats] = await Promise.all([
+    const [rawAgents, total, stats, totalAgents] = await Promise.all([
       prisma.user.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -66,8 +66,8 @@ export async function GET(req: NextRequest) {
           status: true,
           kycStatus: true,
           createdAt: true,
-          lastLogin: true,
-          wallet: { select: { balance: true } },
+          lastLoginAt: true,
+          wallets: { select: { balance: true }, take: 1, orderBy: { createdAt: "asc" } },
         },
       }),
       prisma.user.count({ where }),
@@ -76,10 +76,17 @@ export async function GET(req: NextRequest) {
         where: { role: UserRole.AGENT },
         _count: true,
       }),
+      prisma.user.count({ where: { role: UserRole.AGENT } }),
     ]);
 
+    // Normalize: expose first wallet balance as wallet.balance
+    const agents = rawAgents.map(({ wallets, ...u }) => ({
+      ...u,
+      wallet: wallets[0] ?? null,
+    }));
+
     const statsMap = {
-      total: await prisma.user.count({ where: { role: UserRole.AGENT } }),
+      total: totalAgents,
       active: stats.find((s) => s.status === UserStatus.ACTIVE)?._count || 0,
       pending: stats.find((s) => s.status === UserStatus.PENDING)?._count || 0,
       banned: stats.find((s) => s.status === UserStatus.BANNED)?._count || 0,
