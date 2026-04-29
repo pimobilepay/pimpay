@@ -14,10 +14,10 @@ export async function POST() {
       try {
         const userId = await getAuthUserId();
         if (userId) {
-          // Desactiver la session actuelle
-          await prisma.session.updateMany({
-            where: { userId, token, isActive: true },
-            data: { isActive: false },
+          // Supprimer la session actuelle — le SessionGuard détecte l'absence
+          // en DB et force la déconnexion immédiate sur tous les onglets/appareils
+          await prisma.session.deleteMany({
+            where: { userId, token },
           });
         }
       } catch {

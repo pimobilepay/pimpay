@@ -14,12 +14,15 @@ export default function RevokeSessionButton({ sessionId }: { sessionId: string }
 
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      // Route correcte : /api/sessions/[id] (DELETE)
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("Session révoquée avec succès");
-        router.refresh(); // Rafraîchit la liste côté serveur
+        toast.success("Session révoquée — l'appareil sera déconnecté dans les 10 secondes");
+        // Refresh immédiat pour mettre à jour la liste côté serveur
+        router.refresh();
       } else {
-        toast.error("Erreur lors de la révocation");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Erreur lors de la révocation");
       }
     } catch {
       toast.error("Une erreur est survenue");
@@ -32,10 +35,11 @@ export default function RevokeSessionButton({ sessionId }: { sessionId: string }
     <button
       onClick={handleRevoke}
       disabled={isDeleting}
-      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       title="Révoquer la session"
     >
-      <Trash2 size={18} className={isDeleting ? "animate-pulse" : ""} />
+      <Trash2 size={18} className={isDeleting ? "animate-pulse text-red-400" : ""} />
     </button>
   );
 }
+

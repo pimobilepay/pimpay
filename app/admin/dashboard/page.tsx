@@ -548,10 +548,13 @@ function DashboardContent() {
       if (res.ok) {
         const data = await res.json();
         toast.success(`${userName} deconnecte - ${data.count} session(s) fermee(s)`);
-        // Refresh session info if modal is open for this user
+        // Refresh session info si le modal est ouvert pour cet utilisateur
         if (sessionInfo?.user.id === userId) {
           fetchUserSessions(sessionInfo.user);
         }
+        // Rafraîchir la liste des utilisateurs dans tous les cas
+        const usersRes = await fetch("/api/admin/users");
+        if (usersRes.ok) setUsers(await usersRes.json());
       } else {
         const data = await res.json();
         toast.error(data.error || "Erreur lors de la deconnexion");
