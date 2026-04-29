@@ -7,6 +7,7 @@ export interface TokenPayload {
   role: string;
   email?: string;
   name?: string;
+  username?: string;
 }
 
 /**
@@ -25,7 +26,7 @@ export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null>
 
     const user = await prisma.user.findUnique({
       where: { id: payload.id, status: "ACTIVE" },
-      select: { id: true, role: true, email: true, name: true }
+      select: { id: true, role: true, email: true, name: true, username: true }
     });
     if (!user) return null;
 
@@ -34,6 +35,7 @@ export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null>
       role: user.role,
       email: user.email || undefined,
       name: user.name || undefined,
+      username: user.username || undefined,
     };
   } catch (err) {
     console.error("[VERIFY_AUTH_ERROR]:", err);
