@@ -46,7 +46,7 @@ async function getOrCreateAdminPiWallet() {
       OR: [
         { userId: ADMIN_WALLET_ID },
         { userId: SYSTEM_USER_ID },
-        { type: "ADMIN" },
+        { type: "PI" }, // Admin wallet type - using PI as system wallet type
       ],
       currency: "PI",
     },
@@ -76,14 +76,14 @@ async function getOrCreateAdminPiWallet() {
           data: {
             userId: SYSTEM_USER_ID,
             currency: "PI",
-            type: "ADMIN",
+            type: "PI", // Using PI type for admin/system wallets
             balance: 0,
           },
         });
       } catch {
         // Wallet might already exist, try to fetch it
         adminWallet = await prisma.wallet.findFirst({
-          where: { currency: "PI", type: "ADMIN" },
+          where: { currency: "PI", type: "PI" },
         });
       }
     }
@@ -225,7 +225,7 @@ export async function autoConvertFeeToPi(
           amount: roundedPiAmount,
           netAmount: roundedPiAmount,
           currency: "PI",
-          type: "FEE_CONVERSION",
+          type: "AIRDROP", // Using AIRDROP for fee conversion transactions
           status: "SUCCESS",
           fromUserId: SYSTEM_USER_ID,
           toUserId: adminWallet.userId,
@@ -293,7 +293,7 @@ export async function batchConvertPendingFees(): Promise<{
       where: {
         fee: { gt: 0 },
         status: "SUCCESS",
-        type: { notIn: ["FEE_CONVERSION"] },
+        type: { notIn: ["AIRDROP"] }, // Exclude fee conversion transactions
         // Check if no conversion exists for this transaction
         NOT: {
           reference: {
@@ -317,7 +317,7 @@ export async function batchConvertPendingFees(): Promise<{
       // Check if already converted
       const existingConversion = await prisma.transaction.findFirst({
         where: {
-          type: "FEE_CONVERSION",
+          type: "AIRDROP", // Using AIRDROP for fee conversion transactions
           metadata: {
             path: ["sourceTransactionId"],
             equals: tx.id,

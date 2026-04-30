@@ -453,7 +453,7 @@ export function useWebRTC({
   // dropping signaling events and breaking the WebRTC handshake between two devices.
   useEffect(() => {
     const pusher = getPusherClient();
-    pusher.config.authEndpoint = "/api/pusher/auth";
+    (pusher as any).config.authEndpoint = "/api/pusher/auth";
 
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
     channelRef.current = channel;

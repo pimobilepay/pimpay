@@ -68,7 +68,7 @@ async function processExternalTransfers() {
         // Transactions créées par /api/wallet/send (SUCCESS + QUEUED)
         {
           status: TransactionStatus.SUCCESS,
-          statusClass: { in: ["QUEUED", "RETRY", null] },
+          statusClass: { in: ["QUEUED", "RETRY"] },
           metadata: { path: ['isBlockchainWithdraw'], equals: true }
         },
         // Transactions créées par /api/user/transfer (PENDING)
@@ -127,7 +127,7 @@ async function processExternalTransfers() {
 
       // --- ROUTAGE PAR CRYPTO (Basé sur votre Schéma Prisma) ---
       if (tx.currency === "XRP") {
-        hash = await sendXRP(tx, destination, sender.xrpPrivateKey);
+        hash = await sendXRP(tx, destination, sender.xrpPrivateKey ?? null);
       } 
       else if (tx.currency === "PI") {
         // Pi Network: utiliser le MASTER WALLET de PimPay (les fonds sont centralisés)

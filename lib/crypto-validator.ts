@@ -118,7 +118,7 @@ export function validateAddress(address: string, currency: string): { isValid: b
   if (!rule) {
     // Fallback : verifier si le groupe est EVM via la config centralisee
     const assetConfig = CRYPTO_ASSETS[upperCurrency];
-    if (assetConfig?.group === "EVM") {
+    if (assetConfig?.chain === "EVM") {
       const evmRule = CRYPTO_RULES.ETH;
       if (!address || address.trim() === "") {
         return { isValid: false, error: "L'adresse est vide." };

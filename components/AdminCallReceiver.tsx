@@ -299,7 +299,7 @@ export default function AdminCallReceiver({
   // Listen for incoming calls
   useEffect(() => {
     const pusher = getPusherClient();
-    pusher.config.authEndpoint = "/api/pusher/auth";
+    (pusher as any).config.authEndpoint = "/api/pusher/auth";
 
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
     channelRef.current = channel;

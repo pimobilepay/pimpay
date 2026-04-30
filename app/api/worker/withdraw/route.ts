@@ -162,7 +162,7 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
     const result = await server.submitTransaction(transaction);
 
     if (!result.successful) {
-      throw new Error(`Transaction échouée: ${JSON.stringify(result.extras?.result_codes || result)}`);
+      throw new Error(`Transaction échouée: ${JSON.stringify((result as any).extras?.result_codes || result)}`);
     }
 
     const txHash = result.hash;

@@ -80,7 +80,7 @@ export async function GET() {
         }
 
         // 2. Gestion intelligente des monnaies (Évite les doublons SDA/SIDRA)
-        const existingCurrencies = new Set(user.wallets.map(w => w.currency));
+        const existingCurrencies = new Set(user.wallets.map((w: { currency: string }) => w.currency));
         
         // On considère que SDA et SIDRA c'est la même chose pour éviter le doublon
         const hasSidraAnyForm = existingCurrencies.has("SIDRA") || existingCurrencies.has("SDA");
@@ -111,7 +111,7 @@ export async function GET() {
 
         // 3. Extraction des soldes
         const balances: Record<string, number> = {};
-        user?.wallets.forEach(w => {
+        user?.wallets.forEach((w: { currency: string; balance: number }) => {
             const key = (w.currency === "SIDRA" || w.currency === "SDA") ? "sda" : w.currency.toLowerCase();
             balances[key] = w.balance;
         });
@@ -125,7 +125,7 @@ export async function GET() {
                 referrals: user?.referrals || [],
                 referralCount: user?.referrals?.length || 0,
                 balances,
-                wallets: user?.wallets.map(w => ({
+                wallets: user?.wallets.map((w: { currency: string; [key: string]: unknown }) => ({
                     ...w,
                     currency: (w.currency === "SIDRA" || w.currency === "SDA") ? "SDA" : w.currency,
                 })),

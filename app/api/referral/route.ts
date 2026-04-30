@@ -268,7 +268,7 @@ export async function grantReferrerBonusIfEligible(userId: string) {
       }
     }
     
-    return { granted: true, referrerBonus, welcomeBonus: referralWelcomeBonus };
+    return { granted: true, referrerBonus: referralBonus, welcomeBonus: referralWelcomeBonus };
   } catch (error) {
     console.error("GRANT_REFERRER_BONUS_ERROR:", error);
     return { granted: false, reason: "Error" };

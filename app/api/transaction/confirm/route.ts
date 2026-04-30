@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
       if (transaction.toWalletId) {
         await tx.wallet.update({
           where: { id: transaction.toWalletId },
-          data: { balance: { increment: transaction.netAmount } }
+          data: { balance: { increment: transaction.netAmount ?? 0 } }
         });
       } else {
         // Fallback : créer le wallet si nécessaire
