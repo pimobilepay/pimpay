@@ -31,7 +31,7 @@ async function getLiveUsdtBalance(address: string) {
     const rawBalance = typeof balance === 'object' && balance._hex ? balance._hex : balance;
     return Number(rawBalance) / 1_000_000;
   } catch (e: unknown) {
-    console.error("❌ Erreur Live USDT (TronGrid):", e?.message || e);
+    console.error("❌ Erreur Live USDT (TronGrid):", (e as Error)?.message || e);
     return null;
   }
 }
@@ -46,7 +46,7 @@ async function getLiveSidraBalance(address: string) {
     const balance = await provider.getBalance(address);
     return parseFloat(ethers.formatEther(balance));
   } catch (e: unknown) {
-    console.error("❌ Erreur Live Sidra (RPC Offline):", e?.message || e);
+    console.error("❌ Erreur Live Sidra (RPC Offline):", (e as Error)?.message || e);
     return null;
   }
 }

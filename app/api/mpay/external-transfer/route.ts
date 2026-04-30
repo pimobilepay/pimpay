@@ -167,13 +167,15 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
       requestId,
     });
   } catch (e: unknown) {
-    if (e?.response?.status === 404) {
+    const errResponse = (e as { response?: { status?: number } })?.response;
+    const errMessage = (e as { message?: string })?.message;
+    if (errResponse?.status === 404) {
       await logSystemEvent({
         level: "ERROR",
         source: "MPAY_EXTERNAL_TRANSFER",
         action: "RECIPIENT_NOT_ACTIVATED",
         message: "Le wallet Pi du destinataire n'est pas encore active",
-        details: { toAddress, error: e.message },
+        details: { toAddress, error: errMessage },
         requestId,
       });
       throw new Error(
@@ -559,9 +561,9 @@ export async function POST(req: NextRequest) {
       message: `Echec du transfert: ${getErrorMessage(err)}`,
       details: {
         error: getErrorMessage(err),
-        name: err.name,
-        stack: err.stack?.split('\n').slice(0, 5),
-        response: err.response?.data,
+        name: (err as Error)?.name,
+        stack: (err as Error)?.stack?.split('\n').slice(0, 5),
+        response: (err as { response?: { data?: unknown } })?.response?.data,
         destination,
         amount: amountNum,
         piUid,

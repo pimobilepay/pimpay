@@ -254,8 +254,8 @@ export async function POST(req: NextRequest) {
             txStatus = TransactionStatus.SUCCESS;
             console.log("[v0] [WALLET_SEND] SDA transaction confirmed:", blockchainTxHash);
           } catch (e: unknown) { 
-            console.error("[v0] [WALLET_SEND] SDA blockchain error:", e.message);
-            throw new Error(`Erreur blockchain SDA: ${e.message}`); 
+            console.error("[v0] [WALLET_SEND] SDA blockchain error:", (e as Error)?.message);
+            throw new Error(`Erreur blockchain SDA: ${(e as Error)?.message}`); 
           }
         }
         

@@ -11,10 +11,10 @@ const dictionaries = { fr: frDict, en: enDict } as const;
 // Utility: deep get by dot-notation key, e.g. "auth.login.title"
 function getNestedValue(obj: Record<string, unknown>, path: string): string {
   const keys = path.split(".");
-  let current = obj;
+  let current: unknown = obj;
   for (const key of keys) {
     if (current == null || typeof current !== "object") return path;
-    current = current[key];
+    current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" ? current : path;
 }

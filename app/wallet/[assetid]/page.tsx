@@ -884,7 +884,7 @@ export default function AssetDetailPage() {
                       {!addressVerifying && addressVerified && !addressVerified.valid && (
                         <XCircle size={16} className="text-red-500" />
                       )}
-                      <button onClick={() => QRScanner ? setShowQRScanner(true) : toast.error("Scanner indisponible")} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"><Scan size={16} className="text-white" /></button>
+                      <button onClick={() => setShowQRScanner(true)} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition-colors active:scale-90"><Scan size={16} className="text-white" /></button>
                     </div>
                   </div>
                   
@@ -1076,7 +1076,7 @@ export default function AssetDetailPage() {
                       }
                     } catch (e: unknown) { 
                       console.error("Send error:", e);
-                      toast.error(e?.message || "Erreur réseau"); 
+                      toast.error((e as Error)?.message || "Erreur réseau"); 
                       setSendStatus("idle"); 
                     }
                   }} disabled={sendStatus === "loading" || !sendAddress || !sendAmount || parseFloat(sendAmount) > parseFloat(balance)} className="w-full py-4 bg-blue-600 rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[11px] tracking-widest disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-blue-600/10 active:scale-95 hover:bg-blue-500">

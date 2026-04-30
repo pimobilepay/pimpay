@@ -22,6 +22,8 @@ interface TransactionUser {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  name?: string;
+  email?: string;
 }
 
 interface RawTransaction {
@@ -31,13 +33,20 @@ interface RawTransaction {
   currency: string;
   status: string;
   createdAt: string | Date;
-  fromUserId?: string;
-  toUserId?: string;
-  fromUser?: TransactionUser;
-  toUser?: TransactionUser;
+  fromUserId?: string | null;
+  toUserId?: string | null;
+  fromUser?: TransactionUser | null;
+  toUser?: TransactionUser | null;
   description?: string;
   reference?: string;
   metadata?: Record<string, unknown>;
+  purpose?: string;
+  fee?: number;
+  netAmount?: number | null;
+  note?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  blockchainTx?: string | null;
 }
 
 interface FormattedTransaction {
@@ -47,16 +56,29 @@ interface FormattedTransaction {
   currency: string;
   status: string;
   date: string;
-  from: string;
-  to: string;
-  description?: string;
-  reference?: string;
-  rawDate?: string;
+  reference?: string | null;
+  title?: string;
+  fee?: number;
+  netAmount?: number | null;
+  isIncome?: boolean;
+  fromName?: string;
+  fromUsername?: string | null;
+  fromEmail?: string | null;
+  fromPhone?: string | null;
+  toName?: string;
+  toUsername?: string | null;
+  toEmail?: string | null;
+  toPhone?: string | null;
+  note?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  blockchainTxHash?: string | null;
 }
 
 interface HistoryStats {
   total?: number;
   income?: number;
+  outcome?: unknown;
   expense?: number;
   count?: number;
   [key: string]: unknown;
@@ -228,16 +250,15 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   }, [initialTransactions, currentUserId]);
 
   const filteredTransactions = useMemo(() => {
-    return formattedTransactions.filter((tx: FormattedTransaction) => {
+    return formattedTransactions.filter((tx) => {
       const matchesService = activeService === "all" || tx.type === activeService;
       const matchesReference =
         !referenceSearch ||
         (tx.reference &&
           tx.reference.toLowerCase().includes(referenceSearch.toLowerCase()));
 
-      const txDate = new Date(
-        initialTransactions.find((t: RawTransaction) => t.id === tx.id)?.createdAt
-      );
+      const rawTx = initialTransactions.find((t: RawTransaction) => t.id === tx.id);
+      const txDate = rawTx?.createdAt ? new Date(rawTx.createdAt) : new Date();
       const matchesDate =
         (!startDate || txDate >= startDate) &&
         (!endDate   || txDate <= endOfDay(endDate));
@@ -264,14 +285,14 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
     const dateRange = `Période : ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} → ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
     doc.text(dateRange, pageWidth / 2, 20, { align: "center" });
 
-    const tableData = filteredTransactions.map((tx: FormattedTransaction) => [
+    const tableData = filteredTransactions.map((tx) => [
       tx.reference || "N/A",
       tx.type === "deposit" ? "Dépôt" : tx.type === "withdraw" ? "Retrait" : tx.type === "transfer" ? "Transfert" : "Recharge",
-      tx.fromName,
-      tx.toName,
+      tx.fromName || "",
+      tx.toName || "",
       tx.date,
       `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`,
-      tx.fee >= 0 ? `${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}` : "—",
+      (tx.fee ?? 0) >= 0 ? `${(tx.fee ?? 0).toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}` : "—",
       tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué",
     ]);
 
@@ -328,14 +349,14 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         <div className="grid grid-cols-2 gap-4">
           <StatMiniCard
             label="Entrées"
-            value={`+${stats.income.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
+            value={`+${(stats.income ?? 0).toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowDownLeft size={16} />}
             color="text-green-400"
             bg="from-green-600/20"
           />
           <StatMiniCard
             label="Sorties"
-            value={`-${stats.outcome.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
+            value={`-${(Number(stats.outcome) ?? 0).toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowUpRight size={16} />}
             color="text-red-400"
             bg="from-red-600/20"

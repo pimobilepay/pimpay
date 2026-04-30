@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
           txStatus = TransactionStatus.SUCCESS;
-        } catch (e: unknown) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
+        } catch (e: unknown) { throw new Error(`Erreur blockchain SDA: ${(e as Error)?.message}`); }
       }
 
       // Pour les transferts Pi externes vers une adresse Stellar:

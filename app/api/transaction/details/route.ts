@@ -90,7 +90,8 @@ export async function GET(request: Request) {
   } catch (error: unknown) {
     console.error("API_TX_DETAILS_ERROR:", error);
     // Gestion spécifique pour les erreurs de token (JWT expiré, etc.)
-    if (error.code === "ERR_JWT_EXPIRED") {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === "ERR_JWT_EXPIRED") {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
     return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 });

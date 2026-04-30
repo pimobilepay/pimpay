@@ -152,15 +152,16 @@ export async function logApiError(
   error: unknown,
   context?: { userId?: string; requestId?: string; ip?: string }
 ): Promise<void> {
+  const errorObj = error as { message?: string; stack?: string; name?: string; code?: string } | null;
   await logSystemEvent({
     level: "ERROR",
     source,
     action,
-    message: error?.message || String(error),
+    message: errorObj?.message || String(error),
     details: {
-      stack: error?.stack?.substring(0, 2000),
-      name: error?.name,
-      code: error?.code,
+      stack: errorObj?.stack?.substring(0, 2000),
+      name: errorObj?.name,
+      code: errorObj?.code,
     },
     ...context,
   });

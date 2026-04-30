@@ -65,8 +65,9 @@ export async function PUT(req: Request) {
     console.error("UPDATE USER ERROR:", err);
 
     // Gestion spécifique des erreurs de contrainte Prisma (P2002)
-    if (err.code === 'P2002') {
-      const target = err.meta?.target || "donnée";
+    const prismaErr = err as { code?: string; meta?: { target?: string } };
+    if (prismaErr.code === 'P2002') {
+      const target = prismaErr.meta?.target || "donnée";
       return NextResponse.json({ 
         error: `Ce champ (${target}) est déjà utilisé par un autre compte.` 
       }, { status: 400 });

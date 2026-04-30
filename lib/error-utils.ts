@@ -1,4 +1,3 @@
-import { getErrorMessage } from '@/lib/error-utils';
 /**
  * Utilitaires de gestion d'erreur typés - PimPay
  * Évite les `catch (error: unknown)` qui contournent la vérification TypeScript.
@@ -8,7 +7,7 @@ import { getErrorMessage } from '@/lib/error-utils';
  * Extrait le message d'une erreur inconnue de façon sûre.
  */
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return getErrorMessage(error);
+  if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (
     error !== null &&

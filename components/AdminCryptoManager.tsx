@@ -27,7 +27,7 @@ export default function AdminCryptoManager() {
       </div>
 
       <div className="grid gap-4">
-        {users.map((user: { id: string; username?: string; firstName?: string; lastName?: string; email?: string }) => (
+        {users.map((user: { id: string; username?: string; firstName?: string; lastName?: string; email?: string; sidraAddress?: string; xrpAddress?: string; xlmAddress?: string }) => (
           <div key={user.id} className="bg-slate-800 border border-slate-700 p-4 rounded-xl flex items-center justify-between">
             <div>
               <p className="font-bold text-lg">@{user.username || 'Utilisateur sans nom'}</p>

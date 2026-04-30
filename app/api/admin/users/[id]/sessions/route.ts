@@ -155,7 +155,8 @@ export async function GET(
   } catch (error: unknown) {
     console.error("ADMIN_GET_SESSIONS_ERROR:", getErrorMessage(error));
     // Si le token est invalide ou expiré
-    if (error.code === 'ERR_JWT_EXPIRED') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'ERR_JWT_EXPIRED') {
         return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

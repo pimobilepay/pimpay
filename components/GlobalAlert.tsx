@@ -625,7 +625,7 @@ export default function GlobalAlert() {
           if (data.userStatus?.isBanned) forceLogout();
         }
       } catch (err: unknown) {
-        if (err.name !== "AbortError") {
+        if ((err as Error)?.name !== "AbortError") {
           /* silent */
         }
       }

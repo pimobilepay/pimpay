@@ -290,7 +290,6 @@ export const en = {
     includingFees: "(Including 0.01 fees)",
     availableBalance: "available",
     syncing: "Syncing...",
-    insufficientFunds: "Insufficient funds",
     authorizeTransfer: "Authorize Transfer",
     pinValidation: "PIN Validation",
     signatureAccepted: "Signature accepted by Mainnet",
