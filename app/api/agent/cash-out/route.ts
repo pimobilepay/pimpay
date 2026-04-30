@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
         result.transaction.id,
         result.transaction.reference
       ).catch((err) => {
-        console.error("[AGENT_CASH_OUT] Fee conversion error (non-blocking):", err.message);
+        console.error("[AGENT_CASH_OUT] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -156,10 +157,10 @@ export async function POST(req: NextRequest) {
       newFloatBalance: result.newAgentBalance
     });
 
-  } catch (error: any) {
-    console.error("Agent Cash-Out Error:", error.message);
+  } catch (error: unknown) {
+    console.error("Agent Cash-Out Error:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur lors du retrait" },
+      { error: getErrorMessage(error) || "Erreur lors du retrait" },
       { status: 400 }
     );
   }

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -120,8 +121,8 @@ export async function POST(request: Request) {
       amount: transaction.amount
     });
 
-  } catch (error: any) {
-    console.error("❌ [CRITICAL_PAYMENT_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [CRITICAL_PAYMENT_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
   }
 }

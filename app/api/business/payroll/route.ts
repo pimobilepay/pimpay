@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_PAYROLL_GET_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -389,7 +389,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_PAYROLL_POST_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

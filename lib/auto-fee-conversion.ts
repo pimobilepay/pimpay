@@ -5,6 +5,7 @@
  * This runs in the background without admin intervention.
  */
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { prisma } from "@/lib/prisma";
 import { PI_CONSENSUS_RATE, FIAT_RATES, convert } from "@/lib/exchange";
 
@@ -46,7 +47,7 @@ async function getOrCreateAdminPiWallet() {
       OR: [
         { userId: ADMIN_WALLET_ID },
         { userId: SYSTEM_USER_ID },
-        { type: "ADMIN" },
+        { type: "PI" }, // Admin wallet type - using PI as system wallet type
       ],
       currency: "PI",
     },
@@ -76,14 +77,14 @@ async function getOrCreateAdminPiWallet() {
           data: {
             userId: SYSTEM_USER_ID,
             currency: "PI",
-            type: "ADMIN",
+            type: "PI", // Using PI type for admin/system wallets
             balance: 0,
           },
         });
       } catch {
         // Wallet might already exist, try to fetch it
         adminWallet = await prisma.wallet.findFirst({
-          where: { currency: "PI", type: "ADMIN" },
+          where: { currency: "PI", type: "PI" },
         });
       }
     }
@@ -225,7 +226,7 @@ export async function autoConvertFeeToPi(
           amount: roundedPiAmount,
           netAmount: roundedPiAmount,
           currency: "PI",
-          type: "FEE_CONVERSION",
+          type: "AIRDROP", // Using AIRDROP for fee conversion transactions
           status: "SUCCESS",
           fromUserId: SYSTEM_USER_ID,
           toUserId: adminWallet.userId,
@@ -258,8 +259,8 @@ export async function autoConvertFeeToPi(
       conversionRate,
       transactionRef,
     };
-  } catch (error: any) {
-    console.error("[AUTO_FEE_CONVERT] Error:", error.message);
+  } catch (error: unknown) {
+    console.error("[AUTO_FEE_CONVERT] Error:", getErrorMessage(error));
     return {
       success: false,
       originalAmount: feeAmount,
@@ -267,7 +268,7 @@ export async function autoConvertFeeToPi(
       convertedPi: 0,
       conversionRate: 0,
       transactionRef,
-      error: error.message,
+      error: getErrorMessage(error),
     };
   }
 }
@@ -293,7 +294,7 @@ export async function batchConvertPendingFees(): Promise<{
       where: {
         fee: { gt: 0 },
         status: "SUCCESS",
-        type: { notIn: ["FEE_CONVERSION"] },
+        type: { notIn: ["AIRDROP"] }, // Exclude fee conversion transactions
         // Check if no conversion exists for this transaction
         NOT: {
           reference: {
@@ -317,7 +318,7 @@ export async function batchConvertPendingFees(): Promise<{
       // Check if already converted
       const existingConversion = await prisma.transaction.findFirst({
         where: {
-          type: "FEE_CONVERSION",
+          type: "AIRDROP", // Using AIRDROP for fee conversion transactions
           metadata: {
             path: ["sourceTransactionId"],
             equals: tx.id,
@@ -343,8 +344,8 @@ export async function batchConvertPendingFees(): Promise<{
         errors++;
       }
     }
-  } catch (error: any) {
-    console.error("[BATCH_FEE_CONVERT] Error:", error.message);
+  } catch (error: unknown) {
+    console.error("[BATCH_FEE_CONVERT] Error:", getErrorMessage(error));
   }
 
   return { processed, converted, totalPi, errors };

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from "next/headers";
@@ -252,7 +253,7 @@ export async function POST(req: NextRequest) {
             blockchainTxHash = receipt?.hash || txRes.hash;
             txStatus = TransactionStatus.SUCCESS;
             console.log("[v0] [WALLET_SEND] SDA transaction confirmed:", blockchainTxHash);
-          } catch (e: any) { 
+          } catch (e: unknown) { 
             console.error("[v0] [WALLET_SEND] SDA blockchain error:", e.message);
             throw new Error(`Erreur blockchain SDA: ${e.message}`); 
           }
@@ -310,8 +311,8 @@ export async function POST(req: NextRequest) {
       blockchainTx: result.blockchainTx || null
     });
 
-  } catch (error: any) {
-    console.error("[v0] [WALLET_SEND] ERREUR:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    console.error("[v0] [WALLET_SEND] ERREUR:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 400 });
   }
 }

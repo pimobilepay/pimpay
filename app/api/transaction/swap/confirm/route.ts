@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
@@ -128,9 +129,9 @@ export async function POST(req: Request) {
       currency: result.destCurrency
     }, { headers: CORS_HEADERS });                                        
 
-  } catch (error: any) {
-    console.error("CONFIRM_SWAP_ERROR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur lors du swap" }, { status: 400, headers: CORS_HEADERS });
+  } catch (error: unknown) {
+    console.error("CONFIRM_SWAP_ERROR:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) || "Erreur lors du swap" }, { status: 400, headers: CORS_HEADERS });
   }
 }
 

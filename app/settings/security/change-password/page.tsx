@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Eye, EyeOff, Shield, Lock, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -67,8 +68,8 @@ export default function ChangePasswordPage() {
         router.push("/settings/security");
       }, 1500);
 
-    } catch (err: any) {
-      toast.error(err.message || "Erreur de connexion");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Erreur de connexion");
     } finally {
       setLoading(false);
     }

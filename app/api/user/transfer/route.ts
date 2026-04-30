@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
@@ -221,8 +222,8 @@ export async function POST(req: NextRequest) {
           const txRes = await wallet.sendTransaction({ to: recipientInput, value: ethers.parseEther(amount.toString()) });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
-          txStatus = "SUCCESS" as TransactionStatus;
-        } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
+          txStatus = TransactionStatus.SUCCESS;
+        } catch (e: unknown) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
       }
 
       // Pour les transferts Pi externes vers une adresse Stellar:
@@ -230,7 +231,7 @@ export async function POST(req: NextRequest) {
       // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
       if (currency === "PI") {
         blockchainTxHash = null; // Sera rempli par le worker après broadcast
-        txStatus = "SUCCESS" as TransactionStatus; // SUCCESS + statusClass QUEUED = prêt pour le worker
+        txStatus = TransactionStatus.SUCCESS; // SUCCESS + statusClass QUEUED = prêt pour le worker
         
         // Créer une notification pour l'utilisateur
         await tx.notification.create({
@@ -300,7 +301,7 @@ export async function POST(req: NextRequest) {
         if (res.ok) console.log("[TRANSFER] Worker Pi declenche avec succes");
         else console.error("[TRANSFER] Erreur worker:", res.status);
       }).catch((err) => {
-        console.error("[TRANSFER] Erreur appel worker:", err.message);
+        console.error("[TRANSFER] Erreur appel worker:", getErrorMessage(err));
       });
     }
 
@@ -314,13 +315,13 @@ export async function POST(req: NextRequest) {
         result.transaction.id,
         result.transaction.reference
       ).catch((err) => {
-        console.error("[USER_TRANSFER] Fee conversion error (non-blocking):", err.message);
+        console.error("[USER_TRANSFER] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
     return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction });
-  } catch (error: any) {
-    console.error("[v0] [USER_TRANSFER] ERREUR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });
+  } catch (error: unknown) {
+    console.error("[v0] [USER_TRANSFER] ERREUR:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) || "Erreur" }, { status: 400 });
   }
 }

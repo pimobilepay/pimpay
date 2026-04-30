@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : "Erreur inconnue";
+    const errorMsg = error instanceof Error ? getErrorMessage(error) : "Erreur inconnue";
     const errorStack = error instanceof Error ? error.stack : "";
     console.error("CARD_WITHDRAW_ERROR:", error);
     

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { requireAdmin } from "@/lib/requireAdmin";
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
@@ -126,8 +127,8 @@ export async function GET() {
     });
 
     return NextResponse.json(formattedData);
-  } catch (error: any) {
-    console.error("❌ [API_ADMIN_GET_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [API_ADMIN_GET_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Impossible de charger les flux critiques" }, { status: 500 });
   }
 }

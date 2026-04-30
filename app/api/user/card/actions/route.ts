@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth"; // Utilise ton helper d'auth standard
@@ -35,8 +36,8 @@ export async function PATCH(req: NextRequest) {
       isFrozen: updatedCard.isFrozen
     });
 
-  } catch (error: any) {
-    console.error("CARD_PATCH_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("CARD_PATCH_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur lors de la modification de la carte" }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -76,11 +77,11 @@ export async function POST(req: NextRequest) {
       newBalance: result.amount // Optionnel pour mettre à jour l'UI
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("RECHARGE_ERROR:", error);
     return NextResponse.json({ 
       error: "Échec du processus de recharge",
-      details: error.message 
+      details: getErrorMessage(error) 
     }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -44,8 +45,8 @@ export async function GET(req: NextRequest) {
       kycStatus: userWithData.kycStatus
     });
 
-  } catch (error: any) {
-    console.error("GET_CARD_DATA_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("GET_CARD_DATA_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

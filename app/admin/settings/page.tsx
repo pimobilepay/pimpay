@@ -1,4 +1,5 @@
 "use client";
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -130,8 +131,8 @@ export default function SystemSettings() {
       } else {
         throw new Error("Erreur de synchronisation");
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -237,7 +238,7 @@ export default function SystemSettings() {
       
       toast.success(`Patch applique: ${vulnName}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur lors de l'application du patch");
+      toast.error(error instanceof Error ? getErrorMessage(error) : "Erreur lors de l'application du patch");
     } finally {
       setPatchingItem(null);
     }
@@ -318,7 +319,7 @@ export default function SystemSettings() {
       toast.success(`Systeme optimise! Score: ${data.overallScore}/100 (${data.scanTime}ms)`);
       
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur de connexion au serveur");
+      toast.error(error instanceof Error ? getErrorMessage(error) : "Erreur de connexion au serveur");
       setOptimizationResults(null);
     } finally {
       setOptimizing(false);

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUserId } from "@/lib/auth";
@@ -104,8 +105,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, card: result });
 
-  } catch (error: any) {
-    console.error("CARD_PURCHASE_ERROR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur lors de l'achat" }, { status: 400 });
+  } catch (error: unknown) {
+    console.error("CARD_PURCHASE_ERROR:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) || "Erreur lors de l'achat" }, { status: 400 });
   }
 }

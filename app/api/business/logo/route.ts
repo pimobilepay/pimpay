@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '@/lib/prisma';
@@ -83,10 +84,10 @@ export async function POST(request: NextRequest) {
       url: uploadResponse.secure_url
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_LOGO_UPLOAD_ERROR:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors de l'upload" },
+      { error: getErrorMessage(error) || "Erreur lors de l'upload" },
       { status: 500 }
     );
   }

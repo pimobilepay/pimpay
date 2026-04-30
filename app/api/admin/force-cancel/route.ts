@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminFromRequest } from "@/lib/requireAdmin";
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
     } else {
       return NextResponse.json({ success: false, error: data }, { status: 400 });
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -124,7 +125,7 @@ export async function GET(req: NextRequest) {
       message: `${results.length} paiements traites`,
       details: results,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

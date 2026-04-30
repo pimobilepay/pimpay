@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_TREASURY_GET_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

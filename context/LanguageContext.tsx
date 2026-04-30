@@ -9,7 +9,7 @@ import { LOCALE_STORAGE_KEY, detectBrowserLocale } from "@/lib/i18n";
 const dictionaries = { fr: frDict, en: enDict } as const;
 
 // Utility: deep get by dot-notation key, e.g. "auth.login.title"
-function getNestedValue(obj: any, path: string): string {
+function getNestedValue(obj: Record<string, unknown>, path: string): string {
   const keys = path.split(".");
   let current = obj;
   for (const key of keys) {

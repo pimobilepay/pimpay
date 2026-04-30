@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
@@ -58,9 +59,9 @@ export async function GET(req: NextRequest) {
       stats: stats.reduce((acc, s) => ({ ...acc, [s.level]: s._count.level }), {}),
       sources: sources.map((s) => s.source),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[SYSTEM_LOGS_ERROR]:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -90,9 +91,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, log });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[SYSTEM_LOG_CREATE_ERROR]:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -114,8 +115,8 @@ export async function DELETE(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, deleted: result.count });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[SYSTEM_LOG_DELETE_ERROR]:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

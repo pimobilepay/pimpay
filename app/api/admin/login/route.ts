@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       token,
       admin: { id: admin.id, email: admin.email, name: admin.name }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err);
     return NextResponse.json({ error: "Erreur lors de la connexion" }, { status: 500 });
   }

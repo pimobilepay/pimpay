@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
         payment.txRecord.id,
         payment.txRecord.reference
       ).catch((err) => {
-        console.error("[CARD_PAY] Fee conversion error (non-blocking):", err.message);
+        console.error("[CARD_PAY] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
       remainingLimit: dailyLimit - (spentToday + amount)
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PAYMENT_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors du traitement" }, { status: 500 });
   }

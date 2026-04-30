@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -93,10 +94,10 @@ export async function POST(request: Request) {
       message: "Paiement approuve et credite"
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[RECEIVE-PAYMENT] Error:", error);
     return NextResponse.json(
-      { error: "Erreur serveur", details: error.message },
+      { error: "Erreur serveur", details: getErrorMessage(error) },
       { status: 500 }
     );
   }

@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/crypto'; // Assurez-vous que cette fonction existe
@@ -45,9 +46,9 @@ export async function GET(req: NextRequest) {
       message: `Mission accomplie Chef ! ${processed} transactions envoyées.`,
       processed
     });
-  } catch (error: any) {
-    console.error("[v0] [WORKER] ERREUR:", error.message, error.stack);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[v0] [WORKER] ERREUR:", getErrorMessage(error), error.stack);
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -68,7 +69,7 @@ async function processExternalTransfers() {
         // Transactions créées par /api/wallet/send (SUCCESS + QUEUED)
         {
           status: TransactionStatus.SUCCESS,
-          statusClass: { in: ["QUEUED", "RETRY", null] },
+          statusClass: { in: ["QUEUED", "RETRY"] },
           metadata: { path: ['isBlockchainWithdraw'], equals: true }
         },
         // Transactions créées par /api/user/transfer (PENDING)
@@ -127,7 +128,7 @@ async function processExternalTransfers() {
 
       // --- ROUTAGE PAR CRYPTO (Basé sur votre Schéma Prisma) ---
       if (tx.currency === "XRP") {
-        hash = await sendXRP(tx, destination, sender.xrpPrivateKey);
+        hash = await sendXRP(tx, destination, sender.xrpPrivateKey ?? null);
       } 
       else if (tx.currency === "PI") {
         // Pi Network: utiliser le MASTER WALLET de PimPay (les fonds sont centralisés)
@@ -157,7 +158,7 @@ async function processExternalTransfers() {
         console.log(`[v0] [WORKER] TX ${tx.reference} STATUS updated to SUCCESS with blockchain hash`);
         count++;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, err?.message || JSON.stringify(err));
       console.error(`[v0] [WORKER] Stack:`, err?.stack);
       // Marquer la transaction comme FAILED apres une erreur pour eviter les boucles infinies
@@ -233,8 +234,10 @@ async function sendPiA2UOfficial(
   apiKey: string,
   apiUrl: string
 ): Promise<string> {
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
+  if (!PI_MASTER_SECRET) throw new Error("PI_MASTER_WALLET_SECRET manquant");
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
+  if (!PI_MASTER_ADDRESS) throw new Error("PI_MASTER_WALLET_ADDRESS manquant");
   
   // Étape 1: Créer le paiement via l'API Pi
   console.log(`[v0] [PI_A2U] Étape 1: Création du paiement via API Pi...`);
@@ -397,8 +400,10 @@ async function sendPiA2UOfficial(
 
 // Transfert direct vers une adresse wallet (fallback si pas d'UID Pi)
 async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
+  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
+  if (!PI_MASTER_SECRET) throw new Error("PI_MASTER_WALLET_SECRET manquant");
+  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
+  if (!PI_MASTER_ADDRESS) throw new Error("PI_MASTER_WALLET_ADDRESS manquant");
   
   console.log(`[v0] [PI_DIRECT] Demarrage transfert direct`);
   console.log(`[v0] [PI_DIRECT] Destination recue:`, { dest, type: typeof dest, length: dest?.length });

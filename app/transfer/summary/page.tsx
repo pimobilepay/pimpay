@@ -117,7 +117,7 @@ const data = useMemo(() => {
         const bal = targetWallet?.balance;
         const parsed = typeof bal === "number" ? bal : parseFloat(String(bal ?? "0"));
         setWalletBalance(Number.isFinite(parsed) ? parsed : 0);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.name !== "AbortError") {
           console.error("Erreur solde:", err);
           setWalletBalance(0);

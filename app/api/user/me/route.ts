@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -48,9 +49,9 @@ export async function GET(req: Request) {
     // 5. RÉPONSE STABLE
     return NextResponse.json({ user });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log détaillé pour le debug, mais message générique pour le client (sécurité)
-    console.error("USER_ME_CRITICAL_ERROR:", error.message);
+    console.error("USER_ME_CRITICAL_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Une erreur est survenue lors de la récupération du profil" }, { status: 500 });
   }
 }

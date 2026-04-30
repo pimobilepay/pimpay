@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
@@ -165,9 +166,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: false, message: "Etat du paiement non gere" }, { status: 400 });
 
-  } catch (error: any) {
-    console.error("[INCOMPLETE_PAYMENT_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[INCOMPLETE_PAYMENT_ERROR]:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -321,8 +322,8 @@ export async function GET() {
             results.push({ id: paymentId, action: "cancel_failed" });
           }
         }
-      } catch (err: any) {
-        results.push({ id: paymentId, action: "error", error: err.message });
+      } catch (err: unknown) {
+        results.push({ id: paymentId, action: "error", error: getErrorMessage(err) });
       }
     }
 
@@ -331,8 +332,8 @@ export async function GET() {
       details: results,
     });
 
-  } catch (error: any) {
-    console.error("[BATCH_RECOVERY_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[BATCH_RECOVERY_ERROR]:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

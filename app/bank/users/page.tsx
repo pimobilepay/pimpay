@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState, useEffect, useCallback } from "react";
 import { BankSidebar } from "@/components/bank/BankSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -176,7 +177,7 @@ export default function UsersPage() {
       setData(result);
       setError(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
+      setError(err instanceof Error ? getErrorMessage(err) : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
@@ -208,7 +209,7 @@ export default function UsersPage() {
       setShowActionDialog(false);
       setActionNote("");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'action");
+      toast.error(err instanceof Error ? getErrorMessage(err) : "Erreur lors de l'action");
     }
   };
 
@@ -269,7 +270,7 @@ export default function UsersPage() {
       setNewUserForm({ name: "", email: "", phone: "", role: "USER", password: "" });
       await fetchUsers();
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la creation";
+      const errorMessage = err instanceof Error ? getErrorMessage(err) : "Erreur lors de la creation";
       toast.error(errorMessage);
     } finally {
       setIsCreating(false);

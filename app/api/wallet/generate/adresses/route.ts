@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GENERATE_ADDRESSES_ERROR]:", error);
     return NextResponse.json(
       { error: "Erreur lors de la génération des adresses" },

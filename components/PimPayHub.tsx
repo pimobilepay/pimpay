@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/error-utils';
 import * as React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -251,8 +252,8 @@ function TransactionModal({
       } else {
         setError('Aucun client trouve avec cet identifiant')
       }
-    } catch (err: any) {
-      setError(err.message || 'Erreur de recherche')
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Erreur de recherche')
     } finally {
       setIsSearching(false)
     }
@@ -298,8 +299,8 @@ function TransactionModal({
         onSuccess()
         handleClose()
       }
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(getErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
@@ -520,8 +521,8 @@ function QRScannerModal({
 
       onCustomerFound(apiData.customers[0])
       handleClose()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(getErrorMessage(err))
       setShowScanner(false)
     } finally {
       setIsLoading(false)
@@ -544,8 +545,8 @@ function QRScannerModal({
 
       onCustomerFound(data.customers[0])
       handleClose()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(getErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
@@ -688,7 +689,7 @@ export default function PimPayHub() {
         <GlassCard className="p-6 max-w-md w-full text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Erreur de chargement</h2>
-          <p className="text-muted-foreground mb-4">{error.message}</p>
+          <p className="text-muted-foreground mb-4">{getErrorMessage(error)}</p>
           <Button onClick={() => refreshDashboard()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Reessayer

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -91,8 +92,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(responseData);
 
-  } catch (error: any) {
-    console.error("Erreur Wallet API:", error.message);
+  } catch (error: unknown) {
+    console.error("Erreur Wallet API:", getErrorMessage(error));
     return NextResponse.json({ error: "Problème de synchronisation" }, { status: 500 });
   }
 }

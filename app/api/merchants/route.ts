@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(merchants);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: "Erreur lors de la récupération des marchands" }, { status: 500 });
   }
 }
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, merchant });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -112,7 +112,7 @@ export async function GET(req: Request) {
         byType: typeStats.reduce((acc, t) => ({ ...acc, [t.type]: t._count }), {}),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Bank accounts error:", error);
     await logApiError("BANK_ACCOUNTS_API", "GET_ACCOUNTS", error, { requestId: `BA-${Date.now()}` });
     return NextResponse.json({ error: "Erreur serveur", details: error?.message }, { status: 500 });
@@ -185,7 +185,7 @@ export async function PUT(req: Request) {
       message: "Compte mis a jour",
       account: { id: updatedWallet.id, balance: updatedWallet.balance, frozenBalance: updatedWallet.frozenBalance },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     await logApiError("BANK_ACCOUNTS_API", "UPDATE_ACCOUNT", error, { requestId: `BA-UPD-${Date.now()}` });
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -223,7 +223,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ message: "Compte cree avec succes", account: wallet });
-  } catch (error: any) {
+  } catch (error: unknown) {
     await logApiError("BANK_ACCOUNTS_API", "CREATE_ACCOUNT", error, { requestId: `BA-CRT-${Date.now()}` });
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

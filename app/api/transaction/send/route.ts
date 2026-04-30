@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -140,16 +141,16 @@ export async function POST(req: Request) {
         result.transactionRecord.id,
         result.transactionRecord.reference
       ).catch((err) => {
-        console.error("[SEND] Fee conversion error (non-blocking):", err.message);
+        console.error("[SEND] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
     return NextResponse.json({ success: true, data: result.transactionRecord });
 
-  } catch (error: any) {
-    console.error("TRANSACTION_SEND_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("TRANSACTION_SEND_ERROR:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur lors du transfert" },
+      { error: getErrorMessage(error) || "Erreur lors du transfert" },
       { status: 400 }
     );
   }

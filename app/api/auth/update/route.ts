@@ -61,7 +61,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ user: updatedUser });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("UPDATE USER ERROR:", err);
 
     // Gestion spécifique des erreurs de contrainte Prisma (P2002)

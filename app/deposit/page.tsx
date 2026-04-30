@@ -114,7 +114,7 @@ export default function DepositPage() {
       if (res.ok && result.reference) {
         router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}&method=${activeTab}`);
       } else { toast.error(result.error || "Erreur lors de l'initialisation"); }
-    } catch (e: any) { toast.error(e.message || "Erreur de connexion"); } finally { setIsLoading(false); }
+    } catch (e: unknown) { toast.error(e.message || "Erreur de connexion"); } finally { setIsLoading(false); }
   };
   
   // Card deposit handler
@@ -174,7 +174,7 @@ export default function DepositPage() {
       } else {
         toast.error(result.message || "Erreur lors du traitement de la carte");
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(e.message || "Erreur de connexion");
     } finally {
       setIsLoading(false);

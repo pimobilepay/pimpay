@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
@@ -195,8 +196,8 @@ export async function GET(req: NextRequest) {
         : 0
     });
 
-  } catch (error: any) {
-    console.error("Agent Dashboard Error:", error.message);
+  } catch (error: unknown) {
+    console.error("Agent Dashboard Error:", getErrorMessage(error));
     return NextResponse.json(
       { error: "Une erreur interne est survenue" },
       { status: 500 }

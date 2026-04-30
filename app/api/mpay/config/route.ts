@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       transactionId: newTx.id
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erreur API Payment:", error);
     return NextResponse.json({ success: false, message: "Erreur serveur" }, { status: 500 });
   }

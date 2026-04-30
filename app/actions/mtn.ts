@@ -4,9 +4,9 @@ import { v4 as uuidv4 } from "uuid";
 
 const MTN_CONFIG = {
   baseUrl: "https://sandbox.momodeveloper.mtn.com",
-  subscriptionKey: process.env.MTN_SUBSCRIPTION_KEY!,
-  apiUser: process.env.MTN_API_USER!, // Le REFERENCE_ID généré plus haut
-  apiKey: process.env.MTN_API_KEY!,   // L'API_KEY générée plus haut
+  subscriptionKey: process.env.MTN_SUBSCRIPTION_KEY ?? "",  // À valider en runtime
+  apiUser: process.env.MTN_API_USER ?? "",  // Le REFERENCE_ID généré plus haut
+  apiKey: process.env.MTN_API_KEY ?? "",  // L'API_KEY générée plus haut
   targetEnv: "sandbox"
 };
 

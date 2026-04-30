@@ -1,4 +1,5 @@
 "use client";
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
 // Correction des icônes : Usd -> DollarSign, Gbp -> PoundSterling, Pi -> Coins (ou autre icône dispo)
@@ -77,8 +78,8 @@ export default function CardSelector({ piPriceInUsd, onCardCreated }: { piPriceI
 
       toast.success(`Votre carte ${currentConfig.label} a été activée !`);
       onCardCreated(); 
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error));
     } finally {
       setIsCreating(false);
     }

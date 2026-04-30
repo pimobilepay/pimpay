@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Loader2, AlertTriangle, X } from "lucide-react";
@@ -44,7 +45,7 @@ export function CardDeleteButton({ cardId, cardLast4 }: CardDeleteButtonProps) {
       // Refresh the page to show updated list
       router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erreur lors de la suppression";
+      const message = error instanceof Error ? getErrorMessage(error) : "Erreur lors de la suppression";
       toast.error(message);
     } finally {
       setIsDeleting(false);

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
@@ -35,8 +36,8 @@ export async function POST(req: NextRequest) {
       amount: transaction.amount,
       reference: transaction.reference
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erreur Transaction:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

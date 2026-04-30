@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
@@ -95,10 +96,10 @@ export async function POST(req: NextRequest) {
 
     return response;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("ROLLBACK_CRITICAL_ERROR:", error);
     return NextResponse.json(
-      { error: "Échec critique du rollback", details: error.message }, 
+      { error: "Échec critique du rollback", details: getErrorMessage(error) }, 
       { status: 500 }
     );
   }

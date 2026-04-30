@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -67,9 +68,9 @@ export async function POST() {
     }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ address: publicKey, symbol: "XLM" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[XLM_GEN_ERROR]:", error);
-    return NextResponse.json({ error: "Échec de génération XLM", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Échec de génération XLM", details: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -118,7 +119,7 @@ export async function GET() {
       address: user.xlmAddress
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[XLM_BALANCE_ERROR]:", error);
     return NextResponse.json({ error: "Erreur serveur XLM" }, { status: 500 });
   }

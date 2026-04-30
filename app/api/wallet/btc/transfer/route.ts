@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, txid, fee: dynamicFee });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

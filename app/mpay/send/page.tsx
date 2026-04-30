@@ -494,7 +494,7 @@ const filteredContacts = contacts.filter(
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Transfer error:", error);
       toast.error("Erreur lors du transfert");
       router.push(`/mpay/failed?reason=${encodeURIComponent("Erreur de connexion")}`);

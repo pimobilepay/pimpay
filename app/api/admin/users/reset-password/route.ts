@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Mot de passe réinitialisé par l'admin" });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Admin Reset Error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

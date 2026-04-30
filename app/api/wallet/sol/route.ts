@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -22,8 +23,8 @@ export async function GET() {
     return NextResponse.json({
       address: user?.solAddress || null
     });
-  } catch (error: any) {
-    console.error("Erreur GET SOL:", error.message);
+  } catch (error: unknown) {
+    console.error("Erreur GET SOL:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -71,8 +72,8 @@ export async function POST() {
       address: updatedUser.solAddress
     });
 
-  } catch (error: any) {
-    console.error("Erreur POST SOL:", error.message);
+  } catch (error: unknown) {
+    console.error("Erreur POST SOL:", getErrorMessage(error));
     return NextResponse.json({
       error: "Échec de la génération du portefeuille Solana"
     }, { status: 500 });

@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       userId: updatedUser.id
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error.code === 'P2025') {
         return NextResponse.json({ error: "Utilisateur introuvable en base de données" }, { status: 404 });
     }

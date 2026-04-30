@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState, useEffect, useCallback } from "react";
 import { BankSidebar } from "@/components/bank/BankSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -121,7 +122,7 @@ export default function AlertsPage() {
       setData(result);
       setError(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
+      setError(err instanceof Error ? getErrorMessage(err) : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
@@ -153,7 +154,7 @@ export default function AlertsPage() {
       if (!res.ok) throw new Error(result.error || "Erreur");
       await fetchAlerts();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Erreur lors de l'action");
+      alert(err instanceof Error ? getErrorMessage(err) : "Erreur lors de l'action");
     }
   };
 

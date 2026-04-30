@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useRef, useState, useCallback, useEffect } from "react";
 import { getPusherClient, VOIP_CHANNEL, VOIP_EVENTS } from "@/lib/pusher-client";
 import type { Channel, PresenceChannel } from "pusher-js";
@@ -218,7 +219,7 @@ export function useWebRTC({
           body: JSON.stringify({
             action,
             userId,
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: error instanceof Error ? getErrorMessage(error) : String(error),
             errorName: error instanceof Error ? error.name : "UnknownError",
             errorStack: error instanceof Error ? error.stack?.substring(0, 1000) : null,
             userAgent: nav?.userAgent || null,
@@ -453,7 +454,7 @@ export function useWebRTC({
   // dropping signaling events and breaking the WebRTC handshake between two devices.
   useEffect(() => {
     const pusher = getPusherClient();
-    pusher.config.authEndpoint = "/api/pusher/auth";
+    (pusher as any).config.authEndpoint = "/api/pusher/auth";
 
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
     channelRef.current = channel;

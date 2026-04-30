@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth"; // Utilisation du helper standard pour Pimpay
@@ -49,8 +50,8 @@ export async function GET(
 
     return NextResponse.json(tx);
 
-  } catch (error: any) {
-    console.error("GET_TX_BY_ID_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("GET_TX_BY_ID_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -161,7 +162,7 @@ export async function POST(req: Request) {
         result.transactionRecord.id,
         result.transactionRecord.reference
       ).catch((err) => {
-        console.error("[MPAY_CONFIRM] Fee conversion error (non-blocking):", err.message);
+        console.error("[MPAY_CONFIRM] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -176,10 +177,10 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("MPAY_CONFIRM_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("MPAY_CONFIRM_ERROR:", getErrorMessage(error));
     return NextResponse.json(
-      { success: false, message: error.message || "Erreur lors du paiement" },
+      { success: false, message: getErrorMessage(error) || "Erreur lors du paiement" },
       { status: 400 }
     );
   }

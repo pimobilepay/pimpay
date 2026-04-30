@@ -95,7 +95,7 @@ export default function SendModal({
 
   // Placeholder dynamique selon le groupe
   const getPlaceholder = () => {
-    switch (config.group) {
+    switch (config.chain) {
       case "EVM":
         return "Adresse 0x..., email ou @username";
       case "STELLAR":

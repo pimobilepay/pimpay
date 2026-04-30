@@ -1,6 +1,7 @@
 // app/api/worker/withdraw/route.ts
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, TransactionType } from "@prisma/client";
@@ -162,7 +163,7 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
     const result = await server.submitTransaction(transaction);
 
     if (!result.successful) {
-      throw new Error(`Transaction échouée: ${JSON.stringify(result.extras?.result_codes || result)}`);
+      throw new Error(`Transaction échouée: ${JSON.stringify((result as any).extras?.result_codes || result)}`);
     }
 
     const txHash = result.hash;
@@ -170,7 +171,7 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
     
     return txHash;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Gérer les erreurs spécifiques de Stellar/Horizon
     if (error.response?.data?.extras?.result_codes) {
       const codes = error.response.data.extras.result_codes;
@@ -187,8 +188,8 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
       }
     }
     
-    console.error(`[PI_WITHDRAW_ERROR] Broadcast échoué pour job ${job.id}:`, error.message);
-    throw new Error(`Impossible de broadcaster la transaction Pi: ${error.message}`);
+    console.error(`[PI_WITHDRAW_ERROR] Broadcast échoué pour job ${job.id}:`, getErrorMessage(error));
+    throw new Error(`Impossible de broadcaster la transaction Pi: ${getErrorMessage(error)}`);
   }
 }
 
@@ -225,7 +226,7 @@ export async function GET(req: NextRequest) {
         broadcasted: doneCount,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const msg = e?.message || "Worker error";
     const code = msg === "Unauthorized worker" ? 401 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
@@ -338,7 +339,7 @@ export async function POST(req: NextRequest) {
           ok: true,
           blockchainTx: txHash,
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         const refundOnFail = process.env.REFUND_ON_WITHDRAW_FAIL === "true";
         const errorMsg = err?.message || "Broadcast failed";
 
@@ -403,7 +404,7 @@ export async function POST(req: NextRequest) {
       processed: results.length,
       results,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const msg = e?.message || "Worker error";
     const code = msg === "Unauthorized worker" ? 401 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });

@@ -26,7 +26,7 @@ export const usePiAuth = () => {
    * Gestion des paiements incomplets (Checklist Mainnet #10)
    * Cette fonction DOIT retourner une Promise pour que le SDK Pi puisse continuer
    */
-  const handleIncompletePayment = useCallback(async (payment: any) => {
+  const handleIncompletePayment = useCallback(async (payment: { identifier: string; transaction?: { txid: string } }) => {
     console.warn("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     
     try {
@@ -80,7 +80,7 @@ export const usePiAuth = () => {
       window.__PI_SDK_INITIALIZING__ = false;
       console.log("[PimPay] SDK Pi 2.0 initialise par usePiAuth");
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       window.__PI_SDK_INITIALIZING__ = false;
       // Si l'erreur dit "already initialized", c'est OK
       if (e?.message?.includes("already")) {
@@ -216,7 +216,7 @@ export const usePiAuth = () => {
       localStorage.setItem("pimpay_user", JSON.stringify(result.user));
 
       return { success: true, user: result.user };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[PimPay] Erreur authentification Pi:", error);
 
       let errorMsg = "Echec de la connexion securisee";

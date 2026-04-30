@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useEffect, useState, useRef } from "react";
 import {
   ArrowLeft, Camera, User, Mail, Phone, Lock,
@@ -208,8 +209,8 @@ export default function EditProfilePage() {
 
       setFormData(prev => ({ ...prev, avatar: data.avatar }));
       toast.success("Photo de profil mise a jour !");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -227,8 +228,8 @@ export default function EditProfilePage() {
       if (!res.ok) throw new Error("Erreur lors de la mise a jour");
       toast.success("Profil mis a jour avec succes !");
       router.push("/profile");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

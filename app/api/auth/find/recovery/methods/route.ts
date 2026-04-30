@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -73,8 +74,8 @@ export async function GET(request: Request) {
             }
         });
 
-    } catch (error: any) {
-        console.error("DATABASE_CONNECTION_ERROR:", error.message);
+    } catch (error: unknown) {
+        console.error("DATABASE_CONNECTION_ERROR:", getErrorMessage(error));
         return NextResponse.json(
             { error: "Le bouclier GCV Shield est temporairement indisponible" },
             { status: 500 }

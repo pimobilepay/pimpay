@@ -18,7 +18,9 @@ interface UserData {
   avatar?: string;
 }
 
-export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function SideMenu({ open, onClose, isOpen }: { open?: boolean; onClose: () => void; isOpen?: boolean }) {
+  // Support both 'open' and 'isOpen' props for backward compatibility
+  const isMenuOpen = open ?? isOpen ?? false;
   const router = useRouter();
   const pathname = usePathname();
   const { locale, setLocale, t } = useLanguage();
@@ -176,10 +178,10 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     <>
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${isMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       />
 
-      <div className={`fixed top-0 left-0 h-full w-[280px] z-[9999] bg-[#020617] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-&lsqb;cubic-bezier(0.32,0.72,0,1)&rsqb; ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`fixed top-0 left-0 h-full w-[280px] z-[9999] bg-[#020617] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-&lsqb;cubic-bezier(0.32,0.72,0,1)&rsqb; ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex flex-col h-full">
 
           <div className="p-6 pt-14 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent relative">

@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       feePaid: feeAmount
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("WITHDRAW_CRITICAL_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors du traitement du retrait" }, { status: 500 });
   }

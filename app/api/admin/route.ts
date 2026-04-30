@@ -456,7 +456,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Action exécutée avec succès" });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("ADMIN_CRITICAL_ERROR:", error);
     
     // Gestion spécifique des timeouts de Neon/Postgres

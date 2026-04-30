@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -316,7 +317,7 @@ export default function AdminLogsPage() {
       
       setUserData(json);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Impossible de charger les logs utilisateurs";
+      const errorMessage = err instanceof Error ? getErrorMessage(err) : "Impossible de charger les logs utilisateurs";
       toast.error(errorMessage);
     } finally {
       setUserLoading(false);
@@ -376,7 +377,7 @@ export default function AdminLogsPage() {
       setUserSession(json);
       setSessionError(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Impossible de charger les donnees";
+      const errorMessage = err instanceof Error ? getErrorMessage(err) : "Impossible de charger les donnees";
       setSessionError(errorMessage);
       toast.error(errorMessage);
       setUserSession(null);

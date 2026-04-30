@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, timingSafeEqual } from "crypto";
@@ -129,7 +130,7 @@ export async function POST(req: Request) {
           transaction.id,
           transaction.reference
         ).catch((err) => {
-          console.error("[WEBHOOK] Fee conversion error:", err.message);
+          console.error("[WEBHOOK] Fee conversion error:", getErrorMessage(err));
         });
       }
 
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Transaction échouée" });
     }
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erreur interne";
+    const message = error instanceof Error ? getErrorMessage(error) : "Erreur interne";
     console.error("[WEBHOOK] Erreur:", message);
     // FIX: pas de stack dans la réponse
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

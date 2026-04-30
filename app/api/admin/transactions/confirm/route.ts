@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
@@ -160,16 +161,16 @@ export async function POST(req: NextRequest) {
         transaction.id,
         transaction.reference
       ).catch((err) => {
-        console.error("[ADMIN_CONFIRM] Fee conversion error (non-blocking):", err.message);
+        console.error("[ADMIN_CONFIRM] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
     return NextResponse.json({ success: true, status: 'SUCCESS', data: result });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("ADMIN_CONFIRM_TRANSACTION_ERROR:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors du traitement" },
+      { error: getErrorMessage(error) || "Erreur lors du traitement" },
       { status: 500 }
     );
   }

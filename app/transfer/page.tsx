@@ -509,7 +509,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
             setAddressVerified(null);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err.name !== "AbortError" && isMountedRef.current) setRecipientData(null);
       } finally {
         if (isMountedRef.current) setIsSearching(false);

@@ -87,7 +87,7 @@ export async function GET(request: Request) {
       note: transaction.note
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API_TX_DETAILS_ERROR:", error);
     // Gestion spécifique pour les erreurs de token (JWT expiré, etc.)
     if (error.code === "ERR_JWT_EXPIRED") {

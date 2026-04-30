@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -65,10 +66,10 @@ export async function POST(req: Request) {
       message: "Nouvelle adresse Sidra générée avec succès"
     });
 
-  } catch (error: any) {
-    console.error("❌ [SIDRA_GEN_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [SIDRA_GEN_ERROR]:", getErrorMessage(error));
     return NextResponse.json(
-      { error: "Erreur lors de la création du wallet Sidra", details: error.message },
+      { error: "Erreur lors de la création du wallet Sidra", details: getErrorMessage(error) },
       { status: 500 }
     );
   }

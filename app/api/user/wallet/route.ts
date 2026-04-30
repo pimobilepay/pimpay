@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ethers } from "ethers";
@@ -29,7 +30,7 @@ async function getLiveUsdtBalance(address: string) {
     // TronWeb v6 peut renvoyer un BigInt ou un objet avec _hex
     const rawBalance = typeof balance === 'object' && balance._hex ? balance._hex : balance;
     return Number(rawBalance) / 1_000_000;
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("❌ Erreur Live USDT (TronGrid):", e?.message || e);
     return null;
   }
@@ -44,7 +45,7 @@ async function getLiveSidraBalance(address: string) {
     const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
     const balance = await provider.getBalance(address);
     return parseFloat(ethers.formatEther(balance));
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("❌ Erreur Live Sidra (RPC Offline):", e?.message || e);
     return null;
   }
@@ -136,11 +137,11 @@ export async function GET() {
       recentTransactions: user.transactionsFrom
     });
 
-  } catch (error: any) {
-    console.error("❌ [API_WALLET_CRITICAL_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [API_WALLET_CRITICAL_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ 
       error: "Erreur technique lors de la récupération du portefeuille",
-      details: error.message 
+      details: getErrorMessage(error) 
     }, { status: 500 });
   }
 }

@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_DASHBOARD_ERROR:", error);
     return NextResponse.json(
       { error: "Erreur serveur" },

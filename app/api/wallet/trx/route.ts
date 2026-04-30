@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; 
 import { auth } from "@/lib/auth";
-import TronWeb from "tronweb";
+import { TronWeb } from "tronweb";
 
 // Force la route à être calculée à chaque requête (indispensable pour les sessions)
 export const dynamic = "force-dynamic";

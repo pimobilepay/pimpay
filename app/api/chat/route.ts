@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -39,9 +40,9 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ tickets });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("CHAT_GET_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -144,9 +145,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ticket: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("CHAT_POST_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 

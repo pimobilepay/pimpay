@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PAYMENT_ROUTE_CRITICAL_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors du traitement du paiement" }, { status: 500 });
   }

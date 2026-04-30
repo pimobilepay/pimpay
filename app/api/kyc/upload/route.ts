@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '@/lib/prisma';
@@ -113,10 +114,10 @@ export async function POST(request: NextRequest) {
       savedToDb: true,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erreur API KYC Upload:", error);
     return NextResponse.json(
-      { error: error.message || "Echec de l'upload" },
+      { error: getErrorMessage(error) || "Echec de l'upload" },
       { status: 500 }
     );
   }

@@ -38,7 +38,7 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
     }
   );
 
-  const handleStatusChange = useCallback((newStatus: any) => {
+  const handleStatusChange = useCallback((newStatus: string) => {
     if (!newStatus) return;
 
     // Si le compte vient d'etre reactive depuis la maintenance

@@ -1,9 +1,44 @@
 "use client";
 
 // Définition des types pour éviter les erreurs TypeScript sur window.Pi
+/** Interface minimale du SDK Pi Browser */
+interface PiPaymentCallbacks {
+  onReadyForServerApproval: (paymentId: string) => void;
+  onReadyForServerCompletion: (paymentId: string, txid: string) => void;
+  onCancel: (paymentId: string) => void;
+  onError: (error: Error, payment?: PiPaymentData) => void;
+}
+
+interface PiPaymentData {
+  identifier: string;
+  amount: number;
+  memo: string;
+  metadata: Record<string, unknown>;
+  transaction?: { txid: string; verified: boolean };
+  status: { developer_approved: boolean; transaction_verified: boolean; developer_completed: boolean; cancelled: boolean; user_cancelled: boolean };
+}
+
+interface PiAuth {
+  accessToken: string;
+  user: { uid: string; username: string };
+}
+
+interface PiSDK {
+  init: (config: { version: string; sandbox: boolean }) => void;
+  authenticate: (
+    scopes: string[],
+    onIncompletePaymentFound: (payment: PiPaymentData) => Promise<void>
+  ) => Promise<PiAuth>;
+  createPayment: (
+    paymentData: { amount: number; memo: string; metadata: Record<string, unknown> },
+    callbacks: PiPaymentCallbacks
+  ) => void;
+  openShareDialog: (title: string, message: string) => void;
+}
+
 declare global {
   interface Window {
-    Pi: any;
+    Pi: PiSDK | undefined;
     __PI_SDK_READY__: boolean;
     __PI_SDK_INITIALIZING__: boolean;
   }
@@ -30,9 +65,9 @@ export const initPiSDK = (): boolean => {
       window.__PI_SDK_INITIALIZING__ = false;
       console.log("[PimPay] Pi SDK 2.0 initialise");
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       window.__PI_SDK_INITIALIZING__ = false;
-      if (error?.message?.includes("already")) {
+      if (error instanceof Error && error.message.includes("already")) {
         window.__PI_SDK_READY__ = true;
         return true;
       } else {
@@ -94,13 +129,13 @@ export const authenticateWithPi = async () => {
 
   return new Promise((resolve, reject) => {
     window.Pi.authenticate(scopes, onIncompletePaymentFound)
-      .then((auth: any) => {
+      .then((auth: PiAuth) => {
         // Stockage des infos pour la session Pimpay
         localStorage.setItem("pimpay_user", JSON.stringify(auth.user));
         localStorage.setItem("pi_token", auth.accessToken);
         resolve(auth);
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         reject(err);
       });
   });
@@ -112,7 +147,7 @@ export const authenticateWithPi = async () => {
  * Cette fonction est appelee automatiquement par le SDK Pi quand un paiement
  * est reste en suspend. Elle tente de le completer ou de l'annuler via notre API.
  */
-const onIncompletePaymentFound = async (payment: any) => {
+const onIncompletePaymentFound = async (payment: PiPaymentData) => {
   console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
   
   try {

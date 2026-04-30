@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ sent, failed, total });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Erreur inconnue";
+    const msg = error instanceof Error ? getErrorMessage(error) : "Erreur inconnue";
     console.error("SEND_EMAIL_ERROR:", error);
     return NextResponse.json({ error: "Echec envoi", details: msg }, { status: 500 });
   }
@@ -136,7 +137,7 @@ export async function GET(req: NextRequest) {
       counts: { all: totalAll, USER: totalUser, AGENT: totalAgent, MERCHANT: totalMerchant, ADMIN: totalAdmin },
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Erreur inconnue";
+    const msg = error instanceof Error ? getErrorMessage(error) : "Erreur inconnue";
     console.error("FETCH_USERS_ERROR:", error);
     return NextResponse.json({ error: "Echec", details: msg }, { status: 500 });
   }

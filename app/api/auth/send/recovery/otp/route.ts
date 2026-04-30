@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomInt } from "crypto";
@@ -53,8 +54,8 @@ export async function POST(req: Request) {
       targetEmail: user.email // On informe le frontend de l'email utilisé
     });
 
-  } catch (error: any) {
-    console.error("ERREUR:", error.message);
+  } catch (error: unknown) {
+    console.error("ERREUR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

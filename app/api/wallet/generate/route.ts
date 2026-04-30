@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 // Suppression de l'import qrcode pour éliminer la dépendance
 import { prisma } from "@/lib/prisma";
@@ -46,8 +47,8 @@ export async function POST(request: Request) {
       paymentUrl // C'est cette URL que tu passeras à ton composant QRCodeSVG au front-end
     });
 
-  } catch (error: any) {
-    console.error("GENERATE_QR_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("GENERATE_QR_ERROR:", getErrorMessage(error));
     return NextResponse.json(
       { error: "Erreur lors de la génération du dépôt" },
       { status: 500 }

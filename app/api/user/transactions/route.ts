@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -83,8 +84,8 @@ export async function GET() {
       chart: last7Days.map(d => ({ name: d.name, amount: d.total }))
     });
 
-  } catch (error: any) {
-    console.error("API_TRANSACTIONS_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("API_TRANSACTIONS_ERROR:", getErrorMessage(error));
     return NextResponse.json({
       error: "Erreur serveur",
       success: false

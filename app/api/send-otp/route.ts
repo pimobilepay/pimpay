@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import Twilio from "twilio";
 
@@ -18,8 +19,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Twilio error:", error);
-    return NextResponse.json({ success: false, error: error.message });
+    return NextResponse.json({ success: false, error: getErrorMessage(error) });
   }
 }

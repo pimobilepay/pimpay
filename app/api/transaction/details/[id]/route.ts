@@ -114,7 +114,7 @@ export async function GET(
     };
 
     return NextResponse.json({ success: true, transaction: formattedTransaction });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("TRANSACTION_DETAILS_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -219,14 +220,14 @@ export async function POST(req: Request) {
         ? "Synchronisation reussie"
         : "Solde deja a jour",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[SIDRA_SYNC_FATAL]:", error);
     return NextResponse.json(
       {
         error: "Erreur lors de la synchronisation",
         details:
           process.env.NODE_ENV === "development"
-            ? error.message
+            ? getErrorMessage(error)
             : undefined,
       },
       { status: 500 }

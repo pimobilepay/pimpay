@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -50,8 +51,8 @@ export async function GET() {
       stakings: formattedStakings
     });
 
-  } catch (error: any) {
-    console.error("❌ [STAKING_FETCH_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [STAKING_FETCH_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Impossible de charger les stakes" }, { status: 500 });
   }
 }
@@ -210,15 +211,15 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("❌ [STAKING_CREATE_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [STAKING_CREATE_ERROR]:", getErrorMessage(error));
     try {
       await logSystemEvent({
         level: "ERROR",
         source: "STAKING",
         action: "STAKE_ERROR",
-        message: `Erreur création staking: ${error.message}`,
-        details: { error: error.message, stack: error.stack?.substring(0, 500) }
+        message: `Erreur création staking: ${getErrorMessage(error)}`,
+        details: { error: getErrorMessage(error), stack: error.stack?.substring(0, 500) }
       });
     } catch {
       // Ignore logging errors

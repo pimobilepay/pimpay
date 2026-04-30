@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
       if (transaction.toWalletId) {
         await tx.wallet.update({
           where: { id: transaction.toWalletId },
-          data: { balance: { increment: transaction.netAmount } }
+          data: { balance: { increment: transaction.netAmount ?? 0 } }
         });
       } else {
         // Fallback : créer le wallet si nécessaire
@@ -234,7 +235,7 @@ export async function POST(req: NextRequest) {
         transaction.id,
         transaction.reference ?? ''
       ).catch((err) => {
-        console.error("[TRANSACTION_CONFIRM] Fee conversion error (non-blocking):", err.message);
+        console.error("[TRANSACTION_CONFIRM] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -244,10 +245,10 @@ export async function POST(req: NextRequest) {
       transaction: result
     });
 
-  } catch (error: any) {
-    console.error("Transaction Confirm Error:", error.message);
+  } catch (error: unknown) {
+    console.error("Transaction Confirm Error:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur lors de la confirmation" },
+      { error: getErrorMessage(error) || "Erreur lors de la confirmation" },
       { status: 500 }
     );
   }

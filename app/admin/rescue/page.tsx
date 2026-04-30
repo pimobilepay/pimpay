@@ -1,4 +1,5 @@
 "use client";
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ export default function RescuePage() {
         toast.error("Erreur lors du traitement");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
       setStatus(`ERREUR RESEAU: ${message}`);
       toast.error("Erreur reseau");
     } finally {
@@ -81,7 +82,7 @@ export default function RescuePage() {
         toast.error("Echec de l'annulation");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
       setStatus(`ERREUR RESEAU: ${message}`);
       toast.error("Erreur reseau");
     } finally {

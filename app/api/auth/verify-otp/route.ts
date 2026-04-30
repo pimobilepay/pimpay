@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -52,8 +53,8 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("VERIFY_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("VERIFY_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

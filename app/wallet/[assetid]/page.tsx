@@ -1074,7 +1074,7 @@ export default function AssetDetailPage() {
                         toast.error(result.error || "Erreur lors de l'envoi"); 
                         setSendStatus("idle"); 
                       }
-                    } catch (e: any) { 
+                    } catch (e: unknown) { 
                       console.error("Send error:", e);
                       toast.error(e?.message || "Erreur réseau"); 
                       setSendStatus("idle"); 

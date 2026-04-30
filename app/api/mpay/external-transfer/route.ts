@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { prisma } from '@/lib/prisma';
@@ -165,7 +166,7 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
       message: `Compte destinataire verifie: ${toAddress.slice(0, 8)}...`,
       requestId,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e?.response?.status === 404) {
       await logSystemEvent({
         level: "ERROR",
@@ -540,8 +541,8 @@ export async function POST(req: NextRequest) {
     } else {
       throw new Error("Mode de transfert non disponible avec la configuration actuelle.");
     }
-  } catch (err: any) {
-    transferError = err.message;
+  } catch (err: unknown) {
+    transferError = getErrorMessage(err);
     
     // Log detaille de l'erreur
     await logApiError(
@@ -555,9 +556,9 @@ export async function POST(req: NextRequest) {
       level: "ERROR",
       source: "MPAY_EXTERNAL_TRANSFER",
       action: "TRANSFER_ERROR",
-      message: `Echec du transfert: ${err.message}`,
+      message: `Echec du transfert: ${getErrorMessage(err)}`,
       details: {
-        error: err.message,
+        error: getErrorMessage(err),
         name: err.name,
         stack: err.stack?.split('\n').slice(0, 5),
         response: err.response?.data,

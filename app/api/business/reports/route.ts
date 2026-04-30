@@ -239,7 +239,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_REPORTS_GET_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -342,7 +342,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_REPORT_GENERATE_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

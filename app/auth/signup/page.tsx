@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -257,7 +258,7 @@ export default function SignupPage() {
       setStep(2); // Go to MFA selection
       toast.success(t("extra.accountCreated"));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
       toast.error(message);
     } finally {
       setLoading(false);
@@ -291,7 +292,7 @@ export default function SignupPage() {
         setQrCodeUrl(data.qrCodeUrl);
         setStep(3); // Go to TOTP setup
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Erreur inconnue";
+        const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
         toast.error(message);
         setSelectedMfaMethod(null);
       } finally {
@@ -339,7 +340,7 @@ export default function SignupPage() {
     } catch (err: unknown) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
       setError(message);
       toast.error(message);
       setPin("");
@@ -374,7 +375,7 @@ export default function SignupPage() {
     } catch (err: unknown) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      const message = err instanceof Error ? getErrorMessage(err) : "Erreur inconnue";
       setError(message);
       toast.error(message);
       setTotpCode("");

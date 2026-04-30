@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
@@ -29,11 +30,11 @@ export async function GET() {
     }
 
     return NextResponse.json(config);
-  } catch (error: any) {
-    console.error("CONFIG_GET_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("CONFIG_GET_ERROR:", getErrorMessage(error));
     return NextResponse.json({ 
       error: "Erreur de configuration",
-      details: error.message 
+      details: getErrorMessage(error) 
     }, { status: 500 });
   }
 }
@@ -57,8 +58,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, config: updatedConfig });
-  } catch (error: any) {
-    console.error("CONFIG_UPDATE_ERROR:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("CONFIG_UPDATE_ERROR:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

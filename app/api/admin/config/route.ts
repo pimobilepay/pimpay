@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     // FIX: pas de stack dans la réponse
-    const message = error instanceof Error ? error.message : "Erreur interne";
+    const message = error instanceof Error ? getErrorMessage(error) : "Erreur interne";
     console.error("GET_CONFIG_ERROR:", message);
     return NextResponse.json(FALLBACK_CONFIG);
   }
@@ -254,7 +255,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(updatedConfig);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erreur interne";
+    const message = error instanceof Error ? getErrorMessage(error) : "Erreur interne";
     console.error("ADMIN_POST_ERROR:", message);
     // FIX: pas de stack dans la réponse
     return NextResponse.json(

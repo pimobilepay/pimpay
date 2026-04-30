@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
@@ -70,8 +71,8 @@ export async function GET(req: NextRequest) {
       backups,
       dbProvider: "PostgreSQL (Neon)",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("DB_INFO_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur", details: getErrorMessage(error) }, { status: 500 });
   }
 }

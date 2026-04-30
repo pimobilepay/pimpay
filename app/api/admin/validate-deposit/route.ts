@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";                
 import { adminAuth } from "@/lib/adminAuth"; // Utilisation de ton système admin habituel
@@ -75,8 +76,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: result });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("VALIDATE_DEPOSIT_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

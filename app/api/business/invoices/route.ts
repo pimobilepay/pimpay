@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_INVOICES_GET_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       }
     }, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_INVOICES_POST_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -222,7 +222,7 @@ export async function PUT(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_INVOICES_PUT_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
@@ -275,7 +275,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Facture supprimee" });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("BUSINESS_INVOICES_DELETE_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

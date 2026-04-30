@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 export const runtime = "nodejs";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -62,8 +63,8 @@ export async function DELETE(
       count: deletedSessions.count
     });
     
-  } catch (error: any) {
-    console.error("ADMIN_DISCONNECT_USER_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("ADMIN_DISCONNECT_USER_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -151,8 +152,8 @@ export async function GET(
       securityLogs,
     });
     
-  } catch (error: any) {
-    console.error("ADMIN_GET_SESSIONS_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("ADMIN_GET_SESSIONS_ERROR:", getErrorMessage(error));
     // Si le token est invalide ou expiré
     if (error.code === 'ERR_JWT_EXPIRED') {
         return NextResponse.json({ error: "Session expirée" }, { status: 401 });

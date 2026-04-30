@@ -79,7 +79,7 @@ export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
     }, { maxWait: 10000, timeout: 30000 });
 
     return { success: true, card: result };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("CRITICAL_CARD_PURCHASE_ERROR:", error);
     return { error: "Erreur technique lors du minage de la carte." };
   }

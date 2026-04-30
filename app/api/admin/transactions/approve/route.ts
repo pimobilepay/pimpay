@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth"; // Utilisation de adminAuth pour la cohérence
@@ -58,16 +59,16 @@ export async function POST(req: NextRequest) {
         result.id,
         result.reference
       ).catch((err) => {
-        console.error("[ADMIN_APPROVE] Fee conversion error (non-blocking):", err.message);
+        console.error("[ADMIN_APPROVE] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
     return NextResponse.json({ success: true, data: result });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("APPROVE_TRANSACTION_ERROR:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors de la validation" },
+      { error: getErrorMessage(error) || "Erreur lors de la validation" },
       { status: 500 }
     );
   }

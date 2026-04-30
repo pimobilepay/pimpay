@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface ZeroBounceResult {
@@ -138,7 +139,7 @@ export async function verifyEmail(email: string): Promise<ZeroBounceResult> {
 
     return result;
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? getErrorMessage(error) : "Unknown error";
     const isAborted = error instanceof Error && error.name === "AbortError";
 
     console.error("[ZeroBounce] Error:", isAborted ? "Request timed out" : errorMessage);

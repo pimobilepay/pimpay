@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -410,7 +411,7 @@ export async function GET() {
     });
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? getErrorMessage(error) : "Unknown error";
     console.error("BALANCE_FETCH_ERROR:", message);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
     console.error("RESET_PASSWORD_ERROR — full error:", error);
 
     if (error instanceof Error) {
-      console.error("→ message:", error.message);
+      console.error("→ message:", getErrorMessage(error));
       console.error("→ stack:", error.stack);
       // Prisma errors ont aussi error.code et error.meta
       const prismaErr = error as Error & { code?: string; meta?: unknown };

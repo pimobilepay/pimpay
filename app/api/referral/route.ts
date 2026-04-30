@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -110,8 +111,8 @@ export async function GET() {
       totalRewards,
       hasBeenReferred: !!user.referredById,
     });
-  } catch (error: any) {
-    console.error("REFERRAL_GET_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("REFERRAL_GET_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -268,7 +269,7 @@ export async function grantReferrerBonusIfEligible(userId: string) {
       }
     }
     
-    return { granted: true, referrerBonus, welcomeBonus: referralWelcomeBonus };
+    return { granted: true, referrerBonus: referralBonus, welcomeBonus: referralWelcomeBonus };
   } catch (error) {
     console.error("GRANT_REFERRER_BONUS_ERROR:", error);
     return { granted: false, reason: "Error" };
@@ -342,8 +343,8 @@ export async function POST(req: Request) {
       referrerName: referrer.name || referrer.username,
       bonusesPending: !eligibility.eligible,
     });
-  } catch (error: any) {
-    console.error("REFERRAL_POST_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("REFERRAL_POST_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

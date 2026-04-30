@@ -45,7 +45,7 @@ export async function PUT(req: Request) {
     });
 
     return NextResponse.json({ user: updatedUser });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("PUT_USER_ERROR:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

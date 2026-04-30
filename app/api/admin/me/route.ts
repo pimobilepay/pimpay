@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth";
@@ -38,8 +39,8 @@ export async function GET() {
     // 6. RÉPONSE
     return NextResponse.json({ admin });
 
-  } catch (error: any) {
-    console.error("ADMIN_ME_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("ADMIN_ME_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Une erreur est survenue" }, { status: 500 });
   }
 }

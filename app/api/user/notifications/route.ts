@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -24,8 +25,8 @@ export async function GET() {
 
     return NextResponse.json(notifications);
 
-  } catch (error: any) {
-    console.error("GET_NOTIFICATIONS_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("GET_NOTIFICATIONS_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -44,7 +45,7 @@ export async function PUT() {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

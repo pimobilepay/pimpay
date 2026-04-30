@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -24,9 +25,9 @@ export async function GET(
     }
 
     return NextResponse.json(ticket);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PIMPAY_TICKET_FETCH_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur", message: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur", message: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -74,9 +75,9 @@ export async function POST(
     }
 
     return NextResponse.json({ success: true, message }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PIMPAY_REPLY_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur", message: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur", message: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -101,8 +102,8 @@ export async function PATCH(
     });
 
     return NextResponse.json({ success: true, ticket });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PIMPAY_TICKET_UPDATE_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur", message: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur", message: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -74,10 +75,10 @@ export async function POST(req: Request) {
       message: "Adresse USDT (TRC20) générée avec succès"
     });
 
-  } catch (error: any) {
-    console.error("❌ [USDT_GEN_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [USDT_GEN_ERROR]:", getErrorMessage(error));
     return NextResponse.json(
-      { error: "Échec technique de génération USDT", details: error.message },
+      { error: "Échec technique de génération USDT", details: getErrorMessage(error) },
       { status: 500 }
     );
   }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth"; // Assure-toi que ton helper auth retourne bien l'ID
 import { prisma } from "@/lib/prisma";
@@ -89,9 +90,9 @@ export async function POST() {
     }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({ address, symbol: "XRP" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[XRP_GEN_ERROR]:", error);
-    return NextResponse.json({ error: "Échec de génération", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Échec de génération", details: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -148,7 +149,7 @@ export async function GET() {
       address: user.xrpAddress 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[XRP_BALANCE_ERROR]:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

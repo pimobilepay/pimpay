@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest) {
         transactionResult.id,
         transactionResult.reference
       ).catch((err) => {
-        console.error("[v0] [TRANSFER] Fee conversion error (non-blocking):", err.message);
+        console.error("[v0] [TRANSFER] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -192,8 +193,8 @@ export async function POST(req: NextRequest) {
       newBalance: senderWallet.balance - amountNum
     });
 
-  } catch (error: any) {
-    console.error("[v0] [TRANSFER] ERREUR CRITIQUE:", error.message);
-    return NextResponse.json({ error: error.message || "Echec du transfert lors du traitement" }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[v0] [TRANSFER] ERREUR CRITIQUE:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) || "Echec du transfert lors du traitement" }, { status: 500 });
   }
 }

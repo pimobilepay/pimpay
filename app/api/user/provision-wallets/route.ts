@@ -102,7 +102,7 @@ export async function POST() {
       ]
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[PROVISIONING_ERROR]:", error);
     return NextResponse.json({ error: "Erreur lors de la création des wallets" }, { status: 500 });
   }

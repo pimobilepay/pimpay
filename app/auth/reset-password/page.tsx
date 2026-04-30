@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useState, useEffect, Suspense } from "react";
 import { ArrowLeft, Eye, EyeOff, Shield, Lock, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -69,9 +70,9 @@ function ResetPasswordContent() {
         router.push("/auth/login");
       }, 3000);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Diagnostic précis pour aider l'utilisateur
-      toast.error(err.message || t("extra.pinConnectionError"));
+      toast.error(getErrorMessage(err) || t("extra.pinConnectionError"));
       console.error("RESET_SUBMIT_ERROR:", err);
     } finally {
       setLoading(false);

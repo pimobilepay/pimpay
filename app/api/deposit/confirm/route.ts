@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
         result.completedTx.id,
         result.completedTx.reference
       ).catch((err) => {
-        console.error("[DEPOSIT_CONFIRM] Fee conversion error (non-blocking):", err.message);
+        console.error("[DEPOSIT_CONFIRM] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -110,11 +111,11 @@ export async function POST(req: Request) {
       balance: result.wallet.balance 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[CONFIRM_ERROR]:", error);
     return NextResponse.json({
       error: "Erreur lors de la validation",
-      message: error.message
+      message: getErrorMessage(error)
     }, { status: 500 });
   }
 }

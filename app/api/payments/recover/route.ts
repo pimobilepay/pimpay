@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -60,8 +61,8 @@ export async function GET() {
       details: results
     });
 
-  } catch (error: any) {
-    console.error("❌ Recovery Error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("❌ Recovery Error:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

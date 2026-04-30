@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -222,10 +223,10 @@ export async function POST(request: Request) {
       ...result,
     }, { headers: CORS_HEADERS });
 
-  } catch (error: any) {
-    console.error("[SWAP_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("[SWAP_ERROR]:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur de traitement" },
+      { error: getErrorMessage(error) || "Erreur de traitement" },
       { status: 400, headers: CORS_HEADERS }
     );
   }

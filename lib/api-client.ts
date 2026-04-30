@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -500,7 +501,7 @@ apiClient.interceptors.response.use(
       details: error.response?.data?.details,
       message:
         error.response?.data?.message ??
-        error.message ??
+        getErrorMessage(error) ??
         'An unexpected error occurred',
       status: error.response?.status ?? 0,
     };

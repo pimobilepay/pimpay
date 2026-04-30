@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -70,10 +71,10 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
-    console.error("CRITICAL_WALLET_API_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("CRITICAL_WALLET_API_ERROR:", getErrorMessage(error));
     return NextResponse.json(
-      { error: "Erreur technique", details: error.message },
+      { error: "Erreur technique", details: getErrorMessage(error) },
       { status: 500 }
     );
   }

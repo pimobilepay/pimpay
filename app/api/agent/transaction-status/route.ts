@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
@@ -107,10 +108,10 @@ export async function GET(req: NextRequest) {
       customer: transaction.toUser?.name || transaction.toUser?.username
     });
 
-  } catch (error: any) {
-    console.error("Transaction Status Error:", error.message);
+  } catch (error: unknown) {
+    console.error("Transaction Status Error:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur" },
+      { error: getErrorMessage(error) || "Erreur" },
       { status: 500 }
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -64,7 +65,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       window.__PI_SDK_INITIALIZING__ = false;
       if (e?.message?.includes("already")) {
         window.__PI_SDK_READY__ = true;
@@ -74,7 +75,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
     }
   }, []);
 
-  const handleIncompletePayment = useCallback(async (payment: any) => {
+  const handleIncompletePayment = useCallback(async (payment: { identifier: string; transaction?: { txid: string } }) => {
     console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     try {
       const res = await fetch("/api/payments/incomplete", {
@@ -203,7 +204,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
 
           onError: (error: Error) => {
             toast.dismiss(loadingToast);
-            console.error("[PimPay] Erreur SDK:", error.message);
+            console.error("[PimPay] Erreur SDK:", getErrorMessage(error));
             const msg = "Erreur reseau Pi. Veuillez reessayer.";
             toast.error(msg);
             onError?.(msg);
@@ -212,19 +213,19 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
           },
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.dismiss(loadingToast);
       console.error("[PimPay] Erreur critique:", err);
       paymentInProgressRef.current = false;
 
       let errorMsg = "Action impossible pour le moment.";
-      if (err.message?.includes("User cancelled") || err.message?.includes("cancelled")) {
+      if (getErrorMessage(err)?.includes("User cancelled") || getErrorMessage(err)?.includes("cancelled")) {
         errorMsg = "Paiement annule.";
-      } else if (err.message?.includes("disallowed") || err.message?.includes("scope")) {
+      } else if (getErrorMessage(err)?.includes("disallowed") || getErrorMessage(err)?.includes("scope")) {
         errorMsg = "Veuillez autoriser l'acces aux paiements.";
-      } else if (err.message?.includes("timed out") || err.message?.includes("timeout")) {
+      } else if (getErrorMessage(err)?.includes("timed out") || getErrorMessage(err)?.includes("timeout")) {
         errorMsg = "Connexion expiree. Veuillez reessayer.";
-      } else if (err.message?.includes("not initialized") || err.message?.includes("init")) {
+      } else if (getErrorMessage(err)?.includes("not initialized") || getErrorMessage(err)?.includes("init")) {
         errorMsg = "SDK Pi non initialise. Rechargez la page.";
       }
 

@@ -5,13 +5,19 @@ let pusherClientInstance: PusherClient | null = null;
 
 export const getPusherClient = (): PusherClient => {
   if (!pusherClientInstance) {
-    pusherClientInstance = new PusherClient(
-      process.env.NEXT_PUBLIC_PUSHER_KEY!,
-      {
-        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-        forceTLS: true,
-      }
-    );
+    const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
+    const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+
+    if (!pusherKey || !pusherCluster) {
+      throw new Error(
+        "Variables d'environnement Pusher manquantes: NEXT_PUBLIC_PUSHER_KEY et NEXT_PUBLIC_PUSHER_CLUSTER sont requis"
+      );
+    }
+
+    pusherClientInstance = new PusherClient(pusherKey, {
+      cluster: pusherCluster,
+      forceTLS: true,
+    });
   }
   return pusherClientInstance;
 };

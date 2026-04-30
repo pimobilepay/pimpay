@@ -43,7 +43,7 @@ export function PiInitializer() {
           window.__PI_SDK_INITIALIZING__ = false;
           console.log("[PimPay] SDK Pi 2.0 initialise avec succes");
           return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
           window.__PI_SDK_INITIALIZING__ = false;
           // Si l'erreur est "already initialized", on considere que c'est OK
           if (error?.message?.includes("already initialized") || error?.message?.includes("already")) {

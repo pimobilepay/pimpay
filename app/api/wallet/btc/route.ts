@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -80,8 +81,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ address: result.depositMemo, symbol: "BTC" });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [BTC_GEN_ERROR]:", error);
-    return NextResponse.json({ error: "Échec", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Échec", details: getErrorMessage(error) }, { status: 500 });
   }
 }

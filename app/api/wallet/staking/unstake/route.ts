@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -156,15 +157,15 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("❌ [UNSTAKE_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [UNSTAKE_ERROR]:", getErrorMessage(error));
     try {
       await logSystemEvent({
         level: "ERROR",
         source: "STAKING",
         action: "UNSTAKE_ERROR",
-        message: `Erreur unstake: ${error.message}`,
-        details: { error: error.message }
+        message: `Erreur unstake: ${getErrorMessage(error)}`,
+        details: { error: getErrorMessage(error) }
       });
     } catch {
       // Ignore logging errors

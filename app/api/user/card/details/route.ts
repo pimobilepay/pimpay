@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth'; // Utilise ton helper d'authentification standard
@@ -45,8 +46,8 @@ export async function GET(req: NextRequest) {
     // 3. Retourner les détails complets (incluant isFrozen, dailyLimit, etc.)
     return NextResponse.json(card);
 
-  } catch (error: any) {
-    console.error("CARD_DETAILS_FETCH_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("CARD_DETAILS_FETCH_ERROR:", getErrorMessage(error));
     return NextResponse.json(
       { error: "Erreur serveur lors de la récupération de la carte" }, 
       { status: 500 }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
@@ -61,11 +62,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, ticketId: ticket.id }, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PIMPAY_API_ERROR:", error);
     // On renvoie le message d'erreur précis pour le débogage
     return NextResponse.json(
-      { error: "Erreur interne du protocole", message: error.message },
+      { error: "Erreur interne du protocole", message: getErrorMessage(error) },
       { status: 500 }
     );
   }
@@ -95,7 +96,7 @@ export async function GET() {
     };
 
     return NextResponse.json({ tickets, statistics });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Fetch error", message: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: "Fetch error", message: getErrorMessage(error) }, { status: 500 });
   }
 }

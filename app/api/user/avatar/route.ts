@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '@/lib/prisma';
@@ -50,8 +51,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, avatar: updatedUser.avatar });
-  } catch (error: any) {
-    console.error("[AVATAR_UPLOAD_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("[AVATAR_UPLOAD_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur lors du téléchargement" }, { status: 500 });
   }
 }

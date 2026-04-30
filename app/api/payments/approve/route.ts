@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     if (!approveRes.ok) {
       const err = await approveRes.json();
       // Si c'est déjà approuvé, on ne bloque pas la logique Prisma
-      if (err.message !== "Payment already approved") {
+      if (getErrorMessage(err) !== "Payment already approved") {
         console.error("❌ Erreur Pi Approve:", err);
         return NextResponse.json({ error: "Pi Network refuse l'approbation" }, { status: 403 });
       }
@@ -195,8 +196,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, transaction: result });
 
-  } catch (error: any) {
-    console.error("❌ [APPROVE_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur serveur" }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("❌ [APPROVE_ERROR]:", getErrorMessage(error));
+    return NextResponse.json({ error: getErrorMessage(error) || "Erreur serveur" }, { status: 500 });
   }
 }

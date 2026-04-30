@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { requireAdmin } from "@/lib/requireAdmin";
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
@@ -9,11 +10,11 @@ async function executeWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       const isRetryable =
         error.code === 'P2034' || // Serialization failure
         error.code === 'P2024' || // Transaction timeout / not found
-        (error.message && error.message.includes('Transaction not found'));
+        (getErrorMessage(error) && getErrorMessage(error).includes('Transaction not found'));
 
       if (isRetryable && attempt < retries) {
         // Attente exponentielle avant de retenter
@@ -157,16 +158,16 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, status: result.status });
 
-  } catch (error: any) {
-    console.error("PIMPAY_ERROR admin/transactions/update:", error.message || error);
+  } catch (error: unknown) {
+    console.error("PIMPAY_ERROR admin/transactions/update:", getErrorMessage(error) || error);
 
-    if (error.message === 'ALREADY_PROCESSED') {
+    if (getErrorMessage(error) === 'ALREADY_PROCESSED') {
       return NextResponse.json({
         error: "Cette transaction a deja ete traitee. Rafraichissez la page."
       }, { status: 409 });
     }
 
-    if (error.code === 'P2024' || (error.message && error.message.includes('Transaction not found'))) {
+    if (error.code === 'P2024' || (getErrorMessage(error) && getErrorMessage(error).includes('Transaction not found'))) {
       return NextResponse.json({
         error: "Connexion perdue avec la base de donnees. Veuillez reessayer."
       }, { status: 504 });

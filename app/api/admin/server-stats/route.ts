@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
       },
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("SERVER_STATS_ERROR:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

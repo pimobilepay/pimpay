@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdminFromRequest } from "@/lib/requireAdmin";
@@ -141,8 +142,8 @@ export async function GET(req: NextRequest) {
       page,
       totalPages: Math.ceil(total / limit),
     });
-  } catch (error: any) {
-    console.error("[API_ADMIN_HISTORY_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("[API_ADMIN_HISTORY_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Impossible de charger l'historique" }, { status: 500 });
   }
 }

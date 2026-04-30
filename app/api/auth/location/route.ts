@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("LOCATION_UPDATE_ERROR:", error);
     // Gestion des erreurs de token (expiré ou invalide)
     if (error.code === 'ERR_JWT_EXPIRED' || error.code === 'ERR_JWS_INVALID') {

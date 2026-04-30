@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
@@ -51,8 +52,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, card: newCard });
 
-  } catch (error: any) {
-    console.error("ERREUR_CREATION_CARTE:", error.message);
+  } catch (error: unknown) {
+    console.error("ERREUR_CREATION_CARTE:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur lors de la création de la carte" }, { status: 500 });
   }
 }

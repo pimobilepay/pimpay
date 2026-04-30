@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
         result.transaction.id,
         result.transaction.reference
       ).catch((err) => {
-        console.error("[WITHDRAW] Fee conversion error (non-blocking):", err.message);
+        console.error("[WITHDRAW] Fee conversion error (non-blocking):", getErrorMessage(err));
       });
     }
 
@@ -134,10 +135,10 @@ export async function POST(req: NextRequest) {
       newBalance: result.newBalance
     });
 
-  } catch (error: any) {
-    console.error("WITHDRAW_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("WITHDRAW_ERROR:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Erreur lors du traitement du retrait" },
+      { error: getErrorMessage(error) || "Erreur lors du traitement du retrait" },
       { status: 400 }
     );
   }

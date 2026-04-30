@@ -7,7 +7,7 @@ interface LogEntry {
   source: string;
   action: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   userId?: string;
   requestId?: string;
   duration?: number;
@@ -90,23 +90,23 @@ class SystemLogger {
   }
 
   // Convenience methods
-  async debug(source: string, action: string, message: string, details?: any): Promise<void> {
+  async debug(source: string, action: string, message: string, details?: Record<string, unknown>): Promise<void> {
     await this.log({ level: "DEBUG", source, action, message, details });
   }
 
-  async info(source: string, action: string, message: string, details?: any): Promise<void> {
+  async info(source: string, action: string, message: string, details?: Record<string, unknown>): Promise<void> {
     await this.log({ level: "INFO", source, action, message, details });
   }
 
-  async warn(source: string, action: string, message: string, details?: any): Promise<void> {
+  async warn(source: string, action: string, message: string, details?: Record<string, unknown>): Promise<void> {
     await this.log({ level: "WARN", source, action, message, details });
   }
 
-  async error(source: string, action: string, message: string, details?: any): Promise<void> {
+  async error(source: string, action: string, message: string, details?: Record<string, unknown>): Promise<void> {
     await this.log({ level: "ERROR", source, action, message, details });
   }
 
-  async fatal(source: string, action: string, message: string, details?: any): Promise<void> {
+  async fatal(source: string, action: string, message: string, details?: Record<string, unknown>): Promise<void> {
     await this.log({ level: "FATAL", source, action, message, details });
     // Flush immediately for fatal errors
     await this.flush();
@@ -149,7 +149,7 @@ export async function logSystemEvent(entry: LogEntry): Promise<void> {
 export async function logApiError(
   source: string,
   action: string,
-  error: any,
+  error: unknown,
   context?: { userId?: string; requestId?: string; ip?: string }
 ): Promise<void> {
   await logSystemEvent({

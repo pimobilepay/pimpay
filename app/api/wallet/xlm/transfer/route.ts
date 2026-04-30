@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -80,8 +81,8 @@ export async function POST(req: Request) {
       transaction: result
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[PI_TRANSFER_API_ERROR]:", error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 400 });
   }
 }

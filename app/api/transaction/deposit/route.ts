@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -112,8 +113,8 @@ export async function POST(req: NextRequest) {
       status: deposit.status
     });
 
-  } catch (error: any) {
-    console.error("DEPOSIT_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("DEPOSIT_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur lors du traitement du dépôt" }, { status: 500 });
   }
 }

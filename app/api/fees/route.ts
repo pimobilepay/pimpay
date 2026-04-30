@@ -1,6 +1,7 @@
 // app/api/fees/route.ts
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { getFeeConfig, getFeeRate, type FeeType } from "@/lib/fees";
 import { prisma } from "@/lib/prisma";
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? getErrorMessage(error) : String(error);
     console.error("GET /api/fees error:", message);
     return NextResponse.json(
       { ok: false, error: "Impossible de récupérer les frais." },

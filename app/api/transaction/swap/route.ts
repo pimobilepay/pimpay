@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -110,8 +111,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, reference: result.reference }, { headers: CORS_HEADERS });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400, headers: CORS_HEADERS });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 400, headers: CORS_HEADERS });
   }
 }
 

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUserId } from "@/lib/auth";
@@ -53,8 +54,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(transaction);
-  } catch (error: any) {
-    console.error("❌ POST_TX_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ POST_TX_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur lors de la création" }, { status: 500 });
   }
 }
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
       // On s'assure que la méthode est bien renvoyée pour le Summary
       method: transaction.currency === "PI" ? "Pi Network" : (transaction.description?.includes('via') ? transaction.description.split('via ')[1] : "Mobile Money")
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -236,8 +237,8 @@ export default function WithdrawPage() {
         });
         router.push(`/withdraw/success?${params.toString()}`);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Erreur lors du retrait");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Erreur lors du retrait");
     } finally {
       setIsSubmitting(false);
     }

@@ -15,7 +15,56 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
-export default function HistoryClient({ initialTransactions, stats, currentUserId }: any) {
+/** Types locaux pour l'historique des transactions */
+interface TransactionUser {
+  id?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+}
+
+interface RawTransaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string | Date;
+  fromUserId?: string;
+  toUserId?: string;
+  fromUser?: TransactionUser;
+  toUser?: TransactionUser;
+  description?: string;
+  reference?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface FormattedTransaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  date: string;
+  from: string;
+  to: string;
+  description?: string;
+  reference?: string;
+  rawDate?: string;
+}
+
+interface HistoryStats {
+  total?: number;
+  income?: number;
+  expense?: number;
+  count?: number;
+  [key: string]: unknown;
+}
+
+
+
+export default function HistoryClient({ initialTransactions, stats, currentUserId }: { initialTransactions: RawTransaction[]; stats: HistoryStats; currentUserId: string }) {
   const router = useRouter();
   const [referenceSearch, setReferenceSearch] = useState("");
   const [activeService, setActiveService] = useState("all");
@@ -23,14 +72,14 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   const [endDate, setEndDate] = useState(new Date());
 
   // Résoudre le nom affiché d'un user
-  const resolveUserName = (user: any): string | null => {
+  const resolveUserName = (user: TransactionUser | null | undefined): string | null => {
     if (!user) return null;
     const full = `${user.firstName || ""} ${user.lastName || ""}`.trim();
     return full || user.username || user.name || user.email || null;
   };
 
   // Inférer l'expéditeur ou le destinataire depuis le contexte de la transaction
-  const inferPartyName = (tx: any, role: "from" | "to"): string => {
+  const inferPartyName = (tx: RawTransaction, role: "from" | "to"): string => {
     const purpose     = (tx.purpose     || "").toLowerCase();
     const description = (tx.description || "").toLowerCase();
     const reference   = (tx.reference   || "").toLowerCase();
@@ -113,7 +162,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
   // Mapping des transactions
   const formattedTransactions = useMemo(() => {
-    return initialTransactions.map((tx: any) => {
+    return initialTransactions.map((tx: RawTransaction) => {
       const isIncome = tx.toUserId === currentUserId;
 
       let type = "transfer";
@@ -179,7 +228,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   }, [initialTransactions, currentUserId]);
 
   const filteredTransactions = useMemo(() => {
-    return formattedTransactions.filter((tx: any) => {
+    return formattedTransactions.filter((tx: FormattedTransaction) => {
       const matchesService = activeService === "all" || tx.type === activeService;
       const matchesReference =
         !referenceSearch ||
@@ -187,7 +236,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           tx.reference.toLowerCase().includes(referenceSearch.toLowerCase()));
 
       const txDate = new Date(
-        initialTransactions.find((t: any) => t.id === tx.id)?.createdAt
+        initialTransactions.find((t: RawTransaction) => t.id === tx.id)?.createdAt
       );
       const matchesDate =
         (!startDate || txDate >= startDate) &&
@@ -215,7 +264,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
     const dateRange = `Période : ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} → ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
     doc.text(dateRange, pageWidth / 2, 20, { align: "center" });
 
-    const tableData = filteredTransactions.map((tx: any) => [
+    const tableData = filteredTransactions.map((tx: FormattedTransaction) => [
       tx.reference || "N/A",
       tx.type === "deposit" ? "Dépôt" : tx.type === "withdraw" ? "Retrait" : tx.type === "transfer" ? "Transfert" : "Recharge",
       tx.fromName,
@@ -381,7 +430,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           </div>
 
           {filteredTransactions.length > 0 ? (
-            filteredTransactions.map((tx: any) => (
+            filteredTransactions.map((tx: FormattedTransaction) => (
               <TransactionItem
                 key={tx.id}
                 tx={tx}
@@ -407,7 +456,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 }
 
 // --- STAT CARD ---
-function StatMiniCard({ label, value, icon, color, bg }: any) {
+function StatMiniCard({ label, value, icon, color, bg }: { label: string; value: string | number; icon: React.ReactNode; color: string; bg: string }) {
   return (
     <div className="relative overflow-hidden bg-slate-900/40 border border-white/5 p-5 rounded-[2rem] h-28 flex flex-col justify-center">
       <div className={`absolute inset-0 bg-gradient-to-br ${bg} to-transparent opacity-30`} />
@@ -423,10 +472,10 @@ function StatMiniCard({ label, value, icon, color, bg }: any) {
 }
 
 // --- TRANSACTION CARD ---
-function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
+function TransactionItem({ tx, onPress }: { tx: FormattedTransaction; onPress: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const icons: any = {
+  const icons: Record<string, React.ReactNode> = {
     transfer: <Send           size={18} className="text-blue-400" />,
     deposit:  <Download       size={18} className="text-green-500" />,
     withdraw: <ArrowUpRight   size={18} className="text-red-400" />,
@@ -437,13 +486,13 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
     outgoing: <ArrowUpRight   size={18} className="text-rose-400" />,
   };
 
-  const statusStyles: any = {
+  const statusStyles: Record<string, string> = {
     success: "bg-green-500/10 text-green-400 border-green-500/20",
     pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
     failed:  "bg-red-500/10  text-red-400  border-red-500/20",
   };
 
-  const currencyBadge: any = {
+  const currencyBadge: Record<string, string> = {
     PI:  "bg-amber-500/20  text-amber-400",
     SDA: "bg-emerald-500/20 text-emerald-400",
     BTC: "bg-orange-500/20 text-orange-400",

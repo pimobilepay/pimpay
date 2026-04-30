@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -73,8 +74,8 @@ export async function POST(req: Request) {
       message: "Mot de passe mis à jour et autres sessions révoquées."
     });
 
-  } catch (err: any) {
-    console.error("PASSWORD_CHANGE_ERROR:", err.message);
+  } catch (err: unknown) {
+    console.error("PASSWORD_CHANGE_ERROR:", getErrorMessage(err));
     return NextResponse.json({ error: "Une erreur est survenue lors de la mise à jour" }, { status: 500 });
   }
 }

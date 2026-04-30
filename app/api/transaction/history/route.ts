@@ -128,7 +128,7 @@ export async function GET() {
     // Retourne les transactions trouvées
     return NextResponse.json(formattedTransactions);
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("HISTORY_ERROR:", error);
     return NextResponse.json(
       { error: "Erreur lors du chargement de l'historique" }, 

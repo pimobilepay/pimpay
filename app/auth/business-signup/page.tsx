@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -205,8 +206,8 @@ export default function BusinessSignupPage() {
 
       setStep(3);
       toast.success("Entreprise enregistree avec succes!");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -234,10 +235,10 @@ export default function BusinessSignupPage() {
 
       setStep(4);
       toast.success("Securite configuree avec succes!");
-    } catch (err: any) {
+    } catch (err: unknown) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
-      toast.error(err.message);
+      toast.error(getErrorMessage(err));
       setPin("");
     } finally {
       setLoading(false);

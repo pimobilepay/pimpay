@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       message: "Accès autorisé"
     }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("VERIFY_PIN_SERVER_ERROR:", error);
     return NextResponse.json({ error: "Erreur interne du serveur." }, { status: 500 });
   }

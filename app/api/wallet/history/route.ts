@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -84,8 +85,8 @@ export async function GET(req: Request) {
       transactions: formattedTransactions
     });
 
-  } catch (error: any) {
-    console.error("❌ [TRANSACTIONS_FETCH_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [TRANSACTIONS_FETCH_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Impossible de charger l'historique" }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     // FIX: error.stack jamais dans la réponse
-    const message = error instanceof Error ? error.message : "Erreur interne";
+    const message = error instanceof Error ? getErrorMessage(error) : "Erreur interne";
     console.error("[DEBUG] ERREUR worker:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

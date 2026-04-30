@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
@@ -201,7 +202,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("CENTRALIZED_FEES_GET_ERROR:", error);
-    const message = error instanceof Error ? error.message : "Erreur serveur";
+    const message = error instanceof Error ? getErrorMessage(error) : "Erreur serveur";
     return NextResponse.json({ error: "Erreur serveur", details: message }, { status: 500 });
   }
 }

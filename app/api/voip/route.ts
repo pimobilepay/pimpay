@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { pusherServer, VOIP_EVENTS } from "@/lib/pusher-server";
 import { logSystemEvent } from "@/lib/systemLogger";
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       action: "SIGNALING_SERVER_ERROR",
       message:
         error instanceof Error
-          ? error.message
+          ? getErrorMessage(error)
           : "Échec de l'événement de signalisation VoIP",
       ip,
       userAgent: request.headers.get("user-agent") ?? undefined,

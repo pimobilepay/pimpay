@@ -473,7 +473,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.message || "Erreur inconnue")}`);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Payment error:", error);
       toast.error("Echec du consensus reseau");
       router.push(`/mpay/failed?reason=${encodeURIComponent("Erreur de connexion")}`);

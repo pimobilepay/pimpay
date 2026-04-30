@@ -13,11 +13,13 @@ import {
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 
-interface BottomNavProps {
-  onOpenMenu: () => void;
+export interface BottomNavProps {
+  onOpenMenu?: () => void;
+  onMenuOpen?: () => void; // Alias for backward compatibility
 }
 
-export function BottomNav({ onOpenMenu }: BottomNavProps) {
+export function BottomNav({ onOpenMenu, onMenuOpen }: BottomNavProps) {
+  const handleMenuOpen = onOpenMenu || onMenuOpen;
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
@@ -69,7 +71,7 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
-                    if (onOpenMenu) onOpenMenu();
+                    if (handleMenuOpen) handleMenuOpen();
                   }}
                   className="flex flex-col items-center justify-center gap-1 flex-1 outline-none py-2"
                 >

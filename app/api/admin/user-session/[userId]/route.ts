@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     console.error("[ADMIN_USER_SESSION_ERROR]:", error);
-    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
+    const errorMessage = error instanceof Error ? getErrorMessage(error) : "Erreur inconnue";
     return NextResponse.json(
       { 
         error: "Erreur lors de la recuperation de la session",

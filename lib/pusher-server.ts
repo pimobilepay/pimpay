@@ -1,13 +1,22 @@
 import Pusher from "pusher";
 
+function createPusherServer(): Pusher {
+  const appId = process.env.PUSHER_APP_ID;
+  const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
+  const secret = process.env.PUSHER_SECRET;
+  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+
+  if (!appId || !key || !secret || !cluster) {
+    throw new Error(
+      "Variables d'environnement Pusher manquantes: PUSHER_APP_ID, NEXT_PUBLIC_PUSHER_KEY, PUSHER_SECRET, NEXT_PUBLIC_PUSHER_CLUSTER sont requis"
+    );
+  }
+
+  return new Pusher({ appId, key, secret, cluster, useTLS: true });
+}
+
 // Server-side Pusher instance for triggering events
-export const pusherServer = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-});
+export const pusherServer = createPusherServer();
 
 // VoIP event types for type safety
 export const VOIP_EVENTS = {

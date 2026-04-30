@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -93,8 +94,8 @@ export async function GET() {
       }
     });
 
-  } catch (error: any) {
-    console.error("❌ [POOLS_FETCH_ERROR]:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ [POOLS_FETCH_ERROR]:", getErrorMessage(error));
     return NextResponse.json({ error: "Impossible de charger les pools" }, { status: 500 });
   }
 }

@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erreur Submit KYC:", error);
     return NextResponse.json(
       { error: "Echec de l'enregistrement" },

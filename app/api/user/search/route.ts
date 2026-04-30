@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { getErrorMessage } from '@/lib/error-utils';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -115,8 +116,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
 
-  } catch (error: any) {
-    console.error("SEARCH_API_ERROR:", error.message);
+  } catch (error: unknown) {
+    console.error("SEARCH_API_ERROR:", getErrorMessage(error));
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

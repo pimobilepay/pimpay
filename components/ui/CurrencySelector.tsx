@@ -394,7 +394,7 @@ interface TimelineItemProps {
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ event, index, isFirst, isLast }) => {
-  const ref = useRef<HTMLDivElement>(null!);
+  const ref = useRef<HTMLDivElement>(null);
   const visible = useIsVisible(ref);
   const config = STATUS_CONFIG[event.status];
   const { date, time } = formatTimestamp(event.timestamp);

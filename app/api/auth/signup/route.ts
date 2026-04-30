@@ -186,7 +186,7 @@ export async function POST(req: Request) {
 
     return response;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("SIGNUP_ERROR:", error);
     return NextResponse.json(
       { error: "Le serveur est trop occupé, réessayez dans un instant." },

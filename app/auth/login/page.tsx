@@ -149,7 +149,7 @@ export default function LoginPage() {
         // L'erreur est deja affichee par le hook via toast
         console.log("[v0] Pi login failed:", result.error);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[v0] Pi login exception:", error);
       toast.error(t("auth.login.piError"));
     }
