@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
 
       // Transfert EXTERNE (blockchain) - recipientUser est null a ce point
       let blockchainTxHash: string | null = null;
-      let txStatus = TransactionStatus.PENDING;
+      let txStatus: TransactionStatus = TransactionStatus.PENDING;
 
       if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
         try {
