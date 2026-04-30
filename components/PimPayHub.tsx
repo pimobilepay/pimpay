@@ -186,8 +186,10 @@ function TransactionIcon({ type }: { type: Transaction['type'] }) {
 function GlassCard({
   children,
   className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -198,7 +200,6 @@ function GlassCard({
         'before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/50 before:to-transparent before:pointer-events-none dark:before:from-slate-800/50',
         className
       )}
-      {...props}
     >
       <div className="relative z-10">{children}</div>
     </motion.div>

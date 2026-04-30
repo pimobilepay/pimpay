@@ -460,7 +460,8 @@ export async function POST(req: NextRequest) {
     console.error("ADMIN_CRITICAL_ERROR:", error);
     
     // Gestion spécifique des timeouts de Neon/Postgres
-    if (error.code === 'P2024') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'P2024') {
       return NextResponse.json({ error: "La base de données met trop de temps à répondre (Réveil Neon)" }, { status: 503 });
     }
 

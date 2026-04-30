@@ -378,7 +378,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
     return () => clearInterval(interval);
   }, []);
 
-  const handleQRResult = useCallback((data: string) => {
+  const handleQRResult = useCallback((data?: string) => {
     if (data) {
       setMerchantId(data);
       setActiveView("pay-merchant");

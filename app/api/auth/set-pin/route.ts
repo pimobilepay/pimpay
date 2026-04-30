@@ -33,7 +33,8 @@ export async function POST(req: Request) {
     });
 
   } catch (error: unknown) {
-    if (error.code === 'P2025') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'P2025') {
         return NextResponse.json({ error: "Utilisateur introuvable en base de données" }, { status: 404 });
     }
     console.error("SET_PIN_ERROR:", error);

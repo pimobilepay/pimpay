@@ -289,7 +289,6 @@ export const fr = {
     includingFees: "(Incluant 0.01 de frais)",
     availableBalance: "disponible",
     syncing: "Synchronisation...",
-    insufficientFunds: "Fonds insuffisants",
     authorizeTransfer: "Autoriser le transfert",
     pinValidation: "Validation PIN",
     signatureAccepted: "Signature acceptee par le Mainnet",

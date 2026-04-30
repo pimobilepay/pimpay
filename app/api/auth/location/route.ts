@@ -27,7 +27,8 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error("LOCATION_UPDATE_ERROR:", error);
     // Gestion des erreurs de token (expiré ou invalide)
-    if (error.code === 'ERR_JWT_EXPIRED' || error.code === 'ERR_JWS_INVALID') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'ERR_JWT_EXPIRED' || errorCode === 'ERR_JWS_INVALID') {
       return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

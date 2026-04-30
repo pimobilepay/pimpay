@@ -83,7 +83,7 @@ export const usePiAuth = () => {
     } catch (e: unknown) {
       window.__PI_SDK_INITIALIZING__ = false;
       // Si l'erreur dit "already initialized", c'est OK
-      if (e?.message?.includes("already")) {
+      if ((e as Error)?.message?.includes("already")) {
         window.__PI_SDK_READY__ = true;
         return true;
       }
@@ -222,7 +222,7 @@ export const usePiAuth = () => {
       let errorMsg = "Echec de la connexion securisee";
       
       // Messages d'erreur plus clairs selon le type d'erreur
-      const errStr = String(error?.message || error || "").toLowerCase();
+      const errStr = String((error as Error)?.message || error || "").toLowerCase();
       
       if (errStr.includes("user cancelled") || errStr.includes("cancelled") || errStr.includes("canceled")) {
         errorMsg = "Connexion annulee par l'utilisateur";

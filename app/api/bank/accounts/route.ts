@@ -115,7 +115,7 @@ export async function GET(req: Request) {
   } catch (error: unknown) {
     console.error("Bank accounts error:", error);
     await logApiError("BANK_ACCOUNTS_API", "GET_ACCOUNTS", error, { requestId: `BA-${Date.now()}` });
-    return NextResponse.json({ error: "Erreur serveur", details: error?.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur", details: (error as Error)?.message }, { status: 500 });
   }
 }
 

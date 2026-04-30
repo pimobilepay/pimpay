@@ -11,9 +11,10 @@ async function executeWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T
     try {
       return await fn();
     } catch (error: unknown) {
+      const errorCode = (error as { code?: string })?.code;
       const isRetryable =
-        error.code === 'P2034' || // Serialization failure
-        error.code === 'P2024' || // Transaction timeout / not found
+        errorCode === 'P2034' || // Serialization failure
+        errorCode === 'P2024' || // Transaction timeout / not found
         (getErrorMessage(error) && getErrorMessage(error).includes('Transaction not found'));
 
       if (isRetryable && attempt < retries) {
@@ -167,7 +168,8 @@ export async function POST(req: Request) {
       }, { status: 409 });
     }
 
-    if (error.code === 'P2024' || (getErrorMessage(error) && getErrorMessage(error).includes('Transaction not found'))) {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'P2024' || (getErrorMessage(error) && getErrorMessage(error).includes('Transaction not found'))) {
       return NextResponse.json({
         error: "Connexion perdue avec la base de donnees. Veuillez reessayer."
       }, { status: 504 });

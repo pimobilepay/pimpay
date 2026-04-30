@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { PimpayWebSocketClient, type Channel } from '../lib/websocket-client';
+import { PimpayWebSocketClient, type Channel, type ConnectionState } from '../lib/websocket-client';
 
 interface WebSocketHookReturn<T = unknown> {
   data: T | null;
@@ -33,7 +33,7 @@ function useWebSocket<T = unknown>(channel: string): WebSocketHookReturn<T> {
   const [data, setData] = useState<T | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
-  const managerRef = useRef<WebSocketManager | null>(null);
+  const managerRef = useRef<PimpayWebSocketClient | null>(null);
   const channelRef = useRef<string>(channel);
   const mountedRef = useRef<boolean>(true);
 
@@ -44,14 +44,14 @@ function useWebSocket<T = unknown>(channel: string): WebSocketHookReturn<T> {
   useEffect(() => {
     mountedRef.current = true;
 
-    let manager: WebSocketManager;
+    let manager: PimpayWebSocketClient;
 
     const initialize = async () => {
       try {
         manager = PimpayWebSocketClient.getInstance();
         managerRef.current = manager;
 
-        manager.on('stateChange', (state) => {
+        manager.on('stateChange', (state: ConnectionState) => {
           if (mountedRef.current) {
             setIsConnected(state === 'CONNECTED');
             if (state === 'CONNECTED') {

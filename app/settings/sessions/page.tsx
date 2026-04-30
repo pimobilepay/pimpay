@@ -272,11 +272,11 @@ export default async function SessionsPage() {
                         <span className="truncate">
                           {session.os || "OS inconnu"}
                         </span>
-                        {session.deviceType && (
+                        {(session as { deviceType?: string }).deviceType && (
                           <>
                             <span>&middot;</span>
                             <span className="truncate capitalize">
-                              {session.deviceType}
+                              {(session as { deviceType?: string }).deviceType}
                             </span>
                           </>
                         )}
@@ -315,7 +315,7 @@ export default async function SessionsPage() {
                           />
                         )}
                         <span>
-                          {[session.city, session.region, session.country]
+                          {[session.city, (session as { region?: string }).region, session.country]
                             .filter(Boolean)
                             .join(", ")}
                         </span>

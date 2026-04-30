@@ -9,7 +9,4 @@ export default defineConfig({
   datasource: {
     url: process.env.DATABASE_URL ?? (() => { throw new Error("DATABASE_URL manquant"); })(),
   },
-  seed: {
-    script: "prisma/seed.js",
-  },
 });

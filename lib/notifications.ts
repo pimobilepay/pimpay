@@ -11,6 +11,7 @@ interface NotificationMetadata {
   transactionId?: string;
   status?: string;
   method?: string;
+  type?: string;
   // Sender/Recipient
   senderName?: string;
   senderUsername?: string;
@@ -30,6 +31,11 @@ interface NotificationMetadata {
   location?: string;
   os?: string;
   browser?: string;
+  // Batch/Employee metadata
+  employeeCount?: number;
+  successCount?: number;
+  pendingCount?: number;
+  employees?: { name: string; amount: number; status: string }[];
 }
 
 interface SendNotificationProps {

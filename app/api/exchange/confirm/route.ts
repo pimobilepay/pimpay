@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, data: transaction });
     } catch (error: unknown) {
       // P2025 = Record not found (si l'ID n'est pas un CUID mais une référence)
-      if (error.code === 'P2025') {
+      const errorCode = (error as { code?: string })?.code;
+      if (errorCode === 'P2025') {
         const txByRef = await prisma.transaction.update({
           where: { reference: identifier },
           data: { 
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("Erreur de confirmation Pimpay:", error);
     
-    if (error.code === 'P2025') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'P2025') {
       return NextResponse.json(
         { error: "Transaction introuvable avec cet identifiant" }, 
         { status: 404 }

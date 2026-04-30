@@ -336,7 +336,8 @@ export async function POST(req: NextRequest) {
 
   } catch (error: unknown) {
     console.error("API_ADMIN_ACTION_ERROR:", error);
-    if (error.code === 'P1001') {
+    const errorCode = (error as { code?: string })?.code;
+    if (errorCode === 'P1001') {
       return NextResponse.json({ error: "Base de données en réveil (Neon). Réessayez." }, { status: 503 });
     }
     return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });

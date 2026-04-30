@@ -38,9 +38,9 @@ interface PiSDK {
 
 declare global {
   interface Window {
-    Pi: PiSDK | undefined;
-    __PI_SDK_READY__: boolean;
-    __PI_SDK_INITIALIZING__: boolean;
+    Pi?: PiSDK;
+    __PI_SDK_READY__?: boolean;
+    __PI_SDK_INITIALIZING__?: boolean;
   }
 }
 

@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       processed
     });
   } catch (error: unknown) {
-    console.error("[v0] [WORKER] ERREUR:", getErrorMessage(error), error.stack);
+    console.error("[v0] [WORKER] ERREUR:", getErrorMessage(error), (error as Error)?.stack);
     return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
@@ -137,7 +137,7 @@ async function processExternalTransfers() {
       }
       else if (tx.currency === "XLM") {
         // Stellar public: utiliser la clé de l'utilisateur (wallet décentralisé)
-        hash = await sendStellarBased(tx, destination, sender.stellarPrivateKey);
+        hash = await sendStellarBased(tx, destination, sender.stellarPrivateKey ?? "");
       } 
       else if (tx.currency === "SIDRA" || tx.currency === "SDA") {
         hash = await sendEVM(tx, destination, sender.sidraPrivateKey, RPC_URLS.SIDRA);
@@ -159,8 +159,9 @@ async function processExternalTransfers() {
         count++;
       }
     } catch (err: unknown) {
-      console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, err?.message || JSON.stringify(err));
-      console.error(`[v0] [WORKER] Stack:`, err?.stack);
+      const errObj = err as Error;
+      console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, errObj?.message || JSON.stringify(err));
+      console.error(`[v0] [WORKER] Stack:`, errObj?.stack);
       // Marquer la transaction comme FAILED apres une erreur pour eviter les boucles infinies
       await prisma.transaction.update({
         where: { id: tx.id },
@@ -168,12 +169,12 @@ async function processExternalTransfers() {
           status: TransactionStatus.FAILED,
           metadata: {
             ...(tx.metadata as any),
-            workerError: err?.message || "Erreur inconnue",
-            errorStack: err?.stack?.substring(0, 500) || "",
+            workerError: errObj?.message || "Erreur inconnue",
+            errorStack: errObj?.stack?.substring(0, 500) || "",
             failedAt: new Date().toISOString(),
           },
         },
-      }).catch((e) => console.error("[v0] [WORKER] Erreur update FAILED:", e.message));
+      }).catch((e: unknown) => console.error("[v0] [WORKER] Erreur update FAILED:", (e as Error)?.message));
     }
   }
   return count;

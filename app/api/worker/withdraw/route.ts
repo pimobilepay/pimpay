@@ -173,8 +173,9 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
 
   } catch (error: unknown) {
     // Gérer les erreurs spécifiques de Stellar/Horizon
-    if (error.response?.data?.extras?.result_codes) {
-      const codes = error.response.data.extras.result_codes;
+    const errResponse = (error as { response?: { data?: { extras?: { result_codes?: { transaction?: string; operations?: string[] } } } } })?.response;
+    if (errResponse?.data?.extras?.result_codes) {
+      const codes = errResponse.data.extras.result_codes;
       console.error(`[PI_WITHDRAW_ERROR] Codes d'erreur Horizon:`, codes);
       
       if (codes.transaction === "tx_bad_seq") {
@@ -227,7 +228,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e: unknown) {
-    const msg = e?.message || "Worker error";
+    const msg = (e as Error)?.message || "Worker error";
     const code = msg === "Unauthorized worker" ? 401 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }
@@ -341,7 +342,7 @@ export async function POST(req: NextRequest) {
         });
       } catch (err: unknown) {
         const refundOnFail = process.env.REFUND_ON_WITHDRAW_FAIL === "true";
-        const errorMsg = err?.message || "Broadcast failed";
+        const errorMsg = (err as Error)?.message || "Broadcast failed";
 
         // Marque l’échec
         // (Tu as demandé SUCCESS au moment de création; ici on peut mettre FAILED si tu veux refléter la réalité.)
@@ -405,7 +406,7 @@ export async function POST(req: NextRequest) {
       results,
     });
   } catch (e: unknown) {
-    const msg = e?.message || "Worker error";
+    const msg = (e as Error)?.message || "Worker error";
     const code = msg === "Unauthorized worker" ? 401 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }

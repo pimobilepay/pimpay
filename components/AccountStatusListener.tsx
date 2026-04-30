@@ -38,7 +38,13 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
     }
   );
 
-  const handleStatusChange = useCallback((newStatus: string) => {
+  const handleStatusChange = useCallback((newStatus: {
+    wasInMaintenance?: boolean;
+    isRestricted?: boolean;
+    status?: string;
+    reason?: string;
+    maintenanceUntil?: string | null;
+  } | null) => {
     if (!newStatus) return;
 
     // Si le compte vient d'etre reactive depuis la maintenance
@@ -52,9 +58,9 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
     }
 
     // Verifier si le compte est restreint
-    if (newStatus.isRestricted && ["SUSPENDED", "BANNED", "FROZEN", "MAINTENANCE"].includes(newStatus.status)) {
+    if (newStatus.isRestricted && newStatus.status && ["SUSPENDED", "BANNED", "FROZEN", "MAINTENANCE"].includes(newStatus.status)) {
       setStatusData({
-        status: newStatus.status,
+        status: newStatus.status as "SUSPENDED" | "BANNED" | "FROZEN" | "MAINTENANCE",
         reason: newStatus.reason,
         maintenanceUntil: newStatus.maintenanceUntil,
       });

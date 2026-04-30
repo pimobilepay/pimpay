@@ -426,7 +426,7 @@ export default function ProfilePage() {
             <div className="bg-white/5 rounded-[28px] border border-white/10 overflow-hidden">
               {section.items.map((item, iIdx) => {
                 const isEditing = editingField === item.fieldKey;
-                const rawValue = item.fieldKey ? (user as Record<string, string | undefined>)?.[item.fieldKey] || "" : "";
+                const rawValue = item.fieldKey ? ((user as unknown) as Record<string, string | undefined>)?.[item.fieldKey] || "" : "";
                 
                 return (
                   <div

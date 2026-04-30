@@ -67,7 +67,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
       return true;
     } catch (e: unknown) {
       window.__PI_SDK_INITIALIZING__ = false;
-      if (e?.message?.includes("already")) {
+      if ((e as Error)?.message?.includes("already")) {
         window.__PI_SDK_READY__ = true;
         return true;
       }
