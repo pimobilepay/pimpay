@@ -128,7 +128,7 @@ async function processExternalTransfers() {
 
       // --- ROUTAGE PAR CRYPTO (Basé sur votre Schéma Prisma) ---
       if (tx.currency === "XRP") {
-        hash = await sendXRP(tx, destination, sender.xrpPrivateKey ?? null);
+        hash = await sendXRP(tx, destination, sender.xrpPrivateKey ?? null) ?? "";
       } 
       else if (tx.currency === "PI") {
         // Pi Network: utiliser le MASTER WALLET de PimPay (les fonds sont centralisés)
@@ -137,13 +137,13 @@ async function processExternalTransfers() {
       }
       else if (tx.currency === "XLM") {
         // Stellar public: utiliser la clé de l'utilisateur (wallet décentralisé)
-        hash = await sendStellarBased(tx, destination, sender.stellarPrivateKey ?? "");
+        hash = await sendStellarBased(tx, destination, sender.stellarPrivateKey ?? "") ?? "";
       } 
       else if (tx.currency === "SIDRA" || tx.currency === "SDA") {
-        hash = await sendEVM(tx, destination, sender.sidraPrivateKey, RPC_URLS.SIDRA);
+        hash = await sendEVM(tx, destination, sender.sidraPrivateKey, RPC_URLS.SIDRA) ?? "";
       } 
       else if (tx.currency === "USDT") {
-        hash = await sendEVM(tx, destination, sender.usdtPrivateKey, RPC_URLS.EVM_DEFAULT);
+        hash = await sendEVM(tx, destination, sender.usdtPrivateKey, RPC_URLS.EVM_DEFAULT) ?? "";
       }
 
       if (hash) {
