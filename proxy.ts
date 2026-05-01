@@ -46,7 +46,7 @@ async function verifyJWT(token: string): Promise<jose.JWTPayload | null> {
 // Proxy principal
 // ---------------------------------------------------------------------------
 
-export async function proxy(req: NextRequest): Promise<NextResponse> {
+export default async function proxy(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
 
   // Bloquer les routes debug en production
