@@ -578,7 +578,7 @@ function TransactionItem({ tx, onPress }: { tx: FormattedTransaction; onPress: (
           <div className="grid grid-cols-2 gap-3 pt-4">
             <PartyCard
               label="Expéditeur"
-              name={tx.fromName}
+              name={tx.fromName ?? ""}
               username={tx.fromUsername}
               email={tx.fromEmail}
               phone={tx.fromPhone}
@@ -586,7 +586,7 @@ function TransactionItem({ tx, onPress }: { tx: FormattedTransaction; onPress: (
             />
             <PartyCard
               label="Destinataire"
-              name={tx.toName}
+              name={tx.toName ?? ""}
               username={tx.toUsername}
               email={tx.toEmail}
               phone={tx.toPhone}
