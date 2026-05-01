@@ -245,7 +245,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         accountName:   tx.accountName   || null,
         accountNumber: tx.accountNumber || null,
         // Blockchain
-        blockchainTxHash: (typeof tx.blockchainTx === 'string' ? tx.blockchainTx : typeof tx.metadata?.blockchainTxHash === 'string' ? tx.metadata.blockchainTxHash : null),
+        blockchainTxHash: (typeof tx.blockchainTx === 'string' ? tx.blockchainTx : typeof (tx.metadata as Record<string, unknown>)?.blockchainTxHash === 'string' ? (tx.metadata as Record<string, unknown>).blockchainTxHash as string : null),
       };
     });
   }, [initialTransactions, currentUserId]);
