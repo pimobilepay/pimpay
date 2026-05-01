@@ -1,22 +1,33 @@
 import Pusher from "pusher";
 
-function createPusherServer(): Pusher {
-  const appId = process.env.PUSHER_APP_ID;
-  const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
-  const secret = process.env.PUSHER_SECRET;
-  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+// Lazy initialization to avoid build-time errors when Pusher env vars are not set
+let pusherInstance: Pusher | null = null;
 
-  if (!appId || !key || !secret || !cluster) {
-    throw new Error(
-      "Variables d'environnement Pusher manquantes: PUSHER_APP_ID, NEXT_PUBLIC_PUSHER_KEY, PUSHER_SECRET, NEXT_PUBLIC_PUSHER_CLUSTER sont requis"
-    );
+function getPusherServer(): Pusher {
+  if (!pusherInstance) {
+    const appId = process.env.PUSHER_APP_ID;
+    const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
+    const secret = process.env.PUSHER_SECRET;
+    const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+
+    if (!appId || !key || !secret || !cluster) {
+      throw new Error(
+        "Variables d'environnement Pusher manquantes: PUSHER_APP_ID, NEXT_PUBLIC_PUSHER_KEY, PUSHER_SECRET, NEXT_PUBLIC_PUSHER_CLUSTER sont requis"
+      );
+    }
+
+    pusherInstance = new Pusher({ appId, key, secret, cluster, useTLS: true });
   }
-
-  return new Pusher({ appId, key, secret, cluster, useTLS: true });
+  return pusherInstance;
 }
 
-// Server-side Pusher instance for triggering events
-export const pusherServer = createPusherServer();
+// Server-side Pusher instance for triggering events (lazy loaded)
+export const pusherServer = {
+  authorizeChannel: (...args: Parameters<Pusher["authorizeChannel"]>) => 
+    getPusherServer().authorizeChannel(...args),
+  trigger: (...args: Parameters<Pusher["trigger"]>) => 
+    getPusherServer().trigger(...args),
+};
 
 // VoIP event types for type safety
 export const VOIP_EVENTS = {
