@@ -186,15 +186,18 @@ function TransactionIcon({ type }: { type: Transaction['type'] }) {
 function GlassCard({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
+      onClick={onClick}
       className={cn(
         'relative overflow-hidden rounded-2xl border border-white/20 bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:bg-slate-900/70 dark:border-slate-700/50',
         'before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/50 before:to-transparent before:pointer-events-none dark:before:from-slate-800/50',
