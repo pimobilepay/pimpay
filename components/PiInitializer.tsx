@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 
 declare global {
   interface Window {
-    Pi: any;
-    __PI_SDK_READY__: boolean;
-    __PI_SDK_INITIALIZING__: boolean;
+    Pi?: any;
+    __PI_SDK_READY__?: boolean;
+    __PI_SDK_INITIALIZING__?: boolean;
     __PI_INCOMPLETE_CHECKED__: boolean;
   }
 }
