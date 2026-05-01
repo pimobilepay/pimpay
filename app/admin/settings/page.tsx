@@ -112,7 +112,7 @@ export default function SystemSettings() {
   /* ─── API CALLS ─────────────────────────────────────────────── */
   const loadData = async () => {
     try {
-      const res = await fetch("/api/admin/config");
+      const res = await fetch("/api/admin/config", { credentials: "include" });
       if (!res.ok) throw new Error("Erreur serveur");
       const data = await res.json();
       const { auditLogs: logs, stats: sysStats, ...currentConfig } = data;
@@ -135,6 +135,7 @@ export default function SystemSettings() {
       const res = await fetch("/api/admin/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(config),
       });
       if (res.ok) {
@@ -158,6 +159,7 @@ export default function SystemSettings() {
       const res = await fetch("/api/admin/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ action: "TOGGLE_MODE", modeType }),
       });
       if (!res.ok) throw new Error("Erreur serveur");
@@ -176,7 +178,7 @@ export default function SystemSettings() {
   const fetchDbInfo = async () => {
     setDbModal(true); setDbLoading(true);
     try {
-      const res = await fetch("/api/admin/database");
+      const res = await fetch("/api/admin/database", { credentials: "include" });
       if (res.ok) setDbData(await res.json());
       else { toast.error("Impossible de charger les infos DB"); setDbModal(false); }
     } catch { toast.error("Erreur de connexion"); setDbModal(false); }
@@ -187,7 +189,7 @@ export default function SystemSettings() {
     setBackupRunning(true);
     try {
       const url = backupSendEmail ? "/api/admin/config/backup?sendEmail=true" : "/api/admin/config/backup";
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
       if (res.ok) {
         const blob = await res.blob();
         const a = document.createElement("a");
@@ -210,6 +212,7 @@ export default function SystemSettings() {
       const response = await fetch("/api/admin/system-optimizer/patch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ vulnerabilityName: vulnName }),
       });
       if (!response.ok) {
@@ -244,7 +247,7 @@ export default function SystemSettings() {
     setOptimizing(true);
     setOptimizationResults({ vulnerabilities: [{ name: "Scan en cours...", severity: "critical", status: 'scanning', description: "Analyse..." }], performance: [{ name: "Analyse performances...", improvement: "scan", status: 'scanning', description: "..." }], overallScore: 0, scanComplete: false });
     try {
-      const response = await fetch("/api/admin/system-optimizer", { method: "POST", headers: { "Content-Type": "application/json" } });
+      const response = await fetch("/api/admin/system-optimizer", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include" });
       if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       const mappedVulns: VulnItem[] = data.vulnerabilities.map((v: { name: string; severity: string; status: string; description: string; patch?: string; currentVersion?: string; patchedVersion?: string; category?: string }) => ({ ...v, status: v.status === "fixed" ? "fixed" : "pending" }));
