@@ -8,27 +8,20 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient(): PrismaClient {
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     transactionOptions: {
-      maxWait: 10000,  // 10s max to acquire a connection from the pool
-      timeout: 30000,  // 30s max for the transaction to complete
+      maxWait: 10000,
+      timeout: 30000,
     },
   })
 }
 
-// Use a single, stable PrismaClient instance.
-// In development we cache it on `globalThis` to survive HMR.
-// In production each cold-start creates one instance (which is expected).
-export const prisma: PrismaClient = (() => {
-  if (globalForPrisma.prisma) {
-    return globalForPrisma.prisma
-  }
-
-  const client = createPrismaClient()
-
-  if (process.env.NODE_ENV !== 'production') {
+// Singleton Prisma — critique en serverless Vercel.
+// On cache sur globalThis même en production pour réutiliser
+// les connexions entre invocations chaudes (warm lambda).
+export const prisma: PrismaClient =
+  globalForPrisma.prisma ?? (() => {
+    const client = createPrismaClient()
     globalForPrisma.prisma = client
-  }
-
-  return client
-})()
+    return client
+  })()
