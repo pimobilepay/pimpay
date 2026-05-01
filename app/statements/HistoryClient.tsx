@@ -597,7 +597,7 @@ function TransactionItem({ tx, onPress }: { tx: FormattedTransaction; onPress: (
           {/* DONNÉES FINANCIÈRES */}
           <div className="bg-slate-950/60 rounded-2xl p-4 space-y-2">
             <DetailRow label="Montant brut"  value={`${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} />
-            {tx.fee >= 0 && (
+            {tx.fee != null && tx.fee >= 0 && (
               <DetailRow label="Frais réseau" value={`${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
             )}
             {tx.netAmount !== null && tx.netAmount !== undefined && (
