@@ -5,8 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || "PimPay <noreply@pimpay.app>";
+
+// Lazy initialization to avoid build-time errors when RESEND_API_KEY is not set
+let resendClient: Resend | null = null;
+function getResendClient(): Resend {
+  if (!resendClient) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not configured");
+    }
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 const BATCH_SIZE = 50; // Resend batch limit
 
 // POST: Send email campaign
@@ -58,6 +69,7 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < recipientEmails.length; i += BATCH_SIZE) {
       const batch = recipientEmails.slice(i, i + BATCH_SIZE);
+      const resend = getResendClient();
       const batchPromises = batch.map((to) =>
         resend.emails.send({ from: FROM_EMAIL, to, subject, html }).then(
           () => { sent++; },
