@@ -154,7 +154,7 @@ function useWebSocket<T = unknown>(channel: Channel): WebSocketHookReturn<T> {
     }
 
     try {
-      managerRef.current.send(channelRef.current, message);
+      managerRef.current.send({ channel: channelRef.current, ...(message as Record<string, unknown>) });
     } catch (sendError) {
       const errorObj =
         sendError instanceof Error
