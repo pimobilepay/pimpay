@@ -5,9 +5,9 @@ import { toast } from "sonner";
 
 declare global {
   interface Window {
-    Pi: any;
-    __PI_SDK_READY__: boolean;
-    __PI_SDK_INITIALIZING__: boolean;
+    Pi?: any;
+    __PI_SDK_READY__?: boolean;
+    __PI_SDK_INITIALIZING__?: boolean;
   }
 }
 
