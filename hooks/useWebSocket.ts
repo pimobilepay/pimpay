@@ -29,12 +29,12 @@ interface TransactionUpdate {
   metadata?: Record<string, unknown>;
 }
 
-function useWebSocket<T = unknown>(channel: string): WebSocketHookReturn<T> {
+function useWebSocket<T = unknown>(channel: Channel): WebSocketHookReturn<T> {
   const [data, setData] = useState<T | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const managerRef = useRef<PimpayWebSocketClient | null>(null);
-  const channelRef = useRef<string>(channel);
+  const channelRef = useRef<Channel>(channel);
   const mountedRef = useRef<boolean>(true);
 
   useEffect(() => {
