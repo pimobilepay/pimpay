@@ -38,7 +38,7 @@ interface PiSDK {
 
 declare global {
   interface Window {
-    Pi?: PiSDK;
+    Pi?: any;
     __PI_SDK_READY__?: boolean;
     __PI_SDK_INITIALIZING__?: boolean;
   }
