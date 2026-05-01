@@ -39,7 +39,7 @@ interface RawTransaction {
   toUser?: TransactionUser | null;
   description?: string | null;
   reference?: string | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: unknown;
   purpose?: string | null;
   fee?: number | null;
   netAmount?: number | null;
