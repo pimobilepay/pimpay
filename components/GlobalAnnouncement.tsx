@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, ChevronRight, Megaphone, Zap, AlertTriangle, Info } from "lucide-react";
+import { X, ArrowRight, Sparkles, AlertCircle, Bell, ShieldCheck } from "lucide-react";
 
 /* ─── helpers ────────────────────────────────────────────── */
 type Tone = "info" | "warning" | "urgent" | "promo";
@@ -23,57 +23,52 @@ const TONE_CONFIG: Record<Tone, {
   badgeText: string;
   badgeLabel: string;
   dot: string;
-  glow: string;
   ctaText: string;
   icon: React.ReactNode;
 }> = {
   info: {
-    bg: "linear-gradient(90deg, #0c1a3a 0%, #0f2050 50%, #0c1a3a 100%)",
-    border: "rgba(59,130,246,0.3)",
-    text: "#93c5fd",
-    badgeBg: "rgba(59,130,246,0.15)",
-    badgeText: "#60a5fa",
+    bg: "#f5f5f0",
+    border: "rgba(0,0,0,0.06)",
+    text: "#1a1a1a",
+    badgeBg: "rgba(0,0,0,0.04)",
+    badgeText: "#525252",
     badgeLabel: "INFO",
-    dot: "#3b82f6",
-    glow: "rgba(59,130,246,0.15)",
+    dot: "#525252",
     ctaText: "En savoir plus",
-    icon: <Info size={11} />,
+    icon: <Bell size={13} strokeWidth={1.5} />,
   },
   warning: {
-    bg: "linear-gradient(90deg, #1c1200 0%, #2d1e00 50%, #1c1200 100%)",
-    border: "rgba(245,158,11,0.35)",
-    text: "#fcd34d",
-    badgeBg: "rgba(245,158,11,0.15)",
-    badgeText: "#f59e0b",
+    bg: "#fefce8",
+    border: "rgba(202,138,4,0.15)",
+    text: "#854d0e",
+    badgeBg: "rgba(202,138,4,0.08)",
+    badgeText: "#a16207",
     badgeLabel: "AVIS",
-    dot: "#f59e0b",
-    glow: "rgba(245,158,11,0.12)",
-    ctaText: "Voir les détails",
-    icon: <AlertTriangle size={11} />,
+    dot: "#ca8a04",
+    ctaText: "Voir les details",
+    icon: <AlertCircle size={13} strokeWidth={1.5} />,
   },
   urgent: {
-    bg: "linear-gradient(90deg, #1a0000 0%, #2d0505 50%, #1a0000 100%)",
-    border: "rgba(239,68,68,0.4)",
-    text: "#fca5a5",
-    badgeBg: "rgba(239,68,68,0.15)",
-    badgeText: "#f87171",
+    bg: "#fef2f2",
+    border: "rgba(220,38,38,0.15)",
+    text: "#991b1b",
+    badgeBg: "rgba(220,38,38,0.08)",
+    badgeText: "#dc2626",
     badgeLabel: "URGENT",
-    dot: "#ef4444",
-    glow: "rgba(239,68,68,0.15)",
+    dot: "#dc2626",
     ctaText: "Action requise",
-    icon: <Zap size={11} />,
+    icon: <AlertCircle size={13} strokeWidth={1.5} />,
   },
   promo: {
-    bg: "linear-gradient(90deg, #0a1a0f 0%, #0d2318 50%, #0a1a0f 100%)",
-    border: "rgba(16,185,129,0.35)",
-    text: "#6ee7b7",
-    badgeBg: "rgba(16,185,129,0.15)",
-    badgeText: "#34d399",
+    bg: "#f0fdf4",
+    border: "rgba(22,163,74,0.15)",
+    text: "#166534",
+    badgeBg: "rgba(22,163,74,0.08)",
+    badgeText: "#16a34a",
     badgeLabel: "NOUVEAU",
-    dot: "#10b981",
-    glow: "rgba(16,185,129,0.12)",
-    ctaText: "Découvrir",
-    icon: <Megaphone size={11} />,
+    dot: "#16a34a",
+    ctaText: "Decouvrir",
+    icon: <Sparkles size={13} strokeWidth={1.5} />,
   },
 };
 
@@ -114,8 +109,8 @@ export default function GlobalAnnouncement() {
   const cfg = TONE_CONFIG[tone];
 
   const duration = useMemo(() => {
-    if (textWidth === 0) return 28;
-    return Math.max(18, textWidth / 65);
+    if (textWidth === 0) return 45;
+    return Math.max(35, textWidth / 25);
   }, [textWidth]);
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {
@@ -144,16 +139,12 @@ export default function GlobalAnnouncement() {
           0%   { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
-        @keyframes glow-pulse {
-          0%, 100% { opacity: 0.6; }
-          50%       { opacity: 1;   }
-        }
-        @keyframes dot-blink {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.4; transform: scale(0.75); }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.5; }
         }
         .announcement-bar {
-          animation: slide-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+          animation: slide-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
         .ticker-track {
           display: flex;
@@ -162,11 +153,8 @@ export default function GlobalAnnouncement() {
           animation-duration: ${duration}s;
           animation-play-state: ${isHovered ? "paused" : "running"};
         }
-        .live-dot {
-          animation: dot-blink 1.4s ease-in-out infinite;
-        }
-        .glow-line {
-          animation: glow-pulse 2.5s ease-in-out infinite;
+        .pulse-dot {
+          animation: pulse-dot 2s ease-in-out infinite;
         }
       `}</style>
 
@@ -174,81 +162,86 @@ export default function GlobalAnnouncement() {
         className="announcement-bar relative z-[9999] overflow-hidden cursor-pointer select-none notranslate"
         translate="no"
         style={{
-          height: "40px",
+          height: "44px",
           background: cfg.bg,
           borderBottom: `1px solid ${cfg.border}`,
-          boxShadow: `0 2px 20px ${cfg.glow}, inset 0 1px 0 ${cfg.border}`,
         }}
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Subtle noise texture overlay */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-          style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }}
-        />
-
-        {/* Left badge */}
-        <div className="absolute left-0 top-0 h-full z-10 flex items-center px-3 gap-2"
-          style={{ background: cfg.badgeBg, borderRight: `1px solid ${cfg.border}` }}>
-          {/* Live dot */}
-          <span className="live-dot w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: cfg.dot, boxShadow: `0 0 6px ${cfg.dot}` }} />
-          {/* Icon + label */}
-          <span style={{ color: cfg.badgeText }} className="hidden sm:flex items-center gap-1">
+        {/* Left section with icon and badge */}
+        <div 
+          className="absolute left-0 top-0 h-full z-10 flex items-center gap-2.5 px-4"
+          style={{ borderRight: `1px solid ${cfg.border}` }}
+        >
+          {/* Pulse indicator */}
+          <span 
+            className="pulse-dot w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: cfg.dot }} 
+          />
+          {/* Icon and label */}
+          <span 
+            className="hidden sm:flex items-center gap-2"
+            style={{ color: cfg.badgeText }}
+          >
             {cfg.icon}
-            <span className="text-[8px] font-black tracking-[2.5px] uppercase">{cfg.badgeLabel}</span>
+            <span className="text-[11px] font-semibold tracking-wide">
+              {cfg.badgeLabel}
+            </span>
           </span>
         </div>
 
-        {/* Ticker */}
-        <div className="absolute inset-0 flex items-center overflow-hidden pl-24 sm:pl-28 pr-28 sm:pr-32">
+        {/* Ticker content */}
+        <div className="absolute inset-0 flex items-center overflow-hidden pl-28 sm:pl-36 pr-32 sm:pr-44">
           <div className="ticker-track">
-            {/* Two copies = seamless loop */}
             {[0, 1].map(i => (
               <span
                 key={i}
                 ref={i === 0 ? textRef : undefined}
-                className="whitespace-nowrap text-[10px] font-bold tracking-[0.08em] uppercase"
-                style={{ color: cfg.text, paddingRight: "4rem" }}
+                className="whitespace-nowrap text-[13px] font-medium tracking-wide"
+                style={{ color: cfg.text, paddingRight: "6rem" }}
               >
                 {msg}
-                <span className="mx-6 opacity-40" style={{ color: cfg.dot }}>◆</span>
+                <span className="mx-8 opacity-30" style={{ color: cfg.dot }}>|</span>
               </span>
             ))}
           </div>
         </div>
 
-        {/* Right CTA + dismiss */}
-        <div className="absolute right-0 top-0 h-full z-10 flex items-center"
-          style={{ background: `linear-gradient(90deg, transparent, ${cfg.badgeBg} 30%)` }}>
-
-          {/* CTA pill */}
+        {/* Right section with CTA and close */}
+        <div 
+          className="absolute right-0 top-0 h-full z-10 flex items-center gap-1"
+          style={{ 
+            background: `linear-gradient(90deg, transparent, ${cfg.bg} 20%)`,
+            paddingLeft: "2rem"
+          }}
+        >
+          {/* CTA Button */}
           <button
             type="button"
-            className="hidden sm:flex items-center gap-1 mr-1 text-[8px] font-black uppercase tracking-widest rounded-full px-2.5 py-1 transition-all active:scale-95"
-            style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeText, border: `1px solid ${cfg.border}` }}
+            className="hidden sm:flex items-center gap-1.5 text-[12px] font-semibold px-4 py-1.5 rounded-full transition-all hover:opacity-90 active:scale-[0.98]"
+            style={{ 
+              backgroundColor: cfg.badgeText, 
+              color: "#ffffff",
+            }}
             onClick={handleClick}
           >
             {cfg.ctaText}
-            <ChevronRight size={9} />
+            <ArrowRight size={12} strokeWidth={2} />
           </button>
 
-          {/* Dismiss */}
+          {/* Dismiss button */}
           <button
             type="button"
             aria-label="Fermer l'annonce"
             onClick={handleDismiss}
-            className="h-full px-3 flex items-center justify-center transition-opacity hover:opacity-70 active:scale-95"
-            style={{ color: cfg.text, opacity: 0.5, borderLeft: `1px solid ${cfg.border}` }}
+            className="h-full px-4 flex items-center justify-center transition-opacity hover:opacity-60"
+            style={{ color: cfg.text, opacity: 0.4 }}
           >
-            <X size={13} />
+            <X size={16} strokeWidth={1.5} />
           </button>
         </div>
-
-        {/* Bottom glow line */}
-        <div className="glow-line absolute bottom-0 left-0 right-0 h-[1px]"
-          style={{ background: `linear-gradient(90deg, transparent, ${cfg.dot}, transparent)` }} />
       </div>
     </>
   );
