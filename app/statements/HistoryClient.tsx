@@ -18,12 +18,12 @@ import { toast } from "sonner";
 /** Types locaux pour l'historique des transactions */
 interface TransactionUser {
   id?: string;
-  username?: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  name?: string;
-  email?: string;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  email?: string | null;
 }
 
 interface RawTransaction {
