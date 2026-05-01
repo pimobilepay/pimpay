@@ -28,7 +28,7 @@ interface TransactionUser {
 
 interface RawTransaction {
   id: string;
-  type: string;
+  type?: string | null;
   amount: number;
   currency: string;
   status: string;
@@ -37,16 +37,17 @@ interface RawTransaction {
   toUserId?: string | null;
   fromUser?: TransactionUser | null;
   toUser?: TransactionUser | null;
-  description?: string;
-  reference?: string;
-  metadata?: Record<string, unknown>;
-  purpose?: string;
-  fee?: number;
+  description?: string | null;
+  reference?: string | null;
+  metadata?: Record<string, unknown> | null;
+  purpose?: string | null;
+  fee?: number | null;
   netAmount?: number | null;
   note?: string | null;
   accountName?: string | null;
   accountNumber?: string | null;
   blockchainTx?: string | null;
+  [key: string]: unknown;
 }
 
 interface FormattedTransaction {
@@ -219,7 +220,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         title: tx.description || tx.purpose || (isIncome ? "Réception" : "Envoi"),
         type,
         amount: tx.amount,
-        fee: tx.fee || 0,
+        fee: tx.fee ?? 0,
         netAmount: tx.netAmount ?? null,
         currency,
         date: format(new Date(tx.createdAt), "d MMM yyyy, HH:mm", { locale: fr }),
