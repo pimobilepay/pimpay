@@ -39,12 +39,53 @@ export default function AdminNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
 
   // FIX: Use refs for tracking seen IDs and first-load flag
   // This avoids stale closures and the infinite re-render loop caused by
   // putting lastNotifIds (a Set) in useCallback dependencies.
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
+
+  // Load read notifications from localStorage on mount
+  useEffect(() => {
+    const storedReadIds = localStorage.getItem("admin_read_notifications");
+    if (storedReadIds) {
+      try {
+        const parsed = JSON.parse(storedReadIds);
+        setReadNotifications(new Set(parsed));
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+  }, []);
+
+  // Save read notifications to localStorage when updated
+  const markAsRead = useCallback((notifId: string) => {
+    setReadNotifications((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(notifId);
+      // Save to localStorage
+      localStorage.setItem("admin_read_notifications", JSON.stringify([...newSet]));
+      return newSet;
+    });
+    // Update the notification in state to show as read
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notifId ? { ...n, read: true } : n))
+    );
+  }, []);
+
+  // Mark all as read
+  const markAllAsRead = useCallback(() => {
+    const allIds = notifications.map((n) => n.id);
+    setReadNotifications((prev) => {
+      const newSet = new Set([...prev, ...allIds]);
+      localStorage.setItem("admin_read_notifications", JSON.stringify([...newSet]));
+      return newSet;
+    });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    toast.success("Toutes les notifications ont ete marquees comme lues");
+  }, [notifications]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -81,7 +122,15 @@ export default function AdminNotificationsPage() {
       knownIdsRef.current = new Set(incoming.map((n) => n.id));
       if (isFirstLoadRef.current) isFirstLoadRef.current = false;
 
-      setNotifications(incoming);
+      // Mark notifications as read based on localStorage
+      const storedReadIds = localStorage.getItem("admin_read_notifications");
+      const readIds = storedReadIds ? new Set(JSON.parse(storedReadIds)) : new Set();
+      const notificationsWithReadState = incoming.map((n) => ({
+        ...n,
+        read: readIds.has(n.id),
+      }));
+
+      setNotifications(notificationsWithReadState);
       setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
     } catch (error) {
       console.error("Error fetching notifications:", error);
@@ -141,6 +190,9 @@ export default function AdminNotificationsPage() {
   };
 
   const handleNotificationClick = (notif: AdminNotification) => {
+    // Mark as read when clicked
+    markAsRead(notif.id);
+    
     switch (notif.type) {
       case "KYC_PENDING":         router.push("/admin/kyc"); break;
       case "TRANSACTION_PENDING":
@@ -251,14 +303,30 @@ export default function AdminNotificationsPage() {
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
           <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
             {filteredNotifications.length} Notification{filteredNotifications.length > 1 ? "s" : ""}
+            {filteredNotifications.filter(n => !n.read).length > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full">
+                {filteredNotifications.filter(n => !n.read).length} non lue{filteredNotifications.filter(n => !n.read).length > 1 ? "s" : ""}
+              </span>
+            )}
           </h2>
-          <button
-            onClick={() => { setLoading(true); fetchNotifications(); }}
-            className="ml-auto flex items-center gap-1 text-[9px] text-slate-500 hover:text-blue-400 transition-colors"
-          >
-            <RefreshCw size={10} />
-            <span className="uppercase tracking-wider">Actualiser</span>
-          </button>
+          <div className="ml-auto flex items-center gap-3">
+            {filteredNotifications.some(n => !n.read) && (
+              <button
+                onClick={markAllAsRead}
+                className="flex items-center gap-1 text-[9px] text-emerald-500 hover:text-emerald-400 transition-colors"
+              >
+                <CheckCircle size={10} />
+                <span className="uppercase tracking-wider">Tout marquer lu</span>
+              </button>
+            )}
+            <button
+              onClick={() => { setLoading(true); fetchNotifications(); }}
+              className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-blue-400 transition-colors"
+            >
+              <RefreshCw size={10} />
+              <span className="uppercase tracking-wider">Actualiser</span>
+            </button>
+          </div>
         </div>
 
         {filteredNotifications.length > 0 ? (
@@ -267,11 +335,17 @@ export default function AdminNotificationsPage() {
               <div
                 key={notif.id}
                 onClick={() => handleNotificationClick(notif)}
-                className={`relative p-4 bg-white/5 border border-white/10 rounded-[1.5rem] hover:bg-white/[0.08] transition-all cursor-pointer active:scale-[0.98] group ${
-                  notif.priority === "urgent" ? "border-red-500/30" : ""
-                }`}
+                className={`relative p-4 border rounded-[1.5rem] hover:bg-white/[0.08] transition-all cursor-pointer active:scale-[0.98] group ${
+                  notif.read 
+                    ? "bg-white/[0.02] border-white/[0.06] opacity-60" 
+                    : "bg-white/5 border-white/10"
+                } ${notif.priority === "urgent" ? "border-red-500/30" : ""}`}
               >
-                {(notif.priority === "urgent" || notif.priority === "high") && (
+                {/* Unread indicator dot */}
+                {!notif.read && (
+                  <div className="absolute top-4 left-4 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                )}
+                {(notif.priority === "urgent" || notif.priority === "high") && !notif.read && (
                   <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${
                     notif.priority === "urgent" ? "bg-red-500 animate-pulse" : "bg-amber-500"
                   }`} />
@@ -282,10 +356,15 @@ export default function AdminNotificationsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-[12px] font-black text-white uppercase tracking-tight">{notif.title}</h3>
+                      <h3 className={`text-[12px] font-black uppercase tracking-tight ${notif.read ? "text-slate-400" : "text-white"}`}>{notif.title}</h3>
                       <span className={`px-2 py-0.5 rounded-full text-[7px] font-bold uppercase ${getPriorityBadge(notif.priority)}`}>
                         {getPriorityLabel(notif.priority)}
                       </span>
+                      {notif.read && (
+                        <span className="px-2 py-0.5 rounded-full text-[7px] font-bold uppercase bg-slate-500/20 text-slate-500 border border-slate-500/30">
+                          Lu
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-slate-400 line-clamp-2 mb-2">{notif.message}</p>
                     <span className="flex items-center gap-1 text-[9px] text-slate-600">
