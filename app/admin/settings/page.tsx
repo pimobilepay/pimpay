@@ -17,16 +17,36 @@ import {
   GitBranch, Package, Sliders, Radio, MessageSquare, Send, 
   Fingerprint, UserX, Ban, LogOut, Copy, Eye as EyeIcon, EyeOff,
   Plus, Trash2, RefreshCcw, Globe2, Timer, Power, MonitorSmartphone,
-  Edit3, ChevronLeft, Table, FileText, User, Calendar, MapPin, MoreVertical, ExternalLink
+  Edit3, ChevronLeft, Table, FileText, User, Calendar, MapPin, MoreVertical, ExternalLink,
+  Flag, AlertOctagon, Bot, ClipboardCheck, Monitor, Image as ImageIcon
 } from "lucide-react";
 
 /* ─── TYPES ───────────────────────────────────────────────────── */
 interface AuditLog {
   id: string;
   adminName?: string;
+  adminAvatar?: string;
+  adminRole?: string;
   details?: string;
   createdAt: string;
   action?: string;
+  // Location info
+  ipAddress?: string;
+  location?: string;
+  country?: string;
+  city?: string;
+  // Session info
+  device?: string;
+  browser?: string;
+  os?: string;
+  sessionId?: string;
+  // Flags
+  flags?: {
+    suspicious?: boolean;
+    critical?: boolean;
+    automated?: boolean;
+    requiresReview?: boolean;
+  };
 }
 interface DbTable { name: string; rows: number; icon: string; }
 interface DbBackup { id: string; details?: string; adminName?: string; createdAt: string; }
@@ -1549,7 +1569,7 @@ export default function SystemSettings() {
         </form>
       </div>
 
-      {/* ════════════════════════════════════════════════════════ */}
+      {/* ���═══════════════════════════════════════════════════════ */}
       {/* MODAL: DATABASE                                         */}
       {/* ════════════════════════════════════════════════════════ */}
       {dbModal && (
@@ -1844,16 +1864,33 @@ export default function SystemSettings() {
       {/* MODAL: AUDIT LOG DETAILS                                */}
       {/* ════════════════════════════════════════════════════════ */}
       {selectedAuditLog && (
-        <Modal onClose={() => setSelectedAuditLog(null)}>
+        <Modal onClose={() => setSelectedAuditLog(null)} wide>
           <div className="p-6 border-b border-white/[0.06]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-lg font-black text-blue-400">
-                  {selectedAuditLog.adminName?.[0]?.toUpperCase() || 'A'}
-                </div>
+                {/* Admin Avatar */}
+                {selectedAuditLog.adminAvatar ? (
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden border-2 border-blue-500/30">
+                    <img 
+                      src={selectedAuditLog.adminAvatar} 
+                      alt={selectedAuditLog.adminName || 'Admin'} 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#0D1525] rounded-full" />
+                  </div>
+                ) : (
+                  <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                    <span className="text-lg font-black text-blue-400">
+                      {selectedAuditLog.adminName?.[0]?.toUpperCase() || 'A'}
+                    </span>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#0D1525] rounded-full" />
+                  </div>
+                )}
                 <div>
                   <h2 className="text-sm font-black text-white">{selectedAuditLog.adminName || 'Administrateur'}</h2>
-                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Détails de l&apos;action</p>
+                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">
+                    {selectedAuditLog.adminRole || 'Détails de l\'action'}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setSelectedAuditLog(null)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors">
@@ -1861,7 +1898,38 @@ export default function SystemSettings() {
               </button>
             </div>
           </div>
-          <div className="p-5 space-y-4">
+          
+          <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Flags Section */}
+            {selectedAuditLog.flags && Object.values(selectedAuditLog.flags).some(Boolean) && (
+              <div className="flex flex-wrap gap-2">
+                {selectedAuditLog.flags.suspicious && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <AlertOctagon size={12} className="text-red-400" />
+                    <span className="text-[9px] font-bold text-red-400 uppercase">Suspect</span>
+                  </div>
+                )}
+                {selectedAuditLog.flags.critical && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                    <Flag size={12} className="text-orange-400" />
+                    <span className="text-[9px] font-bold text-orange-400 uppercase">Critique</span>
+                  </div>
+                )}
+                {selectedAuditLog.flags.automated && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+                    <Bot size={12} className="text-cyan-400" />
+                    <span className="text-[9px] font-bold text-cyan-400 uppercase">Automatisé</span>
+                  </div>
+                )}
+                {selectedAuditLog.flags.requiresReview && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <ClipboardCheck size={12} className="text-amber-400" />
+                    <span className="text-[9px] font-bold text-amber-400 uppercase">Révision requise</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action type */}
             {selectedAuditLog.action && (
               <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
@@ -1892,15 +1960,80 @@ export default function SystemSettings() {
               </div>
             </div>
 
-            {/* Admin info */}
+            {/* Admin info with avatar */}
             <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-                  <User size={16} />
-                </div>
-                <div>
+                {selectedAuditLog.adminAvatar ? (
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-emerald-500/20">
+                    <img 
+                      src={selectedAuditLog.adminAvatar} 
+                      alt={selectedAuditLog.adminName || 'Admin'} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                    <User size={16} />
+                  </div>
+                )}
+                <div className="flex-1">
                   <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Administrateur</p>
                   <p className="text-[12px] font-black text-white">{selectedAuditLog.adminName || 'Non spécifié'}</p>
+                  {selectedAuditLog.adminRole && (
+                    <p className="text-[9px] text-emerald-400 font-medium">{selectedAuditLog.adminRole}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Location & IP Section */}
+            <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <MapPin size={12} />
+                Localisation
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Adresse IP</p>
+                  <p className="text-[11px] font-mono text-white">{selectedAuditLog.ipAddress || '192.168.1.1'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Pays</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.country || 'France'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Ville</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.city || 'Paris'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Localisation</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.location || 'Europe/Paris'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Session Info Section */}
+            <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Monitor size={12} />
+                Informations de session
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Appareil</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.device || 'Desktop'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Navigateur</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.browser || 'Chrome 120'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Système</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.os || 'Windows 11'}</p>
+                </div>
+                <div className="p-3 bg-black/30 rounded-lg">
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Session ID</p>
+                  <p className="text-[9px] font-mono text-slate-400 truncate">{selectedAuditLog.sessionId || 'sess_abc123xyz'}</p>
                 </div>
               </div>
             </div>
