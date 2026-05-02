@@ -14,7 +14,9 @@ import {
   Bug, Wrench, CheckCircle2, Gauge, Lock, Server, Wifi, FileWarning,
   CircleDot, Bell, BarChart2, ChevronDown, Search, Filter,
   Layers, Hash, Cpu, PieChart, AlertCircle, Info, Key,
-  GitBranch, Package, Sliders, Radio
+  GitBranch, Package, Sliders, Radio, MessageSquare, Send, 
+  Fingerprint, UserX, Ban, LogOut, Copy, Eye as EyeIcon, EyeOff,
+  Plus, Trash2, RefreshCcw, Globe2, Timer, Power, MonitorSmartphone
 } from "lucide-react";
 
 /* ─── TYPES ───────────────────────────────────────────────────── */
@@ -54,7 +56,7 @@ interface OptimizerResults {
 }
 
 /* ─── SECTION ENUM ────────────────────────────────────────────── */
-type Section = 'overview' | 'fees' | 'monetary' | 'referral' | 'system' | 'audit';
+type Section = 'overview' | 'fees' | 'monetary' | 'referral' | 'system' | 'audit' | 'notifications' | 'security' | 'api';
 
 /* ─── MAIN COMPONENT ──────────────────────────────────────────── */
 export default function SystemSettings() {
@@ -79,6 +81,19 @@ export default function SystemSettings() {
   const [searchAudit, setSearchAudit] = useState('');
   const [showAllAudit, setShowAllAudit] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  
+  // New feature states
+  const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; lastUsed: string; active: boolean }[]>([
+    { id: '1', name: 'Production API', key: 'pk_live_xxxxxxxxxxxxxxxxxxxxx', lastUsed: '2024-01-15', active: true },
+    { id: '2', name: 'Test API', key: 'pk_test_xxxxxxxxxxxxxxxxxxxxx', lastUsed: '2024-01-14', active: true },
+  ]);
+  const [showApiKey, setShowApiKey] = useState<string | null>(null);
+  const [activeSessions, setActiveSessions] = useState<{ id: string; device: string; ip: string; location: string; lastActive: string }[]>([
+    { id: '1', device: 'Chrome / Windows', ip: '192.168.1.1', location: 'Paris, FR', lastActive: 'Il y a 2 min' },
+    { id: '2', device: 'Safari / iPhone', ip: '192.168.1.2', location: 'Lyon, FR', lastActive: 'Il y a 15 min' },
+    { id: '3', device: 'Firefox / MacOS', ip: '192.168.1.3', location: 'Marseille, FR', lastActive: 'Il y a 1h' },
+  ]);
+  const [terminatingSession, setTerminatingSession] = useState<string | null>(null);
 
   const [stats, setStats] = useState({ totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
   const [config, setConfig] = useState({
@@ -107,6 +122,26 @@ export default function SystemSettings() {
     qrPaymentFee: 0.01,
     referralBonus: 0.0000318,
     referralWelcomeBonus: 0.0000159,
+    // Notification settings
+    emailNotifications: true,
+    pushNotifications: true,
+    smsNotifications: false,
+    notifyOnLogin: true,
+    notifyOnTransaction: true,
+    notifyOnWithdrawal: true,
+    notifyOnSuspiciousActivity: true,
+    emailProvider: 'sendgrid',
+    smsProvider: 'twilio',
+    // Security settings
+    maxLoginAttempts: 5,
+    lockoutDuration: 30,
+    sessionTimeout: 60,
+    requireTwoFactor: false,
+    ipWhitelist: '',
+    geoBlocking: false,
+    blockedCountries: '',
+    rateLimit: 100,
+    rateLimitWindow: 60,
   });
 
   /* ─── API CALLS ─────────────────────────────────────────────── */
@@ -275,6 +310,9 @@ export default function SystemSettings() {
     { id: 'fees', label: 'Gestion des Frais', icon: <Sliders size={16} />, badge: `${Object.keys(config).filter(k => k.toLowerCase().includes('fee')).length}` },
     { id: 'monetary', label: 'Politique Monétaire', icon: <Landmark size={16} /> },
     { id: 'referral', label: 'Programme Parrainage', icon: <Users size={16} /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
+    { id: 'security', label: 'Sécurité Avancée', icon: <Shield size={16} /> },
+    { id: 'api', label: 'Clés API', icon: <Key size={16} />, badge: `${apiKeys.length}` },
     { id: 'system', label: 'Système & Outils', icon: <Cpu size={16} /> },
     { id: 'audit', label: 'Journal d\'Audit', icon: <Activity size={16} />, badge: `${auditLogs.length}` },
   ];
@@ -417,6 +455,9 @@ export default function SystemSettings() {
                   {activeSection === 'fees' && 'Configuration des frais par type de transaction'}
                   {activeSection === 'monetary' && 'Prix, APY, limites et paramètres économiques'}
                   {activeSection === 'referral' && 'Bonus et récompenses du programme de parrainage'}
+                  {activeSection === 'notifications' && 'Configuration des alertes email, push et SMS'}
+                  {activeSection === 'security' && 'Limites de connexion, 2FA et restrictions géographiques'}
+                  {activeSection === 'api' && 'Gestion des clés API et accès développeurs'}
                   {activeSection === 'system' && 'Base de données, backups et optimisation système'}
                   {activeSection === 'audit' && 'Historique complet des actions administratives'}
                 </p>
@@ -566,7 +607,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ═════════════════════════���══════════════════════════ */}
             {/* SECTION: FEES                                       */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'fees' && (
@@ -774,6 +815,518 @@ export default function SystemSettings() {
                       {(Number(config.referralBonus) + Number(config.referralWelcomeBonus)).toFixed(10).replace(/\.?0+$/, '')} π
                     </span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════ */}
+            {/* SECTION: NOTIFICATIONS                              */}
+            {/* ════════════════════════════════════════════════════ */}
+            {activeSection === 'notifications' && (
+              <div className="space-y-6">
+                {/* Channel Toggles */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Canaux de Notification</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      { key: 'emailNotifications', label: 'Email', icon: <Mail size={18} />, color: 'blue' },
+                      { key: 'pushNotifications', label: 'Push', icon: <Bell size={18} />, color: 'amber' },
+                      { key: 'smsNotifications', label: 'SMS', icon: <MessageSquare size={18} />, color: 'emerald' },
+                    ].map(channel => (
+                      <button
+                        key={channel.key}
+                        type="button"
+                        onClick={() => setConfig({ ...config, [channel.key]: !config[channel.key as keyof typeof config] })}
+                        className={`relative overflow-hidden p-5 rounded-2xl border text-left transition-all active:scale-[0.98]
+                          ${config[channel.key as keyof typeof config]
+                            ? `bg-${channel.color}-500/10 border-${channel.color}-500/25`
+                            : 'bg-white/[0.02] border-white/[0.05] hover:border-white/10'}`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className={`p-2.5 rounded-xl ${config[channel.key as keyof typeof config] ? `bg-${channel.color}-500/15 text-${channel.color}-400` : 'bg-white/5 text-slate-500'}`}>
+                            {channel.icon}
+                          </div>
+                          <div className={`relative w-10 h-5 rounded-full transition-colors ${config[channel.key as keyof typeof config] ? (channel.color === 'blue' ? 'bg-blue-500' : channel.color === 'amber' ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-700'}`}>
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${config[channel.key as keyof typeof config] ? 'left-5' : 'left-0.5'}`} />
+                          </div>
+                        </div>
+                        <p className="text-[11px] font-black text-white uppercase tracking-wide">{channel.label}</p>
+                        <p className="text-[9px] text-slate-500 mt-1">
+                          {channel.key === 'emailNotifications' && 'Alertes par email'}
+                          {channel.key === 'pushNotifications' && 'Notifications push app'}
+                          {channel.key === 'smsNotifications' && 'Alertes par SMS'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notification Events */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Événements Déclencheurs</h2>
+                  <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl divide-y divide-white/[0.04]">
+                    {[
+                      { key: 'notifyOnLogin', label: 'Connexion', desc: 'Notifier à chaque nouvelle connexion', icon: <LogOut size={14} /> },
+                      { key: 'notifyOnTransaction', label: 'Transaction', desc: 'Notifier après chaque transaction', icon: <ArrowUpDown size={14} /> },
+                      { key: 'notifyOnWithdrawal', label: 'Retrait', desc: 'Notifier pour chaque demande de retrait', icon: <ArrowUpFromLine size={14} /> },
+                      { key: 'notifyOnSuspiciousActivity', label: 'Activité suspecte', desc: 'Alerter en cas de comportement anormal', icon: <AlertTriangle size={14} /> },
+                    ].map(event => (
+                      <div key={event.key} className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-white/5 text-slate-400">{event.icon}</div>
+                          <div>
+                            <p className="text-[11px] font-bold text-white">{event.label}</p>
+                            <p className="text-[9px] text-slate-500">{event.desc}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, [event.key]: !config[event.key as keyof typeof config] })}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${config[event.key as keyof typeof config] ? 'bg-blue-500' : 'bg-slate-700'}`}
+                        >
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${config[event.key as keyof typeof config] ? 'left-5' : 'left-0.5'}`} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Provider Config */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Fournisseurs</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400"><Mail size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Provider Email</p>
+                          <p className="text-[9px] text-slate-500">Service d&apos;envoi d&apos;emails</p>
+                        </div>
+                      </div>
+                      <select
+                        value={config.emailProvider}
+                        onChange={e => setConfig({ ...config, emailProvider: e.target.value })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:border-blue-500/40 outline-none"
+                      >
+                        <option value="sendgrid">SendGrid</option>
+                        <option value="mailgun">Mailgun</option>
+                        <option value="ses">Amazon SES</option>
+                        <option value="postmark">Postmark</option>
+                      </select>
+                    </div>
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400"><MessageSquare size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Provider SMS</p>
+                          <p className="text-[9px] text-slate-500">Service d&apos;envoi SMS</p>
+                        </div>
+                      </div>
+                      <select
+                        value={config.smsProvider}
+                        onChange={e => setConfig({ ...config, smsProvider: e.target.value })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500/40 outline-none"
+                      >
+                        <option value="twilio">Twilio</option>
+                        <option value="nexmo">Vonage (Nexmo)</option>
+                        <option value="messagebird">MessageBird</option>
+                        <option value="sns">Amazon SNS</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Test Notification */}
+                <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400"><Send size={16} /></div>
+                      <div>
+                        <p className="text-[11px] font-black text-white">Tester les Notifications</p>
+                        <p className="text-[9px] text-slate-500">Envoyer une notification de test aux admins</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toast.success('Notification de test envoyée!')}
+                      className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-xl text-white font-bold text-[10px] uppercase tracking-wide transition-all active:scale-95"
+                    >
+                      <Send size={12} className="inline mr-1" /> Envoyer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════ */}
+            {/* SECTION: SECURITY                                   */}
+            {/* ════════════════════════════════════════════════════ */}
+            {activeSection === 'security' && (
+              <div className="space-y-6">
+                {/* Login Security */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Sécurité Connexion</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400"><Ban size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Tentatives Max</p>
+                          <p className="text-[9px] text-slate-500">Avant verrouillage</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="1" max="10"
+                        value={config.maxLoginAttempts}
+                        onChange={e => setConfig({ ...config, maxLoginAttempts: parseInt(e.target.value) || 5 })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-rose-500/40 outline-none"
+                      />
+                    </div>
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400"><Timer size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Durée Verrouillage</p>
+                          <p className="text-[9px] text-slate-500">En minutes</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="5" max="1440"
+                        value={config.lockoutDuration}
+                        onChange={e => setConfig({ ...config, lockoutDuration: parseInt(e.target.value) || 30 })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-amber-500/40 outline-none"
+                      />
+                    </div>
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400"><Clock size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Session Timeout</p>
+                          <p className="text-[9px] text-slate-500">En minutes</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="5" max="1440"
+                        value={config.sessionTimeout}
+                        onChange={e => setConfig({ ...config, sessionTimeout: parseInt(e.target.value) || 60 })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-blue-500/40 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2FA Toggle */}
+                <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400"><Fingerprint size={18} /></div>
+                      <div>
+                        <p className="text-[11px] font-black text-white">Authentification à deux facteurs obligatoire</p>
+                        <p className="text-[9px] text-slate-500">Forcer tous les utilisateurs à activer le 2FA</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setConfig({ ...config, requireTwoFactor: !config.requireTwoFactor })}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${config.requireTwoFactor ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                    >
+                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${config.requireTwoFactor ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Rate Limiting */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Rate Limiting</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400"><Gauge size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Limite Requêtes</p>
+                          <p className="text-[9px] text-slate-500">Requêtes max par fenêtre</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="10" max="1000"
+                        value={config.rateLimit}
+                        onChange={e => setConfig({ ...config, rateLimit: parseInt(e.target.value) || 100 })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-cyan-500/40 outline-none"
+                      />
+                    </div>
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400"><Timer size={16} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Fenêtre (sec)</p>
+                          <p className="text-[9px] text-slate-500">Période de rate limit</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number" min="10" max="3600"
+                        value={config.rateLimitWindow}
+                        onChange={e => setConfig({ ...config, rateLimitWindow: parseInt(e.target.value) || 60 })}
+                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-violet-500/40 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Geo Blocking */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Restrictions Géographiques</h2>
+                  <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400"><Globe2 size={18} /></div>
+                        <div>
+                          <p className="text-[11px] font-black text-white">Activer le Geo-blocking</p>
+                          <p className="text-[9px] text-slate-500">Bloquer l&apos;accès depuis certains pays</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setConfig({ ...config, geoBlocking: !config.geoBlocking })}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${config.geoBlocking ? 'bg-rose-500' : 'bg-slate-700'}`}
+                      >
+                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${config.geoBlocking ? 'left-6' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+                    {config.geoBlocking && (
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Pays bloqués (codes ISO, séparés par virgule)</label>
+                        <input
+                          type="text"
+                          placeholder="KP, IR, SY, CU..."
+                          value={config.blockedCountries}
+                          onChange={e => setConfig({ ...config, blockedCountries: e.target.value })}
+                          className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:border-rose-500/40 outline-none placeholder-slate-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* IP Whitelist */}
+                <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400"><Server size={18} /></div>
+                    <div>
+                      <p className="text-[11px] font-black text-white">Whitelist IP Admin</p>
+                      <p className="text-[9px] text-slate-500">IPs autorisées pour l&apos;accès admin (séparées par virgule)</p>
+                    </div>
+                  </div>
+                  <textarea
+                    placeholder="192.168.1.1, 10.0.0.1/24..."
+                    value={config.ipWhitelist}
+                    onChange={e => setConfig({ ...config, ipWhitelist: e.target.value })}
+                    className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500/40 outline-none min-h-[80px] resize-none placeholder-slate-600"
+                  />
+                </div>
+
+                {/* Active Sessions */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px]">Sessions Actives</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSessions([]);
+                        toast.success('Toutes les sessions ont été terminées');
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-[9px] font-bold uppercase tracking-wide hover:bg-rose-500/20 transition-all"
+                    >
+                      <Power size={10} /> Tout déconnecter
+                    </button>
+                  </div>
+                  <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl divide-y divide-white/[0.04]">
+                    {activeSessions.length > 0 ? activeSessions.map(session => (
+                      <div key={session.id} className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400"><MonitorSmartphone size={14} /></div>
+                          <div>
+                            <p className="text-[11px] font-bold text-white">{session.device}</p>
+                            <p className="text-[9px] text-slate-500">{session.ip} - {session.location}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] text-slate-500">{session.lastActive}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTerminatingSession(session.id);
+                              setTimeout(() => {
+                                setActiveSessions(prev => prev.filter(s => s.id !== session.id));
+                                setTerminatingSession(null);
+                                toast.success('Session terminée');
+                              }, 500);
+                            }}
+                            disabled={terminatingSession === session.id}
+                            className="p-1.5 bg-rose-500/10 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-50"
+                          >
+                            {terminatingSession === session.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                          </button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="p-8 text-center text-slate-600">
+                        <MonitorSmartphone size={24} className="mx-auto mb-2 opacity-30" />
+                        <p className="text-[10px] font-bold">Aucune session active</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════ */}
+            {/* SECTION: API KEYS                                   */}
+            {/* ════════════════════════════════════════════════════ */}
+            {activeSection === 'api' && (
+              <div className="space-y-6">
+                {/* Info Banner */}
+                <div className="p-4 bg-amber-500/5 border border-amber-500/15 rounded-2xl flex items-start gap-3">
+                  <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-amber-300/70 leading-relaxed font-medium">
+                    Les clés API permettent aux développeurs d&apos;accéder aux fonctionnalités de PimPay. Gardez vos clés secrètes et ne les partagez jamais publiquement.
+                  </p>
+                </div>
+
+                {/* API Keys List */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px]">Clés API</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newKey = {
+                          id: Date.now().toString(),
+                          name: 'Nouvelle Clé API',
+                          key: `pk_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`,
+                          lastUsed: 'Jamais',
+                          active: true
+                        };
+                        setApiKeys([...apiKeys, newKey]);
+                        toast.success('Nouvelle clé API créée');
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-[9px] font-bold uppercase tracking-wide transition-all"
+                    >
+                      <Plus size={10} /> Nouvelle Clé
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {apiKeys.map(apiKey => (
+                      <div key={apiKey.id} className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl hover:border-white/10 transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${apiKey.active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-500'}`}>
+                              <Key size={14} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-bold text-white">{apiKey.name}</p>
+                              <p className="text-[9px] text-slate-500">Dernière utilisation: {apiKey.lastUsed}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[8px] font-black px-2 py-1 rounded-lg ${apiKey.active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-500'}`}>
+                              {apiKey.active ? 'Actif' : 'Inactif'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 bg-black/30 border border-white/[0.06] rounded-xl px-3 py-2.5">
+                          <input
+                            type={showApiKey === apiKey.id ? 'text' : 'password'}
+                            value={apiKey.key}
+                            readOnly
+                            className="flex-1 bg-transparent text-white font-mono text-[11px] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey(showApiKey === apiKey.id ? null : apiKey.id)}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                          >
+                            {showApiKey === apiKey.id ? <EyeOff size={12} /> : <EyeIcon size={12} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(apiKey.key);
+                              toast.success('Clé copiée!');
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApiKeys(apiKeys.map(k => k.id === apiKey.id ? { ...k, active: !k.active } : k));
+                              toast.success(apiKey.active ? 'Clé désactivée' : 'Clé activée');
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-all ${apiKey.active ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}
+                          >
+                            {apiKey.active ? 'Désactiver' : 'Activer'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newKey = `pk_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
+                              setApiKeys(apiKeys.map(k => k.id === apiKey.id ? { ...k, key: newKey } : k));
+                              toast.success('Clé régénérée');
+                            }}
+                            className="flex-1 py-2 rounded-lg bg-blue-500/10 text-blue-400 text-[9px] font-bold uppercase tracking-wide hover:bg-blue-500/20 transition-all"
+                          >
+                            <RefreshCcw size={10} className="inline mr-1" /> Régénérer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApiKeys(apiKeys.filter(k => k.id !== apiKey.id));
+                              toast.success('Clé supprimée');
+                            }}
+                            className="py-2 px-3 rounded-lg bg-rose-500/10 text-rose-400 text-[9px] font-bold uppercase tracking-wide hover:bg-rose-500/20 transition-all"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* API Stats */}
+                <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                  <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Statistiques API</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Requêtes (24h)', value: '12,458', color: 'blue' },
+                      { label: 'Taux de succès', value: '99.8%', color: 'emerald' },
+                      { label: 'Latence moy.', value: '45ms', color: 'amber' },
+                      { label: 'Erreurs', value: '23', color: 'rose' },
+                    ].map(stat => (
+                      <div key={stat.label} className={`p-3 rounded-xl bg-${stat.color}-500/5 border border-${stat.color}-500/15`}>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{stat.label}</p>
+                        <p className={`text-lg font-black text-${stat.color}-400 mt-1`}>{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Webhooks */}
+                <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400"><Wifi size={16} /></div>
+                      <div>
+                        <p className="text-[11px] font-black text-white">Webhooks</p>
+                        <p className="text-[9px] text-slate-500">Recevoir des notifications en temps réel</p>
+                      </div>
+                    </div>
+                    <span className="text-[8px] font-black px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400">Bientôt</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Configurez des webhooks pour recevoir des notifications automatiques lors d&apos;événements importants (transactions, inscriptions, etc.)</p>
                 </div>
               </div>
             )}
