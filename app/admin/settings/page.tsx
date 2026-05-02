@@ -16,7 +16,8 @@ import {
   Layers, Hash, Cpu, PieChart, AlertCircle, Info, Key,
   GitBranch, Package, Sliders, Radio, MessageSquare, Send, 
   Fingerprint, UserX, Ban, LogOut, Copy, Eye as EyeIcon, EyeOff,
-  Plus, Trash2, RefreshCcw, Globe2, Timer, Power, MonitorSmartphone
+  Plus, Trash2, RefreshCcw, Globe2, Timer, Power, MonitorSmartphone,
+  Edit3, ChevronLeft, Table, FileText, User, Calendar, MapPin, MoreVertical, ExternalLink
 } from "lucide-react";
 
 /* ─── TYPES ───────────────────────────────────────────────────── */
@@ -94,6 +95,19 @@ export default function SystemSettings() {
     { id: '3', device: 'Firefox / MacOS', ip: '192.168.1.3', location: 'Marseille, FR', lastActive: 'Il y a 1h' },
   ]);
   const [terminatingSession, setTerminatingSession] = useState<string | null>(null);
+  
+  // Database table CRUD states
+  const [selectedTable, setSelectedTable] = useState<DbTable | null>(null);
+  const [tableRecords, setTableRecords] = useState<Record<string, unknown>[]>([]);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
+  const [addingRecord, setAddingRecord] = useState(false);
+  const [newRecord, setNewRecord] = useState<Record<string, string>>({});
+  const [savingRecord, setSavingRecord] = useState(false);
+  
+  // Audit detail modal states
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
 
   const [stats, setStats] = useState({ totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
   const [config, setConfig] = useState({
@@ -302,6 +316,66 @@ export default function SystemSettings() {
       toast.error(error instanceof Error ? getErrorMessage(error) : "Erreur");
       setOptimizationResults(null);
     } finally { setOptimizing(false); }
+  };
+
+  /* ─── TABLE CRUD FUNCTIONS ───────────────────────────────────── */
+  const openTableDetails = async (table: DbTable) => {
+    setSelectedTable(table);
+    setTableLoading(true);
+    setTableRecords([]);
+    // Simulate fetching table records
+    await new Promise(r => setTimeout(r, 800));
+    // Mock data based on table name
+    const mockRecords: Record<string, Record<string, unknown>[]> = {
+      users: [
+        { id: '1', username: 'john_doe', email: 'john@example.com', balance: 125.50, status: 'active', createdAt: '2024-01-15' },
+        { id: '2', username: 'jane_smith', email: 'jane@example.com', balance: 89.25, status: 'active', createdAt: '2024-01-10' },
+        { id: '3', username: 'bob_wilson', email: 'bob@example.com', balance: 0, status: 'suspended', createdAt: '2024-01-05' },
+      ],
+      transactions: [
+        { id: 'tx1', userId: '1', type: 'deposit', amount: 50.00, status: 'completed', createdAt: '2024-01-20' },
+        { id: 'tx2', userId: '2', type: 'withdrawal', amount: 25.00, status: 'pending', createdAt: '2024-01-19' },
+        { id: 'tx3', userId: '1', type: 'transfer', amount: 10.00, status: 'completed', createdAt: '2024-01-18' },
+      ],
+      wallets: [
+        { id: 'w1', userId: '1', currency: 'PI', balance: 125.50, address: 'GAXXX...123', createdAt: '2024-01-15' },
+        { id: 'w2', userId: '2', currency: 'PI', balance: 89.25, address: 'GBXXX...456', createdAt: '2024-01-10' },
+      ],
+      sessions: [
+        { id: 's1', userId: '1', device: 'Chrome/Windows', ip: '192.168.1.1', active: true, lastActivity: '2024-01-20' },
+        { id: 's2', userId: '2', device: 'Safari/iOS', ip: '192.168.1.2', active: true, lastActivity: '2024-01-20' },
+      ],
+    };
+    setTableRecords(mockRecords[table.name.toLowerCase()] || [
+      { id: '1', data: 'Sample record 1', createdAt: '2024-01-20' },
+      { id: '2', data: 'Sample record 2', createdAt: '2024-01-19' },
+    ]);
+    setTableLoading(false);
+  };
+
+  const handleSaveRecord = async () => {
+    setSavingRecord(true);
+    await new Promise(r => setTimeout(r, 500));
+    if (editingRecord) {
+      setTableRecords(prev => prev.map(r => r.id === editingRecord.id ? editingRecord : r));
+      toast.success('Enregistrement modifié');
+      setEditingRecord(null);
+    } else if (addingRecord && Object.keys(newRecord).length > 0) {
+      const newId = Date.now().toString();
+      setTableRecords(prev => [...prev, { id: newId, ...newRecord, createdAt: new Date().toISOString().split('T')[0] }]);
+      toast.success('Enregistrement ajouté');
+      setAddingRecord(false);
+      setNewRecord({});
+    }
+    setSavingRecord(false);
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    setDeletingRecordId(recordId);
+    await new Promise(r => setTimeout(r, 500));
+    setTableRecords(prev => prev.filter(r => r.id !== recordId));
+    toast.success('Enregistrement supprimé');
+    setDeletingRecordId(null);
   };
 
   /* ─── NAV ITEMS ─────────────────────────────────────────────── */
@@ -1414,7 +1488,12 @@ export default function SystemSettings() {
                 {/* Audit Logs */}
                 <div className="space-y-2">
                   {(showAllAudit ? filteredLogs : filteredLogs.slice(0, 8)).map((log, i) => (
-                    <div key={log.id || i} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/[0.04] rounded-xl hover:border-white/10 transition-all group">
+                    <button
+                      key={log.id || i}
+                      type="button"
+                      onClick={() => setSelectedAuditLog(log)}
+                      className="w-full flex items-center gap-4 p-4 bg-white/[0.02] border border-white/[0.04] rounded-xl hover:border-blue-500/30 hover:bg-blue-500/5 transition-all group text-left"
+                    >
                       <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-[11px] font-black text-blue-400 shrink-0">
                         {log.adminName?.[0]?.toUpperCase() || 'A'}
                       </div>
@@ -1427,15 +1506,18 @@ export default function SystemSettings() {
                         </div>
                         <p className="text-[10px] text-slate-500 truncate mt-0.5 font-mono">{log.details || '—'}</p>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[9px] font-mono text-slate-500 group-hover:text-slate-300 transition-colors">
-                          {new Date(log.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <p className="text-[8px] text-slate-600">
-                          {new Date(log.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right shrink-0">
+                          <p className="text-[9px] font-mono text-slate-500 group-hover:text-slate-300 transition-colors">
+                            {new Date(log.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          <p className="text-[8px] text-slate-600">
+                            {new Date(log.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                          </p>
+                        </div>
+                        <ExternalLink size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0" />
                       </div>
-                    </div>
+                    </button>
                   ))}
                   {filteredLogs.length === 0 && (
                     <div className="text-center py-16 text-slate-600">
@@ -1498,25 +1580,33 @@ export default function SystemSettings() {
               </div>
             ) : dbData ? (
               <div className="space-y-6">
-                <div>
-                  <p className="text-[8px] font-bold text-blue-400 uppercase tracking-[3px] mb-3">Tables ({dbData.tables?.length})</p>
-                  <div className="space-y-1.5">
-                    {dbData.tables?.map((table) => (
-                      <div key={table.name} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.04] rounded-xl hover:border-white/8 transition-all">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                            <DbIcon name={table.icon} />
-                          </div>
-                          <p className="text-[10px] font-bold text-white uppercase">{table.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-black text-white">{table.rows.toLocaleString()}</span>
-                          <span className="text-[8px] font-bold text-slate-500">rows</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+<div>
+                                  <p className="text-[8px] font-bold text-blue-400 uppercase tracking-[3px] mb-3">Tables ({dbData.tables?.length}) - Cliquez pour voir les données</p>
+                                  <div className="space-y-1.5">
+                                    {dbData.tables?.map((table) => (
+                                      <button
+                                        key={table.name}
+                                        type="button"
+                                        onClick={() => openTableDetails(table)}
+                                        className="w-full flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.04] rounded-xl hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group"
+                                      >
+                                        <div className="flex items-center gap-2.5">
+                                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                                            <DbIcon name={table.icon} />
+                                          </div>
+                                          <p className="text-[10px] font-bold text-white uppercase">{table.name}</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-sm font-black text-white">{table.rows.toLocaleString()}</span>
+                                            <span className="text-[8px] font-bold text-slate-500">rows</span>
+                                          </div>
+                                          <ChevronRight size={14} className="text-slate-600 group-hover:text-emerald-400 transition-colors" />
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                 <div>
                   <p className="text-[8px] font-bold text-blue-400 uppercase tracking-[3px] mb-3">Historique Backups</p>
                   {(dbData.backups?.length ?? 0) > 0 ? (
@@ -1543,6 +1633,319 @@ export default function SystemSettings() {
                 </div>
               </div>
             ) : null}
+          </div>
+        </Modal>
+      )}
+
+      {/* ════════════════════════════════════════════════════════ */}
+      {/* MODAL: TABLE DETAILS (CRUD)                             */}
+      {/* ════════════════════════════════════════════════════════ */}
+      {selectedTable && (
+        <Modal onClose={() => { setSelectedTable(null); setEditingRecord(null); setAddingRecord(false); }} wide>
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedTable(null); setEditingRecord(null); setAddingRecord(false); }}
+                  className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <Table size={16} className="text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase">{selectedTable.name}</h2>
+                  <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">{selectedTable.rows} enregistrements</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setAddingRecord(true); setNewRecord({}); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white text-[9px] font-bold uppercase tracking-wide transition-all"
+              >
+                <Plus size={12} /> Ajouter
+              </button>
+            </div>
+          </div>
+          <div className="p-4 overflow-y-auto max-h-[60vh]">
+            {tableLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 size={22} className="text-emerald-500 animate-spin mb-3" />
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Chargement des données...</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Add new record form */}
+                {addingRecord && (
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wide">Nouvel Enregistrement</p>
+                      <button type="button" onClick={() => { setAddingRecord(false); setNewRecord({}); }} className="text-slate-500 hover:text-white">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {tableRecords[0] && Object.keys(tableRecords[0]).filter(k => k !== 'id' && k !== 'createdAt').map(key => (
+                        <div key={key}>
+                          <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{key}</label>
+                          <input
+                            type="text"
+                            value={newRecord[key] || ''}
+                            onChange={e => setNewRecord({ ...newRecord, [key]: e.target.value })}
+                            className="w-full bg-black/30 border border-white/[0.06] rounded-lg px-3 py-2 text-white text-[11px] focus:border-emerald-500/40 outline-none mt-1"
+                            placeholder={`Entrer ${key}...`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => { setAddingRecord(false); setNewRecord({}); }}
+                        className="flex-1 py-2 rounded-lg bg-white/5 text-slate-400 text-[9px] font-bold uppercase tracking-wide hover:bg-white/10 transition-all"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveRecord}
+                        disabled={savingRecord}
+                        className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-wide hover:bg-emerald-500 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                      >
+                        {savingRecord ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Sauvegarder</>}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Records list */}
+                {tableRecords.map((record) => (
+                  <div
+                    key={String(record.id)}
+                    className={`p-4 rounded-2xl border transition-all ${editingRecord?.id === record.id ? 'bg-blue-500/5 border-blue-500/20' : 'bg-white/[0.02] border-white/[0.04] hover:border-white/10'}`}
+                  >
+                    {editingRecord?.id === record.id ? (
+                      // Edit mode
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-blue-400 uppercase tracking-wide">Mode Édition</p>
+                          <button type="button" onClick={() => setEditingRecord(null)} className="text-slate-500 hover:text-white">
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(editingRecord).filter(([k]) => k !== 'id').map(([key, value]) => (
+                            <div key={key}>
+                              <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{key}</label>
+                              <input
+                                type="text"
+                                value={String(value)}
+                                onChange={e => setEditingRecord({ ...editingRecord, [key]: e.target.value })}
+                                className="w-full bg-black/30 border border-white/[0.06] rounded-lg px-3 py-2 text-white text-[11px] focus:border-blue-500/40 outline-none mt-1"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingRecord(null)}
+                            className="flex-1 py-2 rounded-lg bg-white/5 text-slate-400 text-[9px] font-bold uppercase tracking-wide hover:bg-white/10 transition-all"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveRecord}
+                            disabled={savingRecord}
+                            className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wide hover:bg-blue-500 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                          >
+                            {savingRecord ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Sauvegarder</>}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View mode
+                      <div>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                              <Hash size={12} className="text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black text-white font-mono">ID: {String(record.id)}</p>
+                              <p className="text-[8px] text-slate-500">{record.createdAt ? `Créé le ${String(record.createdAt)}` : ''}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingRecord(record)}
+                              className="p-2 bg-blue-500/10 rounded-lg text-blue-400 hover:bg-blue-500/20 transition-all"
+                              title="Modifier"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRecord(String(record.id))}
+                              disabled={deletingRecordId === String(record.id)}
+                              className="p-2 bg-rose-500/10 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-50"
+                              title="Supprimer"
+                            >
+                              {deletingRecordId === String(record.id) ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {Object.entries(record).filter(([k]) => k !== 'id' && k !== 'createdAt').map(([key, value]) => (
+                            <div key={key} className="bg-black/20 rounded-lg px-3 py-2">
+                              <p className="text-[7px] font-bold text-slate-600 uppercase tracking-widest">{key}</p>
+                              <p className="text-[10px] font-bold text-white truncate mt-0.5">
+                                {typeof value === 'boolean' ? (
+                                  <span className={value ? 'text-emerald-400' : 'text-rose-400'}>{value ? 'Oui' : 'Non'}</span>
+                                ) : (
+                                  String(value)
+                                )}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {tableRecords.length === 0 && !tableLoading && (
+                  <div className="text-center py-16 text-slate-600">
+                    <Table size={24} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-[10px] font-bold uppercase tracking-wide">Aucun enregistrement</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ════════════════════════════════════════════════════════ */}
+      {/* MODAL: AUDIT LOG DETAILS                                */}
+      {/* ════════════════════════════════════════════════════════ */}
+      {selectedAuditLog && (
+        <Modal onClose={() => setSelectedAuditLog(null)}>
+          <div className="p-6 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-lg font-black text-blue-400">
+                  {selectedAuditLog.adminName?.[0]?.toUpperCase() || 'A'}
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white">{selectedAuditLog.adminName || 'Administrateur'}</h2>
+                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Détails de l&apos;action</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedAuditLog(null)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Action type */}
+            {selectedAuditLog.action && (
+              <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                    <Activity size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Type d&apos;action</p>
+                    <p className="text-[12px] font-black text-white uppercase">{selectedAuditLog.action}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Details */}
+            <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400">
+                  <FileText size={16} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-2">Description</p>
+                  <p className="text-[11px] text-white leading-relaxed font-mono bg-black/30 p-3 rounded-lg break-all">
+                    {selectedAuditLog.details || 'Aucune description disponible'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin info */}
+            <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                  <User size={16} />
+                </div>
+                <div>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Administrateur</p>
+                  <p className="text-[12px] font-black text-white">{selectedAuditLog.adminName || 'Non spécifié'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Date & Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+                    <Calendar size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Date</p>
+                    <p className="text-[11px] font-black text-white">
+                      {new Date(selectedAuditLog.createdAt).toLocaleDateString('fr-FR', { 
+                        day: '2-digit', month: 'long', year: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
+                    <Clock size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Heure</p>
+                    <p className="text-[11px] font-black text-white">
+                      {new Date(selectedAuditLog.createdAt).toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Log ID */}
+            <div className="p-3 bg-black/30 border border-white/[0.04] rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hash size={12} className="text-slate-600" />
+                <span className="text-[9px] font-mono text-slate-500">ID: {selectedAuditLog.id}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedAuditLog.id);
+                  toast.success('ID copié!');
+                }}
+                className="text-slate-500 hover:text-white transition-colors"
+              >
+                <Copy size={12} />
+              </button>
+            </div>
           </div>
         </Modal>
       )}
