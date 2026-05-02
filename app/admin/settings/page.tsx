@@ -77,6 +77,9 @@ export default function SystemSettings() {
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState<OptimizerResults | null>(null);
   const [patchingItem, setPatchingItem] = useState<string | null>(null);
+  const [selectedVuln, setSelectedVuln] = useState<VulnItem | null>(null);
+  const [patchAction, setPatchAction] = useState<'patch' | 'update' | 'ignore'>('patch');
+  const [patchNotes, setPatchNotes] = useState('');
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
   const [searchAudit, setSearchAudit] = useState('');
@@ -255,14 +258,18 @@ export default function SystemSettings() {
     finally { setBackupRunning(false); }
   };
 
-  const applyPatch = async (vulnName: string) => {
+  const applyPatch = async (vulnName: string, action: 'patch' | 'update' | 'ignore' = 'patch') => {
     setPatchingItem(vulnName);
     try {
       const response = await fetch("/api/admin/system-optimizer/patch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ vulnerabilityName: vulnName }),
+        body: JSON.stringify({ 
+          vulnerabilityName: vulnName,
+          action,
+          notes: patchNotes || undefined
+        }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -272,7 +279,7 @@ export default function SystemSettings() {
       setOptimizationResults(prev => {
         if (!prev) return prev;
         const updatedVulns = prev.vulnerabilities.map(v =>
-          v.name === vulnName ? { ...v, status: 'fixed' as const } : v
+          v.name === vulnName ? { ...v, status: action === 'ignore' ? 'pending' as const : 'fixed' as const } : v
         );
         let newScore = 100;
         for (const v of updatedVulns) {
@@ -286,7 +293,10 @@ export default function SystemSettings() {
         newScore = Math.max(0, Math.min(100, newScore));
         return { ...prev, vulnerabilities: updatedVulns, overallScore: result.newScore || newScore };
       });
-      toast.success(`Patch appliqué: ${vulnName}`);
+      const actionMsg = action === 'patch' ? 'Patch appliqué' : action === 'update' ? 'Package mis à jour' : 'Ignoré';
+      toast.success(`${actionMsg}: ${vulnName}`);
+      setSelectedVuln(null);
+      setPatchNotes('');
     } catch (error) {
       toast.error(error instanceof Error ? getErrorMessage(error) : "Erreur lors du patch");
     } finally { setPatchingItem(null); }
@@ -2018,6 +2028,191 @@ export default function SystemSettings() {
       )}
 
       {/* ════════════════════════════════════════════════════════ */}
+      {/* MODAL: PATCH DETAILS                                    */}
+      {/* ════════════════════════════════════════════════════════ */}
+      {selectedVuln && (
+        <Modal onClose={() => { setSelectedVuln(null); setPatchNotes(''); }}>
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  selectedVuln.severity === 'critical' ? 'bg-red-500/10 border border-red-500/20' :
+                  selectedVuln.severity === 'high' ? 'bg-orange-500/10 border border-orange-500/20' :
+                  'bg-amber-500/10 border border-amber-500/20'
+                }`}>
+                  <Bug size={18} className={
+                    selectedVuln.severity === 'critical' ? 'text-red-400' :
+                    selectedVuln.severity === 'high' ? 'text-orange-400' : 'text-amber-400'
+                  } />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white">{selectedVuln.name}</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${
+                      selectedVuln.severity === 'critical' ? 'bg-red-500/10 text-red-400' :
+                      selectedVuln.severity === 'high' ? 'bg-orange-500/10 text-orange-400' :
+                      'bg-amber-500/10 text-amber-400'
+                    }`}>{selectedVuln.severity}</span>
+                    {selectedVuln.category && (
+                      <span className="text-[8px] font-bold text-slate-500 uppercase">{selectedVuln.category}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => { setSelectedVuln(null); setPatchNotes(''); }} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Description */}
+            <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-2">Description</p>
+              <p className="text-[11px] text-white leading-relaxed">{selectedVuln.description}</p>
+            </div>
+
+            {/* Version info */}
+            {selectedVuln.currentVersion && selectedVuln.patchedVersion && (
+              <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3">Versions</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 p-3 bg-red-500/5 border border-red-500/15 rounded-xl text-center">
+                    <p className="text-[8px] font-bold text-red-400 uppercase mb-1">Actuelle</p>
+                    <p className="text-sm font-mono font-black text-red-300">v{selectedVuln.currentVersion}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-600 shrink-0" />
+                  <div className="flex-1 p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl text-center">
+                    <p className="text-[8px] font-bold text-emerald-400 uppercase mb-1">Corrigée</p>
+                    <p className="text-sm font-mono font-black text-emerald-300">{selectedVuln.patchedVersion}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action selection */}
+            <div>
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3">Action a effectuer</p>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { 
+                    id: 'patch' as const, 
+                    label: 'Appliquer le Patch', 
+                    desc: 'Corrige la vulnerabilite sans changer la version majeure',
+                    icon: <Wrench size={14} />,
+                    color: 'violet'
+                  },
+                  { 
+                    id: 'update' as const, 
+                    label: 'Mettre a jour le Package', 
+                    desc: selectedVuln.patchedVersion 
+                      ? `Mise a jour vers ${selectedVuln.patchedVersion}`
+                      : 'Met a jour vers la derniere version stable',
+                    icon: <RefreshCcw size={14} />,
+                    color: 'blue'
+                  },
+                  { 
+                    id: 'ignore' as const, 
+                    label: 'Ignorer temporairement', 
+                    desc: 'Reporter la correction (non recommande pour les critiques)',
+                    icon: <Clock size={14} />,
+                    color: 'slate'
+                  },
+                ].map(action => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => setPatchAction(action.id)}
+                    className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
+                      patchAction === action.id
+                        ? action.color === 'violet' ? 'bg-violet-500/10 border-violet-500/30'
+                        : action.color === 'blue' ? 'bg-blue-500/10 border-blue-500/30'
+                        : 'bg-slate-500/10 border-slate-500/30'
+                        : 'bg-white/[0.02] border-white/[0.05] hover:border-white/10'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg shrink-0 ${
+                      patchAction === action.id
+                        ? action.color === 'violet' ? 'bg-violet-500/15 text-violet-400'
+                        : action.color === 'blue' ? 'bg-blue-500/15 text-blue-400'
+                        : 'bg-slate-500/15 text-slate-400'
+                        : 'bg-white/5 text-slate-500'
+                    }`}>
+                      {action.icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={`text-[11px] font-black ${patchAction === action.id ? 'text-white' : 'text-slate-300'}`}>
+                          {action.label}
+                        </p>
+                        {patchAction === action.id && (
+                          <CheckCircle2 size={12} className={
+                            action.color === 'violet' ? 'text-violet-400' :
+                            action.color === 'blue' ? 'text-blue-400' : 'text-slate-400'
+                          } />
+                        )}
+                      </div>
+                      <p className="text-[9px] text-slate-500 mt-0.5">{action.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-2">Notes (optionnel)</p>
+              <textarea
+                value={patchNotes}
+                onChange={e => setPatchNotes(e.target.value)}
+                placeholder="Ajoutez des notes pour le journal d'audit..."
+                className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-[11px] focus:border-violet-500/40 outline-none min-h-[70px] resize-none placeholder-slate-600"
+              />
+            </div>
+
+            {/* Warning for ignore on critical */}
+            {patchAction === 'ignore' && selectedVuln.severity === 'critical' && (
+              <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-xl flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                <p className="text-[9px] text-red-300/80">
+                  Cette vulnerabilite est critique. Il est fortement recommande de la corriger immediatement.
+                </p>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setSelectedVuln(null); setPatchNotes(''); }}
+                className="flex-1 py-3 rounded-xl bg-white/5 text-slate-400 font-bold text-[10px] uppercase tracking-wide hover:bg-white/10 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPatch(selectedVuln.name, patchAction)}
+                disabled={patchingItem === selectedVuln.name}
+                className={`flex-1 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wide transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+                  patchAction === 'patch' ? 'bg-violet-600 hover:bg-violet-500 text-white' :
+                  patchAction === 'update' ? 'bg-blue-600 hover:bg-blue-500 text-white' :
+                  'bg-slate-600 hover:bg-slate-500 text-white'
+                }`}
+              >
+                {patchingItem === selectedVuln.name ? (
+                  <><Loader2 size={14} className="animate-spin" /><span>Application...</span></>
+                ) : (
+                  <>
+                    {patchAction === 'patch' ? <Wrench size={14} /> : patchAction === 'update' ? <RefreshCcw size={14} /> : <Clock size={14} />}
+                    <span>{patchAction === 'patch' ? 'Appliquer le Patch' : patchAction === 'update' ? 'Mettre a jour' : 'Ignorer'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ════════════════════════════════════════════════════════ */}
       {/* MODAL: SYSTEM OPTIMIZER                                 */}
       {/* ════════════════════════════════════════════════════════ */}
       {optimizerModal && (
@@ -2155,13 +2350,11 @@ export default function SystemSettings() {
                           <div className="shrink-0">
                             {vuln.status === 'fixed' ? (
                               <span className="text-[8px] font-black px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400">Corrigé</span>
-                            ) : vuln.status === 'pending' && vuln.category === 'package' ? (
-                              <button type="button" onClick={() => applyPatch(vuln.name)} disabled={patchingItem === vuln.name}
-                                className="flex items-center gap-1 text-[8px] font-black px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-50">
-                                {patchingItem === vuln.name ? <><Loader2 size={9} className="animate-spin" /><span>...</span></> : <><Wrench size={9} /><span>Patch</span></>}
-                              </button>
                             ) : vuln.status === 'pending' ? (
-                              <span className="text-[8px] font-black px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400">Requis</span>
+                              <button type="button" onClick={() => { setSelectedVuln(vuln); setPatchAction('patch'); setPatchNotes(''); }}
+                                className="flex items-center gap-1 text-[8px] font-black px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-all">
+                                <Wrench size={9} /><span>{vuln.category === 'package' ? 'Patch' : 'Corriger'}</span>
+                              </button>
                             ) : null}
                           </div>
                         </div>
