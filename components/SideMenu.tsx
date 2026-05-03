@@ -3,7 +3,7 @@
 import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
-  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Youtube, Twitter,
+  ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Linkedin, Twitter,
   Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
@@ -259,8 +259,8 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
               <a href="https://x.com/pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90">
                 <Twitter size={20} />
               </a>
-              <a href="https://youtube.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all active:scale-90">
-                <Youtube size={20} />
+              <a href="https://cg.linkedin.com/in/aimardswana" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all active:scale-90">
+                <Linkedin size={20} />
               </a>
               <a href="https://tiktok.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-[#69C9D0] transition-all active:scale-90">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-label="TikTok">
