@@ -14,63 +14,44 @@ export interface TokenPayload {
 
 /**
  * verifyAuth - Vérifie si le token est valide (Version compatible Edge/Node)
- * Supporte: Authorization header, cookie "token", cookie "pimpay_token", et cookie "pi_session_token"
+ *
+ * #6 FIX: Le cookie pi_session_token est INTENTIONNELLEMENT exclu ici.
+ * Raison : ce token n'est pas signé cryptographiquement par PimPay.
+ * Un attaquant connaissant un userId valide (exposé dans les réponses API)
+ * peut forger ce cookie et s'authentifier comme n'importe quel utilisateur.
+ *
+ * Pour les routes admin, seuls les JWT signés avec JWT_SECRET sont acceptés.
+ * Le pi_session_token reste utilisable pour les routes utilisateurs standard
+ * (lib/auth.ts → getAuthUserId), mais JAMAIS pour des opérations admin.
+ *
+ * Correction complète : valider le token via l'API Pi Network (POST /v2/me)
+ * avant de l'accepter dans getAuthUserId() — voir commentaire dans lib/auth.ts.
  */
 export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null> {
   try {
-    // 1. Try Authorization header first
+    // 1. Authorization header (Bearer token)
     let token = req.headers.get("authorization")?.split(" ")[1];
 
-    // 2. Try classic cookies
+    // 2. Cookies JWT classiques signés
     if (!token) {
       token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
     }
 
-    // 3. If still no token, try Pi Network session token
-    if (!token) {
-      const piToken = req.cookies.get("pi_session_token")?.value;
-      if (piToken && piToken.length > 10) {
-        // Pi token can contain either:
-        // - The user's database ID (for new sessions)
-        // - The piUserId (for Pi Network authenticated users)
-        
-        // First try to find by database ID
-        let user = await prisma.user.findUnique({
-          where: { id: piToken, status: "ACTIVE" },
-          select: { id: true, role: true, email: true, name: true }
-        });
-        
-        // If not found, try to find by piUserId
-        if (!user) {
-          user = await prisma.user.findFirst({
-            where: { piUserId: piToken, status: "ACTIVE" },
-            select: { id: true, role: true, email: true, name: true }
-          });
-        }
-        
-        if (user) {
-          return {
-            id: user.id,
-            role: user.role,
-            email: user.email || undefined,
-            name: user.name || undefined,
-          };
-        }
-        return null;
-      }
-    }
+    // NOTE: pi_session_token délibérément ignoré ici.
+    // Ce token n'est pas cryptographiquement vérifiable sans appel à l'API Pi Network.
+    // Toute authentification admin doit passer par un JWT signé avec JWT_SECRET.
 
     if (!token) {
       return null;
     }
 
-    // Verify JWT token using centralized auth
+    // Vérification cryptographique du JWT
     const payload = await verifyJWT(token);
     if (!payload) {
       return null;
     }
 
-    // Get full user data from DB (including role which may not be in token)
+    // Récupération des données fraîches depuis la base (role peut avoir changé)
     const user = await prisma.user.findUnique({
       where: { id: payload.id, status: "ACTIVE" },
       select: { id: true, role: true, email: true, name: true }
