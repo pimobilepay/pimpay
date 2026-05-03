@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus, TransactionType } from '@prisma/client';
-import { adminAuth } from '@/lib/adminAuth';
 
 // Fonction utilitaire pour exécuter la transaction avec retry automatique
 async function executeWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
@@ -26,10 +25,7 @@ async function executeWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T
   throw new Error('Nombre maximum de tentatives atteint');
 }
 
-export async function POST(req: NextRequest) {
-  const adminPayload = await adminAuth(req);
-  if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
-
+export async function POST(req: Request) {
   try {
     const { transactionId, action, adminId } = await req.json();
 

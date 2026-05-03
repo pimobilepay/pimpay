@@ -1,16 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { adminAuth } from "@/lib/adminAuth";
 
 /**
  * GET /api/admin/kyc/all
  * Retourne tous les utilisateurs avec leur statut KYC (pending, verified, rejected)
  * Exclu les utilisateurs avec kycStatus = NONE (jamais soumis)
  */
-export async function GET(req: NextRequest) {
-  const adminPayload = await adminAuth(req);
-  if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
-
+export async function GET() {
   try {
     // Récupérer les utilisateurs qui ont soumis un KYC (exclu NONE)
     const users = await prisma.user.findMany({

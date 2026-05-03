@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/adminAuth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { subHours, formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -17,10 +16,7 @@ interface AdminNotification {
   metadata?: Record<string, unknown>;
 }
 
-export async function GET(req: NextRequest) {
-  const adminPayload = await adminAuth(req);
-  if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
-
+export async function GET() {
   try {
     const notifications: AdminNotification[] = [];
     const last24h = subHours(new Date(), 24);

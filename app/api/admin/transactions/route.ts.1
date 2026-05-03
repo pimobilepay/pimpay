@@ -1,13 +1,9 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus } from '@prisma/client';
-import { adminAuth } from '@/lib/adminAuth';
 
-export async function GET(req: NextRequest) {
-  const adminPayload = await adminAuth(req);
-  if (!adminPayload) return NextResponse.json({ error: 'Accès non autorisé' }, { status: 401 });
-
+export async function GET() {
   try {
     const transactions = await prisma.transaction.findMany({
       where: {

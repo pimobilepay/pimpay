@@ -1,13 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { adminAuth } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const adminPayload = await adminAuth(req);
-  if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
-
+export async function GET() {
   try {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
