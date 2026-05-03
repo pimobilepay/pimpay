@@ -559,7 +559,6 @@ export async function POST(req: NextRequest) {
       details: {
         error: err.message,
         name: err.name,
-        stack: err.stack?.split('\n').slice(0, 5),
         response: err.response?.data,
         destination,
         amount: amountNum,

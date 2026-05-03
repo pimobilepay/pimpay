@@ -40,19 +40,30 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 export async function getAuthUserId(): Promise<string | null> {
   try {
     const cookieStore = await cookies();
-    
-    // Pi Browser token (direct userId)
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    if (piToken) {
-      return piToken;
-    }
-    
-    // Classic JWT tokens
+
+    // Classic JWT tokens (priorité — contiennent une signature vérifiable)
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    if (!classicToken) return null;
-    
-    const payload = await verifyJWT(classicToken);
-    return payload?.id || null;
+    if (classicToken) {
+      const payload = await verifyJWT(classicToken);
+      return payload?.id || null;
+    }
+
+    // #6 FIX: Pi Browser token — vérification en base, jamais retourné tel quel
+    const piToken = cookieStore.get("pi_session_token")?.value;
+    if (piToken && piToken.length > 10) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: piToken, status: "ACTIVE" },
+            { piUserId: piToken, status: "ACTIVE" },
+          ]
+        },
+        select: { id: true }
+      });
+      return user?.id || null;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -71,17 +82,30 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
         return [key, rest.join('=')];
       })
     );
-    
-    // Pi Browser token
-    const piToken = parsedCookies['pi_session_token'];
-    if (piToken) return piToken;
-    
-    // Classic JWT tokens
+
+    // Classic JWT tokens (priorité)
     const token = parsedCookies['token'] || parsedCookies['pimpay_token'];
-    if (!token) return null;
-    
-    const payload = await verifyJWT(token);
-    return payload?.id || null;
+    if (token) {
+      const payload = await verifyJWT(token);
+      return payload?.id || null;
+    }
+
+    // #6 FIX: Pi Browser token — vérification en base
+    const piToken = parsedCookies['pi_session_token'];
+    if (piToken && piToken.length > 10) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: piToken, status: "ACTIVE" },
+            { piUserId: piToken, status: "ACTIVE" },
+          ]
+        },
+        select: { id: true }
+      });
+      return user?.id || null;
+    }
+
+    return null;
   } catch {
     return null;
   }

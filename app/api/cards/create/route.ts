@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { encrypt } from "@/lib/crypto";
 
 // Configuration des paliers en USD
 const CARD_TIERS = {
@@ -63,7 +64,9 @@ export async function POST(req: NextRequest) {
       });
 
       const cardNumber = `4532${Math.floor(100000000000 + Math.random() * 899999999999)}`;
-      
+      // #8 FIX: Numéro chiffré en base, CVV jamais stocké (PCI-DSS)
+      const encryptedNumber = encrypt(cardNumber);
+
       // ✅ CORRECTION ICI : Utilisation de username au lieu de name
       const finalHolder = (holderName || userPayload.username || "PimPay User").toUpperCase().trim();
 
@@ -71,9 +74,9 @@ export async function POST(req: NextRequest) {
         data: {
           userId: userPayload.id,
           type: tier.prismaType as any,
-          number: cardNumber,
+          number: encryptedNumber,
           exp: "12/28",
-          cvv: Math.floor(100 + Math.random() * 899).toString(),
+          // cvv: supprimé — ne jamais stocker (PCI-DSS règle absolue)
           holder: finalHolder,
           dailyLimit: tier.limit,
           allowedCurrencies: tier.currencies,

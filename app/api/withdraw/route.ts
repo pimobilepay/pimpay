@@ -1,13 +1,41 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { getAuthUserId } from "@/lib/auth";
 
 // Force le rendu dynamique pour le build Vercel
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { userId, amountUSD, phone, prefix } = await req.json();
+    // #2 FIX: userId extrait du token JWT, jamais du body client
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+    }
+
+    const { amountUSD, phone, prefix } = await req.json();
+
+    // #19 FIX: Validation du montant maximum (AML/limites journalières)
+    const DAILY_LIMIT_USD = 500;
+    const MAX_SINGLE_WITHDRAW_USD = 200;
+    if (!amountUSD || amountUSD <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
+    if (amountUSD > MAX_SINGLE_WITHDRAW_USD) {
+      return NextResponse.json({ error: `Montant maximum par retrait : ${MAX_SINGLE_WITHDRAW_USD} USD` }, { status: 400 });
+    }
+
+    // Vérification limite journalière
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const dailyTotal = await prisma.transaction.aggregate({
+      where: { fromUserId: userId, type: "WITHDRAW", createdAt: { gte: startOfDay }, status: { in: ["PENDING", "SUCCESS"] } },
+      _sum: { amount: true }
+    });
+    const dailySpent = dailyTotal._sum.amount || 0;
+    if (dailySpent + amountUSD > DAILY_LIMIT_USD) {
+      return NextResponse.json({ error: `Limite journalière atteinte (${DAILY_LIMIT_USD} USD/jour)` }, { status: 400 });
+    }
 
     // Frais centralisés
     const feeConfig = await getFeeConfig();

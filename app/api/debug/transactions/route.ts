@@ -5,20 +5,24 @@ import { prisma } from '@/lib/prisma';
 import { TransactionStatus, TransactionType } from "@prisma/client";
 
 /**
- * Endpoint de diagnostic pour voir les transactions en attente
- * Accessible uniquement en development ou avec une clé API
+ * #3 FIX: Route bloquée en production.
+ * Accessible uniquement en développement avec une clé DEBUG obligatoire.
  */
 export async function GET(req: NextRequest) {
-  try {
-    // Optionnel: Verifier une clé API pour la securite
-    const apiKey = req.headers.get('x-debug-key');
-    const expectedKey = process.env.DEBUG_API_KEY;
-    
-    if (expectedKey && apiKey !== expectedKey) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Bloquer totalement en production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
 
-    // Recuperer tous les transferts externes en attente
+  // En développement, la clé DEBUG est obligatoire (plus de fallback libre)
+  const apiKey = req.headers.get('x-debug-key');
+  const expectedKey = process.env.DEBUG_API_KEY;
+
+  if (!expectedKey || apiKey !== expectedKey) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
     const pendingWithdraws = await prisma.transaction.findMany({
       where: {
         type: TransactionType.WITHDRAW,
@@ -26,114 +30,62 @@ export async function GET(req: NextRequest) {
       },
       include: {
         fromUser: {
-          select: {
-            id: true,
-            username: true,
-            piUserId: true,
-          }
+          select: { id: true, username: true, piUserId: true }
         },
         toUser: {
-          select: {
-            id: true,
-            username: true,
-          }
+          select: { id: true, username: true }
         },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
 
-    // Recuperer les transactions recentes (last 24h)
     const recentTransactions = await prisma.transaction.findMany({
       where: {
         type: TransactionType.WITHDRAW,
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
-        }
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
       },
       select: {
-        id: true,
-        reference: true,
-        currency: true,
-        amount: true,
-        status: true,
-        blockchainTx: true,
-        accountNumber: true,
-        createdAt: true,
-        metadata: true,
+        id: true, reference: true, currency: true, amount: true,
+        status: true, blockchainTx: true, accountNumber: true,
+        createdAt: true, metadata: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
 
-    // Analyser les problemes potentiels
     const issues = [];
-
     for (const tx of pendingWithdraws) {
       const metadata = tx.metadata as any;
       const destination = metadata?.externalAddress || metadata?.destinationAddress || tx.accountNumber;
-      
       if (!destination) {
-        issues.push({
-          txId: tx.id,
-          reference: tx.reference,
-          issue: "Pas d'adresse de destination",
-          severity: "CRITICAL"
-        });
+        issues.push({ txId: tx.id, reference: tx.reference, issue: "Pas d'adresse de destination", severity: "CRITICAL" });
       }
-
-      if (tx.currency === "PI") {
-        // Valider que c'est une adresse Stellar valide
-        if (destination && !destination.startsWith('G')) {
-          issues.push({
-            txId: tx.id,
-            reference: tx.reference,
-            issue: `Adresse Pi invalide (ne commence pas par G): ${destination?.substring(0, 20)}...`,
-            severity: "HIGH"
-          });
-        }
+      if (tx.currency === "PI" && destination && !destination.startsWith('G')) {
+        issues.push({ txId: tx.id, reference: tx.reference, issue: `Adresse Pi invalide: ${destination?.substring(0, 20)}...`, severity: "HIGH" });
       }
     }
 
     return NextResponse.json({
       timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
       pendingWithdraws: {
         count: pendingWithdraws.length,
         transactions: pendingWithdraws.map(tx => ({
-          id: tx.id,
-          reference: tx.reference,
-          currency: tx.currency,
-          amount: tx.amount,
-          status: tx.status,
-          blockchainTx: tx.blockchainTx,
-          accountNumber: tx.accountNumber,
-          metadata: tx.metadata,
-          fromUser: tx.fromUser?.username,
+          id: tx.id, reference: tx.reference, currency: tx.currency,
+          amount: tx.amount, status: tx.status, blockchainTx: tx.blockchainTx,
+          accountNumber: tx.accountNumber, fromUser: tx.fromUser?.username,
           createdAt: tx.createdAt,
         }))
       },
-      recentTransactions: {
-        count: recentTransactions.length,
-        transactions: recentTransactions
-      },
-      issues: {
-        count: issues.length,
-        list: issues
-      },
-      config: {
-        PI_HORIZON_URL: process.env.PI_HORIZON_URL,
-        PI_NETWORK_PASSPHRASE: process.env.PI_NETWORK_PASSPHRASE,
-        PI_MASTER_WALLET_ADDRESS: process.env.PI_MASTER_WALLET_ADDRESS?.substring(0, 15) + "...",
-        PI_MASTER_WALLET_SECRET_PRESENT: !!process.env.PI_MASTER_WALLET_SECRET,
-        PI_API_KEY_PRESENT: !!process.env.PI_API_KEY,
-      }
+      recentTransactions: { count: recentTransactions.length, transactions: recentTransactions },
+      issues: { count: issues.length, list: issues },
+      // #13 FIX: Pas d'exposition de variables d'environnement sensibles
     });
 
   } catch (error: any) {
-    console.error("[v0] [DEBUG] ERREUR:", error.message);
-    return NextResponse.json(
-      { error: error.message, stack: error.stack },
-      { status: 500 }
-    );
+    // #14 FIX: Pas de stack trace dans la réponse
+    console.error("[DEBUG] ERREUR:", error.message, error.stack);
+    return NextResponse.json({ error: "Erreur interne" }, { status: 500 });
   }
 }

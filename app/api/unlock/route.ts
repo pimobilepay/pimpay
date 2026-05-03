@@ -1,23 +1,36 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+/**
+ * #11 FIX: Secret transmis en POST body (plus en query param visible dans les logs).
+ * L'ancien GET /api/unlock?secret=... est supprimé.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { secret } = body;
 
-  if (secret !== process.env.ADMIN_BYPASS_TOKEN) {
+    if (!secret || secret !== process.env.ADMIN_BYPASS_TOKEN) {
+      return new NextResponse("Accès refusé", { status: 403 });
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set("admin_bypass", "true", {
+      httpOnly: true,
+      secure: true,
+      maxAge: 60 * 60 * 24,
+      path: "/",
+      sameSite: "strict",
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
     return new NextResponse("Accès refusé", { status: 403 });
   }
+}
 
-  // On dépose un cookie qui expire dans 24h
-  (await cookies()).set("admin_bypass", "true", {
-    httpOnly: true,
-    secure: true,
-    maxAge: 60 * 60 * 24, // 24 heures
-    path: "/",
-  });
-
-  // Redirection vers le dashboard
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+// GET supprimé — secret ne doit jamais transiter en query parameter
+export async function GET() {
+  return new NextResponse("Method Not Allowed", { status: 405 });
 }

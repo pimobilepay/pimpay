@@ -218,7 +218,7 @@ export async function POST(req: Request) {
         source: "STAKING",
         action: "STAKE_ERROR",
         message: `Erreur création staking: ${error.message}`,
-        details: { error: error.message, stack: error.stack?.substring(0, 500) }
+        details: { error: error.message }
       });
     } catch {
       // Ignore logging errors

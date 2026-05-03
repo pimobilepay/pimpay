@@ -214,7 +214,9 @@ export async function POST(req: Request) {
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      // #12 FIX: strict au lieu de 'none' — évite les attaques CSRF cross-site
+      // Si Pi Browser nécessite cross-site, ajouter un token CSRF anti-forgery
+      sameSite: ("strict" as const),
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     };

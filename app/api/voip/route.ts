@@ -46,8 +46,6 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent") || null,
       details: {
         errorName: error instanceof Error ? error.name : "UnknownError",
-        errorStack:
-          error instanceof Error ? error.stack?.substring(0, 1000) : null,
         origin: request.headers.get("origin"),
       },
     });

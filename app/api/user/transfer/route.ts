@@ -39,19 +39,19 @@ function isExternalAddress(identifier: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("[v0] [USER_TRANSFER] Debut du traitement...");
+    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Debut du traitement...");
     
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value ?? cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
-      console.log("[v0] [USER_TRANSFER] Erreur: Pas de token");
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Pas de token");
       return NextResponse.json({ error: "Session expiree" }, { status: 401 });
     }
 
     const payload = await verifyJWT(token);
     if (!payload) {
-      console.log("[v0] [USER_TRANSFER] Erreur: Token invalide");
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Token invalide");
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
     const senderId = payload.id;
@@ -62,14 +62,14 @@ export async function POST(req: NextRequest) {
     const recipientInput = (body.recipientIdentifier || body.recipient || body.address || body.email || "").trim();
     const description = body.description || "";
 
-    console.log("[v0] [USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
+    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
 
     if (!recipientInput) {
-      console.log("[v0] [USER_TRANSFER] Erreur: Destinataire manquant");
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Destinataire manquant");
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
     if (isNaN(amount) || amount <= 0) {
-      console.log("[v0] [USER_TRANSFER] Erreur: Montant invalide", amount);
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Montant invalide", amount);
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       if (senderWallet.balance < totalDebit) throw new Error(`Solde insuffisant.`);
 
       let cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
-      console.log("[v0] [USER_TRANSFER] Recherche destinataire:", cleanInput);
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Recherche destinataire:", cleanInput);
       
       // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
       let recipientUser = null;
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
         });
       }
       
-      console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
+      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 
       // Verification d'auto-envoi AVANT le debit - doit etre faite ici
       if (recipientUser && recipientUser.id === senderId) {
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (recipientUser) {
-        console.log("[v0] [USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
+        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
         
         const toWallet = await tx.wallet.upsert({
           where: { userId_currency: { userId: recipientUser.id, currency } },
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
           create: { userId: recipientUser.id, currency, balance: amount, type: getWalletType(currency) },
         });
         
-        console.log("[v0] [USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
+        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
 
         const transaction = await tx.transaction.create({
           data: {
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
           },
         });
         
-        console.log("[v0] [USER_TRANSFER] Transaction creee:", transaction.reference);
+        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transaction creee:", transaction.reference);
 
         await tx.notification.create({
           data: {
@@ -182,9 +182,9 @@ export async function POST(req: NextRequest) {
             type: "PAYMENT_RECEIVED",
             metadata: { amount, currency, senderName, reference: transaction.reference },
           },
-        }).catch((e) => console.log("[v0] [USER_TRANSFER] Erreur notification:", e.message));
+        }).catch((e) => { if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur notification:", e.message); });
 
-        console.log("[v0] [USER_TRANSFER] Transfert INTERNE REUSSI");
+        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transfert INTERNE REUSSI");
         return { type: "INTERNAL" as const, transaction };
       }
 
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log("[v0] [USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
+    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
     if (result.transaction.fee && result.transaction.fee > 0) {

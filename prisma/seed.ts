@@ -23,11 +23,15 @@ async function main() {
   await prisma.auditLog.deleteMany({});
   await prisma.user.deleteMany({});
 
-  // 2. Préparation des identifiants sécurisés (Admin seulement)
-  // Mot de passe par défaut : Admin@2025
-  // PIN par défaut : 2025
-  const hashedAdminPassword = await bcrypt.hash("Admin@2025", 10);
-  const hashedAdminPin = await bcrypt.hash("2025", 10);
+  // 2. Préparation des identifiants admin — CHARGÉS DEPUIS LES VARIABLES D'ENVIRONNEMENT
+  // #10 FIX: Plus de credentials codés en dur
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPin = process.env.ADMIN_PIN;
+  if (!adminPassword || !adminPin) {
+    throw new Error("[SEED] ADMIN_PASSWORD et ADMIN_PIN doivent être définis en variables d'environnement");
+  }
+  const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+  const hashedAdminPin = await bcrypt.hash(adminPin, 10);
 
   // -----------------------------------------------------------------------------
   // 3. CRÉATION DU COMPTE ADMINISTRATEUR
@@ -35,7 +39,7 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       phone: "+2420655305",
-      email: "admin@pimpay.pi",
+      email: process.env.ADMIN_EMAIL ?? "admin@pimpay.pi",
       username: "admin",
       password: hashedAdminPassword, // MOT DE PASSE SÉCURISÉ
       pin: hashedAdminPin,           // CODE PIN SÉCURISÉ
@@ -168,7 +172,7 @@ async function main() {
 
   console.log(`✅ Succès !`);
   console.log(`👤 Admin créé : ${admin.email}`);
-  console.log(`🔑 Mot de passe : Admin@2025`);
+  console.log('🔑 Credentials chargés depuis les variables d'environnement');
   console.log(`🔢 Code PIN : 2025`);
 }
 

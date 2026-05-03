@@ -258,7 +258,7 @@ export async function POST(request: Request) {
         source: "PI_LOGIN",
         action: "LOGIN_FAILED",
         message: `Erreur connexion Pi: ${error.message}`,
-        details: { error: error.message, code: error.code, stack: error.stack?.substring(0, 500) },
+        details: { error: error.message, code: error.code },
         ip: request.headers.get("x-forwarded-for")?.split(",")[0] || null,
         userAgent: request.headers.get("user-agent") || null,
       },
