@@ -5,9 +5,8 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
-  engine: "classic",
+  // Supprime ou commente 'engine: classic' pour laisser Prisma utiliser le mode moderne/optimisé
   datasource: {
-    // Le "!" à la fin dit à TypeScript : "Fais-moi confiance, elle sera là"
-    url: process.env.DATABASE_URL!,
+    url: process.env.DATABASE_URL,
   },
 });
