@@ -28,7 +28,7 @@ import {
   Users as UsersIcon,
 } from "lucide-react";
 import { PI_CONSENSUS_USD } from "@/lib/exchange";
-import { formatBalance } from "@/lib/formatters";
+import { formatCryptoBalance } from "@/lib/formatters";
 import { BottomNav } from "@/components/bottom-nav";
 import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
@@ -488,14 +488,14 @@ export default function UserDashboard() {
                   {showWalletSelector && (
                     <div className="absolute right-0 mt-2 w-40 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-1 z-[120]">
                       {wallets.map((w: any, idx: number) => (
-                        <button key={idx} onClick={() => { setActiveWalletIndex(idx); setShowWalletSelector(false); }} className={`w-full flex items-center justify-between p-3 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeWalletIndex === idx ? "bg-blue-600 text-white" : "hover:bg-white/5 text-slate-400"}`}>{w.currency}<span className="opacity-60 text-[8px]">{showBalance ? formatBalance(w.balance) : "••"}</span></button>
+                        <button key={idx} onClick={() => { setActiveWalletIndex(idx); setShowWalletSelector(false); }} className={`w-full flex items-center justify-between p-3 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeWalletIndex === idx ? "bg-blue-600 text-white" : "hover:bg-white/5 text-slate-400"}`}>{w.currency}<span className="opacity-60 text-[8px]">{showBalance ? formatCryptoBalance(w.balance, w.currency) : "••"}</span></button>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
             </div>
-            <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2"><span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency === "XAF" ? "" : "$"}</span>{showBalance ? formatBalance(balance) : "••••••"}</h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
+            <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2"><span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency === "XAF" ? "" : "$"}</span>{showBalance ? formatCryptoBalance(balance, currentCurrency) : "••••••"}</h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
             <div className="flex justify-between items-end">
               <div className="relative" ref={currencySwitcherRef}>
                 <button
