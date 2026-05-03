@@ -12,6 +12,7 @@ import { countries, type Country } from "@/lib/country-data";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { toast } from "sonner";
+import { formatCryptoBalance } from "@/lib/formatters";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function RechargePage() {
@@ -137,7 +138,7 @@ export default function RechargePage() {
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-4xl font-black tracking-tighter text-white">
-                    π {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCryptoBalance(balance, 'PI')}
                   </span>
                   <span className="text-xl font-bold text-blue-500">PI</span>
                 </div>
