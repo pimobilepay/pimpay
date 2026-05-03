@@ -624,8 +624,8 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
 
                 <div className="mt-8 pt-6 border-t border-white/5 flex justify-between items-center px-2">
                   <div className="text-left">
-                    <p className="text-[9px] font-black text-slate-500 uppercase">Solde</p>
-                    <p className="text-sm font-black text-emerald-400">{userBalance.toLocaleString()} Pi</p>
+<p className="text-[9px] font-black text-slate-500 uppercase">Solde</p>
+<p className="text-sm font-black text-emerald-400">{formatAmount(userBalance, "Pi")} Pi</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-500 uppercase">Frais</p>
@@ -791,7 +791,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             <div className="flex items-baseline gap-2">
               {balanceVisible ? (
                 <>
-                  <span className="text-4xl font-black tracking-tighter">{userBalance.toLocaleString()}</span>
+                  <span className="text-4xl font-black tracking-tighter">{formatAmount(userBalance, "Pi")}</span>
                   <span className="text-lg font-black text-blue-500">Pi</span>
                 </>
               ) : (

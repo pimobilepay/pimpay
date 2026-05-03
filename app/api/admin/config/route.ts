@@ -72,10 +72,72 @@ export async function GET(req: NextRequest) {
       const adminSession = await adminAuth(req);
       if (adminSession) {
         isAdmin = true;
-        logs = await prisma.auditLog.findMany({
+        // Fetch audit logs with admin user details (avatar, role)
+        const rawLogs = await prisma.auditLog.findMany({
           orderBy: { createdAt: 'desc' },
-          take: 10
+          take: 10,
+          include: {
+            admin: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatar: true,
+                role: true,
+              }
+            }
+          }
         });
+        
+        // Get the latest session for each admin to include session/location info
+        logs = await Promise.all(rawLogs.map(async (log) => {
+          let sessionInfo = null;
+          if (log.adminId) {
+            sessionInfo = await prisma.session.findFirst({
+              where: { userId: log.adminId },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                ip: true,
+                device: true,
+                browser: true,
+                os: true,
+                city: true,
+                country: true,
+                token: true,
+              }
+            });
+          }
+          
+          return {
+            id: log.id,
+            adminName: log.admin?.name || log.admin?.username || log.adminName || 'Admin',
+            adminAvatar: log.admin?.avatar || null,
+            adminRole: log.admin?.role || 'ADMIN',
+            action: log.action,
+            details: log.details,
+            createdAt: log.createdAt,
+            targetId: log.targetId,
+            targetEmail: log.targetEmail,
+            // Session/Location info from the admin's last session
+            ipAddress: sessionInfo?.ip || null,
+            device: sessionInfo?.device || null,
+            browser: sessionInfo?.browser || null,
+            os: sessionInfo?.os || null,
+            city: sessionInfo?.city || null,
+            country: sessionInfo?.country || null,
+            location: sessionInfo?.city && sessionInfo?.country 
+              ? `${sessionInfo.city}, ${sessionInfo.country}` 
+              : null,
+            sessionId: sessionInfo?.token ? `sess_${sessionInfo.token.slice(0, 8)}` : null,
+            // Flags based on action type
+            flags: {
+              suspicious: log.action?.includes('DELETE') || log.action?.includes('BLOCK'),
+              critical: log.action?.includes('RESET') || log.action?.includes('FORCE'),
+              automated: log.adminName === 'SYSTEM',
+              requiresReview: log.action?.includes('WITHDRAWAL') && parseFloat(log.details || '0') > 1000,
+            }
+          };
+        }));
       } else {
         // Fallback: check via verifyAuth for any admin role
         const userSession = await verifyAuth(req);

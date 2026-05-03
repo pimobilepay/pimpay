@@ -1987,56 +1987,76 @@ export default function SystemSettings() {
             </div>
 
             {/* Location & IP Section */}
+            {(selectedAuditLog.ipAddress || selectedAuditLog.country || selectedAuditLog.city) && (
             <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
               <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <MapPin size={12} />
                 Localisation
               </p>
               <div className="grid grid-cols-2 gap-3">
+                {selectedAuditLog.ipAddress && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Adresse IP</p>
-                  <p className="text-[11px] font-mono text-white">{selectedAuditLog.ipAddress || '192.168.1.1'}</p>
+                  <p className="text-[11px] font-mono text-white">{selectedAuditLog.ipAddress}</p>
                 </div>
+                )}
+                {selectedAuditLog.country && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Pays</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.country || 'France'}</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.country}</p>
                 </div>
+                )}
+                {selectedAuditLog.city && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Ville</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.city || 'Paris'}</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.city}</p>
                 </div>
+                )}
+                {selectedAuditLog.location && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Localisation</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.location || 'Europe/Paris'}</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.location}</p>
                 </div>
+                )}
               </div>
             </div>
+            )}
 
             {/* Session Info Section */}
+            {(selectedAuditLog.device || selectedAuditLog.browser || selectedAuditLog.os || selectedAuditLog.sessionId) && (
             <div className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl">
               <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <Monitor size={12} />
                 Informations de session
               </p>
               <div className="grid grid-cols-2 gap-3">
+                {selectedAuditLog.device && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Appareil</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.device || 'Desktop'}</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.device}</p>
                 </div>
+                )}
+                {selectedAuditLog.browser && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Navigateur</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.browser || 'Chrome 120'}</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.browser}</p>
                 </div>
+                )}
+                {selectedAuditLog.os && (
                 <div className="p-3 bg-black/30 rounded-lg">
-                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Système</p>
-                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.os || 'Windows 11'}</p>
+                  <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Systeme</p>
+                  <p className="text-[11px] font-medium text-white">{selectedAuditLog.os}</p>
                 </div>
+                )}
+                {selectedAuditLog.sessionId && (
                 <div className="p-3 bg-black/30 rounded-lg">
                   <p className="text-[8px] font-bold text-slate-600 uppercase mb-1">Session ID</p>
-                  <p className="text-[9px] font-mono text-slate-400 truncate">{selectedAuditLog.sessionId || 'sess_abc123xyz'}</p>
+                  <p className="text-[9px] font-mono text-slate-400 truncate">{selectedAuditLog.sessionId}</p>
                 </div>
+                )}
               </div>
             </div>
+            )}
 
             {/* Date & Time */}
             <div className="grid grid-cols-2 gap-3">
@@ -2093,7 +2113,7 @@ export default function SystemSettings() {
         </Modal>
       )}
 
-      {/* ════════════════════════════════════════════════════════ */}
+      {/* ═════════════════��══════════════════════════════════════ */}
       {/* MODAL: BACKUP                                           */}
       {/* ════════════════════════════════════════════════════════ */}
       {backupModal && (
