@@ -175,14 +175,19 @@ function buildCSP(nonce: string): string {
     // [FIX #9] nonce remplace 'unsafe-inline' pour les scripts inline légitimes
     // (theme-strategy, pi-sdk-init, google-analytics dans layout.tsx)
     `script-src 'self' 'nonce-${nonce}' https://sdk.minepi.com https://www.googletagmanager.com https://cdn.cinetpay.com`,
-    "connect-src 'self' https://api.minepi.com https://pimpay.vercel.app https://www.google-analytics.com",
+    // connect-src : Pi Browser nécessite l'accès à api.minepi.com + minepi.com
+    "connect-src 'self' https://api.minepi.com https://minepi.com https://pimpay.vercel.app https://www.google-analytics.com",
     "img-src 'self' data: https://res.cloudinary.com https://logo.clearbit.com https://placehold.co https://api.qrserver.com",
     // style-src : 'unsafe-inline' conservé temporairement car Tailwind génère des styles inline
-    // Migrer vers style nonces ou CSS-in-JS strict dans une prochaine itération
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "frame-src 'none'",
-    "frame-ancestors 'none'",
+    // [FIX PI BROWSER] Pi Browser charge les apps dans une WebView/iframe interne.
+    // frame-src 'none' → remplacé par autorisation explicite de minepi.com
+    "frame-src https://minepi.com https://*.minepi.com",
+    // [FIX PI BROWSER] frame-ancestors 'none' bloquait complètement Pi Browser.
+    // Pi Browser intègre les apps via WebView — il faut autoriser son origine.
+    // On autorise minepi.com + 'self' pour permettre l'embedding Pi Browser.
+    "frame-ancestors 'self' https://minepi.com https://*.minepi.com",
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

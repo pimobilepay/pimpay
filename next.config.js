@@ -39,7 +39,13 @@ const nextConfig = {
           { key: "Access-Control-Allow-Origin", value: "https://pimpay.vercel.app" },
           { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT" },
           { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
-          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          // NOTE : X-Frame-Options est un header legacy. La directive CSP frame-ancestors
+          // dans proxy.ts est la source de vérité moderne. Ce header est maintenu pour
+          // les navigateurs anciens ne supportant pas CSP frame-ancestors.
+          // Pi Browser utilise une WebView Android — il respecte X-Frame-Options.
+          // SAMEORIGIN permet l'embedding depuis des domaines de confiance (minepi.com)
+          // sans sacrifier la protection contre le clickjacking depuis des tiers inconnus.
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
