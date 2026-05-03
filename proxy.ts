@@ -377,7 +377,9 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/settings")   ||
     pathname.startsWith("/profile")    ||
     pathname.startsWith("/withdraw")   ||
-    pathname.startsWith("/wallet");
+    pathname.startsWith("/wallet")   ||
+    pathname.startsWith("/cards")    ||
+    pathname.startsWith("/statements");
 
   // Aucune session du tout → redirection login
   if (!userPayload && !hasPiSession && isProtectedPath) {
@@ -430,6 +432,9 @@ export const config = {
     "/withdraw/:path*",
     "/settings/:path*",
     "/wallet/:path*",
+    "/cards/:path*",
+    "/statements/:path*",
+    "/notifications/:path*",
     // Pages de login (redirection si déjà connecté)
     "/login",
     "/",

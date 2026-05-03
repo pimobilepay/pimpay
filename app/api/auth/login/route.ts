@@ -236,7 +236,7 @@ export async function POST(req: Request) {
       secure: isProduction,
       // #12 FIX: strict au lieu de 'none' — évite les attaques CSRF cross-site
       // Si Pi Browser nécessite cross-site, ajouter un token CSRF anti-forgery
-      sameSite: ("strict" as const),
+      sameSite: ("lax" as const), // [FIX PI BROWSER] strict bloquait les cookies depuis minepi.com → lax maintient la protection CSRF tout en autorisant la navigation Pi Browser
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     };
