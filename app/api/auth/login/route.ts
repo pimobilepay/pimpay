@@ -6,9 +6,29 @@ import { prisma } from "@/lib/prisma";
 import { signSessionToken, signTempToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    // [FIX #7] Rate limiting — 10 tentatives / 60s par IP
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`login:${ip}`, 10, 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de tentatives de connexion. Réessayez dans 1 minute." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "10",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { email: identifier, password, loginType = "user" } = body;
     if (!identifier || !password) {
@@ -93,7 +113,7 @@ export async function POST(req: Request) {
 
     // --- RÉCUPÉRATION DES INFOS DE CONNEXION ---
     const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";
-    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    // ip est déjà déclarée plus haut via getClientIp(req) — [FIX #7]
     const country = req.headers.get("x-vercel-ip-country") || "CG";
     const city = req.headers.get("x-vercel-ip-city") || "Oyo";
 

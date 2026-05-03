@@ -2,12 +2,32 @@ import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { getAuthUserId } from "@/lib/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Force le rendu dynamique pour le build Vercel
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    // [FIX #7] Rate limiting — 20 requêtes / 60s par IP (anti wash-trading / DDoS financier)
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`withdraw:${ip}`, 20, 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de requêtes. Veuillez patienter avant de réessayer." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "20",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
     // #2 FIX: userId extrait du token JWT, jamais du body client
     const userId = await getAuthUserId();
     if (!userId) {

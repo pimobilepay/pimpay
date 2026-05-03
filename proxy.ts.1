@@ -158,37 +158,6 @@ function buildApiError(
 }
 
 // ---------------------------------------------------------------------------
-// [FIX #9] Génération de nonce CSP par requête
-// Remplace 'unsafe-inline' par un nonce unique — protection XSS réelle.
-// Le nonce est injecté dans le header X-Nonce pour être lu par layout.tsx.
-// ---------------------------------------------------------------------------
-
-function generateNonce(): string {
-  const arr = new Uint8Array(16);
-  crypto.getRandomValues(arr);
-  return btoa(String.fromCharCode(...arr));
-}
-
-function buildCSP(nonce: string): string {
-  return [
-    "default-src 'self'",
-    // [FIX #9] nonce remplace 'unsafe-inline' pour les scripts inline légitimes
-    // (theme-strategy, pi-sdk-init, google-analytics dans layout.tsx)
-    `script-src 'self' 'nonce-${nonce}' https://sdk.minepi.com https://www.googletagmanager.com https://cdn.cinetpay.com`,
-    "connect-src 'self' https://api.minepi.com https://pimpay.vercel.app https://www.google-analytics.com",
-    "img-src 'self' data: https://res.cloudinary.com https://logo.clearbit.com https://placehold.co https://api.qrserver.com",
-    // style-src : 'unsafe-inline' conservé temporairement car Tailwind génère des styles inline
-    // Migrer vers style nonces ou CSS-in-JS strict dans une prochaine itération
-    "style-src 'self' 'unsafe-inline'",
-    "font-src 'self' data:",
-    "frame-src 'none'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "base-uri 'self'",
-  ].join("; ");
-}
-
-// ---------------------------------------------------------------------------
 // Proxy principal (export default requis par Next.js 15/16)
 // ---------------------------------------------------------------------------
 
@@ -196,19 +165,8 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
   const clientIp   = getClientIp(req);
 
-  // [FIX #9] Nonce unique par requête — transmis via X-Nonce pour layout.tsx
-  const nonce = generateNonce();
-
   // Nettoyage périodique du store rate-limit
   cleanRateLimitStore();
-
-  // Helper local : NextResponse.next() avec nonce + CSP injectés
-  function nextWithNonce(): NextResponse {
-    const res = NextResponse.next();
-    res.headers.set("X-Nonce", nonce);
-    res.headers.set("Content-Security-Policy", buildCSP(nonce));
-    return res;
-  }
 
   // -------------------------------------------------------------------------
   // [FIX #3 + #24] Bloquer /api/debug/* en production
@@ -220,7 +178,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
       return buildApiError("Not Found", 404);
     }
     // Dev : laisser passer (la route vérifie x-debug-key elle-même)
-    return nextWithNonce();
+    return NextResponse.next();
   }
 
   // -------------------------------------------------------------------------
@@ -275,7 +233,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   // Laisser passer les assets et les routes API publiques (après rate limit)
   // -------------------------------------------------------------------------
   if (isPublicAsset || isAuthApi) {
-    return nextWithNonce();
+    return NextResponse.next();
   }
 
   // -------------------------------------------------------------------------
@@ -303,7 +261,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
 
     // JWT présent mais invalide/expiré ET pas de piToken de secours → nettoyer
     if (!userPayload && !piToken) {
-      const res = nextWithNonce();
+      const res = NextResponse.next();
       res.cookies.delete("token");
       res.cookies.delete("pimpay_token");
       return res;
@@ -340,7 +298,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
       return buildApiError("Accès réservé aux administrateurs", 403);
     }
     // Admin authentifié → la route effectue sa propre vérification (defense in depth)
-    return nextWithNonce();
+    return NextResponse.next();
   }
 
   // -------------------------------------------------------------------------
@@ -348,7 +306,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   // La vérification d'auth est déléguée à chaque route via getAuthUserId()
   // -------------------------------------------------------------------------
   if (isApiRoute) {
-    return nextWithNonce();
+    return NextResponse.next();
   }
 
   // -------------------------------------------------------------------------
@@ -404,7 +362,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     return buildRedirect(getDestinationByRole(userRole ?? "USER"), req);
   }
 
-  return nextWithNonce();
+  return NextResponse.next();
 }
 
 // ---------------------------------------------------------------------------

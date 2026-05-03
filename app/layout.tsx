@@ -1,8 +1,9 @@
 import "@/app/globals.css";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import type { Metadata, Viewport } from "next"; 
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 
 import { Toaster } from "sonner";
 import ClientLayout from "@/components/ClientLayout";
@@ -31,11 +32,15 @@ export const metadata: Metadata = {
   }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // [FIX #9] Lire le nonce généré par proxy.ts — transmis via header X-Nonce
+  const headersList = await headers();
+  const nonce = headersList.get("x-nonce") ?? "";
+
   return (
     <html
       lang="fr"
@@ -45,8 +50,10 @@ export default function RootLayout({
     >
       <head>
         <meta name="google" content="notranslate" />
+        {/* [FIX #9] nonce injecté — le navigateur n'exécute que les scripts portant ce nonce */}
         <script
           id="theme-strategy"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
@@ -65,12 +72,14 @@ export default function RootLayout({
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"
+          nonce={nonce}
         />
-        
+
         {/* Initialisation immediate du SDK Pi apres chargement */}
         <Script
           id="pi-sdk-init"
           strategy="afterInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               (function initPiSDK() {
@@ -94,18 +103,15 @@ export default function RootLayout({
                       }
                     }
                   } else if (!window.Pi) {
-                    // Reessayer dans 100ms si le SDK n'est pas encore charge
                     setTimeout(tryInit, 100);
                   }
                 }
                 
-                // Essayer immediatement puis avec un delai
                 if (document.readyState === "complete") {
                   tryInit();
                 } else {
                   window.addEventListener("load", tryInit);
                 }
-                // Aussi essayer apres un court delai au cas ou
                 setTimeout(tryInit, 500);
               })();
             `,
@@ -116,8 +122,9 @@ export default function RootLayout({
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-W8HP6W3DM4"
           strategy="afterInteractive"
+          nonce={nonce}
         />
-        <Script id="google-analytics" strategy="afterInteractive">
+        <Script id="google-analytics" strategy="afterInteractive" nonce={nonce}>
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
@@ -143,6 +150,7 @@ export default function RootLayout({
             <Script
               src="https://cdn.cinetpay.com/seamless/main.js"
               strategy="lazyOnload"
+              nonce={nonce}
             />
 
               <Toaster

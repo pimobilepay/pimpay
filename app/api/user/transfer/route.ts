@@ -10,6 +10,7 @@ import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { ethers } from "ethers";
 import { decrypt } from "@/lib/crypto";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
@@ -39,6 +40,25 @@ function isExternalAddress(identifier: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    // [FIX #7] Rate limiting — 20 requêtes / 60s par IP
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`transfer:${ip}`, 20, 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de requêtes. Veuillez patienter avant de réessayer." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "20",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
     if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Debut du traitement...");
     
     const cookieStore = await cookies();

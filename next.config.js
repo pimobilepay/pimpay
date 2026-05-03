@@ -27,17 +27,21 @@ const nextConfig = {
   },
 
   // 4. Headers CORS & Sécurité Mainnet
+  // [FIX #9] La CSP est désormais générée dans proxy.ts avec un nonce par requête.
+  // 'unsafe-inline' est supprimé — le nonce unique protège contre les injections XSS.
+  // Les headers CORS restent ici pour les routes /api/* non couvertes par le proxy matcher.
   async headers() {
     return [
       {
         source: "/api/:path*",
         headers: [
           { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "https://pimpay.vercel.app" }, 
+          { key: "Access-Control-Allow-Origin", value: "https://pimpay.vercel.app" },
           { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT" },
           { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://sdk.minepi.com; connect-src 'self' https://api.minepi.com https://pimpay.vercel.app; img-src 'self' data: https://res.cloudinary.com https://logo.clearbit.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },
     ];
