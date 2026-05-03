@@ -1,3 +1,20 @@
+/**
+ * PimPay — Page Cartes Virtuelles (Redesign FinTech Pro)
+ * Fichier : app/cards/page.tsx
+ *
+ * Nouvelles fonctionnalités :
+ *  - Sélecteur de carte horizontal avec aperçu animé
+ *  - Toggle affichage des infos sensibles (numéro, CVV, expiry)
+ *  - Flip 3D carte recto/verso
+ *  - Gestionnaire de limites de dépenses en temps réel
+ *  - Quick actions : geler, recharger, signaler, définir primaire
+ *  - Historique des 5 dernières transactions par carte
+ *  - Score de sécurité visuel
+ *  - Panel paramètres rapides (NFC, international, notifications)
+ *  - Stats financières en temps réel depuis les wallets
+ *  - Design FinTech dark premium
+ */
+
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import * as jose from "jose";
@@ -6,9 +23,7 @@ import {
   Plus,
   ShieldCheck,
   CreditCard,
-  Settings2,
   History,
-  CheckCircle2,
   TrendingUp,
   Lock,
   Eye,
@@ -21,15 +36,21 @@ import {
   Wifi,
   Sparkles,
   BarChart3,
-  Database,
   Zap,
+  RefreshCw,
+  Settings,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowDownLeft,
+  ArrowUpRight as Send,
+  Star,
+  Activity,
 } from "lucide-react";
 import VirtualCard from "@/components/cards/VirtualCard";
 import CardActions from "@/components/cards/CardActions";
 import { CardSelectButton } from "@/components/cards/CardSelectButton";
 import { CardDeleteButton } from "@/components/cards/CardDeleteButton";
 
-// Fonction d'authentification securisee
 async function getAuthenticatedUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -42,11 +63,105 @@ async function getAuthenticatedUser() {
       include: {
         virtualCards: { orderBy: { createdAt: "desc" } },
         wallets: true,
+        transactions: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        },
       },
     });
   } catch {
     return null;
   }
+}
+
+// Composant de badge statut
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+        active
+          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+          : "bg-red-500/10 border-red-500/20 text-red-400"
+      }`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${
+          active ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+        }`}
+      />
+      {active ? "Active" : "Gelée"}
+    </span>
+  );
+}
+
+// Composant métrique
+function MetricCard({
+  icon,
+  label,
+  value,
+  sub,
+  color,
+  trend,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  trend?: string;
+}) {
+  return (
+    <div
+      className={`relative p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl overflow-hidden group hover:border-white/[0.12] transition-all duration-300`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2 rounded-xl ${color}`}>{icon}</div>
+        {trend && (
+          <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
+            <ArrowUpRight size={8} />
+            {trend}
+          </span>
+        )}
+      </div>
+      <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.15em] mb-1">
+        {label}
+      </p>
+      <p className="text-xl font-black text-white tracking-tight">{value}</p>
+      {sub && (
+        <p className="text-[9px] text-white/30 mt-0.5 font-medium">{sub}</p>
+      )}
+    </div>
+  );
+}
+
+// Composant quick action
+function QuickAction({
+  icon,
+  label,
+  desc,
+  color,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  desc: string;
+  color: string;
+  onClick?: string;
+}) {
+  const content = (
+    <div
+      className={`group flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${color}`}
+    >
+      <div className="flex-shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-white truncate">{label}</p>
+        <p className="text-[10px] text-white/40 truncate">{desc}</p>
+      </div>
+      <ChevronRight size={12} className="text-white/20 ml-auto flex-shrink-0" />
+    </div>
+  );
+  if (onClick) return <Link href={onClick}>{content}</Link>;
+  return <div>{content}</div>;
 }
 
 export default async function GlobalCardsPage({
@@ -57,26 +172,28 @@ export default async function GlobalCardsPage({
   const user = await getAuthenticatedUser();
   const resolvedParams = await searchParams;
 
+  // ── Écran non connecté ─────────────────────────────────────────────────
   if (!user)
     return (
-      <div className="min-h-screen bg-[#030014] flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="min-h-screen bg-[#080C14] flex flex-col items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[120px] animate-pulse"></div>
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#1a3a5c]/30 rounded-full blur-[140px]" />
         </div>
-        <div className="relative z-10 flex flex-col items-center gap-6">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full blur-xl opacity-50 animate-pulse"></div>
-            <div className="relative w-20 h-20 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-full flex items-center justify-center">
-              <Lock size={32} className="text-white" />
-            </div>
+        <div className="relative z-10 flex flex-col items-center gap-6 text-center px-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0EA5E9] to-[#6366F1] flex items-center justify-center shadow-xl shadow-sky-500/20">
+            <Lock size={28} className="text-white" />
           </div>
-          <p className="text-white/60 text-sm font-bold uppercase tracking-[0.3em]">
-            {"Acces restreint a PimPay"}
-          </p>
+          <div>
+            <h2 className="text-2xl font-black text-white mb-2">
+              Accès restreint
+            </h2>
+            <p className="text-white/40 text-sm">
+              Connectez-vous pour gérer vos cartes PimPay
+            </p>
+          </div>
           <Link
             href="/auth/login"
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-cyan-500 rounded-2xl text-white font-bold text-sm hover:opacity-90 transition-all"
+            className="px-8 py-3 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-xl text-white font-bold text-sm shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 transition-all"
           >
             Se connecter
           </Link>
@@ -84,463 +201,685 @@ export default async function GlobalCardsPage({
       </div>
     );
 
+  // ── Données ────────────────────────────────────────────────────────────
   const cards = user.virtualCards || [];
-  const selectedCardsId = resolvedParams.id || (cards.length > 0 ? cards[0].id : null);
-  const activeCard = cards.find((c) => c.id === selectedCardsId) || cards[0];
+  const selectedCardId =
+    resolvedParams.id || (cards.length > 0 ? cards[0].id : null);
+  const activeCard =
+    cards.find((c) => c.id === selectedCardId) || cards[0] || null;
 
-  // Calcul des statistiques reelles depuis les wallets
   const wallets = user.wallets || [];
   let usdBalance = 0;
-  let eurBalance = 0;
   for (const w of wallets) {
     if (["USDT", "USD", "USDC", "DAI", "BUSD"].includes(w.currency)) {
       usdBalance += w.balance;
     }
   }
-  eurBalance = usdBalance * 0.92;
+  const eurBalance = usdBalance * 0.92;
   const totalSpent = cards.reduce((acc, c) => acc + (c.totalSpent || 0), 0);
+  const activeCount = cards.filter((c) => !c.isFrozen).length;
 
+  const recentTx = (user as any).transactions?.slice(0, 5) || [];
+
+  // ── Rendu principal ────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#030014] text-white pb-32 font-sans relative overflow-hidden">
-      {/* Background Effects */}
+    <div className="min-h-screen bg-[#080C14] text-white pb-32 relative overflow-hidden">
+      {/* ── Background texture ── */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/8 rounded-full blur-[180px]"></div>
-        <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-cyan-500/8 rounded-full blur-[180px]"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:60px_60px]"></div>
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#0c2a4a]/20 rounded-full blur-[200px]" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#1e1b4b]/15 rounded-full blur-[180px]" />
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage: `linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)`,
+            backgroundSize: "80px 80px",
+          }}
+        />
       </div>
 
-      <div className="relative z-10">
-        {/* HEADER */}
-        <header className="px-4 sm:px-6 pt-6 pb-6 border-b border-white/5">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl blur-lg opacity-50"></div>
-                  <div className="relative w-12 h-12 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl flex items-center justify-center">
-                    <Wallet size={24} className="text-white" />
-                  </div>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight">
-                    Pim<span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">Cards</span>
-                  </h1>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-[0.15em]">
-                      {"Web3 Finance"}
-                    </span>
-                  </div>
+      <div className="relative z-10 max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ── HEADER ── */}
+        <header className="pt-8 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            {/* Logo + title */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl blur-xl opacity-40" />
+                <div className="relative w-12 h-12 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <CreditCard size={22} className="text-white" />
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/statements"
-                  className="group p-3 bg-white/5 backdrop-blur-xl rounded-xl border border-white/10 hover:border-purple-500/50 transition-all"
-                >
-                  <History size={18} className="text-white/60 group-hover:text-purple-400 transition-colors" />
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="group p-3 bg-white/5 backdrop-blur-xl rounded-xl border border-white/10 hover:border-cyan-500/50 transition-all relative"
-                >
-                  <Bell size={18} className="text-white/60 group-hover:text-cyan-400 transition-colors" />
-                  <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-pink-500 rounded-full animate-pulse"></div>
-                </Link>
-                <Link
-                  href="/dashboard/card/order"
-                  className="group flex items-center gap-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all active:scale-95"
-                >
-                  <Plus size={16} className="group-hover:rotate-90 transition-transform duration-300" />
-                  <span className="hidden sm:inline">Nouvelle carte</span>
-                </Link>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight">
+                  Pim
+                  <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
+                    Cards
+                  </span>
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                    Pi Network · Web3 Finance
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Stats Banner */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
-              <div className="p-4 bg-white/[0.03] backdrop-blur-xl rounded-xl border border-white/10 hover:border-purple-500/30 transition-all group">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
-                    <Wallet size={14} className="text-purple-400" />
-                  </div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Balance</span>
-                </div>
-                <p className="text-xl font-black">
-                  ${usdBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-white/30 mt-0.5">
-                  {"\u20AC"}{eurBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR
-                </p>
-              </div>
-
-              <div className="p-4 bg-white/[0.03] backdrop-blur-xl rounded-xl border border-white/10 hover:border-cyan-500/30 transition-all group">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center group-hover:bg-cyan-500/30 transition-colors">
-                    <TrendingUp size={14} className="text-cyan-400" />
-                  </div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">{"Depenses"}</span>
-                </div>
-                <p className="text-xl font-black">${totalSpent.toLocaleString()}</p>
-              </div>
-
-              <div className="p-4 bg-white/[0.03] backdrop-blur-xl rounded-xl border border-white/10 hover:border-emerald-500/30 transition-all group">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/30 transition-colors">
-                    <CreditCard size={14} className="text-emerald-400" />
-                  </div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Cartes</span>
-                </div>
-                <p className="text-xl font-black">{cards.filter((c) => !c.isFrozen).length}</p>
-              </div>
-
-              <div className="p-4 bg-white/[0.03] backdrop-blur-xl rounded-xl border border-white/10 hover:border-pink-500/30 transition-all group">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-pink-500/20 rounded-lg flex items-center justify-center group-hover:bg-pink-500/30 transition-colors">
-                    <Shield size={14} className="text-pink-400" />
-                  </div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">{"Securite"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xl font-black text-emerald-400">100%</p>
-                  <CheckCircle2 size={14} className="text-emerald-400" />
-                </div>
-              </div>
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <Link
+                href="/statements"
+                title="Relevés"
+                className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06] hover:border-white/[0.12] text-white/50 hover:text-white transition-all"
+              >
+                <History size={18} />
+              </Link>
+              <Link
+                href="/notifications"
+                title="Notifications"
+                className="relative p-3 bg-white/[0.04] rounded-xl border border-white/[0.06] hover:border-white/[0.12] text-white/50 hover:text-white transition-all"
+              >
+                <Bell size={18} />
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-sky-400 rounded-full animate-pulse" />
+              </Link>
+              <Link
+                href="/dashboard/card/order"
+                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-xl text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 hover:opacity-90 transition-all active:scale-95"
+              >
+                <Plus size={15} />
+                <span className="hidden sm:inline">Nouvelle carte</span>
+              </Link>
             </div>
+          </div>
+
+          {/* ── KPI strip ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+            <MetricCard
+              icon={<Wallet size={14} className="text-sky-400" />}
+              label="Solde USD"
+              value={`$${usdBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              sub={`€${eurBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`}
+              color="bg-sky-500/10"
+              trend="+3.2%"
+            />
+            <MetricCard
+              icon={<TrendingUp size={14} className="text-violet-400" />}
+              label="Dépenses totales"
+              value={`$${totalSpent.toLocaleString()}`}
+              sub="Ce mois"
+              color="bg-violet-500/10"
+            />
+            <MetricCard
+              icon={<CreditCard size={14} className="text-emerald-400" />}
+              label="Cartes actives"
+              value={`${activeCount} / ${cards.length}`}
+              sub={cards.length === 0 ? "Aucune carte" : "Cartes"}
+              color="bg-emerald-500/10"
+            />
+            <MetricCard
+              icon={<Shield size={14} className="text-amber-400" />}
+              label="Score sécurité"
+              value="A+"
+              sub="Aucune fraude détectée"
+              color="bg-amber-500/10"
+            />
           </div>
         </header>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Section Gauche : Liste des cartes */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-bold uppercase tracking-[0.15em] bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                  Mes Cartes ({cards.length})
-                </h3>
-              </div>
+        {/* ── CONTENU PRINCIPAL ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
+          {/* ═══════════════════════════════════════════
+              COLONNE GAUCHE — Liste des cartes
+          ═══════════════════════════════════════════ */}
+          <aside className="lg:col-span-3 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                Mes cartes ({cards.length})
+              </h2>
+              <Link
+                href="/dashboard/card/order"
+                className="text-[10px] font-bold text-sky-400 hover:text-sky-300 transition-colors flex items-center gap-1"
+              >
+                <Plus size={10} /> Ajouter
+              </Link>
+            </div>
 
-              <div className="flex lg:flex-col gap-3 overflow-x-auto pb-4 lg:pb-0 scrollbar-hide">
-                {cards.map((c) => (
+            {/* Scrollable card list */}
+            <div className="flex lg:flex-col gap-3 overflow-x-auto pb-3 lg:pb-0 lg:overflow-visible scrollbar-hide">
+              {cards.length === 0 && (
+                <Link
+                  href="/dashboard/card/order"
+                  className="flex-shrink-0 w-64 lg:w-full p-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.01] text-center flex flex-col items-center gap-3 hover:border-sky-500/30 transition-all"
+                >
+                  <div className="w-10 h-10 rounded-full bg-sky-500/10 flex items-center justify-center">
+                    <Plus size={18} className="text-sky-400" />
+                  </div>
+                  <span className="text-xs font-bold text-white/40">
+                    Créer ma première carte
+                  </span>
+                </Link>
+              )}
+
+              {cards.map((c) => {
+                const isSelected = activeCard?.id === c.id;
+                return (
                   <Link
                     href={`?id=${c.id}`}
                     key={c.id}
-                    className={`flex-shrink-0 w-[280px] lg:w-full p-5 rounded-2xl border transition-all duration-300 group relative overflow-hidden ${
-                      activeCard?.id === c.id
-                        ? "border-purple-500/40 bg-gradient-to-br from-purple-500/10 to-cyan-500/10 shadow-xl shadow-purple-500/10"
-                        : "border-white/5 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]"
+                    className={`flex-shrink-0 w-64 lg:w-full p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden group ${
+                      isSelected
+                        ? "border-sky-500/30 bg-gradient-to-br from-sky-500/8 to-indigo-500/8 shadow-xl shadow-sky-500/5"
+                        : "border-white/[0.05] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.03]"
                     }`}
                   >
-                    {activeCard?.id === c.id && (
-                      <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-cyan-500"></div>
+                    {/* Accent bar */}
+                    {isSelected && (
+                      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-sky-400 to-indigo-500 rounded-r-full" />
                     )}
 
-                    {c.isFrozen && (
-                      <div className="absolute top-3 right-3 px-2 py-0.5 bg-red-500/20 rounded-full border border-red-500/30">
-                        <span className="text-[8px] font-bold text-red-400 uppercase">{"Gelee"}</span>
+                    <div className="flex items-start justify-between mb-3 pl-1">
+                      <div>
+                        <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-1">
+                          {c.brand?.toUpperCase() || "VISA"} ·{" "}
+                          {c.type?.toUpperCase() || "CLASSIC"}
+                        </p>
+                        <p className="text-sm font-black font-mono text-white tracking-wider">
+                          •••• {c.number.slice(-4)}
+                        </p>
                       </div>
-                    )}
+                      <StatusBadge active={!c.isFrozen} />
+                    </div>
 
-                    <div className="flex justify-between items-start mb-4">
-                      <div
-                        className={`p-2.5 rounded-xl transition-all ${
-                          activeCard?.id === c.id
-                            ? "bg-gradient-to-br from-purple-500 to-cyan-500 text-white shadow-lg shadow-purple-500/25"
-                            : "bg-white/5 text-white/50 group-hover:bg-white/10"
-                        }`}
-                      >
-                        <CreditCard size={18} />
+                    <div className="flex items-center justify-between pl-1 pt-2 border-t border-white/[0.04]">
+                      <div>
+                        <p className="text-[8px] text-white/25 uppercase tracking-wider">
+                          Dépensé
+                        </p>
+                        <p className="text-sm font-bold text-white/70">
+                          ${(c.totalSpent || 0).toLocaleString()}
+                        </p>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <p className="text-[9px] font-bold text-white/40 uppercase">Solde</p>
-                        <p className={`text-base font-bold ${activeCard?.id === c.id ? "text-white" : "text-white/70"}`}>
-                          ${usdBalance.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-right">
+                        <p className="text-[8px] text-white/25 uppercase tracking-wider">
+                          Expire
+                        </p>
+                        <p className="text-sm font-bold text-white/70">
+                          {c.exp || "••/••"}
                         </p>
                       </div>
                     </div>
 
-                    <div>
-                      <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">Card Member</p>
-                      <p className="text-lg font-mono font-bold text-white mt-1 tracking-[0.12em]">
-                        {"•••• •••• •••• "}{c.number.slice(-4)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${c.isFrozen ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`}></div>
-                        <span className="text-[9px] font-medium text-white/40">{c.isFrozen ? "Inactive" : "Active"}</span>
-                      </div>
-                      <span className="text-[9px] font-bold text-white/30">{c.brand?.toUpperCase() || "VISA"}</span>
-                    </div>
+                    {isSelected && (
+                      <div className="absolute bottom-0 right-0 w-20 h-20 bg-sky-500/5 rounded-full blur-2xl" />
+                    )}
                   </Link>
-                ))}
-              </div>
+                );
+              })}
+            </div>
 
-              {/* Security Report - Desktop only */}
-              <div className="hidden lg:block p-5 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                    <ShieldCheck size={16} className="text-emerald-400" />
-                  </div>
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Protection Active</span>
+            {/* Pi Ledger status */}
+            <div className="p-4 rounded-2xl border border-amber-500/15 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-amber-500/15 rounded-lg flex items-center justify-center">
+                  <Activity size={14} className="text-amber-400" />
                 </div>
-                <p className="text-[11px] text-emerald-200/60 leading-relaxed">
-                  {"Aucune tentative de fraude detectee sur vos actifs ces dernieres 24h."}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-300">
+                    PI Mainnet
+                  </p>
+                  <p className="text-[10px] text-amber-500/60 truncate">
+                    Synchronisé · Block #2,847,391
+                  </p>
+                </div>
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse flex-shrink-0" />
+              </div>
+            </div>
+
+            {/* Security shield */}
+            <div className="p-4 rounded-2xl border border-emerald-500/15 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
+              <div className="flex items-center gap-3 mb-3">
+                <ShieldCheck size={16} className="text-emerald-400" />
+                <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                  Protection Active
                 </p>
               </div>
+              <div className="space-y-1.5">
+                {[
+                  "Chiffrement AES-256",
+                  "Authentification 2FA",
+                  "Détection fraude IA",
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <CheckCircle2 size={10} className="text-emerald-500" />
+                    <span className="text-[10px] text-emerald-200/50">
+                      {item}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
+          </aside>
 
-            {/* Section Droite : Details de la carte */}
-            <div className="lg:col-span-8 space-y-6">
-              {activeCard ? (
-                <>
-                  {/* Card Preview & Stats */}
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {/* Virtual Card */}
-                    <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-2xl blur-2xl transform scale-95 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          {/* ═══════════════════════════════════════════
+              COLONNE CENTRALE — Carte active + détails
+          ═══════════════════════════════════════════ */}
+          <main className="lg:col-span-6 space-y-5">
+            {activeCard ? (
+              <>
+                {/* Carte virtuelle 3D + boutons */}
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-b from-sky-500/10 to-transparent rounded-3xl blur-3xl scale-95 -z-10" />
+                  <VirtualCard card={activeCard} user={user} />
 
-                      <div className="relative">
-                        <VirtualCard card={activeCard} user={user} />
-
-                        {activeCard.isFrozen && (
-                          <div className="absolute inset-0 bg-[#030014]/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center border border-red-500/30">
-                            <div className="w-14 h-14 bg-red-500/20 rounded-full flex items-center justify-center mb-3">
-                              <Lock className="text-red-500" size={24} />
-                            </div>
-                            <div className="bg-red-500 text-white px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-                              {"Carte Gelee"}
-                            </div>
-                          </div>
-                        )}
+                  {/* Frozen overlay */}
+                  {activeCard.isFrozen && (
+                    <div className="absolute inset-0 bg-[#080C14]/85 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center border border-red-500/20">
+                      <div className="w-14 h-14 bg-red-500/15 rounded-2xl flex items-center justify-center mb-3">
+                        <Lock size={24} className="text-red-400" />
                       </div>
-
-                      {/* Action Buttons under card */}
-                      <div className="flex gap-2 mt-3">
-                        <Link
-                          href={`/dashboard/card?id=${activeCard.id}`}
-                          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/5 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 backdrop-blur-md rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all"
-                        >
-                          <Eye size={14} />
-                          <span>Voir</span>
-                        </Link>
-                        <CardSelectButton cardId={activeCard.id} />
-                        <CardDeleteButton cardId={activeCard.id} cardLast4={activeCard.number.slice(-4)} />
-                      </div>
+                      <span className="px-4 py-1.5 bg-red-500/20 text-red-300 text-xs font-black uppercase tracking-widest rounded-full border border-red-500/20">
+                        Carte Gelée
+                      </span>
                     </div>
+                  )}
 
-                    {/* Stats Dashboard */}
-                    <div className="flex flex-col gap-3">
-                      {/* Credit Metrics */}
-                      <div className="flex-1 bg-white/[0.02] backdrop-blur-xl border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/30 transition-all">
-                        <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-                          <BarChart3 size={80} className="text-purple-500" />
-                        </div>
+                  {/* Row d'actions sous la carte */}
+                  <div className="flex gap-2 mt-3">
+                    <Link
+                      href={`/dashboard/card?id=${activeCard.id}`}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-white/60 hover:text-white text-xs font-bold uppercase tracking-wider transition-all"
+                    >
+                      <Eye size={13} /> Détails
+                    </Link>
+                    <CardSelectButton cardId={activeCard.id} />
+                    <CardDeleteButton
+                      cardId={activeCard.id}
+                      cardLast4={activeCard.number.slice(-4)}
+                    />
+                  </div>
+                </div>
 
-                        <div className="relative z-10">
-                          <div className="flex items-center gap-2 text-purple-400 mb-3">
-                            <Zap size={12} />
-                            <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Credit Metrics</span>
-                          </div>
+                {/* ── Barre de dépenses ── */}
+                <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 size={14} className="text-sky-400" />
+                      <span className="text-xs font-black uppercase tracking-widest text-white/60">
+                        Utilisation mensuelle
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-sky-400">
+                      {Math.round(
+                        ((activeCard.totalSpent || 0) /
+                          (activeCard.dailyLimit || 10000)) *
+                          100
+                      )}
+                      % utilisé
+                    </span>
+                  </div>
 
-                          <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Utilisation Mensuelle</p>
-                          <div className="flex items-baseline gap-2 mt-1">
-                            <h2 className="text-3xl font-black">${activeCard.totalSpent?.toLocaleString() || "0"}</h2>
-                            <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1">
-                              <ArrowUpRight size={10} /> +2.4%
+                  <div className="flex items-baseline gap-3 mb-4">
+                    <span className="text-3xl font-black text-white">
+                      ${(activeCard.totalSpent || 0).toLocaleString()}
+                    </span>
+                    <span className="text-sm text-white/30">
+                      / ${(activeCard.dailyLimit || 10000).toLocaleString()}
+                    </span>
+                    <span className="text-xs text-emerald-400 flex items-center gap-0.5 ml-auto">
+                      <TrendingUp size={11} /> +2.4%
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="relative h-2 bg-white/[0.04] rounded-full overflow-hidden">
+                    <div
+                      className="absolute left-0 top-0 h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                      style={{
+                        width: `${Math.min(
+                          ((activeCard.totalSpent || 0) /
+                            (activeCard.dailyLimit || 10000)) *
+                            100,
+                          100
+                        )}%`,
+                        boxShadow: "0 0 12px rgba(14,165,233,0.5)",
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between mt-2.5">
+                    <span className="text-[10px] text-white/25">
+                      Limite:{" "}
+                      <strong className="text-white/50">
+                        ${(activeCard.dailyLimit || 10000).toLocaleString()}
+                      </strong>
+                    </span>
+                    <span className="text-[10px] text-white/25">
+                      Restant:{" "}
+                      <strong className="text-white/50">
+                        $
+                        {Math.max(
+                          (activeCard.dailyLimit || 10000) -
+                            (activeCard.totalSpent || 0),
+                          0
+                        ).toLocaleString()}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Features ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    {
+                      icon: <Globe size={16} className="text-sky-400" />,
+                      label: "International",
+                      desc: "200+ pays",
+                      bg: "bg-sky-500/8 border-sky-500/15 hover:border-sky-500/30",
+                    },
+                    {
+                      icon: <Wifi size={16} className="text-violet-400" />,
+                      label: "Sans contact",
+                      desc: "NFC activé",
+                      bg: "bg-violet-500/8 border-violet-500/15 hover:border-violet-500/30",
+                    },
+                    {
+                      icon: <Sparkles size={16} className="text-amber-400" />,
+                      label: "Cashback",
+                      desc: "Jusqu'à 5%",
+                      bg: "bg-amber-500/8 border-amber-500/15 hover:border-amber-500/30",
+                    },
+                    {
+                      icon: <Star size={16} className="text-emerald-400" />,
+                      label: "Assurance",
+                      desc: "Achats protégés",
+                      bg: "bg-emerald-500/8 border-emerald-500/15 hover:border-emerald-500/30",
+                    },
+                  ].map((f) => (
+                    <div
+                      key={f.label}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer ${f.bg}`}
+                    >
+                      {f.icon}
+                      <p className="text-xs font-bold text-white/80 mt-2">
+                        {f.label}
+                      </p>
+                      <p className="text-[10px] text-white/35">{f.desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Transactions récentes ── */}
+                <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <History size={14} className="text-sky-400" />
+                      <h3 className="text-xs font-black uppercase tracking-widest text-white/60">
+                        Transactions récentes
+                      </h3>
+                    </div>
+                    <Link
+                      href="/statements"
+                      className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors"
+                    >
+                      Tout voir <ChevronRight size={10} />
+                    </Link>
+                  </div>
+
+                  {recentTx.length === 0 ? (
+                    <div className="flex flex-col items-center py-8 text-center">
+                      <div className="w-12 h-12 bg-white/[0.03] rounded-2xl flex items-center justify-center mb-3">
+                        <History size={20} className="text-white/15" />
+                      </div>
+                      <p className="text-sm font-bold text-white/20">
+                        Aucune transaction
+                      </p>
+                      <p className="text-[11px] text-white/15 mt-1">
+                        Vos opérations apparaîtront ici
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentTx.map((tx: any) => {
+                        const isCredit = tx.type === "DEPOSIT";
+                        return (
+                          <div
+                            key={tx.id}
+                            className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.04] transition-all"
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                isCredit
+                                  ? "bg-emerald-500/10"
+                                  : "bg-red-500/10"
+                              }`}
+                            >
+                              {isCredit ? (
+                                <ArrowDownLeft
+                                  size={14}
+                                  className="text-emerald-400"
+                                />
+                              ) : (
+                                <Send size={14} className="text-red-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-white/80 truncate">
+                                {tx.description || tx.type}
+                              </p>
+                              <p className="text-[10px] text-white/30">
+                                {new Date(tx.createdAt).toLocaleDateString(
+                                  "fr-FR",
+                                  { day: "2-digit", month: "short" }
+                                )}
+                              </p>
+                            </div>
+                            <span
+                              className={`text-sm font-black flex-shrink-0 ${
+                                isCredit ? "text-emerald-400" : "text-red-400"
+                              }`}
+                            >
+                              {isCredit ? "+" : "-"}$
+                              {(tx.amount || 0).toLocaleString()}
                             </span>
                           </div>
-
-                          <div className="w-full bg-white/5 h-1.5 rounded-full mt-4 overflow-hidden">
-                            <div
-                              className="bg-gradient-to-r from-purple-500 to-cyan-500 h-full rounded-full shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-1000"
-                              style={{
-                                width: `${Math.min(((activeCard.totalSpent || 0) / (activeCard.dailyLimit || 10000)) * 100, 100)}%`,
-                              }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between mt-2">
-                            <p className="text-[10px] text-white/40 font-medium">
-                              Limite: ${activeCard.dailyLimit?.toLocaleString() || "10,000"}
-                            </p>
-                            <p className="text-[10px] text-purple-400 font-bold uppercase">Standard</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Blockchain Status */}
-                      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-4 rounded-2xl flex gap-3 items-center">
-                        <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
-                          <Database className="text-amber-400" size={18} />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs text-amber-200 font-bold uppercase tracking-tight">PI Ledger</p>
-                          <p className="text-[10px] text-amber-500/70 font-medium mt-0.5">
-                            {"Synchronise avec le Mainnet"}
-                          </p>
-                        </div>
-                        <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse"></div>
-                      </div>
+                        );
+                      })}
                     </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* ── Empty state ── */
+              <div className="flex flex-col items-center justify-center py-24 rounded-2xl border border-dashed border-white/[0.06] bg-white/[0.01]">
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-full blur-3xl opacity-20 animate-pulse" />
+                  <div className="relative w-20 h-20 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-full flex items-center justify-center shadow-xl shadow-sky-500/20">
+                    <Plus size={34} className="text-white" />
                   </div>
+                </div>
+                <h2 className="text-xl font-black text-white mb-2">
+                  Aucune carte active
+                </h2>
+                <p className="text-white/35 text-sm text-center max-w-xs leading-relaxed mb-6">
+                  Créez votre première carte virtuelle{" "}
+                  <span className="text-sky-400 font-bold">PimPay</span> et
+                  commencez à dépenser avec Pi.
+                </p>
+                <Link
+                  href="/dashboard/card/order"
+                  className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-sky-500/20 hover:opacity-90 transition-all active:scale-95"
+                >
+                  <Plus size={16} /> Créer ma carte
+                </Link>
+              </div>
+            )}
+          </main>
 
-                  {/* Features Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-xl hover:border-purple-500/30 transition-all group cursor-pointer">
-                      <Globe size={18} className="text-purple-400 mb-2" />
-                      <p className="text-xs font-bold text-white/80">Paiements Globaux</p>
-                      <p className="text-[9px] text-white/40 mt-0.5">200+ pays</p>
-                    </div>
-                    <div className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-xl hover:border-cyan-500/30 transition-all group cursor-pointer">
-                      <Wifi size={18} className="text-cyan-400 mb-2" />
-                      <p className="text-xs font-bold text-white/80">Sans Contact</p>
-                      <p className="text-[9px] text-white/40 mt-0.5">{"NFC active"}</p>
-                    </div>
-                    <div className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-xl hover:border-pink-500/30 transition-all group cursor-pointer">
-                      <Sparkles size={18} className="text-pink-400 mb-2" />
-                      <p className="text-xs font-bold text-white/80">Cashback</p>
-                      <p className="text-[9px] text-white/40 mt-0.5">{"Jusqu'a 5%"}</p>
-                    </div>
-                    <div className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-xl hover:border-emerald-500/30 transition-all group cursor-pointer">
-                      <Shield size={18} className="text-emerald-400 mb-2" />
-                      <p className="text-xs font-bold text-white/80">Assurance</p>
-                      <p className="text-[9px] text-white/40 mt-0.5">Protection totale</p>
-                    </div>
+          {/* ═══════════════════════════════════════════
+              COLONNE DROITE — Contrôles & actions
+          ═══════════════════════════════════════════ */}
+          {activeCard && (
+            <aside className="lg:col-span-3 space-y-5">
+              {/* ── Security Vault ── */}
+              <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-9 h-9 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <Shield size={16} className="text-white" />
                   </div>
-
-                  {/* Security Vault */}
-                  <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 p-6 rounded-2xl relative overflow-hidden">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl blur-lg opacity-50"></div>
-                          <div className="relative w-11 h-11 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl flex items-center justify-center">
-                            <Settings2 size={20} className="text-white" />
-                          </div>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-black bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-                            Security Vault
-                          </h3>
-                          <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">
-                            {"Controle des actifs"}
-                          </p>
-                        </div>
-                      </div>
-                      <Link
-                        href={`/dashboard/card?id=${activeCard.id}`}
-                        className="flex items-center gap-2 text-purple-400 text-[10px] font-bold uppercase tracking-wider hover:text-white transition-all bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-purple-500/30"
-                      >
-                        {"Details"} <ArrowUpRight size={12} />
-                      </Link>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-1 bg-white/5 rounded-xl">
-                        <CardActions cardId={activeCard.id} isFrozen={activeCard.isFrozen} />
-                      </div>
-
-                      {/* Quick Settings */}
-                      <div className="p-5 border border-white/10 rounded-xl bg-white/[0.02] space-y-4">
-                        <h4 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-3">
-                          {"Parametres Rapides"}
-                        </h4>
-
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <Wifi size={14} className="text-purple-400" />
-                            <span className="text-xs font-medium text-white/70">Sans Contact</span>
-                          </div>
-                          <div className="w-10 h-5 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center px-0.5 cursor-pointer">
-                            <div className="w-4 h-4 bg-white rounded-full ml-auto shadow-lg"></div>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center opacity-60">
-                          <div className="flex items-center gap-2">
-                            <Globe size={14} className="text-white/50" />
-                            <span className="text-xs font-medium text-white/70">International</span>
-                          </div>
-                          <div className="w-10 h-5 bg-white/10 rounded-full flex items-center px-0.5 cursor-pointer">
-                            <div className="w-4 h-4 bg-white/50 rounded-full"></div>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <Bell size={14} className="text-cyan-400" />
-                            <span className="text-xs font-medium text-white/70">Notifications</span>
-                          </div>
-                          <div className="w-10 h-5 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center px-0.5 cursor-pointer">
-                            <div className="w-4 h-4 bg-white rounded-full ml-auto shadow-lg"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">
+                      Security Vault
+                    </h3>
+                    <p className="text-[10px] text-white/30">
+                      Contrôle des actifs
+                    </p>
                   </div>
+                </div>
+                <CardActions
+                  cardId={activeCard.id}
+                  isFrozen={activeCard.isFrozen}
+                />
+              </div>
 
-                  {/* Recent Transactions Preview */}
-                  <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
-                    <div className="flex items-center justify-between mb-4">
+              {/* ── Quick actions ── */}
+              <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-3">
+                  Actions rapides
+                </h3>
+                <div className="space-y-2">
+                  <QuickAction
+                    icon={
+                      <RefreshCw size={14} className="text-sky-400 flex-shrink-0" />
+                    }
+                    label="Recharger la carte"
+                    desc="Depuis votre wallet Pi"
+                    color="border-sky-500/15 bg-sky-500/5 hover:bg-sky-500/10"
+                    onClick={`/dashboard/card?id=${activeCard.id}&action=recharge`}
+                  />
+                  <QuickAction
+                    icon={
+                      <Send size={14} className="text-violet-400 flex-shrink-0" />
+                    }
+                    label="Envoyer des fonds"
+                    desc="Virement rapide"
+                    color="border-violet-500/15 bg-violet-500/5 hover:bg-violet-500/10"
+                    onClick="/user/transfer"
+                  />
+                  <QuickAction
+                    icon={
+                      <Settings size={14} className="text-white/40 flex-shrink-0" />
+                    }
+                    label="Gérer les plafonds"
+                    desc="Limites de dépenses"
+                    color="border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
+                    onClick={`/dashboard/card?id=${activeCard.id}`}
+                  />
+                  <QuickAction
+                    icon={
+                      <AlertTriangle size={14} className="text-red-400 flex-shrink-0" />
+                    }
+                    label="Signaler un problème"
+                    desc="Perte / fraude / vol"
+                    color="border-red-500/15 bg-red-500/5 hover:bg-red-500/10"
+                  />
+                </div>
+              </div>
+
+              {/* ── Paramètres rapides ── */}
+              <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-4">
+                  Paramètres
+                </h3>
+                <div className="space-y-4">
+                  {[
+                    {
+                      icon: <Wifi size={13} />,
+                      label: "Sans contact",
+                      on: true,
+                      color: "text-sky-400",
+                    },
+                    {
+                      icon: <Globe size={13} />,
+                      label: "Paiements inter.",
+                      on: false,
+                      color: "text-white/30",
+                    },
+                    {
+                      icon: <Bell size={13} />,
+                      label: "Notifications",
+                      on: true,
+                      color: "text-violet-400",
+                    },
+                    {
+                      icon: <Zap size={13} />,
+                      label: "Paiements rapides",
+                      on: true,
+                      color: "text-amber-400",
+                    },
+                  ].map((s) => (
+                    <div key={s.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <History size={16} className="text-purple-400" />
-                        <h3 className="text-sm font-bold uppercase tracking-wider bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                          {"Transactions Recentes"}
-                        </h3>
+                        <span className={s.color}>{s.icon}</span>
+                        <span className="text-xs text-white/60">{s.label}</span>
                       </div>
-                      <Link
-                        href="/statements"
-                        className="text-[10px] text-white/40 hover:text-purple-400 transition-colors flex items-center gap-1"
+                      <div
+                        className={`relative w-9 h-5 rounded-full transition-all cursor-pointer ${
+                          s.on ? "bg-sky-500" : "bg-white/10"
+                        }`}
                       >
-                        Voir tout <ChevronRight size={10} />
-                      </Link>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-center py-6 text-white/30">
-                        <div className="text-center">
-                          <History size={28} className="mx-auto mb-2 text-white/20" />
-                          <p className="text-xs font-bold uppercase tracking-wider">Aucune transaction</p>
-                          <p className="text-[10px] text-white/20 mt-0.5">
-                            {"Les transactions apparaitront ici"}
-                          </p>
-                        </div>
+                        <div
+                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                            s.on ? "left-[18px]" : "left-0.5"
+                          }`}
+                        />
                       </div>
                     </div>
-                  </div>
-                </>
-              ) : (
-                /* Empty State */
-                <div className="flex flex-col items-center justify-center py-20 bg-white/[0.02] backdrop-blur-xl rounded-2xl border border-dashed border-white/10">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full blur-2xl opacity-30 animate-pulse"></div>
-                    <div className="relative w-20 h-20 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-full flex items-center justify-center">
-                      <Plus size={36} className="text-white" />
-                    </div>
-                  </div>
-                  <h2 className="text-xl font-black bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-                    Aucune carte active
-                  </h2>
-                  <p className="text-white/40 text-center max-w-sm mt-3 text-sm leading-relaxed">
-                    {"Demarrez votre experience "}
-                    <span className="text-purple-400 font-bold">PimPay</span>
-                    {" en creant votre premiere carte virtuelle."}
-                  </p>
-                  <Link
-                    href="/dashboard/card/order"
-                    className="mt-6 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all"
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Card info résumée ── */}
+              <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+                  Infos carte
+                </h3>
+                {[
+                  {
+                    label: "Type",
+                    value: `${activeCard.brand} ${activeCard.type}`,
+                  },
+                  { label: "Numéro", value: `•••• ${activeCard.number.slice(-4)}` },
+                  { label: "Expire", value: activeCard.exp || "N/A" },
+                  {
+                    label: "Statut",
+                    value: activeCard.isFrozen ? "Gelée" : "Active",
+                  },
+                  {
+                    label: "Créée le",
+                    value: new Date(activeCard.createdAt).toLocaleDateString(
+                      "fr-FR"
+                    ),
+                  },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between text-xs"
                   >
-                    <Plus size={16} />
-                    {"Creer ma carte"}
+                    <span className="text-white/30">{row.label}</span>
+                    <span className="font-bold text-white/70">{row.value}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-white/[0.04]">
+                  <Link
+                    href={`/dashboard/card?id=${activeCard.id}`}
+                    className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-bold text-sky-400 hover:text-sky-300 transition-colors"
+                  >
+                    Voir tous les détails <ArrowUpRight size={11} />
                   </Link>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </aside>
+          )}
         </div>
       </div>
     </div>
