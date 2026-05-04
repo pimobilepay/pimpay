@@ -143,34 +143,11 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    // 5. Messages admin non lus (if AdminMessage table exists)
-    let unreadMessages: any[] = [];
-    try {
-      // Try to fetch admin messages - table may not exist in all deployments
-      const msgResult = await prisma.$queryRaw<any[]>`
-        SELECT id, content, read, "createdAt", "senderId"
-        FROM "AdminMessage" 
-        WHERE read = false 
-        ORDER BY "createdAt" DESC 
-        LIMIT 10
-      `;
-      unreadMessages = msgResult || [];
-    } catch {
-      // Table doesn't exist, skip
-    }
-
-    unreadMessages.forEach((msg: any) => {
-      notifications.push({
-        id: `msg-${msg.id}`,
-        type: "MESSAGE",
-        title: "Nouveau message",
-        message: `Message admin: ${msg.content?.substring(0, 50) || "Message"}...`,
-        priority: "medium",
-        read: false,
-        createdAt: msg.createdAt,
-        metadata: { messageId: msg.id },
-      });
-    });
+    // 5. Messages admin — table AdminMessage absente du schéma Prisma actuel
+    // La table n'existe pas en base → on n'exécute aucune requête pour éviter
+    // le spam prisma:error dans les logs Vercel (Code 42P01 relation not found).
+    // À réactiver quand le modèle AdminMessage sera ajouté au schéma et migré.
+    const unreadMessages: any[] = [];
 
     // Trier par date (plus recent en premier) et par priorite
     const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
