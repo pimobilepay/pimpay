@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
               orderBy: { createdAt: 'desc' },
               select: {
                 ip: true,
-                device: true,
+                deviceName: true,
                 browser: true,
                 os: true,
                 city: true,
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
             targetEmail: log.targetEmail,
             // Session/Location info from the admin's last session
             ipAddress: sessionInfo?.ip || null,
-            device: sessionInfo?.device || null,
+            device: sessionInfo?.deviceName || null,
             browser: sessionInfo?.browser || null,
             os: sessionInfo?.os || null,
             city: sessionInfo?.city || null,

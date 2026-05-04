@@ -56,7 +56,8 @@ export async function GET(req: NextRequest) {
         name: true,
         role: true,
         createdAt: true,
-        isVerified: true,
+        kycStatus: true,
+        status: true,
         avatar: true,
       },
     });

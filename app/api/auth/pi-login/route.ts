@@ -30,10 +30,9 @@ export async function POST(request: Request) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s max
       const piRes = await fetch("https://api.minepi.com/v2/me", {
-        method: "POST",
+        method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
         },
         signal: controller.signal,
       });
