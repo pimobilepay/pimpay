@@ -32,7 +32,7 @@ const piValidationCache = new Map<string, PiValidationCache>();
 /**
  * [FIX #25] validatePiToken — Valide un Pi session token via l'API officielle Pi Network.
  *
- * Implémente POST https://api.minepi.com/v2/me avec le token en Authorization Bearer.
+ * Implémente GET https://api.minepi.com/v2/me avec le token en Authorization Bearer.
  * Vérifie que le uid retourné par Pi correspond à un utilisateur enregistré en base.
  *
  * Résultat mis en cache 5 minutes pour éviter les appels répétitifs.
@@ -50,14 +50,14 @@ async function validatePiToken(piToken: string): Promise<string | null> {
     return cached.userId;
   }
 
-  // 2. Appel à l'API Pi Network (POST /v2/me)
+  // 2. Appel à l'API Pi Network (GET /v2/me)
+  // [FIX] /v2/me est un endpoint GET — POST retourne 404/405 systématiquement
   try {
     const piApiUrl = process.env.PI_API_URL || "https://api.minepi.com";
     const response = await fetch(`${piApiUrl}/v2/me`, {
-      method: "POST",
+      method: "GET",
       headers: {
         "Authorization": `Bearer ${piToken}`,
-        "Content-Type":  "application/json",
       },
       // Timeout 5s — l'API Pi peut être lente
       signal: AbortSignal.timeout(5000),

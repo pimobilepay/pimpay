@@ -175,18 +175,16 @@ function buildCSP(nonce: string): string {
     // [FIX #9] nonce remplace 'unsafe-inline' pour les scripts inline légitimes
     // (theme-strategy, pi-sdk-init, google-analytics dans layout.tsx)
     `script-src 'self' 'nonce-${nonce}' https://sdk.minepi.com https://www.googletagmanager.com https://cdn.cinetpay.com`,
-    // connect-src : Pi Browser nécessite l'accès à api.minepi.com + minepi.com
-    "connect-src 'self' https://api.minepi.com https://minepi.com https://pimpay.vercel.app https://www.google-analytics.com",
+    // [FIX PI BROWSER] Pi SDK fait des appels vers minepi.com (sans sous-domaine) + sdk.minepi.com
+    "connect-src 'self' https://api.minepi.com https://minepi.com https://*.minepi.com https://sdk.minepi.com https://pimpay.vercel.app https://www.google-analytics.com",
     "img-src 'self' data: https://res.cloudinary.com https://logo.clearbit.com https://placehold.co https://api.qrserver.com",
     // style-src : 'unsafe-inline' conservé temporairement car Tailwind génère des styles inline
+    // Migrer vers style nonces ou CSS-in-JS strict dans une prochaine itération
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    // [FIX PI BROWSER] Pi Browser charge les apps dans une WebView/iframe interne.
-    // frame-src 'none' → remplacé par autorisation explicite de minepi.com
+    // [FIX PI BROWSER] Pi Browser charge l'app dans une WebView depuis minepi.com
+    // frame-src 'none' et frame-ancestors 'none' bloquent le chargement → ERR_BLOCKED_BY_RESPONSE
     "frame-src https://minepi.com https://*.minepi.com",
-    // [FIX PI BROWSER] frame-ancestors 'none' bloquait complètement Pi Browser.
-    // Pi Browser intègre les apps via WebView — il faut autoriser son origine.
-    // On autorise minepi.com + 'self' pour permettre l'embedding Pi Browser.
     "frame-ancestors 'self' https://minepi.com https://*.minepi.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -241,7 +239,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   // -------------------------------------------------------------------------
 
   // Login : 10 tentatives / 60 secondes par IP
-  if (pathname === "/api/auth/login" || pathname.startsWith("/api/auth/login")) {
+  if (pathname === "/api/auth/login" || pathname.startsWith("/api/auth/login") || pathname === "/api/auth/pi-login") {
     const key = `login:${clientIp}`;
     if (isRateLimited(key, 10, 60_000)) {
       return buildApiError(
@@ -377,9 +375,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/settings")   ||
     pathname.startsWith("/profile")    ||
     pathname.startsWith("/withdraw")   ||
-    pathname.startsWith("/wallet")   ||
-    pathname.startsWith("/cards")    ||
-    pathname.startsWith("/statements");
+    pathname.startsWith("/wallet");
 
   // Aucune session du tout → redirection login
   if (!userPayload && !hasPiSession && isProtectedPath) {
@@ -432,9 +428,6 @@ export const config = {
     "/withdraw/:path*",
     "/settings/:path*",
     "/wallet/:path*",
-    "/cards/:path*",
-    "/statements/:path*",
-    "/notifications/:path*",
     // Pages de login (redirection si déjà connecté)
     "/login",
     "/",
