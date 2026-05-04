@@ -22,17 +22,30 @@ export async function POST(request: Request) {
     }
 
     // Verification du token aupres de Pi Platform API
+    // [FIX] Timeout explicite de 5s — Vercel peut mettre >30s sur certaines régions.
+    // Sans timeout, fetch() bloque jusqu'au timeout réseau (120s) → la route crash
+    // avec une TypeError après épuisement du délai → "Echec de la connexion sécurisée".
     let verifiedUser: any = null;
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s max
       const piRes = await fetch("https://api.minepi.com/v2/me", {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
       });
-
+      clearTimeout(timeoutId);
       if (piRes.ok) {
         verifiedUser = await piRes.json();
+      } else {
+        console.warn("[PimPay] Pi API retourné", piRes.status, "— fallback local");
       }
-    } catch (err) {
-      console.warn("[PimPay] Verification Pi API echouee, fallback local:", err);
+    } catch (err: any) {
+      // AbortError = timeout → on continue avec les données client (non bloquant)
+      console.warn("[PimPay] Verification Pi API échouée/timeout, fallback local:", err?.name || err);
     }
 
     // On utilise les donnees verifiees si disponibles, sinon celles envoyees par le client
@@ -211,7 +224,12 @@ export async function POST(request: Request) {
     const cookieOptions = {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 jours
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      // [FIX PI BROWSER] SameSite=None exige Secure=true OBLIGATOIREMENT.
+      // Si NODE_ENV n'est pas exactement "production" sur Vercel, Secure=false
+      // et le navigateur rejette silencieusement le cookie SameSite=None.
+      // Résultat : token jamais stocké → "Echec de la connexion sécurisée" à chaque login.
+      // SameSite=Lax fonctionne dans tous les contextes Pi Browser (navigation top-level).
+      sameSite: "lax" as const,
       secure: isProduction,
       httpOnly: true,
     };
