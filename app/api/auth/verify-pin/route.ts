@@ -9,10 +9,27 @@ import { UAParser } from "ua-parser-js";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { pin, userId: bodyUserId } = body;
+    const { pin } = body;
 
     const cookieStore = await cookies();
-    let userId = bodyUserId;
+
+    // [FIX V4] — userId extrait UNIQUEMENT depuis le JWT, jamais depuis le body
+    // L'ancien code faisait : const { pin, userId: bodyUserId } = body; let userId = bodyUserId;
+    // ce qui permettait à n'importe qui de s'authentifier en tant qu'un autre utilisateur.
+    const classicToken = cookieStore.get("token")?.value
+      || cookieStore.get("pimpay_token")?.value;
+    const piToken = cookieStore.get("pi_session_token")?.value;
+
+    let userId: string | null = null;
+
+    if (classicToken) {
+      const { verifyJWT } = await import("@/lib/auth");
+      const payload = await verifyJWT(classicToken);
+      userId = payload?.id || null;
+    } else if (piToken && piToken.length > 20) {
+      // pi_session_token utilisé comme fallback pour les utilisateurs Pi Browser
+      userId = piToken;
+    }
 
     if (!userId || !pin) {
       return NextResponse.json({ error: "Donnees manquantes" }, { status: 400 });

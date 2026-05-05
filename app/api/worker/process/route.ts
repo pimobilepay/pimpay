@@ -21,14 +21,26 @@ const RPC_URLS = {
 const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
 
 export async function GET(req: NextRequest) {
+  // [FIX V3] — Vérification WORKER_SECRET obligatoire
+  // Le worker doit envoyer x-worker-secret: <WORKER_SECRET> OU Authorization: Bearer <WORKER_SECRET>
+  const workerSecret = process.env.WORKER_SECRET;
+  const headerSecret = req.headers.get("x-worker-secret")
+    || req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!workerSecret || !headerSecret || headerSecret !== workerSecret) {
+    console.warn("[v0] [WORKER] Accès refusé — secret invalide ou manquant");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   console.log(`[v0] [WORKER] Demarrage du worker process...`);
-  console.log(`[v0] [WORKER] Config Pi:`, {
-    PI_HORIZON_URL: process.env.PI_HORIZON_URL,
-    PI_NETWORK_PASSPHRASE: process.env.PI_NETWORK_PASSPHRASE,
-    PI_MASTER_WALLET_ADDRESS: process.env.PI_MASTER_WALLET_ADDRESS?.substring(0, 10) + "...",
-    PI_API_KEY_PRESENT: !!process.env.PI_API_KEY
-  });
-  
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[v0] [WORKER] Config Pi:`, {
+      PI_HORIZON_URL: process.env.PI_HORIZON_URL,
+      PI_NETWORK_PASSPHRASE: process.env.PI_NETWORK_PASSPHRASE,
+      PI_MASTER_WALLET_ADDRESS: process.env.PI_MASTER_WALLET_ADDRESS?.substring(0, 10) + "...",
+      PI_API_KEY_PRESENT: !!process.env.PI_API_KEY
+    });
+  }
+
   try {
     const processed = await processExternalTransfers();
     console.log(`[v0] [WORKER] Termine avec ${processed} transactions traitees`);

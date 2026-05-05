@@ -37,6 +37,23 @@ export async function POST(req: Request) {
     // 3. Traitement en cas de succès
     if (status === "SUCCESS" || status === "SUCCESS") {
 
+      // [FIX V7] — Utiliser transaction.amount (DB) comme référence de vérité.
+      // Avant : amountReceived du payload externe était utilisé directement.
+      // Un attaquant pouvait envoyer amount: 99999999 pour créditer n'importe quel montant.
+      const expectedAmount = transaction.amount;
+      const tolerance = expectedAmount * 0.01; // Tolérance de ±1%
+      if (
+        typeof amountReceived !== "number" ||
+        Math.abs(amountReceived - expectedAmount) > tolerance
+      ) {
+        console.error(
+          `[WEBHOOK] Montant invalide: reçu ${amountReceived}, attendu ${expectedAmount} ±1%`
+        );
+        return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+      }
+      // À partir d'ici, on utilise transaction.amount (la source DB) pour tous les calculs.
+      const verifiedAmount = expectedAmount;
+
       // Récupérer le prix de consensus actuel
       const config = await prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } });
       const consensusPrice = config?.consensusPrice || 314159;
@@ -44,7 +61,7 @@ export async function POST(req: Request) {
       // Calculer la conversion PI via le service
       const metadata = transaction.metadata as any;
       const conversion = await conversionService.localToPi(
-        amountReceived,
+        verifiedAmount,
         metadata?.countryCode || "CD",
         consensusPrice
       );
@@ -81,7 +98,7 @@ export async function POST(req: Request) {
         data: {
           userId: transaction.fromUserId || transaction.toUserId!,
           title: "Depot recu !",
-          message: `Votre depot de ${amountReceived} ${conversion.currency} a ete converti en ${conversion.piAmount} PI.`,
+          message: `Votre depot de ${verifiedAmount} ${conversion.currency} a ete converti en ${conversion.piAmount} PI.`,
           type: "SUCCESS",
           metadata: JSON.stringify({
             amount: conversion.piAmount,
@@ -92,7 +109,7 @@ export async function POST(req: Request) {
             method: `Mobile Money (${conversion.currency})`,
             status: "SUCCESS",
             network: "PimPay",
-            fromAmount: amountReceived,
+            fromAmount: verifiedAmount,
             fromCurrency: conversion.currency,
             toAmount: conversion.piAmount,
             toCurrency: "PI",

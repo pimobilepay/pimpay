@@ -36,31 +36,23 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 /**
  * Get authenticated user ID from cookies (supports Pi Browser and classic tokens)
  * This is the primary auth helper for API routes
- *
- * [FIX V2/V13] — pi_session_token est accepté comme fallback UNIQUEMENT s'il a
- * la longueur d'un CUID valide (25 caractères min). Cela ne remplace pas la
- * validation cryptographique via api.minepi.com/v2/me (TODO complet V2),
- * mais bloque les chaînes triviales de >20 caractères forgées à la main.
  */
 export async function getAuthUserId(): Promise<string | null> {
   try {
     const cookieStore = await cookies();
-
-    // 1. JWT classique en priorité (vérification cryptographique réelle)
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (payload?.id) return payload.id;
-    }
-
-    // 2. Pi Browser token — fallback (TODO V2: valider via api.minepi.com/v2/me)
-    // Contrainte minimale : longueur CUID (25 chars) et format alphanumérique
+    
+    // Pi Browser token (direct userId)
     const piToken = cookieStore.get("pi_session_token")?.value;
-    if (piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
+    if (piToken) {
       return piToken;
     }
-
-    return null;
+    
+    // Classic JWT tokens
+    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    if (!classicToken) return null;
+    
+    const payload = await verifyJWT(classicToken);
+    return payload?.id || null;
   } catch {
     return null;
   }

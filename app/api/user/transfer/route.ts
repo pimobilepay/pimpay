@@ -96,6 +96,34 @@ export async function POST(req: NextRequest) {
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
 
+    // [FIX V18] — Limites AML/KYC CEMAC
+    // Avant : aucune limite de montant, un utilisateur non-KYC pouvait transférer l'illimité.
+    // Ces limites s'appliquent PAR TRANSACTION (not daily/monthly — à implémenter en Semaine 2-3).
+    const senderForAml = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { kycStatus: true, dailyLimit: true, monthlyLimit: true },
+    });
+    const kycStatus = senderForAml?.kycStatus || "NONE";
+    // Limites par transaction selon statut KYC (en unité de base de la devise)
+    const AML_TX_LIMITS: Record<string, number> = {
+      NONE:     50_000,   // Non-KYC : 50 000 XAF max / transaction
+      PENDING:  100_000,  // KYC en cours : 100 000 XAF max
+      VERIFIED: 5_000_000, // KYC vérifié : 5 000 000 XAF max
+    };
+    const txLimit = senderForAml?.dailyLimit || AML_TX_LIMITS[kycStatus] || AML_TX_LIMITS["NONE"];
+    if (amount > txLimit) {
+      return NextResponse.json(
+        {
+          error: `Limite de transfert dépassée. Maximum autorisé pour votre statut KYC (${kycStatus}) : ${txLimit.toLocaleString()} ${currency}. Complétez votre KYC pour augmenter vos limites.`,
+        },
+        { status: 400 }
+      );
+    }
+    // Log transactions importantes (>1000 USD équivalent)
+    if (currency === "PI" && amount > 1000) {
+      console.warn(`[AML_ALERT] Transaction PI importante: ${amount} PI par user ${senderId} (KYC: ${kycStatus})`);
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       // FIX: Récupérer les infos de l'expéditeur (sender) pour les notifications et clés
       const senderUser = await tx.user.findUnique({
