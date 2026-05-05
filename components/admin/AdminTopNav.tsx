@@ -53,21 +53,62 @@ export function AdminTopNav({
   // closures where new notifications were never detected correctly.
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
+  
+  // Track read notification IDs in localStorage for admin notifications
+  const getReadNotifIds = (): Set<string> => {
+    try {
+      const stored = localStorage.getItem("admin_read_notif_ids");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  };
+  
+  const markNotifAsRead = (id: string) => {
+    try {
+      const readIds = getReadNotifIds();
+      readIds.add(id);
+      // Keep only last 500 IDs to avoid localStorage bloat
+      const idsArray = Array.from(readIds).slice(-500);
+      localStorage.setItem("admin_read_notif_ids", JSON.stringify(idsArray));
+    } catch {}
+  };
+  
+  const markAllNotifsAsRead = (ids: string[]) => {
+    try {
+      const readIds = getReadNotifIds();
+      ids.forEach(id => readIds.add(id));
+      const idsArray = Array.from(readIds).slice(-500);
+      localStorage.setItem("admin_read_notif_ids", JSON.stringify(idsArray));
+    } catch {}
+  };
 
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/notifications", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setUnreadCount(data.unreadCount || 0);
-        setUrgentCount(data.urgentCount || 0);
-        setNotifications(data.notifications?.slice(0, 5) || []);
+        const readIds = getReadNotifIds();
+        
+        // Mark notifications as read based on localStorage
+        const notificationsWithReadState = (data.notifications || []).map((n: AdminNotification) => ({
+          ...n,
+          read: readIds.has(n.id)
+        }));
+        
+        // Calculate actual unread count based on localStorage tracking
+        const actualUnreadCount = notificationsWithReadState.filter((n: AdminNotification) => !n.read).length;
+        const actualUrgentCount = notificationsWithReadState.filter((n: AdminNotification) => !n.read && (n.priority === "urgent" || n.priority === "high")).length;
+        
+        setUnreadCount(actualUnreadCount);
+        setUrgentCount(actualUrgentCount);
+        setNotifications(notificationsWithReadState.slice(0, 5));
         setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
 
         // Detect new notifications and show toast (skip first load)
-        if (!isFirstLoadRef.current && data.notifications?.length > 0) {
-          data.notifications.forEach((notif: AdminNotification) => {
-            if (!knownIdsRef.current.has(notif.id) && knownIdsRef.current.size > 0) {
+        if (!isFirstLoadRef.current && notificationsWithReadState?.length > 0) {
+          notificationsWithReadState.forEach((notif: AdminNotification) => {
+            if (!knownIdsRef.current.has(notif.id) && knownIdsRef.current.size > 0 && !notif.read) {
               // New notification detected
               const priorityColors: Record<string, string> = {
                 urgent: "rgba(239, 68, 68, 0.95)",
@@ -90,8 +131,8 @@ export function AdminTopNav({
         }
 
         // Update refs — no state update, no re-render, no dep loop
-        if (data.notifications?.length > 0) {
-          knownIdsRef.current = new Set(data.notifications.map((n: AdminNotification) => n.id));
+        if (notificationsWithReadState?.length > 0) {
+          knownIdsRef.current = new Set(notificationsWithReadState.map((n: AdminNotification) => n.id));
         }
         if (isFirstLoadRef.current) {
           isFirstLoadRef.current = false;
