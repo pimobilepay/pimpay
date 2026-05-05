@@ -107,7 +107,6 @@ const SAFE_USER_SELECT = {
   xlmAddress:       true,
   xrpAddress:       true,
   solAddress:       true,
-  xlmAddress:       true,
 
   // Sécurité (état, jamais les secrets)
   twoFactorEnabled: true,
@@ -131,11 +130,11 @@ const SAFE_USER_SELECT = {
       brand:       true,
       type:        true,
       isFrozen:    true,
-      isPrimary:   true,
       dailyLimit:  true,
       totalSpent:  true,
       createdAt:   true,
       // cvv intentionnellement EXCLU (PCI-DSS 3.2 — ne jamais retourner le CVV)
+      // isPrimary retiré — champ absent du schéma Prisma VirtualCard
     },
   },
   referrals: {

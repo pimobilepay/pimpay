@@ -9,13 +9,20 @@ import { UAParser } from "ua-parser-js";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { pin } = body;
+    const { pin, tempToken: bodyTempToken } = body;
 
     const cookieStore = await cookies();
 
-    // [FIX V4] — userId extrait UNIQUEMENT depuis le JWT, jamais depuis le body
-    // L'ancien code faisait : const { pin, userId: bodyUserId } = body; let userId = bodyUserId;
-    // ce qui permettait à n'importe qui de s'authentifier en tant qu'un autre utilisateur.
+    // [FIX V4] — userId extrait UNIQUEMENT depuis un token signé, jamais en clair depuis le body.
+    //
+    // Flux login (pas encore de session) :
+    //   /api/auth/login → { tempToken (JWT 5min), userId } → page PIN envoie tempToken dans le body
+    //   → on vérifie le tempToken cryptographiquement → on extrait userId depuis son payload
+    //
+    // Flux session active (déjà connecté, re-confirmation PIN) :
+    //   cookie token présent → on extrait userId depuis le JWT du cookie
+    //
+    // Dans les deux cas : userId ne vient JAMAIS d'un champ libre du body.
     const classicToken = cookieStore.get("token")?.value
       || cookieStore.get("pimpay_token")?.value;
     const piToken = cookieStore.get("pi_session_token")?.value;
@@ -23,11 +30,19 @@ export async function POST(req: NextRequest) {
     let userId: string | null = null;
 
     if (classicToken) {
+      // Cas : session active (re-confirmation PIN)
       const { verifyJWT } = await import("@/lib/auth");
       const payload = await verifyJWT(classicToken);
       userId = payload?.id || null;
+    } else if (bodyTempToken) {
+      // Cas : flux login — tempToken JWT signé par le serveur (5 min, purpose: mfa_verification)
+      const { verifyJWT } = await import("@/lib/auth");
+      const payload = await verifyJWT(bodyTempToken);
+      if (payload?.id && (payload as any).purpose === "mfa_verification") {
+        userId = payload.id;
+      }
     } else if (piToken && piToken.length > 20) {
-      // pi_session_token utilisé comme fallback pour les utilisateurs Pi Browser
+      // Cas : Pi Browser — fallback
       userId = piToken;
     }
 
