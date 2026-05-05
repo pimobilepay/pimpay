@@ -19,16 +19,33 @@ import CardActions from "@/components/cards/CardActions";
 
 async function getCardDetails(cardId: string) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-  if (!token) return null;
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
 
+  const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+  const piToken = cookieStore.get("pi_session_token")?.value;
+
+  let userId: string | null = null;
+
+  if (classicToken) {
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+      const { payload } = await jose.jwtVerify(classicToken, secret);
+      userId = payload.id as string;
+    } catch {
+      userId = null;
+    }
+  }
+
+  if (!userId && piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
+    userId = piToken;
+  }
+
+  if (!userId) return null;
+
+  try {
     const card = await prisma.virtualCard.findFirst({
       where: {
         id: cardId,
-        userId: payload.id as string,
+        userId: userId,
       },
       include: {
         user: {
