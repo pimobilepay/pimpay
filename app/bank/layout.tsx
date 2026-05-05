@@ -35,6 +35,7 @@ const icons = {
   arrowDown:       'M6 9l6 6 6-6',
   x:               'M18 6L6 18M6 6l12 12',
   keyboard:        'M20 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zM8 15v-4 M12 15V9 M16 15v-2',
+  menu:            'M3 12h18M3 6h18M3 18h18',
 };
 
 // ─── Nav Config ───────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ const notifications = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname();
   const [collapsed,        setCollapsed]        = useState(false);
+  const [mobileOpen,       setMobileOpen]       = useState(false);
   const [notifOpen,        setNotifOpen]        = useState(false);
   const [quickOpen,        setQuickOpen]        = useState(false);
   const [searchFocused,    setSearchFocused]    = useState(false);
@@ -115,16 +117,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const notifRef  = useRef<HTMLDivElement>(null);
   const quickRef  = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
 
-  // Close dropdowns on outside click
+  // Close dropdowns and mobile sidebar on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node))  setNotifOpen(false);
       if (quickRef.current && !quickRef.current.contains(e.target as Node))  setQuickOpen(false);
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node) && mobileOpen) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-mobile-toggle]')) setMobileOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [mobileOpen]);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   // Ctrl+K shortcut
   useEffect(() => {
@@ -164,22 +176,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div
       style={{ backgroundColor: '#0A0E17', minHeight: '100vh', display: 'flex', fontFamily: "'Inter', system-ui, sans-serif" }}
     >
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            zIndex: 40,
+            backdropFilter: 'blur(4px)',
+          }}
+          className="lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* ── Sidebar ── */}
       <aside
+        ref={sidebarRef}
+        className={`fixed top-0 left-0 h-screen z-50 flex flex-col overflow-hidden bg-[#0D1117] border-r border-[#1F2937] transition-transform duration-300 lg:translate-x-0 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
         style={{
-          width: sidebarW,
-          minWidth: sidebarW,
-          backgroundColor: '#0D1117',
-          borderRight: '1px solid #1F2937',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1)',
-          overflow: 'hidden',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          height: '100vh',
-          zIndex: 50,
+          width: '280px',
+          minWidth: '280px',
         }}
       >
         {/* Logo */}
@@ -485,47 +505,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Main area ── */}
       <div
-        style={{
-          marginLeft: sidebarW,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: '100vh',
-          transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
-          minWidth: 0,
-        }}
+        className="flex-1 flex flex-col min-h-screen min-w-0 ml-0 lg:ml-[280px] transition-[margin] duration-300"
       >
         {/* ── Header ── */}
         <header
-          style={{
-            height: '64px',
-            backgroundColor: '#0D1117',
-            borderBottom: '1px solid #1F2937',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 24px',
-            gap: '16px',
-            position: 'sticky',
-            top: 0,
-            zIndex: 40,
-            backdropFilter: 'blur(8px)',
-          }}
+          className="h-14 md:h-16 bg-[#0D1117] border-b border-[#1F2937] flex items-center px-3 md:px-6 gap-2 md:gap-4 sticky top-0 z-40 backdrop-blur-sm"
         >
+          {/* Mobile menu button */}
+          <button
+            data-mobile-toggle
+            onClick={() => setMobileOpen(v => !v)}
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-[#1F2937] bg-[rgba(255,255,255,0.03)] text-[#9CA3AF] hover:text-[#C8A961] hover:border-[#C8A961] transition-colors"
+          >
+            <Icon d={icons.menu} size={18} />
+          </button>
+
           {/* Breadcrumb */}
-          <nav style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+          <nav className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
             {crumbs.map((crumb, i) => (
               <React.Fragment key={crumb.href}>
                 {i > 0 && (
-                  <span style={{ color: '#374151', fontSize: '14px' }}>/</span>
+                  <span className="text-[#374151] text-xs md:text-sm">/</span>
                 )}
                 {crumb.last ? (
-                  <span style={{ color: '#F3F4F6', fontSize: '14px', fontWeight: 600 }}>{crumb.label}</span>
+                  <span className="text-[#F3F4F6] text-xs md:text-sm font-semibold truncate">{crumb.label}</span>
                 ) : (
                   <Link
                     href={crumb.href}
-                    style={{ color: '#6B7280', fontSize: '14px', textDecoration: 'none', transition: 'color 0.15s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#C8A961'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#6B7280'; }}
+                    className="text-[#6B7280] text-xs md:text-sm no-underline transition-colors hover:text-[#C8A961] hidden sm:inline"
                   >
                     {crumb.label}
                   </Link>
@@ -534,28 +541,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ))}
           </nav>
 
-          {/* Search */}
-          <div
-            style={{
-              position: 'relative',
-              flexShrink: 0,
-            }}
-          >
+          {/* Search - hidden on small mobile */}
+          <div className="relative shrink-0 hidden sm:block">
             <div
+              className="flex items-center gap-2 rounded-lg px-3 h-9 transition-all duration-200"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
                 backgroundColor: searchFocused ? '#111827' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${searchFocused ? '#C8A961' : '#1F2937'}`,
-                borderRadius: '8px',
-                padding: '0 12px',
-                height: '38px',
-                width: searchFocused ? '280px' : '220px',
-                transition: 'all 0.25s',
+                width: searchFocused ? '240px' : '160px',
               }}
             >
-              <span style={{ color: '#6B7280', flexShrink: 0, display: 'flex' }}>
+              <span className="text-[#6B7280] shrink-0 flex">
                 <Icon d={icons.search} size={15} />
               </span>
               <input
@@ -565,87 +561,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setSearchFocused(false)}
                 placeholder="Rechercher..."
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#F3F4F6',
-                  fontSize: '13px',
-                  flex: 1,
-                  minWidth: 0,
-                }}
+                className="bg-transparent border-none outline-none text-[#F3F4F6] text-[13px] flex-1 min-w-0"
               />
               <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '2px',
-                  flexShrink: 0,
-                  opacity: searchFocused ? 0 : 1,
-                  transition: 'opacity 0.2s',
-                }}
+                className={`hidden md:flex items-center gap-0.5 shrink-0 transition-opacity ${searchFocused ? 'opacity-0' : 'opacity-100'}`}
               >
-                <span
-                  style={{
-                    backgroundColor: '#1F2937',
-                    borderRadius: '4px',
-                    padding: '1px 5px',
-                    fontSize: '10px',
-                    color: '#6B7280',
-                    fontFamily: 'monospace',
-                    border: '1px solid #374151',
-                  }}
-                >
+                <span className="bg-[#1F2937] rounded px-1.5 py-0.5 text-[10px] text-[#6B7280] font-mono border border-[#374151]">
                   Ctrl
                 </span>
-                <span
-                  style={{
-                    backgroundColor: '#1F2937',
-                    borderRadius: '4px',
-                    padding: '1px 5px',
-                    fontSize: '10px',
-                    color: '#6B7280',
-                    fontFamily: 'monospace',
-                    border: '1px solid #374151',
-                  }}
-                >
+                <span className="bg-[#1F2937] rounded px-1.5 py-0.5 text-[10px] text-[#6B7280] font-mono border border-[#374151]">
                   K
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Quick actions */}
-          <div ref={quickRef} style={{ position: 'relative', flexShrink: 0 }}>
+          {/* Quick actions - hidden on mobile */}
+          <div ref={quickRef} className="relative shrink-0 hidden md:block">
             <button
               onClick={() => { setQuickOpen(v => !v); setNotifOpen(false); }}
+              className="flex items-center gap-1.5 rounded-lg px-3 h-9 cursor-pointer text-[13px] font-medium whitespace-nowrap transition-all"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
                 backgroundColor: quickOpen ? 'rgba(200,169,97,0.1)' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${quickOpen ? '#C8A961' : '#1F2937'}`,
-                borderRadius: '8px',
-                padding: '0 12px',
-                height: '38px',
-                cursor: 'pointer',
                 color: quickOpen ? '#C8A961' : '#9CA3AF',
-                fontSize: '13px',
-                fontWeight: 500,
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap',
               }}
-              onMouseEnter={e => { if (!quickOpen) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)'; } }}
-              onMouseLeave={e => { if (!quickOpen) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1F2937'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.03)'; } }}
             >
               <Icon d={icons.zap} size={15} />
               <span>Actions</span>
               <span
-                style={{
-                  transform: quickOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s',
-                  display: 'flex',
-                }}
+                className={`flex transition-transform ${quickOpen ? 'rotate-180' : 'rotate-0'}`}
               >
                 <Icon d={icons.arrowDown} size={13} />
               </span>
@@ -700,63 +645,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* Notification bell */}
-          <div ref={notifRef} style={{ position: 'relative', flexShrink: 0 }}>
+          <div ref={notifRef} className="relative shrink-0">
             <button
               onClick={() => { setNotifOpen(v => !v); setQuickOpen(false); }}
+              className="relative w-9 h-9 flex items-center justify-center rounded-lg cursor-pointer transition-all"
               style={{
-                position: 'relative',
-                width: '38px',
-                height: '38px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 backgroundColor: notifOpen ? 'rgba(200,169,97,0.1)' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${notifOpen ? '#C8A961' : '#1F2937'}`,
-                borderRadius: '8px',
-                cursor: 'pointer',
                 color: notifOpen ? '#C8A961' : '#9CA3AF',
-                transition: 'all 0.2s',
               }}
-              onMouseEnter={e => { if (!notifOpen) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)'; } }}
-              onMouseLeave={e => { if (!notifOpen) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1F2937'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.03)'; } }}
             >
               <Icon d={icons.bell} size={17} />
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '4px',
-                  right: '4px',
-                  width: '16px',
-                  height: '16px',
-                  backgroundColor: '#EF4444',
-                  borderRadius: '50%',
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1.5px solid #0D1117',
-                }}
-              >
+              <span className="absolute top-1 right-1 w-4 h-4 bg-[#EF4444] rounded-full text-[9px] font-bold text-white flex items-center justify-center border-[1.5px] border-[#0D1117]">
                 {notifications.length}
               </span>
             </button>
 
             {notifOpen && (
               <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  backgroundColor: '#111827',
-                  border: '1px solid #1F2937',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  width: '320px',
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                  zIndex: 100,
-                }}
+                className="absolute top-[calc(100%+8px)] right-0 bg-[#111827] border border-[#1F2937] rounded-xl overflow-hidden shadow-2xl z-[100] w-[calc(100vw-24px)] sm:w-80 max-w-80"
               >
                 <div
                   style={{
@@ -841,50 +748,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* ── Page content ── */}
-        <main
-          style={{
-            flex: 1,
-            padding: '28px 28px',
-            minWidth: 0,
-            overflowX: 'hidden',
-          }}
-        >
+        <main className="flex-1 p-3 md:p-6 min-w-0 overflow-x-hidden">
           {children}
         </main>
 
         {/* ── Footer ── */}
-        <footer
-          style={{
-            borderTop: '1px solid #1F2937',
-            padding: '12px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ color: '#374151', fontSize: '12px' }}>© 2024 PIMPAY — Tous droits réservés</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ color: '#374151', fontSize: '12px' }}>v2.4.1</span>
-            <span
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                color: '#22C55E',
-                fontSize: '12px',
-              }}
-            >
-              <span
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: '#22C55E',
-                  boxShadow: '0 0 6px #22C55E88',
-                }}
-              />
-              Système opérationnel
+        <footer className="border-t border-[#1F2937] px-3 md:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
+          <span className="text-[#374151] text-[10px] md:text-xs">2024 PIMPAY — Tous droits reserves</span>
+          <div className="flex items-center gap-3 md:gap-4">
+            <span className="text-[#374151] text-[10px] md:text-xs hidden sm:inline">v2.4.1</span>
+            <span className="flex items-center gap-1.5 text-[#22C55E] text-[10px] md:text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" style={{ boxShadow: '0 0 6px #22C55E88' }} />
+              Systeme operationnel
             </span>
           </div>
         </footer>

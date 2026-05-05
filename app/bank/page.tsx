@@ -243,50 +243,50 @@ const KPICard: React.FC<KPICardProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:-translate-y-0.5`}
+      className={`relative overflow-hidden rounded-xl md:rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-3 md:p-5 shadow-xl transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:-translate-y-0.5`}
     >
       {/* Accent glow */}
       <div
-        className={`absolute -top-6 -right-6 h-24 w-24 rounded-full opacity-10 blur-2xl ${accent}`}
+        className={`absolute -top-6 -right-6 h-16 w-16 md:h-24 md:w-24 rounded-full opacity-10 blur-2xl ${accent}`}
       />
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium uppercase tracking-widest text-gray-400 truncate">
+          <p className="text-[10px] md:text-xs font-medium uppercase tracking-wider md:tracking-widest text-gray-400 truncate">
             {title}
           </p>
-          <p className="mt-2 text-2xl font-bold text-white leading-none tracking-tight">
+          <p className="mt-1 md:mt-2 text-base md:text-2xl font-bold text-white leading-none tracking-tight">
             {value}
           </p>
           {change !== undefined && (
-            <div className="mt-2 flex items-center gap-1">
+            <div className="mt-1 md:mt-2 flex items-center gap-1">
               {isPositive ? (
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+                <ArrowUpRight className="h-3 w-3 md:h-3.5 md:w-3.5 text-emerald-400" />
               ) : (
-                <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
+                <ArrowDownRight className="h-3 w-3 md:h-3.5 md:w-3.5 text-red-400" />
               )}
               <span
-                className={`text-xs font-semibold ${
+                className={`text-[10px] md:text-xs font-semibold ${
                   isPositive ? 'text-emerald-400' : 'text-red-400'
                 }`}
               >
                 {isPositive ? '+' : ''}{change.toFixed(1)}%
               </span>
               {changeLabel && (
-                <span className="text-xs text-gray-500">{changeLabel}</span>
+                <span className="text-[10px] md:text-xs text-gray-500 hidden sm:inline">{changeLabel}</span>
               )}
             </div>
           )}
           {severity && badge && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${sevColors[severity]} animate-pulse`} />
-              <span className="text-xs font-medium text-gray-300">{badge}</span>
+            <div className="mt-1 md:mt-2 flex items-center gap-1 md:gap-1.5">
+              <span className={`h-1.5 w-1.5 md:h-2 md:w-2 rounded-full ${sevColors[severity]} animate-pulse`} />
+              <span className="text-[10px] md:text-xs font-medium text-gray-300 truncate">{badge}</span>
             </div>
           )}
         </div>
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent} bg-opacity-10 backdrop-blur-sm`}
+          className={`flex h-8 w-8 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-xl ${accent} bg-opacity-10 backdrop-blur-sm`}
         >
-          <div className="text-white opacity-90">{icon}</div>
+          <div className="text-white opacity-90 [&>svg]:h-4 [&>svg]:w-4 md:[&>svg]:h-5 md:[&>svg]:w-5">{icon}</div>
         </div>
       </div>
     </div>
@@ -296,31 +296,31 @@ const KPICard: React.FC<KPICardProps> = ({
 const StatusBadge: React.FC<{ status: TxStatus }> = ({ status }) => {
   const config: Record<TxStatus, { label: string; cls: string; icon: React.ReactNode }> = {
     completed: {
-      label: 'Complété',
+      label: 'OK',
       cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-      icon: <CheckCircle className="h-3 w-3" />,
+      icon: <CheckCircle className="h-2.5 w-2.5 md:h-3 md:w-3" />,
     },
     pending: {
-      label: 'En attente',
+      label: 'Att.',
       cls: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
-      icon: <Clock className="h-3 w-3" />,
+      icon: <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />,
     },
     failed: {
-      label: 'Échoué',
+      label: 'Ech.',
       cls: 'bg-red-500/10 text-red-400 border border-red-500/20',
-      icon: <XCircle className="h-3 w-3" />,
+      icon: <XCircle className="h-2.5 w-2.5 md:h-3 md:w-3" />,
     },
     processing: {
-      label: 'Traitement',
+      label: 'Trait.',
       cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
-      icon: <Activity className="h-3 w-3" />,
+      icon: <Activity className="h-2.5 w-2.5 md:h-3 md:w-3" />,
     },
   };
   const { label, cls, icon } = config[status];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+    <span className={`inline-flex items-center gap-0.5 md:gap-1 rounded-full px-1.5 md:px-2 py-0.5 text-[9px] md:text-xs font-medium ${cls}`}>
       {icon}
-      {label}
+      <span className="hidden sm:inline">{label}</span>
     </span>
   );
 };
@@ -339,14 +339,14 @@ const AmountDisplay: React.FC<{ amount: number; currency: string }> = ({ amount,
 
 const SeverityBadge: React.FC<{ severity: Severity }> = ({ severity }) => {
   const config: Record<Severity, { label: string; cls: string }> = {
-    critical: { label: 'Critique', cls: 'bg-red-500/15 text-red-400 border border-red-500/30' },
-    high: { label: 'Élevé', cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/30' },
+    critical: { label: 'Crit.', cls: 'bg-red-500/15 text-red-400 border border-red-500/30' },
+    high: { label: 'Eleve', cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/30' },
     medium: { label: 'Moyen', cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' },
     low: { label: 'Faible', cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/30' },
   };
   const { label, cls } = config[severity];
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 md:px-2 py-0.5 text-[9px] md:text-xs font-semibold ${cls}`}>
       {label}
     </span>
   );
@@ -382,15 +382,15 @@ const SectionCard: React.FC<{ title: string; subtitle?: string; children: React.
   children,
   action,
 }) => (
-  <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl">
-    <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+  <div className="rounded-xl md:rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 px-3 md:px-5 py-3 md:py-4">
       <div>
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        {subtitle && <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>}
+        <h3 className="text-xs md:text-sm font-semibold text-white">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-[10px] md:text-xs text-gray-500">{subtitle}</p>}
       </div>
       {action}
     </div>
-    <div className="p-5">{children}</div>
+    <div className="p-3 md:p-5">{children}</div>
   </div>
 );
 
@@ -451,55 +451,55 @@ export default function BankDashboardPage() {
   const unresolvedCount = alerts.filter((a) => !a.resolved).length;
 
   return (
-    <div className="min-h-screen bg-gray-950 px-4 pb-10 pt-6 md:px-8">
+    <div className="min-h-screen bg-gray-950 px-0 pb-6 pt-4 md:px-4 md:pb-10 md:pt-6">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600/20 ring-1 ring-indigo-500/30">
-              <BarChart2 className="h-5 w-5 text-indigo-400" />
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-indigo-600/20 ring-1 ring-indigo-500/30">
+              <BarChart2 className="h-4 w-4 md:h-5 md:w-5 text-indigo-400" />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white">
+            <h1 className="text-lg md:text-2xl font-extrabold tracking-tight text-white">
               Tableau de Bord
             </h1>
           </div>
-          <div className="mt-1.5 flex items-center gap-3">
-            <p className="text-sm text-gray-400 capitalize">{formatDate(now)}</p>
-            <span className="text-gray-600">·</span>
-            <p className="font-mono text-sm text-indigo-300">{formatTime(now)}</p>
+          <div className="mt-1 md:mt-1.5 flex items-center gap-2 md:gap-3">
+            <p className="text-xs md:text-sm text-gray-400 capitalize">{formatDate(now)}</p>
+            <span className="text-gray-600 hidden sm:inline">·</span>
+            <p className="font-mono text-xs md:text-sm text-indigo-300 hidden sm:block">{formatTime(now)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 md:px-3 md:py-1.5">
             <span
-              className={`h-2 w-2 rounded-full bg-emerald-400 transition-opacity duration-500 ${
+              className={`h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-emerald-400 transition-opacity duration-500 ${
                 liveIndicator ? 'opacity-100' : 'opacity-30'
               }`}
             />
-            <span className="text-xs font-medium text-emerald-400">En direct</span>
+            <span className="text-[10px] md:text-xs font-medium text-emerald-400">En direct</span>
           </div>
-          <div className="hidden text-right sm:block">
+          <div className="hidden text-right md:block">
             <p className="text-xs text-gray-500">
-              Dernière actualisation : {formatRelative(lastRefresh)}
+              Derniere actualisation : {formatRelative(lastRefresh)}
             </p>
           </div>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-gray-800/80 px-4 py-2 text-sm font-medium text-gray-200 shadow-lg transition hover:border-indigo-500/50 hover:bg-gray-700 hover:text-white disabled:opacity-50"
+            className="flex items-center gap-1.5 md:gap-2 rounded-xl border border-white/10 bg-gray-800/80 px-2.5 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-medium text-gray-200 shadow-lg transition hover:border-indigo-500/50 hover:bg-gray-700 hover:text-white disabled:opacity-50"
           >
             <RefreshCw
-              className={`h-4 w-4 transition-transform duration-700 ${
+              className={`h-3.5 w-3.5 md:h-4 md:w-4 transition-transform duration-700 ${
                 refreshing ? 'animate-spin' : ''
               }`}
             />
-            Actualiser
+            <span className="hidden sm:inline">Actualiser</span>
           </button>
         </div>
       </div>
 
       {/* ── KPI Row ─────────────────────────────────────────────────── */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 md:mb-6 grid grid-cols-2 gap-2 md:gap-4 lg:grid-cols-4">
         <KPICard
           title="Volume Transactions"
           value={formatXAF(47_320_000_000)}
@@ -535,7 +535,7 @@ export default function BankDashboardPage() {
       </div>
 
       {/* ── Charts Row 1 ────────────────────────────────────────────── */}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="mb-4 md:mb-6 grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-5">
         {/* Area Chart */}
         <div className="lg:col-span-3">
           <SectionCard
@@ -559,8 +559,8 @@ export default function BankDashboardPage() {
               </div>
             }
           >
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={areaData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={180} className="md:!h-[220px]">
+              <AreaChart data={areaData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
@@ -650,14 +650,14 @@ export default function BankDashboardPage() {
       </div>
 
       {/* ── Charts Row 2 ────────────────────────────────────────────── */}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mb-4 md:mb-6 grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
         {/* Bar Chart */}
         <SectionCard
           title="Transactions par Statut"
           subtitle="7 derniers jours"
         >
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={barData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }} barSize={14}>
+          <ResponsiveContainer width="100%" height={180} className="md:!h-[220px]">
+            <BarChart data={barData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }} barSize={10}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
               <XAxis
                 dataKey="day"
@@ -689,8 +689,8 @@ export default function BankDashboardPage() {
           title="Volume par Type"
           subtitle="Évolution mensuelle"
         >
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={lineData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={180} className="md:!h-[220px]">
+            <LineChart data={lineData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -719,7 +719,7 @@ export default function BankDashboardPage() {
       </div>
 
       {/* ── Bottom Row: Activity + Alerts ───────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-5">
         {/* Activity Feed */}
         <div className="lg:col-span-3">
           <SectionCard
@@ -737,37 +737,45 @@ export default function BankDashboardPage() {
             }
           >
             <div className="space-y-1">
-              {transactions.map((tx) => (
+              {transactions.slice(0, 6).map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-white/5"
+                  className="flex items-center gap-2 md:gap-3 rounded-lg md:rounded-xl px-2 md:px-3 py-2 md:py-2.5 transition hover:bg-white/5"
                 >
                   {/* Type icon */}
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-700/60">
-                    <span className="text-xs font-bold text-indigo-300">
+                  <div className="flex h-7 w-7 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-md md:rounded-lg bg-gray-700/60">
+                    <span className="text-[10px] md:text-xs font-bold text-indigo-300">
                       {tx.type.charAt(0).toUpperCase()}
                     </span>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-xs font-mono text-gray-300">{tx.reference}</span>
-                      <span className="hidden text-xs text-gray-600 sm:inline">·</span>
-                      <span className="hidden truncate text-xs text-gray-400 sm:inline">
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <span className="truncate text-[10px] md:text-xs font-mono text-gray-300">{tx.reference}</span>
+                      <span className="hidden text-xs text-gray-600 md:inline">·</span>
+                      <span className="hidden truncate text-xs text-gray-400 md:inline">
                         {typeLabelMap[tx.type]}
                       </span>
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-gray-500">
+                    <div className="mt-0.5 truncate text-[10px] md:text-xs text-gray-500">
                       {tx.counterparty}
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <AmountDisplay amount={tx.amount} currency={tx.currency} />
+                  <div className="flex shrink-0 flex-col items-end gap-0.5 md:gap-1">
+                    <span className="font-mono text-[10px] md:text-sm font-semibold text-white">
+                      {tx.currency === 'XAF' || tx.currency === 'XOF'
+                        ? `${formatCompact(tx.amount)}`
+                        : new Intl.NumberFormat('fr-FR', {
+                            style: 'currency',
+                            currency: tx.currency,
+                            maximumFractionDigits: 0,
+                          }).format(tx.amount)}
+                    </span>
                     <StatusBadge status={tx.status} />
                   </div>
 
-                  <div className="hidden shrink-0 text-right sm:block">
+                  <div className="hidden shrink-0 text-right lg:block">
                     <span className="text-xs text-gray-600">{formatRelative(tx.timestamp)}</span>
                   </div>
                 </div>
@@ -787,11 +795,11 @@ export default function BankDashboardPage() {
               </span>
             }
           >
-            <div className="space-y-3">
-              {alerts.map((alert) => (
+            <div className="space-y-2 md:space-y-3">
+              {alerts.slice(0, 4).map((alert) => (
                 <div
                   key={alert.id}
-                  className={`rounded-xl border p-3 transition ${
+                  className={`rounded-lg md:rounded-xl border p-2 md:p-3 transition ${
                     alert.resolved
                       ? 'border-white/5 bg-gray-800/30 opacity-60'
                       : alert.severity === 'critical'
@@ -802,9 +810,9 @@ export default function BankDashboardPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-1.5 md:gap-2 flex-1 min-w-0">
                       <AlertTriangle
-                        className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+                        className={`mt-0.5 h-3 w-3 md:h-3.5 md:w-3.5 shrink-0 ${
                           alert.resolved
                             ? 'text-gray-500'
                             : alert.severity === 'critical'
@@ -814,14 +822,14 @@ export default function BankDashboardPage() {
                             : 'text-yellow-400'
                         }`}
                       />
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium leading-relaxed text-gray-200">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] md:text-xs font-medium leading-relaxed text-gray-200 line-clamp-2">
                           {alert.message}
                         </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-gray-500 font-mono">{alert.rule}</span>
-                          <span className="text-gray-600">·</span>
-                          <span className="text-xs text-gray-500">
+                        <div className="mt-0.5 md:mt-1 flex flex-wrap items-center gap-1 md:gap-1.5">
+                          <span className="text-[10px] md:text-xs text-gray-500 font-mono">{alert.rule}</span>
+                          <span className="text-gray-600 hidden sm:inline">·</span>
+                          <span className="text-[10px] md:text-xs text-gray-500 hidden sm:inline">
                             {formatRelative(alert.timestamp)}
                           </span>
                         </div>
@@ -829,9 +837,9 @@ export default function BankDashboardPage() {
                     </div>
                     <div className="shrink-0">
                       {alert.resolved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-700/50 px-2 py-0.5 text-xs text-gray-400">
-                          <CheckCircle className="h-3 w-3" />
-                          Résolu
+                        <span className="inline-flex items-center gap-0.5 md:gap-1 rounded-full bg-gray-700/50 px-1.5 md:px-2 py-0.5 text-[9px] md:text-xs text-gray-400">
+                          <CheckCircle className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                          <span className="hidden sm:inline">Resolu</span>
                         </span>
                       ) : (
                         <SeverityBadge severity={alert.severity} />
