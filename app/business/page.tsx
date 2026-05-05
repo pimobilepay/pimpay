@@ -274,39 +274,42 @@ export default function BusinessDashboard() {
   const goldGradient = 'linear-gradient(135deg, #C8A961, #8B6914)';
 
   return (
-    <div style={{ background: '#02040a', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }} className="p-6">
+    <div style={{ background: '#02040a', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }} className="p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div style={{ background: goldGradient, borderRadius: '14px', padding: '10px 14px' }} className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div style={{ background: goldGradient, borderRadius: '14px', padding: '8px 12px' }} className="flex items-center gap-2 md:hidden">
+            <Wallet size={18} color="#fff" />
+          </div>
+          <div style={{ background: goldGradient, borderRadius: '14px', padding: '10px 14px' }} className="hidden md:flex items-center gap-2">
             <Wallet size={22} color="#fff" />
             <span style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px' }}>PimPay</span>
           </div>
           <div>
-            <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Tableau de Bord Business</h1>
-            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Novembre 2024 — Toutes les métriques en temps réel</p>
+            <h1 style={{ color: '#fff', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }} className="text-lg md:text-[22px]">Tableau de Bord Business</h1>
+            <p style={{ color: '#6b7280', margin: 0 }} className="text-xs md:text-[13px]">Novembre 2024 — Toutes les metriques en temps reel</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="flex items-center gap-2 md:gap-3">
+          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '8px 12px' }} className="hidden sm:flex items-center gap-2">
             <Search size={15} color="#6b7280" />
             <span style={{ color: '#6b7280', fontSize: 13 }}>Rechercher...</span>
           </div>
-          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px', cursor: 'pointer', position: 'relative' }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '8px', cursor: 'pointer', position: 'relative' }} className="sm:p-[10px]">
             <Bell size={18} color="#9ca3af" />
             <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, background: '#6366f1', borderRadius: '50%', border: '2px solid #02040a' }}></span>
           </button>
-          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px', cursor: 'pointer' }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '8px', cursor: 'pointer' }} className="sm:p-[10px]">
             <Settings size={18} color="#9ca3af" />
           </button>
-          <div style={{ background: goldGradient, borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>BA</span>
+          <div style={{ background: goldGradient, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} className="w-8 h-8 md:w-[38px] md:h-[38px]">
+            <span style={{ color: '#fff', fontWeight: 700 }} className="text-xs md:text-sm">BA</span>
           </div>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
         {kpiCards.map((card, i) => {
           const Icon = card.icon;
           return (
@@ -315,13 +318,12 @@ export default function BusinessDashboard() {
               style={{
                 background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
                 border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: '20px',
-                padding: '20px',
+                borderRadius: '16px',
                 boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 cursor: 'pointer',
               }}
-              className="hover:-translate-y-0.5"
+              className="hover:-translate-y-0.5 p-4 md:p-5"
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 24px 48px rgba(0,0,0,0.5)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.4)'; }}
             >
@@ -349,40 +351,38 @@ export default function BusinessDashboard() {
         style={{
           background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
           border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: '20px',
-          padding: '24px',
+          borderRadius: '16px',
           boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-          marginBottom: '24px',
         }}
+        className="p-4 md:p-6 mb-4 md:mb-6"
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-6">
           <div>
             <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Revenus & Dépenses</h2>
             <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Analyse comparative sur la période sélectionnée</p>
           </div>
-          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '4px' }}>
+          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '4px' }} className="w-full sm:w-auto justify-center">
             {['7j', '30j', '90j', '12m'].map(p => (
               <button
                 key={p}
                 onClick={() => setActivePeriod(p)}
                 style={{
-                  padding: '6px 14px',
                   borderRadius: '8px',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 13,
                   fontWeight: 600,
                   transition: 'all 0.2s ease',
                   background: activePeriod === p ? goldGradient : 'transparent',
                   color: activePeriod === p ? '#fff' : '#6b7280',
                 }}
+                className="px-3 py-1.5 text-xs sm:text-[13px] sm:px-[14px] sm:py-[6px] flex-1 sm:flex-none"
               >
                 {p}
               </button>
             ))}
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={220} className="md:!h-[280px]">
           <AreaChart data={getChartData()} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <defs>
               <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
@@ -409,23 +409,23 @@ export default function BusinessDashboard() {
       </div>
 
       {/* Bar + Pie Charts */}
-      <div className="grid gap-6 mb-6" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
         {/* Bar Chart */}
         <div
           style={{
             background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
             border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: '20px',
-            padding: '24px',
+            borderRadius: '16px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
           }}
+          className="p-4 md:p-6"
         >
           <div className="mb-5">
             <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Volume de Transactions</h2>
             <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Mensuel — Exercice 2024</p>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={barData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }} barSize={18}>
+          <ResponsiveContainer width="100%" height={180} className="md:!h-[220px]">
+            <BarChart data={barData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }} barSize={14} className="md:bar-size-18">
               <defs>
                 <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6366f1" />
@@ -446,27 +446,28 @@ export default function BusinessDashboard() {
           style={{
             background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
             border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: '20px',
-            padding: '24px',
+            borderRadius: '16px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
           }}
+          className="p-4 md:p-6"
         >
-          <div className="mb-5">
-            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Revenus par Catégorie</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Distribution — Novembre 2024</p>
+          <div className="mb-4 md:mb-5">
+            <h2 style={{ color: '#fff', fontWeight: 700, margin: '0 0 4px 0' }} className="text-sm md:text-[17px]">Revenus par Categorie</h2>
+            <p style={{ color: '#6b7280', margin: 0 }} className="text-xs md:text-[13px]">Distribution — Novembre 2024</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <ResponsiveContainer width="50%" height={220}>
+          <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-5">
+            <ResponsiveContainer width="100%" height={160} className="sm:!w-1/2 md:!h-[220px]">
               <PieChart>
                 <Pie
                   data={pieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={55}
-                  outerRadius={90}
+                  innerRadius={40}
+                  outerRadius={65}
                   paddingAngle={4}
                   dataKey="value"
                   stroke="none"
+                  className="md:inner-55 md:outer-90"
                 >
                   {pieData.map((entry, index) => (
                     <Cell key={index} fill={entry.color} />
@@ -475,14 +476,14 @@ export default function BusinessDashboard() {
                 <Tooltip content={<PieTooltip />} />
               </PieChart>
             </ResponsiveContainer>
-            <div style={{ flex: 1 }}>
+            <div className="w-full sm:flex-1 grid grid-cols-2 sm:grid-cols-1 gap-2 md:gap-3">
               {pieData.map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0 }}></div>
-                    <span style={{ color: '#d1d5db', fontSize: 13 }}>{item.name}</span>
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} className="md:w-[10px] md:h-[10px]"></div>
+                    <span style={{ color: '#d1d5db' }} className="text-xs md:text-[13px]">{item.name}</span>
                   </div>
-                  <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{item.value}%</span>
+                  <span style={{ color: '#fff', fontWeight: 700 }} className="text-xs md:text-sm">{item.value}%</span>
                 </div>
               ))}
             </div>
@@ -495,23 +496,59 @@ export default function BusinessDashboard() {
         style={{
           background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
           border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: '20px',
-          padding: '24px',
+          borderRadius: '16px',
           boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-          marginBottom: '24px',
           overflow: 'hidden',
         }}
+        className="p-4 md:p-6 mb-4 md:mb-6"
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
           <div>
-            <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Transactions Récentes</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>10 dernières opérations</p>
+            <h2 style={{ color: '#fff', fontWeight: 700, margin: '0 0 4px 0' }} className="text-sm md:text-[17px]">Transactions Recentes</h2>
+            <p style={{ color: '#6b7280', margin: 0 }} className="text-xs md:text-[13px]">10 dernieres operations</p>
           </div>
-          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', color: '#9ca3af', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', cursor: 'pointer', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 6 }} className="px-3 py-2 text-xs md:text-[13px] w-fit">
             Voir tout <ChevronDown size={14} />
           </button>
         </div>
-        <div style={{ overflowX: 'auto' }}>
+        {/* Mobile Transaction Cards */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {transactions.slice(0, 5).map((tx) => {
+            const typeStyle = getTypeStyle(tx.type);
+            const statusStyle = getStatusStyle(tx.status);
+            return (
+              <div
+                key={tx.id}
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 500 }} className="truncate">{tx.description}</p>
+                    <p style={{ color: '#6b7280', fontSize: 11 }}>{formatDate(tx.date)}</p>
+                  </div>
+                  <div className="flex items-center gap-1 ml-2">
+                    {tx.positive ? <ArrowUpRight size={12} color="#34d399" /> : <ArrowDownRight size={12} color="#f87171" />}
+                    <span style={{ color: tx.positive ? '#34d399' : '#f87171', fontSize: 13, fontWeight: 700 }}>
+                      {tx.positive ? '+' : '-'}{formatAmount(tx.amount)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={{ ...typeStyle, background: typeStyle.bg, borderRadius: '6px', padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>{tx.type}</span>
+                  <span style={{ ...statusStyle, borderRadius: '6px', padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>{tx.status}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden md:block" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -563,20 +600,20 @@ export default function BusinessDashboard() {
         style={{
           background: 'linear-gradient(135deg, rgba(17,24,39,0.95), rgba(31,41,55,0.9))',
           border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: '20px',
-          padding: '24px',
+          borderRadius: '16px',
           boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
         }}
+        className="p-4 md:p-6"
       >
-        <div className="mb-5">
-          <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: '0 0 4px 0' }}>Actions Rapides</h2>
-          <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Raccourcis vers les opérations fréquentes</p>
+        <div className="mb-4 md:mb-5">
+          <h2 style={{ color: '#fff', fontWeight: 700, margin: '0 0 4px 0' }} className="text-sm md:text-[17px]">Actions Rapides</h2>
+          <p style={{ color: '#6b7280', margin: 0 }} className="text-xs md:text-[13px]">Raccourcis vers les operations frequentes</p>
         </div>
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {[
-            { label: 'Nouvelle Facture', icon: FileText, color: '#6366f1', desc: 'Créer et envoyer' },
+            { label: 'Nouvelle Facture', icon: FileText, color: '#6366f1', desc: 'Creer et envoyer' },
             { label: 'Nouveau Paiement', icon: CreditCard, color: '#22d3ee', desc: 'Initier un transfert' },
-            { label: 'Ajouter Employé', icon: UserPlus, color: '#c084fc', desc: 'Onboarding RH' },
+            { label: 'Ajouter Employe', icon: UserPlus, color: '#c084fc', desc: 'Onboarding RH' },
             { label: 'Exporter Rapport', icon: Download, color: '#34d399', desc: 'PDF & Excel' },
           ].map((action, i) => {
             const ActionIcon = action.icon;
@@ -586,15 +623,15 @@ export default function BusinessDashboard() {
                 style={{
                   background: `${action.color}11`,
                   border: `1px solid ${action.color}22`,
-                  borderRadius: '16px',
-                  padding: '18px',
+                  borderRadius: '12px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10,
+                  gap: 8,
                 }}
+                className="p-3 md:p-[18px] md:gap-[10px]"
                 onMouseEnter={e => {
                   const el = e.currentTarget as HTMLElement;
                   el.style.background = `${action.color}22`;
@@ -610,16 +647,16 @@ export default function BusinessDashboard() {
                   el.style.boxShadow = 'none';
                 }}
               >
-                <div style={{ background: `${action.color}22`, borderRadius: '12px', padding: '10px', width: 'fit-content', border: `1px solid ${action.color}33` }}>
-                  <ActionIcon size={20} color={action.color} />
+                <div style={{ background: `${action.color}22`, borderRadius: '10px', width: 'fit-content', border: `1px solid ${action.color}33` }} className="p-2 md:p-[10px]">
+                  <ActionIcon size={16} color={action.color} className="md:w-5 md:h-5" />
                 </div>
                 <div>
-                  <p style={{ color: '#f3f4f6', fontWeight: 700, fontSize: 14, margin: '0 0 3px 0' }}>{action.label}</p>
-                  <p style={{ color: '#6b7280', fontSize: 12, margin: 0 }}>{action.desc}</p>
+                  <p style={{ color: '#f3f4f6', fontWeight: 700, margin: '0 0 2px 0' }} className="text-xs md:text-sm">{action.label}</p>
+                  <p style={{ color: '#6b7280', margin: 0 }} className="text-[10px] md:text-xs hidden sm:block">{action.desc}</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Plus size={12} color={action.color} />
-                  <span style={{ color: action.color, fontSize: 12, fontWeight: 600 }}>Commencer</span>
+                <div className="items-center gap-1 hidden sm:flex">
+                  <Plus size={10} color={action.color} className="md:w-3 md:h-3" />
+                  <span style={{ color: action.color, fontWeight: 600 }} className="text-[10px] md:text-xs">Commencer</span>
                 </div>
               </button>
             );
@@ -628,8 +665,8 @@ export default function BusinessDashboard() {
       </div>
 
       {/* Footer */}
-      <div style={{ textAlign: 'center', marginTop: 32, paddingBottom: 8 }}>
-        <p style={{ color: '#374151', fontSize: 12 }}>PimPay Business Dashboard © 2024 — Données synchronisées en temps réel</p>
+      <div className="text-center mt-6 md:mt-8 pb-2">
+        <p style={{ color: '#374151' }} className="text-[10px] md:text-xs">PimPay Business Dashboard 2024 — Donnees synchronisees en temps reel</p>
       </div>
     </div>
   );

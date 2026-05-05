@@ -718,7 +718,6 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                   position: 'absolute',
                   top: 'calc(100% + 10px)',
                   right: 0,
-                  width: 380,
                   background: '#0D1117',
                   border: '1px solid #1F2937',
                   borderRadius: 16,
@@ -728,6 +727,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                   animation: 'slideDown 0.2s ease',
                   overflow: 'hidden',
                 }}
+                className="w-[calc(100vw-40px)] sm:w-[380px] max-w-[380px]"
               >
                 <style>{`
                   @keyframes slideDown {
