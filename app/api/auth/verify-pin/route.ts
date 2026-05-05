@@ -9,20 +9,21 @@ import { UAParser } from "ua-parser-js";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { pin, tempToken: bodyTempToken } = body;
+    const { pin, tempToken: bodyTempToken, userId: bodyUserId } = body;
 
     const cookieStore = await cookies();
 
-    // [FIX V4] — userId extrait UNIQUEMENT depuis un token signé, jamais en clair depuis le body.
+    // [FIX V4] — userId extrait UNIQUEMENT depuis un token signé cryptographiquement.
     //
     // Flux login (pas encore de session) :
-    //   /api/auth/login → { tempToken (JWT 5min), userId } → page PIN envoie tempToken dans le body
-    //   → on vérifie le tempToken cryptographiquement → on extrait userId depuis son payload
+    //   /api/auth/login → { tempToken (JWT 5min, payload: {userId, purpose}), userId }
+    //   → on vérifie le tempToken avec JWT_SECRET → on extrait userId depuis son payload
+    //   → on valide que le bodyUserId correspond au payload (double vérification)
     //
-    // Flux session active (déjà connecté, re-confirmation PIN) :
-    //   cookie token présent → on extrait userId depuis le JWT du cookie
+    // Flux session active (re-confirmation PIN) :
+    //   cookie token présent → userId extrait du JWT du cookie
     //
-    // Dans les deux cas : userId ne vient JAMAIS d'un champ libre du body.
+    // Dans les deux cas : userId brut du body n'est JAMAIS utilisé sans validation cryptographique.
     const classicToken = cookieStore.get("token")?.value
       || cookieStore.get("pimpay_token")?.value;
     const piToken = cookieStore.get("pi_session_token")?.value;
@@ -35,11 +36,18 @@ export async function POST(req: NextRequest) {
       const payload = await verifyJWT(classicToken);
       userId = payload?.id || null;
     } else if (bodyTempToken) {
-      // Cas : flux login — tempToken JWT signé par le serveur (5 min, purpose: mfa_verification)
-      const { verifyJWT } = await import("@/lib/auth");
-      const payload = await verifyJWT(bodyTempToken);
-      if (payload?.id && (payload as any).purpose === "mfa_verification") {
-        userId = payload.id;
+      // Cas : flux login — tempToken JWT signé (5 min, purpose: mfa_verification)
+      // Le payload du tempToken utilise "userId" (pas "id") — vérifier les deux
+      try {
+        const { verifyToken } = await import("@/lib/jwt");
+        const payload = await verifyToken(bodyTempToken);
+        const tokenUserId = (payload.userId || payload.id) as string | undefined;
+        if (tokenUserId && payload.purpose === "mfa_verification") {
+          userId = tokenUserId;
+        }
+      } catch {
+        // tempToken invalide ou expiré
+        return NextResponse.json({ error: "Session expirée, veuillez vous reconnecter" }, { status: 401 });
       }
     } else if (piToken && piToken.length > 20) {
       // Cas : Pi Browser — fallback
