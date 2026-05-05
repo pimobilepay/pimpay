@@ -83,7 +83,7 @@ async function getAuthenticatedUser() {
       include: {
         virtualCards: { orderBy: { createdAt: "desc" } },
         wallets: true,
-        transactions: {
+        transactionsFrom: {
           orderBy: { createdAt: "desc" },
           take: 10,
         },
@@ -239,7 +239,7 @@ export default async function GlobalCardsPage({
   const totalSpent = cards.reduce((acc, c) => acc + (c.totalSpent || 0), 0);
   const activeCount = cards.filter((c) => !c.isFrozen).length;
 
-  const recentTx = (user as any).transactions?.slice(0, 5) || [];
+  const recentTx = (user as any).transactionsFrom?.slice(0, 5) || [];
 
   // ── Rendu principal ────────────────────────────────────────────────────
   return (
