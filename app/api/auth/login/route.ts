@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
     // --- RÉCUPÉRATION DES INFOS DE CONNEXION ---
     const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";
-    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    const clientIp = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
     const country = req.headers.get("x-vercel-ip-country") || "CG";
     const city = req.headers.get("x-vercel-ip-city") || "Oyo";
 
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       where: { id: user.id },
       data: {
         lastLoginAt: new Date(),
-        lastLoginIp: ip,
+        lastLoginIp: clientIp,
       }
     });
 
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
           token, 
           isActive: true, 
           userAgent, 
-          ip,
+          ip: clientIp,
           deviceName: os,
           city: city,
           country: country,
@@ -206,7 +206,7 @@ export async function POST(req: Request) {
           type: "LOGIN", // Changé en LOGIN pour ton filtre de page notif
           title: `Nouvelle connexion`,
           message: `Connecté depuis ${city}, ${country} (${os})`,
-          metadata: { ip, location: `${city}, ${country}`, device: os }
+          metadata: { ip: clientIp, location: `${city}, ${country}`, device: os }
         }
       });
     } catch (e) { 
