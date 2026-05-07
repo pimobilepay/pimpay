@@ -7,9 +7,9 @@ export async function GET(req: NextRequest) {
   try {
 
     // 1. DOUBLE VÉRIFICATION DE SÉCURITÉ (ADMIN OU CRON)
-    const authHeader = req.headers.get('authorization');
-    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}` ||
-                   authHeader === `Bearer ${process.env.VERCEL_CRON_JWT}`;
+    // [FIX V21] — Vérification centralisée (supporte rotation CRON_SECRET_NEXT)
+    const { verifyCronSecret } = await import("@/lib/cron-auth");
+    const isCron = verifyCronSecret(req);
 
     let adminPayload: { id: string; role: string } | null = null;
 
@@ -93,6 +93,6 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     console.error("BACKUP_CRITICAL_ERROR:", error);
-    return NextResponse.json({ error: "Échec procédure", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Échec procédure" }, { status: 500 });
   }
 }

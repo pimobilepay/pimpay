@@ -9,19 +9,32 @@ export async function POST() {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
-    // --- 1. Invalider la session en base de donnees ---
-    if (token) {
+    // --- 1. Révoquer la session en base de données ---
+    // [FIX V15] — On révoque le refreshToken (stocké en DB, champ token).
+    // L'accessToken (15min) expire naturellement — pas besoin de blacklist.
+    const cookieStore2 = await cookies();
+    const refreshToken = cookieStore2.get("refresh_token")?.value || cookieStore2.get("pimpay_refresh")?.value;
+    if (refreshToken) {
+      try {
+        await prisma.session.updateMany({
+          where: { token: refreshToken },
+          data:  { isActive: false },
+        });
+      } catch {
+        // Session déjà expirée ou inexistante — continuer
+      }
+    } else if (token) {
+      // Fallback : ancien format où l'accessToken était stocké en Session
       try {
         const userId = await getAuthUserId();
         if (userId) {
-          // Supprimer la session actuelle — le SessionGuard détecte l'absence
-          // en DB et force la déconnexion immédiate sur tous les onglets/appareils
-          await prisma.session.deleteMany({
+          await prisma.session.updateMany({
             where: { userId, token },
+            data:  { isActive: false },
           });
         }
       } catch {
-        // Token expire ou invalide -- on continue la suppression des cookies
+        // Token expiré — continuer
       }
     }
 

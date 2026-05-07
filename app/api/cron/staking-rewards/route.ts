@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronSecret, logCronStart, logCronEnd } from '@/lib/cron-auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(req: Request) {
-  // Vérification de la clé secrète pour que seul Vercel puisse appeler cette route
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+export async function GET(req: NextRequest) {
+  // [FIX V21] — Vérification centralisée via lib/cron-auth.ts (supporte rotation)
+  if (!verifyCronSecret(req)) {
+    console.warn("[CRON:staking-rewards] Accès refusé — secret invalide");
     return new Response('Unauthorized', { status: 401 });
   }
+  logCronStart("staking-rewards", req);
 
   try {
     // Calcul des récompenses pour tous les stakings actifs

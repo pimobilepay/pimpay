@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { signSessionToken, signTempToken } from "@/lib/jwt";
+import { signSessionToken, signTempToken, signRefreshToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -175,26 +175,33 @@ export async function POST(req: Request) {
     }
 
     // 4. SI PAS DE PIN (CONNEXION DIRECTE)
+    // [FIX V15] — Access token 15min + refresh token 7j (révocable via Session.isActive)
     const token = await signSessionToken({
       id: user.id,
       role: user.role,
       email: user.email,
       username: user.username
-    }, "7d");
+    }, "15m");
 
-    // CRÉATION DE LA SESSION DANS LA DB
+    const refreshToken = await signRefreshToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      username: user.username,
+    });
+
+    // CRÉATION DE LA SESSION DANS LA DB — le refresh token est la référence révocable
     try {
       await prisma.session.create({
         data: { 
           userId: user.id, 
-          token, 
+          token: refreshToken, // [FIX V15] — on stocke le refreshToken (7j, révocable)
           isActive: true, 
           userAgent, 
           ip: clientIp,
           deviceName: os,
           city: city,
           country: country,
-          // Extraction sommaire du navigateur
           browser: uaBrowser.name || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Navigateur"),
           os: os
         }
@@ -231,16 +238,27 @@ export async function POST(req: Request) {
     });
 
     const isProduction = process.env.NODE_ENV === "production";
-    const cookieOptions = {
+    const sameSiteVal = isProduction ? ("none" as const) : ("lax" as const);
+
+    // [FIX V15] — Access token : 15min (court, renouvelé via /api/auth/refresh)
+    const accessCookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      sameSite: sameSiteVal,
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 15,
     };
+    response.cookies.set("token", token, accessCookieOptions);
+    response.cookies.set("pimpay_token", token, accessCookieOptions);
 
-    response.cookies.set("pimpay_token", token, cookieOptions);
-    response.cookies.set("token", token, cookieOptions);
+    // [FIX V15] — Refresh token : 7j, stocké en DB (révocable)
+    response.cookies.set("refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: sameSiteVal,
+      path: "/api/auth/refresh",
+      maxAge: 60 * 60 * 24 * 7,
+    });
 
     return response;
 

@@ -13,22 +13,37 @@ const getJwtSecret = () => {
 };
 
 // Verify JWT token and return payload
+// [FIX V15] — Vérifie aussi que la Session correspondante est isActive = true en DB.
+// Un token peut être cryptographiquement valide mais révoqué (logout, compromission).
 export async function verifyJWT(token: string): Promise<{ id: string; role?: string; username?: string } | null> {
   try {
     const secret = getJwtSecret();
     if (!secret) return null;
 
     const { payload } = await jose.jwtVerify(token, secret);
-    
+
     if (!payload.id) return null;
-    
+
+    // Vérification de révocation : la session doit être active en DB.
+    // Les access tokens (15min) sont liés à leur Session via le token brut.
+    // Les temp tokens (5min, purpose: mfa_verification) sont exemptés car éphémères.
+    if ((payload as any).purpose !== "mfa_verification") {
+      const session = await prisma.session.findFirst({
+        where: { token, isActive: true },
+        select: { id: true },
+      });
+      if (!session) {
+        // Session révoquée ou inexistante → token invalide
+        return null;
+      }
+    }
+
     return {
-      id: payload.id as string,
-      role: payload.role as string | undefined,
+      id:       payload.id as string,
+      role:     payload.role as string | undefined,
       username: payload.username as string | undefined,
     };
-  } catch (error) {
-    console.error("JWT verification error:", error);
+  } catch {
     return null;
   }
 }
