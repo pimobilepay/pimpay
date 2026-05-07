@@ -32,6 +32,9 @@ overrides:
   follow-redirects: '>=1.16.0'
   node-fetch: '>=2.6.7'
   protobufjs: '>=7.5.5'
+  next-auth: '>=4.24.8'
+  express: '>=4.21.0'
+  jsonwebtoken: '>=9.0.0'
 
 importers:
 
@@ -200,7 +203,7 @@ importers:
         specifier: ^6.13.2
         version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       express:
-        specifier: ^5.2.1
+        specifier: '>=4.21.0'
         version: 5.2.1
       face-api.js:
         specifier: ^0.22.2
@@ -233,7 +236,7 @@ importers:
         specifier: ^3.0.5
         version: 3.0.5
       jsonwebtoken:
-        specifier: ^9.0.3
+        specifier: '>=9.0.0'
         version: 9.0.3
       jspdf:
         specifier: ^4.2.1
@@ -263,7 +266,7 @@ importers:
         specifier: 16.2.3
         version: 16.2.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-auth:
-        specifier: ^4.24.14
+        specifier: '>=4.24.8'
         version: 4.24.14(next@16.2.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-themes:
         specifier: ^0.4.6
@@ -5168,6 +5171,7 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:

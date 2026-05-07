@@ -112,6 +112,27 @@ const KNOWN_VULNERABILITIES: Record<string, {
   }
 };
 
+// Helper function to check if a package version is patched
+function isVersionPatched(installedVersion: string, overrideVersion: string | undefined, patchedVersion: string): boolean {
+  // If there's an override, consider it patched
+  if (overrideVersion) {
+    return true;
+  }
+  
+  // Clean version strings
+  const cleanInstalled = installedVersion.replace(/[\^~>=<]/g, "").split(".").map(Number);
+  const cleanPatched = patchedVersion.replace(/[\^~>=<]/g, "").split(".").map(Number);
+  
+  // Compare versions (semver comparison)
+  for (let i = 0; i < 3; i++) {
+    const inst = cleanInstalled[i] || 0;
+    const patch = cleanPatched[i] || 0;
+    if (inst > patch) return true;
+    if (inst < patch) return false;
+  }
+  return true; // Equal versions are considered patched
+}
+
 // Scan package.json for vulnerable packages
 async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
   const results: VulnerabilityResult[] = [];
@@ -126,6 +147,8 @@ async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
       ...packageJson.devDependencies
     };
     
+    const overrides = packageJson.pnpm?.overrides || {};
+    
     // Check each dependency against known vulnerabilities
     for (const [pkg, vulnInfo] of Object.entries(KNOWN_VULNERABILITIES)) {
       const installedVersion = allDeps[pkg];
@@ -135,28 +158,36 @@ async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
         const cleanVersion = installedVersion.replace(/[\^~>=<]/g, "");
         
         // Check if version is in pnpm overrides (already patched)
-        const isOverridden = packageJson.pnpm?.overrides?.[pkg];
+        const overrideVersion = overrides[pkg];
+        
+        // Check if package is patched (via override OR installed version is already safe)
+        const isPatched = isVersionPatched(cleanVersion, overrideVersion, vulnInfo.patchedVersion);
         
         results.push({
           name: `Package: ${pkg}`,
           severity: vulnInfo.severity,
-          status: isOverridden ? "fixed" : "detected",
+          status: isPatched ? "fixed" : "detected",
           description: vulnInfo.description,
-          currentVersion: cleanVersion,
+          currentVersion: `v${cleanVersion}`,
           patchedVersion: vulnInfo.patchedVersion,
-          patch: isOverridden 
-            ? `Override active: ${packageJson.pnpm.overrides[pkg]}` 
+          patch: isPatched 
+            ? (overrideVersion ? `Override active: ${overrideVersion}` : `Version installee: ${cleanVersion}`) 
             : `Mettre a jour vers ${vulnInfo.patchedVersion}`,
           category: "package"
         });
       }
     }
     
-    // Check for packages without overrides that need them
+    // Check for packages without overrides that need them (only if not already patched)
     const missingOverrides = Object.keys(KNOWN_VULNERABILITIES).filter(pkg => {
-      const isInstalled = allDeps[pkg];
-      const hasOverride = packageJson.pnpm?.overrides?.[pkg];
-      return isInstalled && !hasOverride;
+      const installedVersion = allDeps[pkg];
+      if (!installedVersion) return false;
+      
+      const cleanVersion = installedVersion.replace(/[\^~>=<]/g, "");
+      const overrideVersion = overrides[pkg];
+      const vulnInfo = KNOWN_VULNERABILITIES[pkg];
+      
+      return !isVersionPatched(cleanVersion, overrideVersion, vulnInfo.patchedVersion);
     });
     
     if (missingOverrides.length > 0) {
