@@ -2,28 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import { verifyTotp } from "@/lib/totp";
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-    let userId: string | null = null;
-
-    if (piToken && piToken.length > 20) {
-      userId = piToken;
-    } else if (token) {
-      const payload = await verifyJWT(token);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expiree" }, { status: 401 });
-      }
-      userId = payload.id;
-    }
-
+    // [FIX V13] — Utiliser getAuthUserId() centralisé au lieu du pattern pi_session_token direct
+    const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }

@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, merchant });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // [FIX V9] Ne pas exposer error.message en production
+    console.error("MERCHANT_CREATE_ERROR:", error);
+    return NextResponse.json({ error: "Erreur lors de la création du marchand" }, { status: 500 });
   }
 }

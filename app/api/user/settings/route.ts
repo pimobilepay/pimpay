@@ -1,26 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { verifyJWT } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value;
-
-    let userId: string | null = null;
-
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-      userId = payload.id;
+    // [FIX V13] — Utiliser getAuthUserId() centralisé au lieu du pattern pi_session_token direct
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

@@ -311,7 +311,13 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("[v0] [WALLET_SEND] ERREUR:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    // Seuls les messages métier sûrs sont renvoyés (solde insuffisant, etc.)
+    const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle"];
+    const isSafeError = safeErrors.some(e => error.message?.includes(e));
+    return NextResponse.json({ 
+      error: isSafeError ? error.message : "Erreur lors du transfert" 
+    }, { status: 400 });
   }
 }

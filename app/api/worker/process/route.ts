@@ -50,8 +50,9 @@ export async function GET(req: NextRequest) {
       processed
     });
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("[v0] [WORKER] ERREUR:", error.message, error.stack);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Erreur interne du worker" }, { status: 500 });
   }
 }
 

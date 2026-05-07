@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tickets });
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("CHAT_GET_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors du chargement de la conversation" }, { status: 500 });
   }
 }
 
@@ -145,8 +146,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ticket: updated });
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("CHAT_POST_ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de l'envoi du message" }, { status: 500 });
   }
 }
 

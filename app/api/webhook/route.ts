@@ -52,6 +52,8 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ message: "Failed" });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // [FIX V9] Ne pas exposer error.message en production
+    console.error("[WEBHOOK_ERROR]", error);
+    return NextResponse.json({ error: "Erreur interne" }, { status: 500 });
   }
 }

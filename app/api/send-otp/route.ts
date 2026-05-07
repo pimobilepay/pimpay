@@ -19,7 +19,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("Twilio error:", error);
-    return NextResponse.json({ success: false, error: error.message });
+    return NextResponse.json({ success: false, error: "Erreur lors de l'envoi du code" });
   }
 }

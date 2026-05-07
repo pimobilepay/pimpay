@@ -61,7 +61,8 @@ export async function GET() {
     });
 
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("❌ Recovery Error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de la récupération des paiements" }, { status: 500 });
   }
 }

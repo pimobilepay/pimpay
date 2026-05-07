@@ -193,7 +193,11 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("[v0] [TRANSFER] ERREUR CRITIQUE:", error.message);
-    return NextResponse.json({ error: error.message || "Echec du transfert lors du traitement" }, { status: 500 });
+    // Seuls les messages métier sûrs sont renvoyés
+    const safeErrors = ["Solde insuffisant", "Destinataire introuvable", "interdit", "invalides"];
+    const isSafeError = safeErrors.some(e => error.message?.includes(e));
+    return NextResponse.json({ error: isSafeError ? error.message : "Echec du transfert" }, { status: 500 });
   }
 }

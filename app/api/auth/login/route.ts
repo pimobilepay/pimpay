@@ -6,9 +6,29 @@ import { prisma } from "@/lib/prisma";
 import { signSessionToken, signTempToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    // [FIX V8] Rate limiting — 10 tentatives / 60s par IP sur login
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`login:${ip}`, 10, 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de tentatives de connexion. Veuillez patienter avant de reessayer." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "10",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { email: identifier, password, loginType = "user" } = body;
     if (!identifier || !password) {

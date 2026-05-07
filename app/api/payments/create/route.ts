@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
       reference: transaction.reference
     });
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("Erreur Transaction:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de la création du paiement" }, { status: 500 });
   }
 }

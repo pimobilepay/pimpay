@@ -116,6 +116,14 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, transaction: result });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // [FIX V9] Ne pas exposer error.message en production
+    console.error("[WITHDRAW_ERROR]", error);
+    // Seules les erreurs métier connues sont retournées au client
+    const safeErrors = ["Solde insuffisant", "Montant invalide", "Limite journalière"];
+    const isSafeError = safeErrors.some(e => error.message?.includes(e));
+    return NextResponse.json(
+      { error: isSafeError ? error.message : "Erreur lors du traitement du retrait" },
+      { status: 500 }
+    );
   }
 }

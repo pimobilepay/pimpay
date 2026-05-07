@@ -18,8 +18,6 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
-import { cookies } from "next/headers";
 import { Wallet as EthersWallet } from "ethers";
 import crypto from "crypto";
 
@@ -157,27 +155,12 @@ const SAFE_USER_SELECT = {
 // ─── Route handler ───────────────────────────────────────────────────────────
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const piToken      = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value
-                      || cookieStore.get("pimpay_token")?.value;
-
-    let userId: string | null = null;
-
-    // 1. Pi Network session
-    // NOTE : pi_session_token est utilisé ici uniquement pour lire l'userId.
-    // TODO V2 : valider ce token via GET https://api.minepi.com/v2/me
-    if (piToken && piToken.length > 20) {
-      userId = piToken;
-    }
-    // 2. Token JWT classique
-    else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-      userId = payload.id;
-    }
+    // [FIX V2/V13] — Utiliser getAuthUserId() centralisé qui :
+    // - Valide cryptographiquement le JWT classique
+    // - Applique des contraintes sur pi_session_token (longueur CUID >= 25, format alphanumérique)
+    // TODO V2 complet : valider pi_session_token via GET https://api.minepi.com/v2/me
+    const { getAuthUserId } = await import("@/lib/auth");
+    const userId = await getAuthUserId();
 
     if (!userId) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });

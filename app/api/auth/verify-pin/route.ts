@@ -5,9 +5,30 @@ import { signSessionToken } from "@/lib/jwt";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // [FIX V8/V19] Rate limiting strict — 5 tentatives / 5 min par IP sur verify-pin
+    // Un PIN a 4-6 chiffres (10 000 - 1 000 000 combinaisons) peut etre brute-force rapidement.
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`verify-pin:${ip}`, 5, 5 * 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de tentatives de verification PIN. Compte temporairement bloque pour 5 minutes." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "5",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const { pin, tempToken: bodyTempToken, userId: bodyUserId } = body;
 
@@ -49,8 +70,10 @@ export async function POST(req: NextRequest) {
         // tempToken invalide ou expiré
         return NextResponse.json({ error: "Session expirée, veuillez vous reconnecter" }, { status: 401 });
       }
-    } else if (piToken && piToken.length > 20) {
-      // Cas : Pi Browser — fallback
+    } else if (piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
+      // [FIX V2/V13] Cas : Pi Browser — fallback avec contraintes renforcées
+      // Longueur CUID (25+) et format alphanumérique requis
+      // TODO V2 complet : valider via GET https://api.minepi.com/v2/me
       userId = piToken;
     }
 
@@ -91,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     // --- DEBUT DES CORRECTIONS SESSIONS & LOGS ---
     const userAgent = req.headers.get("user-agent") || "Appareil Inconnu";
-    const ip = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
+    const clientIp = req.headers.get("x-forwarded-for")?.split(',')[0] || "127.0.0.1";
     const country = req.headers.get("x-vercel-ip-country") || "CG";
     const city = req.headers.get("x-vercel-ip-city") || "Oyo";
 
@@ -113,7 +136,7 @@ export async function POST(req: NextRequest) {
         where: { id: user.id },
         data: {
           lastLoginAt: new Date(),
-          lastLoginIp: ip,
+          lastLoginIp: clientIp,
         }
       });
 
@@ -124,7 +147,7 @@ export async function POST(req: NextRequest) {
           token: newToken, // On stocke le token final
           isActive: true,
           userAgent,
-          ip,
+          ip: clientIp,
           deviceName: os,
           os: os,
           browser: browser,
@@ -140,7 +163,7 @@ export async function POST(req: NextRequest) {
           type: "LOGIN",
           title: "Connexion sécurisée",
           message: `Nouvelle session établie depuis ${city}, ${country}`,
-          metadata: { ip, device: os, location: `${city}, ${country}` }
+          metadata: { ip: clientIp, device: os, location: `${city}, ${country}` }
         }
       });
     } catch (dbError) {

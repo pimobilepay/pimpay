@@ -166,8 +166,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, message: "Etat du paiement non gere" }, { status: 400 });
 
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("[INCOMPLETE_PAYMENT_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors du traitement du paiement" }, { status: 500 });
   }
 }
 
@@ -332,7 +333,8 @@ export async function GET() {
     });
 
   } catch (error: any) {
+    // [FIX V9] Ne pas exposer error.message en production
     console.error("[BATCH_RECOVERY_ERROR]:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de la récupération des paiements" }, { status: 500 });
   }
 }

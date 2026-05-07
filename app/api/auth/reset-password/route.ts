@@ -2,11 +2,31 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { UserStatus } from "@prisma/client"; // ✅ Import de l'enum Prisma
+import { UserStatus } from "@prisma/client";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
-    // ✅ Protection contre un body JSON malformé
+    // [FIX V8] Rate limiting — 3 tentatives / 10 min par IP sur reset-password
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`reset-password:${ip}`, 3, 10 * 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de tentatives de reinitialisation. Veuillez patienter 10 minutes." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": "3",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+          },
+        }
+      );
+    }
+
+    // Protection contre un body JSON malformé
     let body: Record<string, unknown>;
     try {
       body = await req.json();
