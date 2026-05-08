@@ -4,16 +4,52 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
+// Helper function to get business for authenticated user
+async function getBusinessForUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, phone: true, role: true }
+  });
+
+  if (!user) return null;
+
+  // First check if user is business admin by email match
+  let business = await prisma.business.findFirst({
+    where: { email: user.email }
+  });
+
+  // If not found by email, check by phone
+  if (!business && user.phone) {
+    business = await prisma.business.findFirst({
+      where: { phone: user.phone }
+    });
+  }
+
+  // Also check if user is an employee of a business
+  if (!business && user.email) {
+    const employee = await prisma.businessEmployee.findFirst({
+      where: { 
+        OR: [
+          { email: user.email },
+          { phone: user.phone || '' }
+        ]
+      },
+      include: { Business: true }
+    });
+    if (employee) {
+      business = employee.Business;
+    }
+  }
+
+  return { user, business };
+}
+
 // GET - List all employees/users for a business
 export async function GET(req: Request) {
   try {
     const session = await verifyAuth(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
-    }
-
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -23,14 +59,12 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
+    const result = await getBusinessForUser(session.id);
+    if (!result) {
+      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
+    }
 
-    const business = await prisma.business.findFirst({
-      where: { email: user?.email }
-    });
+    const { business } = result;
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
@@ -129,10 +163,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-    }
-
     const body = await req.json();
     const { firstName, lastName, email, phone, position, salary } = body;
 
@@ -140,14 +170,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Prenom et nom requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
+    const result = await getBusinessForUser(session.id);
+    if (!result) {
+      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
+    }
 
-    const business = await prisma.business.findFirst({
-      where: { email: user?.email }
-    });
+    const { business } = result;
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
@@ -192,10 +220,6 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-    }
-
     const body = await req.json();
     const { userId, firstName, lastName, email, phone, position, salary, status } = body;
 
@@ -203,14 +227,12 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
+    const result = await getBusinessForUser(session.id);
+    if (!result) {
+      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
+    }
 
-    const business = await prisma.business.findFirst({
-      where: { email: user?.email }
-    });
+    const { business } = result;
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
@@ -264,10 +286,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    if (session.role !== "BUSINESS_ADMIN" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-    }
-
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('id');
 
@@ -275,14 +293,12 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
+    const result = await getBusinessForUser(session.id);
+    if (!result) {
+      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
+    }
 
-    const business = await prisma.business.findFirst({
-      where: { email: user?.email }
-    });
+    const { business } = result;
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });

@@ -85,6 +85,7 @@ export default function UsersPage() {
   const [showPerms, setShowPerms] = useState(true);
   const [showDetail, setShowDetail] = useState<UserAccount | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Form state for invite modal
   const [inviteForm, setInviteForm] = useState({
@@ -118,6 +119,7 @@ export default function UsersPage() {
     if (!inviteForm.firstName || !inviteForm.lastName) return;
 
     setIsSubmitting(true);
+    setErrorMessage(null);
     try {
       const token = localStorage.getItem('auth_token');
       const res = await fetch('/api/business/users', {
@@ -135,13 +137,18 @@ export default function UsersPage() {
         }),
       });
 
+      const result = await res.json();
+      
       if (res.ok) {
         setShowInvite(false);
         setInviteForm({ firstName: '', lastName: '', email: '', phone: '', position: 'employee', department: 'Operations' });
         mutate();
+      } else {
+        setErrorMessage(result.error || 'Erreur lors de la creation');
       }
     } catch (err) {
       console.error('Error creating user:', err);
+      setErrorMessage('Erreur de connexion au serveur');
     } finally {
       setIsSubmitting(false);
     }
@@ -449,12 +456,20 @@ export default function UsersPage() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-100">Inviter un Utilisateur</h2>
               <button 
-                onClick={() => setShowInvite(false)} 
+                onClick={() => { setShowInvite(false); setErrorMessage(null); }} 
                 className="bg-transparent border-0 text-gray-500 hover:text-white cursor-pointer transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
+            {errorMessage && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <p className="text-red-400 text-sm flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  {errorMessage}
+                </p>
+              </div>
+            )}
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
