@@ -313,10 +313,12 @@ export default function SystemSettings() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           vulnerabilityName: vulnName,
           action,
-          notes: patchNotes || undefined
+          notes: patchNotes || undefined,
+          // ✅ FIX: envoie la liste actuelle pour recalcul serveur
+          currentVulnerabilities: optimizationResults?.vulnerabilities ?? [],
         }),
       });
       if (!response.ok) {
@@ -324,11 +326,17 @@ export default function SystemSettings() {
         throw new Error(err.error || "Échec du patch");
       }
       const result = await response.json();
+
       setOptimizationResults(prev => {
         if (!prev) return prev;
+
         const updatedVulns = prev.vulnerabilities.map(v =>
-          v.name === vulnName ? { ...v, status: action === 'ignore' ? 'pending' as const : 'fixed' as const } : v
+          v.name === vulnName
+            ? { ...v, status: action === 'ignore' ? 'pending' as const : 'fixed' as const }
+            : v
         );
+
+        // ✅ FIX: calcul local fiable basé sur l'état réel des vulnérabilités
         let newScore = 100;
         for (const v of updatedVulns) {
           if (v.status !== 'fixed') {
@@ -339,8 +347,16 @@ export default function SystemSettings() {
           }
         }
         newScore = Math.max(0, Math.min(100, newScore));
-        return { ...prev, vulnerabilities: updatedVulns, overallScore: result.newScore || newScore };
+
+        // Utilise le score serveur seulement s'il est valide (> 0),
+        // sinon le calcul local fait foi
+        const finalScore = (typeof result.newScore === 'number' && result.newScore > 0)
+          ? result.newScore
+          : newScore;
+
+        return { ...prev, vulnerabilities: updatedVulns, overallScore: finalScore };
       });
+
       const actionMsg = action === 'patch' ? 'Patch appliqué' : action === 'update' ? 'Package mis à jour' : 'Ignoré';
       toast.success(`${actionMsg}: ${vulnName}`);
       setSelectedVuln(null);

@@ -24,7 +24,15 @@ import {
   User,
   ArrowRightLeft,
   RefreshCw,
-  Menu
+  Menu,
+  FileCheck,
+  ThumbsUp,
+  ThumbsDown,
+  Lock,
+  BadgeCheck,
+  ImageIcon,
+  ChevronLeft,
+  Star
 } from 'lucide-react'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
@@ -73,12 +81,32 @@ interface Customer {
   kycStatus: string
 }
 
+// KYC pending user type
+interface KycPendingUser {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  name: string | null
+  email: string | null
+  phone: string | null
+  city: string | null
+  country: string | null
+  idType: string | null
+  idNumber: string | null
+  kycFrontUrl: string | null
+  kycBackUrl: string | null
+  kycSelfieUrl: string | null
+  kycSubmittedAt: string | null
+  kycStatus: string
+}
+
 interface DashboardData {
   success: boolean
   agent: {
     id: string
     name: string
     kycStatus: string
+    agentRole?: string | null
   }
   floatBalance: number
   piBalance: number
@@ -645,6 +673,16 @@ export default function PimPayHub() {
   const [qrScannerOpen, setQrScannerOpen] = React.useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
+  // KYC Supervisor states
+  const [kycModalOpen, setKycModalOpen] = React.useState(false)
+  const [kycList, setKycList] = React.useState<KycPendingUser[]>([])
+  const [kycLoading, setKycLoading] = React.useState(false)
+  const [kycError, setKycError] = React.useState<string | null>(null)
+  const [selectedKycUser, setSelectedKycUser] = React.useState<KycPendingUser | null>(null)
+  const [kycAction, setKycAction] = React.useState<'approve' | 'reject' | null>(null)
+  const [kycReason, setKycReason] = React.useState('')
+  const [kycProcessing, setKycProcessing] = React.useState(false)
+
   // Fetch dashboard data
   const { data, error, isLoading, mutate: refreshDashboard } = useSWR<DashboardData>(
     '/api/agent/dashboard',
@@ -661,6 +699,55 @@ export default function PimPayHub() {
   const commissionData = data?.commissionData || []
   const recentTransactions = data?.recentTransactions || []
   const weeklyGrowth = data?.weeklyGrowth || 0
+  const isSupervisor = data?.agent?.agentRole === 'SUPERVISOR'
+
+  // KYC functions (réservées aux superviseurs)
+  const fetchKycList = async () => {
+    setKycLoading(true)
+    setKycError(null)
+    try {
+      const res = await fetch('/api/agent/kyc')
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error || 'Erreur de chargement')
+      }
+      const json = await res.json()
+      setKycList(json.data || [])
+    } catch (e: any) {
+      setKycError(e.message)
+    } finally {
+      setKycLoading(false)
+    }
+  }
+
+  const handleOpenKyc = () => {
+    setKycModalOpen(true)
+    fetchKycList()
+  }
+
+  const handleKycDecision = async (userId: string, status: 'APPROVED' | 'REJECTED') => {
+    setKycProcessing(true)
+    try {
+      const res = await fetch('/api/agent/kyc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, status, reason: kycReason || undefined }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error || 'Erreur')
+      }
+      // Retirer l'utilisateur de la liste locale
+      setKycList(prev => prev.filter(u => u.id !== userId))
+      setSelectedKycUser(null)
+      setKycAction(null)
+      setKycReason('')
+    } catch (e: any) {
+      setKycError(e.message)
+    } finally {
+      setKycProcessing(false)
+    }
+  }
 
   const formatCurrency = (amount: number, currency: string = 'USD') => {
     if (safeMode) return '******'
@@ -1033,12 +1120,31 @@ export default function PimPayHub() {
 
             {/* Security & Tools */}
             <div className="grid grid-cols-3 gap-3">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <GlassCard className="p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-emerald-500/30 transition-colors">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10">
+              <motion.div whileHover={{ scale: isSupervisor ? 1.05 : 1 }} whileTap={{ scale: isSupervisor ? 0.95 : 1 }}>
+                <GlassCard
+                  className={`p-4 flex flex-col items-center justify-center gap-2 transition-colors ${
+                    isSupervisor
+                      ? 'cursor-pointer hover:border-emerald-500/30'
+                      : 'cursor-not-allowed opacity-50'
+                  }`}
+                  onClick={isSupervisor ? handleOpenKyc : undefined}
+                >
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 relative">
                     <UserCheck className="h-5 w-5 text-emerald-600" />
+                    {!isSupervisor && (
+                      <div className="absolute -top-1 -right-1 bg-slate-700 rounded-full p-0.5">
+                        <Lock className="h-2.5 w-2.5 text-slate-300" />
+                      </div>
+                    )}
+                    {isSupervisor && kycList.length > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center">
+                        <span className="text-[9px] font-bold text-white">{kycList.length > 9 ? '9+' : kycList.length}</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs font-medium text-center text-muted-foreground">KYC</span>
+                  <span className="text-xs font-medium text-center text-muted-foreground">
+                    {isSupervisor ? 'KYC' : 'KYC 🔒'}
+                  </span>
                 </GlassCard>
               </motion.div>
 
@@ -1108,6 +1214,191 @@ export default function PimPayHub() {
         onClose={() => setQrScannerOpen(false)}
         onCustomerFound={handleQRCustomerFound}
       />
+
+      {/* ─── KYC Modal (Superviseur uniquement) ────────────────── */}
+      {isSupervisor && (
+        <Dialog open={kycModalOpen} onOpenChange={(open) => { setKycModalOpen(open); if (!open) { setSelectedKycUser(null); setKycAction(null); setKycReason('') } }}>
+          <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto bg-slate-950 border border-white/10 text-white">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/10">
+                  <BadgeCheck className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-white">Validation KYC</DialogTitle>
+                  <DialogDescription className="text-slate-400 text-xs">
+                    Réservé aux superviseurs · {kycList.length} en attente
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            {/* Vue détail d'un utilisateur */}
+            {selectedKycUser ? (
+              <div className="space-y-4">
+                <button
+                  onClick={() => { setSelectedKycUser(null); setKycAction(null); setKycReason('') }}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
+                >
+                  <ChevronLeft className="h-3 w-3" /> Retour à la liste
+                </button>
+
+                {/* Infos identité */}
+                <div className="rounded-xl bg-slate-900 border border-white/5 p-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <User className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">
+                        {[selectedKycUser.firstName, selectedKycUser.lastName].filter(Boolean).join(' ') || selectedKycUser.name || 'Nom inconnu'}
+                      </p>
+                      <p className="text-xs text-slate-400">{selectedKycUser.email || selectedKycUser.phone || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5 text-xs">
+                    <div><span className="text-slate-500">Pièce :</span> <span className="text-slate-200">{selectedKycUser.idType || '—'}</span></div>
+                    <div><span className="text-slate-500">N° :</span> <span className="text-slate-200">{selectedKycUser.idNumber || '—'}</span></div>
+                    <div><span className="text-slate-500">Ville :</span> <span className="text-slate-200">{selectedKycUser.city || '—'}</span></div>
+                    <div><span className="text-slate-500">Pays :</span> <span className="text-slate-200">{selectedKycUser.country || '—'}</span></div>
+                    <div className="col-span-2"><span className="text-slate-500">Soumis le :</span> <span className="text-slate-200">{selectedKycUser.kycSubmittedAt ? new Date(selectedKycUser.kycSubmittedAt).toLocaleDateString('fr-FR') : '—'}</span></div>
+                  </div>
+                </div>
+
+                {/* Documents */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Documents</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Recto', url: selectedKycUser.kycFrontUrl },
+                      { label: 'Verso', url: selectedKycUser.kycBackUrl },
+                      { label: 'Selfie', url: selectedKycUser.kycSelfieUrl },
+                    ].map(({ label, url }) => (
+                      <div key={label} className="rounded-lg overflow-hidden bg-slate-900 border border-white/5 aspect-video flex items-center justify-center">
+                        {url ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full">
+                            <img src={url} alt={label} className="w-full h-full object-cover hover:opacity-80 transition-opacity" />
+                          </a>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-slate-600">
+                            <ImageIcon className="h-4 w-4" />
+                            <span className="text-[10px]">{label}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action reject avec raison */}
+                {kycAction === 'reject' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-400">Motif du rejet</Label>
+                    <textarea
+                      className="w-full rounded-xl bg-slate-900 border border-white/10 text-white text-sm p-3 resize-none focus:outline-none focus:border-red-500/50"
+                      rows={3}
+                      placeholder="Expliquez la raison du rejet..."
+                      value={kycReason}
+                      onChange={e => setKycReason(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Boutons décision */}
+                {kycAction === null ? (
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                      onClick={() => setKycAction('approve')}
+                    >
+                      <ThumbsUp className="h-4 w-4" /> Approuver
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
+                      onClick={() => setKycAction('reject')}
+                    >
+                      <ThumbsDown className="h-4 w-4" /> Rejeter
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-center text-slate-400">
+                      {kycAction === 'approve'
+                        ? '✅ Confirmer l'approbation du KYC ?'
+                        : '❌ Confirmer le rejet du KYC ?'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        className="border-white/10 text-slate-400"
+                        onClick={() => { setKycAction(null); setKycReason('') }}
+                        disabled={kycProcessing}
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        className={kycAction === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
+                        onClick={() => handleKycDecision(selectedKycUser.id, kycAction === 'approve' ? 'APPROVED' : 'REJECTED')}
+                        disabled={kycProcessing || (kycAction === 'reject' && !kycReason.trim())}
+                      >
+                        {kycProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmer'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Vue liste */
+              <div className="space-y-3">
+                {kycLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+                  </div>
+                )}
+                {kycError && (
+                  <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400 text-center">
+                    {kycError}
+                    <button onClick={fetchKycList} className="ml-2 underline">Réessayer</button>
+                  </div>
+                )}
+                {!kycLoading && !kycError && kycList.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <FileCheck className="h-10 w-10 text-emerald-400/40" />
+                    <p className="text-sm text-slate-400">Aucun KYC en attente</p>
+                    <p className="text-xs text-slate-600">Tout est à jour ✓</p>
+                  </div>
+                )}
+                {!kycLoading && kycList.map(user => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-white/5 cursor-pointer hover:border-emerald-500/30 transition-all"
+                    onClick={() => setSelectedKycUser(user)}
+                  >
+                    <div className="h-9 w-9 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || 'Nom inconnu'}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">{user.email || user.phone || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-slate-500">
+                        {user.kycSubmittedAt ? new Date(user.kycSubmittedAt).toLocaleDateString('fr-FR') : '—'}
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-slate-500" />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

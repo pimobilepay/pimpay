@@ -177,7 +177,8 @@ export async function GET(req: NextRequest) {
       agent: {
         id: agent.id,
         name: agent.name || agent.username,
-        kycStatus: agent.kycStatus
+        kycStatus: agent.kycStatus,
+        agentRole: (agent as any).agentRole || null,
       },
       floatBalance,
       piBalance,

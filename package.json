@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "migrate:keys": "tsc --outDir dist scripts/migrate-encrypt-keys.ts lib/crypto.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && ENCRYPTION_KEY=$ENCRYPTION_KEY node dist/scripts/migrate-encrypt-keys.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

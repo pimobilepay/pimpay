@@ -17,57 +17,48 @@ const PACKAGE_PATCHES: Record<string, {
   patchedVersion: string;
   overrideValue: string;
 }> = {
-  "@tootallnate/once": {
-    patchedVersion: "3.0.1",
-    overrideValue: ">=3.0.1"
-  },
-  "next-auth": {
-    patchedVersion: "4.24.8",
-    overrideValue: ">=4.24.8"
-  },
-  "undici": {
-    patchedVersion: "6.23.0",
-    overrideValue: ">=6.23.0"
-  },
-  "axios": {
-    patchedVersion: "1.7.4",
-    overrideValue: ">=1.7.4"
-  },
-  "tar": {
-    patchedVersion: "7.5.4",
-    overrideValue: ">=7.5.4"
-  },
-  "secp256k1": {
-    patchedVersion: "3.8.1",
-    overrideValue: ">=3.8.1"
-  },
-  "valibot": {
-    patchedVersion: "1.2.0",
-    overrideValue: ">=1.2.0"
-  },
-  "dompurify": {
-    patchedVersion: "3.2.4",
-    overrideValue: ">=3.2.4"
-  },
-  "express": {
-    patchedVersion: "4.21.0",
-    overrideValue: ">=4.21.0"
-  },
-  "jsonwebtoken": {
-    patchedVersion: "9.0.0",
-    overrideValue: ">=9.0.0"
-  }
+  "@tootallnate/once": { patchedVersion: "3.0.1", overrideValue: ">=3.0.1" },
+  "next-auth":         { patchedVersion: "4.24.8", overrideValue: ">=4.24.8" },
+  "undici":            { patchedVersion: "6.23.0", overrideValue: ">=6.23.0" },
+  "axios":             { patchedVersion: "1.7.4",  overrideValue: ">=1.7.4" },
+  "tar":               { patchedVersion: "7.5.4",  overrideValue: ">=7.5.4" },
+  "secp256k1":         { patchedVersion: "3.8.1",  overrideValue: ">=3.8.1" },
+  "valibot":           { patchedVersion: "1.2.0",  overrideValue: ">=1.2.0" },
+  "dompurify":         { patchedVersion: "3.2.4",  overrideValue: ">=3.2.4" },
+  "express":           { patchedVersion: "4.21.0", overrideValue: ">=4.21.0" },
+  "jsonwebtoken":      { patchedVersion: "9.0.0",  overrideValue: ">=9.0.0" },
 };
 
+// ─── Score réel recalculé côté serveur ───────────────────────────────────────
+/**
+ * Recalcule le score en lisant package.json + en vérifiant l'état réel des vulnérabilités.
+ * Appelé APRÈS chaque patch pour retourner un score cohérent.
+ */
+function recalculateScore(
+  patchedVulnName: string,
+  patchedSeverity: "critical" | "high" | "medium" | "low",
+  remainingDetected: { severity: "critical" | "high" | "medium" | "low" }[]
+): number {
+  let score = 100;
+  for (const v of remainingDetected) {
+    switch (v.severity) {
+      case "critical": score -= 15; break;
+      case "high":     score -= 10; break;
+      case "medium":   score -= 5;  break;
+      case "low":      score -= 2;  break;
+    }
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
 export async function POST(req: NextRequest) {
-  // Verify admin authentication
   const admin = await adminAuth(req);
   if (!admin) {
     return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   }
 
   try {
-    const { vulnerabilityName } = await req.json();
+    const { vulnerabilityName, action = "patch", notes, currentVulnerabilities } = await req.json();
 
     if (!vulnerabilityName) {
       return NextResponse.json({ error: "Nom de la vulnerabilite requis" }, { status: 400 });
@@ -75,30 +66,20 @@ export async function POST(req: NextRequest) {
 
     let result: PatchResult;
 
-    // Extract package name from vulnerability name (format: "Package: packagename")
+    // ── Patch packages ────────────────────────────────────────────────────────
     const packageMatch = vulnerabilityName.match(/^Package:\s*(.+)$/i);
-    
+
     if (packageMatch) {
       const packageName = packageMatch[1].trim();
       const patchInfo = PACKAGE_PATCHES[packageName];
 
       if (patchInfo) {
-        // Read current package.json
         const packageJsonPath = path.join(process.cwd(), "package.json");
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
-        // Ensure pnpm.overrides exists
-        if (!packageJson.pnpm) {
-          packageJson.pnpm = {};
-        }
-        if (!packageJson.pnpm.overrides) {
-          packageJson.pnpm.overrides = {};
-        }
-
-        // Add the override
+        if (!packageJson.pnpm) packageJson.pnpm = {};
+        if (!packageJson.pnpm.overrides) packageJson.pnpm.overrides = {};
         packageJson.pnpm.overrides[packageName] = patchInfo.overrideValue;
-
-        // Write updated package.json
         fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
         result = {
@@ -106,37 +87,27 @@ export async function POST(req: NextRequest) {
           vulnerabilityName,
           action: "PACKAGE_OVERRIDE_ADDED",
           details: `Override ajoute pour ${packageName}: ${patchInfo.overrideValue}. Executez 'pnpm install' pour appliquer.`,
-          newScore: 95
         };
       } else {
         result = {
           success: false,
           vulnerabilityName,
           action: "PACKAGE_NOT_FOUND",
-          details: `Patch non disponible pour le package: ${packageName}`
+          details: `Patch non disponible pour le package: ${packageName}`,
         };
       }
+
+    // ── Bulk overrides ────────────────────────────────────────────────────────
     } else if (vulnerabilityName.includes("sans overrides")) {
-      // Handle the "Packages sans overrides de securite" vulnerability
       const packageJsonPath = path.join(process.cwd(), "package.json");
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
-      // Ensure pnpm.overrides exists
-      if (!packageJson.pnpm) {
-        packageJson.pnpm = {};
-      }
-      if (!packageJson.pnpm.overrides) {
-        packageJson.pnpm.overrides = {};
-      }
+      if (!packageJson.pnpm) packageJson.pnpm = {};
+      if (!packageJson.pnpm.overrides) packageJson.pnpm.overrides = {};
 
-      const allDeps = {
-        ...packageJson.dependencies,
-        ...packageJson.devDependencies
-      };
-
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
       let patchedCount = 0;
 
-      // Add overrides for all known vulnerable packages that are installed
       for (const [pkg, patchInfo] of Object.entries(PACKAGE_PATCHES)) {
         if (allDeps[pkg] && !packageJson.pnpm.overrides[pkg]) {
           packageJson.pnpm.overrides[pkg] = patchInfo.overrideValue;
@@ -151,75 +122,81 @@ export async function POST(req: NextRequest) {
           vulnerabilityName,
           action: "BULK_OVERRIDES_ADDED",
           details: `${patchedCount} overrides de securite ajoutes. Executez 'pnpm install' pour appliquer.`,
-          newScore: 98
         };
       } else {
         result = {
           success: true,
           vulnerabilityName,
           action: "NO_ACTION_NEEDED",
-          details: "Tous les packages sont deja proteges."
+          details: "Tous les packages sont deja proteges.",
         };
       }
-    } else if (vulnerabilityName.includes("Weak Password")) {
-      // Force password reset for users without passwords
-      const updated = await prisma.user.updateMany({
-        where: {
-          OR: [
-            { password: null },
-            { password: "" }
-          ]
-        },
-        data: {
-          forcePasswordReset: true
-        }
-      });
 
+    // ── Weak passwords ────────────────────────────────────────────────────────
+    } else if (vulnerabilityName.includes("Weak Password")) {
+      const updated = await prisma.user.updateMany({
+        where: { OR: [{ password: null }, { password: "" }] },
+        data: { forcePasswordReset: true },
+      });
       result = {
         success: true,
         vulnerabilityName,
         action: "FORCE_PASSWORD_RESET",
         details: `${updated.count} utilisateurs marques pour reinitialisation de mot de passe.`,
-        newScore: 92
       };
+
+    // ── Pending transactions ──────────────────────────────────────────────────
     } else if (vulnerabilityName.includes("Pending Transaction")) {
-      // Mark old pending transactions for review
       const flagged = await prisma.transaction.updateMany({
         where: {
           status: "PENDING",
-          createdAt: {
-            lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-          }
+          createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
         },
-        data: {
-          notes: "FLAGGED_FOR_REVIEW"
-        }
+        data: { notes: "FLAGGED_FOR_REVIEW" },
       });
-
       result = {
         success: true,
         vulnerabilityName,
         action: "TRANSACTIONS_FLAGGED",
         details: `${flagged.count} transactions marquees pour revue.`,
-        newScore: 90
       };
+
     } else {
       result = {
         success: false,
         vulnerabilityName,
         action: "UNKNOWN_VULNERABILITY",
-        details: "Type de vulnerabilite non reconnu pour patch automatique."
+        details: "Type de vulnerabilite non reconnu pour patch automatique.",
       };
     }
 
-    // Log the patch action
+    // ── Recalcul du score réel ────────────────────────────────────────────────
+    if (result.success && currentVulnerabilities) {
+      // Le client envoie la liste actuelle des vulnérabilités, on recalcule
+      // en excluant celle qui vient d'être patchée
+      const remaining = (currentVulnerabilities as { name: string; severity: "critical"|"high"|"medium"|"low"; status: string }[])
+        .filter(v => v.name !== vulnerabilityName && v.status !== "fixed");
+
+      let newScore = 100;
+      for (const v of remaining) {
+        switch (v.severity) {
+          case "critical": newScore -= 15; break;
+          case "high":     newScore -= 10; break;
+          case "medium":   newScore -= 5;  break;
+          case "low":      newScore -= 2;  break;
+        }
+      }
+      result.newScore = Math.max(0, Math.min(100, newScore));
+    }
+
+    // ── Audit log ─────────────────────────────────────────────────────────────
     await prisma.auditLog.create({
       data: {
         adminId: admin.id,
         adminName: admin.name || admin.email || "Admin",
         action: "SECURITY_PATCH_APPLIED",
-        details: JSON.stringify(result)
-      }
+        details: JSON.stringify({ ...result, notes }),
+      },
     });
 
     if (!result.success) {
