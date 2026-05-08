@@ -1325,7 +1325,7 @@ export default function PimPayHub() {
                   <div className="space-y-2">
                     <p className="text-xs text-center text-slate-400">
                       {kycAction === 'approve'
-                        ? '✅ Confirmer l'approbation du KYC ?'
+                        ? "✅ Confirmer l'approbation du KYC ?"
                         : '❌ Confirmer le rejet du KYC ?'}
                     </p>
                     <div className="grid grid-cols-2 gap-3">

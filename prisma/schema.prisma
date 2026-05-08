@@ -15,8 +15,6 @@ model User {
   username             String?          @unique
   password             String?
   pin                  String?
-  pinVersion           Int              @default(1)  // 1 = legacy 4-digit, 2 = new 6-digit
-  pinUpdatedAt         DateTime?
   refreshToken         String?          @unique
   firstName            String?
   lastName             String?
@@ -45,8 +43,6 @@ model User {
   role                 UserRole         @default(USER)
   kycStatus            KycStatus        @default(NONE)
   status               UserStatus       @default(ACTIVE)
-  statusReason         String?          // Raison de la suspension/maintenance
-  maintenanceUntil     DateTime?        // Date de fin de maintenance pour cet utilisateur
   autoApprove          Boolean          @default(false)
   twoFactorEnabled     Boolean          @default(false)
   twoFactorSecret      String?
@@ -79,6 +75,11 @@ model User {
   usdtPrivateKey       String?
   solAddress           String?          @unique
   solPrivateKey        String?
+  pinUpdatedAt         DateTime?
+  pinVersion           Int              @default(1)
+  statusReason         String?
+  maintenanceUntil     DateTime?
+  agentRole            AgentRole?       @default(AGENT)
   auditLogs            AuditLog[]       @relation("admin_actions")
   targetLogs           AuditLog[]       @relation("target_user")
   beneficiaries        Beneficiary[]
@@ -156,38 +157,38 @@ model SwapQuote {
 }
 
 model SystemConfig {
-  id                 String    @id @default("GLOBAL_CONFIG")
-  appVersion         String    @default("2.4.0")
-  forceUpdate        Boolean   @default(false)
-  globalAnnouncement String?
-  maintenanceMode    Boolean   @default(false)
-  maintenanceUntil   DateTime?
-  transactionFee     Float     @default(0.01)
-  minWithdrawal      Float     @default(1.0)
-  maxWithdrawal      Float     @default(5000.0)
-  consensusPrice     Float     @default(314159.0)
-  stakingAPY         Float     @default(15.0)
-  totalProfit        Float     @default(0.0)
-  updatedAt          DateTime  @updatedAt
-  lastBackupAt       DateTime  @default(now())
-  totalUsers         Int       @default(0)
-  totalVolumePi      Float     @default(0.0)
-  comingSoonMode     Boolean   @default(false)
-  withdrawFee        Float     @default(0.02)
-  depositMobileFee   Float     @default(0.02)
-  depositCardFee     Float     @default(0.035)
-  exchangeFee        Float     @default(0.001)
-  cardPaymentFee     Float     @default(0.015)
-  transferFee        Float     @default(0.01)
-  depositCryptoFee   Float     @default(0.01)
-  withdrawMobileFee  Float     @default(0.025)
-  withdrawBankFee    Float     @default(0.02)
-  merchantPaymentFee Float     @default(0.02)
-  billPaymentFee     Float     @default(0.015)
-  qrPaymentFee       Float     @default(0.01)
-  fiatTransferFee    Float     @default(0.005)
-  referralBonus        Float     @default(0.0000318)  // Bonus parrain - apres KYC + depot du filleul
-  referralWelcomeBonus Float     @default(0.0000159)  // Bonus filleul - apres son KYC + depot
+  id                   String    @id @default("GLOBAL_CONFIG")
+  appVersion           String    @default("2.4.0")
+  forceUpdate          Boolean   @default(false)
+  globalAnnouncement   String?
+  maintenanceMode      Boolean   @default(false)
+  maintenanceUntil     DateTime?
+  transactionFee       Float     @default(0.01)
+  minWithdrawal        Float     @default(1.0)
+  maxWithdrawal        Float     @default(5000.0)
+  consensusPrice       Float     @default(314159.0)
+  stakingAPY           Float     @default(15.0)
+  totalProfit          Float     @default(0.0)
+  updatedAt            DateTime  @updatedAt
+  lastBackupAt         DateTime  @default(now())
+  totalUsers           Int       @default(0)
+  totalVolumePi        Float     @default(0.0)
+  comingSoonMode       Boolean   @default(false)
+  withdrawFee          Float     @default(0.02)
+  depositMobileFee     Float     @default(0.02)
+  depositCardFee       Float     @default(0.035)
+  exchangeFee          Float     @default(0.001)
+  cardPaymentFee       Float     @default(0.015)
+  transferFee          Float     @default(0.01)
+  depositCryptoFee     Float     @default(0.01)
+  withdrawMobileFee    Float     @default(0.025)
+  withdrawBankFee      Float     @default(0.02)
+  merchantPaymentFee   Float     @default(0.02)
+  billPaymentFee       Float     @default(0.015)
+  qrPaymentFee         Float     @default(0.01)
+  fiatTransferFee      Float     @default(0.005)
+  referralBonus        Float     @default(0.0000318)
+  referralWelcomeBonus Float     @default(0.0000159)
 }
 
 model DailyStats {
@@ -315,11 +316,11 @@ model VirtualCard {
   isFrozen          Boolean  @default(false)
   dailyLimit        Float    @default(1000)
   totalSpent        Float    @default(0)
-  balanceUSD        Float    @default(0)
-  balanceEUR        Float    @default(0)
   allowedCurrencies String[] @default(["USD", "XAF"])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @default(now()) @updatedAt
+  balanceUSD        Float    @default(0)
+  balanceEUR        Float    @default(0)
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -652,6 +653,31 @@ model CreditScore {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model SystemWallet {
+  id            String           @id @default(cuid())
+  type          SystemWalletType @unique
+  name          String
+  nameFr        String
+  description   String?
+  publicAddress String
+  privateKey    String?
+  balanceUSD    Float            @default(0)
+  balancePi     Float            @default(0)
+  balanceXAF    Float            @default(0)
+  dailyLimit    Float            @default(50000)
+  monthlyLimit  Float            @default(500000)
+  isLocked      Boolean          @default(false)
+  lockReason    String?
+  lockedAt      DateTime?
+  lockedBy      String?
+  lastActivity  DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([type])
+  @@index([isLocked])
+}
+
 enum CardType {
   CLASSIC
   GOLD
@@ -739,23 +765,23 @@ enum WalletType {
 enum TransactionType {
   TRANSFER
   WITHDRAW
-  WITHDRAWAL
   DEPOSIT
   PAYMENT
   EXCHANGE
   STAKING_REWARD
   AIRDROP
   CARD_PURCHASE
+  WITHDRAWAL
   CARD_RECHARGE
   CARD_WITHDRAW
 }
 
 enum TransactionStatus {
   PENDING
-  PENDING_CONFIRMATION
   SUCCESS
   FAILED
   CANCELLED
+  PENDING_CONFIRMATION
   EXPIRED
   REJECTED
 }
@@ -824,35 +850,14 @@ enum SavingsStatus {
   FROZEN
 }
 
-// --- SYSTEM WALLETS FOR TREASURY MANAGEMENT ---
-model SystemWallet {
-  id            String             @id @default(cuid())
-  type          SystemWalletType   @unique
-  name          String
-  nameFr        String
-  description   String?
-  publicAddress String
-  privateKey    String?            // Encrypted in production
-  balanceUSD    Float              @default(0)
-  balancePi     Float              @default(0)
-  balanceXAF    Float              @default(0)
-  dailyLimit    Float              @default(50000)
-  monthlyLimit  Float              @default(500000)
-  isLocked      Boolean            @default(false)
-  lockReason    String?
-  lockedAt      DateTime?
-  lockedBy      String?
-  lastActivity  DateTime?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-
-  @@index([type])
-  @@index([isLocked])
+enum SystemWalletType {
+  ADMIN
+  TREASURY
+  HOT
+  LIQUIDITY
 }
 
-enum SystemWalletType {
-  ADMIN       // Revenue collection wallet
-  TREASURY    // Long-term profit storage
-  HOT         // Gas and payouts
-  LIQUIDITY   // Withdrawal reserves
+enum AgentRole {
+  AGENT
+  SUPERVISOR
 }
