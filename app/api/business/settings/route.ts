@@ -63,9 +63,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const section = searchParams.get('section') || 'all';
 
-    // Fetch business data linked to user email
+    // Fetch business data linked to user email OR phone
     const business = await prisma.business.findFirst({
-      where: { email: session.email },
+      where: { 
+        OR: [
+          { email: session.email },
+          { phone: session.phone }
+        ].filter(c => Object.values(c)[0])
+      },
       include: {
         BusinessEmployee: true,
         BusinessInvoice: true,
@@ -217,7 +222,12 @@ export async function PUT(request: NextRequest) {
 
       // Update business info if exists
       const business = await prisma.business.findFirst({
-        where: { email: session.email }
+        where: { 
+          OR: [
+            { email: session.email },
+            { phone: session.phone }
+          ].filter(c => Object.values(c)[0])
+        }
       });
 
       if (business) {

@@ -113,6 +113,10 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
 /**
  * Get authenticated user ID from Bearer token in Authorization header
  * Use for APIs that receive tokens via Authorization: Bearer <token>
+ * 
+ * Note: This function does NOT check session revocation in DB because
+ * localStorage-based tokens may not have corresponding sessions.
+ * For admin/sensitive routes, use getAuthPayloadFromBearer instead.
  */
 export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
   try {
@@ -122,8 +126,12 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
     const token = authHeader.split(" ")[1];
     if (!token) return null;
     
-    const payload = await verifyJWT(token);
-    return payload?.id || null;
+    // Verify JWT without session check (for localStorage tokens)
+    const secret = getJwtSecret();
+    if (!secret) return null;
+
+    const { payload } = await jose.jwtVerify(token, secret);
+    return payload.id as string || null;
   } catch {
     return null;
   }

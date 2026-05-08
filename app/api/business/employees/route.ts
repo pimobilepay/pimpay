@@ -26,6 +26,7 @@ async function verifyAuthFromRequest(req: NextRequest) {
         username: true, 
         role: true,
         email: true,
+        phone: true,
       }
     });
 
@@ -34,6 +35,37 @@ async function verifyAuthFromRequest(req: NextRequest) {
     console.error("Auth verification error:", error);
     return null;
   }
+}
+
+// Helper to find business for user (by email OR phone)
+async function findBusinessForUser(email: string | null, phone: string | null) {
+  // Try to find business by email first
+  if (email) {
+    const business = await prisma.business.findFirst({
+      where: { email },
+      include: {
+        BusinessEmployee: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+    if (business) return business;
+  }
+  
+  // Fallback: try to find by phone
+  if (phone) {
+    const business = await prisma.business.findFirst({
+      where: { phone },
+      include: {
+        BusinessEmployee: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+    if (business) return business;
+  }
+  
+  return null;
 }
 
 // GET - List all employees for a business
@@ -48,16 +80,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    const business = await prisma.business.findFirst({
-      where: { email: session.email },
-      include: {
-        BusinessEmployee: {
-          orderBy: { createdAt: 'desc' }
-        }
-      }
-    });
+    const business = await findBusinessForUser(session.email, session.phone);
 
     if (!business) {
+      console.log("[v0] Business not found for user:", { email: session.email, phone: session.phone });
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
@@ -116,10 +142,16 @@ export async function POST(req: NextRequest) {
     }
 
     const business = await prisma.business.findFirst({
-      where: { email: session.email }
+      where: { 
+        OR: [
+          { email: session.email },
+          { phone: session.phone }
+        ].filter(c => Object.values(c)[0])
+      }
     });
 
     if (!business) {
+      console.log("[v0] POST: Business not found for user:", { email: session.email, phone: session.phone });
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
@@ -182,7 +214,12 @@ export async function PUT(req: NextRequest) {
     }
 
     const business = await prisma.business.findFirst({
-      where: { email: session.email }
+      where: { 
+        OR: [
+          { email: session.email },
+          { phone: session.phone }
+        ].filter(c => Object.values(c)[0])
+      }
     });
 
     if (!business) {
@@ -248,7 +285,12 @@ export async function DELETE(req: NextRequest) {
     }
 
     const business = await prisma.business.findFirst({
-      where: { email: session.email }
+      where: { 
+        OR: [
+          { email: session.email },
+          { phone: session.phone }
+        ].filter(c => Object.values(c)[0])
+      }
     });
 
     if (!business) {

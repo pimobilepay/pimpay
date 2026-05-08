@@ -153,14 +153,19 @@ const SAFE_USER_SELECT = {
 } as const;
 
 // ─── Route handler ───────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // [FIX V2/V13] — Utiliser getAuthUserId() centralisé qui :
-    // - Valide cryptographiquement le JWT classique
-    // - Applique des contraintes sur pi_session_token (longueur CUID >= 25, format alphanumérique)
-    // TODO V2 complet : valider pi_session_token via GET https://api.minepi.com/v2/me
-    const { getAuthUserId } = await import("@/lib/auth");
-    const userId = await getAuthUserId();
+    // [FIX V2/V13] — Support both cookie-based auth AND Bearer token auth
+    // This is needed because useUser hook sends token via Authorization header
+    const { getAuthUserId, getAuthUserIdFromBearer } = await import("@/lib/auth");
+    
+    // Try Bearer token first (from Authorization header)
+    let userId = await getAuthUserIdFromBearer(request);
+    
+    // Fallback to cookie-based auth
+    if (!userId) {
+      userId = await getAuthUserId();
+    }
 
     if (!userId) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
