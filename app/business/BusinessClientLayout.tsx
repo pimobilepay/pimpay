@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import useUser from '@/hooks/useUser';
 import {
   LayoutDashboard,
   FileText,
@@ -142,6 +143,8 @@ const BREADCRUMB_MAP: Record<string, string[]> = {
 
 export default function BusinessLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -152,6 +155,43 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Obtenir les initiales de l'utilisateur
+  const getUserInitials = () => {
+    if (!user) return 'U';
+    if (user.name) {
+      const names = user.name.split(' ');
+      if (names.length >= 2) {
+        return `${names[0][0]}${names[1][0]}`.toUpperCase();
+      }
+      return user.name.substring(0, 2).toUpperCase();
+    }
+    if (user.firstName) {
+      return user.firstName.substring(0, 2).toUpperCase();
+    }
+    if (user.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  // Obtenir le nom d'affichage
+  const getDisplayName = () => {
+    if (!user) return 'Utilisateur';
+    return user.name || user.firstName || user.email?.split('@')[0] || 'Utilisateur';
+  };
+
+  // Obtenir l'email
+  const getEmail = () => {
+    return user?.email || 'email@pimpay.com';
+  };
+
+  // Fonction de deconnexion
+  const handleLogout = () => {
+    localStorage.removeItem('pimpay_token');
+    localStorage.removeItem('pimpay_user');
+    router.push('/');
+  };
 
   const filteredNotifs = notifications.filter(
     (n) => notifFilter === 'all' || n.type === notifFilter
@@ -438,7 +478,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                 flexShrink: 0,
               }}
             >
-              AM
+              {getUserInitials()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
@@ -451,7 +491,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                   whiteSpace: 'nowrap',
                 }}
               >
-                Ahmed Martin
+                {getDisplayName()}
               </div>
               <div
                 style={{
@@ -1015,7 +1055,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                   color: '#fff',
                 }}
               >
-                AM
+                {getUserInitials()}
               </div>
               <span
                 style={{
@@ -1026,7 +1066,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                 }}
                 className="hidden sm:block"
               >
-                Ahmed Martin
+                {getDisplayName()}
               </span>
               <ChevronDown
                 size={13}
@@ -1069,7 +1109,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                       color: '#E5E7EB',
                     }}
                   >
-                    Ahmed Martin
+                    {getDisplayName()}
                   </div>
                   <div
                     style={{
@@ -1078,13 +1118,13 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                       marginTop: 2,
                     }}
                   >
-                    ahmed.martin@pimpay.com
+                    {getEmail()}
                   </div>
                 </div>
                 {[
-                  { icon: UserCog, label: 'Mon profil', href: '/business/settings' },
-                  { icon: Settings, label: 'Parametres', href: '/business/settings' },
-                  { icon: Shield, label: 'Securite', href: '/business/settings' },
+                  { icon: UserCog, label: 'Mon profil', href: '/business/settings?tab=profile' },
+                  { icon: Settings, label: 'Parametres', href: '/business/settings?tab=general' },
+                  { icon: Shield, label: 'Securite', href: '/business/settings?tab=security' },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -1119,6 +1159,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                 })}
                 <div style={{ borderTop: '1px solid #1F2937' }}>
                   <button
+                    onClick={handleLogout}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
