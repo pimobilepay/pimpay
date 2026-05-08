@@ -721,6 +721,11 @@ export default function PimPayHub() {
   }
 
   const handleOpenKyc = () => {
+    // Verification stricte: seuls les superviseurs peuvent acceder au KYC
+    if (!isSupervisor) {
+      console.warn('[PimPayHub] Acces KYC refuse - utilisateur non superviseur')
+      return
+    }
     setKycModalOpen(true)
     fetchKycList()
   }
