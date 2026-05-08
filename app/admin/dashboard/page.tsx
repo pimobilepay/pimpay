@@ -686,24 +686,22 @@ function DashboardContent() {
       )}
 
       {/* TOP NAV WITH NOTIFICATIONS */}
-      <div className="px-6">
-        <AdminTopNav 
-          title="Admin Dashboard" 
-          subtitle="PimPay Core"
-          onRefresh={fetchData}
-          backPath="/admin"
-        />
-      </div>
+      <AdminTopNav 
+        title="Admin Dashboard" 
+        subtitle="PimPay Core"
+        onRefresh={fetchData}
+        backPath="/admin"
+      />
 
-      <div className="px-6 pt-4 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
+      <div className="px-4 pt-4 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="grid grid-cols-2 gap-4">
           <StatCard label="Volume Ledger" value={`π ${users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0).toLocaleString()}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
           <StatCard label="Live Users" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
         </div>
       </div>
 
-      <div className="px-6 space-y-8">
-        <div className="flex gap-1 p-1 bg-slate-900/80 border border-white/5 rounded-3xl sticky top-4 z-50 backdrop-blur-xl">
+      <div className="px-4 space-y-8">
+        <div className="flex gap-1 p-1 bg-slate-900/80 border border-white/5 rounded-3xl sticky top-16 z-40 backdrop-blur-xl">
           {[
             { id: "overview", icon: <LayoutGrid size={18}/>, label: "Vue" },
             { id: "users", icon: <Users size={18}/>, label: "Users" },

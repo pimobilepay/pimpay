@@ -169,10 +169,20 @@ export function AdminTopNav({
     }
   };
 
+  // Fonction pour marquer toutes les notifications comme lues
+  const handleMarkAllAsRead = () => {
+    const allIds = notifications.map(n => n.id);
+    markAllNotifsAsRead(allIds);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+    setUrgentCount(0);
+    toast.success("Toutes les notifications marquees comme lues");
+  };
+
   return (
     <>
-      <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06] -mx-6 -mt-6 mb-6">
-        <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
+      <div className="sticky top-0 z-50 bg-[#020617]/95 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-4 py-3 pt-4 max-w-2xl mx-auto">
           {showBack ? (
             <button 
               onClick={() => router.push(backPath)} 
@@ -234,12 +244,22 @@ export function AdminTopNav({
                   {unreadCount} non lue{unreadCount > 1 ? "s" : ""}
                 </p>
               </div>
-              <button 
-                onClick={() => setShowPreview(false)}
-                className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
-              >
-                <X size={16} className="text-slate-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={handleMarkAllAsRead}
+                    className="px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[8px] font-black uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    Tout lu
+                  </button>
+                )}
+                <button 
+                  onClick={() => setShowPreview(false)}
+                  className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <X size={16} className="text-slate-400" />
+                </button>
+              </div>
             </div>
 
             {/* Quick Stats */}
@@ -264,8 +284,16 @@ export function AdminTopNav({
                 notifications.map((notif) => (
                   <div 
                     key={notif.id}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/[0.03] cursor-pointer"
+                    className={`flex items-start gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/[0.03] cursor-pointer ${notif.read ? 'opacity-60' : ''}`}
                     onClick={() => {
+                      // Marquer la notification comme lue
+                      markNotifAsRead(notif.id);
+                      // Mettre a jour l'etat local immediatement
+                      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+                      setUnreadCount(prev => Math.max(0, prev - (notif.read ? 0 : 1)));
+                      if (!notif.read && (notif.priority === "urgent" || notif.priority === "high")) {
+                        setUrgentCount(prev => Math.max(0, prev - 1));
+                      }
                       setShowPreview(false);
                       if (notif.type === "KYC_PENDING") router.push("/admin/kyc");
                       else if (notif.type === "TRANSACTION_PENDING") router.push("/admin/transactions");
