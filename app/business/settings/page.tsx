@@ -11,6 +11,12 @@ import {
 type Tab = 'profil' | 'securite' | 'notifications' | 'integrations' | 'facturation';
 
 interface ProfileData {
+  // Admin info
+  adminName: string;
+  adminEmail: string;
+  adminPhone: string;
+  adminAvatar: string | null;
+  // Business info
   companyName: string;
   rccm: string;
   niu: string;
@@ -22,10 +28,16 @@ interface ProfileData {
   timezone: string;
   language: string;
   logoUrl: string;
+  businessId: string | null;
+  businessStatus: string;
+  businessType: string;
+  businessCategory: string;
+  businessDescription: string;
 }
 
 interface Session {
   id: number;
+  sessionId?: string;
   device: string;
   ip: string;
   location: string;
@@ -268,11 +280,11 @@ export default function SettingsPage() {
     setIntegrations(prev => prev.map(i => i.id === id ? { ...i, connected: !i.connected } : i));
   };
 
-  const revokeSession = async (sessionId: number) => {
+  const revokeSession = async (sessionId: number, realSessionId?: string) => {
     await fetch('/api/business/settings', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'session', id: sessionId }),
+      body: JSON.stringify({ type: 'session', id: sessionId, sessionId: realSessionId }),
     });
     
     if (security) {
@@ -371,10 +383,67 @@ export default function SettingsPage() {
 
       {/* PROFIL */}
       {tab === 'profil' && profile && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-[#0a0f1c] border border-white/5 rounded-xl p-6 space-y-5">
-            <h2 className="text-lg font-semibold text-white">Informations de l&apos;entreprise</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-6">
+          {/* Admin Profile Card */}
+          <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Profil Administrateur</h2>
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              {/* Avatar */}
+              <div className="relative">
+                {profile.adminAvatar ? (
+                  <img 
+                    src={profile.adminAvatar} 
+                    alt={profile.adminName || 'Admin'} 
+                    className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-2xl font-bold text-white">
+                    {profile.adminName?.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'AD'}
+                  </div>
+                )}
+                <button className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white hover:bg-indigo-500 transition-colors">
+                  <Upload className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Admin Info */}
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="text-xl font-semibold text-white">{profile.adminName || 'Administrateur'}</p>
+                  <p className="text-sm text-indigo-400">Administrateur Business</p>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Mail className="w-4 h-4" />
+                    <span>{profile.adminEmail || 'Non defini'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Smartphone className="w-4 h-4" />
+                    <span>{profile.adminPhone || 'Non defini'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Business Status Badge */}
+              <div className="flex flex-col items-end gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  profile.businessStatus === 'ACTIVE' ? 'bg-green-500/20 text-green-400' :
+                  profile.businessStatus === 'PENDING_VERIFICATION' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {profile.businessStatus === 'ACTIVE' ? 'Verifie' : 
+                   profile.businessStatus === 'PENDING_VERIFICATION' ? 'En attente' : 'Suspendu'}
+                </span>
+                {profile.businessId && (
+                  <span className="text-xs text-gray-500">ID: {profile.businessId.substring(0, 8)}...</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Business Info Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-[#0a0f1c] border border-white/5 rounded-xl p-6 space-y-5">
+              <h2 className="text-lg font-semibold text-white">Informations de l&apos;entreprise</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-gray-400 mb-1.5">Nom de l&apos;entreprise</label>
                 <input 
@@ -465,16 +534,25 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Logo</h2>
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-2xl font-bold text-white">
-                {profile.companyName?.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'PP'}
+            <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-white">Logo Entreprise</h2>
+              <div className="flex flex-col items-center gap-4">
+                {profile.logoUrl ? (
+                  <img 
+                    src={profile.logoUrl} 
+                    alt={profile.companyName || 'Logo'} 
+                    className="w-24 h-24 rounded-xl object-cover border border-white/10"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-2xl font-bold text-white">
+                    {profile.companyName?.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'PP'}
+                  </div>
+                )}
+                <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors">
+                  <Upload className="w-4 h-4" />Changer le logo
+                </button>
+                <p className="text-xs text-gray-500 text-center">PNG, JPG ou SVG. Max 2 Mo.</p>
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors">
-                <Upload className="w-4 h-4" />Changer le logo
-              </button>
-              <p className="text-xs text-gray-500 text-center">PNG, JPG ou SVG. Max 2 Mo.</p>
             </div>
           </div>
         </div>
@@ -547,7 +625,7 @@ export default function SettingsPage() {
                   </div>
                   {!s.current && (
                     <button 
-                      onClick={() => revokeSession(s.id)}
+                      onClick={() => revokeSession(s.id, s.sessionId)}
                       className="px-3 py-1.5 bg-red-500/10 text-red-400 text-xs font-medium rounded-lg hover:bg-red-500/20 transition-colors"
                     >
                       Revoquer
