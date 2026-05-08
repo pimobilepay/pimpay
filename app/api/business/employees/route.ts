@@ -1,13 +1,45 @@
 export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import * as jose from "jose";
+
+// Helper to verify auth from request
+async function verifyAuthFromRequest(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization');
+    const cookieToken = req.cookies.get('token')?.value || req.cookies.get('pimpay_token')?.value;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
+
+    if (!token) return null;
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
+
+    const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret));
+    const userId = payload.id as string;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId, status: "ACTIVE" },
+      select: { 
+        id: true, 
+        username: true, 
+        role: true,
+        email: true,
+      }
+    });
+
+    return user;
+  } catch (error) {
+    console.error("Auth verification error:", error);
+    return null;
+  }
+}
 
 // GET - List all employees for a business
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const session = await verifyAuth(req);
+    const session = await verifyAuthFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -16,17 +48,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
-    }
-
     const business = await prisma.business.findFirst({
-      where: { email: user.email },
+      where: { email: session.email },
       include: {
         BusinessEmployee: {
           orderBy: { createdAt: 'desc' }
@@ -74,9 +97,9 @@ export async function GET(req: Request) {
 }
 
 // POST - Add a new employee
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await verifyAuth(req);
+    const session = await verifyAuthFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -92,17 +115,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nom et prenom requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
-    }
-
     const business = await prisma.business.findFirst({
-      where: { email: user.email }
+      where: { email: session.email }
     });
 
     if (!business) {
@@ -149,9 +163,9 @@ export async function POST(req: Request) {
 }
 
 // PUT - Update an employee
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
-    const session = await verifyAuth(req);
+    const session = await verifyAuthFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -167,13 +181,8 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "ID employe requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
-
     const business = await prisma.business.findFirst({
-      where: { email: user?.email }
+      where: { email: session.email }
     });
 
     if (!business) {
@@ -220,9 +229,9 @@ export async function PUT(req: Request) {
 }
 
 // DELETE - Remove an employee
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
-    const session = await verifyAuth(req);
+    const session = await verifyAuthFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -238,13 +247,8 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID employe requis" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { email: true }
-    });
-
     const business = await prisma.business.findFirst({
-      where: { email: user?.email }
+      where: { email: session.email }
     });
 
     if (!business) {
