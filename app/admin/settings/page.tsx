@@ -1106,7 +1106,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ═════════════════════���══════════════════════════════ */}
             {/* SECTION: SECURITY                                   */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'security' && (
@@ -2494,25 +2494,29 @@ export default function SystemSettings() {
                 optimizationResults.overallScore >= 70 ? 'bg-amber-500/5 border border-amber-500/15' :
                 'bg-red-500/5 border border-red-500/15'
               }`}>
-                <div className="relative w-16 h-16">
+                <div className="relative w-20 h-20">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
                     <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" className="text-slate-800" />
                     <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round"
                       className={optimizationResults.overallScore >= 90 ? 'text-emerald-500' : optimizationResults.overallScore >= 70 ? 'text-amber-500' : 'text-red-500'}
                       strokeDasharray={`${(optimizationResults.overallScore / 100) * 175.9} 175.9`} />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-base font-black ${optimizationResults.overallScore >= 90 ? 'text-emerald-400' : optimizationResults.overallScore >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`text-lg font-black leading-none ${optimizationResults.overallScore >= 90 ? 'text-emerald-400' : optimizationResults.overallScore >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
                       {optimizationResults.overallScore}
                     </span>
+                    <span className="text-[8px] text-slate-500 font-medium">/100</span>
                   </div>
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className={`text-sm font-black ${optimizationResults.overallScore >= 90 ? 'text-emerald-400' : optimizationResults.overallScore >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
                     {optimizationResults.overallScore >= 90 ? 'Système Optimisé' : optimizationResults.overallScore >= 70 ? 'Optimisation Partielle' : 'Actions Requises'}
                   </p>
-                  <p className="text-[9px] text-slate-400 mt-0.5">
-                    {optimizationResults.vulnerabilities.filter(v => v.status === 'fixed').length}/{optimizationResults.vulnerabilities.length} vulnérabilités corrigées
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {optimizationResults.vulnerabilities.filter(v => v.status === 'fixed').length} sur {optimizationResults.vulnerabilities.length} vulnérabilités corrigées
+                  </p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">
+                    Score de sécurité: {optimizationResults.overallScore}/100
                   </p>
                 </div>
               </div>
