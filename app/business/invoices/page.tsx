@@ -1,45 +1,64 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import useSWR, { mutate } from 'swr';
 import {
-  FileText, Plus, Search, Filter, Download, Send, Eye, Edit3,
-  ChevronLeft, ChevronRight, X, Trash2, Calendar, DollarSign,
-  Clock, CheckCircle, AlertTriangle, XCircle,
+  FileText, Plus, Search, Download, Send, Eye, Edit3,
+  ChevronLeft, ChevronRight, X, Trash2,
+  Clock, CheckCircle, AlertTriangle, XCircle, Loader2,
 } from 'lucide-react';
 
-// ── Types ──
-type InvoiceStatus = 'paid' | 'pending' | 'overdue' | 'draft';
+// Types
+type InvoiceStatus = 'PAID' | 'PENDING' | 'OVERDUE' | 'DRAFT';
 interface LineItem { id: number; description: string; qty: number; price: number; }
 interface Invoice {
-  id: string; client: string; email: string; dateIssued: string; dateDue: string;
-  amount: number; status: InvoiceStatus; items: LineItem[];
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  total: number;
+  status: InvoiceStatus;
+  createdAt: string;
 }
 
-// ── Mock Data ──
-const INVOICES: Invoice[] = [
-  { id: 'INV-2024-001', client: 'BGFI Holdings', email: 'finance@bgfi.com', dateIssued: '2024-01-15', dateDue: '2024-02-15', amount: 45_600_000, status: 'paid', items: [{ id: 1, description: 'Conseil stratégique Q1', qty: 1, price: 45_600_000 }] },
-  { id: 'INV-2024-002', client: 'Afriland First Group', email: 'ap@afriland.com', dateIssued: '2024-01-20', dateDue: '2024-02-20', amount: 28_350_000, status: 'paid', items: [{ id: 1, description: 'Intégration API bancaire', qty: 1, price: 28_350_000 }] },
-  { id: 'INV-2024-003', client: 'Ecobank Transnational', email: 'procurement@ecobank.com', dateIssued: '2024-02-01', dateDue: '2024-03-01', amount: 67_800_000, status: 'paid', items: [{ id: 1, description: 'Migration plateforme', qty: 1, price: 67_800_000 }] },
-  { id: 'INV-2024-004', client: 'UBA Cameroun', email: 'finance@uba.cm', dateIssued: '2024-02-10', dateDue: '2024-03-10', amount: 18_920_000, status: 'overdue', items: [{ id: 1, description: 'Support technique annuel', qty: 1, price: 18_920_000 }] },
-  { id: 'INV-2024-005', client: 'Société Générale Cameroun', email: 'achats@sgc.cm', dateIssued: '2024-02-15', dateDue: '2024-03-15', amount: 92_100_000, status: 'paid', items: [{ id: 1, description: 'Développement sur mesure', qty: 1, price: 92_100_000 }] },
-  { id: 'INV-2024-006', client: 'BICEC', email: 'direction@bicec.cm', dateIssued: '2024-03-01', dateDue: '2024-04-01', amount: 34_500_000, status: 'pending', items: [{ id: 1, description: 'Audit sécurité', qty: 1, price: 34_500_000 }] },
-  { id: 'INV-2024-007', client: 'Orange Money Cameroun', email: 'b2b@orange.cm', dateIssued: '2024-03-05', dateDue: '2024-04-05', amount: 156_000_000, status: 'paid', items: [{ id: 1, description: 'Intégration mobile money', qty: 1, price: 156_000_000 }] },
-  { id: 'INV-2024-008', client: 'MTN MoMo', email: 'enterprise@mtn.cm', dateIssued: '2024-03-10', dateDue: '2024-04-10', amount: 78_400_000, status: 'pending', items: [{ id: 1, description: 'Module de paiement', qty: 1, price: 78_400_000 }] },
-  { id: 'INV-2024-009', client: 'SABC', email: 'compta@sabc.cm', dateIssued: '2024-03-12', dateDue: '2024-04-12', amount: 23_100_000, status: 'overdue', items: [{ id: 1, description: 'Logiciel de gestion', qty: 1, price: 23_100_000 }] },
-  { id: 'INV-2024-010', client: 'Dangote Cement Cameroun', email: 'finance@dangote.cm', dateIssued: '2024-03-15', dateDue: '2024-04-15', amount: 41_250_000, status: 'paid', items: [{ id: 1, description: 'Formation équipe IT', qty: 3, price: 13_750_000 }] },
-  { id: 'INV-2024-011', client: 'Bolloré Transport', email: 'achat@bollore.cm', dateIssued: '2024-03-18', dateDue: '2024-04-18', amount: 55_800_000, status: 'pending', items: [{ id: 1, description: 'Système de tracking', qty: 1, price: 55_800_000 }] },
-  { id: 'INV-2024-012', client: 'Camrail', email: 'dg@camrail.cm', dateIssued: '2024-03-20', dateDue: '2024-04-20', amount: 19_600_000, status: 'draft', items: [{ id: 1, description: 'Maintenance préventive', qty: 1, price: 19_600_000 }] },
-  { id: 'INV-2024-013', client: 'AES-SONEL', email: 'finance@aes-sonel.cm', dateIssued: '2024-03-22', dateDue: '2024-04-22', amount: 87_300_000, status: 'paid', items: [{ id: 1, description: 'Infrastructure cloud', qty: 1, price: 87_300_000 }] },
-  { id: 'INV-2024-014', client: 'Cimencam', email: 'achats@cimencam.cm', dateIssued: '2024-03-25', dateDue: '2024-04-25', amount: 31_450_000, status: 'pending', items: [{ id: 1, description: 'ERP Module Finance', qty: 1, price: 31_450_000 }] },
-  { id: 'INV-2024-015', client: 'SCDP', email: 'direction@scdp.cm', dateIssued: '2024-03-28', dateDue: '2024-04-28', amount: 42_900_000, status: 'overdue', items: [{ id: 1, description: 'Digitalisation processus', qty: 1, price: 42_900_000 }] },
-];
+interface InvoiceStats {
+  totalInvoices: number;
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: {
+    invoices: Invoice[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+    stats: InvoiceStats;
+  };
+}
+
+const fetcher = async (url: string) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('pimpay_token') : null;
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : '',
+    },
+  });
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+};
 
 const fmt = (n: number) => n.toLocaleString('fr-FR') + ' XAF';
+
 const statusConfig: Record<InvoiceStatus, { label: string; bg: string; text: string; icon: React.ElementType }> = {
-  paid: { label: 'Payée', bg: 'rgba(52,211,153,0.15)', text: '#34d399', icon: CheckCircle },
-  pending: { label: 'En attente', bg: 'rgba(251,191,36,0.15)', text: '#fbbf24', icon: Clock },
-  overdue: { label: 'En retard', bg: 'rgba(239,68,68,0.15)', text: '#ef4444', icon: AlertTriangle },
-  draft: { label: 'Brouillon', bg: 'rgba(148,163,184,0.15)', text: '#94a3b8', icon: Edit3 },
+  PAID: { label: 'Payee', bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: CheckCircle },
+  PENDING: { label: 'En attente', bg: 'bg-amber-500/10', text: 'text-amber-400', icon: Clock },
+  OVERDUE: { label: 'En retard', bg: 'bg-red-500/10', text: 'text-red-400', icon: AlertTriangle },
+  DRAFT: { label: 'Brouillon', bg: 'bg-gray-500/10', text: 'text-gray-400', icon: Edit3 },
 };
 
 export default function InvoicesPage() {
@@ -49,61 +68,186 @@ export default function InvoicesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<Invoice | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([{ id: 1, description: '', qty: 1, price: 0 }]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form state for new invoice
+  const [newInvoice, setNewInvoice] = useState({
+    customerName: '',
+    email: '',
+    dateIssued: '',
+    dateDue: '',
+  });
+  
   const perPage = 8;
 
+  // Fetch invoices from API
+  const { data, error, isLoading } = useSWR<ApiResponse>(
+    `/api/business/invoices?page=${page}&limit=${perPage}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  const invoices = data?.data?.invoices || [];
+  const stats = data?.data?.stats || { totalInvoices: 0, totalAmount: 0, paidAmount: 0, pendingAmount: 0 };
+  const pagination = data?.data?.pagination || { page: 1, limit: perPage, total: 0, totalPages: 1 };
+
+  // Filter by search locally
   const filtered = useMemo(() => {
-    return INVOICES.filter(inv => {
-      const matchSearch = inv.client.toLowerCase().includes(search.toLowerCase()) || inv.id.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === 'all' || inv.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [search, statusFilter]);
-
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-
-  const stats = {
-    total: { count: INVOICES.length, amount: INVOICES.reduce((s, i) => s + i.amount, 0) },
-    paid: { count: INVOICES.filter(i => i.status === 'paid').length, amount: INVOICES.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0) },
-    pending: { count: INVOICES.filter(i => i.status === 'pending').length, amount: INVOICES.filter(i => i.status === 'pending').reduce((s, i) => s + i.amount, 0) },
-    overdue: { count: INVOICES.filter(i => i.status === 'overdue').length, amount: INVOICES.filter(i => i.status === 'overdue').reduce((s, i) => s + i.amount, 0) },
-  };
+    if (!search) return invoices;
+    return invoices.filter(inv =>
+      inv.customerName.toLowerCase().includes(search.toLowerCase()) ||
+      inv.invoiceNumber.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [invoices, search]);
 
   const subtotal = lineItems.reduce((s, li) => s + li.qty * li.price, 0);
   const tax = Math.round(subtotal * 0.1925);
   const grandTotal = subtotal + tax;
 
-  return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#F3F4F6', letterSpacing: '-0.5px' }}>Gestion des Factures</h1>
-          <p style={{ color: '#9CA3AF', fontSize: '14px', marginTop: '4px' }}>{INVOICES.length} factures au total</p>
+  const handleCreateInvoice = async () => {
+    if (!newInvoice.customerName || grandTotal <= 0) return;
+    
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem('pimpay_token');
+      const res = await fetch('/api/business/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          customerName: newInvoice.customerName,
+          total: grandTotal,
+          status: 'DRAFT',
+          items: lineItems,
+        }),
+      });
+
+      if (res.ok) {
+        setShowCreate(false);
+        setNewInvoice({ customerName: '', email: '', dateIssued: '', dateDue: '' });
+        setLineItems([{ id: 1, description: '', qty: 1, price: 0 }]);
+        mutate(`/api/business/invoices?page=${page}&limit=${perPage}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`);
+      }
+    } catch (err) {
+      console.error('Error creating invoice:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!confirm('Etes-vous sur de vouloir supprimer cette facture?')) return;
+    
+    try {
+      const token = localStorage.getItem('pimpay_token');
+      const res = await fetch(`/api/business/invoices?id=${invoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (res.ok) {
+        setShowDetail(null);
+        mutate(`/api/business/invoices?page=${page}&limit=${perPage}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`);
+      }
+    } catch (err) {
+      console.error('Error deleting invoice:', err);
+    }
+  };
+
+  const handleUpdateStatus = async (invoiceId: string, newStatus: InvoiceStatus) => {
+    try {
+      const token = localStorage.getItem('pimpay_token');
+      const res = await fetch('/api/business/invoices', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          invoiceId,
+          status: newStatus,
+        }),
+      });
+
+      if (res.ok) {
+        mutate(`/api/business/invoices?page=${page}&limit=${perPage}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`);
+      }
+    } catch (err) {
+      console.error('Error updating invoice:', err);
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-3 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Chargement des factures...</span>
         </div>
-        <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)', color: '#0A0E17', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', border: 'none', cursor: 'pointer', transition: 'all 0.3s' }}>
-          <Plus size={18} /> Nouvelle Facture
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center">
+          <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-white mb-2">Erreur de chargement</h3>
+          <p className="text-gray-400 text-sm">Impossible de charger les factures. Verifiez votre connexion.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Gestion des Factures</h1>
+            <p className="text-sm text-gray-400">{stats.totalInvoices} factures au total</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold rounded-xl transition-all"
+        >
+          <Plus className="w-4 h-4" /> Nouvelle Facture
         </button>
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Factures', count: stats.total.count, amount: stats.total.amount, color: '#6366f1', icon: FileText },
-          { label: 'Payées', count: stats.paid.count, amount: stats.paid.amount, color: '#34d399', icon: CheckCircle },
-          { label: 'En attente', count: stats.pending.count, amount: stats.pending.amount, color: '#fbbf24', icon: Clock },
-          { label: 'En retard', count: stats.overdue.count, amount: stats.overdue.amount, color: '#ef4444', icon: AlertTriangle },
+          { label: 'Total Factures', count: stats.totalInvoices, amount: stats.totalAmount, color: 'indigo', icon: FileText },
+          { label: 'Payees', count: invoices.filter(i => i.status === 'PAID').length, amount: stats.paidAmount, color: 'emerald', icon: CheckCircle },
+          { label: 'En attente', count: invoices.filter(i => i.status === 'PENDING' || i.status === 'DRAFT').length, amount: stats.pendingAmount, color: 'amber', icon: Clock },
+          { label: 'En retard', count: invoices.filter(i => i.status === 'OVERDUE').length, amount: stats.totalAmount - stats.paidAmount - stats.pendingAmount, color: 'red', icon: AlertTriangle },
         ].map((s, i) => (
-          <div key={i} className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:-translate-y-0.5" style={{ position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: s.color }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div
+            key={i}
+            className="relative overflow-hidden bg-[#0a0f1c] border border-white/5 rounded-xl p-5 transition-all hover:border-white/10"
+          >
+            <div className={`absolute top-0 left-0 right-0 h-0.5 bg-${s.color}-500`} />
+            <div className="flex items-start justify-between">
               <div>
-                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px', color: '#9CA3AF' }}>{s.label}</p>
-                <p style={{ fontSize: '28px', fontWeight: 800, color: '#F3F4F6', marginTop: '8px' }}>{s.count}</p>
-                <p style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>{fmt(s.amount)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{s.label}</p>
+                <p className="text-2xl font-bold text-white mt-2">{s.count}</p>
+                <p className="text-sm text-gray-500 mt-1">{fmt(s.amount)}</p>
               </div>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${s.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <s.icon size={20} style={{ color: s.color }} />
+              <div className={`w-10 h-10 rounded-lg bg-${s.color}-500/20 flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 text-${s.color}-400`} />
               </div>
             </div>
           </div>
@@ -111,121 +255,270 @@ export default function InvoicesPage() {
       </div>
 
       {/* Filters */}
-      <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-4 shadow-xl" style={{ display: 'flex', gap: '12px', marginBottom: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#6B7280' }} />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Rechercher par N° ou client..." style={{ width: '100%', padding: '10px 10px 10px 36px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
+      <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); }}
+            placeholder="Rechercher par N ou client..."
+            className="w-full pl-10 pr-4 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          />
         </div>
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ padding: '10px 16px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
+        <select
+          value={statusFilter}
+          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+          className="px-4 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-indigo-500"
+        >
           <option value="all">Tous les statuts</option>
-          <option value="paid">Payée</option>
-          <option value="pending">En attente</option>
-          <option value="overdue">En retard</option>
-          <option value="draft">Brouillon</option>
+          <option value="PAID">Payee</option>
+          <option value="PENDING">En attente</option>
+          <option value="OVERDUE">En retard</option>
+          <option value="DRAFT">Brouillon</option>
         </select>
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #1F2937' }}>
-              {['N° Facture', 'Client', 'Date Émission', 'Échéance', 'Montant', 'Statut', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9CA3AF' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.map(inv => {
-              const sc = statusConfig[inv.status];
-              return (
-                <tr key={inv.id} onClick={() => setShowDetail(inv)} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)', cursor: 'pointer', transition: 'background 0.2s' }} className="hover:bg-white/[0.02]">
-                  <td style={{ padding: '14px 16px', color: '#6366f1', fontWeight: 600, fontSize: '13px' }}>{inv.id}</td>
-                  <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 500 }}>{inv.client}</td>
-                  <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px' }}>{inv.dateIssued}</td>
-                  <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px' }}>{inv.dateDue}</td>
-                  <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{fmt(inv.amount)}</td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', background: sc.bg, color: sc.text, fontSize: '12px', fontWeight: 600 }}>
-                      <sc.icon size={12} /> {sc.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
-                      {[{ icon: Eye, title: 'Voir' }, { icon: Send, title: 'Envoyer' }, { icon: Download, title: 'PDF' }].map((a, j) => (
-                        <button key={j} title={a.title} style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#0D1117', border: '1px solid #1F2937', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', cursor: 'pointer', transition: 'all 0.2s' }} className="hover:border-white/20 hover:text-white">
-                          <a.icon size={14} />
-                        </button>
-                      ))}
-                    </div>
+      <div className="bg-[#0a0f1c] border border-white/5 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 text-xs uppercase bg-white/[0.02]">
+                <th className="px-4 py-3.5 font-semibold">N Facture</th>
+                <th className="px-4 py-3.5 font-semibold">Client</th>
+                <th className="px-4 py-3.5 font-semibold">Date</th>
+                <th className="px-4 py-3.5 font-semibold">Montant</th>
+                <th className="px-4 py-3.5 font-semibold">Statut</th>
+                <th className="px-4 py-3.5 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                    Aucune facture trouvee
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {/* Pagination */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid #1F2937' }}>
-          <p style={{ color: '#6B7280', fontSize: '13px' }}>{filtered.length} résultat(s) — Page {page}/{totalPages || 1}</p>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '6px 12px', borderRadius: '6px', background: '#0D1117', border: '1px solid #1F2937', color: page === 1 ? '#374151' : '#9CA3AF', cursor: page === 1 ? 'default' : 'pointer', fontSize: '13px' }}>
-              <ChevronLeft size={16} />
-            </button>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '6px 12px', borderRadius: '6px', background: '#0D1117', border: '1px solid #1F2937', color: page === totalPages ? '#374151' : '#9CA3AF', cursor: page === totalPages ? 'default' : 'pointer', fontSize: '13px' }}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
+              ) : (
+                filtered.map(inv => {
+                  const sc = statusConfig[inv.status] || statusConfig.DRAFT;
+                  const StatusIcon = sc.icon;
+                  return (
+                    <tr
+                      key={inv.id}
+                      onClick={() => setShowDetail(inv)}
+                      className="cursor-pointer hover:bg-white/[0.02] transition-colors"
+                    >
+                      <td className="px-4 py-3.5 text-indigo-400 font-semibold font-mono text-xs">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="px-4 py-3.5 text-white font-medium">
+                        {inv.customerName}
+                      </td>
+                      <td className="px-4 py-3.5 text-gray-400">
+                        {new Date(inv.createdAt).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-4 py-3.5 text-white font-semibold">
+                        {fmt(inv.total)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.bg} ${sc.text}`}>
+                          <StatusIcon className="w-3 h-3" /> {sc.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => setShowDetail(inv)}
+                            title="Voir"
+                            className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            title="Envoyer"
+                            className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button
+                            title="PDF"
+                            className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
+        
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+            <p className="text-xs text-gray-500">
+              {pagination.total} resultat(s) - Page {page}/{pagination.totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 hover:bg-white/5 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                disabled={page === pagination.totalPages}
+                className="p-2 hover:bg-white/5 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create Invoice Modal */}
       {showCreate && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowCreate(false)} />
-          <div style={{ position: 'relative', width: '700px', maxHeight: '85vh', overflowY: 'auto', background: '#111827', border: '1px solid #1F2937', borderRadius: '16px', padding: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#F3F4F6' }}>Nouvelle Facture</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}><X size={20} /></button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              {[{ label: 'Client', placeholder: 'Nom du client' }, { label: 'Email', placeholder: 'email@client.com' }].map(f => (
-                <div key={f.label}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-                  <input placeholder={f.placeholder} style={{ width: '100%', padding: '10px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
-                </div>
-              ))}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Date d&apos;émission</label>
-                <input type="date" style={{ width: '100%', padding: '10px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Date d&apos;échéance</label>
-                <input type="date" style={{ width: '100%', padding: '10px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
-              </div>
-            </div>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#F3F4F6', marginBottom: '12px' }}>Lignes de facture</h3>
-            <div style={{ marginBottom: '16px' }}>
-              {lineItems.map((li, idx) => (
-                <div key={li.id} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr auto', gap: '8px', marginBottom: '8px' }}>
-                  <input placeholder="Description" value={li.description} onChange={e => { const n = [...lineItems]; n[idx].description = e.target.value; setLineItems(n); }} style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
-                  <input type="number" placeholder="Qté" value={li.qty || ''} onChange={e => { const n = [...lineItems]; n[idx].qty = Number(e.target.value); setLineItems(n); }} style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#F3F4F6', fontSize: '13px', outline: 'none', textAlign: 'center' }} />
-                  <input type="number" placeholder="Prix unit." value={li.price || ''} onChange={e => { const n = [...lineItems]; n[idx].price = Number(e.target.value); setLineItems(n); }} style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
-                  <div style={{ padding: '8px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#9CA3AF', fontSize: '13px', display: 'flex', alignItems: 'center' }}>{(li.qty * li.price).toLocaleString('fr-FR')}</div>
-                  <button onClick={() => setLineItems(lineItems.filter((_, j) => j !== idx))} style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={14} /></button>
-                </div>
-              ))}
-              <button onClick={() => setLineItems([...lineItems, { id: Date.now(), description: '', qty: 1, price: 0 }])} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '6px', color: '#6366f1', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
-                <Plus size={14} /> Ajouter une ligne
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowCreate(false)} />
+          <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[#111827] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-white">Nouvelle Facture</h2>
+              <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-white/5 rounded-lg text-gray-400">
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div style={{ borderTop: '1px solid #1F2937', paddingTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}><span style={{ color: '#9CA3AF' }}>Sous-total:</span><span style={{ color: '#F3F4F6', fontWeight: 600 }}>{fmt(subtotal)}</span></div>
-              <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}><span style={{ color: '#9CA3AF' }}>TVA (19.25%):</span><span style={{ color: '#F3F4F6', fontWeight: 600 }}>{fmt(tax)}</span></div>
-              <div style={{ display: 'flex', gap: '24px', fontSize: '16px', marginTop: '8px' }}><span style={{ color: '#F3F4F6', fontWeight: 700 }}>Total:</span><span style={{ color: '#C8A961', fontWeight: 800 }}>{fmt(grandTotal)}</span></div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Client</label>
+                <input
+                  placeholder="Nom du client"
+                  value={newInvoice.customerName}
+                  onChange={e => setNewInvoice(prev => ({ ...prev, customerName: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email</label>
+                <input
+                  placeholder="email@client.com"
+                  value={newInvoice.email}
+                  onChange={e => setNewInvoice(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Date d&apos;emission</label>
+                <input
+                  type="date"
+                  value={newInvoice.dateIssued}
+                  onChange={e => setNewInvoice(prev => ({ ...prev, dateIssued: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Date d&apos;echeance</label>
+                <input
+                  type="date"
+                  value={newInvoice.dateDue}
+                  onChange={e => setNewInvoice(prev => ({ ...prev, dateDue: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCreate(false)} style={{ padding: '10px 20px', borderRadius: '8px', background: '#1F2937', border: 'none', color: '#9CA3AF', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Brouillon</button>
-              <button style={{ padding: '10px 20px', borderRadius: '8px', background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)', border: 'none', color: '#0A0E17', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>Envoyer la facture</button>
+            
+            <h3 className="text-sm font-semibold text-white mb-3">Lignes de facture</h3>
+            <div className="space-y-2 mb-4">
+              {lineItems.map((li, idx) => (
+                <div key={li.id} className="grid grid-cols-[3fr_1fr_1fr_1fr_auto] gap-2">
+                  <input
+                    placeholder="Description"
+                    value={li.description}
+                    onChange={e => {
+                      const n = [...lineItems];
+                      n[idx].description = e.target.value;
+                      setLineItems(n);
+                    }}
+                    className="px-3 py-2 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Qte"
+                    value={li.qty || ''}
+                    onChange={e => {
+                      const n = [...lineItems];
+                      n[idx].qty = Number(e.target.value);
+                      setLineItems(n);
+                    }}
+                    className="px-3 py-2 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white text-center focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Prix"
+                    value={li.price || ''}
+                    onChange={e => {
+                      const n = [...lineItems];
+                      n[idx].price = Number(e.target.value);
+                      setLineItems(n);
+                    }}
+                    className="px-3 py-2 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="px-3 py-2 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-gray-400 flex items-center">
+                    {(li.qty * li.price).toLocaleString('fr-FR')}
+                  </div>
+                  <button
+                    onClick={() => setLineItems(lineItems.filter((_, j) => j !== idx))}
+                    className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setLineItems([...lineItems, { id: Date.now(), description: '', qty: 1, price: 0 }])}
+                className="flex items-center gap-2 px-4 py-2 bg-[#0d1117] border border-white/10 rounded-lg text-sm text-indigo-400 hover:bg-white/5 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Ajouter une ligne
+              </button>
+            </div>
+            
+            <div className="border-t border-white/10 pt-4 flex flex-col items-end gap-2">
+              <div className="flex items-center gap-6 text-sm">
+                <span className="text-gray-400">Sous-total:</span>
+                <span className="text-white font-semibold">{fmt(subtotal)}</span>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <span className="text-gray-400">TVA (19.25%):</span>
+                <span className="text-white font-semibold">{fmt(tax)}</span>
+              </div>
+              <div className="flex items-center gap-6 text-base mt-2">
+                <span className="text-white font-bold">Total:</span>
+                <span className="text-amber-400 font-bold">{fmt(grandTotal)}</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleCreateInvoice}
+                disabled={isSubmitting || !newInvoice.customerName || grandTotal <= 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Creer la facture
+              </button>
             </div>
           </div>
         </div>
@@ -233,51 +526,76 @@ export default function InvoicesPage() {
 
       {/* Invoice Detail Modal */}
       {showDetail && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowDetail(null)} />
-          <div style={{ position: 'relative', width: '600px', maxHeight: '80vh', overflowY: 'auto', background: '#111827', border: '1px solid #1F2937', borderRadius: '16px', padding: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#F3F4F6' }}>{showDetail.id}</h2>
-              <button onClick={() => setShowDetail(null)} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}><X size={20} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDetail(null)} />
+          <div className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto bg-[#111827] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-white">{showDetail.invoiceNumber}</h2>
+              <button onClick={() => setShowDetail(null)} className="p-1 hover:bg-white/5 rounded-lg text-gray-400">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div><p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Client</p><p style={{ color: '#F3F4F6', fontWeight: 600, fontSize: '14px', marginTop: '4px' }}>{showDetail.client}</p></div>
-              <div><p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Statut</p><span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', background: statusConfig[showDetail.status].bg, color: statusConfig[showDetail.status].text, fontSize: '12px', fontWeight: 600, marginTop: '4px' }}>{statusConfig[showDetail.status].label}</span></div>
-              <div><p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date d&apos;émission</p><p style={{ color: '#F3F4F6', fontSize: '14px', marginTop: '4px' }}>{showDetail.dateIssued}</p></div>
-              <div><p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Échéance</p><p style={{ color: '#F3F4F6', fontSize: '14px', marginTop: '4px' }}>{showDetail.dateDue}</p></div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Client</p>
+                <p className="text-white font-semibold text-sm mt-1">{showDetail.customerName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Statut</p>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mt-1 ${statusConfig[showDetail.status]?.bg || 'bg-gray-500/10'} ${statusConfig[showDetail.status]?.text || 'text-gray-400'}`}>
+                  {statusConfig[showDetail.status]?.label || showDetail.status}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Date de creation</p>
+                <p className="text-white text-sm mt-1">{new Date(showDetail.createdAt).toLocaleDateString('fr-FR')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Montant</p>
+                <p className="text-amber-400 font-bold text-lg mt-1">{fmt(showDetail.total)}</p>
+              </div>
             </div>
-            <div style={{ borderTop: '1px solid #1F2937', paddingTop: '16px', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#9CA3AF', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Détails</h3>
-              {showDetail.items.map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
-                  <span style={{ color: '#F3F4F6', fontSize: '14px' }}>{item.description}</span>
-                  <span style={{ color: '#F3F4F6', fontSize: '14px', fontWeight: 600 }}>{item.qty} × {fmt(item.price)}</span>
-                </div>
-              ))}
+
+            {/* Quick Status Update */}
+            <div className="border-t border-white/10 pt-4 mb-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Changer le statut</p>
+              <div className="flex flex-wrap gap-2">
+                {(['DRAFT', 'PENDING', 'PAID', 'OVERDUE'] as InvoiceStatus[]).map(status => {
+                  const config = statusConfig[status];
+                  const isActive = showDetail.status === status;
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => handleUpdateStatus(showDetail.id, status)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        isActive
+                          ? `${config.bg} ${config.text} ring-1 ring-current`
+                          : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      <config.icon className="w-3 h-3" />
+                      {config.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#C8A961' }}>{fmt(showDetail.amount)}</div>
-            </div>
-            <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#9CA3AF', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Historique de paiement</h3>
-            <div style={{ position: 'relative', paddingLeft: '20px', marginBottom: '24px' }}>
-              <div style={{ position: 'absolute', left: '6px', top: 0, bottom: 0, width: '2px', background: '#1F2937' }} />
-              {[
-                { date: showDetail.dateIssued, text: 'Facture créée et envoyée', color: '#6366f1' },
-                ...(showDetail.status === 'paid' ? [{ date: showDetail.dateDue, text: 'Paiement reçu — Facture complétée', color: '#34d399' }] : []),
-                ...(showDetail.status === 'overdue' ? [{ date: showDetail.dateDue, text: 'Échéance dépassée — Relance envoyée', color: '#ef4444' }] : []),
-              ].map((ev, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '16px', position: 'relative' }}>
-                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: ev.color, flexShrink: 0, marginTop: '2px', position: 'absolute', left: '-20px' }} />
-                  <div style={{ marginLeft: '4px' }}>
-                    <p style={{ fontSize: '12px', color: '#6B7280' }}>{ev.date}</p>
-                    <p style={{ fontSize: '13px', color: '#F3F4F6', marginTop: '2px' }}>{ev.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '8px', background: '#0D1117', border: '1px solid #1F2937', color: '#9CA3AF', fontSize: '13px', cursor: 'pointer' }}><Download size={14} /> Télécharger PDF</button>
-              <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '8px', background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)', border: 'none', color: '#0A0E17', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}><Send size={14} /> Envoyer un rappel</button>
+            
+            <div className="flex items-center gap-3 pt-4 border-t border-white/10">
+              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 transition-colors">
+                <Download className="w-4 h-4" /> Telecharger PDF
+              </button>
+              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold rounded-lg transition-all">
+                <Send className="w-4 h-4" /> Envoyer
+              </button>
+              <button
+                onClick={() => handleDeleteInvoice(showDetail.id)}
+                className="p-2.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 transition-colors"
+                title="Supprimer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
