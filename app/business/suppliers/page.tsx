@@ -75,43 +75,55 @@ export default function SuppliersPage() {
   const consumed = SUPPLIERS.reduce((s, sup) => s + sup.totalPaid, 0);
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#F3F4F6', letterSpacing: '-0.5px' }}>Gestion des Fournisseurs</h1>
-          <p style={{ color: '#9CA3AF', fontSize: '14px', marginTop: '4px' }}>{SUPPLIERS.length} fournisseurs enregistrés</p>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+            <Truck className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Gestion des Fournisseurs</h1>
+            <p className="text-sm text-gray-400">{SUPPLIERS.length} fournisseurs enregistres</p>
+          </div>
         </div>
-        <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)', color: '#0A0E17', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', border: 'none', cursor: 'pointer' }}>
-          <Plus size={18} /> Ajouter Fournisseur
+        <button 
+          onClick={() => setShowAdd(true)} 
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-medium rounded-lg transition-all"
+        >
+          <Plus className="w-4 h-4" /> Ajouter Fournisseur
         </button>
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Fournisseurs', value: SUPPLIERS.length.toString(), sub: categories.length - 1 + ' catégories', color: '#6366f1', icon: Truck },
-          { label: 'Commandes en cours', value: ORDERS.filter(o => o.status === 'transit' || o.status === 'preparing').length.toString(), sub: fmt(ORDERS.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').reduce((s, o) => s + o.amount, 0)), color: '#3b82f6', icon: Package },
-          { label: 'Paiements en attente', value: SUPPLIERS.filter(s => s.payStatus === 'pending' || s.payStatus === 'overdue').length.toString(), sub: fmt(SUPPLIERS.filter(s => s.payStatus !== 'current').reduce((s, sup) => s + Math.round(sup.totalPaid * 0.1), 0)), color: '#fbbf24', icon: Clock },
-          { label: 'Budget Consommé', value: Math.round(consumed / totalBudget * 100) + '%', sub: fmt(consumed) + ' / ' + fmt(totalBudget), color: '#34d399', icon: TrendingUp },
+          { label: 'Total Fournisseurs', value: SUPPLIERS.length.toString(), sub: categories.length - 1 + ' categories', color: 'indigo', icon: Truck },
+          { label: 'Commandes en cours', value: ORDERS.filter(o => o.status === 'transit' || o.status === 'preparing').length.toString(), sub: fmt(ORDERS.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').reduce((s, o) => s + o.amount, 0)), color: 'blue', icon: Package },
+          { label: 'Paiements en attente', value: SUPPLIERS.filter(s => s.payStatus === 'pending' || s.payStatus === 'overdue').length.toString(), sub: fmt(SUPPLIERS.filter(s => s.payStatus !== 'current').reduce((s, sup) => s + Math.round(sup.totalPaid * 0.1), 0)), color: 'amber', icon: Clock },
+          { label: 'Budget Consomme', value: Math.round(consumed / totalBudget * 100) + '%', sub: fmt(consumed) + ' / ' + fmt(totalBudget), color: 'emerald', icon: TrendingUp },
         ].map((s, i) => (
-          <div key={i} className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-5 shadow-xl transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:-translate-y-0.5" style={{ position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: s.color }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px', color: '#9CA3AF' }}>{s.label}</p>
-                <p style={{ fontSize: '28px', fontWeight: 800, color: '#F3F4F6', marginTop: '8px' }}>{s.value}</p>
-                <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>{s.sub}</p>
+          <div key={i} className="bg-[#0a0f1c] border border-white/5 rounded-xl p-5 relative overflow-hidden">
+            <div className={`absolute top-0 left-0 right-0 h-0.5 ${s.color === 'indigo' ? 'bg-indigo-500' : s.color === 'blue' ? 'bg-blue-500' : s.color === 'amber' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">{s.label}</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.color === 'indigo' ? 'bg-indigo-500/20' : s.color === 'blue' ? 'bg-blue-500/20' : s.color === 'amber' ? 'bg-amber-500/20' : 'bg-emerald-500/20'}`}>
+                <s.icon className={`w-4 h-4 ${s.color === 'indigo' ? 'text-indigo-400' : s.color === 'blue' ? 'text-blue-400' : s.color === 'amber' ? 'text-amber-400' : 'text-emerald-400'}`} />
               </div>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${s.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><s.icon size={20} style={{ color: s.color }} /></div>
             </div>
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-xs text-gray-500 mt-1">{s.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: '#0D1117', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
+      <div className="flex gap-1 bg-white/5 rounded-lg p-1 w-fit">
         {(['suppliers', 'orders'] as const).map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '8px 20px', borderRadius: '8px', background: activeTab === t ? '#1F2937' : 'transparent', color: activeTab === t ? '#F3F4F6' : '#6B7280', border: 'none', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+          <button 
+            key={t} 
+            onClick={() => setActiveTab(t)} 
+            className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${activeTab === t ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
             {t === 'suppliers' ? 'Fournisseurs' : 'Commandes'}
           </button>
         ))}
@@ -119,75 +131,94 @@ export default function SuppliersPage() {
 
       {activeTab === 'suppliers' && (
         <>
-          <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 p-4 shadow-xl" style={{ display: 'flex', gap: '12px', marginBottom: '24px', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#6B7280' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." style={{ width: '100%', padding: '10px 10px 10px 36px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none' }} />
+          <div className="bg-[#0a0f1c] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+              <input 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                placeholder="Rechercher..." 
+                className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500" 
+              />
             </div>
-            <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={{ padding: '10px 16px', background: '#0D1117', border: '1px solid #1F2937', borderRadius: '8px', color: '#F3F4F6', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
+            <select 
+              value={catFilter} 
+              onChange={e => setCatFilter(e.target.value)} 
+              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-indigo-500"
+            >
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
-          <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="bg-[#0a0f1c] border border-white/5 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 text-xs uppercase bg-white/[0.02]">
+                    {['Fournisseur', 'Categorie', 'Contact', 'Commandes', 'Total Paye', 'Statut', 'Note'].map(h => (
+                      <th key={h} className="px-4 py-3 font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filtered.map(s => (
+                    <tr key={s.id} onClick={() => setShowDetail(s)} className="hover:bg-white/[0.02] cursor-pointer">
+                      <td className="px-4 py-3">
+                        <p className="text-white font-medium">{s.name}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{s.address}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: `${catColors[s.category]}20`, color: catColors[s.category] }}>{s.category}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400">{s.contact}</td>
+                      <td className="px-4 py-3 text-white font-medium">{s.orders}</td>
+                      <td className="px-4 py-3 text-white font-medium">{fmt(s.totalPaid)}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: payConf[s.payStatus].bg, color: payConf[s.payStatus].color }}>{payConf[s.payStatus].label}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          <span className="text-white font-medium">{s.rating}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'orders' && (
+        <div className="bg-[#0a0f1c] border border-white/5 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1F2937' }}>
-                  {['Fournisseur', 'Catégorie', 'Contact', 'Commandes', 'Total Payé', 'Statut', 'Note'].map(h => (
-                    <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9CA3AF' }}>{h}</th>
+                <tr className="text-left text-gray-500 text-xs uppercase bg-white/[0.02]">
+                  {['N Commande', 'Fournisseur', 'Articles', 'Montant', 'Date Commande', 'Livraison', 'Statut'].map(h => (
+                    <th key={h} className="px-4 py-3 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {filtered.map(s => (
-                  <tr key={s.id} onClick={() => setShowDetail(s)} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)', cursor: 'pointer' }} className="hover:bg-white/[0.02]">
-                    <td style={{ padding: '14px 16px' }}>
-                      <p style={{ color: '#F3F4F6', fontWeight: 600, fontSize: '13px' }}>{s.name}</p>
-                      <p style={{ color: '#6B7280', fontSize: '11px', marginTop: '2px' }}>{s.address}</p>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: `${catColors[s.category]}20`, color: catColors[s.category], fontSize: '12px', fontWeight: 600 }}>{s.category}</span></td>
-                    <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px' }}>{s.contact}</td>
-                    <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{s.orders}</td>
-                    <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{fmt(s.totalPaid)}</td>
-                    <td style={{ padding: '14px 16px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: payConf[s.payStatus].bg, color: payConf[s.payStatus].color, fontSize: '11px', fontWeight: 600 }}>{payConf[s.payStatus].label}</span></td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Star size={14} style={{ color: '#C8A961', fill: '#C8A961' }} />
-                        <span style={{ color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{s.rating}</span>
-                      </div>
+              <tbody className="divide-y divide-white/5">
+                {ORDERS.map(o => (
+                  <tr key={o.id} className="hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-indigo-400 font-mono text-xs">{o.id}</td>
+                    <td className="px-4 py-3 text-white font-medium">{o.supplier}</td>
+                    <td className="px-4 py-3 text-gray-400 max-w-[200px] truncate">{o.items}</td>
+                    <td className="px-4 py-3 text-white font-medium">{fmt(o.amount)}</td>
+                    <td className="px-4 py-3 text-gray-400">{o.orderDate}</td>
+                    <td className="px-4 py-3 text-gray-400">{o.deliveryDate}</td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: orderConf[o.status].bg, color: orderConf[o.status].color }}>{orderConf[o.status].label}</span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </>
-      )}
-
-      {activeTab === 'orders' && (
-        <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1F2937' }}>
-                {['N° Commande', 'Fournisseur', 'Articles', 'Montant', 'Date Commande', 'Livraison', 'Statut'].map(h => (
-                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9CA3AF' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ORDERS.map(o => (
-                <tr key={o.id} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }} className="hover:bg-white/[0.02]">
-                  <td style={{ padding: '14px 16px', color: '#6366f1', fontWeight: 600, fontSize: '13px' }}>{o.id}</td>
-                  <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 500 }}>{o.supplier}</td>
-                  <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px', maxWidth: '200px' }}>{o.items}</td>
-                  <td style={{ padding: '14px 16px', color: '#F3F4F6', fontSize: '13px', fontWeight: 600 }}>{fmt(o.amount)}</td>
-                  <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px' }}>{o.orderDate}</td>
-                  <td style={{ padding: '14px 16px', color: '#9CA3AF', fontSize: '13px' }}>{o.deliveryDate}</td>
-                  <td style={{ padding: '14px 16px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: orderConf[o.status].bg, color: orderConf[o.status].color, fontSize: '11px', fontWeight: 600 }}>{orderConf[o.status].label}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
 
