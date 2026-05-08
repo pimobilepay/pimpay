@@ -465,22 +465,61 @@ model Bank {
 }
 
 model Business {
-  id                 String             @id @default(cuid())
-  name               String
-  registrationNumber String             @unique
-  type               BusinessType       @default(SOLE_PROPRIETORSHIP)
-  category           BusinessCategory   @default(OTHER)
-  status             BusinessStatus     @default(PENDING_VERIFICATION)
-  country            String             @default("CG")
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @default(now()) @updatedAt
-  city               String?
-  description        String?
-  email              String?
-  phone              String?
-  logo               String?
-  BusinessEmployee   BusinessEmployee[]
-  BusinessInvoice    BusinessInvoice[]
+  id                    String                   @id @default(cuid())
+  name                  String
+  registrationNumber    String                   @unique
+  type                  BusinessType             @default(SOLE_PROPRIETORSHIP)
+  category              BusinessCategory         @default(OTHER)
+  status                BusinessStatus           @default(PENDING_VERIFICATION)
+  country               String                   @default("CG")
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @default(now()) @updatedAt
+  city                  String?
+  description           String?
+  email                 String?
+  phone                 String?
+  logo                  String?
+  BusinessEmployee      BusinessEmployee[]
+  BusinessInvoice       BusinessInvoice[]
+  BusinessBankAccount   BusinessBankAccount[]
+  BusinessBankStatement BusinessBankStatement[]
+}
+
+model BusinessBankAccount {
+  id         String                  @id @default(cuid())
+  businessId String
+  bankName   String
+  name       String
+  number     String
+  balance    Float                   @default(0)
+  currency   String                  @default("XAF")
+  status     String                  @default("active")
+  color      String                  @default("#6366f1")
+  lastSync   DateTime                @default(now())
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @default(now()) @updatedAt
+  Business   Business                @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Statements BusinessBankStatement[]
+
+  @@index([businessId])
+}
+
+model BusinessBankStatement {
+  id          String               @id @default(cuid())
+  accountId   String
+  businessId  String
+  date        DateTime             @default(now())
+  description String
+  debit       Float                @default(0)
+  credit      Float                @default(0)
+  balance     Float                @default(0)
+  reference   String
+  createdAt   DateTime             @default(now())
+  Account     BusinessBankAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([accountId])
+  @@index([businessId])
 }
 
 model SystemLog {
