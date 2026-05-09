@@ -63,6 +63,11 @@ const FALLBACK_MESSAGES: AnnouncementConfig[] = [
     message: "Bienvenue sur PimPay — Réseau opérationnel · Transactions sécurisées 24h/24",
     type: "success",
   },
+  {
+    message: "Complétez votre KYC pour débloquer toutes les fonctionnalités",
+    type: "info",
+    link: "/settings/kyc",
+  },
 ];
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -100,9 +105,9 @@ export default function GlobalAnnouncement() {
           else if (/maintenance|fermeture|interruption/i.test(msg)) type = "warning";
           else if (/opérationnel|bienvenue|félicitation|succès/i.test(msg)) type = "success";
 
-          // ✅ FIX: une seule annonce quand l'API répond
           setAnnouncements([
             { message: msg, type, link: "/settings/kyc" },
+            ...FALLBACK_MESSAGES.slice(1),
           ]);
         }
       } catch {
