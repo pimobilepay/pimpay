@@ -2,39 +2,33 @@ export const dynamic = 'force-dynamic';
 
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import * as jose from "jose";
+import { verifyAuth } from "@/lib/adminAuth";
 
-// Helper to verify auth from request
-async function verifyAuthFromRequest(req: NextRequest) {
-  try {
-    const authHeader = req.headers.get('authorization');
-    const cookieToken = req.cookies.get('token')?.value || req.cookies.get('pimpay_token')?.value;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
+// Helper type for session with email/phone
+interface SessionWithContact {
+  id: string;
+  role: string;
+  email?: string;
+  phone?: string;
+}
 
-    if (!token) return null;
+// Get session with email and phone for business lookup
+async function getSessionWithContact(req: NextRequest): Promise<SessionWithContact | null> {
+  const session = await verifyAuth(req);
+  if (!session) return null;
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) return null;
+  // Fetch email and phone from user record
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { email: true, phone: true }
+  });
 
-    const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret));
-    const userId = payload.id as string;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId, status: "ACTIVE" },
-      select: { 
-        id: true, 
-        username: true, 
-        role: true,
-        email: true,
-        phone: true,
-      }
-    });
-
-    return user;
-  } catch (error) {
-    console.error("Auth verification error:", error);
-    return null;
-  }
+  return {
+    id: session.id,
+    role: session.role,
+    email: user?.email || session.email,
+    phone: user?.phone || undefined,
+  };
 }
 
 // Helper to find business for user (by email OR phone)
@@ -71,7 +65,7 @@ async function findBusinessForUser(email: string | null, phone: string | null) {
 // GET - List all employees for a business
 export async function GET(req: NextRequest) {
   try {
-    const session = await verifyAuthFromRequest(req);
+    const session = await getSessionWithContact(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -125,7 +119,7 @@ export async function GET(req: NextRequest) {
 // POST - Add a new employee
 export async function POST(req: NextRequest) {
   try {
-    const session = await verifyAuthFromRequest(req);
+    const session = await getSessionWithContact(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -197,7 +191,7 @@ export async function POST(req: NextRequest) {
 // PUT - Update an employee
 export async function PUT(req: NextRequest) {
   try {
-    const session = await verifyAuthFromRequest(req);
+    const session = await getSessionWithContact(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
@@ -268,7 +262,7 @@ export async function PUT(req: NextRequest) {
 // DELETE - Remove an employee
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await verifyAuthFromRequest(req);
+    const session = await getSessionWithContact(req);
     if (!session) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
