@@ -252,14 +252,20 @@ export function convert(
 
 /**
  * Calcule la conversion PI -> Fiat avec une commission de plateforme (0.1% par defaut)
+ * @param amountInPi - montant en Pi à convertir
+ * @param targetCurrency - devise cible (ex: "CDF", "XAF", "USD")
+ * @param feePercent - taux de commission (0.001 = 0.1%)
+ * @param piPriceUsd - prix live du Pi en USD (depuis CoinGecko). Si omis, utilise PI_CONSENSUS_USD (peut être 0!)
  */
 export const calculateExchangeWithFee = (
   amountInPi: number,
   targetCurrency: string,
-  feePercent = 0.001
+  feePercent = 0.001,
+  piPriceUsd?: number
 ) => {
+  const piUsd = piPriceUsd != null && piPriceUsd > 0 ? piPriceUsd : PI_CONSENSUS_USD;
   const rate = FIAT_RATES[targetCurrency] || 1;
-  const rawValue = amountInPi * PI_CONSENSUS_USD * rate;
+  const rawValue = amountInPi * piUsd * rate;
   const fee = rawValue * feePercent;
 
   return {
@@ -267,6 +273,7 @@ export const calculateExchangeWithFee = (
     fee,
     total: rawValue - fee,
     rateUsed: rate,
+    piUsdUsed: piUsd,
   };
 };
 
@@ -294,10 +301,11 @@ export const calculateSwapWithFee = (
 /**
  * Convertit un montant Fiat vers Pi
  */
-export const convertFiatToPi = (amountInFiat: number, fromCurrency: string): number => {
+export const convertFiatToPi = (amountInFiat: number, fromCurrency: string, piPriceUsd?: number): number => {
+  const piUsd = piPriceUsd != null && piPriceUsd > 0 ? piPriceUsd : PI_CONSENSUS_USD;
   const rate = FIAT_RATES[fromCurrency] || 1;
-  if (amountInFiat <= 0) return 0;
-  return amountInFiat / (PI_CONSENSUS_USD * rate);
+  if (amountInFiat <= 0 || piUsd <= 0) return 0;
+  return amountInFiat / (piUsd * rate);
 };
 
 /* ------------------------------------------------------------------ */

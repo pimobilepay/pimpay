@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { countries, searchCountries, type Country, type Bank } from "@/lib/country-data";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
-import { calculateExchangeWithFee } from "@/lib/exchange";
+import { calculateExchangeWithFee, FIAT_RATES } from "@/lib/exchange";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { formatBalance } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -249,15 +249,32 @@ export default function WithdrawPage() {
 
   const currentWallet = wallets[activeWalletIndex] || { balance: 0, currency: "PI" };
   const balance = currentWallet.balance;
-  const rate = currentWallet.currency === "PI" ? PI_CONSENSUS_USD : 1;
-  const marketValueUsd = piAmount ? parseFloat(piAmount) * rate : 0;
+
+  // Prix Pi live (depuis usePiPrice hook) — PI_CONSENSUS_USD est maintenant dynamique
+  const livePiPrice = PI_CONSENSUS_USD > 0 ? PI_CONSENSUS_USD : 0;
+
+  // Montant saisi en Pi (ou en USD si wallet non-PI)
+  const amountNum = piAmount ? parseFloat(piAmount) : 0;
+
+  // Valeur brute en USD
+  const marketValueUsd = amountNum > 0
+    ? (currentWallet.currency === "PI" ? amountNum * livePiPrice : amountNum)
+    : 0;
+
+  // Frais 2% en USD
   const feesUsd = marketValueUsd * 0.02;
-  const conversion = piAmount
-    ? calculateExchangeWithFee(
-        (marketValueUsd - feesUsd) / (currentWallet.currency === "PI" ? PI_CONSENSUS_USD : 1),
-        selectedCountry.currency
-      )
-    : { total: 0, fee: 0, subtotal: 0 };
+
+  // Valeur nette en USD après frais
+  const netUsd = marketValueUsd - feesUsd;
+
+  // Conversion USD → devise locale via FIAT_RATES
+  const fiatRate = FIAT_RATES[selectedCountry.currency] || 1;
+  const netFiat = netUsd * fiatRate;
+
+  // Objet conversion pour compatibilité avec le reste du code
+  const conversion = amountNum > 0 && livePiPrice > 0
+    ? { total: netFiat, fee: feesUsd * fiatRate, subtotal: marketValueUsd * fiatRate, rateUsed: fiatRate }
+    : { total: 0, fee: 0, subtotal: 0, rateUsed: fiatRate };
 
   // formatValue pour les montants fiat (toujours 2 decimales)
   const formatValue = (val: number) =>
@@ -280,8 +297,9 @@ export default function WithdrawPage() {
     { id: "OCEANIA", label: "Oceania" },
   ];
 
-  const canSubmitMobile = piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && phoneNumber && selectedOperator;
-  const canSubmitBank = piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && (selectedBank || bankName) && accountNumber;
+  const priceReady = livePiPrice > 0 && !isPiPriceLoading;
+  const canSubmitMobile = priceReady && piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && phoneNumber && selectedOperator;
+  const canSubmitBank = priceReady && piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && (selectedBank || bankName) && accountNumber;
 
   async function handleWithdraw() {
     setIsSubmitting(true);
@@ -563,6 +581,17 @@ export default function WithdrawPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                   >
+                    {/* Taux Pi live depuis CoinGecko */}
+                    <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-600 pb-1 border-b border-white/5">
+                      <span>Taux Pi (CoinGecko)</span>
+                      {isPiPriceLoading ? (
+                        <span className="flex items-center gap-1 text-slate-500"><Loader2 size={10} className="animate-spin" /> Chargement...</span>
+                      ) : livePiPrice > 0 ? (
+                        <span className="text-blue-400">1 PI = ${livePiPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                      ) : (
+                        <span className="text-rose-400">Prix indisponible</span>
+                      )}
+                    </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
                       <span>{"Gross Value"}</span>
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
@@ -574,7 +603,11 @@ export default function WithdrawPage() {
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>
                         <span className="text-[9px] font-black text-blue-500 uppercase block">{"Estimated Net Cashout"}</span>
-                        <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
+                        {isPiPriceLoading ? (
+                          <span className="text-2xl font-black text-slate-500 flex items-center gap-2"><Loader2 size={18} className="animate-spin" /> ...</span>
+                        ) : (
+                          <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
+                        )}
                       </div>
                       <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
                     </div>
@@ -749,6 +782,17 @@ export default function WithdrawPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                   >
+                    {/* Taux Pi live depuis CoinGecko */}
+                    <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-600 pb-1 border-b border-white/5">
+                      <span>Taux Pi (CoinGecko)</span>
+                      {isPiPriceLoading ? (
+                        <span className="flex items-center gap-1 text-slate-500"><Loader2 size={10} className="animate-spin" /> Chargement...</span>
+                      ) : livePiPrice > 0 ? (
+                        <span className="text-blue-400">1 PI = ${livePiPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                      ) : (
+                        <span className="text-rose-400">Prix indisponible</span>
+                      )}
+                    </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
                       <span>{"Gross Value"}</span>
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
@@ -760,7 +804,11 @@ export default function WithdrawPage() {
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>
                         <span className="text-[9px] font-black text-blue-500 uppercase block">{"Estimated Net Transfer"}</span>
-                        <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
+                        {isPiPriceLoading ? (
+                          <span className="text-2xl font-black text-slate-500 flex items-center gap-2"><Loader2 size={18} className="animate-spin" /> ...</span>
+                        ) : (
+                          <span className="text-2xl font-black text-white">{formatValue(conversion.total)}</span>
+                        )}
                       </div>
                       <span className="text-sm font-black text-slate-400">{selectedCountry.currency}</span>
                     </div>
