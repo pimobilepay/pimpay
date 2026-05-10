@@ -182,17 +182,18 @@ export default function WalletPage() {
   });
 
   const [marketPrices, setMarketPrices] = useState({
-    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 314159, USDC: 1.00, DAI: 1.00, BUSD: 1.00, XRP: 0, XLM: 0,
+    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 0, USDC: 1.00, DAI: 1.00, BUSD: 1.00, XRP: 0, XLM: 0,
     ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
   });
 
   const fetchMarketPrices = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd');
       if (res.ok) {
         const result = await res.json();
         setMarketPrices(prev => ({
           ...prev,
+          PI: result["pi-network"]?.usd || prev.PI,
           BTC: result.bitcoin?.usd || prev.BTC,
           USDT: result.tether?.usd || prev.USDT,
           USDC: result["usd-coin"]?.usd || prev.USDC,

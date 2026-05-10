@@ -26,19 +26,17 @@ const FALLBACK_FIAT: Record<string, number> = {
   NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500,
 };
 
-const PI_GCV = 314159;
-
 /* ---------- Fetch live market prices ---------- */
 async function getLiveMarketPrices(): Promise<Record<string, number>> {
   const prices: Record<string, number> = {
-    PI: PI_GCV, SDA: 1.2, BUSD: 1,
+    PI: 0, SDA: 1.2, BUSD: 1,
     ...FALLBACK_FIAT,
   };
 
   try {
     const [cryptoRes, fiatRes] = await Promise.all([
       fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd',
+        'https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd',
         { signal: AbortSignal.timeout(5000) }
       ),
       fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) }),
@@ -46,6 +44,7 @@ async function getLiveMarketPrices(): Promise<Record<string, number>> {
 
     const cd = await cryptoRes.json();
     if (cd) {
+      prices.PI = cd['pi-network']?.usd || prices.PI;
       prices.BTC = cd.bitcoin?.usd || 95000;
       prices.ETH = cd.ethereum?.usd || 3200;
       prices.BNB = cd.binancecoin?.usd || 600;

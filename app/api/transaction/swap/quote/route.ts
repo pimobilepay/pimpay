@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
-const PI_GCV = 314159;
+
 
 export async function POST(req: Request) {
   try {
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       const [fiatRes, cryptoRes] = await Promise.all([
         fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 60 } }),
         fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+          "https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
           { signal: AbortSignal.timeout(5000) }
         ),
       ]);
@@ -46,6 +46,7 @@ export async function POST(req: Request) {
 
       const cd = await cryptoRes.json();
       if (cd) {
+        marketRates["PI"] = cd["pi-network"]?.usd || 0;
         marketRates["BTC"] = cd.bitcoin?.usd || 95000;
         marketRates["ETH"] = cd.ethereum?.usd || 3200;
         marketRates["BNB"] = cd.binancecoin?.usd || 600;
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
       }
     } catch (e) { console.warn("Fallback rates used"); }
 
-    marketRates["PI"] = PI_GCV;
+    // PI price is already fetched from CoinGecko above
     marketRates["SDA"] = 1.2;
     marketRates["BUSD"] = 1;
 

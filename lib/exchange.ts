@@ -9,7 +9,9 @@
 /*  CONSTANTES                                                         */
 /* ------------------------------------------------------------------ */
 
-export const PI_CONSENSUS_RATE = 314159.0;
+// Pi price is now fetched dynamically from CoinGecko API (id: pi-network)
+// These fallback values are used when API is unavailable
+export const PI_CONSENSUS_RATE = 0; // Will be fetched from CoinGecko
 export const PI_CONSENSUS_USD = PI_CONSENSUS_RATE;
 
 /** Liste exhaustive des IDs crypto reconnus par PimPay */
@@ -22,9 +24,9 @@ export const CRYPTO_IDS = [
 
 export type CryptoId = (typeof CRYPTO_IDS)[number];
 
-/** Prix crypto par defaut (en USD) - utilises comme fallback */
+/** Prix crypto par defaut (en USD) - utilises comme fallback, PI est fetche depuis CoinGecko */
 export const DEFAULT_CRYPTO_PRICES: Record<string, number> = {
-  PI: PI_CONSENSUS_RATE,
+  PI: 0, // Fetched from CoinGecko (id: pi-network)
   SDA: 1.2,
   BTC: 95000,
   ETH: 3200,

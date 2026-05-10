@@ -92,8 +92,6 @@ const CRYPTO_IDS = [
   "TRX", "ADA", "DOGE", "TON", "USDT", "USDC", "DAI", "BUSD",
 ];
 
-const PI_GCV = 314159;
-
 /* ------------------------------------------------------------------ */
 /*  ICON COMPONENT                                                     */
 /* ------------------------------------------------------------------ */
@@ -162,7 +160,7 @@ export default function SwapPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [prices, setPrices] = useState<Record<string, number>>({
-    PI: PI_GCV,
+    PI: 0,
     BTC: 95000,
     SDA: 1.2,
     USDT: 1,
@@ -208,9 +206,9 @@ export default function SwapPage() {
   const fetchPrices = useCallback(async (showLoading = false) => {
     if (showLoading) setIsPriceLoading(true);
     try {
-      // Crypto prices from CoinGecko
+      // Crypto prices from CoinGecko (including Pi Network)
       const cryptoRes = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+        "https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
         { signal: AbortSignal.timeout(8000), cache: "no-store" }
       );
       const cryptoData = await cryptoRes.json();
@@ -224,7 +222,8 @@ export default function SwapPage() {
 
       setPrices((prev) => ({
         ...prev,
-        // Crypto prices in USD
+        // Crypto prices in USD (Pi Network from CoinGecko)
+        PI: cryptoData["pi-network"]?.usd || prev.PI,
         BTC: cryptoData.bitcoin?.usd || prev.BTC,
         ETH: cryptoData.ethereum?.usd || prev.ETH,
         BNB: cryptoData.binancecoin?.usd || prev.BNB,

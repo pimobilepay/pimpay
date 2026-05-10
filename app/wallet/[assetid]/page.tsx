@@ -209,11 +209,11 @@ const ASSET_CONFIG: Record<string, {
 };
 
 const MARKET_DEFAULTS: Record<string, number> = {
-  PI: 314159, SDA: 1.20, USDT: 1.00, BTC: 52000, ETH: 2800, BNB: 600, XRP: 0.55, XLM: 0.12, USDC: 1.00, TRX: 0.14, ADA: 0.60, DOGE: 0.15, TON: 5.20, SOL: 145, DAI: 1.00, BUSD: 1.00,
+  PI: 0, SDA: 1.20, USDT: 1.00, BTC: 52000, ETH: 2800, BNB: 600, XRP: 0.55, XLM: 0.12, USDC: 1.00, TRX: 0.14, ADA: 0.60, DOGE: 0.15, TON: 5.20, SOL: 145, DAI: 1.00, BUSD: 1.00,
 };
 
 const COINGECKO_IDS: Record<string, string> = {
-  BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", USDT: "tether", USDC: "usd-coin", XRP: "ripple", XLM: "stellar", TRX: "tron", ADA: "cardano", DOGE: "dogecoin", TON: "the-open-network", SOL: "solana", DAI: "dai", BUSD: "binance-usd",
+  PI: "pi-network", BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", USDT: "tether", USDC: "usd-coin", XRP: "ripple", XLM: "stellar", TRX: "tron", ADA: "cardano", DOGE: "dogecoin", TON: "the-open-network", SOL: "solana", DAI: "dai", BUSD: "binance-usd",
 };
 
 interface TxUser {
@@ -276,7 +276,7 @@ export default function AssetDetailPage() {
   const [sendRecipientAddress, setSendRecipientAddress] = useState("");
 
   const fetchMarketPrice = useCallback(async () => {
-    if (assetId === "PI" || assetId === "SDA") return;
+    if (assetId === "SDA") return; // SDA is not on CoinGecko
     const geckoId = COINGECKO_IDS[assetId];
     if (!geckoId) return;
     try {

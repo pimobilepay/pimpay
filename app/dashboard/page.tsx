@@ -27,7 +27,7 @@ import {
   Wallet as WalletIcon,
   Users as UsersIcon,
 } from "lucide-react";
-import { PI_CONSENSUS_USD } from "@/lib/exchange";
+
 import { formatCryptoBalance } from "@/lib/formatters";
 import { BottomNav } from "@/components/bottom-nav";
 import { Sidebar } from "@/components/sidebar";
@@ -104,7 +104,7 @@ export default function UserDashboard() {
   const walletRef = useRef<HTMLDivElement>(null);
   const [activeWalletIndex, setActiveWalletIndex] = useState(0);
   const [marketPrices, setMarketPrices] = useState<Record<string, number>>({
-    PI: PI_CONSENSUS_USD,
+    PI: 0,
     SDA: 1.2,
     USDT: 1.0,
     BTC: 0,
@@ -340,10 +340,10 @@ export default function UserDashboard() {
 
   async function fetchMarketPrices() {
     try {
-      const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd");
+      const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd");
       if (res.ok) {
         const result = await res.json();
-        setMarketPrices((prev) => ({ ...prev, BTC: result.bitcoin?.usd || prev.BTC, USDT: result.tether?.usd || prev.USDT, USDC: result["usd-coin"]?.usd || prev.USDC, DAI: result.dai?.usd || prev.DAI, BUSD: result["binance-usd"]?.usd || prev.BUSD, XRP: result.ripple?.usd || prev.XRP, XLM: result.stellar?.usd || prev.XLM }));
+        setMarketPrices((prev) => ({ ...prev, PI: result["pi-network"]?.usd || prev.PI, BTC: result.bitcoin?.usd || prev.BTC, USDT: result.tether?.usd || prev.USDT, USDC: result["usd-coin"]?.usd || prev.USDC, DAI: result.dai?.usd || prev.DAI, BUSD: result["binance-usd"]?.usd || prev.BUSD, XRP: result.ripple?.usd || prev.XRP, XLM: result.stellar?.usd || prev.XLM }));
       }
     } catch { }
   }
