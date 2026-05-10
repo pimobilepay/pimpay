@@ -62,7 +62,7 @@ export async function POST() {
       where: { id: userId },
       data: {
         solAddress: address,
-        solPrivateKey: privateKey
+        solPrivateKey: encrypt(privateKey) // ✅ GCM
       }
     });
 

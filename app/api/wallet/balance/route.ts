@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
@@ -10,18 +11,8 @@ import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@noble/secp256k1';
 import bs58 from "bs58";
-import crypto from "node:crypto";
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
 
-// Fonction pour chiffrer les clés privées
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(12);
-  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
-}
 
 // Fonction pour convertir la clé privée en WIF (Bitcoin)
 function bytesToWif(privKey: Buffer): string {

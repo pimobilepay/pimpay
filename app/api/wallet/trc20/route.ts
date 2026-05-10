@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
         where: { id: userId },
         data: {
           usdtAddress: account.address.base58,
-          usdtPrivateKey: account.privateKey
+          usdtPrivateKey: encrypt(account.privateKey) // ✅ GCM
         },
         select: { usdtAddress: true }
       });

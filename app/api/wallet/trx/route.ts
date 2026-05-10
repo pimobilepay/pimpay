@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM
 import { prisma } from "@/lib/prisma"; 
 import { auth } from "@/lib/auth";
 import TronWeb from "tronweb";
@@ -42,7 +43,7 @@ export async function POST() {
       where: { id: session.id },
       data: {
         usdtAddress: account.address.base58,
-        usdtPrivateKey: account.privateKey
+        usdtPrivateKey: encrypt(account.privateKey) // ✅ GCM
       },
       select: { usdtAddress: true }
     });

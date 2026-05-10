@@ -20,10 +20,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Wallet as EthersWallet } from "ethers";
 import crypto from "crypto";
+import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
 
 // ─── Génération des identités blockchain (côté serveur uniquement) ──────────
-// Les clés privées générées ici sont STOCKÉES en DB chiffrées mais ne sont
-// JAMAIS retournées au client.
+// Les clés privées générées ici sont STOCKÉES en DB CHIFFRÉES (AES-256-GCM)
+// et ne sont JAMAIS retournées au client.
 const generateBlockchainIdentities = () => {
   const sidraWallet = EthersWallet.createRandom();
   const usdtPrivKey = crypto.randomBytes(32).toString("hex");
@@ -187,14 +188,15 @@ export async function GET(request: Request) {
     if (!user.sidraAddress || !user.usdtAddress || !user.walletAddress) {
       const ids = generateBlockchainIdentities();
 
+      // ✅ FIX: chiffrement AES-256-GCM avant stockage en DB
       await prisma.user.update({
         where: { id: userId },
         data: {
           sidraAddress:     user.sidraAddress  || ids.sidra.address,
-          sidraPrivateKey:  ids.sidra.privateKey, // Stocké en DB, jamais retourné
-          walletPrivateKey: ids.sidra.privateKey, // Stocké en DB, jamais retourné
+          sidraPrivateKey:  encrypt(ids.sidra.privateKey), // ✅ Chiffré GCM
+          walletPrivateKey: encrypt(ids.sidra.privateKey), // ✅ Chiffré GCM
           usdtAddress:      user.usdtAddress   || ids.usdt.address,
-          usdtPrivateKey:   ids.usdt.privateKey,  // Stocké en DB, jamais retourné
+          usdtPrivateKey:   encrypt(ids.usdt.privateKey),  // ✅ Chiffré GCM
           walletAddress:    user.walletAddress  || ids.pi.address,
         },
       });
