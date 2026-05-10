@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
 import { cookies } from "next/headers";
+import crypto from "node:crypto"; // ✅ Gardé pour bytesToWif et generateXrpKeypair
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { ethers } from "ethers";
