@@ -34,7 +34,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     decimals: 8,
     explorerBase: "https://blockexplorer.minepi.com/tx/",
     accentColor: "text-indigo-400",
-    defaultPrice: 314159,
+    // Price fetched from CoinGecko API
   },
   SDA: {
     symbol: "SDA",

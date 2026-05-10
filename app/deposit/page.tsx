@@ -64,11 +64,37 @@ const UnknownCardIcon = ({ className = "" }: { className?: string }) => (
     <CreditCard size={20} className="text-slate-400" />
   </div>
 );
-const PI_GCV_PRICE = 314159;
+
 function DepositBanner({ t }: { t: (key: string) => string }) { return ( <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-600/15 via-blue-800/10 to-transparent border border-white/5 overflow-hidden"> <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.04]"><Zap size={120} className="text-blue-500" /></div> <div className="flex items-start gap-4 relative z-10"> <div className="p-3 bg-blue-600/20 rounded-2xl text-blue-400 border border-blue-500/20 shrink-0"><ShieldCheck size={24} /></div> <div><p className="text-[11px] font-black uppercase tracking-widest text-blue-400">{t("deposit.secureDeposit")}</p><p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">{t("deposit.secureBanner")}</p></div> </div> </section> ); }
 function SecuritySection({ t }: { t: (key: string) => string }) { return ( <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5 mb-10"> <div className="flex items-center gap-2"><Shield size={14} className="text-blue-400" /><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Garanties de sécurité</span></div> <div className="grid gap-4"> <div className="flex items-center gap-4"> <div className="p-2 bg-emerald-500/10 rounded-lg"><Lock size={18} className="text-emerald-500" /></div> <div><p className="text-[10px] font-black uppercase text-white">Chiffrement AES-256</p><p className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Vos données de paiement ne sont jamais stockées en clair sur PimPay.</p></div> </div> </div> </section> ); }
 export default function DepositPage() {
   const router = useRouter(); const { t } = useLanguage(); const [mounted, setMounted] = useState(false); const [isLoading, setIsLoading] = useState(false); const [isMenuOpen, setIsMenuOpen] = useState(false); const [activeTab, setActiveTab] = useState("mobile"); const [amount, setAmount] = useState(""); const [phoneNumber, setPhoneNumber] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
+  
+  // Pi Network price from CoinGecko API
+  const [piPrice, setPiPrice] = useState<number>(0);
+  const [isPriceLoading, setIsPriceLoading] = useState(true);
+  
+  // Fetch Pi price from CoinGecko
+  useEffect(() => {
+    const fetchPiPrice = async () => {
+      try {
+        setIsPriceLoading(true);
+        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=pi-network&vs_currencies=usd");
+        const data = await res.json();
+        if (data["pi-network"]?.usd) {
+          setPiPrice(data["pi-network"].usd);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération du prix Pi:", error);
+      } finally {
+        setIsPriceLoading(false);
+      }
+    };
+    fetchPiPrice();
+    // Refresh price every 60 seconds
+    const interval = setInterval(fetchPiPrice, 60000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Card deposit state
   const [cardNumber, setCardNumber] = useState("");
@@ -88,7 +114,7 @@ export default function DepositPage() {
   }, [cardNumber]);
   const allCountries = countries;
   const [selectedCountry, setSelectedCountry] = useState<Country>(countries.find((c) => c.code === "CG") || countries[0]); const [selectedOperator, setSelectedOperator] = useState<MobileOperator | null>(selectedCountry.operators[0] || null); const filteredCountries = useMemo(() => allCountries.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase())), [allCountries, searchQuery]);
-  const feesCalculation = useMemo(() => { const val = parseFloat(amount) || 0; const fee = val * 0.01; return { fee: fee.toFixed(2), total: (val + fee).toFixed(2), piEquivalent: val > 0 ? (val / PI_GCV_PRICE).toFixed(7) : "0" }; }, [amount]);
+  const feesCalculation = useMemo(() => { const val = parseFloat(amount) || 0; const fee = val * 0.01; return { fee: fee.toFixed(2), total: (val + fee).toFixed(2), piEquivalent: val > 0 && piPrice > 0 ? (val / piPrice).toFixed(7) : "0" }; }, [amount, piPrice]);
   useEffect(() => { setMounted(true); }, []);
   const handleInitiateDeposit = async () => {
     if (!amount || parseFloat(amount) <= 0) { toast.error("Montant invalide"); return; }
@@ -294,12 +320,25 @@ export default function DepositPage() {
         {activeTab === "crypto" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6 text-center">
             <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20"><Bitcoin size={40} className="text-blue-500" /></div>
-            <h3 className="text-lg font-black uppercase tracking-tighter">Pi Network GCV Bridge</h3>
-            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant USD souhaité</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-center text-blue-500 outline-none" /></div>
-            {parseFloat(amount) > 0 && (
+            {/* Pi Price Display */}
+            <div className="bg-black/40 p-4 rounded-xl border border-white/5">
+              <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Prix Pi Network (CoinGecko)</p>
+              {isPriceLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-blue-400" />
+                  <span className="text-sm text-slate-400">Chargement...</span>
+                </div>
+              ) : piPrice > 0 ? (
+                <p className="text-xl font-black text-blue-400">1 Pi = ${piPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} USD</p>
+              ) : (
+                <p className="text-sm text-amber-400">Prix non disponible</p>
+              )}
+            </div>
+            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant USD souhaité</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-center text-blue-500 outline-none" disabled={isPriceLoading || piPrice <= 0} /></div>
+            {parseFloat(amount) > 0 && piPrice > 0 && (
               <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Montant saisi</span><span className="text-white">${parseFloat(amount).toLocaleString()} USD</span></div>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux GCV</span><span className="text-blue-400">1 Pi = $314,159</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Taux CoinGecko</span><span className="text-blue-400">1 Pi = ${piPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span></div>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>Frais PimPay (1%)</span><span>- {(parseFloat(feesCalculation.piEquivalent) * 0.01).toFixed(7)} Pi</span></div>
                 <div className="border-t border-white/5 pt-3 space-y-2">
                   <div className="flex justify-between text-[10px] font-black uppercase text-slate-500"><span>Pi requis</span><span className="text-white">{feesCalculation.piEquivalent} Pi</span></div>
@@ -307,7 +346,7 @@ export default function DepositPage() {
                 </div>
               </div>
             )}
-            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "VÉRIFIER LE DÉPÔT"}</button>
+            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0 || piPrice <= 0} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="animate-spin" /> : "VÉRIFIER LE DÉPÔT"}</button>
           </motion.div>
         )}
         {activeTab === "card" && (
