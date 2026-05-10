@@ -218,7 +218,7 @@ export async function GET() {
 
             // Stocker la clé privée chiffrée dans Vault
             await tx.vault.create({
-              data: { userId, name: `BTC_PRIV_${btcAddress}`, amount: 0 }
+              data: { userId, name: `BTC_SECRET:${encryptedKey}`, amount: 0 }
             }).catch(() => null); // Ignore si déjà existant
           });
 
@@ -336,7 +336,22 @@ export async function GET() {
     balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
 
     // Refresh btcWallet reference after potential auto-generation
-    const finalBtcWallet = user.wallets.find(w => w.currency === "BTC");
+    // On recharge depuis la DB pour avoir les wallets générés pendant cette requête
+    const freshWallets = await prisma.wallet.findMany({ where: { userId } });
+    const finalBtcWallet = freshWallets.find(w => w.currency === "BTC");
+    // Mettre à jour xrpAddress depuis un re-fetch si nécessaire
+    const freshUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { xrpAddress: true, xlmAddress: true, sidraAddress: true, usdtAddress: true, solAddress: true, walletAddress: true }
+    });
+    if (freshUser) {
+      user.xrpAddress = freshUser.xrpAddress;
+      user.xlmAddress = freshUser.xlmAddress;
+      user.sidraAddress = freshUser.sidraAddress;
+      user.usdtAddress = freshUser.usdtAddress;
+      user.solAddress = freshUser.solAddress;
+      user.walletAddress = freshUser.walletAddress;
+    }
 
     // --- Build addresses map using group logic ---
     // EVM Group: ETH, BNB, SDA, MATIC, USDC, DAI, BUSD share sidraAddress
