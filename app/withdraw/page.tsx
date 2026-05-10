@@ -14,7 +14,8 @@ import { useRouter } from "next/navigation";
 import { countries, searchCountries, type Country, type Bank } from "@/lib/country-data";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
-import { PI_CONSENSUS_USD, calculateExchangeWithFee } from "@/lib/exchange";
+import { calculateExchangeWithFee } from "@/lib/exchange";
+import { usePiPrice } from "@/hooks/usePiPrice";
 import { formatBalance } from "@/lib/formatters";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
@@ -28,6 +29,7 @@ const WITHDRAW_ASSET_ORDER = ["PI", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "X
 export default function WithdrawPage() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { price: PI_CONSENSUS_USD, loading: isPiPriceLoading } = usePiPrice();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"mobile" | "bank" | "crypto">("mobile");

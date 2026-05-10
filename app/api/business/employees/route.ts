@@ -32,7 +32,8 @@ async function getSessionWithContact(req: NextRequest): Promise<SessionWithConta
 }
 
 // Helper to find business for user (by email OR phone)
-async function findBusinessForUser(email: string | null, phone: string | null) {
+// FIX: use sequential lookups to avoid Prisma error on empty OR array
+async function findBusinessForUser(email: string | null | undefined, phone: string | null | undefined) {
   // Try to find business by email first
   if (email) {
     const business = await prisma.business.findFirst({
@@ -45,7 +46,7 @@ async function findBusinessForUser(email: string | null, phone: string | null) {
     });
     if (business) return business;
   }
-  
+
   // Fallback: try to find by phone
   if (phone) {
     const business = await prisma.business.findFirst({
@@ -58,7 +59,20 @@ async function findBusinessForUser(email: string | null, phone: string | null) {
     });
     if (business) return business;
   }
-  
+
+  return null;
+}
+
+// Lighter version (no employee include) for write operations — avoids broken OR+filter pattern
+async function findBusinessIdForUser(email: string | null | undefined, phone: string | null | undefined) {
+  if (email) {
+    const business = await prisma.business.findFirst({ where: { email }, select: { id: true } });
+    if (business) return business;
+  }
+  if (phone) {
+    const business = await prisma.business.findFirst({ where: { phone }, select: { id: true } });
+    if (business) return business;
+  }
   return null;
 }
 
@@ -135,17 +149,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nom et prenom requis" }, { status: 400 });
     }
 
-    const business = await prisma.business.findFirst({
-      where: { 
-        OR: [
-          { email: session.email },
-          { phone: session.phone }
-        ].filter(c => Object.values(c)[0])
-      }
-    });
+    // FIX: use the safe helper instead of broken OR+filter pattern
+    const business = await findBusinessIdForUser(session.email, session.phone);
 
     if (!business) {
-      console.log("[v0] POST: Business not found for user:", { email: session.email, phone: session.phone });
+      console.log("[employees] POST: Business not found for user:", { email: session.email, phone: session.phone });
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
@@ -207,14 +215,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "ID employe requis" }, { status: 400 });
     }
 
-    const business = await prisma.business.findFirst({
-      where: { 
-        OR: [
-          { email: session.email },
-          { phone: session.phone }
-        ].filter(c => Object.values(c)[0])
-      }
-    });
+    // FIX: use the safe helper instead of broken OR+filter pattern
+    const business = await findBusinessIdForUser(session.email, session.phone);
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
@@ -278,14 +280,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID employe requis" }, { status: 400 });
     }
 
-    const business = await prisma.business.findFirst({
-      where: { 
-        OR: [
-          { email: session.email },
-          { phone: session.phone }
-        ].filter(c => Object.values(c)[0])
-      }
-    });
+    // FIX: use the safe helper instead of broken OR+filter pattern
+    const business = await findBusinessIdForUser(session.email, session.phone);
 
     if (!business) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });

@@ -203,9 +203,10 @@ export default function WalletSwapPage() {
   const fetchPrices = useCallback(async (showLoading = false) => {
     if (showLoading) setIsPriceLoading(true);
     try {
-      const [cryptoRes, fiatRes] = await Promise.all([
+      const [piRes, cryptoRes, fiatRes] = await Promise.all([
+        fetch("/api/pi-price", { cache: "no-store" }),
         fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
           { signal: AbortSignal.timeout(8000), cache: "no-store" }
         ),
         fetch("https://open.er-api.com/v6/latest/USD", {
@@ -213,12 +214,18 @@ export default function WalletSwapPage() {
         }),
       ]);
 
+      if (piRes.ok) {
+        const piData = await piRes.json();
+        if (piData.success && piData.price > 0) {
+          setPrices((prev) => ({ ...prev, PI: piData.price }));
+        }
+      }
+
       const cryptoData = await cryptoRes.json();
       const fiatData = await fiatRes.json();
 
       setPrices((prev) => ({
         ...prev,
-        PI: cryptoData["pi-network"]?.usd || prev.PI,
         BTC: cryptoData.bitcoin?.usd || prev.BTC,
         ETH: cryptoData.ethereum?.usd || prev.ETH,
         BNB: cryptoData.binancecoin?.usd || prev.BNB,

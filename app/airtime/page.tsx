@@ -12,11 +12,12 @@ import { countries, type Country } from "@/lib/country-data";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { toast } from "sonner";
-import { formatCryptoBalance } from "@/lib/formatters";
+import { usePiPrice } from "@/hooks/usePiPrice";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function RechargePage() {
   const router = useRouter();
+  const { price: piPrice } = usePiPrice();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
@@ -69,7 +70,6 @@ export default function RechargePage() {
     );
   }, [searchQuery]);
 
-  const piPrice = 314159.0;
   const piEquivalent = amount ? (Number.parseFloat(amount) / piPrice).toFixed(9) : "0.000000000";
   const localAmount = amount
     ? (Number.parseFloat(amount) * (selectedCountry.piToLocalRate || 2500)).toLocaleString()

@@ -188,12 +188,23 @@ export default function WalletPage() {
 
   const fetchMarketPrices = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd');
-      if (res.ok) {
-        const result = await res.json();
+      // Fetch Pi price via internal proxy to avoid CORS/rate-limit issues
+      const [piRes, othersRes] = await Promise.all([
+        fetch('/api/pi-price', { cache: 'no-store' }),
+        fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd'),
+      ]);
+
+      if (piRes.ok) {
+        const piData = await piRes.json();
+        if (piData.success && piData.price > 0) {
+          setMarketPrices(prev => ({ ...prev, PI: piData.price }));
+        }
+      }
+
+      if (othersRes.ok) {
+        const result = await othersRes.json();
         setMarketPrices(prev => ({
           ...prev,
-          PI: result["pi-network"]?.usd || prev.PI,
           BTC: result.bitcoin?.usd || prev.BTC,
           USDT: result.tether?.usd || prev.USDT,
           USDC: result["usd-coin"]?.usd || prev.USDC,
