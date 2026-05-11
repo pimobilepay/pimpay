@@ -14,25 +14,26 @@ export default function LogoutOthersButton() {
 
     setLoading(true);
     try {
-      // Utilisation du chemin sans "s" comme demandé
-      const res = await fetch("/api/auth/session/logout-others", { 
+      const res = await fetch("/api/auth/session/logout-others", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
       });
 
       if (res.ok) {
         const data = await res.json();
-        
-        // Afficher le toast de succès
-        toast.success(data.message || "Toutes les autres sessions ont été déconnectées");
-        
-        // Rafraîchissement immédiat de la page pour afficher les changements
+        const count = data.count || 0;
+        toast.success(
+          count > 0
+            ? `${count} appareil${count > 1 ? "s" : ""} déconnecté${count > 1 ? "s" : ""} instantanément.`
+            : "Aucune autre session active."
+        );
+        window.dispatchEvent(new Event("pimpay:session-revoked"));
         router.refresh();
       } else {
         const data = await res.json();
         toast.error(data.error || "Une erreur est survenue");
       }
-    } catch (error) {
+    } catch {
       toast.error("Impossible de contacter le serveur");
     } finally {
       setLoading(false);

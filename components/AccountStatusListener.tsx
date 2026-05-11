@@ -34,17 +34,25 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
     maintenanceUntil?: string | null;
   } | null>(null);
 
-  // Polling toutes les 10 secondes pour verifier le statut
-  const { data, error } = useSWR(
+  // Polling toutes les 3 secondes — réponse quasi-instantanée lors d'une révocation
+  const { data, error, mutate } = useSWR(
     userId ? "/api/auth/account-status" : null,
     fetcher,
     {
-      refreshInterval: 10000, // Verifier toutes les 10 secondes
+      refreshInterval: 3000,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       shouldRetryOnError: false,
     }
   );
+
+  // Écouter l'event "pimpay:session-revoked" émis par les boutons de révocation
+  // pour forcer un check immédiat sans attendre le prochain poll
+  useEffect(() => {
+    const handleImmediateCheck = () => mutate();
+    window.addEventListener("pimpay:session-revoked", handleImmediateCheck);
+    return () => window.removeEventListener("pimpay:session-revoked", handleImmediateCheck);
+  }, [mutate]);
 
   // Déconnexion forcée côté client (purge cookies + redirect)
   const forceLogout = useCallback(async () => {

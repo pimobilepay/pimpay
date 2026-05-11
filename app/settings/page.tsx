@@ -89,36 +89,42 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       const loadingToast = toast.loading("Fermeture de la session sécurisée...");
-      
-      // Call logout API to properly terminate the session on the backend
-      const response = await fetch("/api/auth/logout", {
+
+      // 1. Terminer la session côté serveur
+      await fetch("/api/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+      }).catch(() => { /* continuer même si l'API échoue */ });
+
+      // 2. Purger TOUS les cookies de session (même logique que l'admin)
+      const cookiesToClear = [
+        "pimpay_token",
+        "token",
+        "pi_session_token",
+        "next-auth.session-token",
+        "next-auth.csrf-token",
+      ];
+      cookiesToClear.forEach((name) => {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
       });
 
-      // Clean up client-side data regardless of API response
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      localStorage.removeItem("pimpay_user");
-      localStorage.clear(); // Clear all localStorage data
-      
+      // 3. Vider le storage local
+      try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
+
       toast.dismiss(loadingToast);
-      
-      if (response.ok) {
-        toast.success("Déconnecté avec succès");
-      } else {
-        toast.success("Session fermée localement");
-      }
-      
-      // Redirect to login
+      toast.success("Déconnecté avec succès");
+
+      // 4. Rediriger et invalider le cache Next.js
       router.push("/auth/login");
       router.refresh();
     } catch (error) {
       console.error("[v0] Logout error:", error);
-      // Still log out locally even if backend fails
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      localStorage.clear();
+      // Déconnexion locale de secours
+      ["pimpay_token", "token", "pi_session_token"].forEach((name) => {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      });
+      try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
       toast.success("Session fermée");
       router.push("/auth/login");
     }

@@ -150,15 +150,16 @@ export default function SecurityPage() {
   }, []);
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!window.confirm("Voulez-vous vraiment deconnecter cet appareil ?")) return;
+    if (!window.confirm("Voulez-vous vraiment déconnecter cet appareil ?")) return;
     setDeletingSessionId(sessionId);
     try {
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-        toast.success("Session revoquee avec succes");
+        toast.success("Appareil déconnecté instantanément.");
+        window.dispatchEvent(new Event("pimpay:session-revoked"));
       } else {
-        toast.error("Erreur lors de la revocation");
+        toast.error("Erreur lors de la révocation");
       }
     } catch {
       toast.error("Une erreur est survenue");

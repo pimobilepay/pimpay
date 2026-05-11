@@ -14,11 +14,10 @@ export default function RevokeSessionButton({ sessionId }: { sessionId: string }
 
     setIsDeleting(true);
     try {
-      // Route correcte : /api/sessions/[id] (DELETE)
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("Session révoquée — l'appareil sera déconnecté dans les 10 secondes");
-        // Refresh immédiat pour mettre à jour la liste côté serveur
+        toast.success("Appareil déconnecté instantanément.");
+        window.dispatchEvent(new Event("pimpay:session-revoked"));
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));

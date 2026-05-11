@@ -61,7 +61,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       count: result.count,
-      message: `${result.count} session(s) déconnectée(s) avec succès. Les appareils seront déconnectés dans les 10 prochaines secondes.`
+      message: `${result.count} session(s) déconnectée(s) avec succès. Les appareils concernés ont été déconnectés instantanément.`
     });
 
   } catch (error) {
