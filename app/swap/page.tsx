@@ -807,8 +807,8 @@ export default function SwapPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
-              PimPay <span className="text-blue-500">Swap</span>
+            <h1 className="text-base font-black uppercase tracking-tight">
+              M<span className="text-blue-500">SWAP</span>
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <div className={`w-2 h-2 rounded-full ${isPriceLoading ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
