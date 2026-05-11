@@ -31,6 +31,21 @@ export default function SessionGuard({ children }: SessionGuardProps) {
   const pathname = usePathname();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isCheckingRef = useRef(false);
+  // Flag pour savoir si c'est l'utilisateur lui-même qui a révoqué une session
+  // depuis la page settings/sessions (pas l'admin, pas un autre appareil)
+  const selfRevokedRef = useRef(false);
+
+  // Écouter l'event dispatché par RevokeSessionButton / LogoutOthersButton
+  // pour savoir que c'est une révocation volontaire par l'utilisateur lui-même
+  useEffect(() => {
+    const handleSelfRevoke = () => {
+      selfRevokedRef.current = true;
+      // Reset après 15s pour ne pas bloquer les futures vraies déconnexions forcées
+      setTimeout(() => { selfRevokedRef.current = false; }, 15000);
+    };
+    window.addEventListener("pimpay:session-revoked", handleSelfRevoke);
+    return () => window.removeEventListener("pimpay:session-revoked", handleSelfRevoke);
+  }, []);
 
   const forceLogout = useCallback(async (reason: string) => {
     // Nettoyer les cookies et localStorage
@@ -39,20 +54,28 @@ export default function SessionGuard({ children }: SessionGuardProps) {
     document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     localStorage.clear();
 
-    // Afficher un message approprié selon la raison
+    // Afficher un message approprié selon la raison et l'origine
     if (reason === "session_revoked") {
-      toast.error("Votre session a été déconnectée depuis un autre appareil", {
-        duration: 5000,
-      });
+      if (selfRevokedRef.current) {
+        // L'utilisateur a lui-même révoqué sa propre session depuis settings
+        // (ex: "Déconnecter les autres appareils" ou révocation d'une session active)
+        // → pas de toast d'erreur alarmant, juste une info neutre
+        toast.info("Session déconnectée avec succès.", { duration: 3000 });
+      } else {
+        // Révocation par l'admin ou depuis un autre appareil
+        toast.error("Votre session a été déconnectée par l'administrateur.", {
+          duration: 6000,
+        });
+      }
     } else if (reason === "session_expired") {
-      toast.error("Votre session a expiré", {
-        duration: 3000,
+      toast.error("Votre session a expiré. Veuillez vous reconnecter.", {
+        duration: 4000,
       });
     } else {
-      toast.error("Session terminée", {
-        duration: 3000,
-      });
+      toast.error("Session terminée.", { duration: 3000 });
     }
+
+    selfRevokedRef.current = false;
 
     // Rediriger vers la page de connexion
     router.push("/auth/login");

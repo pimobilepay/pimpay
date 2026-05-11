@@ -16,8 +16,13 @@ export default function RevokeSessionButton({ sessionId }: { sessionId: string }
     try {
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("Appareil déconnecté instantanément.");
-        window.dispatchEvent(new Event("pimpay:session-revoked"));
+        toast.success("Appareil déconnecté avec succès.");
+        // Signaler que c'est une révocation volontaire par l'utilisateur lui-même
+        // (pas l'admin, pas un autre appareil) — utilisé par SessionGuard pour
+        // adapter le message toast si cet appareil se retrouve déconnecté
+        window.dispatchEvent(
+          new CustomEvent("pimpay:session-revoked", { detail: { source: "self" } })
+        );
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));

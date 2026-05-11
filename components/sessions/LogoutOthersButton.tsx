@@ -27,7 +27,9 @@ export default function LogoutOthersButton() {
             ? `${count} appareil${count > 1 ? "s" : ""} déconnecté${count > 1 ? "s" : ""} instantanément.`
             : "Aucune autre session active."
         );
-        window.dispatchEvent(new Event("pimpay:session-revoked"));
+        window.dispatchEvent(
+          new CustomEvent("pimpay:session-revoked", { detail: { source: "self" } })
+        );
         router.refresh();
       } else {
         const data = await res.json();
