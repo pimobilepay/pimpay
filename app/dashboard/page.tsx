@@ -516,7 +516,7 @@ export default function UserDashboard() {
                 </div>
               </div>
             </div>
-            <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2"><span className="text-blue-200">{currentCurrency === "PI" ? "π" : currentCurrency === "XAF" ? "" : "$"}</span>{showBalance ? formatCryptoBalance(balance, currentCurrency) : "••••••"}</h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
+            <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2">{showBalance ? formatCryptoBalance(balance, currentCurrency) : "••••••"}<span className="text-xl font-bold text-blue-300">{currentCurrency}</span></h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
             <div className="flex justify-between items-end">
               <div className="relative" ref={currencySwitcherRef}>
                 <button

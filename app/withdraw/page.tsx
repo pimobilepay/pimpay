@@ -16,7 +16,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { calculateExchangeWithFee, FIAT_RATES } from "@/lib/exchange";
 import { usePiPrice } from "@/hooks/usePiPrice";
-import { formatBalance } from "@/lib/formatters";
+import { formatBalance, formatCryptoBalance } from "@/lib/formatters";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { CRYPTO_ASSETS } from "@/lib/crypto-config";
@@ -412,10 +412,16 @@ export default function WithdrawPage() {
             </div>
 
             <div className="flex items-baseline gap-2 relative z-10">
-              <span className="text-3xl font-black tracking-tighter text-white">
-                {currentWallet.currency === "PI" ? "\u03c0" : ""} {formatBalance(balance)}
-              </span>
-              <span className="text-sm font-black text-blue-400">{currentWallet.currency}</span>
+              {isPiPriceLoading ? (
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-4xl font-black tracking-tighter text-white">
+                    {formatCryptoBalance(balance, currentWallet.currency)}
+                  </span>
+                  <span className="text-xl font-bold text-blue-500">{currentWallet.currency}</span>
+                </div>
+              )}
             </div>
           </div>
         </section>

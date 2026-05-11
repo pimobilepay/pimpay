@@ -91,7 +91,12 @@ export function formatCryptoBalance(
     return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   
-  return formatBalance(balance, locale);
+  // Crypto: minimum 2 decimals, maximum 8 — trailing zeros are trimmed automatically
+  // e.g. 0.003342 → "0,003342"  |  1.5 → "1,50"  |  0.00334200 → "0,003342"
+  return balance.toLocaleString(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  });
 }
 
 // ─── Amount Formatters ────────────────────────────────────────────────────────

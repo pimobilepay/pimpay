@@ -13,6 +13,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { toast } from "sonner";
 import { usePiPrice } from "@/hooks/usePiPrice";
+import { formatCryptoBalance } from "@/lib/formatters";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function RechargePage() {
