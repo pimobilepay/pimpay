@@ -362,7 +362,7 @@ export default function WalletPage() {
         <div className="grid grid-cols-4 gap-3 mb-8">
           <QuickAction icon={<ArrowUpRight size={20} />} label={t("wallet.send")} onClick={() => setIsSendOpen(true)} />
           <QuickAction icon={<Download size={20} />} label={t("wallet.receive")} onClick={() => setSelectedAsset({ name: "Pi Network", symbol: "PI", address: addresses.PI, network: "Pi Mainnet" })} />
-          <QuickAction icon={<ArrowLeftRight size={20} />} label={t("wallet.swap")} onClick={() => router.push('/wallet/swap')} />
+          <QuickAction icon={<ArrowLeftRight size={20} />} label={t("wallet.swap")} onClick={() => router.push('/swap')} />
           <QuickAction icon={<Lock size={20} />} label="Staking" onClick={() => router.push('/wallet/staking')} />
         </div>
 

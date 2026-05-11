@@ -2,23 +2,21 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
+import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+// [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
 export async function POST(req: Request) {
+  const cors = getCorsHeaders(req);
   try {
     const cookieHeader = req.headers.get("cookie") || "";
     const cookiesObj = Object.fromEntries(cookieHeader.split('; ').map(c => c.trim().split('=')));
     const token = cookiesObj['token'];
 
-    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: CORS_HEADERS });
+    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: cors });
 
     const payload = await verifyJWT(token);
-    if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401, headers: CORS_HEADERS });
+    if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401, headers: cors });
     const userId = payload.id;
 
     const { quoteId } = await req.json();
@@ -108,13 +106,13 @@ export async function POST(req: Request) {
       }
     }).catch(() => {});
 
-    return NextResponse.json({ success: true, reference: result.reference }, { headers: CORS_HEADERS });
+    return NextResponse.json({ success: true, reference: result.reference }, { headers: cors });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: error.message }, { status: 400, headers: getCorsHeaders(req) });
   }
 }
 
-export async function OPTIONS() {
-    return NextResponse.json({}, { headers: CORS_HEADERS });
+export async function OPTIONS(request: Request) {
+  return corsPreflightResponse(request);
 }

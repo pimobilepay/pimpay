@@ -3,25 +3,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 
-// VACCIN : Configuration des headers pour Pi Browser & CORS
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Cache-Control": "no-store, max-age=0, must-revalidate",
-};
+// [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
 export async function POST(req: Request) {
+  const cors = getCorsHeaders(req);
   try {
     // 1. Authentification
     const userId = await getAuthUserIdFromRequest(req);
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: CORS_HEADERS });
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: cors });
 
     const body = await req.json().catch(() => ({}));
     const { quoteId } = body;
     
-    if (!quoteId) return NextResponse.json({ error: "Identifiant de devis manquant" }, { status: 400, headers: CORS_HEADERS });
+    if (!quoteId) return NextResponse.json({ error: "Identifiant de devis manquant" }, { status: 400, headers: cors });
 
     // 2. TRANSACTION ATOMIQUE
     const result = await prisma.$transaction(async (tx) => {
@@ -126,15 +122,14 @@ export async function POST(req: Request) {
       reference: result.reference,
       received: result.netAmount,
       currency: result.destCurrency
-    }, { headers: CORS_HEADERS });                                        
+    }, { headers: { ...cors, "Cache-Control": "no-store, max-age=0, must-revalidate" } });
 
   } catch (error: any) {
     console.error("CONFIRM_SWAP_ERROR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur lors du swap" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: error.message || "Erreur lors du swap" }, { status: 400, headers: getCorsHeaders(req) });
   }
 }
 
-// VACCIN : Gestion du Preflight (OPTIONS) pour le Pi Browser
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: CORS_HEADERS });
+export async function OPTIONS(request: Request) {
+  return corsPreflightResponse(request);
 }

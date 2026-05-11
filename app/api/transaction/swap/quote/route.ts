@@ -2,21 +2,19 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
+import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 
 
 export async function POST(req: Request) {
+  const cors = {
+    ...getCorsHeaders(req),
+    "Cache-Control": "no-store, max-age=0",
+  };
   try {
-    const headers = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Cache-Control": "no-store, max-age=0",
-    };
-
     const userId = await getAuthUserIdFromRequest(req);
-    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers });
+    if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401, headers: cors });
 
     const { amount, sourceCurrency, targetCurrency } = await req.json();
     const fromCurr = sourceCurrency.toUpperCase();
@@ -28,7 +26,7 @@ export async function POST(req: Request) {
     });
 
     if (!wallet || wallet.balance < parseFloat(amount)) {
-      return NextResponse.json({ error: `Solde ${fromCurr} insuffisant` }, { status: 400, headers });
+      return NextResponse.json({ error: `Solde ${fromCurr} insuffisant` }, { status: 400, headers: cors });
     }
 
     // 2. Taux reels (crypto + fiat)
@@ -103,13 +101,13 @@ export async function POST(req: Request) {
         convertedAmount: toAmount, 
         rate: finalRate, 
         fromCurrency: fromCurr,
-    }, { headers });
+    }, { headers: cors });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+export async function OPTIONS(request: Request) {
+  return corsPreflightResponse(request);
 }
