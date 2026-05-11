@@ -218,7 +218,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, 
         <button onClick={onSendMessage} title="Message" className="p-2 bg-blue-500/10 text-blue-500 rounded-xl shrink-0"><Send size={14} /></button>
         <button onClick={onSupport} title="Envoyer notification support" className="p-2 bg-white/5 rounded-xl text-slate-500 hover:text-amber-400 transition-colors shrink-0"><Headphones size={14} /></button>
         <button onClick={onToggleAutoApprove} title="Auto" className={`p-2 rounded-xl shrink-0 ${user.autoApprove ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-700'}`}><Shield size={14} /></button>
-        <button onClick={() => onIndividualMaintenance(user)} title={user.status === 'SUSPENDED' ? 'Retirer Maintenance' : 'Maintenance'} className={`p-2 rounded-xl shrink-0 transition-colors ${user.status === 'SUSPENDED' ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-500/10 text-orange-500'}`}><Clock size={14} /></button>
+        <button onClick={() => onIndividualMaintenance(user)} title={user.status === 'SUSPENDED' || user.status === 'MAINTENANCE' ? 'Retirer Maintenance' : 'Maintenance'} className={`p-2 rounded-xl shrink-0 transition-colors ${user.status === 'SUSPENDED' || user.status === 'MAINTENANCE' ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-500/10 text-orange-500'}`}><Clock size={14} /></button>
         <button onClick={() => {
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
@@ -386,6 +386,29 @@ function DashboardContent() {
     const blinkInterval = setInterval(() => setLiveIndicator(v => !v), 1200);
     return () => clearInterval(blinkInterval);
   }, []);
+
+  // Auto-reprise des maintenances individuelles expirées (toutes les 60 secondes)
+  useEffect(() => {
+    if (!isMounted) return;
+    const checkResumeMaintenances = async () => {
+      try {
+        const res = await fetch("/api/cron/resume-maintenance", {
+          headers: { "x-internal-admin": "1" }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.resumed > 0) {
+            toast.success(`${data.resumed} maintenance(s) terminée(s) automatiquement`, { duration: 4000 });
+            fetchData();
+          }
+        }
+      } catch { /* silent */ }
+    };
+    // Vérification immédiate au chargement
+    checkResumeMaintenances();
+    const resumeInterval = setInterval(checkResumeMaintenances, 60000);
+    return () => clearInterval(resumeInterval);
+  }, [isMounted]);
 
   // Real-time clock
   useEffect(() => {
@@ -1896,10 +1919,18 @@ function DashboardContent() {
               <button onClick={() => { setMaintModalUser(null); setMaintDate(""); setMaintTime(""); }} className="p-2 bg-white/5 rounded-full text-white"><X size={16}/></button>
             </div>
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-              Statut actuel : <span className={maintModalUser.status === "SUSPENDED" ? "text-orange-400" : "text-emerald-400"}>{maintModalUser.status}</span>
+              Statut actuel : <span className={maintModalUser.status === "SUSPENDED" || maintModalUser.status === "MAINTENANCE" ? "text-orange-400" : "text-emerald-400"}>{maintModalUser.status === "MAINTENANCE" ? "EN MAINTENANCE" : maintModalUser.status}</span>
             </p>
+            {(maintModalUser.status === "MAINTENANCE" || maintModalUser.status === "SUSPENDED") && (maintModalUser as any).maintenanceUntil && (
+              <p className="text-[9px] text-amber-400 font-bold uppercase tracking-widest">
+                Fin prévue : {new Date((maintModalUser as any).maintenanceUntil).toLocaleString("fr-FR")}
+                {new Date((maintModalUser as any).maintenanceUntil) <= new Date() && (
+                  <span className="text-emerald-400 ml-2">(expirée — reprise auto en cours)</span>
+                )}
+              </p>
+            )}
 
-            {maintModalUser.status === "SUSPENDED" ? (
+            {maintModalUser.status === "MAINTENANCE" || maintModalUser.status === "SUSPENDED" ? (
               <button
                 onClick={async () => {
                   await handleAction(maintModalUser.id, "USER_SPECIFIC_MAINTENANCE");

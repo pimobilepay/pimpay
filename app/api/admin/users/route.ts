@@ -38,6 +38,7 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
         autoApprove: true,
         lastLoginIp: true,
         lastLoginAt: true,
+        maintenanceUntil: true,
         wallets: {
           select: {
             balance: true,
