@@ -151,7 +151,18 @@ export async function POST(req: NextRequest) {
 
       // GESTION DU STATUT UTILISATEUR
       case "BAN":
-        await prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.BANNED } });
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.BANNED } }),
+          prisma.session.deleteMany({ where: { userId: targetUserId } }),
+          prisma.notification.create({
+            data: {
+              userId: targetUserId,
+              title: "Compte banni",
+              message: "Votre compte a ete banni. Toutes vos sessions ont ete fermees. Contactez le support : pimpobilepay@gmail.com",
+              type: "WARNING"
+            }
+          })
+        ]);
         break;
 
       case "UNBAN":
@@ -162,11 +173,12 @@ export async function POST(req: NextRequest) {
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.$transaction([
           prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.FROZEN } }),
+          prisma.session.deleteMany({ where: { userId: targetUserId } }),
           prisma.notification.create({
             data: {
               userId: targetUserId,
               title: "Compte Gele",
-              message: "Votre compte a ete gele par l'administration. Contactez le support pour plus d'informations.",
+              message: "Votre compte a ete gele par l'administration. Toutes vos sessions ont ete fermees. Contactez le support : pimpobilepay@gmail.com",
               type: "WARNING"
             }
           })
@@ -367,11 +379,12 @@ export async function POST(req: NextRequest) {
             : "Votre compte est temporairement en maintenance. Veuillez patienter.";
           await prisma.$transaction([
             prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.SUSPENDED } }),
+            prisma.session.deleteMany({ where: { userId: targetUserId } }),
             prisma.notification.create({
               data: {
                 userId: targetUserId,
-                title: "Compte en Maintenance",
-                message: maintMsg,
+                title: "Compte Suspendu",
+                message: maintMsg + " Toutes vos sessions ont ete fermees. Contactez le support : pimpobilepay@gmail.com",
                 type: "WARNING"
               }
             })

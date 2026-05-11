@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import AccountStatusModal from "./AccountStatusModal";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface AccountStatusListenerProps {
   userId?: string;
@@ -11,6 +12,12 @@ interface AccountStatusListenerProps {
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
+  if (res.status === 401) {
+    // Session révoquée par l'admin → signaler via une erreur typée
+    const err: any = new Error("SESSION_REVOKED");
+    err.status = 401;
+    throw err;
+  }
   if (!res.ok) {
     const error = await res.json();
     throw new Error(error.error || "Erreur");
@@ -19,6 +26,7 @@ const fetcher = async (url: string) => {
 };
 
 export default function AccountStatusListener({ userId }: AccountStatusListenerProps) {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [statusData, setStatusData] = useState<{
     status: "SUSPENDED" | "BANNED" | "FROZEN" | "MAINTENANCE";
@@ -37,6 +45,23 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
       shouldRetryOnError: false,
     }
   );
+
+  // Déconnexion forcée côté client (purge cookies + redirect)
+  const forceLogout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch { /* continuer même si l'API échoue */ }
+
+    const cookiesToClear = ["pimpay_token", "token", "pi_session_token", "next-auth.session-token", "next-auth.csrf-token"];
+    cookiesToClear.forEach((name) => {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    });
+    try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
+
+    router.push("/auth/login");
+    router.refresh();
+  }, [router]);
 
   const handleStatusChange = useCallback((newStatus: any) => {
     if (!newStatus) return;
@@ -73,8 +98,16 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
     }
   }, [data, handleStatusChange]);
 
-  // Si erreur de session, ne pas afficher le modal
-  if (error) {
+  // Si erreur 401 → session révoquée par l'admin → déconnexion forcée immédiate
+  useEffect(() => {
+    if (error && (error as any).status === 401) {
+      toast.error("Votre session a été fermée par un administrateur.", { duration: 4000 });
+      forceLogout();
+    }
+  }, [error, forceLogout]);
+
+  // Autres erreurs (réseau, etc.) → ne pas déconnecter
+  if (error && (error as any).status !== 401) {
     return null;
   }
 

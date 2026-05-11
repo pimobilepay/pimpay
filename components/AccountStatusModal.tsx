@@ -274,8 +274,8 @@ export default function AccountStatusModal({
               {(status === "SUSPENDED" || status === "BANNED" || status === "FROZEN") && (
                 <p className="text-center text-xs text-slate-500">
                   Pour toute question, contactez{" "}
-                  <a href="mailto:support@pimpay.app" className="text-blue-400 hover:underline">
-                    support@pimpay.app
+                  <a href="mailto:pimpobilepay@gmail.com" className="text-blue-400 hover:underline">
+                    pimpobilepay@gmail.com
                   </a>
                 </p>
               )}
