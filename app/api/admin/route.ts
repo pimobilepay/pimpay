@@ -169,6 +169,45 @@ export async function POST(req: NextRequest) {
         await prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.ACTIVE } });
         break;
 
+      case "SUSPEND":
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.$transaction([
+          prisma.user.update({
+            where: { id: targetUserId },
+            data: { status: UserStatus.SUSPENDED, statusReason: extraData || "Suspension par administrateur" }
+          }),
+          prisma.session.deleteMany({ where: { userId: targetUserId } }),
+          prisma.notification.create({
+            data: {
+              userId: targetUserId,
+              title: "Compte Suspendu",
+              message: extraData
+                ? `Votre compte a ete suspendu : ${extraData}. Contactez le support : pimpobilepay@gmail.com`
+                : "Votre compte a ete suspendu par l'administration. Toutes vos sessions ont ete fermees. Contactez le support : pimpobilepay@gmail.com",
+              type: "WARNING"
+            }
+          })
+        ]);
+        break;
+
+      case "UNSUSPEND":
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.$transaction([
+          prisma.user.update({
+            where: { id: targetUserId },
+            data: { status: UserStatus.ACTIVE, statusReason: null }
+          }),
+          prisma.notification.create({
+            data: {
+              userId: targetUserId,
+              title: "Suspension Levée",
+              message: "La suspension de votre compte a ete levee. Vous pouvez a nouveau utiliser tous les services PimPay.",
+              type: "SUCCESS"
+            }
+          })
+        ]);
+        break;
+
       case "FREEZE":
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.$transaction([
@@ -358,18 +397,11 @@ export async function POST(req: NextRequest) {
       // MAINTENANCE INDIVIDUELLE (Suspend l'utilisateur temporairement)
       case "USER_SPECIFIC_MAINTENANCE": {
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
-        const userForMaint = await prisma.user.findUnique({
-          where: { id: targetUserId },
-          select: { status: true, maintenanceUntil: true }
-        });
-
-        // Reprise : l'utilisateur est en MAINTENANCE ou SUSPENDED (ancienne valeur)
-        if (userForMaint?.status === "MAINTENANCE" || userForMaint?.status === "SUSPENDED") {
+        const userForMaint = await prisma.user.findUnique({ where: { id: targetUserId }, select: { status: true } });
+        if (userForMaint?.status === "SUSPENDED") {
+          // Re-activer l'utilisateur
           await prisma.$transaction([
-            prisma.user.update({
-              where: { id: targetUserId },
-              data: { status: UserStatus.ACTIVE, maintenanceUntil: null, statusReason: null }
-            }),
+            prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.ACTIVE } }),
             prisma.notification.create({
               data: {
                 userId: targetUserId,
@@ -380,25 +412,17 @@ export async function POST(req: NextRequest) {
             })
           ]);
         } else {
-          // Mettre en maintenance : utiliser UserStatus.MAINTENANCE et sauvegarder maintenanceUntil
-          const maintUntilDate = extraData ? new Date(extraData) : null;
-          const maintMsg = maintUntilDate
-            ? `Votre compte est en maintenance jusqu'au ${maintUntilDate.toLocaleString("fr-FR")}. Veuillez patienter.`
+          // Mettre en maintenance (SUSPENDED)
+          const maintMsg = extraData
+            ? `Votre compte est en maintenance jusqu'au ${new Date(extraData).toLocaleString("fr-FR")}. Veuillez patienter.`
             : "Votre compte est temporairement en maintenance. Veuillez patienter.";
           await prisma.$transaction([
-            prisma.user.update({
-              where: { id: targetUserId },
-              data: {
-                status: UserStatus.MAINTENANCE,
-                maintenanceUntil: maintUntilDate,
-                statusReason: "Maintenance individuelle par administrateur",
-              }
-            }),
+            prisma.user.update({ where: { id: targetUserId }, data: { status: UserStatus.SUSPENDED } }),
             prisma.session.deleteMany({ where: { userId: targetUserId } }),
             prisma.notification.create({
               data: {
                 userId: targetUserId,
-                title: "Compte en Maintenance",
+                title: "Compte Suspendu",
                 message: maintMsg + " Toutes vos sessions ont ete fermees. Contactez le support : pimpobilepay@gmail.com",
                 type: "WARNING"
               }
