@@ -216,8 +216,8 @@ export default function WithdrawPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             currency: selectedCrypto,
-            toAddress: cryptoAddress,
-            amount: cryptoAmount,
+            address: cryptoAddress,
+            amount: parseFloat(cryptoAmount),
             memo: cryptoMemo,
           }),
         });
