@@ -45,6 +45,7 @@ function generateXrpKeypair() {
 }
 
 const SIDRA_RPC = "https://rpc.sidrachain.com";
+const BSC_RPC = "https://bsc-dataseed1.binance.org"; // BSC mainnet public RPC
 
 export async function GET() {
   try {
@@ -325,6 +326,38 @@ export async function GET() {
       if (existingSda) sdaBalanceValue = existingSda.balance;
     }
 
+    // --- Fetch real BNB balance from BSC blockchain ---
+    let bnbBalanceValue = 0;
+    if (user.sidraAddress) {
+      try {
+        const bscProvider = new ethers.JsonRpcProvider(BSC_RPC);
+        const bnbBalanceRaw = await Promise.race([
+          bscProvider.getBalance(user.sidraAddress),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
+        ]) as bigint;
+
+        const formattedBnb = ethers.formatEther(bnbBalanceRaw);
+        bnbBalanceValue = parseFloat(formattedBnb);
+
+        // Sync BNB balance to DB
+        await prisma.wallet.upsert({
+          where: { userId_currency: { userId, currency: "BNB" } },
+          update: { balance: bnbBalanceValue },
+          create: { userId, currency: "BNB", balance: bnbBalanceValue, type: "CRYPTO" }
+        }).catch(() => null);
+
+        console.log("[BALANCE_API] BNB on-chain balance synced:", bnbBalanceValue);
+      } catch (bnbRpcError) {
+        console.error("RPC ERROR (BSC/BNB):", bnbRpcError);
+        // Fallback to last known DB value
+        const existingBnb = user.wallets.find(w => w.currency === "BNB");
+        if (existingBnb) bnbBalanceValue = existingBnb.balance;
+      }
+    } else {
+      const existingBnb = user.wallets.find(w => w.currency === "BNB");
+      if (existingBnb) bnbBalanceValue = existingBnb.balance;
+    }
+
     // --- Build balances map from all wallets ---
     const balancesMap: Record<string, string> = {};
     for (const wallet of user.wallets) {
@@ -335,6 +368,8 @@ export async function GET() {
 
     // Ensure SDA is up to date
     balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
+    // Ensure BNB is up to date (on-chain synced value)
+    balancesMap["BNB"] = bnbBalanceValue.toFixed(8);
 
     // Refresh btcWallet reference after potential auto-generation
     // On recharge depuis la DB pour avoir les wallets générés pendant cette requête
