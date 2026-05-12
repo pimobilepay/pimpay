@@ -335,6 +335,9 @@ export default function AssetDetailPage() {
       if (assetId === "SDA") {
         fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
       }
+      if (assetId === "BNB") {
+        fetch("/api/wallet/bnb/sync", { method: "POST" }).catch(() => null);
+      }
       const [profileRes, balanceRes, historyRes] = await Promise.all([
         fetch('/api/user/profile'),
         fetch('/api/wallet/balance'),
