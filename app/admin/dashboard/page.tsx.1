@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";          import { Button } from "@/
 import { BottomNav } from "@/components/bottom-nav";  import { toast } from "sonner";
 import {                                                LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,                               Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
   Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
-  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight, Wrench, AlertTriangle, Trash2 as Trash,
+  CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight,
   Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor, Trash2
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
@@ -250,10 +250,6 @@ function DashboardContent() {
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string>("");
   const [users, setUsers] = useState<LedgerUser[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
-  // Réparation wallets USDT
-  const [repairLoading, setRepairLoading] = useState(false);
-  const [repairResult, setRepairResult] = useState<{ invalid: number; repaired: number; total: number } | null>(null);
-  const [resetUsdtLoading, setResetUsdtLoading] = useState(false);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [chartSummary, setChartSummary] = useState<ChartSummary>({ totalEntrant: 0, totalSortant: 0, totalExchange: 0, totalMpay: 0, totalVolume: 0, transactionCount: 0, mpayCount: 0 });
@@ -1279,82 +1275,6 @@ function DashboardContent() {
                             </div>
                           </div>
                           <ChevronRight size={18} className="text-red-500 group-hover:translate-x-1 transition-transform" />
-                        </Card>
-
-                        {/* ── Réparer adresses USDT (TRC20) ── */}
-                        <Card className="bg-amber-500/10 border border-amber-500/20 rounded-[2rem] p-5 space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-3 bg-amber-500 rounded-2xl text-white"><Wrench size={18} /></div>
-                            <div>
-                              <p className="text-[10px] font-black text-white uppercase">Réparation Wallets USDT</p>
-                              <p className="text-[8px] font-bold text-amber-400 uppercase">Corrige les adresses TRC20 invalides</p>
-                            </div>
-                          </div>
-                          {repairResult && (
-                            <div className={`p-3 rounded-2xl border text-center ${repairResult.repaired > 0 ? "bg-emerald-500/10 border-emerald-500/20" : "bg-blue-500/10 border-blue-500/20"}`}>
-                              <p className="text-[9px] font-black text-white uppercase">
-                                {repairResult.repaired > 0
-                                  ? `✅ ${repairResult.repaired} adresse(s) réparée(s)`
-                                  : "✅ Toutes les adresses sont valides"}
-                              </p>
-                              <p className="text-[8px] text-slate-400 mt-1">
-                                {repairResult.total} utilisateurs · {repairResult.invalid} invalide(s) détecté(s)
-                              </p>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              disabled={repairLoading}
-                              onClick={async () => {
-                                setRepairLoading(true);
-                                setRepairResult(null);
-                                try {
-                                  // Audit d'abord
-                                  const auditRes = await fetch("/api/admin/repair-wallets");
-                                  const audit = await auditRes.json();
-                                  if (audit.stats.invalid === 0) {
-                                    setRepairResult({ total: audit.stats.total, invalid: 0, repaired: 0 });
-                                    toast.success("Toutes les adresses USDT sont valides !");
-                                  } else {
-                                    // Lancer la réparation
-                                    const res = await fetch("/api/admin/repair-wallets", { method: "POST" });
-                                    const data = await res.json();
-                                    if (res.ok && data.success) {
-                                      setRepairResult({ total: data.stats.total, invalid: data.stats.invalid, repaired: data.stats.repaired });
-                                      toast.success(data.message);
-                                    } else {
-                                      toast.error(data.error || "Erreur lors de la réparation");
-                                    }
-                                  }
-                                } catch { toast.error("Erreur réseau"); }
-                                finally { setRepairLoading(false); }
-                              }}
-                              className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
-                            >
-                              {repairLoading ? <><RefreshCw size={13} className="animate-spin" /> En cours...</> : <><Wrench size={13} /> Réparer</>}
-                            </button>
-                            <button
-                              disabled={resetUsdtLoading}
-                              onClick={async () => {
-                                if (!confirm("⚠️ Supprimer TOUTES les adresses USDT ?\n\nChaque utilisateur recevra une nouvelle adresse à sa prochaine connexion.\n\nContinuer ?")) return;
-                                setResetUsdtLoading(true);
-                                try {
-                                  const res = await fetch("/api/admin/repair-wallets?mode=reset", { method: "POST" });
-                                  const data = await res.json();
-                                  if (res.ok && data.success) {
-                                    setRepairResult(null);
-                                    toast.success(data.message || "Adresses USDT supprimées. Régénération à la prochaine connexion.");
-                                  } else {
-                                    toast.error(data.error || "Erreur lors de la suppression");
-                                  }
-                                } catch { toast.error("Erreur réseau"); }
-                                finally { setResetUsdtLoading(false); }
-                              }}
-                              className="flex-1 py-3 bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
-                            >
-                              {resetUsdtLoading ? <><RefreshCw size={13} className="animate-spin" /> En cours...</> : <><Trash size={13} /> Reset tout</>}
-                            </button>
-                          </div>
                         </Card>
 
                         <Card onClick={() => router.push('/admin/messages')} className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] p-5 cursor-pointer hover:bg-emerald-500/20 transition-all flex items-center justify-between group">

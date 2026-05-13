@@ -67,6 +67,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
 
+    // Mode reset : supprime toutes les adresses USDT pour régénération à la connexion
+    const { searchParams } = new URL(req.url);
+    if (searchParams.get("mode") === "reset") {
+      const { count } = await prisma.user.updateMany({
+        where: { usdtAddress: { not: null } },
+        data: { usdtAddress: null, usdtPrivateKey: null },
+      });
+      return NextResponse.json({
+        success: true,
+        message: `${count} adresses USDT supprimées. Chaque utilisateur recevra une nouvelle adresse à sa prochaine connexion.`,
+        stats: { reset: count },
+      });
+    }
+
     // Récupérer tous les utilisateurs avec une adresse USDT
     const users = await prisma.user.findMany({
       where: { usdtAddress: { not: null } },
