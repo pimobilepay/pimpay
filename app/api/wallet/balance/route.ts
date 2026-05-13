@@ -360,6 +360,77 @@ export async function GET() {
       if (existingSda) sdaBalanceValue = existingSda.balance;
     }
 
+    // --- Fetch real BNB balance from BSC blockchain (same EVM address as SDA) ---
+    if (user.sidraAddress) {
+      try {
+        const BSC_RPC = "https://bsc-dataseed1.binance.org/";
+        const bscProvider = new ethers.JsonRpcProvider(BSC_RPC);
+        const bnbRaw = await Promise.race([
+          bscProvider.getBalance(user.sidraAddress),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("BNB Timeout")), 5000))
+        ]) as bigint;
+
+        const bnbBalance = parseFloat(ethers.formatEther(bnbRaw));
+
+        // Sync BNB balance to DB
+        await prisma.wallet.upsert({
+          where: { userId_currency: { userId, currency: "BNB" } },
+          update: { balance: bnbBalance },
+          create: { userId, currency: "BNB", balance: bnbBalance, type: "CRYPTO" }
+        }).catch(() => null);
+      } catch {
+        // Silencieux — on garde la valeur DB existante
+      }
+    }
+
+    // --- Fetch real USDT (TRC20) balance from TronGrid ---
+    const freshUsdtAddress = user.usdtAddress || "";
+    const TRON_VALID = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+    if (freshUsdtAddress && TRON_VALID.test(freshUsdtAddress)) {
+      try {
+        const USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        const tronHeaders: Record<string, string> = { Accept: "application/json" };
+        if (process.env.TRONGRID_API_KEY) {
+          tronHeaders["TRON-PRO-API-KEY"] = process.env.TRONGRID_API_KEY;
+        }
+
+        const tronRes = await Promise.race([
+          fetch(`https://api.trongrid.io/v1/accounts/${freshUsdtAddress}`, {
+            headers: tronHeaders,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("TronGrid Timeout")), 6000)
+          ),
+        ]) as Response;
+
+        if (tronRes.ok) {
+          const tronData = await tronRes.json();
+          let usdtBalance = 0;
+
+          if (tronData?.data?.[0]?.trc20) {
+            const trc20List: Record<string, string>[] = tronData.data[0].trc20;
+            const entry = trc20List.find((t) =>
+              Object.keys(t).some(
+                (k) => k.toLowerCase() === USDT_CONTRACT.toLowerCase()
+              )
+            );
+            if (entry) {
+              usdtBalance = Number(Object.values(entry)[0] ?? "0") / 1_000_000;
+            }
+          }
+
+          // Sync USDT balance to DB
+          await prisma.wallet.upsert({
+            where: { userId_currency: { userId, currency: "USDT" } },
+            update: { balance: usdtBalance },
+            create: { userId, currency: "USDT", balance: usdtBalance, type: "CRYPTO" }
+          }).catch(() => null);
+        }
+      } catch {
+        // Silencieux — on garde la valeur DB existante
+      }
+    }
+
     // --- Build balances map from all wallets ---
     const balancesMap: Record<string, string> = {};
     for (const wallet of user.wallets) {

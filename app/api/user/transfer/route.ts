@@ -297,9 +297,49 @@ export async function POST(req: NextRequest) {
 
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const wallet = new ethers.Wallet(privateKey, provider);
+
+          // ── Vérification du solde on-chain AVANT l'envoi ──
+          const onChainBalance = await provider.getBalance(wallet.address);
+          const amountInWei = ethers.parseEther(amount.toString());
+
+          // Estimer les gas fees
+          let gasLimit: bigint;
+          let gasPrice: bigint;
+          try {
+            gasLimit = await provider.estimateGas({
+              from: wallet.address,
+              to: recipientInput,
+              value: amountInWei,
+            });
+            const feeData = await provider.getFeeData();
+            gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
+          } catch {
+            // Valeurs BSC par défaut si estimation échoue
+            gasLimit = 21000n;
+            gasPrice = ethers.parseUnits("5", "gwei");
+          }
+
+          const gasCost = gasLimit * gasPrice;
+          const totalNeeded = amountInWei + gasCost;
+
+          if (onChainBalance < totalNeeded) {
+            const balanceFormatted = parseFloat(ethers.formatEther(onChainBalance)).toFixed(8);
+            const gasCostFormatted = parseFloat(ethers.formatEther(gasCost)).toFixed(8);
+            const totalFormatted = parseFloat(ethers.formatEther(totalNeeded)).toFixed(8);
+            throw new Error(
+              `Solde ${currency} on-chain insuffisant. ` +
+              `Disponible: ${balanceFormatted} ${currency}, ` +
+              `Requis: ${totalFormatted} ${currency} ` +
+              `(dont ${gasCostFormatted} ${currency} de frais réseau). ` +
+              `Veuillez déposer du ${currency} sur votre adresse avant d'effectuer un retrait.`
+            );
+          }
+
           const txRes = await wallet.sendTransaction({
             to: recipientInput,
-            value: ethers.parseEther(amount.toString()),
+            value: amountInWei,
+            gasLimit,
+            gasPrice,
           });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;

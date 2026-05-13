@@ -332,8 +332,16 @@ export default function AssetDetailPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // Déclencher la synchronisation blockchain selon l'actif
+      // On attend la sync AVANT de lire le balance pour afficher le solde à jour
       if (assetId === "SDA") {
-        fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+        await fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+      } else if (assetId === "USDT") {
+        // Sync USDT TRC20 depuis TronGrid — crédite automatiquement les dépôts reçus
+        await fetch("/api/wallet/usdt/sync", { method: "POST" }).catch(() => null);
+      } else if (assetId === "BNB") {
+        // Sync BNB BSC depuis la blockchain
+        await fetch("/api/wallet/bnb/sync", { method: "POST" }).catch(() => null);
       }
       const [profileRes, balanceRes, historyRes] = await Promise.all([
         fetch('/api/user/profile'),
