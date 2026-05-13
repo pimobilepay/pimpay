@@ -45,7 +45,6 @@ function generateXrpKeypair() {
 }
 
 const SIDRA_RPC = "https://rpc.sidrachain.com";
-const BSC_RPC = "https://bsc-dataseed1.binance.org"; // BSC mainnet public RPC
 
 export async function GET() {
   try {
@@ -294,7 +293,42 @@ export async function GET() {
       }
     }
 
-    const usdtAddress = user.usdtAddress || "";
+    // --- Validation + auto-réparation de l'adresse USDT (TRC20) ---
+    // Les anciennes adresses générées avec l'algo hex simplifié sont invalides
+    // (elles contiennent des '0' ou des caractères hors Base58).
+    // On les détecte et régénère automatiquement avec le bon algorithme Base58Check.
+    let usdtAddress = user.usdtAddress || "";
+    const TRON_VALID_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+    if (usdtAddress && !TRON_VALID_REGEX.test(usdtAddress)) {
+      console.warn("[BALANCE_API] Adresse USDT invalide détectée, régénération...", usdtAddress.substring(0, 10));
+      try {
+        const { Wallet: EthWallet } = await import("ethers");
+        const nodeCrypto = await import("crypto");
+        const { encrypt: encryptKey } = await import("@/lib/crypto");
+        const evmWallet = EthWallet.createRandom();
+        const privKey = evmWallet.privateKey.replace("0x", "");
+        const ethAddress = evmWallet.address;
+        const addrBytes = Buffer.concat([
+          Buffer.from("41", "hex"),
+          Buffer.from(ethAddress.replace("0x", ""), "hex"),
+        ]);
+        const h1 = nodeCrypto.default.createHash("sha256").update(addrBytes).digest();
+        const h2 = nodeCrypto.default.createHash("sha256").update(h1).digest();
+        const payload = Buffer.concat([addrBytes, h2.slice(0, 4)]);
+        const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let n = BigInt("0x" + payload.toString("hex"));
+        let addr = "";
+        while (n > 0n) { addr = B58[Number(n % 58n)] + addr; n = n / 58n; }
+        await prisma.user.update({
+          where: { id: userId },
+          data: { usdtAddress: addr, usdtPrivateKey: encryptKey(privKey) },
+        });
+        usdtAddress = addr;
+        console.log("[BALANCE_API] Adresse USDT réparée:", addr);
+      } catch (repairErr) {
+        console.error("[BALANCE_API] Echec réparation USDT:", repairErr);
+      }
+    }
 
     // --- Fetch real SDA balance from Sidra blockchain ---
     let sdaBalanceValue = 0;
@@ -326,38 +360,6 @@ export async function GET() {
       if (existingSda) sdaBalanceValue = existingSda.balance;
     }
 
-    // --- Fetch real BNB balance from BSC blockchain ---
-    let bnbBalanceValue = 0;
-    if (user.sidraAddress) {
-      try {
-        const bscProvider = new ethers.JsonRpcProvider(BSC_RPC);
-        const bnbBalanceRaw = await Promise.race([
-          bscProvider.getBalance(user.sidraAddress),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
-        ]) as bigint;
-
-        const formattedBnb = ethers.formatEther(bnbBalanceRaw);
-        bnbBalanceValue = parseFloat(formattedBnb);
-
-        // Sync BNB balance to DB
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "BNB" } },
-          update: { balance: bnbBalanceValue },
-          create: { userId, currency: "BNB", balance: bnbBalanceValue, type: "CRYPTO" }
-        }).catch(() => null);
-
-        console.log("[BALANCE_API] BNB on-chain balance synced:", bnbBalanceValue);
-      } catch (bnbRpcError) {
-        console.error("RPC ERROR (BSC/BNB):", bnbRpcError);
-        // Fallback to last known DB value
-        const existingBnb = user.wallets.find(w => w.currency === "BNB");
-        if (existingBnb) bnbBalanceValue = existingBnb.balance;
-      }
-    } else {
-      const existingBnb = user.wallets.find(w => w.currency === "BNB");
-      if (existingBnb) bnbBalanceValue = existingBnb.balance;
-    }
-
     // --- Build balances map from all wallets ---
     const balancesMap: Record<string, string> = {};
     for (const wallet of user.wallets) {
@@ -368,8 +370,6 @@ export async function GET() {
 
     // Ensure SDA is up to date
     balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
-    // Ensure BNB is up to date (on-chain synced value)
-    balancesMap["BNB"] = bnbBalanceValue.toFixed(8);
 
     // Refresh btcWallet reference after potential auto-generation
     // On recharge depuis la DB pour avoir les wallets générés pendant cette requête

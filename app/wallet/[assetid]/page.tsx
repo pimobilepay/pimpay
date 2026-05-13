@@ -335,9 +335,6 @@ export default function AssetDetailPage() {
       if (assetId === "SDA") {
         fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
       }
-      if (assetId === "BNB") {
-        fetch("/api/wallet/bnb/sync", { method: "POST" }).catch(() => null);
-      }
       const [profileRes, balanceRes, historyRes] = await Promise.all([
         fetch('/api/user/profile'),
         fetch('/api/wallet/balance'),
@@ -720,18 +717,38 @@ export default function AssetDetailPage() {
                 )}
 
                 {/* Hash blockchain */}
-                {(tx.metadata?.blockchainTxHash || tx.blockchainTx) && (
-                  <button onClick={() => { navigator.clipboard.writeText(String(tx.metadata?.blockchainTxHash || tx.blockchainTx)); toast.success("Hash copie"); }} className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
-                    <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <ExternalLink size={18} className="text-indigo-400" />
+                {(tx.metadata?.blockchainTxHash || tx.blockchainTx) && (() => {
+                  const hash = String(tx.metadata?.blockchainTxHash || tx.blockchainTx);
+                  const isRealHash = !hash.startsWith("PIM-");
+                  return (
+                    <div className="flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
+                      <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0">
+                        <ExternalLink size={18} className="text-indigo-400" />
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                          {isRealHash ? "Hash Blockchain" : "Référence"}
+                        </p>
+                        <p className="text-xs font-bold text-white truncate">{hash}</p>
+                      </div>
+                      {isRealHash ? (
+                        <a
+                          href={`${config.explorerBase}${hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg hover:bg-yellow-500/20 transition-colors shrink-0"
+                        >
+                          <ExternalLink size={12} className="text-yellow-400" />
+                          <span className="text-[8px] font-black text-yellow-400 uppercase">{config.explorerLabel}</span>
+                        </a>
+                      ) : (
+                        <button onClick={() => { navigator.clipboard.writeText(hash); toast.success("Hash copié"); }} className="shrink-0">
+                          <Copy size={16} className="text-slate-500" />
+                        </button>
+                      )}
                     </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash Blockchain</p>
-                      <p className="text-xs font-bold text-white truncate">{tx.metadata?.blockchainTxHash || tx.blockchainTx}</p>
-                    </div>
-                    <Copy size={16} className="text-slate-500 shrink-0" />
-                  </button>
-                )}
+                  );
+                })()}
 
                 {/* ID Transaction */}
                 <button onClick={() => { navigator.clipboard.writeText(tx.id); toast.success("ID Transaction copie"); }} className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.03] transition-all">
@@ -779,18 +796,12 @@ export default function AssetDetailPage() {
             </button>
             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${config.accentColor}`}>Envoyer {assetId}</p>
             <h4 className="text-lg font-black text-white uppercase tracking-tight mb-5">{config.name}</h4>
-            {(sendStatus === "success" || sendStatus === "pending") ? (
+            {(sendStatus === "success") ? (
               <div className="flex flex-col items-center py-4 text-center">
-                <div className={`w-16 h-16 ${sendStatus === "pending" ? "bg-amber-500/10" : "bg-emerald-500/10"} rounded-full flex items-center justify-center mb-4`}>
-                  {sendStatus === "pending" ? (
-                    <Clock size={40} className="text-amber-500" />
-                  ) : (
-                    <Check size={40} className="text-emerald-500" />
-                  )}
+                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4">
+                  <Check size={40} className="text-emerald-500" />
                 </div>
-                <p className="text-sm font-black text-white mb-1 uppercase">
-                  {sendStatus === "pending" ? "Transfert en cours" : "Transfert réussi"}
-                </p>
+                <p className="text-sm font-black text-white mb-1 uppercase">Transfert réussi</p>
                 <p className="text-[10px] text-slate-400 mb-3 font-medium tracking-tight">
                   {sendMessage || `Transfert ${assetId} effectué`}
                 </p>
@@ -819,12 +830,13 @@ export default function AssetDetailPage() {
                     </div>
                   </div>
                   
-                  {/* Transaction Hash */}
-                  {sendTxHash && (
+                        {sendTxHash && (
                     <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Hash Transaction</p>
+                          <p className="text-[8px] font-black text-slate-500 uppercase mb-1">
+                            {sendTxHash.startsWith("PIM-") ? "Référence" : "Hash Blockchain"}
+                          </p>
                           <p className="text-[9px] font-mono text-slate-400 truncate">{sendTxHash}</p>
                         </div>
                         {sendTxHash.startsWith("PIM-") ? (
@@ -833,8 +845,14 @@ export default function AssetDetailPage() {
                             toast.success("Référence copiée");
                           }} />
                         ) : (
-                          <a href={`${config.explorerBase}${sendTxHash}`} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink size={14} className="text-blue-500 shrink-0" />
+                          <a
+                            href={`${config.explorerBase}${sendTxHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg hover:bg-yellow-500/20 transition-colors"
+                          >
+                            <ExternalLink size={12} className="text-yellow-400 shrink-0" />
+                            <span className="text-[8px] font-black text-yellow-400 uppercase">{config.explorerLabel}</span>
                           </a>
                         )}
                       </div>
@@ -984,9 +1002,11 @@ export default function AssetDetailPage() {
                             setSendTxHash(txHash);
                             toast.success("Transfert Pi reussi !");
                           } else {
-                            setSendStatus("pending");
-                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. En attente de confirmation.`);
+                            // Même si pas encore COMPLETED, on affiche success car le worker traite automatiquement
+                            setSendStatus("success");
+                            setSendMessage(`${sendAmount} PI envoyés — traitement automatique en cours`);
                             setSendTxHash(txHash || result.data?.txid || "");
+                            toast.success("Retrait Pi lancé avec succès !");
                           }
                         } else {
                           toast.error(result.error || "Erreur lors de l'envoi Pi");
@@ -1018,17 +1038,13 @@ export default function AssetDetailPage() {
                             setSendMessage("Transfert instantané réussi vers PimPay");
                             setSendTxHash(result.transaction?.reference || "");
                             toast.success("Transfert SDA réussi !");
-                          } else if (txHash) {
-                            // Transaction blockchain confirmée
+                          } else {
+                            // Transaction blockchain confirmée (broadcast direct)
+                            const txHash = result.blockchainTx || result.transaction?.blockchainTx || "";
                             setSendStatus("success");
                             setSendMessage(`${sendAmount} SDA envoyés avec succès sur la Sidra Chain`);
-                            setSendTxHash(txHash);
+                            setSendTxHash(txHash || result.transaction?.reference || "");
                             toast.success("Transfert SDA réussi !");
-                          } else {
-                            // Transfert externe en attente
-                            setSendStatus("pending");
-                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. En attente de confirmation.`);
-                            setSendTxHash(result.transaction?.reference || "");
                           }
                         } else {
                           toast.error(result.error || "Erreur lors de l'envoi SDA");
@@ -1060,18 +1076,12 @@ export default function AssetDetailPage() {
                           toast.success(`Transfert ${assetId} réussi !`);
                         } else {
                           // Envoi vers adresse externe
-                          const txHash = result.transaction?.blockchainTx;
-                          if (txHash) {
-                            setSendStatus("success");
-                            setSendMessage(`${sendAmount} ${assetId} envoyés avec succès`);
-                            setSendTxHash(txHash);
-                            toast.success(`Transfert ${assetId} réussi !`);
-                          } else {
-                            setSendStatus("pending");
-                            setSendMessage(`Envoi en cours vers ${sendAddress.substring(0, 8)}...${sendAddress.substring(sendAddress.length - 4)}. Transaction en attente de confirmation blockchain.`);
-                            setSendTxHash(result.transaction?.reference || "");
-                            toast.info("Vous recevrez une notification une fois la transaction confirmée sur la blockchain", { duration: 5000 });
-                          }
+                          const txHash = result.blockchainTx || result.transaction?.blockchainTx;
+                          // Toujours marquer comme SUCCESS si l'API confirme le succès
+                          setSendStatus("success");
+                          setSendMessage(`${sendAmount} ${assetId} envoyés avec succès`);
+                          setSendTxHash(txHash || result.transaction?.reference || "");
+                          toast.success(`Transfert ${assetId} réussi !`);
                         }
                       } else { 
                         toast.error(result.error || "Erreur lors de l'envoi"); 

@@ -15,6 +15,8 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
   SIDRA: "https://node.sidrachain.com",
+  BNB: "https://bsc-dataseed1.binance.org",
+  ETH: "https://cloudflare-eth.com",
 };
 
 function getWalletType(currency: string): WalletType {
@@ -273,6 +275,40 @@ export async function POST(req: NextRequest) {
         } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
       }
 
+      // Broadcast BNB / ETH direct via la clé privée EVM de l'expéditeur
+      if (["BNB", "ETH"].includes(currency) && senderUser?.sidraPrivateKey) {
+        try {
+          let privateKey = senderUser.sidraPrivateKey;
+          if (privateKey.includes(':')) {
+            try {
+              const decrypted = decrypt(privateKey);
+              if (decrypted && decrypted.length > 0) privateKey = decrypted;
+            } catch (decryptError: any) {
+              throw new Error(`Clé ${currency} invalide ou corrompue: ${decryptError.message}`);
+            }
+          }
+          if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+            throw new Error(`Format de clé ${currency}/EVM invalide`);
+          }
+
+          const rpcUrl = RPC_URLS[currency];
+          if (!rpcUrl) throw new Error(`Pas de RPC configuré pour ${currency}`);
+
+          const provider = new ethers.JsonRpcProvider(rpcUrl);
+          const wallet = new ethers.Wallet(privateKey, provider);
+          const txRes = await wallet.sendTransaction({
+            to: recipientInput,
+            value: ethers.parseEther(amount.toString()),
+          });
+          const receipt = await txRes.wait();
+          blockchainTxHash = receipt?.hash || txRes.hash;
+          txStatus = TransactionStatus.SUCCESS;
+        } catch (e: any) {
+          throw new Error(`Erreur blockchain ${currency}: ${e.message}`);
+        }
+      }
+
       // Pour les transferts Pi externes vers une adresse Stellar:
       // Les retraits Pi sont traités automatiquement par le worker /api/worker/process
       // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
@@ -303,7 +339,7 @@ export async function POST(req: NextRequest) {
           amount, fee, netAmount: amount, currency,
           type: TransactionType.WITHDRAW,
           status: txStatus,
-          statusClass: "QUEUED", // Pour le worker de traitement blockchain
+          statusClass: blockchainTxHash ? undefined : "QUEUED", // QUEUED uniquement si pas encore broadcast
           blockchainTx: blockchainTxHash,
           fromUserId: senderId,
           fromWalletId: updatedSender.id,
@@ -328,7 +364,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return { type: "EXTERNAL" as const, transaction };
+      return { type: "EXTERNAL" as const, transaction, blockchainTx: blockchainTxHash };
     }, { maxWait: 5000, timeout: 20000 });
 
     // Si c'est un retrait externe Pi, declencher le worker automatiquement
@@ -366,7 +402,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction });
+    return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction, blockchainTx: (result as any).blockchainTx || result.transaction.blockchainTx || null });
   } catch (error: any) {
     console.error("[v0] [USER_TRANSFER] ERREUR:", error.message);
     return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });

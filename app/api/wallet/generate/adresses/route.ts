@@ -25,16 +25,48 @@ function generateEvmWallet() {
   };
 }
 
-/** Tron TRC-20 (USDT) — clé 32 bytes hex */
+/**
+ * Tron TRC-20 (USDT) — génération d'adresse via encodage Base58Check officiel.
+ * Algorithme: Base58Check( 0x41 + KECCAK256(pubKey)[12:] )
+ * Utilise ethers.js (déjà présent) pour la dérivation de clé secp256k1.
+ */
 function generateTronWallet() {
-  const privKey = crypto.randomBytes(32).toString("hex");
-  // Adresse Tron : T + 33 chars hex (format simplifié — utiliser tronweb en prod pour l'adresse exacte)
-  const rawAddr = crypto
-    .createHash("sha256")
-    .update(Buffer.from(privKey, "hex"))
-    .digest("hex");
-  const address = `T${rawAddr.substring(0, 33)}`;
-  return { address, privateKey: privKey };
+  // 1. Clé privée aléatoire (même courbe secp256k1 que Tron)
+  const evmWallet = EthersWallet.createRandom();
+  const privKey = evmWallet.privateKey.replace(0x, ); // 64 hex chars
+
+  // 2. Adresse Ethereum = KECCAK256(pubKey non-compressée)[12:]
+  const ethAddress = evmWallet.address; // 0x + 40 hex chars
+
+  // 3. Préfixe réseau Tron = 0x41 + 20 octets adresse ETH
+  const addressBytes = Buffer.concat([
+    Buffer.from(41, hex),
+    Buffer.from(ethAddress.replace(0x, ), hex),
+  ]); // 21 octets
+
+  // 4. Checksum = double SHA256, 4 premiers octets
+  const hash1 = crypto.createHash(sha256).update(addressBytes).digest();
+  const hash2 = crypto.createHash(sha256).update(hash1).digest();
+  const checksum = hash2.slice(0, 4);
+
+  // 5. Payload final = 21 + 4 octets
+  const fullPayload = Buffer.concat([addressBytes, checksum]);
+
+  // 6. Encodage Base58 (alphabet Tron = Bitcoin sans 0, O, I, l)
+  const BASE58 = 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz;
+  let num = BigInt(0x + fullPayload.toString(hex));
+  let encoded = ;
+  while (num > 0n) {
+    encoded = BASE58[Number(num % 58n)] + encoded;
+    num = num / 58n;
+  }
+  // Gérer les octets nuls en tête (robustesse)
+  for (const byte of fullPayload) {
+    if (byte !== 0) break;
+    encoded = 1 + encoded;
+  }
+
+  return { address: encoded, privateKey: privKey };
 }
 
 /** Stellar / XLM */
