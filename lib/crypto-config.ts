@@ -165,7 +165,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     logo: "/usdt.png",
     category: "STABLE",
     addressField: "usdtAddress",
-    decimals: 4,
+    decimals: 6, // USDT TRC20 uses 6 decimals
     explorerBase: "https://tronscan.org/#/transaction/",
     accentColor: "text-emerald-400",
     defaultPrice: 1.00,

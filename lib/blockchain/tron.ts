@@ -82,22 +82,56 @@ export async function getTrxBalance(tronAddress: string): Promise<number> {
  * TronGrid /v1/accounts/{addr} retourne data:[] pour ces adresses → solde 0
  * même si des USDT y ont été reçus via transfert TRC20.
  *
- * SOLUTION — 3 stratégies en cascade :
- *  1. TronScan transfers API  → fonctionne MÊME sur adresses inactivées (lit les tx du contrat)
- *  2. TronGrid /tokens/trc20  → fonctionne si le compte est activé
- *  3. TronGrid /accounts      → fallback final pour comptes activés
+ * SOLUTION — 4 stratégies en cascade :
+ *  1. TronScan account info API → fonctionne pour les tokens TRC20
+ *  2. TronScan transfers API  → calcul à partir des transferts (IN - OUT)
+ *  3. TronGrid /tokens/trc20  → fonctionne si le compte est activé
+ *  4. TronGrid /accounts      → fallback final pour comptes activés
  */
 export async function getUsdtBalance(tronAddress: string): Promise<number> {
   const headers = getTronGridHeaders();
 
-  // Stratégie 1 : TronScan transfers — FONCTIONNE SUR ADRESSES INACTIVÉES
+  // Stratégie 1 : TronScan account info — FONCTIONNE POUR LES TOKENS TRC20
   try {
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 10000);
 
+    const res = await fetch(
+      `https://apilist.tronscanapi.com/api/account?address=${tronAddress}`,
+      { signal: controller.signal, headers: { Accept: "application/json" } }
+    );
+    clearTimeout(tid);
+
+    if (res.ok) {
+      const data = await res.json();
+      // Chercher dans les tokens TRC20 (withPriceTokens ou trc20token_balances)
+      const trc20Tokens = data?.withPriceTokens || data?.trc20token_balances || [];
+      
+      for (const token of trc20Tokens) {
+        const contractAddr = token?.tokenId || token?.contract_address || token?.tokenContractAddress || "";
+        if (contractAddr === USDT_TRC20_CONTRACT) {
+          // Le solde peut être dans différents champs selon la version de l'API
+          const rawBalance = token?.balance || token?.amount || "0";
+          const tokenDecimals = token?.tokenDecimal || token?.decimals || 6;
+          const balance = Number(rawBalance) / Math.pow(10, tokenDecimals);
+          console.log(`[TRON] TronScan account USDT balance for ${tronAddress.substring(0, 8)}...: ${balance} USDT`);
+          return balance;
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn("[TRON] TronScan account info failed:", e.message);
+  }
+
+  // Stratégie 2 : TronScan transfers — calcul à partir des transferts (IN - OUT)
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 10000);
+
+    // Récupérer TOUTES les transactions (entrantes ET sortantes)
     const url =
       `https://apilist.tronscanapi.com/api/token_trc20/transfers` +
-      `?toAddress=${tronAddress}&contract_address=${USDT_TRC20_CONTRACT}&limit=200&start=0`;
+      `?relatedAddress=${tronAddress}&contract_address=${USDT_TRC20_CONTRACT}&limit=200&start=0`;
 
     const res = await fetch(url, {
       signal: controller.signal,
@@ -108,20 +142,26 @@ export async function getUsdtBalance(tronAddress: string): Promise<number> {
     if (res.ok) {
       const data = await res.json();
       const transfers: Array<{
-        transferToAddress: string;
-        transferFromAddress: string;
-        quant: string;
+        to_address?: string;
+        from_address?: string;
+        transferToAddress?: string;
+        transferFromAddress?: string;
+        quant?: string;
+        amount?: string;
       }> = data?.token_transfers ?? data?.data ?? [];
 
       if (transfers.length > 0) {
         let netRaw = 0n;
         for (const t of transfers) {
-          const amount = BigInt(t.quant ?? "0");
-          if (t.transferToAddress === tronAddress) netRaw += amount;
-          if (t.transferFromAddress === tronAddress) netRaw -= amount;
+          const toAddr = t.to_address || t.transferToAddress || "";
+          const fromAddr = t.from_address || t.transferFromAddress || "";
+          const amount = BigInt(t.quant ?? t.amount ?? "0");
+          
+          if (toAddr === tronAddress) netRaw += amount;
+          if (fromAddr === tronAddress) netRaw -= amount;
         }
         const balance = Number(netRaw < 0n ? 0n : netRaw) / 1_000_000;
-        console.log(`[TRON] TronScan USDT balance for ${tronAddress.substring(0, 8)}...: ${balance} USDT`);
+        console.log(`[TRON] TronScan transfers USDT balance for ${tronAddress.substring(0, 8)}...: ${balance} USDT (from ${transfers.length} transfers)`);
         return balance;
       }
     }
