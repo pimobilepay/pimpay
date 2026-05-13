@@ -163,8 +163,10 @@ export default function WithdrawPage() {
     }
 
     const amount = parseFloat(cryptoAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error("Montant invalide");
+    // Minimum 0.00000001 pour les cryptos
+    const MIN_CRYPTO_AMOUNT = 0.00000001;
+    if (isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
+      toast.error(`Montant minimum: ${MIN_CRYPTO_AMOUNT}`);
       return;
     }
 
@@ -1159,11 +1161,11 @@ export default function WithdrawPage() {
                     !cryptoAddress ||
                     !cryptoAmount ||
                     isValidAddress === false ||
-                    parseFloat(cryptoAmount || "0") <= 0 ||
+                    parseFloat(cryptoAmount || "0") < 0.00000001 ||
                     parseFloat(cryptoAmount || "0") > getCryptoWalletBalance()
                   }
                   className={`w-full h-16 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                    !isSubmitting && cryptoAddress && cryptoAmount && isValidAddress !== false && parseFloat(cryptoAmount || "0") > 0 && parseFloat(cryptoAmount || "0") <= getCryptoWalletBalance()
+                    !isSubmitting && cryptoAddress && cryptoAmount && isValidAddress !== false && parseFloat(cryptoAmount || "0") >= 0.00000001 && parseFloat(cryptoAmount || "0") <= getCryptoWalletBalance()
                       ? "bg-blue-600 text-white shadow-blue-600/20"
                       : "bg-slate-800 text-slate-500 cursor-not-allowed"
                   }`}

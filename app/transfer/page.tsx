@@ -539,8 +539,10 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
       return;
     }
     const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      toast.error(t("transfer.invalidAmount"));
+    // Minimum 0.00000001 pour les cryptos
+    const MIN_CRYPTO_AMOUNT = 0.00000001;
+    if (isNaN(numericAmount) || numericAmount < MIN_CRYPTO_AMOUNT) {
+      toast.error(`Montant minimum: ${MIN_CRYPTO_AMOUNT}`);
       return;
     }
     if (numericAmount > currentWallet.balance) {
@@ -573,7 +575,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
     !amount ||
     !recipientId ||
     parseFloat(amount) > currentWallet.balance ||
-    parseFloat(amount) <= 0;
+    parseFloat(amount) < 0.00000001;
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER

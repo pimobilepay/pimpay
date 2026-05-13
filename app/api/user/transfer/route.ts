@@ -90,9 +90,11 @@ export async function POST(req: NextRequest) {
       if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Destinataire manquant");
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
-    if (isNaN(amount) || amount <= 0) {
+    // Minimum de 0.00000001 pour les cryptos (BNB, TRX, USDT, etc.)
+    const MIN_CRYPTO_AMOUNT = 0.00000001;
+    if (isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
       if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Montant invalide", amount);
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+      return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
     }
 
     const feeConfig = await getFeeConfig();

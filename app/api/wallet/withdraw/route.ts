@@ -19,6 +19,12 @@ export async function POST(req: Request) {
 
     const { amount, currency, address, pin } = await req.json();
 
+    // Validation du montant minimum (0.00000001 pour les cryptos)
+    const MIN_CRYPTO_AMOUNT = 0.00000001;
+    if (!amount || isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
+      return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
+    }
+
     // 2. RÉCUPÉRATION CONFIGURATION & UTILISATEUR
     const [feeConfig, user] = await Promise.all([
       getFeeConfig(),

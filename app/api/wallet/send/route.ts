@@ -40,9 +40,12 @@ export async function POST(req: NextRequest) {
 
     console.log("[v0] [WALLET_SEND] Params:", { amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
 
-    if (!recipientInput || isNaN(amount) || amount <= 0) {
+    // Minimum de 0.00000001 pour les cryptos
+    const MIN_CRYPTO_AMOUNT = 0.00000001;
+    
+    if (!recipientInput || isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
       console.log("[v0] [WALLET_SEND] Erreur: Donnees invalides", { recipientInput, amount });
-      return NextResponse.json({ error: "Donnees de transfert invalides" }, { status: 400 });
+      return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
     }
 
     // Validation d'adresse selon la devise

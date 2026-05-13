@@ -136,12 +136,12 @@ const data = useMemo(() => {
     !isLoading &&
     !isInsufficient &&
     !!data.recipientId &&
-    data.amount > 0 &&
+    data.amount >= 0.00000001 &&
     !!data.currency;
   const handleConfirm = async () => {
     if (!canConfirm) {
       if (!data.recipientId) toast.error("Destinataire manquant.");
-      else if (data.amount <= 0) toast.error("Montant invalide.");
+      else if (data.amount < 0.00000001) toast.error("Montant minimum: 0.00000001");
       return;
     }
     if (walletBalance !== null && walletBalance < totalRequired) {
@@ -233,7 +233,7 @@ const data = useMemo(() => {
       </div>
     );
   }
-  if (!data.recipientId || data.amount <= 0) {
+  if (!data.recipientId || data.amount < 0.00000001) {
     return (
       <div className="min-h-screen bg-[#020617] text-white p-6 flex items-center justify-center">
         <div className="max-w-md w-full bg-slate-900/40 border border-white/10 rounded-3xl p-6">
