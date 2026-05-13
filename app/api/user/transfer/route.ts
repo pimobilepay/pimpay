@@ -329,8 +329,8 @@ export async function POST(req: NextRequest) {
             const feeData = await provider.getFeeData();
             gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
           } catch {
-            // Valeurs BSC par défaut si estimation échoue
-            gasLimit = 21000n;
+            // Valeurs BSC par defaut si estimation echoue
+            gasLimit = BigInt(21000);
             gasPrice = ethers.parseUnits("5", "gwei");
           }
 
