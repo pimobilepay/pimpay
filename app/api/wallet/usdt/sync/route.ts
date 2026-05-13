@@ -25,7 +25,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { nanoid } from "nanoid";
-import { getUsdtBalance, USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
+import { getUsdtBalance, getUsdtIncomingTransactions, USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
 
 export async function POST(req: Request) {
   try {
@@ -175,7 +175,57 @@ export async function POST(req: Request) {
       { timeout: 30_000, maxWait: 10_000 }
     );
 
-    // ── 5. Réponse ────────────────────────────────────────────────────────────
+    // ── 5. Synchroniser les transactions blockchain manquantes ────────────────
+    // Cette étape récupère les transactions entrantes de la blockchain et crée
+    // les entrées d'historique manquantes (pour les dépôts non détectés)
+    let importedTxCount = 0;
+    try {
+      const blockchainTxs = await getUsdtIncomingTransactions(user.usdtAddress, 20);
+      
+      for (const bcTx of blockchainTxs) {
+        // Vérifier si cette transaction existe déjà dans la DB
+        const existingTx = await prisma.transaction.findFirst({
+          where: {
+            OR: [
+              { blockchainTx: bcTx.hash },
+              { externalId: bcTx.hash },
+            ],
+          },
+        });
+        
+        if (!existingTx && bcTx.amount > 0) {
+          // Créer l'entrée manquante
+          const reference = `USDT-BC-${nanoid(8).toUpperCase()}`;
+          await prisma.transaction.create({
+            data: {
+              reference,
+              externalId: bcTx.hash,
+              blockchainTx: bcTx.hash,
+              amount: bcTx.amount,
+              currency: "USDT",
+              type: TransactionType.DEPOSIT,
+              status: TransactionStatus.SUCCESS,
+              description: `Dépôt USDT TRC20 (import blockchain)`,
+              toUserId: userId,
+              createdAt: new Date(bcTx.timestamp),
+              metadata: {
+                importedFromBlockchain: true,
+                fromAddress: bcTx.from,
+                toAddress: bcTx.to,
+                network: "TRC20 (TRON)",
+                contractAddress: USDT_TRC20_CONTRACT,
+              } as Prisma.JsonObject,
+            },
+          });
+          importedTxCount++;
+          console.log(`[USDT_SYNC] Imported blockchain tx: ${bcTx.hash} (${bcTx.amount} USDT)`);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[USDT_SYNC] Failed to import blockchain transactions:", err.message);
+    }
+
+    // ── 6. Réponse ────────────────────────────────────────────────────────────
     if (!result.updated && result.reason === "THROTTLED") {
       return NextResponse.json(
         { error: "Veuillez patienter 30s avant une nouvelle synchronisation" },
@@ -187,7 +237,10 @@ export async function POST(req: Request) {
       success: true,
       total: result.total,
       added: result.updated ? result.added : 0,
-      message: result.updated ? "Synchronisation USDT réussie" : "Solde déjà à jour",
+      importedTxCount,
+      message: result.updated 
+        ? `Synchronisation USDT réussie${importedTxCount > 0 ? ` (+${importedTxCount} transactions importées)` : ""}`
+        : "Solde déjà à jour",
     });
   } catch (err: any) {
     console.error("[USDT_SYNC_FATAL]:", err);
