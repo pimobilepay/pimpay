@@ -12,6 +12,7 @@ import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@noble/secp256k1';
 import bs58 from "bs58";
+import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
 
 
 
@@ -383,85 +384,29 @@ export async function GET() {
       }
     }
 
-    // --- Fetch real USDT (TRC20) balance — fonctionne sur adresses INACTIVÉES ---
-    // Les adresses TRON sans TRX sont "inactivées" et TronGrid /v1/accounts retourne
-    // data:[] → on utilise TronScan transfers en priorité, qui lit le contrat directement.
+    // --- Fetch real USDT (TRC20) balance via centralized TRON lib with TRONGRID_API_KEY ---
     const freshUsdtAddress = user.usdtAddress || "";
     const TRON_VALID = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
     if (freshUsdtAddress && TRON_VALID.test(freshUsdtAddress)) {
       try {
-        const USDT_CONTRACT_ADDR = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
-        let usdtBalance = 0;
-        let resolved = false;
-
-        // Stratégie 1 : TronScan transfers (adresses inactivées incluses)
-        try {
-          const ctrl = new AbortController();
-          const tid = setTimeout(() => ctrl.abort(), 8000);
-          const scanRes = await fetch(
-            `https://apilist.tronscanapi.com/api/token_trc20/transfers` +
-            `?toAddress=${freshUsdtAddress}&contract_address=${USDT_CONTRACT_ADDR}&limit=200&start=0`,
-            { signal: ctrl.signal, headers: { Accept: "application/json" } }
-          );
-          clearTimeout(tid);
-
-          if (scanRes.ok) {
-            const scanData = await scanRes.json();
-            const transfers: Array<{
-              transferToAddress: string;
-              transferFromAddress: string;
-              quant: string;
-            }> = scanData?.token_transfers ?? scanData?.data ?? [];
-
-            if (transfers.length > 0) {
-              let netRaw = 0n;
-              for (const t of transfers) {
-                const amount = BigInt(t.quant ?? "0");
-                if (t.transferToAddress === freshUsdtAddress) netRaw += amount;
-                if (t.transferFromAddress === freshUsdtAddress) netRaw -= amount;
-              }
-              usdtBalance = Number(netRaw < 0n ? 0n : netRaw) / 1_000_000;
-              resolved = true;
-            }
-          }
-        } catch { /* continuer */ }
-
-        // Stratégie 2 : TronGrid /tokens/trc20 (si TronScan n'a rien retourné)
-        if (!resolved) {
-          const tronHeaders: Record<string, string> = { Accept: "application/json" };
-          if (process.env.TRONGRID_API_KEY) {
-            tronHeaders["TRON-PRO-API-KEY"] = process.env.TRONGRID_API_KEY;
-          }
-          try {
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 6000);
-            const tronRes = await fetch(
-              `https://api.trongrid.io/v1/accounts/${freshUsdtAddress}/tokens/trc20`,
-              { signal: ctrl.signal, headers: tronHeaders }
-            );
-            clearTimeout(tid);
-            if (tronRes.ok) {
-              const tronData = await tronRes.json();
-              if (Array.isArray(tronData?.data) && tronData.data.length > 0) {
-                for (const token of tronData.data) {
-                  const cAddr: string = token?.tokenId ?? token?.token_id ?? "";
-                  if (cAddr.toLowerCase() === USDT_CONTRACT_ADDR.toLowerCase()) {
-                    usdtBalance = Number(token.balance ?? token.amount ?? "0") / 1_000_000;
-                    resolved = true;
-                    break;
-                  }
-                }
-                if (!resolved) { usdtBalance = 0; resolved = true; }
-              }
-            }
-          } catch { /* silencieux */ }
-        }
+        // Fetch USDT balance using centralized function
+        const usdtBalance = await getUsdtBalance(freshUsdtAddress);
 
         // Sync USDT balance to DB
         await prisma.wallet.upsert({
           where: { userId_currency: { userId, currency: "USDT" } },
           update: { balance: usdtBalance },
           create: { userId, currency: "USDT", balance: usdtBalance, type: "CRYPTO" }
+        }).catch(() => null);
+
+        // Also fetch TRX balance using centralized function
+        const trxBalance = await getTrxBalance(freshUsdtAddress);
+
+        // Sync TRX balance to DB
+        await prisma.wallet.upsert({
+          where: { userId_currency: { userId, currency: "TRX" } },
+          update: { balance: trxBalance },
+          create: { userId, currency: "TRX", balance: trxBalance, type: "CRYPTO" }
         }).catch(() => null);
 
       } catch {

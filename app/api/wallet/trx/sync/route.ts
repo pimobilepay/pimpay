@@ -2,17 +2,15 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * POST /api/wallet/usdt/sync
+ * POST /api/wallet/trx/sync
  *
- * Synchronise le solde USDT (TRC20) de l'utilisateur connecté avec le
+ * Synchronise le solde TRX natif de l'utilisateur connecté avec le
  * solde réel sur la blockchain TRON (TronGrid API).
  *
  * - Si la balance on-chain > balance DB  → on crédite la différence
  *   et on crée une transaction DEPOSIT dans l'historique.
  * - Si la balance on-chain <= balance DB → rien (solde déjà à jour).
  * - Anti-spam : 1 sync toutes les 30 secondes maximum.
- * 
- * Utilise la librairie centralisée lib/blockchain/tron.ts avec TRONGRID_API_KEY
  */
 
 import { NextResponse } from "next/server";
@@ -25,7 +23,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { nanoid } from "nanoid";
-import { getUsdtBalance, USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
+import { getTrxBalance } from "@/lib/blockchain/tron";
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +33,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
-    // ── 2. Récupérer l'adresse USDT de l'utilisateur ─────────────────────────
+    // ── 2. Récupérer l'adresse TRON de l'utilisateur ─────────────────────────
+    // TRX utilise la même adresse que USDT (usdtAddress)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { usdtAddress: true },
@@ -43,24 +42,24 @@ export async function POST(req: Request) {
 
     if (!user?.usdtAddress) {
       const existing = await prisma.wallet.findUnique({
-        where: { userId_currency: { userId, currency: "USDT" } },
+        where: { userId_currency: { userId, currency: "TRX" } },
       });
       return NextResponse.json({
         success: true,
         total: existing?.balance ?? 0,
         added: 0,
-        message: "Aucune adresse USDT configurée",
+        message: "Aucune adresse TRON configurée",
       });
     }
 
-    // ── 3. Fetch du solde on-chain via la librairie centralisée ───────────────
+    // ── 3. Fetch du solde on-chain ────────────────────────────────────────────
     let blockchainBalance: number;
     try {
-      blockchainBalance = await getUsdtBalance(user.usdtAddress);
+      blockchainBalance = await getTrxBalance(user.usdtAddress);
     } catch (err: any) {
-      console.error("[USDT_SYNC] Erreur fetch blockchain:", err.message);
+      console.error("[TRX_SYNC] Erreur fetch blockchain:", err.message);
       const existing = await prisma.wallet.findUnique({
-        where: { userId_currency: { userId, currency: "USDT" } },
+        where: { userId_currency: { userId, currency: "TRX" } },
       });
       return NextResponse.json({
         success: true,
@@ -74,11 +73,11 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(
       async (tx) => {
         const wallet = await tx.wallet.upsert({
-          where: { userId_currency: { userId, currency: "USDT" } },
+          where: { userId_currency: { userId, currency: "TRX" } },
           update: { type: WalletType.CRYPTO },
           create: {
             userId,
-            currency: "USDT",
+            currency: "TRX",
             balance: 0,
             type: WalletType.CRYPTO,
           },
@@ -89,7 +88,7 @@ export async function POST(req: Request) {
           (blockchainBalance - currentBalance).toFixed(6)
         );
 
-        // Déjà synchronisé (seuil 0.000001 USDT)
+        // Déjà synchronisé (seuil 0.000001 TRX)
         if (Math.abs(diff) < 0.000001) {
           return { updated: false, total: currentBalance, reason: "ALREADY_SYNC" };
         }
@@ -98,11 +97,11 @@ export async function POST(req: Request) {
         const lastSync = await tx.transaction.findFirst({
           where: {
             toUserId: userId,
-            currency: "USDT",
+            currency: "TRX",
             type: TransactionType.DEPOSIT,
             OR: [
-              { description: { contains: "TRC20" } },
-              { description: { contains: "USDT" } },
+              { description: { contains: "Dépôt TRX" } },
+              { description: { contains: "Depot TRX" } },
               { description: { contains: "Synchronisation" } },
             ],
             createdAt: { gte: new Date(Date.now() - 30_000) },
@@ -119,7 +118,7 @@ export async function POST(req: Request) {
           data: { balance: blockchainBalance },
         });
 
-        const reference = `USDT-DEP-${nanoid(10).toUpperCase()}`;
+        const reference = `TRX-DEP-${nanoid(10).toUpperCase()}`;
 
         // Créer une transaction DEPOSIT si le solde a augmenté
         if (diff > 0) {
@@ -127,10 +126,10 @@ export async function POST(req: Request) {
             data: {
               reference,
               amount: diff,
-              currency: "USDT",
+              currency: "TRX",
               type: TransactionType.DEPOSIT,
               status: TransactionStatus.SUCCESS,
-              description: `Dépôt USDT TRC20 (+${diff.toFixed(6)} USDT)`,
+              description: `Dépôt TRX (+${diff.toFixed(6)} TRX)`,
               toUserId: userId,
               toWalletId: updated.id,
               metadata: {
@@ -138,8 +137,7 @@ export async function POST(req: Request) {
                 previousBalance: currentBalance,
                 syncType: "AUTOMATIC_BLOCKCHAIN",
                 source: "TRON_MAINNET",
-                network: "TRC20 (TRON)",
-                contractAddress: USDT_TRC20_CONTRACT,
+                network: "TRON",
               } as Prisma.JsonObject,
             },
           });
@@ -148,14 +146,14 @@ export async function POST(req: Request) {
           await tx.notification.create({
             data: {
               userId,
-              title: "Dépôt USDT reçu !",
-              message: `Vous avez reçu ${diff.toFixed(6)} USDT (TRC20) sur votre wallet PimPay.`,
+              title: "Dépôt TRX reçu !",
+              message: `Vous avez reçu ${diff.toFixed(6)} TRX sur votre wallet PimPay.`,
               type: "SUCCESS",
               read: false,
               metadata: JSON.stringify({
                 amount: diff,
-                currency: "USDT",
-                network: "TRC20 (TRON)",
+                currency: "TRX",
+                network: "TRON",
                 reference,
                 status: "SUCCESS",
                 previousBalance: currentBalance,
@@ -187,12 +185,12 @@ export async function POST(req: Request) {
       success: true,
       total: result.total,
       added: result.updated ? result.added : 0,
-      message: result.updated ? "Synchronisation USDT réussie" : "Solde déjà à jour",
+      message: result.updated ? "Synchronisation TRX réussie" : "Solde déjà à jour",
     });
   } catch (err: any) {
-    console.error("[USDT_SYNC_FATAL]:", err);
+    console.error("[TRX_SYNC_FATAL]:", err);
     return NextResponse.json(
-      { error: "Erreur lors de la synchronisation USDT" },
+      { error: "Erreur lors de la synchronisation TRX" },
       { status: 500 }
     );
   }
