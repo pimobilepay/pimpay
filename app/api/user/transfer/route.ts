@@ -12,11 +12,19 @@ import { decrypt } from "@/lib/crypto";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
+// Import TronWeb pour les transferts USDT TRC20
+const TronWebModule = require('tronweb');
+const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
+
+// Contrat USDT sur TRON (TRC20)
+const USDT_CONTRACT_ADDRESS = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
   SIDRA: "https://node.sidrachain.com",
   BNB: "https://bsc-dataseed1.binance.org",
   ETH: "https://cloudflare-eth.com",
+  TRON: "https://api.trongrid.io",
 };
 
 function getWalletType(currency: string): WalletType {
@@ -61,19 +69,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Debut du traitement...");
+    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Debut du traitement...");
     
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value ?? cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Pas de token");
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Pas de token");
       return NextResponse.json({ error: "Session expiree" }, { status: 401 });
     }
 
     const payload = await verifyJWT(token);
     if (!payload) {
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Token invalide");
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Token invalide");
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
     const senderId = payload.id;
@@ -84,16 +92,16 @@ export async function POST(req: NextRequest) {
     const recipientInput = (body.recipientIdentifier || body.recipient || body.address || body.email || "").trim();
     const description = body.description || "";
 
-    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
+    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
 
     if (!recipientInput) {
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Destinataire manquant");
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Destinataire manquant");
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
     // Minimum de 0.00000001 pour les cryptos (BNB, TRX, USDT, etc.)
     const MIN_CRYPTO_AMOUNT = 0.00000001;
     if (isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur: Montant invalide", amount);
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Montant invalide", amount);
       return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
     }
 
@@ -137,7 +145,9 @@ export async function POST(req: NextRequest) {
             username: true, 
             sidraPrivateKey: true, 
             stellarPrivateKey: true,
-            piUserId: true // Pour le flux A2U Pi Network
+            piUserId: true, // Pour le flux A2U Pi Network
+            usdtPrivateKey: true, // Pour les transferts USDT TRC20
+            usdtAddress: true
         }
       });
 
@@ -151,7 +161,7 @@ export async function POST(req: NextRequest) {
       if (senderWallet.balance < totalDebit) throw new Error(`Solde insuffisant.`);
 
       let cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Recherche destinataire:", cleanInput);
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Recherche destinataire:", cleanInput);
       
       // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
       let recipientUser = null;
@@ -176,13 +186,14 @@ export async function POST(req: NextRequest) {
               { walletAddress: cleanInput },
               { xlmAddress: cleanInput },
               { piUserId: cleanInput },
+              { usdtAddress: cleanInput }, // Recherche par adresse USDT TRC20
               { id: cleanInput }, // Recherche directe par ID
             ],
           },
         });
       }
       
-      if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
+      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 
       // Verification d'auto-envoi AVANT le debit - doit etre faite ici
       if (recipientUser && recipientUser.id === senderId) {
@@ -200,7 +211,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (recipientUser) {
-        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
+        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
         
         const toWallet = await tx.wallet.upsert({
           where: { userId_currency: { userId: recipientUser.id, currency } },
@@ -208,7 +219,7 @@ export async function POST(req: NextRequest) {
           create: { userId: recipientUser.id, currency, balance: amount, type: getWalletType(currency) },
         });
         
-        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
+        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
 
         const transaction = await tx.transaction.create({
           data: {
@@ -224,7 +235,7 @@ export async function POST(req: NextRequest) {
           },
         });
         
-        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transaction creee:", transaction.reference);
+        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transaction creee:", transaction.reference);
 
         await tx.notification.create({
           data: {
@@ -234,10 +245,10 @@ export async function POST(req: NextRequest) {
             type: "PAYMENT_RECEIVED",
             metadata: { amount, currency, senderName, reference: transaction.reference },
           },
-        }).catch((e) => { if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Erreur notification:", e.message); });
+        }).catch((e) => { if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur notification:", e.message); });
 
-        if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] Transfert INTERNE REUSSI");
-        return { type: "INTERNAL" as const, transaction };
+        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transfert INTERNE REUSSI");
+        return { type: "INTERNAL" as const, transaction, newBalance: updatedSender.balance };
       }
 
       // Transfert EXTERNE (blockchain) - recipientUser est null a ce point
@@ -256,7 +267,7 @@ export async function POST(req: NextRequest) {
                 privateKey = decrypted;
               }
             } catch (decryptError: any) {
-              console.error("[v0] Decryption error for SDA key:", decryptError.message);
+              console.error("[TRANSFER] Decryption error for SDA key:", decryptError.message);
               throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
             }
           }
@@ -353,6 +364,79 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Broadcast USDT TRC20 via TronWeb
+      if (currency === "USDT" && senderUser?.usdtPrivateKey) {
+        try {
+          let privateKey = senderUser.usdtPrivateKey;
+          
+          // Decryption securisee
+          if (privateKey.includes(':')) {
+            try {
+              const decrypted = decrypt(privateKey);
+              if (decrypted && decrypted.length > 0) {
+                privateKey = decrypted;
+              }
+            } catch (decryptError: any) {
+              console.error("[TRANSFER] Decryption error for USDT key:", decryptError.message);
+              throw new Error(`Cle USDT invalide ou corrompue: ${decryptError.message}`);
+            }
+          }
+
+          // Initialiser TronWeb avec la cle privee
+          const tronWeb = new TronWeb({
+            fullHost: RPC_URLS.TRON,
+            privateKey: privateKey
+          });
+
+          // Verifier le solde TRX pour les frais de gas
+          const trxBalance = await tronWeb.trx.getBalance(senderUser.usdtAddress);
+          const trxBalanceInTrx = trxBalance / 1_000_000; // Convertir de SUN en TRX
+          
+          if (trxBalanceInTrx < 10) {
+            throw new Error(
+              `Solde TRX insuffisant pour les frais de reseau. ` +
+              `Disponible: ${trxBalanceInTrx.toFixed(2)} TRX. ` +
+              `Minimum requis: ~10 TRX pour les frais de transfert USDT. ` +
+              `Veuillez deposer du TRX sur votre adresse ${senderUser.usdtAddress?.substring(0, 10)}...`
+            );
+          }
+
+          // Obtenir le contrat USDT TRC20
+          const contract = await tronWeb.contract().at(USDT_CONTRACT_ADDRESS);
+          
+          // USDT a 6 decimales sur TRON
+          const amountInSun = Math.floor(amount * 1_000_000);
+          
+          // Verifier le solde USDT on-chain
+          const usdtBalance = await contract.balanceOf(senderUser.usdtAddress).call();
+          const usdtBalanceNum = Number(usdtBalance) / 1_000_000;
+          
+          if (usdtBalanceNum < amount) {
+            throw new Error(
+              `Solde USDT on-chain insuffisant. ` +
+              `Disponible: ${usdtBalanceNum.toFixed(2)} USDT, ` +
+              `Requis: ${amount} USDT. ` +
+              `Veuillez deposer de l'USDT sur votre adresse avant d'effectuer un retrait.`
+            );
+          }
+
+          // Executer le transfert TRC20
+          console.log("[TRANSFER] Broadcasting USDT TRC20 transaction...");
+          const txResult = await contract.transfer(recipientInput, amountInSun).send({
+            feeLimit: 100_000_000, // 100 TRX max fee
+            callValue: 0
+          });
+          
+          blockchainTxHash = txResult;
+          txStatus = TransactionStatus.SUCCESS;
+          console.log("[TRANSFER] USDT TRC20 transaction confirmed:", blockchainTxHash);
+          
+        } catch (e: any) {
+          console.error("[TRANSFER] USDT TRC20 blockchain error:", e.message);
+          throw new Error(`Erreur blockchain USDT: ${e.message}`);
+        }
+      }
+
       // Pour les transferts Pi externes vers une adresse Stellar:
       // Les retraits Pi sont traités automatiquement par le worker /api/worker/process
       // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
@@ -399,16 +483,24 @@ export async function POST(req: NextRequest) {
             // Pour le flux A2U officiel Pi Network
             ...(senderUser?.piUserId && { piUid: senderUser.piUserId }),
             senderUsername: senderUser?.username
+          } : currency === "USDT" ? {
+            externalAddress: recipientInput,
+            toAddress: recipientInput,
+            network: "TRON TRC20",
+            isBlockchainWithdraw: true,
+            requestedAt: new Date().toISOString(),
+            ...(blockchainTxHash && { confirmedAt: new Date().toISOString() })
           } : {
             externalAddress: recipientInput,
             network: currency,
             isBlockchainWithdraw: true,
-            requestedAt: new Date().toISOString()
+            requestedAt: new Date().toISOString(),
+            ...(blockchainTxHash && { confirmedAt: new Date().toISOString() })
           },
         },
       });
 
-      return { type: "EXTERNAL" as const, transaction, blockchainTx: blockchainTxHash };
+      return { type: "EXTERNAL" as const, transaction, blockchainTx: blockchainTxHash, newBalance: updatedSender.balance };
     }, { maxWait: 5000, timeout: 20000 });
 
     // Si c'est un retrait externe Pi, declencher le worker automatiquement
@@ -432,7 +524,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (process.env.NODE_ENV !== "production") console.log("[v0] [USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
+    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
     if (result.transaction.fee && result.transaction.fee > 0) {
@@ -446,9 +538,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, mode: result.type, transaction: result.transaction, blockchainTx: (result as any).blockchainTx || result.transaction.blockchainTx || null });
+    return NextResponse.json({ 
+      success: true, 
+      mode: result.type, 
+      transaction: result.transaction, 
+      blockchainTx: (result as any).blockchainTx || result.transaction.blockchainTx || null,
+      newBalance: result.newBalance
+    });
   } catch (error: any) {
-    console.error("[v0] [USER_TRANSFER] ERREUR:", error.message);
+    console.error("[USER_TRANSFER] ERREUR:", error.message);
     return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });
   }
 }

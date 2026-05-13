@@ -83,7 +83,10 @@ function SuccessContent() {
   const recipientAvatar = (recipientName || "U")[0].toUpperCase();
 
   const fee = transaction?.fee ?? (currency === "PI" ? "0.01 PI" : "0.00");
-  const network = currency === "PI" ? "Pi Network" : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" : "PimPay";
+  const network = currency === "PI" ? "Pi Network" 
+    : currency === "USDT" ? "TRON TRC20"
+    : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" 
+    : "PimPay";
 
   // Crypto currencies that display 8 decimal places
   const CRYPTO_CURRENCIES = ["PI", "BTC", "ETH", "USDT", "USDC", "BNB", "SOL", "XRP"];

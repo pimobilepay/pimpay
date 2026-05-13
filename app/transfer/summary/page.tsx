@@ -205,7 +205,13 @@ const data = useMemo(() => {
       const result = await response.json().catch(() => ({}));
       if (response.ok && result.success) {
         const isExt = result.mode === "EXTERNAL";
-        toast.success(isExt ? "Retrait externe enregistré !" : "Transfert réussi !");
+        toast.success(isExt ? "Retrait externe enregistre !" : "Transfert reussi !");
+        
+        // Mettre a jour le solde local immediatement
+        if (typeof result.newBalance === 'number') {
+          setWalletBalance(result.newBalance);
+        }
+        
         const ref = result?.transaction?.reference;
         const qs = new URLSearchParams({
           amount: String(data.amount),
@@ -214,6 +220,7 @@ const data = useMemo(() => {
         });
         if (ref) qs.set("ref", ref);
         if (isExt) qs.set("mode", "external");
+        if (typeof result.newBalance === 'number') qs.set("newBalance", String(result.newBalance));
         router.push(`/transfer/success?${qs.toString()}`);
       } else {
         const msg = result?.error || "Transaction refusée";
