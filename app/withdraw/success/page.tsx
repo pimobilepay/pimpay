@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import {
   CheckCircle2, ArrowRight, Receipt, Wallet, Loader2,
   Share2, Copy, Smartphone, Building2, ShieldCheck,
-  Clock, Activity, Coins, TrendingUp, Banknote, Shield, User
+  Clock, Activity, Coins, TrendingUp, Banknote, Shield, User, ExternalLink
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -29,9 +29,37 @@ function SuccessContent() {
   const accountName = searchParams.get("accountName") || "";
   const accountNumber = searchParams.get("accountNumber") || "";
   const cryptoAddress = searchParams.get("cryptoAddress") || "";
+  const txHash      = searchParams.get("txHash") || "";
 
   const isMobile = method === "mobile";
   const isCrypto = method === "crypto";
+
+  // Get blockchain explorer URL based on currency
+  const getExplorerUrl = (curr: string, hash: string): string | null => {
+    if (!hash || hash.startsWith("PIM-")) return null;
+    const explorers: Record<string, string> = {
+      BNB: "https://bscscan.com/tx/",
+      ETH: "https://etherscan.io/tx/",
+      BTC: "https://www.blockchain.com/btc/tx/",
+      SDA: "https://ledger.sidrachain.com/tx/",
+      PI: "https://blockexplorer.minepi.com/tx/",
+      SOL: "https://solscan.io/tx/",
+      XRP: "https://xrpscan.com/tx/",
+      XLM: "https://stellar.expert/explorer/public/tx/",
+      TRX: "https://tronscan.org/#/transaction/",
+      USDT: "https://tronscan.org/#/transaction/",
+      USDC: "https://etherscan.io/tx/",
+      DAI: "https://bscscan.com/tx/",
+      BUSD: "https://bscscan.com/tx/",
+      ADA: "https://cardanoscan.io/transaction/",
+      DOGE: "https://dogechain.info/tx/",
+      TON: "https://tonscan.org/tx/",
+    };
+    const base = explorers[curr.toUpperCase()];
+    return base ? `${base}${hash}` : null;
+  };
+
+  const explorerUrl = txHash ? getExplorerUrl(currency, txHash) : null;
 
   const formatAmount = (val: string) => {
     const n = parseFloat(val);
@@ -71,6 +99,7 @@ function SuccessContent() {
   if (country) receiptParams.set("country", country);
   if (isCrypto) {
     if (cryptoAddress) receiptParams.set("cryptoAddress", cryptoAddress);
+    if (txHash) receiptParams.set("txHash", txHash);
   } else if (isMobile) {
     receiptParams.set("provider", provider);
     receiptParams.set("phone", phone);
@@ -272,6 +301,20 @@ function SuccessContent() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currency} Address</span>
                 <span className="text-[11px] font-mono font-bold text-slate-300 max-w-[180px] text-right break-all">{cryptoAddress}</span>
               </div>
+            )}
+            {/* Blockchain Explorer Link */}
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 px-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl hover:bg-yellow-500/20 transition-colors"
+              >
+                <ExternalLink size={14} className="text-yellow-400" />
+                <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">
+                  Voir sur {currency === "BNB" ? "BscScan" : currency === "ETH" ? "Etherscan" : currency === "SDA" ? "Sidra Ledger" : currency === "PI" ? "Pi Explorer" : "Blockchain"}
+                </span>
+              </a>
             )}
           </div>
         ) : isMobile ? (

@@ -302,7 +302,9 @@ export async function POST(req: NextRequest) {
 
           // ── Vérification du solde on-chain AVANT l'envoi ──
           const onChainBalance = await provider.getBalance(wallet.address);
-          const amountInWei = ethers.parseEther(amount.toString());
+          // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
+          const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
+          const amountInWei = ethers.parseEther(amountStr);
 
           // Estimer les gas fees
           let gasLimit: bigint;

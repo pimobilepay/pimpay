@@ -247,9 +247,11 @@ export async function POST(req: NextRequest) {
             console.log("[v0] [WALLET_SEND] Broadcasting SDA transaction to blockchain...");
             const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
             const wallet = new ethers.Wallet(privateKey, provider);
+            // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
+            const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
             const txRes = await wallet.sendTransaction({ 
               to: recipientInput, 
-              value: ethers.parseEther(amount.toString()) 
+              value: ethers.parseEther(amountStr) 
             });
             const receipt = await txRes.wait();
             blockchainTxHash = receipt?.hash || txRes.hash;

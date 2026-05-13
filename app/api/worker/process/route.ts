@@ -611,9 +611,11 @@ async function sendEVM(tx: any, dest: string, encryptedKey: string | null, rpc: 
   const wallet = new ethers.Wallet(privateKey, provider);
   
   // Envoi de la monnaie native (SDA ou BNB/ETH selon le réseau)
+  // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
+  const amountStr = Number(tx.amount).toFixed(18).replace(/\.?0+$/, '');
   const response = await wallet.sendTransaction({
     to: dest,
-    value: ethers.parseEther(tx.amount.toString())
+    value: ethers.parseEther(amountStr)
   });
   
   // Attendre la confirmation de la transaction
