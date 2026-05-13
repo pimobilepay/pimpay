@@ -28,93 +28,128 @@ import { nanoid } from "nanoid";
 const USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
 /**
- * Récupère le solde USDT TRC20 d'une adresse TRON
- * via l'API REST TronGrid (pas besoin de TronWeb).
+ * Récupère le solde USDT TRC20 d'une adresse TRON.
+ *
+ * PROBLÈME ADRESSE INACTIVÉE :
+ * Sur TRON, une adresse est "inactivée" tant qu'elle n'a jamais reçu de TRX.
+ * TronGrid /v1/accounts/{addr} retourne data:[] pour ces adresses → solde 0
+ * même si des USDT y ont été reçus via transfert TRC20.
+ *
+ * SOLUTION — 3 stratégies en cascade :
+ *  1. TronScan transfers API  → fonctionne MÊME sur adresses inactivées (lit les tx du contrat)
+ *  2. TronGrid /tokens/trc20  → fonctionne si le compte est activé
+ *  3. TronGrid /accounts      → fallback final pour comptes activés
  */
 async function fetchUsdtBalance(tronAddress: string): Promise<number> {
-  // On essaie d'abord l'API TRC20 token balance de TronGrid
-  const endpoints = [
-    `https://api.trongrid.io/v1/accounts/${tronAddress}/tokens/trc20?contract_address=${USDT_CONTRACT}`,
-    `https://api.shasta.trongrid.io/v1/accounts/${tronAddress}/tokens/trc20?contract_address=${USDT_CONTRACT}`,
-  ];
-
-  for (const url of endpoints) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          ...(process.env.TRONGRID_API_KEY
-            ? { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY }
-            : {}),
-        },
-      });
-      clearTimeout(timeout);
-
-      if (!res.ok) continue;
-
-      const data = await res.json();
-
-      // Format TronGrid v1: data est un tableau de { tokenId, balance, ... }
-      if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
-        const tokenData = data.data[0];
-        const raw = tokenData?.balance ?? tokenData?.amount ?? "0";
-        return Number(raw) / 1_000_000; // USDT a 6 décimales
-      }
-
-      // Solde 0 = pas de tokens TRC20 sur ce compte → valide
-      return 0;
-    } catch {
-      // Essayer l'endpoint suivant
-    }
+  const tronHeaders: Record<string, string> = { Accept: "application/json" };
+  if (process.env.TRONGRID_API_KEY) {
+    tronHeaders["TRON-PRO-API-KEY"] = process.env.TRONGRID_API_KEY;
   }
 
-  // Fallback : lire le compte complet et chercher USDT dans trc20
+  // ── Stratégie 1 : TronScan transfers — FONCTIONNE SUR ADRESSES INACTIVÉES ──
+  // Lit directement les transferts du contrat USDT, indépendamment de l'état du compte
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const tid = setTimeout(() => controller.abort(), 10000);
+
+    const url =
+      `https://apilist.tronscanapi.com/api/token_trc20/transfers` +
+      `?toAddress=${tronAddress}&contract_address=${USDT_CONTRACT}&limit=200&start=0`;
+
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    clearTimeout(tid);
+
+    if (res.ok) {
+      const data = await res.json();
+      const transfers: Array<{
+        transferToAddress: string;
+        transferFromAddress: string;
+        quant: string;
+      }> = data?.token_transfers ?? data?.data ?? [];
+
+      if (transfers.length > 0) {
+        // Calculer le solde net : somme des entrées − somme des sorties
+        let netRaw = 0n;
+        for (const t of transfers) {
+          const amount = BigInt(t.quant ?? "0");
+          if (t.transferToAddress === tronAddress) netRaw += amount;
+          if (t.transferFromAddress === tronAddress) netRaw -= amount;
+        }
+        const balance = Number(netRaw < 0n ? 0n : netRaw) / 1_000_000;
+        console.log(`[USDT_SYNC] TronScan balance pour ${tronAddress.substring(0, 8)}...: ${balance} USDT`);
+        return balance;
+      }
+      // Aucun transfert trouvé = solde 0 (adresse vierge)
+      // On continue quand même avec les autres stratégies au cas où TronScan est incomplet
+    }
+  } catch (e: any) {
+    console.warn("[USDT_SYNC] TronScan indisponible, essai TronGrid:", e.message);
+  }
+
+  // ── Stratégie 2 : TronGrid /tokens/trc20 (comptes activés) ──
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(
+      `https://api.trongrid.io/v1/accounts/${tronAddress}/tokens/trc20`,
+      { signal: controller.signal, headers: tronHeaders }
+    );
+    clearTimeout(tid);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.data) && data.data.length > 0) {
+        for (const token of data.data) {
+          const contractAddr: string = token?.tokenId ?? token?.token_id ?? "";
+          if (contractAddr.toLowerCase() === USDT_CONTRACT.toLowerCase()) {
+            return Number(token.balance ?? token.amount ?? "0") / 1_000_000;
+          }
+        }
+        return 0; // Tokens présents mais pas USDT
+      }
+      // data vide = adresse inactivée ou pas de tokens — on continue
+    }
+  } catch {
+    // Continuer avec le fallback
+  }
+
+  // ── Stratégie 3 : TronGrid /v1/accounts (fallback comptes activés) ──
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch(
       `https://api.trongrid.io/v1/accounts/${tronAddress}`,
-      {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          ...(process.env.TRONGRID_API_KEY
-            ? { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY }
-            : {}),
-        },
-      }
+      { signal: controller.signal, headers: tronHeaders }
     );
-    clearTimeout(timeout);
+    clearTimeout(tid);
 
-    if (!res.ok) throw new Error(`TronGrid HTTP ${res.status}`);
-
-    const data = await res.json();
-
-    // Le compte existe → chercher USDT dans la liste trc20
-    if (data?.data?.[0]?.trc20) {
-      const trc20List: Record<string, string>[] = data.data[0].trc20;
-      const usdtEntry = trc20List.find((t) =>
-        Object.keys(t).some(
-          (k) => k.toLowerCase() === USDT_CONTRACT.toLowerCase()
-        )
-      );
-      if (usdtEntry) {
-        const raw = Object.values(usdtEntry)[0] ?? "0";
-        return Number(raw) / 1_000_000;
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.data?.[0]?.trc20) {
+        const trc20List: Record<string, string>[] = data.data[0].trc20;
+        const entry = trc20List.find((t) =>
+          Object.keys(t).some(
+            (k) => k.toLowerCase() === USDT_CONTRACT.toLowerCase()
+          )
+        );
+        if (entry) {
+          return Number(Object.values(entry)[0] ?? "0") / 1_000_000;
+        }
       }
+      // Compte retourné mais sans USDT
+      if (data?.data?.length > 0) return 0;
     }
-
-    // Compte inexistant ou pas de USDT
-    return 0;
   } catch (err: any) {
-    console.error("[USDT_SYNC] Erreur TronGrid:", err.message);
-    throw new Error(`Impossible de contacter TronGrid: ${err.message}`);
+    console.error("[USDT_SYNC] Toutes les stratégies ont échoué:", err.message);
   }
+
+  // Si toutes les stratégies retournent sans résultat = solde 0 (adresse inactivée sans USDT)
+  return 0;
 }
 
 export async function POST(req: Request) {

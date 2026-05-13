@@ -383,49 +383,87 @@ export async function GET() {
       }
     }
 
-    // --- Fetch real USDT (TRC20) balance from TronGrid ---
+    // --- Fetch real USDT (TRC20) balance — fonctionne sur adresses INACTIVÉES ---
+    // Les adresses TRON sans TRX sont "inactivées" et TronGrid /v1/accounts retourne
+    // data:[] → on utilise TronScan transfers en priorité, qui lit le contrat directement.
     const freshUsdtAddress = user.usdtAddress || "";
     const TRON_VALID = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
     if (freshUsdtAddress && TRON_VALID.test(freshUsdtAddress)) {
       try {
-        const USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
-        const tronHeaders: Record<string, string> = { Accept: "application/json" };
-        if (process.env.TRONGRID_API_KEY) {
-          tronHeaders["TRON-PRO-API-KEY"] = process.env.TRONGRID_API_KEY;
-        }
+        const USDT_CONTRACT_ADDR = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        let usdtBalance = 0;
+        let resolved = false;
 
-        const tronRes = await Promise.race([
-          fetch(`https://api.trongrid.io/v1/accounts/${freshUsdtAddress}`, {
-            headers: tronHeaders,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("TronGrid Timeout")), 6000)
-          ),
-        ]) as Response;
+        // Stratégie 1 : TronScan transfers (adresses inactivées incluses)
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 8000);
+          const scanRes = await fetch(
+            `https://apilist.tronscanapi.com/api/token_trc20/transfers` +
+            `?toAddress=${freshUsdtAddress}&contract_address=${USDT_CONTRACT_ADDR}&limit=200&start=0`,
+            { signal: ctrl.signal, headers: { Accept: "application/json" } }
+          );
+          clearTimeout(tid);
 
-        if (tronRes.ok) {
-          const tronData = await tronRes.json();
-          let usdtBalance = 0;
+          if (scanRes.ok) {
+            const scanData = await scanRes.json();
+            const transfers: Array<{
+              transferToAddress: string;
+              transferFromAddress: string;
+              quant: string;
+            }> = scanData?.token_transfers ?? scanData?.data ?? [];
 
-          if (tronData?.data?.[0]?.trc20) {
-            const trc20List: Record<string, string>[] = tronData.data[0].trc20;
-            const entry = trc20List.find((t) =>
-              Object.keys(t).some(
-                (k) => k.toLowerCase() === USDT_CONTRACT.toLowerCase()
-              )
-            );
-            if (entry) {
-              usdtBalance = Number(Object.values(entry)[0] ?? "0") / 1_000_000;
+            if (transfers.length > 0) {
+              let netRaw = 0n;
+              for (const t of transfers) {
+                const amount = BigInt(t.quant ?? "0");
+                if (t.transferToAddress === freshUsdtAddress) netRaw += amount;
+                if (t.transferFromAddress === freshUsdtAddress) netRaw -= amount;
+              }
+              usdtBalance = Number(netRaw < 0n ? 0n : netRaw) / 1_000_000;
+              resolved = true;
             }
           }
+        } catch { /* continuer */ }
 
-          // Sync USDT balance to DB
-          await prisma.wallet.upsert({
-            where: { userId_currency: { userId, currency: "USDT" } },
-            update: { balance: usdtBalance },
-            create: { userId, currency: "USDT", balance: usdtBalance, type: "CRYPTO" }
-          }).catch(() => null);
+        // Stratégie 2 : TronGrid /tokens/trc20 (si TronScan n'a rien retourné)
+        if (!resolved) {
+          const tronHeaders: Record<string, string> = { Accept: "application/json" };
+          if (process.env.TRONGRID_API_KEY) {
+            tronHeaders["TRON-PRO-API-KEY"] = process.env.TRONGRID_API_KEY;
+          }
+          try {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 6000);
+            const tronRes = await fetch(
+              `https://api.trongrid.io/v1/accounts/${freshUsdtAddress}/tokens/trc20`,
+              { signal: ctrl.signal, headers: tronHeaders }
+            );
+            clearTimeout(tid);
+            if (tronRes.ok) {
+              const tronData = await tronRes.json();
+              if (Array.isArray(tronData?.data) && tronData.data.length > 0) {
+                for (const token of tronData.data) {
+                  const cAddr: string = token?.tokenId ?? token?.token_id ?? "";
+                  if (cAddr.toLowerCase() === USDT_CONTRACT_ADDR.toLowerCase()) {
+                    usdtBalance = Number(token.balance ?? token.amount ?? "0") / 1_000_000;
+                    resolved = true;
+                    break;
+                  }
+                }
+                if (!resolved) { usdtBalance = 0; resolved = true; }
+              }
+            }
+          } catch { /* silencieux */ }
         }
+
+        // Sync USDT balance to DB
+        await prisma.wallet.upsert({
+          where: { userId_currency: { userId, currency: "USDT" } },
+          update: { balance: usdtBalance },
+          create: { userId, currency: "USDT", balance: usdtBalance, type: "CRYPTO" }
+        }).catch(() => null);
+
       } catch {
         // Silencieux — on garde la valeur DB existante
       }
