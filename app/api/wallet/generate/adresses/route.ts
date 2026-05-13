@@ -33,29 +33,29 @@ function generateEvmWallet() {
 function generateTronWallet() {
   // 1. Clé privée aléatoire (même courbe secp256k1 que Tron)
   const evmWallet = EthersWallet.createRandom();
-  const privKey = evmWallet.privateKey.replace(0x, ); // 64 hex chars
+  const privKey = evmWallet.privateKey.replace("0x", ""); // 64 hex chars
 
   // 2. Adresse Ethereum = KECCAK256(pubKey non-compressée)[12:]
   const ethAddress = evmWallet.address; // 0x + 40 hex chars
 
   // 3. Préfixe réseau Tron = 0x41 + 20 octets adresse ETH
   const addressBytes = Buffer.concat([
-    Buffer.from(41, hex),
-    Buffer.from(ethAddress.replace(0x, ), hex),
+    Buffer.from("41", "hex"),
+    Buffer.from(ethAddress.replace("0x", ""), "hex"),
   ]); // 21 octets
 
   // 4. Checksum = double SHA256, 4 premiers octets
-  const hash1 = crypto.createHash(sha256).update(addressBytes).digest();
-  const hash2 = crypto.createHash(sha256).update(hash1).digest();
+  const hash1 = crypto.createHash("sha256").update(addressBytes).digest();
+  const hash2 = crypto.createHash("sha256").update(hash1).digest();
   const checksum = hash2.slice(0, 4);
 
   // 5. Payload final = 21 + 4 octets
   const fullPayload = Buffer.concat([addressBytes, checksum]);
 
   // 6. Encodage Base58 (alphabet Tron = Bitcoin sans 0, O, I, l)
-  const BASE58 = 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz;
-  let num = BigInt(0x + fullPayload.toString(hex));
-  let encoded = ;
+  const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let num = BigInt("0x" + fullPayload.toString("hex"));
+  let encoded = "";
   while (num > 0n) {
     encoded = BASE58[Number(num % 58n)] + encoded;
     num = num / 58n;
