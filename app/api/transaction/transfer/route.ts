@@ -30,21 +30,20 @@ export async function POST(req: NextRequest) {
     const recipientId = recipientEmail || recipientIdentifier || recipientInput;
     const amountNum = parseFloat(amount);
 
-    console.log("[v0] [TRANSFER] Params:", { senderId, recipientId, amount: amountNum });
+    console.log("[TRANSFER] Params:", { senderId, recipientId, amount: amountNum });
 
     if (!recipientId || isNaN(amountNum) || amountNum <= 0) {
-      console.log("[v0] [TRANSFER] Erreur: Donnees invalides");
+      console.log("[TRANSFER] Erreur: Donnees invalides");
       return NextResponse.json({ error: "Donnees invalides" }, { status: 400 });
     }
 
-    // 3. RECHERCHE DES ACTEURS ET DES WALLETS (Prisma Pluriel : wallets)
+    // 3. RECHERCHE DES ACTEURS
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
       select: {
         id: true,
         name: true,
-        username: true,
-        wallets: { where: { currency: "PI" }, take: 1 }
+        username: true
       }
     });
 
@@ -79,40 +78,50 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log("[v0] [TRANSFER] Expediteur:", sender?.id, "Destinataire:", recipient?.id);
+    console.log("[TRANSFER] Expediteur:", sender?.id, "Destinataire:", recipient?.id);
 
-    if (!sender || !sender.wallets[0]) {
-        console.log("[v0] [TRANSFER] Erreur: Expediteur ou Wallet PI introuvable");
-        return NextResponse.json({ error: "Expediteur ou Wallet PI introuvable" }, { status: 404 });
+    if (!sender) {
+        console.log("[TRANSFER] Erreur: Expediteur introuvable");
+        return NextResponse.json({ error: "Expediteur introuvable" }, { status: 404 });
     }
     if (!recipient) {
-        console.log("[v0] [TRANSFER] Erreur: Destinataire introuvable pour:", recipientId);
+        console.log("[TRANSFER] Erreur: Destinataire introuvable pour:", recipientId);
         return NextResponse.json({ error: "Destinataire introuvable. Verifiez l'email, le username ou le telephone." }, { status: 404 });
     }
     if (sender.id === recipient.id) {
-        console.log("[v0] [TRANSFER] Erreur: Auto-transfert");
+        console.log("[TRANSFER] Erreur: Auto-transfert");
         return NextResponse.json({ error: "Transfert vers soi-meme interdit" }, { status: 400 });
-    }
-
-    const senderWallet = sender.wallets[0];
-
-    if (senderWallet.balance < amountNum) {
-      console.log("[v0] [TRANSFER] Erreur: Solde insuffisant", senderWallet.balance, "<", amountNum);
-      return NextResponse.json({ error: "Solde insuffisant" }, { status: 400 });
     }
 
     // 4. CALCULS (Conformite GCV) - Frais centralises
     const feeConfig = await getFeeConfig();
-    const { feeAmount: transferFeeAmount } = calculateFee(amountNum, feeConfig, "transfer");
+    const { feeAmount: transferFeeAmount, totalDebit } = calculateFee(amountNum, feeConfig, "transfer");
     const valueInUsd = amountNum * PI_CONSENSUS_RATE;
 
     // 5. TRANSACTION ATOMIQUE (Correction Erreurs Prisma)
+    // IMPORTANT: Toutes les verifications et mises a jour de solde sont dans la transaction
     const transactionResult = await prisma.$transaction(async (tx) => {
-      // Debiter l'expediteur
-      await tx.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: amountNum } }
+      // Lire le wallet expediteur DANS la transaction pour eviter les race conditions
+      const senderWallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId: sender.id, currency: "PI" } }
       });
+
+      if (!senderWallet) {
+        throw new Error("Wallet PI de l'expediteur introuvable");
+      }
+
+      // Verification du solde DANS la transaction (inclut les frais)
+      if (senderWallet.balance < totalDebit) {
+        throw new Error(`Solde insuffisant. Requis: ${totalDebit.toFixed(4)} PI (montant: ${amountNum} + frais: ${transferFeeAmount.toFixed(4)}), Disponible: ${senderWallet.balance.toFixed(4)} PI`);
+      }
+
+      // Debiter l'expediteur (montant + frais)
+      const updatedSenderWallet = await tx.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: { decrement: totalDebit } }
+      });
+
+      console.log("[TRANSFER] Wallet expediteur debite:", senderWallet.id, "ancien solde:", senderWallet.balance, "nouveau solde:", updatedSenderWallet.balance);
 
       // Crediter le destinataire (UPSERT pour creer le wallet s'il n'existe pas)
       const recipientWallet = await tx.wallet.upsert({
@@ -121,7 +130,7 @@ export async function POST(req: NextRequest) {
         create: { userId: recipient.id, currency: "PI", balance: amountNum, type: "PI" }
       });
       
-      console.log("[v0] [TRANSFER] Wallet destinataire credite:", recipientWallet.id, "solde:", recipientWallet.balance);
+      console.log("[TRANSFER] Wallet destinataire credite:", recipientWallet.id, "nouveau solde:", recipientWallet.balance);
 
       // Creation de la transaction avec REFERENCE OBLIGATOIRE
       const transaction = await tx.transaction.create({
@@ -153,13 +162,13 @@ export async function POST(req: NextRequest) {
         }
       }).catch(() => {});
       
-      return transaction;
+      return { transaction, newBalance: updatedSenderWallet.balance };
     }, {
       maxWait: 10000,
       timeout: 30000,
     });
     
-    console.log("[v0] [TRANSFER] Transaction REUSSIE:", transactionResult.reference);
+    console.log("[TRANSFER] Transaction REUSSIE:", transactionResult.transaction.reference);
 
     // 6. LOG DE SÉCURITÉ (AML)
     if (valueInUsd >= 10000) {
@@ -178,26 +187,51 @@ export async function POST(req: NextRequest) {
       autoConvertFeeToPi(
         transferFeeAmount,
         "PI",
-        transactionResult.id,
-        transactionResult.reference
+        transactionResult.transaction.id,
+        transactionResult.transaction.reference
       ).catch((err) => {
-        console.error("[v0] [TRANSFER] Fee conversion error (non-blocking):", err.message);
+        console.error("[TRANSFER] Fee conversion error (non-blocking):", err.message);
       });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Transfert réussi",
-      transactionId: transactionResult.id,
-      newBalance: senderWallet.balance - amountNum
+      message: "Transfert reussi",
+      transactionId: transactionResult.transaction.id,
+      reference: transactionResult.transaction.reference,
+      amount: amountNum,
+      fee: transferFeeAmount,
+      newBalance: transactionResult.newBalance
     });
 
   } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
-    console.error("[v0] [TRANSFER] ERREUR CRITIQUE:", error.message);
-    // Seuls les messages métier sûrs sont renvoyés
-    const safeErrors = ["Solde insuffisant", "Destinataire introuvable", "interdit", "invalides"];
-    const isSafeError = safeErrors.some(e => error.message?.includes(e));
-    return NextResponse.json({ error: isSafeError ? error.message : "Echec du transfert" }, { status: 500 });
+    console.error("[TRANSFER] ERREUR:", error.message);
+    
+    // Messages d'erreur securises a renvoyer au client
+    const safeErrorPatterns = [
+      "Solde insuffisant",
+      "Destinataire introuvable", 
+      "Expediteur introuvable",
+      "Wallet PI",
+      "interdit",
+      "invalides"
+    ];
+    
+    const isSafeError = safeErrorPatterns.some(pattern => 
+      error.message?.toLowerCase().includes(pattern.toLowerCase())
+    );
+    
+    // Determiner le code de statut HTTP approprie
+    const statusCode = error.message?.includes("introuvable") ? 404 
+                     : error.message?.includes("insuffisant") ? 400 
+                     : 500;
+    
+    return NextResponse.json(
+      { 
+        success: false,
+        error: isSafeError ? error.message : "Echec du transfert. Veuillez reessayer." 
+      }, 
+      { status: statusCode }
+    );
   }
 }

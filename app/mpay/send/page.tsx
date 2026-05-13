@@ -425,18 +425,13 @@ const filteredContacts = contacts.filter(
         // Use the already computed externalAddress
         const externalAddr = externalAddress;
         
-        console.log("[v0] External transfer debug:", {
-          selectedContact,
-          externalAddr,
-          isPiAddressInContactId,
-          isPiAddressInUsername,
-          contactId: selectedContact.contactId,
-          username: selectedContact.username,
+        console.log("[MPAY] External transfer:", {
+          destination: externalAddr,
+          amount: parseFloat(amount),
         });
         
         // Validate the address before sending
         if (!externalAddr || !piAddressRegex.test(externalAddr)) {
-          console.log("[v0] Address validation failed:", { externalAddr, test: piAddressRegex.test(externalAddr || "") });
           toast.error("Adresse Pi invalide. Veuillez re-entrer l'adresse.");
           setIsLoading(false);
           return;
@@ -447,7 +442,6 @@ const filteredContacts = contacts.filter(
           amount: parseFloat(amount),
           memo: message || `Retrait PimPay`
         };
-        console.log("[v0] Sending payload:", payload);
         
         const res = await fetch("/api/mpay/external-transfer", {
           method: "POST",
@@ -457,7 +451,6 @@ const filteredContacts = contacts.filter(
         });
         
         const data = await res.json();
-        console.log("[v0] External transfer response:", { status: res.status, data, requestId: data.requestId });
         
         if (res.ok && data.success) {
           const txRef = data.data?.txid || `WD-${Date.now()}`;
@@ -472,23 +465,27 @@ const filteredContacts = contacts.filter(
         }
       } else {
         // Use the internal P2P transfer API
-        const res = await fetch("/api/transaction/send", {
+        const res = await fetch("/api/transaction/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            recipientId: selectedContact.contactId,
+            recipient: selectedContact.contactId,
             amount: parseFloat(amount),
-            description: message || `Transfert P2P a ${selectedContact.name}`
+            note: message || `Transfert P2P a ${selectedContact.name}`
           }),
         });
         
         const data = await res.json();
         
-        if (data.success || data.data) {
-          const txRef = data.data?.reference || `P2P-${Date.now()}`;
+        if (data.success) {
+          const txRef = data.reference || data.transactionId || `P2P-${Date.now()}`;
+          // Update local balance state immediately for better UX
+          if (typeof data.newBalance === 'number') {
+            setUserBalance(data.newBalance);
+          }
           toast.success("Transfert envoye avec succes !");
-          router.push(`/mpay/success?amount=${amount}&to=${selectedContact.name || "Contact"}&txid=${txRef}`);
+          router.push(`/mpay/success?amount=${amount}&to=${encodeURIComponent(selectedContact.name || "Contact")}&txid=${txRef}&newBalance=${data.newBalance || ''}`);
         } else {
           toast.error(data.error || "Erreur lors du transfert");
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
