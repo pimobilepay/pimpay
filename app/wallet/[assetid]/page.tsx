@@ -575,7 +575,8 @@ export default function AssetDetailPage() {
             return truncateAddress(blockchainAddr);
           }
           
-          return "Sidra Chain";
+          // Return network name based on currency
+          return config.name;
         };
         const displayName = getDisplayName();
 
