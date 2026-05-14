@@ -2,23 +2,25 @@
  * ============================================================
  * POST /api/swap/sunio
  * ============================================================
- * Swap de tokens sur TRON via l'API Sun.io (sun.io — DEX Tron)
+ * Swap de tokens sur TRON via le Smart Router Sun.io (sun.io — DEX Tron)
  *
- * Sun.io est le principal DEX sur la blockchain TRON.
- * Il expose une API REST publique compatible avec l'agrégateur
- * de liquidité SunSwap V2/V3.
+ * ⚠️  Sun.io n'expose PAS d'API REST publique de quote.
+ *     Le prix est calculé via CoinGecko (déjà utilisé dans le projet),
+ *     et le swap est exécuté on-chain via le contrat Smart Router TRON.
  *
- * API de référence : https://api.sun.io/
- * Paires supportées : TRX ↔ USDT, TRX ↔ USDC, USDT ↔ USDC, etc.
+ * Contrat Smart Router mainnet : TCFNp179Lg46D16zKoumd4Poa2WFFdtxYj
+ * Doc officielle : https://docs.sun.io/developers/swap/smart-router
+ * Source contrat : https://github.com/sun-protocol/smart-exchange-router
  *
  * Flow :
- *   1. GET /api/swap/sunio/quote  → obtenir le prix et le slippage estimé
- *   2. POST /api/swap/sunio       → exécuter le swap on-chain via TronWeb
+ *   1. GET /api/swap/sunio?from=USDT&to=TRX&amount=X → prix via CoinGecko
+ *   2. POST /api/swap/sunio → exécute swapExactInput on-chain via TronWeb
  *
  * ⚠️  Nécessite :
  *   - La clé privée TRON de l'utilisateur (usdtPrivateKey en DB)
  *   - Un solde TRX suffisant pour les frais (~20 TRX recommandé)
  *   - TRONGRID_API_KEY dans les variables d'environnement
+ *     → Obtenir une clé gratuite : https://www.trongrid.io/
  * ============================================================
  */
 
@@ -40,22 +42,35 @@ const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 
 // ─── Constantes Sun.io ────────────────────────────────────────────────────────
 
-/** Base URL de l'API Sun.io (agrégateur SunSwap) */
-const SUNIO_API_BASE = "https://api.sun.io";
+/**
+ * Adresse du contrat Smart Router Sun.io sur le mainnet TRON.
+ * Source : https://docs.sun.io/developers/swap/smart-router
+ * Historique des contrats :
+ *   - TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj  ← ACTUEL (depuis sept. 2024)
+ *   - TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j  (déprécié)
+ *   - TFVisXFaijZfeyeSjCEVkHfex7HGdTxzF9   (déprécié)
+ */
+const SMART_ROUTER_ADDRESS = "TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj";
 
-/** Version du routeur SunSwap (V2 = AMM classique, V3 = concentrated liquidity) */
-const SUNSWAP_VERSION = "v2"; // Changer en "v3" si vous voulez les pools V3
+/**
+ * Clé TronGrid — utilisée par TronWeb pour broadcaster les txs on-chain.
+ * À définir dans .env : TRONGRID_API_KEY=xxxxxxxx
+ * Obtenir une clé gratuite : https://www.trongrid.io/
+ */
+const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
+
+const TRON_FULL_HOST = "https://api.trongrid.io";
 
 /**
  * Adresses des tokens TRC20 courants sur TRON mainnet.
- * Source : https://tronscan.org / sun.io/pools
+ * Source : https://tronscan.org
  */
 const TOKEN_ADDRESSES: Record<string, string> = {
-  TRX: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb", // adresse native TRX (convention Sun.io)
+  TRX:  "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb", // adresse native TRX (convention Sun.io)
   USDT: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
   USDC: "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
   USDD: "TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn",
-  WTRX: "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR", // Wrapped TRX
+  WTRX: "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
   JST:  "TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9",
   SUN:  "TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S",
   BTT:  "TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4",
@@ -63,7 +78,20 @@ const TOKEN_ADDRESSES: Record<string, string> = {
   NFT:  "TFczxzPhnThNSqr5by8tvxsdCFRg8vFn4F",
 };
 
-const TRON_FULL_HOST = "https://api.trongrid.io";
+/**
+ * Mapping CoinGecko ID pour chaque token supporté.
+ */
+const COINGECKO_IDS: Record<string, string> = {
+  TRX:  "tron",
+  USDT: "tether",
+  USDC: "usd-coin",
+  USDD: "usdd",
+  JST:  "just",
+  SUN:  "sun-token",
+  BTT:  "bittorrent",
+  WIN:  "wink",
+  WTRX: "tron",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,69 +110,63 @@ interface SunioQuoteResponse {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Récupère un devis de swap depuis l'API Sun.io.
- * Endpoint : GET /swap/v2/quote
+ * Calcule le prix de swap via CoinGecko.
+ * Sun.io n'expose pas d'API REST publique de quote — le prix on-chain
+ * est calculé par le contrat Smart Router au moment de l'exécution.
+ * On utilise CoinGecko comme oracle de prix pour l'estimation du devis.
  */
 async function getSunioQuote(
   fromToken: string,
   toToken: string,
   amountIn: number,
-  slippageBps: number = 50 // 0.5% par défaut
+  slippageBps: number = 100 // 1% par défaut
 ): Promise<SunioQuoteResponse> {
   const fromAddress = TOKEN_ADDRESSES[fromToken.toUpperCase()];
   const toAddress = TOKEN_ADDRESSES[toToken.toUpperCase()];
 
-  if (!fromAddress) throw new Error(`Token source non supporté sur Sun.io: ${fromToken}`);
-  if (!toAddress) throw new Error(`Token destination non supporté sur Sun.io: ${toToken}`);
+  if (!fromAddress) throw new Error(`Token source non supporté: ${fromToken}`);
+  if (!toAddress) throw new Error(`Token destination non supporté: ${toToken}`);
 
-  // Sun.io attend le montant en unité de base (6 décimales pour USDT/TRC20, 6 pour TRX)
-  const decimals = fromToken.toUpperCase() === "TRX" ? 6 : 6;
-  const amountInRaw = Math.floor(amountIn * Math.pow(10, decimals)).toString();
+  // Récupérer les prix USD via CoinGecko
+  const fromId = COINGECKO_IDS[fromToken.toUpperCase()];
+  const toId   = COINGECKO_IDS[toToken.toUpperCase()];
 
-  const params = new URLSearchParams({
-    fromTokenAddress: fromAddress,
-    toTokenAddress: toAddress,
-    amountIn: amountInRaw,
-    slippage: slippageBps.toString(), // en points de base (50 = 0.5%)
-  });
-
-  const apiKey = process.env.TRONGRID_API_KEY || "";
-  const response = await fetch(
-    `${SUNIO_API_BASE}/swap/${SUNSWAP_VERSION}/quote?${params.toString()}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey && { "TRON-PRO-API-KEY": apiKey }),
-      },
-      signal: AbortSignal.timeout(10_000),
-    }
-  );
-
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    throw new Error(`Sun.io quote API erreur ${response.status}: ${errorBody}`);
+  if (!fromId || !toId) {
+    throw new Error(`Pas de price feed CoinGecko pour ${fromToken} ou ${toToken}`);
   }
 
-  const data = await response.json();
+  const ids = [...new Set([fromId, toId])].join(",");
+  const cgRes = await fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
+    { signal: AbortSignal.timeout(8_000) }
+  );
 
-  // Normalisation de la réponse (le format Sun.io peut varier selon la version)
-  const amountOutRaw = data?.amountOut || data?.data?.amountOut || "0";
-  const toDecimals = toToken.toUpperCase() === "TRX" ? 6 : 6;
-  const amountOut = Number(amountOutRaw) / Math.pow(10, toDecimals);
+  if (!cgRes.ok) throw new Error(`CoinGecko erreur ${cgRes.status}`);
+  const prices = await cgRes.json();
 
-  const minAmountOutRaw = data?.minAmountOut || data?.data?.minAmountOut || amountOutRaw;
-  const minAmountOut = Number(minAmountOutRaw) / Math.pow(10, toDecimals);
+  const fromUsd = prices[fromId]?.usd;
+  const toUsd   = prices[toId]?.usd;
+
+  if (!fromUsd || !toUsd) {
+    throw new Error("Prix indisponibles via CoinGecko, réessayez dans quelques secondes.");
+  }
+
+  const slippagePct   = slippageBps / 10_000;            // ex: 100 bps → 0.01
+  const FEE_PCT       = 0.003;                            // 0.3% frais Sun.io estimés
+  const amountOut     = (amountIn * fromUsd) / toUsd * (1 - FEE_PCT);
+  const minAmountOut  = amountOut * (1 - slippagePct);
+  const priceImpact   = "0.30";                           // estimation (frais pool)
 
   return {
-    fromToken: fromToken.toUpperCase(),
-    toToken: toToken.toUpperCase(),
-    amountIn: amountIn.toString(),
-    amountOut: amountOut.toFixed(6),
-    priceImpact: data?.priceImpact || data?.data?.priceImpact || "0",
-    route: data?.route || data?.data?.route || [fromAddress, toAddress],
-    routerAddress: data?.routerAddress || data?.data?.routerAddress || "",
+    fromToken:    fromToken.toUpperCase(),
+    toToken:      toToken.toUpperCase(),
+    amountIn:     amountIn.toString(),
+    amountOut:    amountOut.toFixed(6),
+    priceImpact,
+    route:        [fromAddress, toAddress],
+    routerAddress: SMART_ROUTER_ADDRESS,
     minAmountOut: minAmountOut.toFixed(6),
-    fee: data?.fee || data?.data?.fee || "0",
+    fee:          (amountIn * FEE_PCT).toFixed(6),
   };
 }
 
@@ -164,70 +186,66 @@ async function executeSunioSwap(
   const tronWeb = new TronWeb({
     fullHost: TRON_FULL_HOST,
     privateKey,
-    headers: process.env.TRONGRID_API_KEY
-      ? { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY }
+    // TRON-PRO-API-KEY est le header correct pour api.trongrid.io
+    headers: TRONGRID_API_KEY
+      ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY }
       : {},
   });
 
-  const fromDecimals = 6;
-  const toDecimals = 6;
-  const amountInRaw = Math.floor(amountIn * Math.pow(10, fromDecimals));
-  const minAmountOutRaw = Math.floor(minAmountOut * Math.pow(10, toDecimals));
-  const deadline = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+  const decimals = 6;
+  const amountInRaw     = Math.floor(amountIn    * Math.pow(10, decimals)).toString();
+  const minAmountOutRaw = Math.floor(minAmountOut * Math.pow(10, decimals)).toString();
+  const deadline        = Math.floor(Date.now() / 1000) + 300; // 5 minutes
 
   const fromAddress = TOKEN_ADDRESSES[fromToken.toUpperCase()];
-  const toAddress = TOKEN_ADDRESSES[toToken.toUpperCase()];
+  const toAddress   = TOKEN_ADDRESSES[toToken.toUpperCase()];
 
-  let txHash: string;
+  const isTRXin  = fromToken.toUpperCase() === "TRX";
+  const isTRXout = toToken.toUpperCase()   === "TRX";
 
-  // ── Cas TRX → Token TRC20 ──────────────────────────────────────────────
-  if (fromToken.toUpperCase() === "TRX") {
-    // swapExactETHForTokens (TRX est natif, pas besoin d'approve)
-    const router = await tronWeb.contract().at(routerAddress);
-    const result = await router
-      .swapExactETHForTokens(minAmountOutRaw, route, tronWeb.defaultAddress.base58, deadline)
-      .send({
-        callValue: amountInRaw, // TRX envoyé en callValue (en SUN)
-        feeLimit: 150_000_000,  // 150 TRX max fee
-      });
-    txHash = result;
-
-  // ── Cas Token TRC20 → TRX ──────────────────────────────────────────────
-  } else if (toToken.toUpperCase() === "TRX") {
-    // Approve d'abord
+  // ── Approve si le token source est un TRC20 (pas TRX natif) ────────────
+  if (!isTRXin) {
     const tokenContract = await tronWeb.contract().at(fromAddress);
     await tokenContract
       .approve(routerAddress, amountInRaw)
       .send({ feeLimit: 50_000_000 });
-
-    // swapExactTokensForETH
-    const router = await tronWeb.contract().at(routerAddress);
-    const result = await router
-      .swapExactTokensForETH(
-        amountInRaw, minAmountOutRaw, route, tronWeb.defaultAddress.base58, deadline
-      )
-      .send({ feeLimit: 150_000_000 });
-    txHash = result;
-
-  // ── Cas Token → Token (ex: USDT → USDC) ───────────────────────────────
-  } else {
-    // Approve le token source
-    const tokenContract = await tronWeb.contract().at(fromAddress);
-    await tokenContract
-      .approve(routerAddress, amountInRaw)
-      .send({ feeLimit: 50_000_000 });
-
-    // swapExactTokensForTokens
-    const router = await tronWeb.contract().at(routerAddress);
-    const result = await router
-      .swapExactTokensForTokens(
-        amountInRaw, minAmountOutRaw, route, tronWeb.defaultAddress.base58, deadline
-      )
-      .send({ feeLimit: 150_000_000 });
-    txHash = result;
   }
 
-  return txHash;
+  /**
+   * Le contrat Smart Router Sun.io expose une unique fonction d'entrée :
+   *   swapExactInput(path, poolVersion, versionLen, fees, swapData)
+   *
+   * Pour une paire simple (ex: USDT → TRX) sans multi-hop :
+   *   - path        : [adresseFrom, adresseTo]
+   *   - poolVersion : ["v2"] (SunSwap V2, le plus liquide pour TRX/USDT)
+   *   - versionLen  : [2]    (nombre d'adresses dans path)
+   *   - fees        : [0, 0] (non utilisé pour V2)
+   *   - swapData    : [amountIn, minAmountOut, destinataire, deadline]
+   *
+   * Source : https://docs.sun.io/developers/swap/smart-router
+   *          https://github.com/sun-protocol/smart-exchange-router
+   */
+  const router = await tronWeb.contract().at(routerAddress);
+
+  const result = await router
+    .swapExactInput(
+      [fromAddress, toAddress],   // path
+      ["v2"],                     // poolVersion — V2 couvre TRX↔USDT, TRX↔USDC
+      [2],                        // versionLen — 2 tokens dans le path
+      [0, 0],                     // fees — non utilisé en V2
+      [
+        amountInRaw,              // amountIn (en unités de base, 6 décimales)
+        minAmountOutRaw,          // amountOutMin (slippage appliqué)
+        tronWeb.defaultAddress.base58, // destinataire = wallet de l'utilisateur
+        deadline,                 // timestamp limite
+      ]
+    )
+    .send({
+      callValue: isTRXin ? amountInRaw : 0, // TRX natif envoyé en callValue si TRX → token
+      feeLimit: 200_000_000,                 // 200 TRX max (énergie TRON)
+    });
+
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
