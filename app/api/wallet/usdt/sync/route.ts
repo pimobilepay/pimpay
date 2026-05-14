@@ -85,12 +85,21 @@ export async function POST(req: Request) {
         });
 
         const currentBalance = wallet.balance;
+
+        // ✅ FIX CRITIQUE : On prend le MAX entre le solde on-chain et le solde DB
+        // Les swaps/transferts internes PimPay créditent le DB sans passer par la blockchain.
+        // Si on écrase avec blockchainBalance, le solde interne (ex: reçu par swap) disparaît.
+        // Règle : si DB > on-chain → un crédit interne existe → on garde DB.
+        //         si on-chain > DB → un dépôt externe est arrivé → on prend on-chain.
+        const safeBalance = Math.max(blockchainBalance, currentBalance);
+
+        // diff = nouveaux fonds arrivés on-chain (uniquement pour créer la tx DEPOSIT)
         const diff = parseFloat(
           (blockchainBalance - currentBalance).toFixed(6)
         );
 
-        // Déjà synchronisé (seuil 0.000001 USDT)
-        if (Math.abs(diff) < 0.000001) {
+        // Déjà synchronisé (seuil 0.000001 USDT) — et aucun crédit interne non reflété
+        if (safeBalance === currentBalance || Math.abs(safeBalance - currentBalance) < 0.000001) {
           return { updated: false, total: currentBalance, reason: "ALREADY_SYNC" };
         }
 
@@ -113,15 +122,16 @@ export async function POST(req: Request) {
           return { updated: false, total: currentBalance, reason: "THROTTLED" };
         }
 
-        // Mettre à jour le solde
+        // Mettre à jour avec le solde sécurisé (MAX)
         const updated = await tx.wallet.update({
           where: { id: wallet.id },
-          data: { balance: blockchainBalance },
+          data: { balance: safeBalance },
         });
 
         const reference = `USDT-DEP-${nanoid(10).toUpperCase()}`;
 
-        // Créer une transaction DEPOSIT si le solde a augmenté
+        // Créer une transaction DEPOSIT uniquement si un dépôt on-chain est détecté
+        // (diff > 0 signifie que la blockchain a plus que la DB → vrai dépôt externe)
         if (diff > 0) {
           await tx.transaction.create({
             data: {
@@ -168,7 +178,7 @@ export async function POST(req: Request) {
         return {
           updated: true,
           total: updated.balance,
-          added: diff,
+          added: diff > 0 ? diff : 0,
           reference: diff > 0 ? reference : null,
         };
       },
