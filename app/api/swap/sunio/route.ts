@@ -43,14 +43,14 @@ const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 // ─── Constantes Sun.io ────────────────────────────────────────────────────────
 
 /**
- * Adresse du contrat Smart Router Sun.io sur le mainnet TRON.
- * Source : https://docs.sun.io/developers/swap/smart-router
- * Historique des contrats :
- *   - TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj  ← ACTUEL (depuis sept. 2024)
- *   - TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j  (déprécié)
- *   - TFVisXFaijZfeyeSjCEVkHfex7HGdTxzF9   (déprécié)
+ * Adresse du contrat SunSwap V2 Router sur le mainnet TRON.
+ * Source : https://github.com/sunswapteam/sunswap2.0-contracts
+ * 
+ * Adresses connues :
+ *   - TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR  ← V2 Router actuel
+ *   - TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax  (déprécié)
  */
-const SMART_ROUTER_ADDRESS = "TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj";
+const SUNSWAP_V2_ROUTER = "TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR";
 
 /**
  * Clé TronGrid — utilisée par TronWeb pour broadcaster les txs on-chain.
@@ -66,11 +66,11 @@ const TRON_FULL_HOST = "https://api.trongrid.io";
  * Source : https://tronscan.org
  */
 const TOKEN_ADDRESSES: Record<string, string> = {
-  TRX:  "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb", // adresse native TRX (convention Sun.io)
+  // WTRX est utilisé pour représenter TRX dans les swaps (wrapped TRX)
+  WTRX: "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
   USDT: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
   USDC: "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
   USDD: "TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn",
-  WTRX: "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
   JST:  "TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9",
   SUN:  "TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S",
   BTT:  "TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4",
@@ -121,15 +121,19 @@ async function getSunioQuote(
   amountIn: number,
   slippageBps: number = 100 // 1% par défaut
 ): Promise<SunioQuoteResponse> {
-  const fromAddress = TOKEN_ADDRESSES[fromToken.toUpperCase()];
-  const toAddress = TOKEN_ADDRESSES[toToken.toUpperCase()];
+  const fromUpper = fromToken.toUpperCase();
+  const toUpper = toToken.toUpperCase();
+  
+  // TRX utilise WTRX pour le path dans les swaps
+  const fromAddress = fromUpper === "TRX" ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[fromUpper];
+  const toAddress = toUpper === "TRX" ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[toUpper];
 
   if (!fromAddress) throw new Error(`Token source non supporté: ${fromToken}`);
   if (!toAddress) throw new Error(`Token destination non supporté: ${toToken}`);
 
   // Récupérer les prix USD via CoinGecko
-  const fromId = COINGECKO_IDS[fromToken.toUpperCase()];
-  const toId   = COINGECKO_IDS[toToken.toUpperCase()];
+  const fromId = fromUpper === "TRX" ? "tron" : COINGECKO_IDS[fromUpper];
+  const toId = toUpper === "TRX" ? "tron" : COINGECKO_IDS[toUpper];
 
   if (!fromId || !toId) {
     throw new Error(`Pas de price feed CoinGecko pour ${fromToken} ou ${toToken}`);
@@ -158,21 +162,24 @@ async function getSunioQuote(
   const priceImpact   = "0.30";                           // estimation (frais pool)
 
   return {
-    fromToken:    fromToken.toUpperCase(),
-    toToken:      toToken.toUpperCase(),
+    fromToken:    fromUpper,
+    toToken:      toUpper,
     amountIn:     amountIn.toString(),
     amountOut:    amountOut.toFixed(6),
     priceImpact,
     route:        [fromAddress, toAddress],
-    routerAddress: SMART_ROUTER_ADDRESS,
+    routerAddress: SUNSWAP_V2_ROUTER,
     minAmountOut: minAmountOut.toFixed(6),
     fee:          (amountIn * FEE_PCT).toFixed(6),
   };
 }
 
 /**
- * Exécute le swap on-chain via le contrat SunSwap.
- * Utilise TronWeb pour broadcaster la transaction.
+ * Exécute le swap on-chain via le contrat SunSwap V2 Router.
+ * Utilise les fonctions standard Uniswap V2:
+ *   - swapExactETHForTokens : TRX → Token
+ *   - swapExactTokensForETH : Token → TRX
+ *   - swapExactTokensForTokens : Token → Token
  */
 async function executeSunioSwap(
   privateKey: string,
@@ -181,71 +188,99 @@ async function executeSunioSwap(
   amountIn: number,
   minAmountOut: number,
   routerAddress: string,
-  route: string[]
+  userAddress: string
 ): Promise<string> {
   const tronWeb = new TronWeb({
     fullHost: TRON_FULL_HOST,
     privateKey,
-    // TRON-PRO-API-KEY est le header correct pour api.trongrid.io
     headers: TRONGRID_API_KEY
       ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY }
       : {},
   });
 
+  const fromUpper = fromToken.toUpperCase();
+  const toUpper = toToken.toUpperCase();
+  
+  // Décimales (TRX et la plupart des tokens TRC20 utilisent 6 décimales)
   const decimals = 6;
-  const amountInRaw     = Math.floor(amountIn    * Math.pow(10, decimals)).toString();
-  const minAmountOutRaw = Math.floor(minAmountOut * Math.pow(10, decimals)).toString();
-  const deadline        = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+  const amountInRaw = Math.floor(amountIn * Math.pow(10, decimals));
+  const minAmountOutRaw = Math.floor(minAmountOut * Math.pow(10, decimals));
+  const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
 
-  const fromAddress = TOKEN_ADDRESSES[fromToken.toUpperCase()];
-  const toAddress   = TOKEN_ADDRESSES[toToken.toUpperCase()];
+  const isTRXin = fromUpper === "TRX";
+  const isTRXout = toUpper === "TRX";
 
-  const isTRXin  = fromToken.toUpperCase() === "TRX";
-  const isTRXout = toToken.toUpperCase()   === "TRX";
+  // Construire le path pour le swap (utilise WTRX pour TRX)
+  const WTRX_ADDRESS = TOKEN_ADDRESSES.WTRX;
+  const fromAddress = isTRXin ? WTRX_ADDRESS : TOKEN_ADDRESSES[fromUpper];
+  const toAddress = isTRXout ? WTRX_ADDRESS : TOKEN_ADDRESSES[toUpper];
+  const path = [fromAddress, toAddress];
 
-  // ── Approve si le token source est un TRC20 (pas TRX natif) ────────────
-  if (!isTRXin) {
-    const tokenContract = await tronWeb.contract().at(fromAddress);
-    await tokenContract
-      .approve(routerAddress, amountInRaw)
-      .send({ feeLimit: 50_000_000 });
-  }
-
-  /**
-   * Le contrat Smart Router Sun.io expose une unique fonction d'entrée :
-   *   swapExactInput(path, poolVersion, versionLen, fees, swapData)
-   *
-   * Pour une paire simple (ex: USDT → TRX) sans multi-hop :
-   *   - path        : [adresseFrom, adresseTo]
-   *   - poolVersion : ["v2"] (SunSwap V2, le plus liquide pour TRX/USDT)
-   *   - versionLen  : [2]    (nombre d'adresses dans path)
-   *   - fees        : [0, 0] (non utilisé pour V2)
-   *   - swapData    : [amountIn, minAmountOut, destinataire, deadline]
-   *
-   * Source : https://docs.sun.io/developers/swap/smart-router
-   *          https://github.com/sun-protocol/smart-exchange-router
-   */
+  // Obtenir le contrat router
   const router = await tronWeb.contract().at(routerAddress);
 
-  const result = await router
-    .swapExactInput(
-      [fromAddress, toAddress],   // path
-      ["v2"],                     // poolVersion — V2 couvre TRX↔USDT, TRX↔USDC
-      [2],                        // versionLen — 2 tokens dans le path
-      [0, 0],                     // fees — non utilisé en V2
-      [
-        amountInRaw,              // amountIn (en unités de base, 6 décimales)
-        minAmountOutRaw,          // amountOutMin (slippage appliqué)
-        tronWeb.defaultAddress.base58, // destinataire = wallet de l'utilisateur
-        deadline,                 // timestamp limite
-      ]
-    )
-    .send({
-      callValue: isTRXin ? amountInRaw : 0, // TRX natif envoyé en callValue si TRX → token
-      feeLimit: 200_000_000,                 // 200 TRX max (énergie TRON)
-    });
+  let txResult: string;
 
-  return result;
+  if (isTRXin) {
+    // ── TRX → Token : swapExactETHForTokens ─────────────────────────────
+    // Note: Sur TRON, "ETH" = TRX natif
+    // Signature: swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline)
+    txResult = await router
+      .swapExactETHForTokens(
+        minAmountOutRaw,
+        path,
+        userAddress,
+        deadline
+      )
+      .send({
+        callValue: amountInRaw, // TRX envoyé avec la transaction
+        feeLimit: 150_000_000,   // 150 TRX max pour les frais d'énergie
+      });
+      
+  } else if (isTRXout) {
+    // ── Token → TRX : swapExactTokensForETH ─────────────────────────────
+    // D'abord approuver le router à dépenser nos tokens
+    const tokenContract = await tronWeb.contract().at(fromAddress);
+    await tokenContract
+      .approve(routerAddress, amountInRaw.toString())
+      .send({ feeLimit: 50_000_000 });
+
+    // Signature: swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)
+    txResult = await router
+      .swapExactTokensForETH(
+        amountInRaw,
+        minAmountOutRaw,
+        path,
+        userAddress,
+        deadline
+      )
+      .send({
+        feeLimit: 150_000_000,
+      });
+      
+  } else {
+    // ── Token → Token : swapExactTokensForTokens ────────────────────────
+    // D'abord approuver le router à dépenser nos tokens
+    const tokenContract = await tronWeb.contract().at(fromAddress);
+    await tokenContract
+      .approve(routerAddress, amountInRaw.toString())
+      .send({ feeLimit: 50_000_000 });
+
+    // Signature: swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)
+    txResult = await router
+      .swapExactTokensForTokens(
+        amountInRaw,
+        minAmountOutRaw,
+        path,
+        userAddress,
+        deadline
+      )
+      .send({
+        feeLimit: 150_000_000,
+      });
+  }
+
+  return txResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,7 +466,7 @@ export async function POST(req: NextRequest) {
         amountIn,
         minAmountOut,
         quote.routerAddress,
-        quote.route
+        user.usdtAddress  // Adresse TRON de l'utilisateur
       );
     } catch (e: any) {
       swapError = e.message;
