@@ -252,19 +252,65 @@ async function executeSunioSwap(
 
   const path        = [fromAddress, toAddress];
   const poolVersion = ["v2"];   // SunSwap V2 — le plus liquide pour TRX/USDT
-  const versionLen  = [2];      // Nombre de tokens dans le path
-  const fees        = [0, 0];   // Pas de frais supplémentaires pour V2
+  const versionLen  = [2];      // Nombre de tokens dans le path (toujours un entier)
+  const fees        = [0, 0];   // Frais V3 uniquement — 0 pour V2
 
-  // SwapData : [amountIn, amountOutMin, destinataire, deadline]
-  const swapData = [
-    amountInRaw.toString(),
-    minAmountOutRaw.toString(),
-    userAddress,
-    deadline,
+  // ─── ABI du Smart Router Sun.io ──────────────────────────────────────────
+  // ✅ CORRECTION : tronWeb.contract().at() charge l'ABI depuis TronScan,
+  //    mais le Smart Router n'a pas d'ABI publique vérifiée → "unknown function".
+  //    Il faut injecter l'ABI manuellement avec tronWeb.contract(ABI, address).
+  //    Source : https://github.com/sun-protocol/smart-exchange-router
+  const SMART_ROUTER_ABI = [
+    {
+      inputs: [
+        { internalType: "address[]", name: "path",        type: "address[]" },
+        { internalType: "string[]",  name: "poolVersion", type: "string[]"  },
+        { internalType: "uint256[]", name: "versionLen",  type: "uint256[]" },
+        { internalType: "uint24[]",  name: "fees",        type: "uint24[]"  },
+        {
+          components: [
+            { internalType: "uint256", name: "amountIn",    type: "uint256" },
+            { internalType: "uint256", name: "amountOutMin",type: "uint256" },
+            { internalType: "address", name: "to",          type: "address" },
+            { internalType: "uint256", name: "deadline",    type: "uint256" },
+          ],
+          internalType: "tuple",
+          name: "data",
+          type: "tuple",
+        },
+      ],
+      name: "swapExactInput",
+      outputs: [{ internalType: "uint256[]", name: "amountsOut", type: "uint256[]" }],
+      stateMutability: "payable",
+      type: "function",
+    },
   ];
 
-  // Obtenir le contrat Smart Router
-  const router = await tronWeb.contract().at(routerAddress);
+  // Initialiser le contrat avec l'ABI explicite
+  const router = await tronWeb.contract(SMART_ROUTER_ABI, routerAddress);
+
+  // SwapData : objet tuple (Solidity struct) — PAS un tableau
+  // ⚠️ TronWeb encode les tuples comme des objets JS, pas des tableaux
+  const swapDataTuple = {
+    amountIn:    amountInRaw.toString(),
+    amountOutMin: minAmountOutRaw.toString(),
+    to:          userAddress,
+    deadline:    deadline,
+  };
+
+  // ABI minimale ERC20 pour l'approve (TRC20 est compatible ERC20)
+  const ERC20_APPROVE_ABI = [
+    {
+      inputs: [
+        { internalType: "address", name: "spender", type: "address" },
+        { internalType: "uint256", name: "amount",  type: "uint256" },
+      ],
+      name: "approve",
+      outputs: [{ internalType: "bool", name: "", type: "bool" }],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+  ];
 
   let txResult: string;
 
@@ -273,7 +319,7 @@ async function executeSunioSwap(
     // Pas d'approve nécessaire pour TRX natif.
     // Le TRX est envoyé via callValue dans la transaction.
     txResult = await router
-      .swapExactInput(path, poolVersion, versionLen, fees, swapData)
+      .swapExactInput(path, poolVersion, versionLen, fees, swapDataTuple)
       .send({
         callValue: amountInRaw,  // TRX natif envoyé avec la transaction
         feeLimit:  150_000_000,  // 150 TRX max pour les frais d'énergie
@@ -282,18 +328,18 @@ async function executeSunioSwap(
 
   } else {
     // ── Token → Token  ou  Token → TRX natif ────────────────────────────
-    // Étape 1 : Approuver le Smart Router à dépenser les tokens
-    const tokenContract = await tronWeb.contract().at(fromAddress);
+    // Étape 1 : Approuver le Smart Router à dépenser les tokens (ABI explicite)
+    const tokenContract = tronWeb.contract(ERC20_APPROVE_ABI, fromAddress);
     await tokenContract
       .approve(routerAddress, amountInRaw.toString())
       .send({ feeLimit: 60_000_000, shouldPollResponse: false });
 
-    // Laisser la confirmation se propager sur la blockchain
+    // Laisser la confirmation de l'approve se propager sur la blockchain
     await new Promise((r) => setTimeout(r, 3000));
 
     // Étape 2 : Exécuter le swap (pas de callValue car pas de TRX natif en entrée)
     txResult = await router
-      .swapExactInput(path, poolVersion, versionLen, fees, swapData)
+      .swapExactInput(path, poolVersion, versionLen, fees, swapDataTuple)
       .send({
         callValue:  0,
         feeLimit:   150_000_000,
