@@ -180,6 +180,7 @@ export async function POST() {
 
 /**
  * Fonction centralisée pour synchroniser le solde d'une crypto
+ * ✅ FIX: Utilise Math.max() pour préserver les crédits internes (swap, transfert P2P)
  */
 async function syncCryptoBalance({
   userId,
@@ -215,18 +216,24 @@ async function syncCryptoBalance({
       });
 
       const currentBalance = wallet.balance;
-      const diff = parseFloat(
-        (blockchainBalance - currentBalance).toFixed(decimals)
-      );
-
-      // Déjà synchronisé
-      if (Math.abs(diff) < threshold) {
+      
+      // ✅ FIX: Prendre le MAX entre blockchain et DB pour préserver les crédits internes
+      // Les swaps et transferts internes ne sont pas sur la blockchain
+      const safeBalance = Math.max(blockchainBalance, currentBalance);
+      
+      // Calcul du diff: ce qui vient de la blockchain (dépôt externe)
+      const depositDiff = blockchainBalance - currentBalance;
+      
+      // Déjà synchronisé ou solde DB plus élevé (crédit interne)
+      if (depositDiff <= threshold) {
         return {
           currency,
           success: true,
           total: currentBalance,
           added: 0,
-          message: "Solde déjà à jour",
+          message: currentBalance > blockchainBalance 
+            ? "Solde interne préservé (crédit swap/P2P)" 
+            : "Solde déjà à jour",
         };
       }
 
@@ -250,24 +257,24 @@ async function syncCryptoBalance({
         };
       }
 
-      // Mettre à jour le solde
+      // Mettre à jour le solde avec le MAX (préserve les crédits internes)
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
-        data: { balance: blockchainBalance },
+        data: { balance: safeBalance },
       });
 
       const reference = `${currency}-DEP-${nanoid(10).toUpperCase()}`;
 
-      // Créer une transaction DEPOSIT si le solde a augmenté
-      if (diff > 0) {
+      // Créer une transaction DEPOSIT uniquement si dépôt blockchain détecté
+      if (depositDiff > 0) {
         await tx.transaction.create({
           data: {
             reference,
-            amount: diff,
+            amount: depositDiff,
             currency,
             type: TransactionType.DEPOSIT,
             status: TransactionStatus.SUCCESS,
-            description: `Dépôt ${currency} (+${diff.toFixed(decimals)} ${currency})`,
+            description: `Dépôt ${currency} (+${depositDiff.toFixed(decimals)} ${currency})`,
             toUserId: userId,
             toWalletId: updated.id,
             metadata: {
@@ -286,17 +293,17 @@ async function syncCryptoBalance({
           data: {
             userId,
             title: `Dépôt ${currency} reçu !`,
-            message: `Vous avez reçu ${diff.toFixed(decimals)} ${currency} sur votre wallet PimPay.`,
+            message: `Vous avez reçu ${depositDiff.toFixed(decimals)} ${currency} sur votre wallet PimPay.`,
             type: "SUCCESS",
             read: false,
             metadata: JSON.stringify({
-              amount: diff,
+              amount: depositDiff,
               currency,
               network,
               reference,
               status: "SUCCESS",
               previousBalance: currentBalance,
-              newBalance: blockchainBalance,
+              newBalance: safeBalance,
             }),
           },
         });
@@ -306,9 +313,9 @@ async function syncCryptoBalance({
         currency,
         success: true,
         total: updated.balance,
-        added: diff,
-        message: diff > 0 ? `Synchronisation réussie (+${diff.toFixed(decimals)} ${currency})` : "Solde mis à jour",
-        reference: diff > 0 ? reference : undefined,
+        added: depositDiff > 0 ? depositDiff : 0,
+        message: depositDiff > 0 ? `Synchronisation réussie (+${depositDiff.toFixed(decimals)} ${currency})` : "Solde mis à jour",
+        reference: depositDiff > 0 ? reference : undefined,
       };
     },
     { timeout: 30_000, maxWait: 10_000 }

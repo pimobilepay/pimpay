@@ -78,14 +78,21 @@ export async function GET() {
     ]);
 
     // 3. MISE À JOUR / CRÉATION AUTOMATIQUE (Synchronisation DB)
+    // ✅ FIX: Utiliser Math.max() pour ne pas écraser les crédits internes (swap, transfert P2P)
     const syncTasks = [];
 
     if (liveUsdt !== null) {
+      // Récupérer le solde DB actuel
+      const existingUsdt = user.wallets.find(w => w.currency === "USDT");
+      const dbUsdtBalance = existingUsdt?.balance ?? 0;
+      // Prendre le max pour préserver les crédits internes
+      const safeUsdtBalance = Math.max(liveUsdt, dbUsdtBalance);
+      
       syncTasks.push(
         prisma.wallet.upsert({
           where: { userId_currency: { userId: user.id, currency: "USDT" } },
-          update: { balance: liveUsdt },
-          create: { userId: user.id, currency: "USDT", type: "CRYPTO", balance: liveUsdt }
+          update: { balance: safeUsdtBalance },
+          create: { userId: user.id, currency: "USDT", type: "CRYPTO", balance: safeUsdtBalance }
         })
       );
     }
