@@ -67,13 +67,14 @@ const FALLBACK_MESSAGES: AnnouncementConfig[] = [
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function GlobalAnnouncement() {
-  const [announcements, setAnnouncements] = useState<AnnouncementConfig[]>(FALLBACK_MESSAGES);
+  const [announcements, setAnnouncements] = useState<AnnouncementConfig[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [hasAnnouncement, setHasAnnouncement] = useState(false);
 
   const textRef = useRef<HTMLSpanElement>(null);
   const [textWidth, setTextWidth] = useState(0);
@@ -92,7 +93,9 @@ export default function GlobalAnnouncement() {
         const res = await fetch("/api/admin/config", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
-        if (data?.globalAnnouncement) {
+        
+        // ✅ FIX: Ne pas afficher d'annonce si globalAnnouncement est vide ou non defini
+        if (data?.globalAnnouncement && data.globalAnnouncement.trim() !== "") {
           // Détecter le type selon le contenu
           const msg: string = data.globalAnnouncement;
           let type: AnnouncementType = "info";
@@ -100,13 +103,18 @@ export default function GlobalAnnouncement() {
           else if (/maintenance|fermeture|interruption/i.test(msg)) type = "warning";
           else if (/opérationnel|bienvenue|félicitation|succès/i.test(msg)) type = "success";
 
-          // ✅ FIX: une seule annonce quand l'API répond
           setAnnouncements([
             { message: msg, type, link: "/settings/kyc" },
           ]);
+          setHasAnnouncement(true);
+        } else {
+          // Pas d'annonce definie par l'admin
+          setAnnouncements([]);
+          setHasAnnouncement(false);
         }
       } catch {
-        // Fail silencieux — garde les fallbacks
+        // Fail silencieux — pas d'annonce
+        setHasAnnouncement(false);
       }
     };
 
@@ -182,8 +190,8 @@ export default function GlobalAnnouncement() {
     if (current?.link) router.push(current.link);
   };
 
-  if (!mounted || dismissed || !current) {
-    return <div className="h-9 bg-[#020617]" />;
+  if (!mounted || dismissed || !hasAnnouncement || !current) {
+    return null; // Ne rien afficher si pas d'annonce publiee
   }
 
   const isClickable = !!current.link;

@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
           stakingAPY: 12.0,
           transactionFee: 0.5,
           minWithdrawal: 10.0,
-          globalAnnouncement: "PIMPAY PROTOCOL: Network operational.",
+          globalAnnouncement: "", // ✅ FIX: Vide par défaut - l'admin doit publier explicitement
           forceUpdate: false,
         }
       });
