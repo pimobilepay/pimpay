@@ -255,50 +255,14 @@ async function executeSunioSwap(
   const versionLen  = [2];      // Nombre de tokens dans le path (toujours un entier)
   const fees        = [0, 0];   // Frais V3 uniquement — 0 pour V2
 
-  // ─── ABI du Smart Router Sun.io ──────────────────────────────────────────
-  // ✅ CORRECTION : tronWeb.contract().at() charge l'ABI depuis TronScan,
-  //    mais le Smart Router n'a pas d'ABI publique vérifiée → "unknown function".
-  //    Il faut injecter l'ABI manuellement avec tronWeb.contract(ABI, address).
+  // ─── triggerSmartContract Sun.io Smart Router ─────────────────────────────
+  // ✅ On utilise tronWeb.transactionBuilder.triggerSmartContract directement.
+  //    Cela évite tous les problèmes d'encodage de tuple par TronWeb/ethers
+  //    (erreur "cannot encode object for signature with missing names").
+  //    TronGrid encode lui-même le tuple à partir de la signature de fonction.
   //    Source : https://github.com/sun-protocol/smart-exchange-router
-  const SMART_ROUTER_ABI = [
-    {
-      inputs: [
-        { internalType: "address[]", name: "path",        type: "address[]" },
-        { internalType: "string[]",  name: "poolVersion", type: "string[]"  },
-        { internalType: "uint256[]", name: "versionLen",  type: "uint256[]" },
-        { internalType: "uint24[]",  name: "fees",        type: "uint24[]"  },
-        {
-          components: [
-            { internalType: "uint256", name: "amountIn",    type: "uint256" },
-            { internalType: "uint256", name: "amountOutMin",type: "uint256" },
-            { internalType: "address", name: "to",          type: "address" },
-            { internalType: "uint256", name: "deadline",    type: "uint256" },
-          ],
-          internalType: "tuple",
-          name: "data",
-          type: "tuple",
-        },
-      ],
-      name: "swapExactInput",
-      outputs: [{ internalType: "uint256[]", name: "amountsOut", type: "uint256[]" }],
-      stateMutability: "payable",
-      type: "function",
-    },
-  ];
 
-  // Initialiser le contrat avec l'ABI explicite
-  const router = await tronWeb.contract(SMART_ROUTER_ABI, routerAddress);
-
-  // SwapData : objet tuple (Solidity struct) — PAS un tableau
-  // ⚠️ TronWeb encode les tuples comme des objets JS, pas des tableaux
-  const swapDataTuple = {
-    amountIn:    amountInRaw.toString(),
-    amountOutMin: minAmountOutRaw.toString(),
-    to:          userAddress,
-    deadline:    deadline,
-  };
-
-  // ABI minimale ERC20 pour l'approve (TRC20 est compatible ERC20)
+  // ABI minimale ERC20 pour l'approve (TRC20 compatible ERC20)
   const ERC20_APPROVE_ABI = [
     {
       inputs: [
@@ -316,15 +280,39 @@ async function executeSunioSwap(
 
   if (isTRXin) {
     // ── TRX natif → Token ────────────────────────────────────────────────
-    // Pas d'approve nécessaire pour TRX natif.
-    // Le TRX est envoyé via callValue dans la transaction.
-    txResult = await router
-      .swapExactInput(path, poolVersion, versionLen, fees, swapDataTuple)
-      .send({
-        callValue: amountInRaw,  // TRX natif envoyé avec la transaction
-        feeLimit:  150_000_000,  // 150 TRX max pour les frais d'énergie
-        shouldPollResponse: false,
-      });
+    // Pas d'approve nécessaire. TRX envoyé via call_value.
+    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
+      routerAddress,
+      "swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))",
+      {
+        callValue: amountInRaw,
+        feeLimit:  150_000_000,
+      },
+      [
+        { type: "address[]", value: path },
+        { type: "string[]",  value: poolVersion },
+        { type: "uint256[]", value: versionLen.map(String) },
+        { type: "uint24[]",  value: fees },
+        { type: "tuple(uint256,uint256,address,uint256)", value: [
+            amountInRaw.toString(),
+            minAmountOutRaw.toString(),
+            userAddress,
+            deadline.toString(),
+          ]
+        },
+      ],
+      tronWeb.address.toHex(userAddress)
+    );
+
+    if (!tx.result?.result) {
+      throw new Error(`triggerSmartContract failed: ${JSON.stringify(tx.result)}`);
+    }
+    const signed = await tronWeb.trx.sign(tx.transaction);
+    const broadcast = await tronWeb.trx.sendRawTransaction(signed);
+    if (!broadcast.result) {
+      throw new Error(`broadcast failed: ${JSON.stringify(broadcast)}`);
+    }
+    txResult = broadcast.txid || broadcast.transaction?.txID;
 
   } else {
     // ── Token → Token  ou  Token → TRX natif ────────────────────────────
@@ -337,14 +325,39 @@ async function executeSunioSwap(
     // Laisser la confirmation de l'approve se propager sur la blockchain
     await new Promise((r) => setTimeout(r, 3000));
 
-    // Étape 2 : Exécuter le swap (pas de callValue car pas de TRX natif en entrée)
-    txResult = await router
-      .swapExactInput(path, poolVersion, versionLen, fees, swapDataTuple)
-      .send({
-        callValue:  0,
-        feeLimit:   150_000_000,
-        shouldPollResponse: false,
-      });
+    // Étape 2 : Exécuter le swap via triggerSmartContract
+    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
+      routerAddress,
+      "swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))",
+      {
+        callValue: 0,
+        feeLimit:  150_000_000,
+      },
+      [
+        { type: "address[]", value: path },
+        { type: "string[]",  value: poolVersion },
+        { type: "uint256[]", value: versionLen.map(String) },
+        { type: "uint24[]",  value: fees },
+        { type: "tuple(uint256,uint256,address,uint256)", value: [
+            amountInRaw.toString(),
+            minAmountOutRaw.toString(),
+            userAddress,
+            deadline.toString(),
+          ]
+        },
+      ],
+      tronWeb.address.toHex(userAddress)
+    );
+
+    if (!tx.result?.result) {
+      throw new Error(`triggerSmartContract failed: ${JSON.stringify(tx.result)}`);
+    }
+    const signed = await tronWeb.trx.sign(tx.transaction);
+    const broadcast = await tronWeb.trx.sendRawTransaction(signed);
+    if (!broadcast.result) {
+      throw new Error(`broadcast failed: ${JSON.stringify(broadcast)}`);
+    }
+    txResult = broadcast.txid || broadcast.transaction?.txID;
   }
 
   return txResult;
