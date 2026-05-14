@@ -43,14 +43,18 @@ const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 // ─── Constantes Sun.io ────────────────────────────────────────────────────────
 
 /**
- * Adresse du contrat SunSwap V2 Router sur le mainnet TRON.
- * Source : https://github.com/sunswapteam/sunswap2.0-contracts
+ * Adresse du Smart Router Sun.io sur le mainnet TRON.
+ * Source officielle : https://docs.sun.io/developers/swap/smart-router
+ *                     https://github.com/sun-protocol/smart-exchange-router
  * 
- * Adresses connues :
- *   - TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR  ← V2 Router actuel
- *   - TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax  (déprécié)
+ * Adresses Smart Router :
+ *   - TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj  ← Smart Router actuel (mainnet)
+ *   - TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j  (mis à jour sept. 2024, déprécié)
+ * 
+ * ⚠️ NE PAS confondre avec SunSwap V2 Router (TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR)
+ *    qui utilise l'API Uniswap V2. Le Smart Router utilise swapExactInput().
  */
-const SUNSWAP_V2_ROUTER = "TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR";
+const SUNSWAP_SMART_ROUTER = "TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj";
 
 /**
  * Clé TronGrid — utilisée par TronWeb pour broadcaster les txs on-chain.
@@ -140,13 +144,23 @@ async function getSunioQuote(
   }
 
   const ids = [...new Set([fromId, toId])].join(",");
-  const cgRes = await fetch(
-    `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
-    { signal: AbortSignal.timeout(8_000) }
-  );
 
-  if (!cgRes.ok) throw new Error(`CoinGecko erreur ${cgRes.status}`);
-  const prices = await cgRes.json();
+  // Retry jusqu'à 3 fois en cas d'erreur 429 (rate limit CoinGecko)
+  let prices: Record<string, { usd: number }> = {};
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 1200));
+    const cgRes = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(10_000) }
+    );
+    lastStatus = cgRes.status;
+    if (cgRes.ok) { prices = await cgRes.json(); break; }
+    if (cgRes.status !== 429) throw new Error(`CoinGecko erreur ${cgRes.status}`);
+  }
+  if (!prices || Object.keys(prices).length === 0) {
+    throw new Error(`CoinGecko erreur ${lastStatus} — service temporairement limité, réessayez dans quelques secondes.`);
+  }
 
   const fromUsd = prices[fromId]?.usd;
   const toUsd   = prices[toId]?.usd;
@@ -168,18 +182,36 @@ async function getSunioQuote(
     amountOut:    amountOut.toFixed(6),
     priceImpact,
     route:        [fromAddress, toAddress],
-    routerAddress: SUNSWAP_V2_ROUTER,
+    routerAddress: SUNSWAP_SMART_ROUTER,  // ✅ Smart Router officiel Sun.io
     minAmountOut: minAmountOut.toFixed(6),
     fee:          (amountIn * FEE_PCT).toFixed(6),
   };
 }
 
 /**
- * Exécute le swap on-chain via le contrat SunSwap V2 Router.
- * Utilise les fonctions standard Uniswap V2:
- *   - swapExactETHForTokens : TRX → Token
- *   - swapExactTokensForETH : Token → TRX
- *   - swapExactTokensForTokens : Token → Token
+ * Exécute le swap on-chain via le Smart Router Sun.io officiel.
+ *
+ * ✅ CORRECTION CRITIQUE :
+ *   L'ancienne implémentation utilisait swapExactETHForTokens / swapExactTokensForETH
+ *   (API Uniswap V2 / SunSwap V2). Cela provoquait l'erreur :
+ *   "Contract validate error : Validate InternalTransfer error, balance is not sufficient"
+ *   car le Smart Router (TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj) n'expose PAS ces méthodes.
+ *
+ *   Le Smart Router Sun.io utilise UNE SEULE fonction unifiée : swapExactInput()
+ *   Source : https://docs.sun.io/developers/swap/smart-router
+ *            https://github.com/sun-protocol/smart-exchange-router
+ *
+ * Signature :
+ *   function swapExactInput(
+ *     address[] path,           // [tokenFrom, tokenTo]
+ *     string[]  poolVersion,    // ["v2"] pour TRX↔USDT via SunSwap V2
+ *     uint256[] versionLen,     // [2] = nombre de tokens dans le path
+ *     uint24[]  fees,           // [0, 0] frais (0 pour V2)
+ *     SwapData  data            // [amountIn, amountOutMin, to, deadline]
+ *   ) payable
+ *
+ * Pour TRX natif en entrée : callValue = amountInRaw (TRX envoyé avec la tx)
+ * Pour Token en entrée : approuver le router, puis appeler swapExactInput sans callValue
  */
 async function executeSunioSwap(
   privateKey: string,
@@ -200,7 +232,7 @@ async function executeSunioSwap(
 
   const fromUpper = fromToken.toUpperCase();
   const toUpper = toToken.toUpperCase();
-  
+
   // Décimales (TRX et la plupart des tokens TRC20 utilisent 6 décimales)
   const decimals = 6;
   const amountInRaw = Math.floor(amountIn * Math.pow(10, decimals));
@@ -210,73 +242,62 @@ async function executeSunioSwap(
   const isTRXin = fromUpper === "TRX";
   const isTRXout = toUpper === "TRX";
 
-  // Construire le path pour le swap (utilise WTRX pour TRX)
+  // Construire le path : TRX natif est représenté par WTRX dans le Smart Router
   const WTRX_ADDRESS = TOKEN_ADDRESSES.WTRX;
   const fromAddress = isTRXin ? WTRX_ADDRESS : TOKEN_ADDRESSES[fromUpper];
-  const toAddress = isTRXout ? WTRX_ADDRESS : TOKEN_ADDRESSES[toUpper];
-  const path = [fromAddress, toAddress];
+  const toAddress   = isTRXout ? WTRX_ADDRESS : TOKEN_ADDRESSES[toUpper];
 
-  // Obtenir le contrat router
+  if (!fromAddress) throw new Error(`Token source non supporté: ${fromToken}`);
+  if (!toAddress)   throw new Error(`Token destination non supporté: ${toToken}`);
+
+  const path        = [fromAddress, toAddress];
+  const poolVersion = ["v2"];   // SunSwap V2 — le plus liquide pour TRX/USDT
+  const versionLen  = [2];      // Nombre de tokens dans le path
+  const fees        = [0, 0];   // Pas de frais supplémentaires pour V2
+
+  // SwapData : [amountIn, amountOutMin, destinataire, deadline]
+  const swapData = [
+    amountInRaw.toString(),
+    minAmountOutRaw.toString(),
+    userAddress,
+    deadline,
+  ];
+
+  // Obtenir le contrat Smart Router
   const router = await tronWeb.contract().at(routerAddress);
 
   let txResult: string;
 
   if (isTRXin) {
-    // ── TRX → Token : swapExactETHForTokens ─────────────────────────────
-    // Note: Sur TRON, "ETH" = TRX natif
-    // Signature: swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline)
+    // ── TRX natif → Token ────────────────────────────────────────────────
+    // Pas d'approve nécessaire pour TRX natif.
+    // Le TRX est envoyé via callValue dans la transaction.
     txResult = await router
-      .swapExactETHForTokens(
-        minAmountOutRaw,
-        path,
-        userAddress,
-        deadline
-      )
+      .swapExactInput(path, poolVersion, versionLen, fees, swapData)
       .send({
-        callValue: amountInRaw, // TRX envoyé avec la transaction
-        feeLimit: 150_000_000,   // 150 TRX max pour les frais d'énergie
+        callValue: amountInRaw,  // TRX natif envoyé avec la transaction
+        feeLimit:  150_000_000,  // 150 TRX max pour les frais d'énergie
+        shouldPollResponse: false,
       });
-      
-  } else if (isTRXout) {
-    // ── Token → TRX : swapExactTokensForETH ─────────────────────────────
-    // D'abord approuver le router à dépenser nos tokens
-    const tokenContract = await tronWeb.contract().at(fromAddress);
-    await tokenContract
-      .approve(routerAddress, amountInRaw.toString())
-      .send({ feeLimit: 50_000_000 });
 
-    // Signature: swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)
-    txResult = await router
-      .swapExactTokensForETH(
-        amountInRaw,
-        minAmountOutRaw,
-        path,
-        userAddress,
-        deadline
-      )
-      .send({
-        feeLimit: 150_000_000,
-      });
-      
   } else {
-    // ── Token → Token : swapExactTokensForTokens ────────────────────────
-    // D'abord approuver le router à dépenser nos tokens
+    // ── Token → Token  ou  Token → TRX natif ────────────────────────────
+    // Étape 1 : Approuver le Smart Router à dépenser les tokens
     const tokenContract = await tronWeb.contract().at(fromAddress);
     await tokenContract
       .approve(routerAddress, amountInRaw.toString())
-      .send({ feeLimit: 50_000_000 });
+      .send({ feeLimit: 60_000_000, shouldPollResponse: false });
 
-    // Signature: swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)
+    // Laisser la confirmation se propager sur la blockchain
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Étape 2 : Exécuter le swap (pas de callValue car pas de TRX natif en entrée)
     txResult = await router
-      .swapExactTokensForTokens(
-        amountInRaw,
-        minAmountOutRaw,
-        path,
-        userAddress,
-        deadline
-      )
+      .swapExactInput(path, poolVersion, versionLen, fees, swapData)
       .send({
-        feeLimit: 150_000_000,
+        callValue:  0,
+        feeLimit:   150_000_000,
+        shouldPollResponse: false,
       });
   }
 
