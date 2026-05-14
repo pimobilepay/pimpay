@@ -320,6 +320,14 @@ export async function POST(req: NextRequest) {
                     isBlockchainWithdraw: true,
                     requestedAt: new Date().toISOString(),
                   }
+                : currency === "TRX"
+                ? {
+                    externalAddress: recipientInput,
+                    toAddress: recipientInput,
+                    network: "TRON Mainnet",
+                    isBlockchainWithdraw: true,
+                    requestedAt: new Date().toISOString(),
+                  }
                 : {
                     externalAddress: recipientInput,
                     network: currency,
@@ -431,8 +439,46 @@ export async function POST(req: NextRequest) {
           blockchainTxHash = receipt?.hash || txRes.hash;
         }
 
+        // ── TRX (TRON natif) ─────────────────────────────────────────────
+        if (currency === "TRX" && senderUser?.usdtPrivateKey && senderUser?.usdtAddress) {
+          let privateKey = senderUser.usdtPrivateKey;
+          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+
+          const tronWeb = new TronWeb({
+            fullHost: RPC_URLS.TRON,
+            privateKey,
+          });
+
+          // Vérifier le solde TRX on-chain
+          const trxBalanceSun = await tronWeb.trx.getBalance(senderUser.usdtAddress);
+          const trxBalanceOnChain = trxBalanceSun / 1_000_000;
+          
+          // Amount in SUN (1 TRX = 1,000,000 SUN)
+          const amountInSun = Math.floor(result.transaction.amount * 1_000_000);
+          // Frais estimés ~1 TRX pour un transfert simple
+          const estimatedFeeSun = 1_000_000;
+          
+          if (trxBalanceSun < amountInSun + estimatedFeeSun) {
+            throw new Error(
+              `Solde TRX on-chain insuffisant. Disponible: ${trxBalanceOnChain.toFixed(2)} TRX, requis: ${(result.transaction.amount + 1).toFixed(2)} TRX (avec frais).`
+            );
+          }
+
+          // Envoyer TRX natif
+          const txResult = await tronWeb.trx.sendTransaction(
+            recipientInput,
+            amountInSun
+          );
+          
+          if (txResult.result) {
+            blockchainTxHash = txResult.txid;
+          } else {
+            throw new Error(txResult.message || "Échec de la transaction TRX");
+          }
+        }
+
         // ── USDT TRC20 ───────────────────────────────────────────────────
-        if (currency === "USDT" && senderUser?.usdtPrivateKey) {
+        if (currency === "USDT" && senderUser?.usdtPrivateKey && senderUser?.usdtAddress) {
           let privateKey = senderUser.usdtPrivateKey;
           if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 

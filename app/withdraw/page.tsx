@@ -212,15 +212,15 @@ export default function WithdrawPage() {
         });
         router.push(`/withdraw/success?${params.toString()}`);
       } else {
-        // For other cryptos, use the wallet send/transfer API
-        const res = await fetch("/api/wallet/send", {
+        // For other cryptos, use the unified user/transfer API
+        const res = await fetch("/api/user/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            recipientIdentifier: cryptoAddress,
             currency: selectedCrypto,
-            address: cryptoAddress,
             amount: parseFloat(cryptoAmount),
-            memo: cryptoMemo,
+            description: cryptoMemo || `Retrait ${selectedCrypto} vers ${cryptoAddress.substring(0, 8)}...${cryptoAddress.substring(cryptoAddress.length - 4)}`,
           }),
         });
 
@@ -232,7 +232,7 @@ export default function WithdrawPage() {
 
         toast.success(`Retrait ${selectedCrypto} initie avec succes!`);
         const params = new URLSearchParams({
-          ref: data.reference || data.txHash || "",
+          ref: data.transaction?.reference || data.blockchainTx || "",
           amount: cryptoAmount,
           currency: selectedCrypto,
           method: "crypto",
