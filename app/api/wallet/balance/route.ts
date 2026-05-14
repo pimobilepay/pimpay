@@ -3,57 +3,127 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
 import { cookies } from "next/headers";
-import crypto from "node:crypto"; // ✅ Gardé pour bytesToWif et generateXrpKeypair
+import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { ethers } from "ethers";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
-import * as bitcoin from 'bitcoinjs-lib';
-import * as ecc from '@noble/secp256k1';
+import * as bitcoin from "bitcoinjs-lib";
+import * as ecc from "@noble/secp256k1";
 import bs58 from "bs58";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-
-// Fonction pour convertir la clé privée en WIF (Bitcoin)
 function bytesToWif(privKey: Buffer): string {
   const payload = Buffer.concat([Buffer.from([0x80]), privKey, Buffer.from([0x01])]);
-  const hash1 = crypto.createHash('sha256').update(payload).digest();
-  const hash2 = crypto.createHash('sha256').update(hash1).digest();
+  const hash1 = crypto.createHash("sha256").update(payload).digest();
+  const hash2 = crypto.createHash("sha256").update(hash1).digest();
   const checksum = hash2.slice(0, 4);
   return bs58.encode(Buffer.concat([payload, checksum]));
 }
 
-// Fonction pour générer une adresse XRP valide
 function generateXrpKeypair() {
   const seed = crypto.randomBytes(16);
-  const alphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-  const hash = crypto.createHash('sha256').update(seed).digest();
-  const ripemd = crypto.createHash('ripemd160').update(hash).digest();
+  const alphabet = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+  const hash = crypto.createHash("sha256").update(seed).digest();
+  const ripemd = crypto.createHash("ripemd160").update(hash).digest();
 
-  let address = 'r';
-  for (let i = 0; i < 24; i++) {
-    address += alphabet[ripemd[i % ripemd.length] % alphabet.length];
-  }
+  let address = "r";
+  for (let i = 0; i < 24; i++) address += alphabet[ripemd[i % ripemd.length] % alphabet.length];
 
-  let secret = 's';
-  for (let i = 0; i < 28; i++) {
-    secret += alphabet[seed[i % seed.length] % alphabet.length];
-  }
+  let secret = "s";
+  for (let i = 0; i < 28; i++) secret += alphabet[seed[i % seed.length] % alphabet.length];
 
   return { address, secret };
 }
 
 const SIDRA_RPC = "https://rpc.sidrachain.com";
+const TRON_VALID_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+
+// ---------------------------------------------------------------------------
+// ✅ FIX PRINCIPAL : Sync USDT on-chain sans écraser le solde interne
+//
+// AVANT (bugué) :
+//   update: { balance: usdtBalance }          <-- écrase le crédit interne P2P
+//
+// APRÈS (corrigé) :
+//   On compare le solde on-chain et le solde DB.
+//   - Si on-chain > DB : un dépôt externe est arrivé → on prend on-chain (plus grand).
+//   - Si DB > on-chain : un transfert interne P2P a crédité ce wallet → on garde DB.
+//   On prend donc le MAX des deux valeurs.
+//
+// Pourquoi ?
+//   Les transferts internes PimPay ne passent PAS par la blockchain.
+//   Le solde on-chain ne les reflète pas. Si on l'écrase, le destinataire
+//   perd son crédit et seul l'historique de transaction reste visible.
+// ---------------------------------------------------------------------------
+async function syncUsdtBalanceSafe(
+  userId: string,
+  usdtAddress: string
+): Promise<void> {
+  try {
+    const onChainBalance = await getUsdtBalance(usdtAddress);
+
+    // Lire le solde DB actuel
+    const existing = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: "USDT" } },
+      select: { balance: true },
+    });
+
+    const dbBalance = existing?.balance ?? 0;
+
+    // ✅ On prend le MAX : préserve les crédits internes
+    const safeBalance = Math.max(onChainBalance, dbBalance);
+
+    await prisma.wallet.upsert({
+      where: { userId_currency: { userId, currency: "USDT" } },
+      update: { balance: safeBalance },
+      create: { userId, currency: "USDT", balance: safeBalance, type: "CRYPTO" },
+    });
+  } catch {
+    // Silencieux — on garde la valeur DB existante
+  }
+}
+
+// Idem pour TRX (même adresse que USDT sur TRON)
+async function syncTrxBalanceSafe(
+  userId: string,
+  usdtAddress: string
+): Promise<void> {
+  try {
+    const onChainBalance = await getTrxBalance(usdtAddress);
+    const existing = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: "TRX" } },
+      select: { balance: true },
+    });
+    const dbBalance = existing?.balance ?? 0;
+    const safeBalance = Math.max(onChainBalance, dbBalance);
+
+    await prisma.wallet.upsert({
+      where: { userId_currency: { userId, currency: "TRX" } },
+      update: { balance: safeBalance },
+      create: { userId, currency: "TRX", balance: safeBalance, type: "CRYPTO" },
+    });
+  } catch {
+    // Silencieux
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/wallet/balance
+// ---------------------------------------------------------------------------
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
 
-    // --- AUTH: Hybrid token recovery via lib/auth ---
     const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    const classicToken =
+      cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     let userId: string | null = null;
 
@@ -71,7 +141,7 @@ export async function GET() {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // --- Fetch user with wallets (only safe fields) ---
+    // --- Fetch user with wallets ---
     let user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -82,14 +152,14 @@ export async function GET() {
         solAddress: true,
         usdtAddress: true,
         wallets: true,
-      }
+      },
     });
 
     if (!user) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    // --- Auto-générer l'adresse XLM/Stellar si elle n'existe pas ---
+    // --- Auto-générer l'adresse XLM/Stellar ---
     if (!user.xlmAddress) {
       try {
         const keypair = StellarSdk.Keypair.random();
@@ -100,102 +170,65 @@ export async function GET() {
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
             where: { id: userId },
-            data: {
-              xlmAddress: publicKey,
-              stellarPrivateKey: encryptedSecret
-            }
+            data: { xlmAddress: publicKey, stellarPrivateKey: encryptedSecret },
           });
-
           await tx.wallet.upsert({
             where: { userId_currency: { userId, currency: "XLM" } },
             update: { depositMemo: publicKey },
-            create: {
-              userId,
-              currency: "XLM",
-              type: "CRYPTO",
-              balance: 0,
-              depositMemo: publicKey,
-            }
+            create: { userId, currency: "XLM", type: "CRYPTO", balance: 0, depositMemo: publicKey },
           });
         });
 
-        // Recharger l'utilisateur avec la nouvelle adresse
         user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            walletAddress: true,
-            sidraAddress: true,
-            xrpAddress: true,
-            xlmAddress: true,
-            solAddress: true,
-            usdtAddress: true,
-            wallets: true,
-          }
+            walletAddress: true, sidraAddress: true, xrpAddress: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+          },
         }) as typeof user;
-
-        console.log("[BALANCE_API] Auto-generated XLM address:", publicKey);
-      } catch (xlmError) {
-        console.error("[BALANCE_API] Failed to auto-generate XLM address:", xlmError);
+      } catch (e) {
+        console.error("[BALANCE_API] Failed to auto-generate XLM address:", e);
       }
     }
 
-    // --- Auto-générer l'adresse SOL/Solana si elle n'existe pas ---
+    // --- Auto-générer l'adresse SOL/Solana ---
     if (!user.solAddress) {
       try {
         const keypair = SolanaKeypair.generate();
-        const publicKey = keypair.publicKey.toBase58(); // Adresse Solana (32-44 chars, Base58)
-        const secretKey = bs58.encode(keypair.secretKey); // Clé privée en Base58
+        const publicKey = keypair.publicKey.toBase58();
+        const secretKey = bs58.encode(keypair.secretKey);
         const encryptedSecret = encrypt(secretKey);
 
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
             where: { id: userId },
-            data: {
-              solAddress: publicKey,
-              solPrivateKey: encryptedSecret
-            }
+            data: { solAddress: publicKey, solPrivateKey: encryptedSecret },
           });
-
           await tx.wallet.upsert({
             where: { userId_currency: { userId, currency: "SOL" } },
             update: { depositMemo: publicKey },
-            create: {
-              userId,
-              currency: "SOL",
-              type: "CRYPTO",
-              balance: 0,
-              depositMemo: publicKey,
-            }
+            create: { userId, currency: "SOL", type: "CRYPTO", balance: 0, depositMemo: publicKey },
           });
         });
 
-        // Recharger l'utilisateur avec la nouvelle adresse
         user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            walletAddress: true,
-            sidraAddress: true,
-            xrpAddress: true,
-            xlmAddress: true,
-            solAddress: true,
-            usdtAddress: true,
-            wallets: true,
-          }
+            walletAddress: true, sidraAddress: true, xrpAddress: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+          },
         }) as typeof user;
-
-        console.log("[BALANCE_API] Auto-generated SOL address:", publicKey);
-      } catch (solError) {
-        console.error("[BALANCE_API] Failed to auto-generate SOL address:", solError);
+      } catch (e) {
+        console.error("[BALANCE_API] Failed to auto-generate SOL address:", e);
       }
     }
 
-    // --- Auto-générer l'adresse BTC/Bitcoin si elle n'existe pas ---
-    let btcWallet = user.wallets.find(w => w.currency === "BTC");
+    // --- Auto-générer l'adresse BTC ---
+    let btcWallet = user.wallets.find((w) => w.currency === "BTC");
     if (!btcWallet?.depositMemo) {
       try {
         const privKeyBytes = crypto.randomBytes(32);
         const pubKey = Buffer.from(ecc.getPublicKey(privKeyBytes, true));
-
         const { address: btcAddress } = bitcoin.payments.p2wpkh({
           pubkey: pubKey,
           network: bitcoin.networks.bitcoin,
@@ -209,44 +242,29 @@ export async function GET() {
             await tx.wallet.upsert({
               where: { userId_currency: { userId, currency: "BTC" } },
               update: { depositMemo: btcAddress, type: "CRYPTO" },
-              create: {
-                userId,
-                currency: "BTC",
-                type: "CRYPTO",
-                balance: 0,
-                depositMemo: btcAddress,
-              }
+              create: { userId, currency: "BTC", type: "CRYPTO", balance: 0, depositMemo: btcAddress },
             });
-
-            // Stocker la clé privée chiffrée dans Vault
-            await tx.vault.create({
-              data: { userId, name: `BTC_SECRET:${encryptedKey}`, amount: 0 }
-            }).catch(() => null); // Ignore si déjà existant
+            await tx.vault
+              .create({ data: { userId, name: `BTC_SECRET:${encryptedKey}`, amount: 0 } })
+              .catch(() => null);
           });
 
-          // Recharger l'utilisateur avec la nouvelle adresse
           user = await prisma.user.findUnique({
             where: { id: userId },
             select: {
-              walletAddress: true,
-              sidraAddress: true,
-              xrpAddress: true,
-              xlmAddress: true,
-              solAddress: true,
-              usdtAddress: true,
-              wallets: true,
-            }
+              walletAddress: true, sidraAddress: true, xrpAddress: true,
+              xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+            },
           }) as typeof user;
 
-          btcWallet = user.wallets.find(w => w.currency === "BTC");
-          console.log("[BALANCE_API] Auto-generated BTC address:", btcAddress);
+          btcWallet = user.wallets.find((w) => w.currency === "BTC");
         }
-      } catch (btcError) {
-        console.error("[BALANCE_API] Failed to auto-generate BTC address:", btcError);
+      } catch (e) {
+        console.error("[BALANCE_API] Failed to auto-generate BTC address:", e);
       }
     }
 
-    // --- Auto-générer l'adresse XRP/Ripple si elle n'existe pas ---
+    // --- Auto-générer l'adresse XRP ---
     if (!user.xrpAddress) {
       try {
         const { address: xrpAddress, secret: xrpSecret } = generateXrpKeypair();
@@ -255,53 +273,31 @@ export async function GET() {
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
             where: { id: userId },
-            data: { 
-              xrpAddress: xrpAddress, 
-              xrpPrivateKey: encryptedSecret
-            }
+            data: { xrpAddress, xrpPrivateKey: encryptedSecret },
           });
-
           await tx.wallet.upsert({
             where: { userId_currency: { userId, currency: "XRP" } },
             update: { depositMemo: xrpAddress, type: "CRYPTO" },
-            create: {
-              userId,
-              currency: "XRP",
-              type: "CRYPTO",
-              balance: 0,
-              depositMemo: xrpAddress,
-            }
+            create: { userId, currency: "XRP", type: "CRYPTO", balance: 0, depositMemo: xrpAddress },
           });
         });
 
-        // Recharger l'utilisateur avec la nouvelle adresse
         user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
-            walletAddress: true,
-            sidraAddress: true,
-            xrpAddress: true,
-            xlmAddress: true,
-            solAddress: true,
-            usdtAddress: true,
-            wallets: true,
-          }
+            walletAddress: true, sidraAddress: true, xrpAddress: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+          },
         }) as typeof user;
-
-        console.log("[BALANCE_API] Auto-generated XRP address:", xrpAddress);
-      } catch (xrpError) {
-        console.error("[BALANCE_API] Failed to auto-generate XRP address:", xrpError);
+      } catch (e) {
+        console.error("[BALANCE_API] Failed to auto-generate XRP address:", e);
       }
     }
 
-    // --- Validation + auto-réparation de l'adresse USDT (TRC20) ---
-    // Les anciennes adresses générées avec l'algo hex simplifié sont invalides
-    // (elles contiennent des '0' ou des caractères hors Base58).
-    // On les détecte et régénère automatiquement avec le bon algorithme Base58Check.
+    // --- Validation + auto-réparation adresse USDT (TRC20) ---
     let usdtAddress = user.usdtAddress || "";
-    const TRON_VALID_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
     if (usdtAddress && !TRON_VALID_REGEX.test(usdtAddress)) {
-      console.warn("[BALANCE_API] Adresse USDT invalide détectée, régénération...", usdtAddress.substring(0, 10));
+      console.warn("[BALANCE_API] Adresse USDT invalide détectée, régénération...");
       try {
         const { Wallet: EthWallet } = await import("ethers");
         const nodeCrypto = await import("crypto");
@@ -325,114 +321,91 @@ export async function GET() {
           data: { usdtAddress: addr, usdtPrivateKey: encryptKey(privKey) },
         });
         usdtAddress = addr;
-        console.log("[BALANCE_API] Adresse USDT réparée:", addr);
       } catch (repairErr) {
         console.error("[BALANCE_API] Echec réparation USDT:", repairErr);
       }
     }
 
-    // --- Fetch real SDA balance from Sidra blockchain ---
+    // --- Sync SDA depuis Sidra blockchain ---
     let sdaBalanceValue = 0;
     if (user.sidraAddress) {
       try {
         const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
-        const balanceRaw = await Promise.race([
+        const balanceRaw = (await Promise.race([
           provider.getBalance(user.sidraAddress),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000))
-        ]) as bigint;
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000)),
+        ])) as bigint;
 
-        const formattedSda = ethers.formatEther(balanceRaw);
-        sdaBalanceValue = parseFloat(formattedSda);
+        sdaBalanceValue = parseFloat(ethers.formatEther(balanceRaw));
 
-        // Sync SDA balance to DB (currency: "SDA", type: "SIDRA")
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "SDA" } },
-          update: { balance: sdaBalanceValue },
-          create: { userId, currency: "SDA", balance: sdaBalanceValue, type: "SIDRA" }
-        }).catch(() => null);
-      } catch (rpcError) {
-        console.error("RPC ERROR (Sidra):", rpcError);
-        // Fallback to last known DB value
-        const existingSda = user.wallets.find(w => w.currency === "SDA" || w.currency === "SIDRA");
+        await prisma.wallet
+          .upsert({
+            where: { userId_currency: { userId, currency: "SDA" } },
+            update: { balance: sdaBalanceValue },
+            create: { userId, currency: "SDA", balance: sdaBalanceValue, type: "SIDRA" },
+          })
+          .catch(() => null);
+      } catch {
+        const existingSda = user.wallets.find(
+          (w) => w.currency === "SDA" || w.currency === "SIDRA"
+        );
         if (existingSda) sdaBalanceValue = existingSda.balance;
       }
     } else {
-      const existingSda = user.wallets.find(w => w.currency === "SDA" || w.currency === "SIDRA");
+      const existingSda = user.wallets.find(
+        (w) => w.currency === "SDA" || w.currency === "SIDRA"
+      );
       if (existingSda) sdaBalanceValue = existingSda.balance;
     }
 
-    // --- Fetch real BNB balance from BSC blockchain (same EVM address as SDA) ---
+    // --- Sync BNB depuis BSC ---
     if (user.sidraAddress) {
       try {
         const BSC_RPC = "https://bsc-dataseed1.binance.org/";
         const bscProvider = new ethers.JsonRpcProvider(BSC_RPC);
-        const bnbRaw = await Promise.race([
+        const bnbRaw = (await Promise.race([
           bscProvider.getBalance(user.sidraAddress),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("BNB Timeout")), 5000))
-        ]) as bigint;
+          new Promise((_, reject) => setTimeout(() => reject(new Error("BNB Timeout")), 5000)),
+        ])) as bigint;
 
         const bnbBalance = parseFloat(ethers.formatEther(bnbRaw));
-
-        // Sync BNB balance to DB
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "BNB" } },
-          update: { balance: bnbBalance },
-          create: { userId, currency: "BNB", balance: bnbBalance, type: "CRYPTO" }
-        }).catch(() => null);
+        await prisma.wallet
+          .upsert({
+            where: { userId_currency: { userId, currency: "BNB" } },
+            update: { balance: bnbBalance },
+            create: { userId, currency: "BNB", balance: bnbBalance, type: "CRYPTO" },
+          })
+          .catch(() => null);
       } catch {
-        // Silencieux — on garde la valeur DB existante
+        // Silencieux
       }
     }
 
-    // --- Fetch real USDT (TRC20) balance via centralized TRON lib with TRONGRID_API_KEY ---
-    const freshUsdtAddress = user.usdtAddress || "";
-    const TRON_VALID = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
-    if (freshUsdtAddress && TRON_VALID.test(freshUsdtAddress)) {
-      try {
-        // Fetch USDT balance using centralized function
-        const usdtBalance = await getUsdtBalance(freshUsdtAddress);
-
-        // Sync USDT balance to DB
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "USDT" } },
-          update: { balance: usdtBalance },
-          create: { userId, currency: "USDT", balance: usdtBalance, type: "CRYPTO" }
-        }).catch(() => null);
-
-        // Also fetch TRX balance using centralized function
-        const trxBalance = await getTrxBalance(freshUsdtAddress);
-
-        // Sync TRX balance to DB
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId, currency: "TRX" } },
-          update: { balance: trxBalance },
-          create: { userId, currency: "TRX", balance: trxBalance, type: "CRYPTO" }
-        }).catch(() => null);
-
-      } catch {
-        // Silencieux — on garde la valeur DB existante
-      }
+    // ✅ FIX : Sync USDT et TRX avec protection du solde interne
+    if (usdtAddress && TRON_VALID_REGEX.test(usdtAddress)) {
+      await syncUsdtBalanceSafe(userId, usdtAddress);
+      await syncTrxBalanceSafe(userId, usdtAddress);
     }
 
-    // --- Build balances map from all wallets ---
+    // --- Construire la map des soldes ---
+    // ⚠️ On recharge les wallets APRES les sync pour avoir les valeurs à jour
+    const freshWalletsForMap = await prisma.wallet.findMany({ where: { userId } });
     const balancesMap: Record<string, string> = {};
-    for (const wallet of user.wallets) {
-      // Normalize SIDRA -> SDA for frontend
+    for (const wallet of freshWalletsForMap) {
       const key = wallet.currency === "SIDRA" ? "SDA" : wallet.currency;
       balancesMap[key] = wallet.balance.toFixed(8);
     }
 
-    // Ensure SDA is up to date
+    // SDA vient du RPC (plus fiable)
     balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
 
-    // Refresh btcWallet reference after potential auto-generation
-    // On recharge depuis la DB pour avoir les wallets générés pendant cette requête
-    const freshWallets = await prisma.wallet.findMany({ where: { userId } });
-    const finalBtcWallet = freshWallets.find(w => w.currency === "BTC");
-    // Mettre à jour xrpAddress depuis un re-fetch si nécessaire
+    // Re-fetch des adresses fraîches
     const freshUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { xrpAddress: true, xlmAddress: true, sidraAddress: true, usdtAddress: true, solAddress: true, walletAddress: true }
+      select: {
+        xrpAddress: true, xlmAddress: true, sidraAddress: true,
+        usdtAddress: true, solAddress: true, walletAddress: true,
+      },
     });
     if (freshUser) {
       user.xrpAddress = freshUser.xrpAddress;
@@ -443,14 +416,12 @@ export async function GET() {
       user.walletAddress = freshUser.walletAddress;
     }
 
-    // --- Build addresses map using group logic ---
-    // EVM Group: ETH, BNB, SDA, MATIC, USDC, DAI, BUSD share sidraAddress
+    const freshWallets = await prisma.wallet.findMany({ where: { userId } });
+    const finalBtcWallet = freshWallets.find((w) => w.currency === "BTC");
+
     const evmAddress = user.sidraAddress || "";
-    // Stellar Group: PI, XLM share xlmAddress  
     const stellarAddress = user.xlmAddress || "";
-    // Tron Group: TRX, USDT share usdtAddress
-    const tronAddress = usdtAddress;
-    // Unique: SOL uses solAddress
+    const tronAddress = user.usdtAddress || usdtAddress;
     const solAddr = user.solAddress || "";
 
     return NextResponse.json({
@@ -475,10 +446,8 @@ export async function GET() {
       XAF: balancesMap["XAF"] || "0.00",
       MATIC: balancesMap["MATIC"] || "0.00000000",
       addresses: {
-        // Stellar / Pi Network group
         PI: user.walletAddress || stellarAddress,
         XLM: stellarAddress,
-        // EVM group (shared sidraAddress)
         SDA: evmAddress,
         ETH: evmAddress,
         BNB: evmAddress,
@@ -489,22 +458,19 @@ export async function GET() {
         ADA: evmAddress,
         DOGE: evmAddress,
         TON: evmAddress,
-        // Tron group (shared usdtAddress)
         USDT: tronAddress,
         TRX: tronAddress,
-        // Unique chains
         BTC: finalBtcWallet?.depositMemo || "",
         XRP: user.xrpAddress || "",
         SOL: solAddr,
       },
-      wallets: user.wallets.map(w => ({
+      wallets: freshWallets.map((w) => ({
         currency: w.currency === "SIDRA" ? "SDA" : w.currency,
         balance: w.balance,
         depositMemo: w.depositMemo,
         type: w.type,
       })),
     });
-
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("BALANCE_FETCH_ERROR:", message);

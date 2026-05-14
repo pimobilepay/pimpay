@@ -13,7 +13,7 @@ import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Import TronWeb pour les transferts USDT TRC20
-const TronWebModule = require('tronweb');
+const TronWebModule = require("tronweb");
 const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 
 // Contrat USDT sur TRON (TRC20)
@@ -50,7 +50,7 @@ function isExternalAddress(identifier: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    // [FIX #7] Rate limiting — 20 requêtes / 60s par IP
+    // Rate limiting
     const ip = getClientIp(req);
     const rl = checkRateLimit(`transfer:${ip}`, 20, 60_000);
     if (rl.limited) {
@@ -69,19 +69,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Debut du traitement...");
-    
+    // Auth
     const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value ?? cookieStore.get("pimpay_token")?.value;
+    const token =
+      cookieStore.get("token")?.value ?? cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Pas de token");
       return NextResponse.json({ error: "Session expiree" }, { status: 401 });
     }
 
     const payload = await verifyJWT(token);
     if (!payload) {
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Token invalide");
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
     const senderId = payload.id;
@@ -89,235 +87,320 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const amount = parseFloat(body.amount);
     const currency = (body.currency || "PI").toUpperCase().trim();
-    const recipientInput = (body.recipientIdentifier || body.recipient || body.address || body.email || "").trim();
+    const recipientInput = (
+      body.recipientIdentifier ||
+      body.recipient ||
+      body.address ||
+      body.email ||
+      ""
+    ).trim();
     const description = body.description || "";
 
-    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Params:", { senderId, amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
-
     if (!recipientInput) {
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Destinataire manquant");
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
-    // Minimum de 0.00000001 pour les cryptos (BNB, TRX, USDT, etc.)
+
     const MIN_CRYPTO_AMOUNT = 0.00000001;
     if (isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur: Montant invalide", amount);
-      return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` },
+        { status: 400 }
+      );
     }
 
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
 
-    // [FIX V18] — Limites AML/KYC CEMAC
-    // Avant : aucune limite de montant, un utilisateur non-KYC pouvait transférer l'illimité.
-    // Ces limites s'appliquent PAR TRANSACTION (not daily/monthly — à implémenter en Semaine 2-3).
+    // Vérification KYC/AML
     const senderForAml = await prisma.user.findUnique({
       where: { id: senderId },
       select: { kycStatus: true, dailyLimit: true, monthlyLimit: true },
     });
     const kycStatus = senderForAml?.kycStatus || "NONE";
-    // Limites par transaction selon statut KYC (en unité de base de la devise)
     const AML_TX_LIMITS: Record<string, number> = {
-      NONE:     50_000,   // Non-KYC : 50 000 XAF max / transaction
-      PENDING:  100_000,  // KYC en cours : 100 000 XAF max
-      VERIFIED: 5_000_000, // KYC vérifié : 5 000 000 XAF max
+      NONE: 50_000,
+      PENDING: 100_000,
+      VERIFIED: 5_000_000,
     };
-    const txLimit = senderForAml?.dailyLimit || AML_TX_LIMITS[kycStatus] || AML_TX_LIMITS["NONE"];
+    const txLimit =
+      senderForAml?.dailyLimit || AML_TX_LIMITS[kycStatus] || AML_TX_LIMITS["NONE"];
     if (amount > txLimit) {
       return NextResponse.json(
         {
-          error: `Limite de transfert dépassée. Maximum autorisé pour votre statut KYC (${kycStatus}) : ${txLimit.toLocaleString()} ${currency}. Complétez votre KYC pour augmenter vos limites.`,
+          error: `Limite de transfert dépassée. Maximum autorisé pour votre statut KYC (${kycStatus}) : ${txLimit.toLocaleString()} ${currency}.`,
         },
         { status: 400 }
       );
     }
-    // Log transactions importantes (>1000 USD équivalent)
-    if (currency === "PI" && amount > 1000) {
-      console.warn(`[AML_ALERT] Transaction PI importante: ${amount} PI par user ${senderId} (KYC: ${kycStatus})`);
-    }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // FIX: Récupérer les infos de l'expéditeur (sender) pour les notifications et clés
-      const senderUser = await tx.user.findUnique({
-        where: { id: senderId },
-        select: { 
-            name: true, 
-            username: true, 
-            sidraPrivateKey: true, 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ÉTAPE 1 : Rechercher le destinataire + débiter en DB + créer la transaction
+    //           TOUT dans une transaction Prisma atomique.
+    //           Pour les transferts EXTERNES crypto, on crée la transaction en
+    //           statut PENDING (pas encore broadcast) afin de pouvoir rembourser
+    //           si le broadcast blockchain échoue.
+    // ─────────────────────────────────────────────────────────────────────────
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const senderUser = await tx.user.findUnique({
+          where: { id: senderId },
+          select: {
+            name: true,
+            username: true,
+            sidraPrivateKey: true,
             stellarPrivateKey: true,
-            piUserId: true, // Pour le flux A2U Pi Network
-            usdtPrivateKey: true, // Pour les transferts USDT TRC20
-            usdtAddress: true
-        }
-      });
-
-      const senderName = senderUser?.name || senderUser?.username || "Un utilisateur PimPay";
-
-      const senderWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: senderId, currency } },
-      });
-
-      if (!senderWallet) throw new Error(`Vous n'avez pas de portefeuille ${currency}.`);
-      if (senderWallet.balance < totalDebit) throw new Error(`Solde insuffisant.`);
-
-      let cleanInput = recipientInput.startsWith("@") ? recipientInput.substring(1) : recipientInput;
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Recherche destinataire:", cleanInput);
-      
-      // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
-      let recipientUser = null;
-      if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
-        const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
-        recipientUser = await tx.user.findFirst({
-          where: {
-            id: { startsWith: userIdPart }
-          }
-        });
-      }
-      
-      // Si pas trouve par PIMPAY, rechercher par autres identifiants
-      if (!recipientUser) {
-        recipientUser = await tx.user.findFirst({
-          where: {
-            OR: [
-              { username: { equals: cleanInput, mode: "insensitive" } },
-              { email: { equals: cleanInput, mode: "insensitive" } },
-              { phone: cleanInput },
-              { sidraAddress: cleanInput },
-              { walletAddress: cleanInput },
-              { xlmAddress: cleanInput },
-              { piUserId: cleanInput },
-              { usdtAddress: cleanInput }, // Recherche par adresse USDT TRC20
-              { id: cleanInput }, // Recherche directe par ID
-            ],
+            piUserId: true,
+            usdtPrivateKey: true,
+            usdtAddress: true,
           },
         });
-      }
-      
-      if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Destinataire trouve:", recipientUser ? `ID: ${recipientUser.id}` : "NON (transfert externe)");
 
-      // Verification d'auto-envoi AVANT le debit - doit etre faite ici
-      if (recipientUser && recipientUser.id === senderId) {
-        throw new Error("Auto-envoi interdit.");
-      }
+        const senderName =
+          senderUser?.name || senderUser?.username || "Un utilisateur PimPay";
 
-      // Verifier que le destinataire existe pour les transferts internes ou que c'est une adresse externe valide
-      if (!recipientUser && !isExternalAddress(recipientInput)) {
-        throw new Error("Destinataire ou adresse invalide.");
-      }
-
-      const updatedSender = await tx.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: totalDebit } },
-      });
-
-      if (recipientUser) {
-        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transfert INTERNE vers:", recipientUser.id);
-        
-        const toWallet = await tx.wallet.upsert({
-          where: { userId_currency: { userId: recipientUser.id, currency } },
-          update: { balance: { increment: amount } },
-          create: { userId: recipientUser.id, currency, balance: amount, type: getWalletType(currency) },
+        const senderWallet = await tx.wallet.findUnique({
+          where: { userId_currency: { userId: senderId, currency } },
         });
-        
-        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Wallet destinataire credite:", toWallet.id, "nouveau solde:", toWallet.balance);
+
+        if (!senderWallet)
+          throw new Error(`Vous n'avez pas de portefeuille ${currency}.`);
+        if (senderWallet.balance < totalDebit)
+          throw new Error("Solde insuffisant.");
+
+        let cleanInput = recipientInput.startsWith("@")
+          ? recipientInput.substring(1)
+          : recipientInput;
+
+        // Recherche destinataire (interne PimPay)
+        let recipientUser = null;
+        if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
+          const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
+          recipientUser = await tx.user.findFirst({
+            where: { id: { startsWith: userIdPart } },
+          });
+        }
+        if (!recipientUser) {
+          recipientUser = await tx.user.findFirst({
+            where: {
+              OR: [
+                { username: { equals: cleanInput, mode: "insensitive" } },
+                { email: { equals: cleanInput, mode: "insensitive" } },
+                { phone: cleanInput },
+                { sidraAddress: cleanInput },
+                { walletAddress: cleanInput },
+                { xlmAddress: cleanInput },
+                { piUserId: cleanInput },
+                { usdtAddress: cleanInput },
+                { id: cleanInput },
+              ],
+            },
+          });
+        }
+
+        if (recipientUser && recipientUser.id === senderId) {
+          throw new Error("Auto-envoi interdit.");
+        }
+
+        if (!recipientUser && !isExternalAddress(recipientInput)) {
+          throw new Error("Destinataire ou adresse invalide.");
+        }
+
+        // Débiter l'expéditeur
+        const updatedSender = await tx.wallet.update({
+          where: { id: senderWallet.id },
+          data: { balance: { decrement: totalDebit } },
+        });
+
+        // ─── Transfert INTERNE ────────────────────────────────────────────
+        if (recipientUser) {
+          // ✅ FIX INTERNE : on crédite le wallet destinataire en DB.
+          // Ce crédit est préservé car syncUsdtBalanceSafe() dans balance/route.ts
+          // utilise MAX(onChain, DB) et ne l'écrasera plus.
+          const toWallet = await tx.wallet.upsert({
+            where: { userId_currency: { userId: recipientUser.id, currency } },
+            update: { balance: { increment: amount } },
+            create: {
+              userId: recipientUser.id,
+              currency,
+              balance: amount,
+              type: getWalletType(currency),
+            },
+          });
+
+          const transaction = await tx.transaction.create({
+            data: {
+              reference: `PIM-INT-${nanoid(10).toUpperCase()}`,
+              amount,
+              fee,
+              netAmount: amount,
+              currency,
+              type: TransactionType.TRANSFER,
+              status: TransactionStatus.SUCCESS,
+              fromUserId: senderId,
+              toUserId: recipientUser.id,
+              fromWalletId: updatedSender.id,
+              toWalletId: toWallet.id,
+              description:
+                description ||
+                `Transfert interne vers @${recipientUser.username}`,
+            },
+          });
+
+          await tx.notification
+            .create({
+              data: {
+                userId: recipientUser.id,
+                title: "Paiement recu !",
+                message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
+                type: "PAYMENT_RECEIVED",
+                metadata: {
+                  amount,
+                  currency,
+                  senderName,
+                  reference: transaction.reference,
+                },
+              },
+            })
+            .catch(() => {});
+
+          return {
+            type: "INTERNAL" as const,
+            transaction,
+            newBalance: updatedSender.balance,
+            senderUser,
+          };
+        }
+
+        // ─── Transfert EXTERNE ───────────────────────────────────────────
+        // ✅ FIX EXTERNE : on crée la transaction en PENDING ici.
+        // Le broadcast blockchain a lieu HORS de cette transaction Prisma
+        // (ci-dessous) afin que si le broadcast échoue, on puisse rembourser
+        // sans être bloqué par un timeout Prisma.
+
+        const txDescription =
+          currency === "PI"
+            ? `Retrait PI vers adresse externe : ${recipientInput}`
+            : description || `Retrait ${currency} vers adresse externe : ${recipientInput}`;
+
+        // Pour PI, le worker prend le relais → on crée SUCCESS + QUEUED directement
+        const initialStatus =
+          currency === "PI" ? TransactionStatus.SUCCESS : TransactionStatus.PENDING;
 
         const transaction = await tx.transaction.create({
           data: {
-            reference: `PIM-INT-${nanoid(10).toUpperCase()}`,
-            amount, fee, netAmount: amount, currency,
-            type: TransactionType.TRANSFER,
-            status: TransactionStatus.SUCCESS,
+            reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
+            amount,
+            fee,
+            netAmount: amount,
+            currency,
+            type: TransactionType.WITHDRAW,
+            status: initialStatus,
+            statusClass: "QUEUED",
+            blockchainTx: null,
             fromUserId: senderId,
-            toUserId: recipientUser.id,
             fromWalletId: updatedSender.id,
-            toWalletId: toWallet.id,
-            description: description || `Transfert interne vers @${recipientUser.username}`,
+            description: txDescription,
+            accountNumber: recipientInput,
+            metadata:
+              currency === "PI"
+                ? {
+                    externalAddress: recipientInput,
+                    toAddress: recipientInput,
+                    network: "Pi Network",
+                    pendingWithdrawal: true,
+                    isBlockchainWithdraw: true,
+                    requestedAt: new Date().toISOString(),
+                    ...(senderUser?.piUserId && { piUid: senderUser.piUserId }),
+                  }
+                : currency === "USDT"
+                ? {
+                    externalAddress: recipientInput,
+                    toAddress: recipientInput,
+                    network: "TRON TRC20",
+                    isBlockchainWithdraw: true,
+                    requestedAt: new Date().toISOString(),
+                  }
+                : {
+                    externalAddress: recipientInput,
+                    network: currency,
+                    isBlockchainWithdraw: true,
+                    requestedAt: new Date().toISOString(),
+                  },
           },
         });
-        
-        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transaction creee:", transaction.reference);
 
-        await tx.notification.create({
-          data: {
-            userId: recipientUser.id,
-            title: "Paiement recu !",
-            message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
-            type: "PAYMENT_RECEIVED",
-            metadata: { amount, currency, senderName, reference: transaction.reference },
-          },
-        }).catch((e) => { if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Erreur notification:", e.message); });
+        if (currency === "PI") {
+          await tx.notification
+            .create({
+              data: {
+                userId: senderId,
+                title: "Retrait Pi en cours de traitement",
+                message: `Votre retrait de ${amount} PI vers ${recipientInput.substring(0, 8)}...${recipientInput.substring(recipientInput.length - 4)} est en file d'attente.`,
+                type: "WITHDRAW_PENDING",
+                metadata: { amount, currency, toAddress: recipientInput },
+              },
+            })
+            .catch(() => {});
+        }
 
-        if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] Transfert INTERNE REUSSI");
-        return { type: "INTERNAL" as const, transaction, newBalance: updatedSender.balance };
-      }
+        return {
+          type: "EXTERNAL" as const,
+          transaction,
+          newBalance: updatedSender.balance,
+          senderUser,
+        };
+      },
+      { maxWait: 5000, timeout: 20000 }
+    );
 
-      // Transfert EXTERNE (blockchain) - recipientUser est null a ce point
+    // ─────────────────────────────────────────────────────────────────────────
+    // ÉTAPE 2 (EXTERNE seulement) : Broadcast blockchain HORS transaction Prisma
+    // Si le broadcast échoue → on rembourse le sender et on marque FAILED.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (result.type === "EXTERNAL" && result.transaction.currency !== "PI") {
+      const { senderUser } = result;
       let blockchainTxHash: string | null = null;
-      let txStatus = TransactionStatus.PENDING;
+      let broadcastError: string | null = null;
 
-      if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
-        try {
+      try {
+        const currency = result.transaction.currency;
+
+        // ── SDA / SIDRA ──────────────────────────────────────────────────
+        if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
           let privateKey = senderUser.sidraPrivateKey;
-          
-          // Décryption sécurisée avec vérification
-          if (privateKey.includes(':')) {
-            try {
-              const decrypted = decrypt(privateKey);
-              if (decrypted && decrypted.length > 0) {
-                privateKey = decrypted;
-              }
-            } catch (decryptError: any) {
-              console.error("[TRANSFER] Decryption error for SDA key:", decryptError.message);
-              throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
-            }
-          }
-          
-          if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
-          
-          // Valider format clé EVM (64 caractères hex après 0x)
-          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+          if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
+          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
             throw new Error("Format de clé SDA/EVM invalide");
-          }
 
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
           const wallet = new ethers.Wallet(privateKey, provider);
-          const txRes = await wallet.sendTransaction({ to: recipientInput, value: ethers.parseEther(amount.toString()) });
+          const txRes = await wallet.sendTransaction({
+            to: recipientInput,
+            value: ethers.parseEther(result.transaction.amount.toString()),
+          });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
-          txStatus = TransactionStatus.SUCCESS;
-        } catch (e: any) { throw new Error(`Erreur blockchain SDA: ${e.message}`); }
-      }
+        }
 
-      // Broadcast BNB / ETH direct via la clé privée EVM de l'expéditeur
-      if (["BNB", "ETH"].includes(currency) && senderUser?.sidraPrivateKey) {
-        try {
+        // ── BNB / ETH ────────────────────────────────────────────────────
+        if (["BNB", "ETH"].includes(currency) && senderUser?.sidraPrivateKey) {
           let privateKey = senderUser.sidraPrivateKey;
-          if (privateKey.includes(':')) {
-            try {
-              const decrypted = decrypt(privateKey);
-              if (decrypted && decrypted.length > 0) privateKey = decrypted;
-            } catch (decryptError: any) {
-              throw new Error(`Clé ${currency} invalide ou corrompue: ${decryptError.message}`);
-            }
-          }
-          if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
-          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+          if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
+          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
             throw new Error(`Format de clé ${currency}/EVM invalide`);
-          }
 
           const rpcUrl = RPC_URLS[currency];
           if (!rpcUrl) throw new Error(`Pas de RPC configuré pour ${currency}`);
 
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const wallet = new ethers.Wallet(privateKey, provider);
-
-          // ── Vérification du solde on-chain AVANT l'envoi ──
-          const onChainBalance = await provider.getBalance(wallet.address);
-          // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
-          const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
+          const amountStr = result.transaction.amount
+            .toFixed(18)
+            .replace(/\.?0+$/, "");
           const amountInWei = ethers.parseEther(amountStr);
 
-          // Estimer les gas fees
           let gasLimit: bigint;
           let gasPrice: bigint;
           try {
@@ -329,25 +412,13 @@ export async function POST(req: NextRequest) {
             const feeData = await provider.getFeeData();
             gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
           } catch {
-            // Valeurs BSC par defaut si estimation echoue
             gasLimit = BigInt(21000);
             gasPrice = ethers.parseUnits("5", "gwei");
           }
 
-          const gasCost = gasLimit * gasPrice;
-          const totalNeeded = amountInWei + gasCost;
-
-          if (onChainBalance < totalNeeded) {
-            const balanceFormatted = parseFloat(ethers.formatEther(onChainBalance)).toFixed(8);
-            const gasCostFormatted = parseFloat(ethers.formatEther(gasCost)).toFixed(8);
-            const totalFormatted = parseFloat(ethers.formatEther(totalNeeded)).toFixed(8);
-            throw new Error(
-              `Solde ${currency} on-chain insuffisant. ` +
-              `Disponible: ${balanceFormatted} ${currency}, ` +
-              `Requis: ${totalFormatted} ${currency} ` +
-              `(dont ${gasCostFormatted} ${currency} de frais réseau). ` +
-              `Veuillez déposer du ${currency} sur votre adresse avant d'effectuer un retrait.`
-            );
+          const onChainBalance = await provider.getBalance(wallet.address);
+          if (onChainBalance < amountInWei + gasLimit * gasPrice) {
+            throw new Error(`Solde ${currency} on-chain insuffisant.`);
           }
 
           const txRes = await wallet.sendTransaction({
@@ -358,175 +429,107 @@ export async function POST(req: NextRequest) {
           });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;
-          txStatus = TransactionStatus.SUCCESS;
-        } catch (e: any) {
-          throw new Error(`Erreur blockchain ${currency}: ${e.message}`);
         }
-      }
 
-      // Broadcast USDT TRC20 via TronWeb
-      if (currency === "USDT" && senderUser?.usdtPrivateKey) {
-        try {
+        // ── USDT TRC20 ───────────────────────────────────────────────────
+        if (currency === "USDT" && senderUser?.usdtPrivateKey) {
           let privateKey = senderUser.usdtPrivateKey;
-          
-          // Decryption securisee
-          if (privateKey.includes(':')) {
-            try {
-              const decrypted = decrypt(privateKey);
-              if (decrypted && decrypted.length > 0) {
-                privateKey = decrypted;
-              }
-            } catch (decryptError: any) {
-              console.error("[TRANSFER] Decryption error for USDT key:", decryptError.message);
-              throw new Error(`Cle USDT invalide ou corrompue: ${decryptError.message}`);
-            }
-          }
+          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 
-          // Initialiser TronWeb avec la cle privee
           const tronWeb = new TronWeb({
             fullHost: RPC_URLS.TRON,
-            privateKey: privateKey
+            privateKey,
           });
 
-          // Verifier le solde TRX pour les frais de gas
           const trxBalance = await tronWeb.trx.getBalance(senderUser.usdtAddress);
-          const trxBalanceInTrx = trxBalance / 1_000_000; // Convertir de SUN en TRX
-          
-          if (trxBalanceInTrx < 10) {
+          if (trxBalance / 1_000_000 < 10) {
             throw new Error(
-              `Solde TRX insuffisant pour les frais de reseau. ` +
-              `Disponible: ${trxBalanceInTrx.toFixed(2)} TRX. ` +
-              `Minimum requis: ~10 TRX pour les frais de transfert USDT. ` +
-              `Veuillez deposer du TRX sur votre adresse ${senderUser.usdtAddress?.substring(0, 10)}...`
+              `Solde TRX insuffisant pour les frais. Minimum requis: ~10 TRX.`
             );
           }
 
-          // Obtenir le contrat USDT TRC20
           const contract = await tronWeb.contract().at(USDT_CONTRACT_ADDRESS);
-          
-          // USDT a 6 decimales sur TRON
-          const amountInSun = Math.floor(amount * 1_000_000);
-          
-          // Verifier le solde USDT on-chain
-          const usdtBalance = await contract.balanceOf(senderUser.usdtAddress).call();
-          const usdtBalanceNum = Number(usdtBalance) / 1_000_000;
-          
-          if (usdtBalanceNum < amount) {
+          const usdtBalance = await contract
+            .balanceOf(senderUser.usdtAddress)
+            .call();
+          if (Number(usdtBalance) / 1_000_000 < result.transaction.amount) {
             throw new Error(
-              `Solde USDT on-chain insuffisant. ` +
-              `Disponible: ${usdtBalanceNum.toFixed(2)} USDT, ` +
-              `Requis: ${amount} USDT. ` +
-              `Veuillez deposer de l'USDT sur votre adresse avant d'effectuer un retrait.`
+              `Solde USDT on-chain insuffisant. Disponible: ${(Number(usdtBalance) / 1_000_000).toFixed(2)} USDT.`
             );
           }
 
-          // Executer le transfert TRC20
-          console.log("[TRANSFER] Broadcasting USDT TRC20 transaction...");
-          const txResult = await contract.transfer(recipientInput, amountInSun).send({
-            feeLimit: 100_000_000, // 100 TRX max fee
-            callValue: 0
-          });
-          
+          const amountInSun = Math.floor(result.transaction.amount * 1_000_000);
+          const txResult = await contract
+            .transfer(recipientInput, amountInSun)
+            .send({ feeLimit: 100_000_000, callValue: 0 });
           blockchainTxHash = txResult;
-          txStatus = TransactionStatus.SUCCESS;
-          console.log("[TRANSFER] USDT TRC20 transaction confirmed:", blockchainTxHash);
-          
-        } catch (e: any) {
-          console.error("[TRANSFER] USDT TRC20 blockchain error:", e.message);
-          throw new Error(`Erreur blockchain USDT: ${e.message}`);
         }
+      } catch (e: any) {
+        broadcastError = e.message;
+        console.error("[USER_TRANSFER] Broadcast échoué:", e.message);
       }
 
-      // Pour les transferts Pi externes vers une adresse Stellar:
-      // Les retraits Pi sont traités automatiquement par le worker /api/worker/process
-      // qui utilise le master wallet pour envoyer les Pi vers l'adresse externe
-      if (currency === "PI") {
-        blockchainTxHash = null; // Sera rempli par le worker après broadcast
-        txStatus = TransactionStatus.SUCCESS; // SUCCESS + statusClass QUEUED = prêt pour le worker
-        
-        // Créer une notification pour l'utilisateur
-        await tx.notification.create({
+      if (blockchainTxHash) {
+        // ✅ Broadcast réussi → marquer SUCCESS avec le hash
+        await prisma.transaction.update({
+          where: { id: result.transaction.id },
           data: {
-            userId: senderId,
-            title: "Retrait Pi en cours de traitement",
-            message: `Votre retrait de ${amount} PI vers ${recipientInput.substring(0, 8)}...${recipientInput.substring(recipientInput.length - 4)} est en file d'attente. Le transfert sera effectué automatiquement.`,
-            type: "WITHDRAW_PENDING",
-            metadata: { amount, currency, toAddress: recipientInput },
+            status: TransactionStatus.SUCCESS,
+            statusClass: undefined,
+            blockchainTx: blockchainTxHash,
+            metadata: {
+              ...(result.transaction.metadata as object),
+              confirmedAt: new Date().toISOString(),
+            },
           },
-        }).catch(() => {});
+        });
+        result.transaction.blockchainTx = blockchainTxHash;
+      } else {
+        // ✅ FIX ROLLBACK : Broadcast échoué → rembourser + marquer FAILED
+        console.warn("[USER_TRANSFER] Remboursement du sender suite à l'échec broadcast");
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { userId_currency: { userId: senderId, currency: result.transaction.currency } },
+            data: { balance: { increment: totalDebit } },
+          }),
+          prisma.transaction.update({
+            where: { id: result.transaction.id },
+            data: {
+              status: TransactionStatus.FAILED,
+              statusClass: "BROADCAST_FAILED",
+              description: `[ÉCHEC] ${broadcastError || "Erreur blockchain"}`,
+            },
+          }),
+        ]);
+
+        return NextResponse.json(
+          {
+            error: `Transfert annulé : ${broadcastError || "Erreur blockchain"}. Votre solde a été restitué.`,
+          },
+          { status: 400 }
+        );
       }
+    }
 
-      // Description adaptée selon la devise
-      const txDescription = currency === "PI" 
-        ? `Retrait PI vers adresse externe : ${recipientInput}` 
-        : (description || `Retrait ${currency} vers adresse externe : ${recipientInput}`);
-
-      const transaction = await tx.transaction.create({
-        data: {
-          reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
-          amount, fee, netAmount: amount, currency,
-          type: TransactionType.WITHDRAW,
-          status: txStatus,
-          statusClass: blockchainTxHash ? undefined : "QUEUED", // QUEUED uniquement si pas encore broadcast
-          blockchainTx: blockchainTxHash,
-          fromUserId: senderId,
-          fromWalletId: updatedSender.id,
-          description: txDescription,
-          accountNumber: recipientInput, // Stocker l'adresse pour l'affichage admin
-          metadata: currency === "PI" ? { 
-            externalAddress: recipientInput, // Pour le worker
-            toAddress: recipientInput, 
-            network: "Pi Network", 
-            pendingWithdrawal: true,
-            isBlockchainWithdraw: true,
-            requestedAt: new Date().toISOString(),
-            // Pour le flux A2U officiel Pi Network
-            ...(senderUser?.piUserId && { piUid: senderUser.piUserId }),
-            senderUsername: senderUser?.username
-          } : currency === "USDT" ? {
-            externalAddress: recipientInput,
-            toAddress: recipientInput,
-            network: "TRON TRC20",
-            isBlockchainWithdraw: true,
-            requestedAt: new Date().toISOString(),
-            ...(blockchainTxHash && { confirmedAt: new Date().toISOString() })
-          } : {
-            externalAddress: recipientInput,
-            network: currency,
-            isBlockchainWithdraw: true,
-            requestedAt: new Date().toISOString(),
-            ...(blockchainTxHash && { confirmedAt: new Date().toISOString() })
-          },
-        },
-      });
-
-      return { type: "EXTERNAL" as const, transaction, blockchainTx: blockchainTxHash, newBalance: updatedSender.balance };
-    }, { maxWait: 5000, timeout: 20000 });
-
-    // Si c'est un retrait externe Pi, declencher le worker automatiquement
+    // Déclencher le worker Pi si nécessaire
     if (result.type === "EXTERNAL" && result.transaction.currency === "PI") {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL 
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-        || "http://localhost:3000";
-      
-      // Appel asynchrone au worker (fire and forget)
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+        "http://localhost:3000";
+
       fetch(`${baseUrl}/api/worker/process`, {
         method: "GET",
-        headers: { 
-          "Authorization": `Bearer ${process.env.WORKER_SECRET || ""}`,
-          "x-internal-request": "true"
-        }
-      }).then(res => {
-        if (res.ok) console.log("[TRANSFER] Worker Pi declenche avec succes");
-        else console.error("[TRANSFER] Erreur worker:", res.status);
+        headers: {
+          Authorization: `Bearer ${process.env.WORKER_SECRET || ""}`,
+          "x-internal-request": "true",
+        },
       }).catch((err) => {
         console.error("[TRANSFER] Erreur appel worker:", err.message);
       });
     }
 
-    if (process.env.NODE_ENV !== "production") console.log("[USER_TRANSFER] SUCCES:", { mode: result.type, reference: result.transaction.reference });
-
-    // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
+    // Auto-conversion des frais
     if (result.transaction.fee && result.transaction.fee > 0) {
       autoConvertFeeToPi(
         result.transaction.fee,
@@ -534,19 +537,22 @@ export async function POST(req: NextRequest) {
         result.transaction.id,
         result.transaction.reference
       ).catch((err) => {
-        console.error("[USER_TRANSFER] Fee conversion error (non-blocking):", err.message);
+        console.error("[USER_TRANSFER] Fee conversion error:", err.message);
       });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      mode: result.type, 
-      transaction: result.transaction, 
-      blockchainTx: (result as any).blockchainTx || result.transaction.blockchainTx || null,
-      newBalance: result.newBalance
+    return NextResponse.json({
+      success: true,
+      mode: result.type,
+      transaction: result.transaction,
+      blockchainTx: result.transaction.blockchainTx || null,
+      newBalance: result.newBalance,
     });
   } catch (error: any) {
     console.error("[USER_TRANSFER] ERREUR:", error.message);
-    return NextResponse.json({ error: error.message || "Erreur" }, { status: 400 });
+    return NextResponse.json(
+      { error: error.message || "Erreur" },
+      { status: 400 }
+    );
   }
 }
