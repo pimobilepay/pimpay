@@ -75,7 +75,8 @@ export async function POST(req: Request) {
     const pools: Record<string, { apy: number; minAmount: number; currency: string }> = {
       'pi-flex': { apy: 8.5, minAmount: 1, currency: 'PI' },
       'pi-locked': { apy: 14.2, minAmount: 10, currency: 'PI' },
-      'sda-staking': { apy: 12.0, minAmount: 100, currency: 'SDA' }
+      'sda-flex': { apy: 12.0, minAmount: 5, currency: 'SDA' },
+      'sda-staking': { apy: 12.0, minAmount: 100, currency: 'SDA' } // Legacy support
     };
 
     const pool = pools[poolId];
