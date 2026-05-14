@@ -5,7 +5,8 @@ import {
   ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar,
   RefreshCcw, Globe, ExternalLink, Wallet, TrendingUp,
   Send, Loader2, Scan, User, FileText, Hash,
-  CheckCircle2, XCircle, AlertCircle, ShieldCheck
+  CheckCircle2, XCircle, AlertCircle, ShieldCheck,
+  Repeat2, CreditCard, Banknote, LogIn, Repeat
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -459,16 +460,39 @@ export default function AssetDetailPage() {
           <div className="space-y-2.5">
             {transactions.length > 0 ? transactions.map((tx, i) => {
               const isSent = tx.fromUserId === userId;
+              const txTypeUpper = (tx.type || "").toUpperCase();
               const statusColor = tx.status?.toLowerCase() === "success" ? "text-emerald-400" : tx.status?.toLowerCase() === "pending" ? "text-amber-400" : "text-red-400";
               const amountFormatted = parseFloat(String(tx.amount)).toFixed(Math.min(config.decimals, 8));
+
+              // ── Icône + couleur selon le TYPE de transaction ──────────────
+              const getTxStyle = () => {
+                if (txTypeUpper === "SWAP" || txTypeUpper === "EXCHANGE") {
+                  return { icon: <Repeat2 size={18} className="text-indigo-400" />, bg: "bg-indigo-500/10", amountColor: "text-indigo-400", sign: "⇄" };
+                }
+                if (txTypeUpper === "DEPOSIT") {
+                  return { icon: <ArrowDownLeft size={18} className="text-emerald-400" />, bg: "bg-emerald-500/10", amountColor: "text-emerald-400", sign: "+" };
+                }
+                if (txTypeUpper === "WITHDRAWAL" || txTypeUpper === "WITHDRAW") {
+                  return { icon: <Banknote size={18} className="text-orange-400" />, bg: "bg-orange-500/10", amountColor: "text-orange-400", sign: "-" };
+                }
+                if (txTypeUpper === "PAYMENT") {
+                  return { icon: <CreditCard size={18} className="text-cyan-400" />, bg: "bg-cyan-500/10", amountColor: "text-cyan-400", sign: isSent ? "-" : "+" };
+                }
+                if (txTypeUpper === "TRANSFER") {
+                  if (isSent) return { icon: <ArrowUpRight size={18} className="text-red-400" />, bg: "bg-red-500/10", amountColor: "text-red-400", sign: "-" };
+                  return { icon: <ArrowDownLeft size={18} className="text-emerald-400" />, bg: "bg-emerald-500/10", amountColor: "text-emerald-400", sign: "+" };
+                }
+                // Fallback générique entrant/sortant
+                if (isSent) return { icon: <ArrowUpRight size={18} className="text-red-400" />, bg: "bg-red-500/10", amountColor: "text-red-400", sign: "-" };
+                return { icon: <ArrowDownLeft size={18} className="text-emerald-400" />, bg: "bg-emerald-500/10", amountColor: "text-emerald-400", sign: "+" };
+              };
+              const { icon, bg, amountColor, sign } = getTxStyle();
+
               return (
                <button key={i} onClick={() => setSelectedTx(tx)} className="w-full bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between active:bg-white/[0.06] transition-all text-left">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
-                      {isSent
-                        ? <ArrowUpRight size={18} className="text-red-400" />
-                        : <ArrowDownLeft size={18} className="text-emerald-400" />
-                      }
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg}`}>
+                      {icon}
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-white uppercase">{tx.type || "TRANSFERT"}</p>
@@ -476,8 +500,8 @@ export default function AssetDetailPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-[12px] font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
-                      {isSent ? "-" : "+"}{amountFormatted} {assetId}
+                    <p className={`text-[12px] font-black ${amountColor}`}>
+                      {txTypeUpper === "SWAP" || txTypeUpper === "EXCHANGE" ? "⇄" : sign}{amountFormatted} {assetId}
                     </p>
                     <p className={`text-[9px] font-bold uppercase ${statusColor}`}>{tx.status}</p>
                   </div>

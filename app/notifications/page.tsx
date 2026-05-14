@@ -350,6 +350,9 @@ export default function NotificationsPage() {
                   notification.type === "PAYMENT_RECEIVED" || notification.type === "success" ? "bg-emerald-500/10" :
                   notification.type === "PAYMENT_SENT" ? "bg-red-500/10" :
                   notification.type === "CARD" ? "bg-cyan-500/10" :
+                  notification.type === "SWAP" || notification.type === "SWAP_SUCCESS" ? "bg-indigo-500/10" :
+                  notification.type === "STAKING" || notification.type === "STAKING_REWARD" ? "bg-purple-500/10" :
+                  notification.type === "STAKING_UNSTAKE" ? "bg-orange-500/10" :
                   "bg-blue-500/10"
                 }`}>
                   {getNotificationIcon(notification.type, notification.metadata)}
@@ -431,19 +434,48 @@ export default function NotificationsPage() {
             )}
 
             {/* Swap Details */}
-            {notification.type === "SWAP" && metadata?.fromAmount && (
-              <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Envoye</p>
-                    <p className="text-lg font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
-                  </div>
-                  <Repeat size={20} className="text-white/20" />
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Recu</p>
-                    <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+            {(notification.type === "SWAP" || notification.type === "SWAP_SUCCESS") && (metadata?.fromAmount || metadata?.fromCurrency) && (
+              <div className="space-y-3">
+                {/* Bloc principal : vendu → reçu */}
+                <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Vendu</p>
+                      <p className="text-2xl font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
+                    </div>
+                    <Repeat size={22} className="text-white/20" />
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Reçu</p>
+                      <p className="text-2xl font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                    </div>
                   </div>
                 </div>
+                {/* Taux de change */}
+                {metadata.rate && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Taux de change</p>
+                    <p className="text-sm font-bold text-blue-400">
+                      1 {metadata.fromCurrency} = {Number(metadata.rate).toFixed(6)} {metadata.toCurrency}
+                    </p>
+                  </div>
+                )}
+                {/* Référence */}
+                {metadata.reference && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Référence PimPay</p>
+                    <p className="text-xs font-mono font-bold text-white">{metadata.reference}</p>
+                  </div>
+                )}
+                {/* Statut */}
+                {metadata.status && (
+                  <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Statut</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                      <p className="text-sm font-black text-emerald-400 uppercase">{metadata.status}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -745,7 +777,7 @@ export default function NotificationsPage() {
                     )}
 
                     {/* Badges inline — Swap */}
-                    {notification.type === "SWAP" && notification.metadata?.fromAmount && (
+                    {(notification.type === "SWAP" || notification.type === "SWAP_SUCCESS") && notification.metadata?.fromAmount && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">
                           <ArrowUpRight size={9} /> {notification.metadata.fromAmount} {notification.metadata.fromCurrency}
@@ -754,6 +786,11 @@ export default function NotificationsPage() {
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
                           <ArrowDownLeft size={9} /> {notification.metadata.toAmount} {notification.metadata.toCurrency}
                         </span>
+                        {notification.metadata.rate && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15">
+                            1:{Number(notification.metadata.rate).toFixed(4)}
+                          </span>
+                        )}
                       </div>
                     )}
 

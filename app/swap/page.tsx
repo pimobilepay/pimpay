@@ -1183,14 +1183,15 @@ export default function SwapPage() {
       <AnimatePresence>
         {showConfirm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-[#020617] overflow-hidden">
+            className="fixed inset-0 z-[110] bg-[#020617] flex flex-col overflow-hidden">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.2 }}
                 className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] ${swapRoute === "CHANGENOW" ? "bg-violet-500/30" : "bg-blue-500/30"} rounded-full blur-[100px]`} />
             </div>
 
-            <div className="relative z-10 flex flex-col min-h-screen p-6">
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4 pt-4 mb-6">
+            {/* ── Header fixe ── */}
+            <div className="relative z-10 px-6 pt-4 pb-2 flex-shrink-0">
+              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4 mb-4">
                 <button onClick={() => setShowConfirm(false)} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all">
                   <ArrowLeft size={20} />
                 </button>
@@ -1200,9 +1201,9 @@ export default function SwapPage() {
                 </div>
               </motion.div>
 
-              {/* Badge route dans la confirmation */}
+              {/* Badge route */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                className={`flex items-center justify-center gap-2 mb-4 px-4 py-2 ${
+                className={`flex items-center justify-center gap-2 mb-2 px-4 py-2 ${
                   swapRoute === "SUNIO"
                     ? "bg-emerald-500/10 border-emerald-500/20"
                     : swapRoute === "CHANGENOW"
@@ -1224,127 +1225,132 @@ export default function SwapPage() {
                   {swapRoute === "INTERNAL" && "PimPay · Conversion interne"}
                 </span>
               </motion.div>
+            </div>
 
-              <div className="flex-1 flex flex-col justify-center space-y-5">
-                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: "spring" }} className="flex justify-center mb-2">
-                  <motion.div animate={{ rotate: loading ? 360 : 0 }} transition={{ duration: 1, repeat: loading ? Infinity : 0, ease: "linear" }}
-                    className={`w-16 h-16 ${swapRoute === "CHANGENOW" ? "bg-gradient-to-br from-violet-500/20 to-violet-600/20 border-violet-500/30" : "bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-500/30"} rounded-full flex items-center justify-center border`}>
-                    <RefreshCw size={28} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
+            {/* ── Contenu scrollable ── */}
+            <div className="relative z-10 flex-1 overflow-y-auto px-6 pb-4 space-y-4">
+              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: "spring" }} className="flex justify-center py-2">
+                <motion.div animate={{ rotate: loading ? 360 : 0 }} transition={{ duration: 1, repeat: loading ? Infinity : 0, ease: "linear" }}
+                  className={`w-14 h-14 ${swapRoute === "CHANGENOW" ? "bg-gradient-to-br from-violet-500/20 to-violet-600/20 border-violet-500/30" : "bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-500/30"} rounded-full flex items-center justify-center border`}>
+                  <RefreshCw size={24} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
+                </motion.div>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                className="bg-gradient-to-br from-slate-900/90 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between mb-5 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous vendez</p>
+                    <div className="flex items-center gap-2">
+                      <AssetIcon asset={fromAsset} size={40} />
+                      <div className="min-w-0">
+                        <p className="text-xl font-black text-white truncate">{fromAmount}</p>
+                        <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
+                    className={`w-10 h-10 shrink-0 ${swapRoute === "CHANGENOW" ? "bg-violet-500/10 border-violet-500/20" : "bg-blue-500/10 border-blue-500/20"} rounded-full flex items-center justify-center border`}>
+                    <ArrowRight size={16} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
                   </motion.div>
-                </motion.div>
-
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                  className="bg-gradient-to-br from-slate-900/90 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 backdrop-blur-xl">
-                  <div className="flex items-center justify-between mb-5 gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous vendez</p>
-                      <div className="flex items-center gap-2">
-                        <AssetIcon asset={fromAsset} size={40} />
-                        <div className="min-w-0">
-                          <p className="text-xl font-black text-white truncate">{fromAmount}</p>
-                          <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
-                        </div>
+                  <div className="flex-1 min-w-0 text-right">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous recevez</p>
+                    <div className="flex items-center gap-2 justify-end">
+                      <div className="min-w-0">
+                        <p className={`text-xl font-black ${swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} truncate`}>{formatToAmount()}</p>
+                        <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
                       </div>
-                    </div>
-                    <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
-                      className={`w-10 h-10 shrink-0 ${swapRoute === "CHANGENOW" ? "bg-violet-500/10 border-violet-500/20" : "bg-blue-500/10 border-blue-500/20"} rounded-full flex items-center justify-center border`}>
-                      <ArrowRight size={16} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
-                    </motion.div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous recevez</p>
-                      <div className="flex items-center gap-2 justify-end">
-                        <div className="min-w-0">
-                          <p className={`text-xl font-black ${swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} truncate`}>{formatToAmount()}</p>
-                          <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
-                        </div>
-                        <AssetIcon asset={toAsset} size={40} />
-                      </div>
+                      <AssetIcon asset={toAsset} size={40} />
                     </div>
                   </div>
+                </div>
 
-                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
+                <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-4" />
 
-                  <div className="space-y-3">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                    <div className="flex items-center gap-2"><TrendingUp size={12} className="text-blue-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux de change</span></div>
+                    <span className="text-xs font-black text-white">1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}</span>
+                  </div>
+
+                  {swapRoute === "SUNIO" && sunioQuote && (
                     <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                      <div className="flex items-center gap-2"><TrendingUp size={12} className="text-blue-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux de change</span></div>
-                      <span className="text-xs font-black text-white">1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}</span>
+                      <div className="flex items-center gap-2"><Zap size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Price Impact</span></div>
+                      <span className={`text-xs font-black ${parseFloat(sunioQuote.priceImpact) > 2 ? "text-red-400" : "text-emerald-400"}`}>
+                        {parseFloat(sunioQuote.priceImpact).toFixed(2)}%
+                      </span>
                     </div>
+                  )}
 
-                    {swapRoute === "SUNIO" && sunioQuote && (
-                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                        <div className="flex items-center gap-2"><Zap size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Price Impact</span></div>
-                        <span className={`text-xs font-black ${parseFloat(sunioQuote.priceImpact) > 2 ? "text-red-400" : "text-emerald-400"}`}>
-                          {parseFloat(sunioQuote.priceImpact).toFixed(2)}%
-                        </span>
+                  {swapRoute === "CHANGENOW" && (
+                    <>
+                      <div className="flex justify-between items-center py-2 px-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
+                        <div className="flex items-center gap-2"><Shield size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux garanti</span></div>
+                        <span className="text-xs font-black text-violet-400">✓ Fixe — Montant garanti</span>
                       </div>
-                    )}
-
-                    {swapRoute === "CHANGENOW" && (
-                      <>
-                        <div className="flex justify-between items-center py-2 px-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
-                          <div className="flex items-center gap-2"><Shield size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux garanti</span></div>
-                          <span className="text-xs font-black text-violet-400">✓ Fixe — Montant garanti</span>
+                      {cnQuote && (
+                        <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                          <div className="flex items-center gap-2"><Timer size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Délai estimé</span></div>
+                          <span className="text-xs font-black text-white">{cnQuote.transactionSpeedForecast}</span>
                         </div>
-                        {cnQuote && (
-                          <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                            <div className="flex items-center gap-2"><Timer size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Délai estimé</span></div>
-                            <span className="text-xs font-black text-white">{cnQuote.transactionSpeedForecast}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
+                      )}
+                    </>
+                  )}
 
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                      <div className="flex items-center gap-2"><Banknote size={12} className="text-amber-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Frais reseau</span></div>
-                      <span className="text-xs font-black text-white">{NETWORK_FEE}</span>
-                    </div>
-
-                    {swapRoute === "SUNIO" && (
-                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                        <div className="flex items-center gap-2"><Zap size={12} className="text-purple-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Slippage</span></div>
-                        <span className="text-xs font-black text-white">{slippage}%</span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                      <div className="flex items-center gap-2"><Shield size={12} className="text-emerald-400" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                          {swapRoute === "CHANGENOW" ? "Montant garanti" : "Minimum recu"}
-                        </span>
-                      </div>
-                      <span className="text-xs font-black text-emerald-400">{getMinimumReceived()} {toAsset.symbol}</span>
-                    </div>
+                  <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                    <div className="flex items-center gap-2"><Banknote size={12} className="text-amber-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Frais reseau</span></div>
+                    <span className="text-xs font-black text-white">{NETWORK_FEE}</span>
                   </div>
-                </motion.div>
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-                  className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
-                  <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={14} />
-                  <div>
-                    <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Attention</p>
-                    <p className="text-[9px] text-amber-200/60 leading-relaxed font-medium">
-                      {swapRoute === "SUNIO"
-                        ? "Ce swap est exécuté on-chain sur TRON via Sun.io. Il est irreversible une fois confirmé. Vérifiez le price impact avant de continuer."
-                        : swapRoute === "CHANGENOW"
-                        ? "Le taux est fixe et garanti par ChangeNow. L'opération est irreversible. La finalisation blockchain prendra 10–60 minutes selon les réseaux concernés."
-                        : "Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer."}
-                    </p>
+                  {swapRoute === "SUNIO" && (
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-2"><Zap size={12} className="text-purple-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Slippage</span></div>
+                      <span className="text-xs font-black text-white">{slippage}%</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                    <div className="flex items-center gap-2"><Shield size={12} className="text-emerald-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        {swapRoute === "CHANGENOW" ? "Montant garanti" : "Minimum recu"}
+                      </span>
+                    </div>
+                    <span className="text-xs font-black text-emerald-400">{getMinimumReceived()} {toAsset.symbol}</span>
                   </div>
-                </motion.div>
-              </div>
+                </div>
+              </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="space-y-3 pb-4">
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleSwapExecute} disabled={loading}
-                  className={`w-full py-5 bg-gradient-to-r ${swapRoute === "CHANGENOW" ? "from-violet-500 to-violet-600 shadow-violet-500/20" : "from-blue-500 to-blue-600 shadow-blue-500/20"} rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl disabled:opacity-50`}>
-                  {loading ? <><Loader2 className="animate-spin" size={18} /><span>Traitement en cours...</span></>
-                    : <><CheckCircle2 size={18} /><span>Confirmer le Swap</span></>}
-                </motion.button>
-                <button onClick={() => setShowConfirm(false)} disabled={loading}
-                  className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all disabled:opacity-50">
-                  <X size={14} /> Annuler
-                </button>
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={14} />
+                <div>
+                  <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Attention</p>
+                  <p className="text-[9px] text-amber-200/60 leading-relaxed font-medium">
+                    {swapRoute === "SUNIO"
+                      ? "Ce swap est exécuté on-chain sur TRON via Sun.io. Il est irreversible une fois confirmé. Vérifiez le price impact avant de continuer."
+                      : swapRoute === "CHANGENOW"
+                      ? "Le taux est fixe et garanti par ChangeNow. L'opération est irreversible. La finalisation blockchain prendra 10–60 minutes selon les réseaux concernés."
+                      : "Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer."}
+                  </p>
+                </div>
               </motion.div>
             </div>
+
+            {/* ── Boutons TOUJOURS visibles en bas ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+              className="relative z-10 flex-shrink-0 px-6 pb-8 pt-3 bg-[#020617]/95 backdrop-blur-xl border-t border-white/5 space-y-3"
+            >
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleSwapExecute} disabled={loading}
+                className={`w-full py-5 bg-gradient-to-r ${swapRoute === "CHANGENOW" ? "from-violet-500 to-violet-600 shadow-violet-500/20" : "from-blue-500 to-blue-600 shadow-blue-500/20"} rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl disabled:opacity-50`}>
+                {loading ? <><Loader2 className="animate-spin" size={18} /><span>Traitement en cours...</span></>
+                  : <><CheckCircle2 size={18} /><span>Confirmer le Swap</span></>}
+              </motion.button>
+              <button onClick={() => setShowConfirm(false)} disabled={loading}
+                className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition-all disabled:opacity-50">
+                <X size={14} /> Annuler
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
