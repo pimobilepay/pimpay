@@ -26,6 +26,7 @@ import {
   Shield,
   Banknote,
   ExternalLink,
+  Timer,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -47,30 +48,30 @@ interface Asset {
 }
 
 const ALL_ASSETS: Asset[] = [
-  { id: "PI",   name: "Pi Network",        symbol: "PI",   color: "#7c3aed", category: "native",     logo: "/pi.png",   network: "Pi / Stellar" },
-  { id: "SDA",  name: "Sidra Assets",      symbol: "SDA",  color: "#d97706", category: "native",     logo: "/sda.png",  network: "Sidra / EVM" },
-  { id: "BTC",  name: "Bitcoin",           symbol: "BTC",  color: "#f7931a", category: "major",      logo: "/btc.png",  network: "Bitcoin" },
-  { id: "ETH",  name: "Ethereum",          symbol: "ETH",  color: "#627eea", category: "major",      logo: "/eth.png",  network: "EVM" },
-  { id: "BNB",  name: "BNB",              symbol: "BNB",  color: "#f3ba2f", category: "major",      logo: "/bnb.png",  network: "BSC / EVM" },
-  { id: "SOL",  name: "Solana",            symbol: "SOL",  color: "#9945ff", category: "major",      logo: "/sol.png",  network: "Solana" },
-  { id: "XRP",  name: "Ripple",            symbol: "XRP",  color: "#23292f", category: "major",      logo: "/xrp.png",  network: "XRP Ledger" },
-  { id: "XLM",  name: "Stellar",           symbol: "XLM",  color: "#14b8a6", category: "major",      logo: "/xlm.png",  network: "Stellar" },
-  { id: "TRX",  name: "Tron",             symbol: "TRX",  color: "#eb0029", category: "major",      logo: "/trx.png",  network: "TRON" },
-  { id: "ADA",  name: "Cardano",           symbol: "ADA",  color: "#0033ad", category: "major",      logo: "/ada.png",  network: "Cardano" },
-  { id: "DOGE", name: "Dogecoin",          symbol: "DOGE", color: "#c2a633", category: "major",      logo: "/doge.png", network: "Dogecoin" },
-  { id: "TON",  name: "Toncoin",           symbol: "TON",  color: "#0098ea", category: "major",      logo: "/ton.png",  network: "TON" },
-  { id: "USDT", name: "Tether",            symbol: "USDT", color: "#26a17b", category: "stablecoin", logo: "/usdt.png", network: "USDT TRC20" },
-  { id: "USDC", name: "USD Coin",          symbol: "USDC", color: "#2775ca", category: "stablecoin", logo: "/usdc.png", network: "EVM" },
-  { id: "DAI",  name: "Dai",              symbol: "DAI",  color: "#f5ac37", category: "stablecoin", logo: "/dai.png",  network: "EVM" },
-  { id: "BUSD", name: "Binance USD",       symbol: "BUSD", color: "#f0b90b", category: "stablecoin", logo: "/busd.png", network: "EVM" },
-  { id: "USD",  name: "Dollar US",         symbol: "USD",  color: "#22c55e", category: "fiat",       flag: "US",        network: "PimPay" },
-  { id: "EUR",  name: "Euro",             symbol: "EUR",  color: "#3b82f6", category: "fiat",       flag: "EU",        network: "PimPay" },
-  { id: "XAF",  name: "Franc CFA (BEAC)", symbol: "XAF",  color: "#0ea5e9", category: "fiat",       flag: "CM",        network: "PimPay" },
-  { id: "XOF",  name: "Franc CFA (BCEAO)",symbol: "XOF",  color: "#06b6d4", category: "fiat",       flag: "SN",        network: "PimPay" },
-  { id: "CDF",  name: "Franc Congolais",   symbol: "CDF",  color: "#0284c7", category: "fiat",       flag: "CD",        network: "PimPay" },
-  { id: "NGN",  name: "Naira Nigerian",    symbol: "NGN",  color: "#16a34a", category: "fiat",       flag: "NG",        network: "PimPay" },
-  { id: "AED",  name: "Dirham Emirats",    symbol: "AED",  color: "#dc2626", category: "fiat",       flag: "AE",        network: "PimPay" },
-  { id: "MGA",  name: "Ariary Malgache",   symbol: "MGA",  color: "#059669", category: "fiat",       flag: "MG",        network: "PimPay" },
+  { id: "PI",   name: "Pi Network",         symbol: "PI",   color: "#7c3aed", category: "native",     logo: "/pi.png",   network: "Pi / Stellar" },
+  { id: "SDA",  name: "Sidra Assets",       symbol: "SDA",  color: "#d97706", category: "native",     logo: "/sda.png",  network: "Sidra / EVM" },
+  { id: "BTC",  name: "Bitcoin",            symbol: "BTC",  color: "#f7931a", category: "major",      logo: "/btc.png",  network: "Bitcoin" },
+  { id: "ETH",  name: "Ethereum",           symbol: "ETH",  color: "#627eea", category: "major",      logo: "/eth.png",  network: "EVM" },
+  { id: "BNB",  name: "BNB",               symbol: "BNB",  color: "#f3ba2f", category: "major",      logo: "/bnb.png",  network: "BSC / EVM" },
+  { id: "SOL",  name: "Solana",             symbol: "SOL",  color: "#9945ff", category: "major",      logo: "/sol.png",  network: "Solana" },
+  { id: "XRP",  name: "Ripple",             symbol: "XRP",  color: "#23292f", category: "major",      logo: "/xrp.png",  network: "XRP Ledger" },
+  { id: "XLM",  name: "Stellar",            symbol: "XLM",  color: "#14b8a6", category: "major",      logo: "/xlm.png",  network: "Stellar" },
+  { id: "TRX",  name: "Tron",              symbol: "TRX",  color: "#eb0029", category: "major",      logo: "/trx.png",  network: "TRON" },
+  { id: "ADA",  name: "Cardano",            symbol: "ADA",  color: "#0033ad", category: "major",      logo: "/ada.png",  network: "Cardano" },
+  { id: "DOGE", name: "Dogecoin",           symbol: "DOGE", color: "#c2a633", category: "major",      logo: "/doge.png", network: "Dogecoin" },
+  { id: "TON",  name: "Toncoin",            symbol: "TON",  color: "#0098ea", category: "major",      logo: "/ton.png",  network: "TON" },
+  { id: "USDT", name: "Tether",             symbol: "USDT", color: "#26a17b", category: "stablecoin", logo: "/usdt.png", network: "USDT TRC20" },
+  { id: "USDC", name: "USD Coin",           symbol: "USDC", color: "#2775ca", category: "stablecoin", logo: "/usdc.png", network: "EVM" },
+  { id: "DAI",  name: "Dai",               symbol: "DAI",  color: "#f5ac37", category: "stablecoin", logo: "/dai.png",  network: "EVM" },
+  { id: "BUSD", name: "Binance USD",        symbol: "BUSD", color: "#f0b90b", category: "stablecoin", logo: "/busd.png", network: "EVM" },
+  { id: "USD",  name: "Dollar US",          symbol: "USD",  color: "#22c55e", category: "fiat",       flag: "US",        network: "PimPay" },
+  { id: "EUR",  name: "Euro",              symbol: "EUR",  color: "#3b82f6", category: "fiat",       flag: "EU",        network: "PimPay" },
+  { id: "XAF",  name: "Franc CFA (BEAC)",  symbol: "XAF",  color: "#0ea5e9", category: "fiat",       flag: "CM",        network: "PimPay" },
+  { id: "XOF",  name: "Franc CFA (BCEAO)", symbol: "XOF",  color: "#06b6d4", category: "fiat",       flag: "SN",        network: "PimPay" },
+  { id: "CDF",  name: "Franc Congolais",    symbol: "CDF",  color: "#0284c7", category: "fiat",       flag: "CD",        network: "PimPay" },
+  { id: "NGN",  name: "Naira Nigerian",     symbol: "NGN",  color: "#16a34a", category: "fiat",       flag: "NG",        network: "PimPay" },
+  { id: "AED",  name: "Dirham Emirats",     symbol: "AED",  color: "#dc2626", category: "fiat",       flag: "AE",        network: "PimPay" },
+  { id: "MGA",  name: "Ariary Malgache",    symbol: "MGA",  color: "#059669", category: "fiat",       flag: "MG",        network: "PimPay" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -86,12 +87,30 @@ const CRYPTO_IDS = [
   "TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD",
 ];
 
-// Paires supportées par Sun.io (DEX TRON). Toute paire contenant un de ces tokens
-// et avec l'autre aussi dans cette liste sera routée vers Sun.io.
+// ── Tokens routés via Sun.io (DEX TRON) ──────────────────────────────────────
 const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT", "WIN", "NFT", "WTRX"]);
+
+// ── Tokens routés via ChangeNow (mode fixe) ──────────────────────────────────
+const CHANGENOW_TOKENS = new Set(["BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD"]);
+
+// ── Tokens internes PimPay (PI, SDA) ─────────────────────────────────────────
+// Ni Sun.io ni ChangeNow → route interne PimPay
 
 function isSunioSwap(from: string, to: string): boolean {
   return SUNIO_TOKENS.has(from) && SUNIO_TOKENS.has(to) && from !== to;
+}
+
+function isChangeNowSwap(from: string, to: string): boolean {
+  if (isSunioSwap(from, to)) return false;
+  return CHANGENOW_TOKENS.has(from) && CHANGENOW_TOKENS.has(to) && from !== to;
+}
+
+type SwapRoute = "SUNIO" | "CHANGENOW" | "INTERNAL";
+
+function getSwapRoute(from: string, to: string): SwapRoute {
+  if (isSunioSwap(from, to)) return "SUNIO";
+  if (isChangeNowSwap(from, to)) return "CHANGENOW";
+  return "INTERNAL";
 }
 
 /* ------------------------------------------------------------------ */
@@ -120,6 +139,68 @@ function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  ROUTE BADGE COMPONENT                                               */
+/* ------------------------------------------------------------------ */
+
+function RouteBadge({ route, cnQuote }: { route: SwapRoute; cnQuote: CNQuoteState | null }) {
+  if (route === "SUNIO") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center gap-2 mb-4 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl"
+      >
+        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+          Routé via Sun.io · SunSwap TRON
+        </span>
+      </motion.div>
+    );
+  }
+
+  if (route === "CHANGENOW") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center gap-2 mb-4 px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-2xl"
+      >
+        <div className="w-2 h-2 bg-violet-400 rounded-full animate-pulse" />
+        <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest">
+          Routé via ChangeNow · Taux Fixe Garanti
+        </span>
+        {cnQuote && (
+          <span className="text-[9px] text-violet-400/60 ml-1 flex items-center gap-1">
+            <Timer size={9} /> {cnQuote.transactionSpeedForecast}
+          </span>
+        )}
+      </motion.div>
+    );
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  TYPES QUOTES                                                        */
+/* ------------------------------------------------------------------ */
+
+interface SunioQuoteState {
+  amountOut: string;
+  minAmountOut: string;
+  priceImpact: string;
+  route: string[];
+}
+
+interface CNQuoteState {
+  estimatedAmount: number;
+  validUntil: string;
+  rateId: string;
+  transactionSpeedForecast: string;
+  warningMessage: string | null;
+  fromAmount: number;
+  toAmount: number;
+}
+
+/* ------------------------------------------------------------------ */
 /*  MAIN COMPONENT                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -132,7 +213,12 @@ export default function SwapPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── Prix ──────────────────────────────────────────────────────────────
+  // ── Slippage (Sun.io seulement) ──────────────────────────────────────────
+  const [slippage, setSlippage] = useState(0.5);
+  const [slippageInput, setSlippageInput] = useState("0.5");
+  const [editingSlippage, setEditingSlippage] = useState(false);
+
+  // ── Prix ─────────────────────────────────────────────────────────────────
   const [prices, setPrices] = useState<Record<string, number>>({
     PI: 0, BTC: 95000, SDA: 1.2, USDT: 1, USDC: 1, DAI: 1, BUSD: 1,
     ETH: 3200, BNB: 600, SOL: 180, XRP: 2.5, XLM: 0.4,
@@ -144,25 +230,28 @@ export default function SwapPage() {
   const [isPriceLoading, setIsPriceLoading] = useState(false);
   const [balances, setBalances] = useState<Record<string, string>>({});
 
-  // ── Swap state ────────────────────────────────────────────────────────
+  // ── Swap state ────────────────────────────────────────────────────────────
   const [fromAsset, setFromAsset] = useState<Asset>(ALL_ASSETS[12]); // USDT
   const [toAsset, setToAsset] = useState<Asset>(ALL_ASSETS[8]);       // TRX
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState(0);
-  const [slippage, setSlippage] = useState(1);
-  const [editingSlippage, setEditingSlippage] = useState(false);
-  const [slippageInput, setSlippageInput] = useState("1");
 
-  // ── Résultat swap ─────────────────────────────────────────────────────
+  // ── Résultat swap ─────────────────────────────────────────────────────────
   const [transactionRef, setTransactionRef] = useState("");
   const [transactionTime, setTransactionTime] = useState<Date | null>(null);
   const [swapTxHash, setSwapTxHash] = useState<string | null>(null);
+  const [changenowId, setChangenowId] = useState<string | null>(null);
 
-  // ── Quote Sun.io (pour les paires TRON) ──────────────────────────────
-  const [sunioQuote, setSunioQuote] = useState<{
-    amountOut: string; minAmountOut: string; priceImpact: string; route: string[];
-  } | null>(null);
+  // ── Quotes ────────────────────────────────────────────────────────────────
+  const [sunioQuote, setSunioQuote] = useState<SunioQuoteState | null>(null);
+  const [cnQuote, setCnQuote] = useState<CNQuoteState | null>(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+
+  /* ---------- ROUTE COURANTE ---------- */
+  const swapRoute = useMemo(
+    () => getSwapRoute(fromAsset.id, toAsset.id),
+    [fromAsset.id, toAsset.id]
+  );
 
   /* ---------- FETCHERS ---------- */
 
@@ -236,7 +325,7 @@ export default function SwapPage() {
     } catch { /* silently fail */ }
   }, []);
 
-  // ── Quote Sun.io : appel automatique quand paire TRON + montant valide ──
+  // ── Quote Sun.io ──────────────────────────────────────────────────────────
   const fetchSunioQuote = useCallback(async (from: string, to: string, amount: number, slip: number) => {
     if (!isSunioSwap(from, to) || !amount || amount <= 0) {
       setSunioQuote(null);
@@ -244,7 +333,7 @@ export default function SwapPage() {
     }
     setIsQuoteLoading(true);
     try {
-      const slippageBps = Math.round(slip * 100); // % → bps
+      const slippageBps = Math.round(slip * 100);
       const res = await fetch(
         `/api/swap/sunio?from=${from}&to=${to}&amount=${amount}&slippage=${slippageBps}`,
         { signal: AbortSignal.timeout(10_000) }
@@ -257,6 +346,31 @@ export default function SwapPage() {
       }
     } catch {
       setSunioQuote(null);
+    } finally {
+      setIsQuoteLoading(false);
+    }
+  }, []);
+
+  // ── Quote ChangeNow (mode fixe) ───────────────────────────────────────────
+  const fetchChangeNowQuote = useCallback(async (from: string, to: string, amount: number) => {
+    if (!isChangeNowSwap(from, to) || !amount || amount <= 0) {
+      setCnQuote(null);
+      return;
+    }
+    setIsQuoteLoading(true);
+    try {
+      const res = await fetch(
+        `/api/swap/changenow?from=${from}&to=${to}&amount=${amount}`,
+        { signal: AbortSignal.timeout(12_000) }
+      );
+      if (!res.ok) { setCnQuote(null); return; }
+      const data = await res.json();
+      if (data.success && data.quote) {
+        setCnQuote(data.quote);
+        setToAmount(data.quote.estimatedAmount);
+      }
+    } catch {
+      setCnQuote(null);
     } finally {
       setIsQuoteLoading(false);
     }
@@ -284,32 +398,46 @@ export default function SwapPage() {
     [prices]
   );
 
-  // Quand le montant ou les assets changent, on recalcule le toAmount
+  // Quand le montant ou les assets changent
   useEffect(() => {
     const amount = parseFloat(fromAmount);
     if (isNaN(amount) || amount <= 0) {
       setToAmount(0);
       setSunioQuote(null);
+      setCnQuote(null);
       return;
     }
 
-    // Pour les paires TRON → on déclenche le quote Sun.io (asynchrone)
-    if (isSunioSwap(fromAsset.id, toAsset.id)) {
-      // Afficher une estimation locale immédiate pendant le chargement du quote
+    const route = getSwapRoute(fromAsset.id, toAsset.id);
+
+    if (route === "SUNIO") {
+      // Estimation locale immédiate + quote réel différé
       const usd = getValueInUsd(fromAsset.id, amount);
       setToAmount(getAmountFromUsd(toAsset.id, usd));
-      // Puis on remplace par le vrai quote Sun.io
+      setCnQuote(null);
       const debounce = setTimeout(() => {
         fetchSunioQuote(fromAsset.id, toAsset.id, amount, slippage);
       }, 600);
       return () => clearTimeout(debounce);
     }
 
-    // Pour les autres paires → calcul par prix CoinGecko
+    if (route === "CHANGENOW") {
+      // Estimation locale immédiate + quote fixe différé
+      const usd = getValueInUsd(fromAsset.id, amount);
+      setToAmount(getAmountFromUsd(toAsset.id, usd));
+      setSunioQuote(null);
+      const debounce = setTimeout(() => {
+        fetchChangeNowQuote(fromAsset.id, toAsset.id, amount);
+      }, 600);
+      return () => clearTimeout(debounce);
+    }
+
+    // Route interne
     const usd = getValueInUsd(fromAsset.id, amount);
     setToAmount(getAmountFromUsd(toAsset.id, usd));
     setSunioQuote(null);
-  }, [fromAmount, fromAsset, toAsset, slippage, getValueInUsd, getAmountFromUsd, fetchSunioQuote]);
+    setCnQuote(null);
+  }, [fromAmount, fromAsset, toAsset, slippage, getValueInUsd, getAmountFromUsd, fetchSunioQuote, fetchChangeNowQuote]);
 
   /* ---------- ACTIONS ---------- */
 
@@ -319,6 +447,7 @@ export default function SwapPage() {
     setToAsset(prev);
     setFromAmount("");
     setSunioQuote(null);
+    setCnQuote(null);
   };
 
   const handleRequestConfirm = () => {
@@ -328,16 +457,16 @@ export default function SwapPage() {
     setShowConfirm(true);
   };
 
-  // ── Exécution du swap ─────────────────────────────────────────────────
+  // ── Exécution du swap ─────────────────────────────────────────────────────
   const handleSwapExecute = async () => {
     if (loading) return;
     setLoading(true);
     try {
       const amount = parseFloat(fromAmount);
-      const useSunio = isSunioSwap(fromAsset.id, toAsset.id);
+      const route = getSwapRoute(fromAsset.id, toAsset.id);
 
-      // ── Route 1 : Sun.io (paires TRON on-chain) ──────────────────────
-      if (useSunio) {
+      // ── Route 1 : Sun.io (paires TRON on-chain) ────────────────────────
+      if (route === "SUNIO") {
         const slippageBps = Math.round(slippage * 100);
         const res = await fetch("/api/swap/sunio", {
           method: "POST",
@@ -349,23 +478,16 @@ export default function SwapPage() {
             slippage: slippageBps,
           }),
         });
-
         const data = await res.json();
-
-        if (!res.ok) {
-          toast.error(data.error || "Swap Sun.io échoué");
-          setLoading(false);
-          return;
-        }
-
+        if (!res.ok) { toast.error(data.error || "Swap Sun.io échoué"); setLoading(false); return; }
         setTransactionRef(data.reference || `SWAP-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(data.txHash || null);
-        // Met à jour le toAmount avec le vrai montant reçu
+        setChangenowId(null);
         if (data.amountOut) setToAmount(data.amountOut);
         setIsSuccess(true);
         setShowConfirm(false);
-        loadBalances(); // rafraîchir les soldes
+        loadBalances();
         toast.success("Swap Sun.io réussi !", {
           description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
           duration: 5000,
@@ -373,7 +495,42 @@ export default function SwapPage() {
         return;
       }
 
-      // ── Route 2 : Swap interne PimPay (paires non-TRON) ──────────────
+      // ── Route 2 : ChangeNow (mode fixe, autres cryptos) ───────────────
+      if (route === "CHANGENOW") {
+        if (!cnQuote?.rateId) {
+          toast.error("Aucun taux fixe disponible. Attendez le chargement du devis.");
+          setLoading(false);
+          return;
+        }
+        const res = await fetch("/api/swap/changenow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromToken: fromAsset.id,
+            toToken: toAsset.id,
+            amount,
+            rateId: cnQuote.rateId,
+            estimatedOut: cnQuote.estimatedAmount,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { toast.error(data.error || "Swap ChangeNow échoué"); setLoading(false); return; }
+        setTransactionRef(data.reference || `CN-${Date.now().toString(36).toUpperCase()}`);
+        setTransactionTime(new Date());
+        setSwapTxHash(null);
+        setChangenowId(data.changenowId || null);
+        if (data.amountOut) setToAmount(data.amountOut);
+        setIsSuccess(true);
+        setShowConfirm(false);
+        loadBalances();
+        toast.success("Échange ChangeNow initié !", {
+          description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
+          duration: 6000,
+        });
+        return;
+      }
+
+      // ── Route 3 : Swap interne PimPay ─────────────────────────────────
       const quoteRes = await fetch("/api/transaction/swap/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -384,27 +541,24 @@ export default function SwapPage() {
           estimatedOut: toAmount,
         }),
       });
-
       if (!quoteRes.ok) {
         const err = await quoteRes.json();
         toast.error(err.error || "Erreur lors du calcul");
         setLoading(false);
         return;
       }
-
       const quoteData = await quoteRes.json();
-
       const confirmRes = await fetch("/api/transaction/swap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quoteId: quoteData.quoteId }),
       });
-
       if (confirmRes.ok) {
         const result = await confirmRes.json();
         setTransactionRef(result.transactionId || `SWAP-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(null);
+        setChangenowId(null);
         setIsSuccess(true);
         setShowConfirm(false);
         loadBalances();
@@ -437,6 +591,7 @@ export default function SwapPage() {
     setSearchQuery("");
     setFromAmount("");
     setSunioQuote(null);
+    setCnQuote(null);
   };
 
   const filteredAssets = useMemo(() => {
@@ -476,8 +631,9 @@ export default function SwapPage() {
   };
 
   const getMinimumReceived = () => {
-    // Pour Sun.io : on utilise le minAmountOut du quote
     if (sunioQuote) return parseFloat(sunioQuote.minAmountOut).toFixed(6);
+    // Pour ChangeNow mode fixe : le montant est garanti, pas de min différent
+    if (cnQuote) return cnQuote.estimatedAmount.toFixed(6);
     if (toAmount <= 0) return "0.00";
     const min = toAmount * (1 - slippage / 100);
     if (["BTC", "PI", "ETH"].includes(toAsset.id)) return min.toFixed(8);
@@ -487,8 +643,10 @@ export default function SwapPage() {
 
   const NETWORK_FEE = CRYPTO_IDS.includes(fromAsset.id) ? `0.01 ${fromAsset.symbol}` : "0.00";
 
-  // Label de la source de prix
-  const priceSource = isSunioSwap(fromAsset.id, toAsset.id) ? "Sun.io (SunSwap)" : "CoinGecko & ExchangeRate-API";
+  const priceSource =
+    swapRoute === "SUNIO" ? "Sun.io (SunSwap)" :
+    swapRoute === "CHANGENOW" ? "ChangeNow (Taux Fixe)" :
+    "CoinGecko & ExchangeRate-API";
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
 
@@ -497,18 +655,19 @@ export default function SwapPage() {
   /* ---- SUCCESS SCREEN ---- */
   if (isSuccess) {
     const copyRef = () => { navigator.clipboard.writeText(transactionRef); toast.success("Reference copiee!"); };
+    const isChangeNow = !!changenowId;
 
     return (
       <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.3, scale: 1.2 }} transition={{ duration: 1.5 }}
-            className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px]" />
+            className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] ${isChangeNow ? "bg-violet-500/20" : "bg-emerald-500/20"} rounded-full blur-[120px]`} />
           {[...Array(20)].map((_, i) => (
             <motion.div key={i}
               initial={{ opacity: 0, y: 100, x: Math.random() * 400 - 200 }}
               animate={{ opacity: [0, 1, 0], y: -200, x: Math.random() * 400 - 200 }}
               transition={{ duration: 3 + Math.random() * 2, delay: Math.random() * 2, repeat: Infinity, repeatDelay: Math.random() * 3 }}
-              className="absolute bottom-0 left-1/2 w-2 h-2 bg-emerald-400/60 rounded-full"
+              className={`absolute bottom-0 left-1/2 w-2 h-2 ${isChangeNow ? "bg-violet-400/60" : "bg-emerald-400/60"} rounded-full`}
             />
           ))}
         </div>
@@ -516,10 +675,12 @@ export default function SwapPage() {
         <div className="relative z-10 flex flex-col min-h-screen p-6">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between pt-4 mb-6">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                <BadgeCheck size={16} className="text-emerald-400" />
+              <div className={`w-8 h-8 ${isChangeNow ? "bg-violet-500/10" : "bg-emerald-500/10"} rounded-lg flex items-center justify-center`}>
+                <BadgeCheck size={16} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} />
               </div>
-              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em]">Transaction Confirmee</span>
+              <span className={`text-[10px] font-black ${isChangeNow ? "text-violet-400" : "text-emerald-400"} uppercase tracking-[0.15em]`}>
+                {isChangeNow ? "Échange ChangeNow Créé" : "Transaction Confirmée"}
+              </span>
             </div>
             <button onClick={copyRef} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 text-[9px] font-bold text-slate-400 hover:bg-white/10 transition-all">
               <Copy size={10} /> Copier Ref
@@ -528,12 +689,11 @@ export default function SwapPage() {
 
           <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
-            className="flex justify-center mb-6"
-          >
+            className="flex justify-center mb-6">
             <div className="relative">
               <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}
-                className="absolute inset-0 bg-emerald-500/30 rounded-full blur-2xl" />
-              <div className="relative w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                className={`absolute inset-0 ${isChangeNow ? "bg-violet-500/30" : "bg-emerald-500/30"} rounded-full blur-2xl`} />
+              <div className={`relative w-24 h-24 bg-gradient-to-br ${isChangeNow ? "from-violet-400 to-violet-600 shadow-violet-500/30" : "from-emerald-400 to-emerald-600 shadow-emerald-500/30"} rounded-full flex items-center justify-center shadow-2xl`}>
                 <CheckCircle2 size={48} className="text-white" strokeWidth={2.5} />
               </div>
               <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.7 }}
@@ -545,19 +705,42 @@ export default function SwapPage() {
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-center mb-8">
             <h1 className="text-2xl font-black uppercase tracking-tight mb-2">
-              Swap <span className="text-emerald-400">Reussi</span>
+              Swap <span className={isChangeNow ? "text-violet-400" : "text-emerald-400"}>
+                {isChangeNow ? "Initié" : "Réussi"}
+              </span>
             </h1>
-            <p className="text-xs text-slate-400 font-medium">Vos fonds ont ete convertis avec succes</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {isChangeNow
+                ? "Votre échange ChangeNow est en cours. Il sera finalisé sous 10–60 min."
+                : "Vos fonds ont été convertis avec succès"}
+            </p>
+            {isChangeNow && (
+              <div className="flex items-center justify-center gap-1.5 mt-2">
+                <Timer size={11} className="text-violet-400" />
+                <p className="text-[10px] text-violet-400/70 font-mono">via ChangeNow · Mode Fixe</p>
+              </div>
+            )}
             {swapTxHash && (
-              <p className="text-[10px] text-emerald-400/70 mt-1 font-mono">
-                via Sun.io · TRON
-              </p>
+              <p className="text-[10px] text-emerald-400/70 mt-1 font-mono">via Sun.io · TRON</p>
             )}
           </motion.div>
 
+          {/* Info ChangeNow en cours */}
+          {isChangeNow && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
+              className="flex items-start gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl mb-4">
+              <Timer className="text-violet-400 shrink-0 mt-0.5" size={14} />
+              <div>
+                <p className="text-[10px] font-black text-violet-400 uppercase mb-1">Échange en cours</p>
+                <p className="text-[9px] text-violet-200/60 leading-relaxed">
+                  ChangeNow traite l'échange automatiquement. Vos fonds {toAsset.symbol} seront crédités dès confirmation blockchain (10–60 min selon le réseau).
+                </p>
+              </div>
+            </motion.div>
+          )}
+
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-            className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 mb-4 backdrop-blur-xl"
-          >
+            className="bg-gradient-to-br from-slate-900/80 to-slate-800/50 border border-white/10 rounded-[2rem] p-5 mb-4 backdrop-blur-xl">
             <div className="flex items-center justify-between mb-6 gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vendu</p>
@@ -570,14 +753,14 @@ export default function SwapPage() {
                 </div>
               </div>
               <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
-                className="w-9 h-9 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 shrink-0">
-                <ArrowRight size={16} className="text-emerald-400" />
+                className={`w-9 h-9 ${isChangeNow ? "bg-violet-500/10 border-violet-500/20" : "bg-emerald-500/10 border-emerald-500/20"} rounded-full flex items-center justify-center border shrink-0`}>
+                <ArrowRight size={16} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} />
               </motion.div>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Recu</p>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Reçu</p>
                 <div className="flex items-center gap-2 justify-end">
                   <div className="min-w-0">
-                    <p className="text-lg font-black text-emerald-400 truncate">{formatToAmount()}</p>
+                    <p className={`text-lg font-black ${isChangeNow ? "text-violet-400" : "text-emerald-400"} truncate`}>{formatToAmount()}</p>
                     <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
                   </div>
                   <AssetIcon asset={toAsset} size={36} />
@@ -602,19 +785,20 @@ export default function SwapPage() {
                 <p className="text-[10px] text-slate-400">{transactionTime?.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <div className="bg-white/5 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1"><Shield size={10} className="text-emerald-400" /><p className="text-[8px] font-black text-slate-500 uppercase">Statut</p></div>
+                <div className="flex items-center gap-1.5 mb-1"><Shield size={10} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} /><p className="text-[8px] font-black text-slate-500 uppercase">Statut</p></div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <p className="text-xs font-bold text-emerald-400">Confirme</p>
+                  <div className={`w-2 h-2 ${isChangeNow ? "bg-violet-500" : "bg-emerald-500"} rounded-full animate-pulse`} />
+                  <p className={`text-xs font-bold ${isChangeNow ? "text-violet-400" : "text-emerald-400"}`}>
+                    {isChangeNow ? "En cours" : "Confirmé"}
+                  </p>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Référence + hash blockchain */}
+          {/* Référence + IDs */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
-            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4 space-y-3"
-          >
+            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Reference PimPay</p>
@@ -627,14 +811,18 @@ export default function SwapPage() {
             {swapTxHash && (
               <div>
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Hash TRON (Sun.io)</p>
-                <a
-                  href={`https://tronscan.org/#/transaction/${swapTxHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
-                >
-                  {swapTxHash.substring(0, 20)}...
-                  <ExternalLink size={10} />
+                <a href={`https://tronscan.org/#/transaction/${swapTxHash}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs font-mono text-emerald-400 hover:text-emerald-300 transition-colors">
+                  {swapTxHash.substring(0, 20)}... <ExternalLink size={10} />
+                </a>
+              </div>
+            )}
+            {changenowId && (
+              <div>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">ID ChangeNow</p>
+                <a href={`https://changenow.io/exchange/txs/${changenowId}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs font-mono text-violet-400 hover:text-violet-300 transition-colors">
+                  {changenowId} <ExternalLink size={10} />
                 </a>
               </div>
             )}
@@ -644,7 +832,7 @@ export default function SwapPage() {
 
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="space-y-3 pb-4">
             <div className="flex gap-3">
-              <button onClick={() => { setIsSuccess(false); setFromAmount(""); setToAmount(0); setSunioQuote(null); setSwapTxHash(null); }}
+              <button onClick={() => { setIsSuccess(false); setFromAmount(""); setToAmount(0); setSunioQuote(null); setCnQuote(null); setSwapTxHash(null); setChangenowId(null); }}
                 className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                 <RotateCcw size={14} /> Nouveau Swap
               </button>
@@ -667,8 +855,6 @@ export default function SwapPage() {
   }
 
   /* ---- MAIN UI ---- */
-  const sunioActive = isSunioSwap(fromAsset.id, toAsset.id);
-
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-24 font-sans">
       {/* Header */}
@@ -682,7 +868,7 @@ export default function SwapPage() {
             <div className="flex items-center gap-2 mt-1">
               <div className={`w-2 h-2 rounded-full ${isPriceLoading || isQuoteLoading ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {isPriceLoading || isQuoteLoading ? "Mise a jour..." : "Taux en direct"}
+                {isPriceLoading || isQuoteLoading ? "Chargement devis..." : "Taux en direct"}
               </span>
             </div>
           </div>
@@ -694,21 +880,8 @@ export default function SwapPage() {
       </div>
 
       <div className="px-6">
-        {/* Badge Sun.io si la paire est routée via Sun.io */}
-        {sunioActive && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-center gap-2 mb-4 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
-              Routé via Sun.io · SunSwap TRON
-            </span>
-            {sunioQuote && (
-              <span className="text-[9px] text-emerald-400/60 ml-2">
-                Impact: {parseFloat(sunioQuote.priceImpact || "0").toFixed(2)}%
-              </span>
-            )}
-          </motion.div>
-        )}
+        {/* Badge de routage */}
+        <RouteBadge route={swapRoute} cnQuote={cnQuote} />
 
         {/* Swap Card */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 space-y-4 shadow-2xl relative">
@@ -744,7 +917,9 @@ export default function SwapPage() {
           <div className="space-y-2 pt-2">
             <div className="flex justify-between text-[10px] font-black uppercase text-slate-500 px-2">
               <span>Recevoir</span>
-              <span className="text-slate-500">Solde: {parseFloat(balances[toAsset.id] || "0").toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
+              <span className="text-slate-500">
+                Solde: {parseFloat(balances[toAsset.id] || "0").toLocaleString(undefined, { maximumFractionDigits: 6 })}
+              </span>
             </div>
             <div className="bg-white/5 border border-white/5 rounded-3xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 w-1/2">
@@ -763,17 +938,29 @@ export default function SwapPage() {
             </div>
           </div>
 
+          {/* Avertissement ChangeNow si le devis expire bientôt */}
+          {swapRoute === "CHANGENOW" && cnQuote?.warningMessage && (
+            <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+              <AlertCircle size={12} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[9px] text-amber-300/70">{cnQuote.warningMessage}</p>
+            </div>
+          )}
+
           {/* Swap Details Panel */}
           <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm text-slate-400">Rate</span>
-              <span className="text-sm font-semibold text-white">1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}</span>
+              <span className="text-sm font-semibold text-white">
+                1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-slate-400">Network fee</span>
               <span className="text-sm font-semibold text-white">{NETWORK_FEE}</span>
             </div>
-            {sunioActive && sunioQuote && (
+
+            {/* Sun.io : Price Impact */}
+            {swapRoute === "SUNIO" && sunioQuote && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-400">Price Impact</span>
                 <span className={`text-sm font-semibold ${parseFloat(sunioQuote.priceImpact) > 2 ? "text-red-400" : "text-emerald-400"}`}>
@@ -781,32 +968,66 @@ export default function SwapPage() {
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-400">Slippage</span>
-              {editingSlippage ? (
-                <div className="flex items-center gap-2">
-                  <input type="number" min="0.1" max="50" step="0.1" value={slippageInput}
-                    onChange={(e) => setSlippageInput(e.target.value)}
-                    onBlur={() => { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); } }}
-                    className="w-16 bg-white/10 border border-blue-500/40 rounded-lg px-2 py-1 text-sm font-semibold text-white text-right outline-none" autoFocus />
-                  <span className="text-sm font-semibold text-white">%</span>
+
+            {/* ChangeNow : Taux garanti + délai */}
+            {swapRoute === "CHANGENOW" && cnQuote && (
+              <>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-400">Taux garanti</span>
+                  <span className="text-sm font-semibold text-violet-400">✓ Fixe</span>
                 </div>
-              ) : (
-                <button onClick={() => { setSlippageInput(String(slippage)); setEditingSlippage(true); }}
-                  className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                  {slippage}% <Pencil size={12} className="text-slate-400" />
-                </button>
-              )}
-            </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-400">Délai estimé</span>
+                  <div className="flex items-center gap-1.5">
+                    <Timer size={12} className="text-violet-400" />
+                    <span className="text-sm font-semibold text-white">{cnQuote.transactionSpeedForecast}</span>
+                  </div>
+                </div>
+                {cnQuote.validUntil && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-400">Devis valide jusqu'à</span>
+                    <span className="text-xs font-semibold text-slate-300">
+                      {new Date(cnQuote.validUntil).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Slippage (Sun.io seulement) */}
+            {swapRoute === "SUNIO" && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Slippage</span>
+                {editingSlippage ? (
+                  <div className="flex items-center gap-2">
+                    <input type="number" min="0.1" max="50" step="0.1" value={slippageInput}
+                      onChange={(e) => setSlippageInput(e.target.value)}
+                      onBlur={() => { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); } }}
+                      className="w-16 bg-white/10 border border-blue-500/40 rounded-lg px-2 py-1 text-sm font-semibold text-white text-right outline-none" autoFocus />
+                    <span className="text-sm font-semibold text-white">%</span>
+                  </div>
+                ) : (
+                  <button onClick={() => { setSlippageInput(String(slippage)); setEditingSlippage(true); }}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-white">
+                    {slippage}% <Pencil size={12} className="text-slate-400" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-400">Minimum received</span>
+              <span className="text-sm text-slate-400">
+                {swapRoute === "CHANGENOW" ? "Montant garanti" : "Minimum reçu"}
+              </span>
               <span className="text-sm font-semibold text-white">{getMinimumReceived()} {toAsset.symbol}</span>
             </div>
             <div className="h-px bg-white/5" />
             <div className="flex items-center justify-center gap-1.5 pt-1">
-              {sunioActive ? (
+              {swapRoute === "SUNIO" ? (
                 <span className="text-xs text-emerald-500/70 font-semibold">Powered by Sun.io · SunSwap</span>
+              ) : swapRoute === "CHANGENOW" ? (
+                <span className="text-xs text-violet-400/70 font-semibold">Powered by ChangeNow · Fixed Rate</span>
               ) : (
                 <span className="text-xs text-slate-500">May include 0.3% pool fee</span>
               )}
@@ -816,10 +1037,21 @@ export default function SwapPage() {
 
           {/* Action Button */}
           <button onClick={handleRequestConfirm}
-            disabled={loading || !fromAmount || parseFloat(fromAmount) <= 0 || isQuoteLoading}
+            disabled={
+              loading ||
+              !fromAmount ||
+              parseFloat(fromAmount) <= 0 ||
+              isQuoteLoading ||
+              (swapRoute === "CHANGENOW" && !cnQuote?.rateId)
+            }
             className="w-full bg-blue-600 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-30">
-            {isQuoteLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={18} fill="currentColor" className="text-yellow-400" />}
-            {isQuoteLoading ? "Calcul du prix..." : "Echanger maintenant"}
+            {isQuoteLoading ? (
+              <><Loader2 size={16} className="animate-spin" /> Calcul du prix fixe...</>
+            ) : swapRoute === "CHANGENOW" && !cnQuote && fromAmount && parseFloat(fromAmount) > 0 ? (
+              <><Loader2 size={16} className="animate-spin" /> Chargement devis ChangeNow...</>
+            ) : (
+              <><Zap size={18} fill="currentColor" className="text-yellow-400" /> Echanger maintenant</>
+            )}
           </button>
         </div>
 
@@ -899,17 +1131,21 @@ export default function SwapPage() {
                     {assets.map((asset) => {
                       const isSelected = asset.id === selectedId;
                       const balNum = parseFloat(balances[asset.id] || "0");
-                      const sunioCompatible = SUNIO_TOKENS.has(asset.id);
+                      const isSunio = SUNIO_TOKENS.has(asset.id);
+                      const isCN = CHANGENOW_TOKENS.has(asset.id);
                       return (
                         <button key={asset.id} onClick={() => handleSelectAsset(asset)}
                           className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all active:scale-[0.98] ${isSelected ? "bg-blue-500/10 border border-blue-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.04]"}`}>
                           <div className="flex items-center gap-3">
                             <AssetIcon asset={asset} size={44} />
                             <div className="text-left">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-bold text-sm" style={{ color: asset.color }}>{asset.symbol}</p>
-                                {sunioCompatible && (
+                                {isSunio && (
                                   <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 py-0.5 rounded font-bold">SUN.IO</span>
+                                )}
+                                {isCN && !isSunio && (
+                                  <span className="text-[8px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-1 py-0.5 rounded font-bold">CHANGENOW</span>
                                 )}
                               </div>
                               <p className="text-xs text-slate-400 mt-0.5">
@@ -950,7 +1186,7 @@ export default function SwapPage() {
             className="fixed inset-0 z-[110] bg-[#020617] overflow-hidden">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.2 }}
-                className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-blue-500/30 rounded-full blur-[100px]" />
+                className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] ${swapRoute === "CHANGENOW" ? "bg-violet-500/30" : "bg-blue-500/30"} rounded-full blur-[100px]`} />
             </div>
 
             <div className="relative z-10 flex flex-col min-h-screen p-6">
@@ -959,25 +1195,41 @@ export default function SwapPage() {
                   <ArrowLeft size={20} />
                 </button>
                 <div>
-                  <h2 className="text-lg font-black uppercase tracking-tight">Resume du <span className="text-blue-500">Swap</span></h2>
+                  <h2 className="text-lg font-black uppercase tracking-tight">Resume du <span className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-500"}>Swap</span></h2>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Verifiez les details avant confirmation</p>
                 </div>
               </motion.div>
 
-              {/* Badge route */}
-              {sunioActive && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                  className="flex items-center justify-center gap-2 mb-4 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Sun.io · SunSwap TRON on-chain</span>
-                </motion.div>
-              )}
+              {/* Badge route dans la confirmation */}
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
+                className={`flex items-center justify-center gap-2 mb-4 px-4 py-2 ${
+                  swapRoute === "SUNIO"
+                    ? "bg-emerald-500/10 border-emerald-500/20"
+                    : swapRoute === "CHANGENOW"
+                    ? "bg-violet-500/10 border-violet-500/20"
+                    : "bg-blue-500/10 border-blue-500/20"
+                } border rounded-xl`}>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${
+                  swapRoute === "SUNIO" ? "bg-emerald-500" :
+                  swapRoute === "CHANGENOW" ? "bg-violet-400" :
+                  "bg-blue-400"
+                }`} />
+                <span className={`text-[10px] font-black uppercase tracking-widest ${
+                  swapRoute === "SUNIO" ? "text-emerald-400" :
+                  swapRoute === "CHANGENOW" ? "text-violet-400" :
+                  "text-blue-400"
+                }`}>
+                  {swapRoute === "SUNIO" && "Sun.io · SunSwap TRON on-chain"}
+                  {swapRoute === "CHANGENOW" && "ChangeNow · Taux Fixe Garanti"}
+                  {swapRoute === "INTERNAL" && "PimPay · Conversion interne"}
+                </span>
+              </motion.div>
 
               <div className="flex-1 flex flex-col justify-center space-y-5">
                 <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: "spring" }} className="flex justify-center mb-2">
                   <motion.div animate={{ rotate: loading ? 360 : 0 }} transition={{ duration: 1, repeat: loading ? Infinity : 0, ease: "linear" }}
-                    className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-full flex items-center justify-center border border-blue-500/30">
-                    <RefreshCw size={28} className="text-blue-400" />
+                    className={`w-16 h-16 ${swapRoute === "CHANGENOW" ? "bg-gradient-to-br from-violet-500/20 to-violet-600/20 border-violet-500/30" : "bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-500/30"} rounded-full flex items-center justify-center border`}>
+                    <RefreshCw size={28} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
                   </motion.div>
                 </motion.div>
 
@@ -988,17 +1240,23 @@ export default function SwapPage() {
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous vendez</p>
                       <div className="flex items-center gap-2">
                         <AssetIcon asset={fromAsset} size={40} />
-                        <div className="min-w-0"><p className="text-xl font-black text-white truncate">{fromAmount}</p><p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p></div>
+                        <div className="min-w-0">
+                          <p className="text-xl font-black text-white truncate">{fromAmount}</p>
+                          <p className="text-xs text-slate-400 font-bold">{fromAsset.symbol}</p>
+                        </div>
                       </div>
                     </div>
                     <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
-                      className="w-10 h-10 shrink-0 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20">
-                      <ArrowRight size={16} className="text-blue-400" />
+                      className={`w-10 h-10 shrink-0 ${swapRoute === "CHANGENOW" ? "bg-violet-500/10 border-violet-500/20" : "bg-blue-500/10 border-blue-500/20"} rounded-full flex items-center justify-center border`}>
+                      <ArrowRight size={16} className={swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} />
                     </motion.div>
                     <div className="flex-1 min-w-0 text-right">
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Vous recevez</p>
                       <div className="flex items-center gap-2 justify-end">
-                        <div className="min-w-0"><p className="text-xl font-black text-blue-400 truncate">{formatToAmount()}</p><p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p></div>
+                        <div className="min-w-0">
+                          <p className={`text-xl font-black ${swapRoute === "CHANGENOW" ? "text-violet-400" : "text-blue-400"} truncate`}>{formatToAmount()}</p>
+                          <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
+                        </div>
                         <AssetIcon asset={toAsset} size={40} />
                       </div>
                     </div>
@@ -1011,22 +1269,49 @@ export default function SwapPage() {
                       <div className="flex items-center gap-2"><TrendingUp size={12} className="text-blue-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux de change</span></div>
                       <span className="text-xs font-black text-white">1 {fromAsset.symbol} = {getExchangeRate()} {toAsset.symbol}</span>
                     </div>
-                    {sunioActive && sunioQuote && (
+
+                    {swapRoute === "SUNIO" && sunioQuote && (
                       <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
                         <div className="flex items-center gap-2"><Zap size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Price Impact</span></div>
-                        <span className={`text-xs font-black ${parseFloat(sunioQuote.priceImpact) > 2 ? "text-red-400" : "text-emerald-400"}`}>{parseFloat(sunioQuote.priceImpact).toFixed(2)}%</span>
+                        <span className={`text-xs font-black ${parseFloat(sunioQuote.priceImpact) > 2 ? "text-red-400" : "text-emerald-400"}`}>
+                          {parseFloat(sunioQuote.priceImpact).toFixed(2)}%
+                        </span>
                       </div>
                     )}
+
+                    {swapRoute === "CHANGENOW" && (
+                      <>
+                        <div className="flex justify-between items-center py-2 px-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
+                          <div className="flex items-center gap-2"><Shield size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Taux garanti</span></div>
+                          <span className="text-xs font-black text-violet-400">✓ Fixe — Montant garanti</span>
+                        </div>
+                        {cnQuote && (
+                          <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                            <div className="flex items-center gap-2"><Timer size={12} className="text-violet-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Délai estimé</span></div>
+                            <span className="text-xs font-black text-white">{cnQuote.transactionSpeedForecast}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
                     <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
                       <div className="flex items-center gap-2"><Banknote size={12} className="text-amber-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Frais reseau</span></div>
                       <span className="text-xs font-black text-white">{NETWORK_FEE}</span>
                     </div>
+
+                    {swapRoute === "SUNIO" && (
+                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
+                        <div className="flex items-center gap-2"><Zap size={12} className="text-purple-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Slippage</span></div>
+                        <span className="text-xs font-black text-white">{slippage}%</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                      <div className="flex items-center gap-2"><Zap size={12} className="text-purple-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Slippage</span></div>
-                      <span className="text-xs font-black text-white">{slippage}%</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-xl">
-                      <div className="flex items-center gap-2"><Shield size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-slate-400 uppercase">Minimum recu</span></div>
+                      <div className="flex items-center gap-2"><Shield size={12} className="text-emerald-400" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">
+                          {swapRoute === "CHANGENOW" ? "Montant garanti" : "Minimum recu"}
+                        </span>
+                      </div>
                       <span className="text-xs font-black text-emerald-400">{getMinimumReceived()} {toAsset.symbol}</span>
                     </div>
                   </div>
@@ -1038,8 +1323,10 @@ export default function SwapPage() {
                   <div>
                     <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Attention</p>
                     <p className="text-[9px] text-amber-200/60 leading-relaxed font-medium">
-                      {sunioActive
+                      {swapRoute === "SUNIO"
                         ? "Ce swap est exécuté on-chain sur TRON via Sun.io. Il est irreversible une fois confirmé. Vérifiez le price impact avant de continuer."
+                        : swapRoute === "CHANGENOW"
+                        ? "Le taux est fixe et garanti par ChangeNow. L'opération est irreversible. La finalisation blockchain prendra 10–60 minutes selon les réseaux concernés."
                         : "Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer."}
                     </p>
                   </div>
@@ -1048,7 +1335,7 @@ export default function SwapPage() {
 
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="space-y-3 pb-4">
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleSwapExecute} disabled={loading}
-                  className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl shadow-blue-500/20 disabled:opacity-50">
+                  className={`w-full py-5 bg-gradient-to-r ${swapRoute === "CHANGENOW" ? "from-violet-500 to-violet-600 shadow-violet-500/20" : "from-blue-500 to-blue-600 shadow-blue-500/20"} rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl disabled:opacity-50`}>
                   {loading ? <><Loader2 className="animate-spin" size={18} /><span>Traitement en cours...</span></>
                     : <><CheckCircle2 size={18} /><span>Confirmer le Swap</span></>}
                 </motion.button>
