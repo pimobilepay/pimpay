@@ -191,28 +191,60 @@ async function getSunioQuote(
 /**
  * Exécute le swap on-chain via le Smart Router Sun.io officiel.
  *
- * ✅ CORRECTION CRITIQUE :
- *   L'ancienne implémentation utilisait swapExactETHForTokens / swapExactTokensForETH
- *   (API Uniswap V2 / SunSwap V2). Cela provoquait l'erreur :
- *   "Contract validate error : Validate InternalTransfer error, balance is not sufficient"
- *   car le Smart Router (TCFNp179Lg46D16zKoumd4Poa2WFFdtqYj) n'expose PAS ces méthodes.
+ * Implémentation conforme au README officiel :
+ *   https://github.com/sun-protocol/smart-exchange-router/blob/main/README.md
  *
- *   Le Smart Router Sun.io utilise UNE SEULE fonction unifiée : swapExactInput()
- *   Source : https://docs.sun.io/developers/swap/smart-router
- *            https://github.com/sun-protocol/smart-exchange-router
+ * Méthode exacte de la doc :
+ *   const contract = await tronWeb.contract(abi, contractAddress);
+ *   await contract.swapExactInput(path, poolVersion, versionLen, fees, swapdata).send();
  *
- * Signature :
- *   function swapExactInput(
- *     address[] path,           // [tokenFrom, tokenTo]
- *     string[]  poolVersion,    // ["v2"] pour TRX↔USDT via SunSwap V2
- *     uint256[] versionLen,     // [2] = nombre de tokens dans le path
- *     uint24[]  fees,           // [0, 0] frais (0 pour V2)
- *     SwapData  data            // [amountIn, amountOutMin, to, deadline]
- *   ) payable
- *
- * Pour TRX natif en entrée : callValue = amountInRaw (TRX envoyé avec la tx)
- * Pour Token en entrée : approuver le router, puis appeler swapExactInput sans callValue
+ * swapdata = [amountIn, amountOutMin, to, deadline]  ← tableau ordonné (pas un objet)
+ * Les adresses restent en Base58 — TronWeb les convertit automatiquement.
+ * Pour TRX natif en entrée : .send({ callValue: amountInRaw })
  */
+
+// ─── ABI officielle du Smart Router Sun.io ───────────────────────────────────
+// Source : https://github.com/sun-protocol/smart-exchange-router
+// L'ABI doit être passée manuellement car le contrat n'est pas vérifié sur TronScan.
+// SwapData est un struct Solidity → encodé comme tuple dans l'ABI.
+// IMPORTANT : swapdata est passé comme un tableau JS [amountIn, amountOutMin, to, deadline]
+//             et non comme un objet — c'est exactement ce que fait l'exemple officiel.
+const SMART_ROUTER_ABI = [
+  {
+    inputs: [
+      { name: "path",        type: "address[]" },
+      { name: "poolVersion", type: "string[]"  },
+      { name: "versionLen",  type: "uint256[]" },
+      { name: "fees",        type: "uint24[]"  },
+      {
+        name: "data",
+        type: "tuple",
+        components: [
+          { name: "amountIn",     type: "uint256" },
+          { name: "amountOutMin", type: "uint256" },
+          { name: "to",           type: "address" },
+          { name: "deadline",     type: "uint256" },
+        ],
+      },
+    ],
+    name: "swapExactInput",
+    outputs: [{ name: "amountsOut", type: "uint256[]" }],
+    stateMutability: "payable",
+    type: "function",
+  },
+  // approve TRC20 standard (pour Token → X)
+  {
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount",  type: "uint256" },
+    ],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+];
+
 async function executeSunioSwap(
   privateKey: string,
   fromToken: string,
@@ -231,136 +263,90 @@ async function executeSunioSwap(
   });
 
   const fromUpper = fromToken.toUpperCase();
-  const toUpper = toToken.toUpperCase();
+  const toUpper   = toToken.toUpperCase();
 
-  // Décimales (TRX et la plupart des tokens TRC20 utilisent 6 décimales)
-  const decimals = 6;
-  const amountInRaw = Math.floor(amountIn * Math.pow(10, decimals));
-  const minAmountOutRaw = Math.floor(minAmountOut * Math.pow(10, decimals));
-  const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+  // Toutes les valeurs en sun (1 TRX = 1_000_000 sun, 6 décimales)
+  const decimals       = 6;
+  const amountInRaw    = Math.floor(amountIn    * Math.pow(10, decimals));
+  const minOutRaw      = Math.floor(minAmountOut * Math.pow(10, decimals));
+  const deadline       = Math.floor(Date.now() / 1000) + 1200; // 20 min (comme la doc)
 
-  const isTRXin = fromUpper === "TRX";
-  const isTRXout = toUpper === "TRX";
+  const isTRXin  = fromUpper === "TRX";
+  const isTRXout = toUpper   === "TRX";
 
-  // Construire le path : TRX natif est représenté par WTRX dans le Smart Router
-  const WTRX_ADDRESS = TOKEN_ADDRESSES.WTRX;
-  const fromAddress = isTRXin ? WTRX_ADDRESS : TOKEN_ADDRESSES[fromUpper];
-  const toAddress   = isTRXout ? WTRX_ADDRESS : TOKEN_ADDRESSES[toUpper];
+  // TRX natif → WTRX dans le path du Smart Router
+  const fromAddress = isTRXin  ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[fromUpper];
+  const toAddress   = isTRXout ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[toUpper];
 
-  if (!fromAddress) throw new Error(`Token source non supporté: ${fromToken}`);
-  if (!toAddress)   throw new Error(`Token destination non supporté: ${toToken}`);
+  if (!fromAddress) throw new Error(`Token source non supporté : ${fromToken}`);
+  if (!toAddress)   throw new Error(`Token destination non supporté : ${toToken}`);
 
+  // ── Paramètres swapExactInput (doc officielle) ────────────────────────────
   const path        = [fromAddress, toAddress];
-  const poolVersion = ["v2"];   // SunSwap V2 — le plus liquide pour TRX/USDT
-  const versionLen  = [2];      // Nombre de tokens dans le path (toujours un entier)
-  const fees        = [0, 0];   // Frais V3 uniquement — 0 pour V2
+  const poolVersion = ["v2"];     // SunSwap V2 — pool le plus liquide TRX/USDT
+  const versionLen  = ["2"];      // nombre de tokens dans le path (string, comme la doc)
+  const fees        = [0, 0];     // 0 pour V2, utilisé seulement pour V3
 
-  // ─── triggerSmartContract Sun.io Smart Router ─────────────────────────────
-  // ✅ On utilise tronWeb.transactionBuilder.triggerSmartContract directement.
-  //    Cela évite tous les problèmes d'encodage de tuple par TronWeb/ethers
-  //    (erreur "cannot encode object for signature with missing names").
-  //    TronGrid encode lui-même le tuple à partir de la signature de fonction.
-  //    Source : https://github.com/sun-protocol/smart-exchange-router
-
-  // ABI minimale ERC20 pour l'approve (TRC20 compatible ERC20)
-  const ERC20_APPROVE_ABI = [
-    {
-      inputs: [
-        { internalType: "address", name: "spender", type: "address" },
-        { internalType: "uint256", name: "amount",  type: "uint256" },
-      ],
-      name: "approve",
-      outputs: [{ internalType: "bool", name: "", type: "bool" }],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
+  // swapdata : tableau ordonné [amountIn, amountOutMin, to, deadline]
+  // ⚠️ Exactement comme le README officiel — pas un objet, pas de clés nommées
+  const swapdata = [
+    amountInRaw.toString(),
+    minOutRaw.toString(),
+    userAddress,          // adresse Base58 — TronWeb convertit automatiquement
+    deadline,
   ];
 
-  let txResult: string;
+  // ── Contrat Smart Router avec ABI explicite ───────────────────────────────
+  const router = await tronWeb.contract(SMART_ROUTER_ABI, routerAddress);
+
+  let txHash: string;
 
   if (isTRXin) {
-    // ── TRX natif → Token ────────────────────────────────────────────────
-    // Pas d'approve nécessaire. TRX envoyé via call_value.
-    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
-      routerAddress,
-      "swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))",
-      {
-        callValue: amountInRaw,
-        feeLimit:  150_000_000,
-      },
-      [
-        { type: "address[]", value: path },
-        { type: "string[]",  value: poolVersion },
-        { type: "uint256[]", value: versionLen.map(String) },
-        { type: "uint24[]",  value: fees },
-        { type: "tuple(uint256,uint256,address,uint256)", value: [
-            amountInRaw.toString(),
-            minAmountOutRaw.toString(),
-            userAddress,
-            deadline.toString(),
-          ]
-        },
-      ],
-      tronWeb.address.toHex(userAddress)
-    );
-
-    if (!tx.result?.result) {
-      throw new Error(`triggerSmartContract failed: ${JSON.stringify(tx.result)}`);
-    }
-    const signed = await tronWeb.trx.sign(tx.transaction);
-    const broadcast = await tronWeb.trx.sendRawTransaction(signed);
-    if (!broadcast.result) {
-      throw new Error(`broadcast failed: ${JSON.stringify(broadcast)}`);
-    }
-    txResult = broadcast.txid || broadcast.transaction?.txID;
+    // ── TRX natif → Token ────────────────────────────────────────────────────
+    // Pas d'approve : TRX natif envoyé via callValue dans .send()
+    txHash = await router
+      .swapExactInput(path, poolVersion, versionLen, fees, swapdata)
+      .send({
+        callValue:          amountInRaw,  // TRX (en sun) envoyés avec la tx
+        feeLimit:           150_000_000,  // 150 TRX max en énergie
+        shouldPollResponse: false,
+      });
 
   } else {
-    // ── Token → Token  ou  Token → TRX natif ────────────────────────────
-    // Étape 1 : Approuver le Smart Router à dépenser les tokens (ABI explicite)
-    const tokenContract = tronWeb.contract(ERC20_APPROVE_ABI, fromAddress);
+    // ── Token → TRX  ou  Token → Token ──────────────────────────────────────
+    // Étape 1 : Approve du Smart Router sur le token source (TRC20 standard)
+    const tokenABI = [
+      {
+        inputs: [
+          { name: "spender", type: "address" },
+          { name: "amount",  type: "uint256" },
+        ],
+        name: "approve",
+        outputs: [{ name: "", type: "bool" }],
+        stateMutability: "nonpayable",
+        type: "function",
+      },
+    ];
+    const tokenContract = await tronWeb.contract(tokenABI, fromAddress);
     await tokenContract
       .approve(routerAddress, amountInRaw.toString())
       .send({ feeLimit: 60_000_000, shouldPollResponse: false });
 
-    // Laisser la confirmation de l'approve se propager sur la blockchain
+    // Attendre que l'approve soit confirmé sur la blockchain (~3s)
     await new Promise((r) => setTimeout(r, 3000));
 
-    // Étape 2 : Exécuter le swap via triggerSmartContract
-    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
-      routerAddress,
-      "swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))",
-      {
-        callValue: 0,
-        feeLimit:  150_000_000,
-      },
-      [
-        { type: "address[]", value: path },
-        { type: "string[]",  value: poolVersion },
-        { type: "uint256[]", value: versionLen.map(String) },
-        { type: "uint24[]",  value: fees },
-        { type: "tuple(uint256,uint256,address,uint256)", value: [
-            amountInRaw.toString(),
-            minAmountOutRaw.toString(),
-            userAddress,
-            deadline.toString(),
-          ]
-        },
-      ],
-      tronWeb.address.toHex(userAddress)
-    );
-
-    if (!tx.result?.result) {
-      throw new Error(`triggerSmartContract failed: ${JSON.stringify(tx.result)}`);
-    }
-    const signed = await tronWeb.trx.sign(tx.transaction);
-    const broadcast = await tronWeb.trx.sendRawTransaction(signed);
-    if (!broadcast.result) {
-      throw new Error(`broadcast failed: ${JSON.stringify(broadcast)}`);
-    }
-    txResult = broadcast.txid || broadcast.transaction?.txID;
+    // Étape 2 : Swap (pas de callValue — aucun TRX natif en entrée)
+    txHash = await router
+      .swapExactInput(path, poolVersion, versionLen, fees, swapdata)
+      .send({
+        callValue:          0,
+        feeLimit:           150_000_000,
+        shouldPollResponse: false,
+      });
   }
 
-  return txResult;
+  if (!txHash) throw new Error("Transaction broadcast échouée — hash vide");
+  return txHash;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
