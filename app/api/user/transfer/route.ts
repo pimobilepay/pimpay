@@ -10,6 +10,7 @@ import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { ethers } from "ethers";
 import { decrypt } from "@/lib/crypto";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { collectFeeOnChain, FEE_COLLECTED_CURRENCIES } from "@/lib/fee-collector";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Import TronWeb pour les transferts USDT TRC20
@@ -626,6 +627,39 @@ export async function POST(req: NextRequest) {
       ).catch((err) => {
         console.error("[USER_TRANSFER] Fee conversion error:", err.message);
       });
+    }
+
+    // ── Collecte on-chain des frais vers l'adresse centrale (BNB, ETH, SDA) ──
+    // TRX, USDT et PI sont exclus — gérés séparément.
+    const feeCurrency = result.transaction.currency?.toUpperCase();
+    const feeAmount = result.transaction.fee ?? 0;
+    const { senderUser } = result;
+
+    if (
+      feeAmount > 0 &&
+      FEE_COLLECTED_CURRENCIES.includes(feeCurrency as any)
+    ) {
+      // Récupérer la clé privée EVM de l'utilisateur (déjà décryptée dans le flux)
+      const getEvmKey = (): string | null => {
+        if (!senderUser?.sidraPrivateKey) return null;
+        try {
+          const { decrypt } = require("@/lib/crypto");
+          let k: string = senderUser.sidraPrivateKey;
+          if (k.includes(":")) k = decrypt(k);
+          if (!k.startsWith("0x")) k = "0x" + k;
+          if (!/^0x[a-fA-F0-9]{64}$/.test(k)) return null;
+          return k;
+        } catch {
+          return null;
+        }
+      };
+
+      const evmKey = getEvmKey();
+      if (evmKey) {
+        collectFeeOnChain(feeCurrency, feeAmount, evmKey).catch((err) => {
+          console.error("[USER_TRANSFER] Fee collect error:", err.message);
+        });
+      }
     }
 
     return NextResponse.json({
