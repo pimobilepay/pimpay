@@ -139,7 +139,67 @@ export async function POST(req: Request) {
           };
         }
 
-        // Mise a jour du solde
+        // FIX: Ne pas re-crediter si un retrait SDA externe a ete fait recemment
+        // Verifier les transactions WITHDRAW SDA des 5 dernieres minutes
+        if (diff > 0) {
+          const recentWithdrawals = await tx.transaction.findMany({
+            where: {
+              fromUserId: userId,
+              currency: "SDA",
+              type: TransactionType.WITHDRAW,
+              status: TransactionStatus.SUCCESS,
+              blockchainTx: { not: null }, // Transfert blockchain confirme
+              createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) }, // 5 minutes
+            },
+            select: { amount: true, blockchainTx: true, createdAt: true },
+          });
+
+          if (recentWithdrawals.length > 0) {
+            // Calculer le total des retraits recents
+            const totalRecentWithdrawals = recentWithdrawals.reduce(
+              (sum, w) => sum + w.amount,
+              0
+            );
+
+            // Si la difference positive correspond environ aux retraits recents,
+            // c'est que la blockchain n'a pas encore reflete les sorties
+            // OU le solde blockchain inclut une erreur - on garde le solde PimPay
+            if (diff <= totalRecentWithdrawals * 1.1) {
+              console.log(
+                `[SIDRA_SYNC] Ignoring positive diff ${diff} - recent withdrawals: ${totalRecentWithdrawals}`
+              );
+              return {
+                updated: false,
+                total: currentBalance,
+                reason: "RECENT_WITHDRAWAL_DETECTED",
+              };
+            }
+
+            // Sinon, on a un vrai depot mais on doit soustraire les retraits
+            // La vraie difference est: blockchain - (currentBalance + retraits_pas_encore_refletes)
+            // On ne fait le depot que si diff > totalRecentWithdrawals
+            const adjustedDiff = diff - totalRecentWithdrawals;
+            if (adjustedDiff <= 0.00000001) {
+              return {
+                updated: false,
+                total: currentBalance,
+                reason: "ADJUSTED_DIFF_ZERO",
+              };
+            }
+          }
+        }
+
+        // Mise a jour du solde - UNIQUEMENT si diff > 0 (depot)
+        // Pour les retraits (diff < 0), le solde a deja ete debite par /api/wallet/send
+        if (diff < 0) {
+          // Ne pas toucher au solde - le retrait a deja ete comptabilise
+          return {
+            updated: false,
+            total: currentBalance,
+            reason: "WITHDRAWAL_ALREADY_PROCESSED",
+          };
+        }
+
         const updatedWallet = await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: blockchainBalance! },
