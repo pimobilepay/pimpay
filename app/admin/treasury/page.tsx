@@ -1350,17 +1350,24 @@ export default function TreasuryPage() {
     onChainError: string | null;
   } | null>(null);
   const [sdaOperatorLoading, setSdaOperatorLoading] = useState(true);
+  const [sdaOperatorFetchError, setSdaOperatorFetchError] = useState<string | null>(null);
 
   // Fetch SDA operator wallet on-chain balance
   const fetchSdaOperator = async () => {
     try {
       setSdaOperatorLoading(true);
+      setSdaOperatorFetchError(null);
       const res = await fetch("/api/admin/treasury/sidra-operator");
-      if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
-      if (json.success) setSdaOperator(json);
-    } catch (err) {
+      if (!res.ok) throw new Error(json?.error || `Erreur HTTP ${res.status}`);
+      if (json.success) {
+        setSdaOperator(json);
+      } else {
+        throw new Error(json?.error || "Réponse inattendue de l'API");
+      }
+    } catch (err: any) {
       console.error("[Treasury] Erreur wallet opérateur SDA:", err);
+      setSdaOperatorFetchError(err?.message || "Erreur de connexion à l'API");
     } finally {
       setSdaOperatorLoading(false);
     }
@@ -1949,15 +1956,36 @@ export default function TreasuryPage() {
                   </span>
                 </div>
               </>
+            ) : sdaOperatorFetchError ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-red-400" />
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest text-center">
+                  Erreur de chargement
+                </p>
+                <p className="text-[9px] text-slate-500 text-center max-w-xs">
+                  {sdaOperatorFetchError}
+                </p>
+                <button
+                  onClick={fetchSdaOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Réessayer
+                </button>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 gap-3">
                 <AlertTriangle size={24} className="text-amber-400" />
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
-                  SIDRA_OPERATOR_PRIVATE_KEY non configuré
+                  Données non disponibles
                 </p>
-                <p className="text-[9px] text-slate-600 text-center max-w-xs">
-                  Ajoutez cette variable dans Vercel pour activer les transferts SDA externes.
-                </p>
+                <button
+                  onClick={fetchSdaOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Actualiser
+                </button>
               </div>
             )}
           </div>
