@@ -48,6 +48,20 @@ function isExternalAddress(identifier: string): boolean {
   return false;
 }
 
+/**
+ * Retourne la clé privée opérateur SDA depuis les variables d'environnement.
+ * Le wallet opérateur est le wallet PimPay central qui signe toutes les sorties SDA.
+ * Configurez SIDRA_OPERATOR_PRIVATE_KEY dans votre .env / Vercel env vars.
+ */
+function getSidraOperatorKey(): string | null {
+  const key = process.env.SIDRA_OPERATOR_PRIVATE_KEY;
+  if (!key) return null;
+  let k = key.trim();
+  if (!k.startsWith("0x")) k = "0x" + k;
+  if (!/^0x[a-fA-F0-9]{64}$/.test(k)) return null;
+  return k;
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting
@@ -135,10 +149,6 @@ export async function POST(req: NextRequest) {
 
     // ─────────────────────────────────────────────────────────────────────────
     // ÉTAPE 1 : Rechercher le destinataire + débiter en DB + créer la transaction
-    //           TOUT dans une transaction Prisma atomique.
-    //           Pour les transferts EXTERNES crypto, on crée la transaction en
-    //           statut PENDING (pas encore broadcast) afin de pouvoir rembourser
-    //           si le broadcast blockchain échoue.
     // ─────────────────────────────────────────────────────────────────────────
     const result = await prisma.$transaction(
       async (tx) => {
@@ -148,6 +158,7 @@ export async function POST(req: NextRequest) {
             name: true,
             username: true,
             sidraPrivateKey: true,
+            sidraAddress: true,
             stellarPrivateKey: true,
             piUserId: true,
             usdtPrivateKey: true,
@@ -213,9 +224,6 @@ export async function POST(req: NextRequest) {
 
         // ─── Transfert INTERNE ────────────────────────────────────────────
         if (recipientUser) {
-          // ✅ FIX INTERNE : on crédite le wallet destinataire en DB.
-          // Ce crédit est préservé car syncUsdtBalanceSafe() dans balance/route.ts
-          // utilise MAX(onChain, DB) et ne l'écrasera plus.
           const toWallet = await tx.wallet.upsert({
             where: { userId_currency: { userId: recipientUser.id, currency } },
             update: { balance: { increment: amount } },
@@ -272,17 +280,12 @@ export async function POST(req: NextRequest) {
         }
 
         // ─── Transfert EXTERNE ───────────────────────────────────────────
-        // ✅ FIX EXTERNE : on crée la transaction en PENDING ici.
-        // Le broadcast blockchain a lieu HORS de cette transaction Prisma
-        // (ci-dessous) afin que si le broadcast échoue, on puisse rembourser
-        // sans être bloqué par un timeout Prisma.
-
+        // Créer la transaction en PENDING (le broadcast a lieu HORS de cette tx Prisma)
         const txDescription =
           currency === "PI"
             ? `Retrait PI vers adresse externe : ${recipientInput}`
             : description || `Retrait ${currency} vers adresse externe : ${recipientInput}`;
 
-        // Pour PI, le worker prend le relais → on crée SUCCESS + QUEUED directement
         const initialStatus =
           currency === "PI" ? TransactionStatus.SUCCESS : TransactionStatus.PENDING;
 
@@ -363,7 +366,6 @@ export async function POST(req: NextRequest) {
 
     // ─────────────────────────────────────────────────────────────────────────
     // ÉTAPE 2 (EXTERNE seulement) : Broadcast blockchain HORS transaction Prisma
-    // Si le broadcast échoue → on rembourse le sender et on marque FAILED.
     // ─────────────────────────────────────────────────────────────────────────
     if (result.type === "EXTERNAL" && result.transaction.currency !== "PI") {
       const { senderUser } = result;
@@ -374,50 +376,81 @@ export async function POST(req: NextRequest) {
         const currency = result.transaction.currency;
 
         // ── SDA / SIDRA ──────────────────────────────────────────────────
-        if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
-          let privateKey = senderUser.sidraPrivateKey;
-          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
-          if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
-          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
-            throw new Error("Format de clé SDA/EVM invalide");
-
+        // Stratégie : utiliser d'abord le wallet opérateur PimPay (SIDRA_OPERATOR_PRIVATE_KEY),
+        // puis fallback sur le wallet personnel de l'utilisateur s'il a un solde on-chain.
+        if (currency === "SDA" || currency === "SIDRA") {
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
-          const wallet = new ethers.Wallet(privateKey, provider);
-
-          // Vérifier le solde on-chain SDA avant d'envoyer
-          const onChainBalance = await provider.getBalance(wallet.address);
           const amountInWei = ethers.parseEther(result.transaction.amount.toString());
 
-          // Estimer les frais de gas
-          let gasLimit: bigint;
-          let gasPrice: bigint;
+          // Estimer le gas
+          let gasLimit = BigInt(21000);
+          let gasPrice = ethers.parseUnits("1", "gwei");
           try {
             const feeData = await provider.getFeeData();
-            gasPrice = feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
-            gasLimit = BigInt(21000);
-          } catch {
-            gasLimit = BigInt(21000);
-            gasPrice = ethers.parseUnits("1", "gwei");
-          }
+            if (feeData.gasPrice) gasPrice = feeData.gasPrice;
+          } catch { /* garder les valeurs par défaut */ }
 
           const totalNeeded = amountInWei + gasLimit * gasPrice;
 
-          if (onChainBalance < totalNeeded) {
-            const available = parseFloat(ethers.formatEther(onChainBalance)).toFixed(6);
-            const needed = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
-            throw new Error(
-              `Solde SDA on-chain insuffisant. Disponible: ${available} SDA, Requis: ${needed} SDA (montant + frais réseau).`
-            );
-          }
+          // — Tentative 1 : wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY)
+          const operatorKey = getSidraOperatorKey();
+          if (operatorKey) {
+            const operatorWallet = new ethers.Wallet(operatorKey, provider);
+            const operatorBalance = await provider.getBalance(operatorWallet.address);
 
-          const txRes = await wallet.sendTransaction({
-            to: recipientInput,
-            value: amountInWei,
-            gasLimit,
-            gasPrice,
-          });
-          const receipt = await txRes.wait();
-          blockchainTxHash = receipt?.hash || txRes.hash;
+            if (operatorBalance >= totalNeeded) {
+              const txRes = await operatorWallet.sendTransaction({
+                to: recipientInput,
+                value: amountInWei,
+                gasLimit,
+                gasPrice,
+              });
+              const receipt = await txRes.wait();
+              blockchainTxHash = receipt?.hash || txRes.hash;
+            } else {
+              // Solde opérateur insuffisant → erreur explicite pour l'admin
+              const availOp = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
+              console.error(
+                `[SDA_TRANSFER] Wallet opérateur insuffisant: ${availOp} SDA disponible, ${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} requis`
+              );
+              throw new Error(
+                `Solde opérateur SDA insuffisant (${availOp} SDA). Contactez le support.`
+              );
+            }
+          } else {
+            // — Tentative 2 : wallet personnel de l'utilisateur (ancien comportement)
+            // Utilisé uniquement si SIDRA_OPERATOR_PRIVATE_KEY n'est pas configuré
+            if (!senderUser?.sidraPrivateKey) {
+              throw new Error("Aucune clé SDA configurée. Contactez le support.");
+            }
+
+            let privateKey = senderUser.sidraPrivateKey;
+            if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+            if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
+            if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
+              throw new Error("Format de clé SDA/EVM invalide");
+
+            const userWallet = new ethers.Wallet(privateKey, provider);
+            const userOnChainBalance = await provider.getBalance(userWallet.address);
+
+            if (userOnChainBalance < totalNeeded) {
+              const avail = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
+              const needed = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
+              throw new Error(
+                `Solde SDA on-chain insuffisant (${avail} SDA disponible, ${needed} SDA requis). ` +
+                `Configurez SIDRA_OPERATOR_PRIVATE_KEY pour activer les transferts.`
+              );
+            }
+
+            const txRes = await userWallet.sendTransaction({
+              to: recipientInput,
+              value: amountInWei,
+              gasLimit,
+              gasPrice,
+            });
+            const receipt = await txRes.wait();
+            blockchainTxHash = receipt?.hash || txRes.hash;
+          }
         }
 
         // ── BNB / ETH ────────────────────────────────────────────────────
@@ -433,13 +466,12 @@ export async function POST(req: NextRequest) {
 
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const wallet = new ethers.Wallet(privateKey, provider);
-          const amountStr = result.transaction.amount
-            .toFixed(18)
-            .replace(/\.?0+$/, "");
-          const amountInWei = ethers.parseEther(amountStr);
+          const amountInWei = ethers.parseEther(
+            result.transaction.amount.toFixed(18).replace(/\.?0+$/, "")
+          );
 
-          let gasLimit: bigint;
-          let gasPrice: bigint;
+          let gasLimit = BigInt(21000);
+          let gasPrice = ethers.parseUnits("5", "gwei");
           try {
             gasLimit = await provider.estimateGas({
               from: wallet.address,
@@ -447,11 +479,8 @@ export async function POST(req: NextRequest) {
               value: amountInWei,
             });
             const feeData = await provider.getFeeData();
-            gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
-          } catch {
-            gasLimit = BigInt(21000);
-            gasPrice = ethers.parseUnits("5", "gwei");
-          }
+            gasPrice = feeData.gasPrice ?? gasPrice;
+          } catch { /* garder les valeurs par défaut */ }
 
           const onChainBalance = await provider.getBalance(wallet.address);
           if (onChainBalance < amountInWei + gasLimit * gasPrice) {
@@ -473,32 +502,18 @@ export async function POST(req: NextRequest) {
           let privateKey = senderUser.usdtPrivateKey;
           if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 
-          const tronWeb = new TronWeb({
-            fullHost: RPC_URLS.TRON,
-            privateKey,
-          });
-
-          // Vérifier le solde TRX on-chain
+          const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
           const trxBalanceSun = await tronWeb.trx.getBalance(senderUser.usdtAddress);
-          const trxBalanceOnChain = trxBalanceSun / 1_000_000;
-          
-          // Amount in SUN (1 TRX = 1,000,000 SUN)
           const amountInSun = Math.floor(result.transaction.amount * 1_000_000);
-          // Frais estimés ~1 TRX pour un transfert simple
           const estimatedFeeSun = 1_000_000;
-          
+
           if (trxBalanceSun < amountInSun + estimatedFeeSun) {
             throw new Error(
-              `Solde TRX on-chain insuffisant. Disponible: ${trxBalanceOnChain.toFixed(2)} TRX, requis: ${(result.transaction.amount + 1).toFixed(2)} TRX (avec frais).`
+              `Solde TRX on-chain insuffisant. Disponible: ${(trxBalanceSun / 1_000_000).toFixed(2)} TRX.`
             );
           }
 
-          // Envoyer TRX natif
-          const txResult = await tronWeb.trx.sendTransaction(
-            recipientInput,
-            amountInSun
-          );
-          
+          const txResult = await tronWeb.trx.sendTransaction(recipientInput, amountInSun);
           if (txResult.result) {
             blockchainTxHash = txResult.txid;
           } else {
@@ -511,22 +526,14 @@ export async function POST(req: NextRequest) {
           let privateKey = senderUser.usdtPrivateKey;
           if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 
-          const tronWeb = new TronWeb({
-            fullHost: RPC_URLS.TRON,
-            privateKey,
-          });
-
+          const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
           const trxBalance = await tronWeb.trx.getBalance(senderUser.usdtAddress);
           if (trxBalance / 1_000_000 < 10) {
-            throw new Error(
-              `Solde TRX insuffisant pour les frais. Minimum requis: ~10 TRX.`
-            );
+            throw new Error("Solde TRX insuffisant pour les frais. Minimum requis: ~10 TRX.");
           }
 
           const contract = await tronWeb.contract().at(USDT_CONTRACT_ADDRESS);
-          const usdtBalance = await contract
-            .balanceOf(senderUser.usdtAddress)
-            .call();
+          const usdtBalance = await contract.balanceOf(senderUser.usdtAddress).call();
           if (Number(usdtBalance) / 1_000_000 < result.transaction.amount) {
             throw new Error(
               `Solde USDT on-chain insuffisant. Disponible: ${(Number(usdtBalance) / 1_000_000).toFixed(2)} USDT.`
@@ -560,11 +567,16 @@ export async function POST(req: NextRequest) {
         });
         result.transaction.blockchainTx = blockchainTxHash;
       } else {
-        // ✅ FIX ROLLBACK : Broadcast échoué → rembourser + marquer FAILED
+        // ✅ Broadcast échoué → rembourser + marquer FAILED
         console.warn("[USER_TRANSFER] Remboursement du sender suite à l'échec broadcast");
         await prisma.$transaction([
           prisma.wallet.update({
-            where: { userId_currency: { userId: senderId, currency: result.transaction.currency } },
+            where: {
+              userId_currency: {
+                userId: senderId,
+                currency: result.transaction.currency,
+              },
+            },
             data: { balance: { increment: totalDebit } },
           }),
           prisma.transaction.update({

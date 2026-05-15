@@ -336,7 +336,19 @@ export default function AssetDetailPage() {
       // Déclencher la synchronisation blockchain selon l'actif
       // On attend la sync AVANT de lire le balance pour afficher le solde à jour
       if (assetId === "SDA") {
-        await fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+        try {
+          const syncRes = await fetch("/api/wallet/sidra/sync", { method: "POST" });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            // Toast uniquement si un nouveau dépôt est détecté (diff positive)
+            if (syncData.added && parseFloat(syncData.added) > 0) {
+              toast.success(
+                `✅ Dépôt SDA reçu : +${parseFloat(syncData.added).toFixed(4)} SDA crédité sur votre compte`,
+                { duration: 6000 }
+              );
+            }
+          }
+        } catch { /* continuer même si la sync échoue */ }
       } else if (assetId === "USDT") {
         // Sync USDT TRC20 depuis TronGrid — crédite automatiquement les dépôts reçus
         await fetch("/api/wallet/usdt/sync", { method: "POST" }).catch(() => null);
