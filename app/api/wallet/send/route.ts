@@ -6,7 +6,6 @@ import { verifyJWT } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
 import { ethers } from "ethers";
-import { decrypt } from "@/lib/crypto";
 
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
@@ -211,42 +210,47 @@ export async function POST(req: NextRequest) {
           where: { id: senderId },
           select: { 
             piUserId: true, 
-            username: true,
-            sidraPrivateKey: true // Pour broadcast SDA direct
+            username: true
           }
         });
 
         let blockchainTxHash: string | null = null;
         let txStatus = TransactionStatus.SUCCESS;
 
-        // --- BROADCAST DIRECT POUR SDA/SIDRA ---
-        if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
+        // --- BROADCAST DIRECT POUR SDA/SIDRA VIA WALLET OPERATEUR CENTRAL ---
+        if ((currency === "SDA" || currency === "SIDRA")) {
+          // Utiliser le wallet operateur central pour les transferts externes
+          // Le solde DB de l'utilisateur a deja ete debite ci-dessus
+          const operatorPrivateKey = process.env.SDA_OPERATOR_PRIVATE_KEY;
+          
+          if (!operatorPrivateKey) {
+            console.error("[v0] [WALLET_SEND] SDA_OPERATOR_PRIVATE_KEY non configuree");
+            throw new Error("Configuration wallet operateur SDA manquante. Contactez l'administrateur.");
+          }
+
           try {
-            let privateKey = senderUser.sidraPrivateKey;
-            
-            // Décryption sécurisée avec vérification
-            if (privateKey.includes(':')) {
-              try {
-                const decrypted = decrypt(privateKey);
-                if (decrypted && decrypted.length > 0) {
-                  privateKey = decrypted;
-                }
-              } catch (decryptError: any) {
-                console.error("[v0] [WALLET_SEND] Decryption error for SDA key:", decryptError.message);
-                throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
-              }
-            }
+            let privateKey = operatorPrivateKey;
             
             if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
             
             // Valider format clé EVM (64 caractères hex après 0x)
             if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-              throw new Error("Format de clé SDA/EVM invalide");
+              throw new Error("Format de clé operateur SDA/EVM invalide");
             }
 
-            console.log("[v0] [WALLET_SEND] Broadcasting SDA transaction to blockchain...");
+            console.log("[v0] [WALLET_SEND] Broadcasting SDA transaction via OPERATOR wallet...");
             const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
             const wallet = new ethers.Wallet(privateKey, provider);
+            
+            // Verifier le solde du wallet operateur
+            const operatorBalance = await provider.getBalance(wallet.address);
+            const operatorBalanceEth = parseFloat(ethers.formatEther(operatorBalance));
+            
+            if (operatorBalanceEth < amount) {
+              console.error("[v0] [WALLET_SEND] Solde operateur insuffisant:", operatorBalanceEth, "< montant:", amount);
+              throw new Error(`Liquidite operateur insuffisante. Solde: ${operatorBalanceEth.toFixed(4)} SDA`);
+            }
+            
             // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
             const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
             const txRes = await wallet.sendTransaction({ 
@@ -256,9 +260,14 @@ export async function POST(req: NextRequest) {
             const receipt = await txRes.wait();
             blockchainTxHash = receipt?.hash || txRes.hash;
             txStatus = TransactionStatus.SUCCESS;
-            console.log("[v0] [WALLET_SEND] SDA transaction confirmed:", blockchainTxHash);
+            console.log("[v0] [WALLET_SEND] SDA transaction confirmed via OPERATOR:", blockchainTxHash);
           } catch (e: any) { 
             console.error("[v0] [WALLET_SEND] SDA blockchain error:", e.message);
+            // Rembourser l'utilisateur en cas d'echec blockchain
+            await tx.wallet.update({
+              where: { id: senderWallet.id },
+              data: { balance: { increment: amount } }
+            });
             throw new Error(`Erreur blockchain SDA: ${e.message}`); 
           }
         }
