@@ -1339,6 +1339,33 @@ export default function TreasuryPage() {
   const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
 
+  // Sidra Operator Wallet on-chain state
+  const [sdaOperator, setSdaOperator] = useState<{
+    address: string;
+    balance: number;
+    totalUsersSDA: number;
+    coverage: number;
+    explorerUrl: string;
+    lastChecked: string;
+    onChainError: string | null;
+  } | null>(null);
+  const [sdaOperatorLoading, setSdaOperatorLoading] = useState(true);
+
+  // Fetch SDA operator wallet on-chain balance
+  const fetchSdaOperator = async () => {
+    try {
+      setSdaOperatorLoading(true);
+      const res = await fetch("/api/admin/treasury/sidra-operator");
+      if (!res.ok) throw new Error("Erreur API");
+      const json = await res.json();
+      if (json.success) setSdaOperator(json);
+    } catch (err) {
+      console.error("[Treasury] Erreur wallet opérateur SDA:", err);
+    } finally {
+      setSdaOperatorLoading(false);
+    }
+  };
+
   // Fetch system wallets from API
   const fetchSystemWallets = async () => {
     try {
@@ -1466,6 +1493,7 @@ export default function TreasuryPage() {
     fetchTreasury();
     fetchSystemWallets();
     fetchCentralizedFees();
+    fetchSdaOperator();
   }, []);
 
   // Handle wallet settings click
@@ -1740,6 +1768,199 @@ export default function TreasuryPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* SDA OPERATOR WALLET — SOLDE ON-CHAIN */}
+        <div>
+          <SectionTitle>
+            <span className="flex items-center gap-2">
+              <img src="/sda.png" alt="SDA" className="w-3.5 h-3.5 object-contain" />
+              Wallet Opérateur SDA (On-Chain)
+            </span>
+          </SectionTitle>
+          <div className="bg-slate-900/60 border border-emerald-500/20 rounded-[1.5rem] p-5">
+            {sdaOperatorLoading ? (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <Loader2 size={20} className="animate-spin text-emerald-400" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Lecture blockchain...
+                </span>
+              </div>
+            ) : sdaOperator ? (
+              <>
+                {/* Solde principal */}
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                      Solde On-Chain (Sidra Chain)
+                    </p>
+                    <p className="text-3xl font-black text-emerald-400">
+                      {sdaOperator.balance.toFixed(6)}{" "}
+                      <span className="text-lg text-emerald-500/70">SDA</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      ≈ ${(sdaOperator.balance * 1.2).toFixed(2)} USD
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black ${
+                      sdaOperator.onChainError
+                        ? "bg-red-500/10 border-red-500/30 text-red-400"
+                        : sdaOperator.balance > 0
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                        : "bg-orange-500/10 border-orange-500/30 text-orange-400"
+                    }`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      {sdaOperator.onChainError
+                        ? "Erreur réseau"
+                        : sdaOperator.balance > 0
+                        ? "Actif"
+                        : "Vide"}
+                    </div>
+                    <button
+                      onClick={fetchSdaOperator}
+                      className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                      title="Actualiser"
+                    >
+                      <RefreshCw size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Adresse Opérateur
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-xs font-mono text-emerald-400 break-all">
+                      {sdaOperator.address}
+                    </code>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sdaOperator.address);
+                          toast.success("Adresse copiée");
+                        }}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <Copy size={13} className="text-slate-400" />
+                      </button>
+                      <a
+                        href={sdaOperator.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20"
+                      >
+                        <ExternalLink size={13} className="text-emerald-400" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Couverture SDA — on-chain vs total users DB */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      Couverture des Soldes Utilisateurs
+                    </p>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${
+                      sdaOperator.coverage >= 80
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : sdaOperator.coverage >= 50
+                        ? "bg-amber-500/10 text-amber-400"
+                        : "bg-red-500/10 text-red-400"
+                    }`}>
+                      {sdaOperator.coverage.toFixed(1)}%
+                    </span>
+                  </div>
+                  {/* Barre de progression */}
+                  <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden mb-3">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        sdaOperator.coverage >= 80
+                          ? "bg-emerald-500"
+                          : sdaOperator.coverage >= 50
+                          ? "bg-amber-500"
+                          : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.min(sdaOperator.coverage, 100)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <p className="text-sm font-black text-emerald-400">
+                        {sdaOperator.balance.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">SDA On-Chain</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black text-white">
+                        {sdaOperator.totalUsersSDA.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">SDA Total Users (DB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alerte si couverture insuffisante */}
+                {sdaOperator.coverage < 80 && (
+                  <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
+                    sdaOperator.coverage < 50
+                      ? "bg-red-500/10 border-red-500/30"
+                      : "bg-amber-500/10 border-amber-500/30"
+                  }`}>
+                    <AlertTriangle size={16} className={
+                      sdaOperator.coverage < 50 ? "text-red-400 shrink-0" : "text-amber-400 shrink-0"
+                    } />
+                    <div>
+                      <p className={`text-[10px] font-black uppercase ${
+                        sdaOperator.coverage < 50 ? "text-red-400" : "text-amber-400"
+                      }`}>
+                        {sdaOperator.coverage < 50
+                          ? "⚠️ Couverture critique — rechargez le wallet opérateur"
+                          : "Couverture insuffisante — rechargez bientôt"}
+                      </p>
+                      <p className="text-[9px] text-slate-500 mt-1">
+                        Manque :{" "}
+                        {Math.max(0, sdaOperator.totalUsersSDA - sdaOperator.balance).toFixed(4)} SDA pour couvrir tous les retraits
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Erreur réseau */}
+                {sdaOperator.onChainError && (
+                  <div className="flex items-start gap-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl mt-3">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[9px] text-red-400">
+                      Erreur blockchain : {sdaOperator.onChainError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dernière vérification */}
+                <div className="flex items-center justify-center gap-2 mt-4 text-[8px] text-slate-600">
+                  <Clock size={10} />
+                  <span>
+                    Vérifié {sdaOperator.lastChecked
+                      ? formatTimeAgo(sdaOperator.lastChecked)
+                      : "—"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-amber-400" />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+                  SIDRA_OPERATOR_PRIVATE_KEY non configuré
+                </p>
+                <p className="text-[9px] text-slate-600 text-center max-w-xs">
+                  Ajoutez cette variable dans Vercel pour activer les transferts SDA externes.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* CURRENCY BREAKDOWN WITH WALLET INDICATORS */}
