@@ -383,9 +383,38 @@ export async function POST(req: NextRequest) {
 
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
           const wallet = new ethers.Wallet(privateKey, provider);
+
+          // Vérifier le solde on-chain SDA avant d'envoyer
+          const onChainBalance = await provider.getBalance(wallet.address);
+          const amountInWei = ethers.parseEther(result.transaction.amount.toString());
+
+          // Estimer les frais de gas
+          let gasLimit: bigint;
+          let gasPrice: bigint;
+          try {
+            const feeData = await provider.getFeeData();
+            gasPrice = feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
+            gasLimit = BigInt(21000);
+          } catch {
+            gasLimit = BigInt(21000);
+            gasPrice = ethers.parseUnits("1", "gwei");
+          }
+
+          const totalNeeded = amountInWei + gasLimit * gasPrice;
+
+          if (onChainBalance < totalNeeded) {
+            const available = parseFloat(ethers.formatEther(onChainBalance)).toFixed(6);
+            const needed = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
+            throw new Error(
+              `Solde SDA on-chain insuffisant. Disponible: ${available} SDA, Requis: ${needed} SDA (montant + frais réseau).`
+            );
+          }
+
           const txRes = await wallet.sendTransaction({
             to: recipientInput,
-            value: ethers.parseEther(result.transaction.amount.toString()),
+            value: amountInWei,
+            gasLimit,
+            gasPrice,
           });
           const receipt = await txRes.wait();
           blockchainTxHash = receipt?.hash || txRes.hash;

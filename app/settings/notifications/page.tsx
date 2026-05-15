@@ -625,7 +625,7 @@ export default function NotificationsPage() {
             )}
 
             {/* Swap Details */}
-            {metadata && notification.type === "SWAP" && (
+            {metadata && (notification.type === "SWAP" || (metadata.fromCurrency && metadata.toCurrency && metadata.fromAmount)) && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
                   <div className="flex items-center justify-between">

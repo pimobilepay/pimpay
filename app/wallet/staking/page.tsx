@@ -240,17 +240,22 @@ export default function StakingPage() {
       const res = await fetch("/api/wallet/staking");
       const data = await res.json();
       if (data.success && data.stakings) {
-        setActiveStakes(data.stakings.map((s: any) => ({
-          id: s.id,
-          asset: "PI",
-          symbol: "PI",
-          amount: s.amount,
-          apy: s.apy,
-          startDate: s.startDate,
-          endDate: s.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          earned: s.rewardsEarned,
-          status: s.isActive ? "ACTIVE" : "COMPLETED"
-        })));
+        setActiveStakes(data.stakings.map((s: any) => {
+          // Detect currency from apy: SDA pools have apy=12.0, PI pools have 8.5 or 14.2
+          // Use metadata currency if available, otherwise infer from apy
+          const currency = s.currency || (s.apy === 12.0 ? "SDA" : "PI");
+          return {
+            id: s.id,
+            asset: currency === "SDA" ? "Sidra Chain" : "Pi Network",
+            symbol: currency,
+            amount: s.amount,
+            apy: s.apy,
+            startDate: s.startDate,
+            endDate: s.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            earned: s.rewardsEarned,
+            status: s.isActive ? "ACTIVE" : "COMPLETED"
+          };
+        }));
       }
     } catch (err) {
       console.error("Error loading stakes:", err);
@@ -496,18 +501,21 @@ export default function StakingPage() {
                             const data = await res.json();
                             if (data.success) {
                               const details = data.details;
+                              const currency = details.currency || stake.symbol;
                               if (details.isEarlyWithdrawal) {
                                 toast.success(
-                                  `Retrait anticipé effectué ! Principal: ${details.principal.toFixed(2)} ${details.currency}, Récompenses: +${details.rewards.toFixed(4)} ${details.currency} (pénalité: ${details.penalty.toFixed(4)} ${details.currency})`,
+                                  `Retrait anticipé effectué ! Principal: ${details.principal.toFixed(2)} ${currency}, Récompenses: +${details.rewards.toFixed(4)} ${currency} (pénalité: ${details.penalty.toFixed(4)} ${currency})`,
                                   { duration: 6000 }
                                 );
                               } else {
                                 toast.success(
-                                  `Staking clôturé ! +${details.rewards.toFixed(4)} ${stake.symbol} de récompenses après ${details.daysStaked} jours`,
+                                  `Staking clôturé ! +${details.rewards.toFixed(4)} ${currency} de récompenses après ${details.daysStaked} jours`,
                                   { duration: 5000 }
                                 );
                               }
                               loadStakes();
+                              // Redirect to the correct wallet (PI or SDA)
+                              router.push(`/wallet/${currency.toLowerCase()}`);
                             } else {
                               toast.error(data.error || "Erreur lors du retrait");
                             }
