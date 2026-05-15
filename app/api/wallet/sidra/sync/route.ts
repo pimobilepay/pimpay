@@ -200,27 +200,116 @@ export async function POST(req: Request) {
           };
         }
 
-        const updatedWallet = await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: blockchainBalance! },
+        // FIX: Ne pas ecraser le solde avec le solde blockchain!
+        // Le wallet PimPay peut contenir des SDA recus via P2P interne (sans blockchain).
+        // On doit AJOUTER la difference (depot blockchain) et non REMPLACER le solde.
+        
+        // Verifier si c'est un vrai depot blockchain ou juste une difference
+        // due aux transferts P2P internes qui ne sont pas sur la blockchain
+        const recentInternalTransfers = await tx.transaction.findMany({
+          where: {
+            toUserId: userId,
+            currency: "SDA",
+            type: TransactionType.TRANSFER,
+            status: TransactionStatus.SUCCESS,
+            blockchainTx: null, // Transferts internes sans hash blockchain
+            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // 24 heures
+          },
+          select: { amount: true },
         });
 
-        // Log de transaction uniquement si la difference est positive (depot)
+        const totalInternalReceived = recentInternalTransfers.reduce(
+          (sum, t) => sum + t.amount,
+          0
+        );
+
+        // Si l'utilisateur a recu des transferts P2P internes, son solde PimPay
+        // peut etre superieur au solde blockchain - c'est normal!
+        // Dans ce cas, on ne synchronise que si le solde blockchain a AUGMENTE
+        // par rapport a sa derniere valeur connue (nouveau depot externe)
+        
+        // Recuperer le dernier solde blockchain connu
+        const lastSyncTx = await tx.transaction.findFirst({
+          where: {
+            toUserId: userId,
+            currency: "SDA",
+            type: TransactionType.DEPOSIT,
+            description: { contains: "Sidra Chain" },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { metadata: true, amount: true },
+        });
+
+        let lastKnownBlockchainBalance = 0;
+        if (lastSyncTx?.metadata && typeof lastSyncTx.metadata === "object") {
+          const meta = lastSyncTx.metadata as Record<string, any>;
+          if (meta.blockchainBalance !== undefined) {
+            lastKnownBlockchainBalance = Number(meta.blockchainBalance);
+          }
+        }
+
+        // La vraie augmentation blockchain = solde blockchain actuel - dernier solde blockchain connu
+        const realBlockchainIncrease = Math.max(0, blockchainBalance! - lastKnownBlockchainBalance);
+        
+        // Si pas de nouvelle augmentation blockchain et utilisateur a des transferts P2P,
+        // ne pas toucher au solde
+        if (realBlockchainIncrease < 0.00000001 && totalInternalReceived > 0) {
+          console.log(
+            `[SIDRA_SYNC] Skipping - no new blockchain deposit. ` +
+            `Current balance: ${currentBalance}, Blockchain: ${blockchainBalance}, ` +
+            `Internal P2P received: ${totalInternalReceived}`
+          );
+          return {
+            updated: false,
+            total: currentBalance,
+            reason: "NO_NEW_BLOCKCHAIN_DEPOSIT",
+          };
+        }
+
+        // S'il y a une vraie augmentation blockchain, on l'AJOUTE au solde actuel
+        // (au lieu d'ecraser avec le solde blockchain)
+        let newBalance = currentBalance;
+        let amountToAdd = 0;
+
+        if (realBlockchainIncrease > 0.00000001) {
+          amountToAdd = realBlockchainIncrease;
+          newBalance = currentBalance + amountToAdd;
+        } else if (diff > 0 && totalInternalReceived === 0) {
+          // Pas de transferts P2P - on peut utiliser la difference directe
+          amountToAdd = diff;
+          newBalance = blockchainBalance!;
+        } else {
+          // Rien a ajouter
+          return {
+            updated: false,
+            total: currentBalance,
+            reason: "NO_CHANGE_NEEDED",
+          };
+        }
+
+        const updatedWallet = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: newBalance },
+        });
+
+        // Log de transaction uniquement si on a ajoute quelque chose
         const txReference = `SDA-DEP-${nanoid(10).toUpperCase()}`;
-        if (diff > 0) {
+        if (amountToAdd > 0.00000001) {
           await tx.transaction.create({
             data: {
               reference: txReference,
-              amount: Math.abs(diff),
+              amount: amountToAdd,
               currency: "SDA",
               type: TransactionType.DEPOSIT,
               status: TransactionStatus.SUCCESS,
-              description: `Depot Sidra Chain (+${diff.toFixed(4)} SDA)`,
+              description: `Depot Sidra Chain (+${amountToAdd.toFixed(4)} SDA)`,
               toUserId: userId,
               toWalletId: updatedWallet.id,
               metadata: {
                 blockchainBalance: blockchainBalance!,
                 previousBalance: currentBalance,
+                newBalance: newBalance,
+                amountAdded: amountToAdd,
                 syncType: "AUTOMATIC_BLOCKCHAIN",
                 source: "SIDRA_CHAIN",
               } as Prisma.JsonObject,
@@ -232,18 +321,18 @@ export async function POST(req: Request) {
             data: {
               userId,
               title: "Depot Sidra Chain recu !",
-              message: `Vous avez recu ${diff.toFixed(4)} SDA depuis la blockchain Sidra Chain.`,
+              message: `Vous avez recu ${amountToAdd.toFixed(4)} SDA depuis la blockchain Sidra Chain.`,
               type: "SUCCESS",
               read: false,
               metadata: JSON.stringify({
-                amount: diff,
+                amount: amountToAdd,
                 currency: "SDA",
                 method: "SIDRA_CHAIN",
                 reference: txReference,
                 status: "SUCCESS",
                 network: "Sidra Chain",
                 previousBalance: currentBalance,
-                newBalance: blockchainBalance!,
+                newBalance: newBalance,
                 syncType: "AUTOMATIC_BLOCKCHAIN",
                 source: "SIDRA_CHAIN",
               }),
@@ -254,8 +343,8 @@ export async function POST(req: Request) {
         return {
           updated: true,
           total: updatedWallet.balance,
-          added: diff,
-          reference: diff > 0 ? txReference : null,
+          added: amountToAdd,
+          reference: amountToAdd > 0.00000001 ? txReference : null,
         };
       },
       {
