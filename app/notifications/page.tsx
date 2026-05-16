@@ -14,7 +14,8 @@ import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enUS } from "date-fns/locale";
+import { useLanguage } from "@/context/LanguageContext";
 
 // Helper pour formater les montants PI avec 8 decimales max
 function formatPiAmount(amount: number | undefined, currency?: string): string {
@@ -96,6 +97,8 @@ interface ConfirmTx {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === "en" ? enUS : fr;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,7 +127,7 @@ export default function NotificationsPage() {
       }
     } catch (error) {
       console.error("Erreur notifications:", error);
-      toast.error("Erreur de chargement des notifications");
+      toast.error(t("notifications.loadError"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -186,17 +189,17 @@ export default function NotificationsPage() {
           }),
         });
         if (res.ok) {
-          toast.success("Transaction refusée");
+          toast.success(t("notifications.transactionCancelled"));
           setNotifications((prev) =>
             prev.map((n) =>
               n.id === notification.id ? { ...n, read: true } : n
             )
           );
         } else {
-          toast.error("Erreur lors du refus");
+          toast.error(t("notifications.rejectError"));
         }
       } catch {
-        toast.error("Erreur réseau");
+        toast.error(t("notifications.networkError"));
       }
     },
     [currentUserId]
@@ -216,7 +219,7 @@ export default function NotificationsPage() {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch {
-      toast.error("Erreur de mise a jour");
+      toast.error(t("notifications.updateError"));
     }
   };
 
@@ -229,9 +232,9 @@ export default function NotificationsPage() {
       
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
-      toast.success("Toutes les notifications marquees comme lues");
+      toast.success(t("notifications.allMarkedRead"));
     } catch {
-      toast.error("Erreur de mise a jour");
+      toast.error(t("notifications.updateError"));
     }
   };
 
@@ -243,9 +246,9 @@ export default function NotificationsPage() {
       });
       
       setNotifications(prev => prev.filter(n => n.id !== id));
-      toast.success("Notification supprimee");
+      toast.success(t("notifications.deleted"));
     } catch {
-      toast.error("Erreur de suppression");
+      toast.error(t("notifications.deleteError"));
     }
   };
 
@@ -360,7 +363,7 @@ export default function NotificationsPage() {
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-tight">{notification.title}</h2>
                   <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-0.5">
-                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
+                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: dateLocale })}
                   </p>
                 </div>
               </div>
@@ -373,7 +376,7 @@ export default function NotificationsPage() {
           {/* Content */}
           <div className="p-6 space-y-6">
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Message</p>
+              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.message")}</p>
               <p className="text-sm text-white leading-relaxed">{notification.message}</p>
             </div>
 
@@ -384,7 +387,7 @@ export default function NotificationsPage() {
                   ? "bg-red-500/5 border-red-500/20" 
                   : "bg-emerald-500/5 border-emerald-500/20"
               }`}>
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Montant</p>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.amount")}</p>
                 <p className={`text-2xl font-black ${
                   notification.type === "PAYMENT_SENT" ? "text-red-400" : "text-emerald-400"
                 }`}>
@@ -398,7 +401,7 @@ export default function NotificationsPage() {
               <div className="space-y-3">
                 {metadata?.stakingAmount && (
                   <div className="bg-purple-500/5 rounded-2xl p-4 border border-purple-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Montant Stake</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.stakingAmount")}</p>
                     <p className="text-2xl font-black text-purple-400">
                       {Number(metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
                     </p>
@@ -406,7 +409,7 @@ export default function NotificationsPage() {
                 )}
                 {metadata?.rewardAmount && (
                   <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Recompense</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.reward")}</p>
                     <p className="text-2xl font-black text-emerald-400">
                       +{Number(metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
                     </p>
@@ -420,13 +423,13 @@ export default function NotificationsPage() {
                 )}
                 {metadata?.duration && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Duree</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.duration")}</p>
                     <p className="text-sm font-bold text-white">{metadata.duration}</p>
                   </div>
                 )}
                 {metadata?.unlockDate && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Date de deblocage</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.unlockDate")}</p>
                     <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString('fr-FR')}</p>
                   </div>
                 )}
@@ -440,12 +443,12 @@ export default function NotificationsPage() {
                 <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Vendu</p>
+                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.sold")}</p>
                       <p className="text-2xl font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
                     </div>
                     <Repeat size={22} className="text-white/20" />
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Reçu</p>
+                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.received")}</p>
                       <p className="text-2xl font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
                     </div>
                   </div>
@@ -453,7 +456,7 @@ export default function NotificationsPage() {
                 {/* Taux de change */}
                 {metadata.rate && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Taux de change</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.exchangeRate")}</p>
                     <p className="text-sm font-bold text-blue-400">
                       1 {metadata.fromCurrency} = {Number(metadata.rate).toFixed(6)} {metadata.toCurrency}
                     </p>
@@ -462,14 +465,14 @@ export default function NotificationsPage() {
                 {/* Référence */}
                 {metadata.reference && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Référence PimPay</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.pimpayReference")}</p>
                     <p className="text-xs font-mono font-bold text-white">{metadata.reference}</p>
                   </div>
                 )}
                 {/* Statut */}
                 {metadata.status && (
                   <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Statut</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.status")}</p>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                       <p className="text-sm font-black text-emerald-400 uppercase">{metadata.status}</p>
@@ -481,7 +484,7 @@ export default function NotificationsPage() {
 
             {metadata?.cardLast4 && (
               <div className="bg-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Carte</p>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.card")}</p>
                 <p className="text-lg font-mono font-bold text-cyan-400">**** **** **** {metadata.cardLast4}</p>
               </div>
             )}
@@ -492,12 +495,12 @@ export default function NotificationsPage() {
                 <div className="bg-blue-500/5 rounded-2xl p-4 border border-blue-500/20">
                   <div className="flex items-center gap-2 mb-2">
                     <Headphones size={14} className="text-blue-400" />
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Message du Support</p>
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{t("notifications.supportMessage")}</p>
                   </div>
                   <p className="text-sm text-white/80 leading-relaxed">{notification.message}</p>
                   {metadata?.sentAt && (
                     <p className="text-[9px] text-white/30 mt-2 font-mono">
-                      Envoye le {new Date(metadata.sentAt as string).toLocaleDateString("fr-FR", { 
+                      {t("notifications.sentOn")} {new Date(metadata.sentAt as string).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { 
                         day: "2-digit", 
                         month: "long", 
                         year: "numeric",
@@ -517,7 +520,7 @@ export default function NotificationsPage() {
                   className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                 >
                   <MessageCircle size={16} />
-                  Repondre au Support
+                  {t("notifications.replyToSupport")}
                 </button>
               </div>
             )}
@@ -531,8 +534,8 @@ export default function NotificationsPage() {
                       <ShieldCheck size={24} className="text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-black text-white">Confirmation requise</p>
-                      <p className="text-[10px] text-white/40">Cette transaction attend votre validation</p>
+                      <p className="text-sm font-black text-white">{t("notifications.confirmRequired")}</p>
+                      <p className="text-[10px] text-white/40">{t("notifications.awaitingValidation")}</p>
                     </div>
                   </div>
                   <div className="bg-white/5 rounded-xl p-3 text-center">
@@ -552,14 +555,14 @@ export default function NotificationsPage() {
                     className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
                   >
                     <X size={16} />
-                    Annuler
+                    {t("notifications.cancel")}
                   </button>
                   <button
                     onClick={() => { openConfirmModal(notification); onClose(); }}
                     className="flex-1 py-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
                   >
                     <ShieldCheck size={16} />
-                    Confirmer
+                    {t("notifications.confirm")}
                   </button>
                 </div>
               </div>
@@ -571,7 +574,7 @@ export default function NotificationsPage() {
               className="w-full py-4 bg-red-500/10 text-red-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
             >
               <Trash2 size={16} />
-              Supprimer cette notification
+              {t("notifications.deleteNotification")}
             </button>
           </div>
         </motion.div>
@@ -616,10 +619,10 @@ export default function NotificationsPage() {
         </button>
         <div className="text-center">
           <h1 className="text-lg font-black uppercase tracking-tight bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            Notifications
+            {t("notifications.title")}
           </h1>
           <p className="text-[9px] font-bold text-white/40 tracking-[3px] uppercase">
-            {unreadCount > 0 ? `${unreadCount} non lues` : "Tout est lu"}
+            {unreadCount > 0 ? t("notifications.unreadCount").replace("{count}", String(unreadCount)) : t("notifications.allRead")}
           </p>
         </div>
         <button 
@@ -635,12 +638,12 @@ export default function NotificationsPage() {
       <div className="relative z-10 px-4 sm:px-6 py-4 border-b border-white/5">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {[
-            { id: "all", label: "Tout", icon: Bell },
-            { id: "unread", label: "Non lues", icon: AlertCircle },
-            { id: "payment", label: "Paiements", icon: Wallet },
-            { id: "card", label: "Cartes", icon: CreditCard },
-            { id: "security", label: "Securite", icon: Shield },
-            { id: "support", label: "Support", icon: Mail },
+            { id: "all", label: t("notifications.filterAll"), icon: Bell },
+            { id: "unread", label: t("notifications.filterUnread"), icon: AlertCircle },
+            { id: "payment", label: t("notifications.filterPayments"), icon: Wallet },
+            { id: "card", label: t("notifications.filterCards"), icon: CreditCard },
+            { id: "security", label: t("notifications.filterSecurity"), icon: Shield },
+            { id: "support", label: t("notifications.filterSupport"), icon: Mail },
           ].map((filter) => (
             <button
               key={filter.id}
@@ -666,7 +669,7 @@ export default function NotificationsPage() {
             className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-purple-400 hover:bg-purple-500/10 transition-all"
           >
             <CheckCheck size={16} />
-            Tout marquer comme lu
+            {t("notifications.markAllRead")}
           </button>
         </div>
       )}
@@ -676,7 +679,7 @@ export default function NotificationsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 size={32} className="animate-spin text-purple-500" />
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Chargement...</p>
+            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{t("notifications.loadingNotifications")}</p>
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -684,7 +687,7 @@ export default function NotificationsPage() {
               <Bell size={32} className="text-white/20" />
             </div>
             <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-              {activeFilter === "unread" ? "Aucune notification non lue" : "Aucune notification"}
+              {activeFilter === "unread" ? t("notifications.noUnread") : t("notifications.noNotifications")}
             </p>
           </div>
         ) : (
@@ -743,7 +746,7 @@ export default function NotificationsPage() {
                         {notification.metadata?.rewardAmount && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
                             <Gift size={9} />
-                            +{Number(notification.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} recompense
+                            {Number(notification.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} {locale === "en" ? "reward" : "recompense"}
                           </span>
                         )}
                         {notification.metadata?.apy && (
@@ -825,7 +828,7 @@ export default function NotificationsPage() {
                     <div className="flex items-center gap-1.5 mt-2">
                       <Clock size={9} className="text-white/20" />
                       <p className="text-[9px] text-white/30 font-medium">
-                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
+                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: dateLocale })}
                       </p>
                     </div>
 
@@ -840,25 +843,24 @@ export default function NotificationsPage() {
                           </span>
                           {notification.metadata.senderName && (
                             <span className="text-[9px] text-white/40">
-                              de {notification.metadata.senderName}
+                              {t("notifications.from")} {notification.metadata.senderName}
                             </span>
                           )}
                         </div>
-                        {/* Boutons d'action */}
                         <div className="flex gap-2">
                           <button
                             onClick={() => rejectTransaction(notification)}
                             className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-1"
                           >
                             <X size={12} />
-                            Annuler
+                            {t("notifications.cancel")}
                           </button>
                           <button
                             onClick={() => openConfirmModal(notification)}
                             className="flex-1 py-2.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/10"
                           >
                             <ShieldCheck size={12} />
-                            Confirmer
+                            {t("notifications.confirm")}
                           </button>
                         </div>
                       </div>

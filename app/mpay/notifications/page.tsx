@@ -12,7 +12,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enUS } from "date-fns/locale";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface Notification {
   id: string;
@@ -43,6 +44,8 @@ type FilterType = "all" | "payment" | "security" | "unread" | "staking";
 
 export default function MPayNotificationsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === "en" ? enUS : fr;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +66,7 @@ export default function MPayNotificationsPage() {
       }
     } catch (error) {
       console.error("Erreur notifications:", error);
-      toast.error("Erreur de chargement des notifications");
+      toast.error(t("notifications.loadError"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -124,7 +127,7 @@ export default function MPayNotificationsPage() {
       }
     } catch (error) {
       console.error("Mark as read error:", error);
-      toast.error("Erreur de mise a jour");
+      toast.error(t("notifications.updateError"));
     }
   };
 
@@ -140,13 +143,13 @@ export default function MPayNotificationsPage() {
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
-        toast.success("Toutes les notifications marquees comme lues");
+        toast.success(t("notifications.allMarkedRead"));
       } else {
         throw new Error("Failed to mark all as read");
       }
     } catch (error) {
       console.error("Mark all as read error:", error);
-      toast.error("Erreur de mise a jour");
+      toast.error(t("notifications.updateError"));
     }
   };
 
@@ -159,13 +162,13 @@ export default function MPayNotificationsPage() {
       
       if (res.ok) {
         setNotifications(prev => prev.filter(n => n.id !== id));
-        toast.success("Notification supprimee");
+        toast.success(t("notifications.deleted"));
       } else {
         throw new Error("Failed to delete");
       }
     } catch (error) {
       console.error("Delete notification error:", error);
-      toast.error("Erreur de suppression");
+      toast.error(t("notifications.deleteError"));
     }
   };
 
