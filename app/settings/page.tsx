@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface SettingItem {
   icon: React.ReactNode;
@@ -29,6 +30,7 @@ interface SettingSection {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -88,7 +90,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     try {
-      const loadingToast = toast.loading("Fermeture de la session sécurisée...");
+      const loadingToast = toast.loading(t("settings.closingSession"));
 
       // 1. Terminer la session côté serveur
       await fetch("/api/auth/logout", {
@@ -113,7 +115,7 @@ export default function SettingsPage() {
       try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
 
       toast.dismiss(loadingToast);
-      toast.success("Déconnecté avec succès");
+      toast.success(t("settings.logoutSuccess"));
 
       // 4. Rediriger et invalider le cache Next.js
       router.push("/auth/login");
@@ -125,7 +127,7 @@ export default function SettingsPage() {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
       try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
-      toast.success("Session fermée");
+      toast.success(t("settings.logoutSuccess"));
       router.push("/auth/login");
     }
   };
@@ -140,66 +142,66 @@ export default function SettingsPage() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("pimpay-theme", "light");
     }
-    toast.success(`Mode ${newMode ? 'Sombre' : 'Clair'} activé`);
+    toast.success(newMode ? t("settings.darkModeActivated") : t("settings.lightModeActivated"));
   };
 
   const menuItems: SettingSection[] = [
     {
-      title: "Compte & Sécurité",
+      title: t("settings.accountSecurity"),
       items: [
-        { icon: <User size={18} />, label: "Profil Utilisateur", desc: userEmail, color: "text-blue-400", path: "/profile" },
+        { icon: <User size={18} />, label: t("settings.userProfile"), desc: userEmail, color: "text-blue-400", path: "/profile" },
         {
           icon: <ShieldCheck size={18} />,
-          label: "Vérification KYC",
-          desc: `Statut: ${userKyc}`,
-          badge: userKyc === 'VERIFIED' ? "OK" : "REQUIS",
+          label: t("settings.kycVerification"),
+          desc: `${t("settings.kycStatus")}: ${userKyc}`,
+          badge: userKyc === 'VERIFIED' ? "OK" : t("common.required"),
           color: userKyc === 'VERIFIED' ? "text-emerald-400" : "text-amber-400",
           path: "/settings/kyc"
         },
         {
           icon: <ShieldAlert size={18} />,
-          label: "Sécurité",
-          desc: "Mot de passe & Protection",
+          label: t("settings.security"),
+          desc: t("settings.securityDesc"),
           color: "text-purple-400",
           path: "/settings/security",
         },
         {
           icon: <History size={18} />,
-          label: "Historique de Connexion",
-          desc: "Vérifier les activités récentes",
+          label: t("settings.loginHistory"),
+          desc: t("settings.loginHistoryDesc"),
           color: "text-rose-400",
           path: "/settings/sessions"
         },
       ]
     },
     {
-      title: "Préférences Système",
+      title: t("settings.systemPreferences"),
       items: [
         {
           icon: isDarkMode ? <Moon size={18} /> : <Sun size={18} />,
-          label: "Apparence",
-          desc: isDarkMode ? "Mode Sombre activé" : "Mode Clair activé",
+          label: t("settings.appearance"),
+          desc: isDarkMode ? t("settings.darkMode") : t("settings.lightMode"),
           color: "text-yellow-400",
           onClick: toggleTheme
         },
-        { icon: <Palette size={18} />, label: "Thème Personnalisé", desc: "Couleurs d'accentuation", color: "text-indigo-400", path: "/settings/theme" },
-        { icon: <Globe size={18} />, label: "Langue & Région", desc: "Français (FR) • USD", color: "text-cyan-400", path: "/settings/language" },
+        { icon: <Palette size={18} />, label: t("settings.customTheme"), desc: t("settings.customThemeDesc"), color: "text-indigo-400", path: "/settings/theme" },
+        { icon: <Globe size={18} />, label: t("settings.language"), desc: t("settings.languageDesc"), color: "text-cyan-400", path: "/settings/language" },
       ]
     },
     {
-      title: "Services Pimpay",
+      title: t("settings.pimpayServices"),
       items: [
-        { icon: <CreditCard size={18} />, label: "Mes Cartes PIMPAY", desc: "Gérer vos cartes virtuelles", color: "text-pink-400", path: "/cards" },
-        { icon: <Bell size={18} />, label: "Notifications", desc: "Alertes de transaction", color: "text-orange-400", path: "/settings/notifications" },
+        { icon: <CreditCard size={18} />, label: t("settings.myCards"), desc: t("settings.myCardsDesc"), color: "text-pink-400", path: "/cards" },
+        { icon: <Bell size={18} />, label: t("settings.notifications"), desc: t("settings.notificationsDesc"), color: "text-orange-400", path: "/settings/notifications" },
       ]
     },
     {
-      title: "Légal & Support",
+      title: t("settings.legalSupport"),
       items: [
-        { icon: <MessageSquare size={18} />, label: "Contact", desc: "Discuter avec le support", color: "text-emerald-400", path: "/contacts" },
-        { icon: <HelpCircle size={18} />, label: "Centre d'aide", desc: "Support technique 24/7", color: "text-slate-400", path: "/support" },
-        { icon: <Lock size={18} />, label: "Confidentialité", desc: "RGPD & Sécurité des données", color: "text-slate-400", path: "/legal/privacy" },
-        { icon: <ShieldCheck size={18} />, label: "Conditions d'utilisation", desc: "Contrat d'utilisateur final", color: "text-slate-400", path: "/legal/terms" },
+        { icon: <MessageSquare size={18} />, label: t("settings.contactLabel"), desc: t("settings.contactDesc"), color: "text-emerald-400", path: "/contacts" },
+        { icon: <HelpCircle size={18} />, label: t("settings.helpCenter"), desc: t("settings.helpCenterDesc"), color: "text-slate-400", path: "/support" },
+        { icon: <Lock size={18} />, label: t("settings.privacyLabel"), desc: t("settings.privacyDesc"), color: "text-slate-400", path: "/legal/privacy" },
+        { icon: <ShieldCheck size={18} />, label: t("settings.termsLabel"), desc: t("settings.termsDesc"), color: "text-slate-400", path: "/legal/terms" },
       ]
     }
   ];
@@ -211,7 +213,7 @@ export default function SettingsPage() {
         <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 shadow-sm text-slate-900'} rounded-2xl border active:scale-90 transition-transform`}>
           <ArrowLeft size={20} />
         </button>
-        <h1 className={`text-xl font-black uppercase tracking-tighter`}>Paramètres</h1>
+        <h1 className={`text-xl font-black uppercase tracking-tighter`}>{t("settings.title")}</h1>
       </div>
 
       <header className="p-8 pb-4 text-center">
@@ -278,7 +280,7 @@ export default function SettingsPage() {
         ))}
 
         <div className="space-y-3">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Suivez-nous</h3>
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t("settings.followUs")}</h3>
             <div className="flex items-center justify-center gap-4 p-6">
                 <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className={`p-4 rounded-2xl ${isDarkMode ? 'bg-slate-900/40' : 'bg-white shadow-sm'} text-slate-400 hover:text-blue-500 transition-colors shadow-lg active:scale-90`}>
                     <Facebook size={24} />
@@ -302,7 +304,7 @@ export default function SettingsPage() {
           className="w-full flex items-center justify-center gap-3 p-6 bg-rose-500/5 border border-rose-500/20 rounded-[32px] text-rose-500 font-black uppercase text-xs tracking-[0.2em] hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-lg active:scale-95"
         >
           <LogOut size={18} />
-          Fermer la session sécurisée
+          {t("settings.closeSecureSession")}
         </button>
 
         <div className="text-center space-y-1 pb-10">

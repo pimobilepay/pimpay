@@ -9,11 +9,12 @@ import {
   ChevronRight, TrendingUp, Coins, MessageSquare, Send, X, Headphones
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr as frLocale, enUS } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import TransactionConfirmModal from "@/components/TransactionConfirmModal";
+import { useLanguage } from "@/context/LanguageContext";
 
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "TRANSACTION_CONFIRM" | string;
 
@@ -246,6 +247,8 @@ function PartyPill({ label, name, isYou }: { label: string; name: string; isYou?
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === "en" ? enUS : frLocale;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -341,7 +344,7 @@ export default function NotificationsPage() {
   const rejectTransaction = useCallback(async (notification: Notification) => {
     const meta = notification.metadata;
     if (!meta?.transactionId) {
-      toast.error("Transaction introuvable");
+      toast.error(t("notifications.transactionNotFound"));
       return;
     }
     try {
@@ -357,7 +360,7 @@ export default function NotificationsPage() {
       const data = await res.json();
       
       if (res.ok) {
-        toast.success("Transaction annulee");
+        toast.success(t("notifications.transactionCancelled"));
         // Remove the notification from the list
         setNotifications((prev) =>
           prev.filter((n) => n.id !== notification.id)
@@ -366,10 +369,10 @@ export default function NotificationsPage() {
         // Refresh notifications
         fetchNotifications(true);
       } else {
-        toast.error(data.error || "Erreur lors du refus");
+        toast.error(data.error || t("notifications.rejectError"));
       }
     } catch {
-      toast.error("Erreur reseau");
+      toast.error(t("notifications.networkError"));
     }
   }, [currentUserId, fetchNotifications]);
 
@@ -383,10 +386,10 @@ export default function NotificationsPage() {
       if (res.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
-        toast.success("Tout est lu");
+        toast.success(t("notifications.allMarkedRead"));
       }
     } catch (e) {
-      toast.error("Erreur de synchronisation");
+      toast.error(t("notifications.syncError"));
     }
   };
 
@@ -414,7 +417,7 @@ export default function NotificationsPage() {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (e) {
-      toast.error("Suppression échouée");
+      toast.error(t("notifications.deleteFailed"));
     }
   };
 
@@ -442,14 +445,14 @@ export default function NotificationsPage() {
   };
 
   const tabs = [
-    { id: "ALL", label: "Tout" },
-    { id: "SUCCESS", label: "Reçus" },
-    { id: "SWAP", label: "Swaps" },
-    { id: "STAKING", label: "Staking" },
-    { id: "LOGIN", label: "Sessions" },
-    { id: "SECURITY", label: "Sécurité" },
-    { id: "KYC", label: "KYC" },
-    { id: "SUPPORT_MESSAGE", label: "Support" },
+    { id: "ALL", label: t("notifications.filterAll") },
+    { id: "SUCCESS", label: t("notifications.filterReceived") },
+    { id: "SWAP", label: t("notifications.filterSwaps") },
+    { id: "STAKING", label: t("notifications.filterStaking") },
+    { id: "LOGIN", label: t("notifications.filterSessions") },
+    { id: "SECURITY", label: t("notifications.filterSecurity") },
+    { id: "KYC", label: t("notifications.filterKyc") },
+    { id: "SUPPORT_MESSAGE", label: t("notifications.filterSupport") },
   ];
 
   const filteredNotifications = activeTab === "ALL"
@@ -820,9 +823,9 @@ export default function NotificationsPage() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-lg font-black uppercase tracking-tight">Notifications</h1>
+            <h1 className="text-lg font-black uppercase tracking-tight">{t("notifications.title")}</h1>
             <p className="text-[9px] font-bold text-blue-500 uppercase tracking-[3px] mt-1">
-              {unreadCount > 0 ? `${unreadCount} non lues` : "Tout est lu"}
+              {unreadCount > 0 ? t("notifications.unreadCount").replace("{count}", String(unreadCount)) : t("notifications.allRead")}
             </p>
           </div>
           <button onClick={() => fetchNotifications()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
@@ -848,7 +851,7 @@ export default function NotificationsPage() {
         </div>
 
         <button onClick={markAllAsRead} className="w-full flex items-center justify-center gap-2 py-3 mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white/5 rounded-2xl border border-white/5 hover:text-blue-400 transition-all">
-          <CheckCheck size={14} /> Tout marquer comme lu
+          <CheckCheck size={14} /> {t("notifications.markAllRead")}
         </button>
       </header>
 
@@ -856,7 +859,7 @@ export default function NotificationsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-            <p className="text-[10px] font-black uppercase tracking-[3px] text-slate-500">Chargement...</p>
+            <p className="text-[10px] font-black uppercase tracking-[3px] text-slate-500">{t("notifications.loadingNotifications")}</p>
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 text-center">
