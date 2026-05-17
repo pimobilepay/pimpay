@@ -51,6 +51,74 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Échec validation Pi Network" }, { status: 403 });
     }
 
+    // --- 2.5 CHECK FOR PIM COIN PURCHASE ---
+    // If this payment was for PIM coins, credit PIM instead of PI
+    const paymentMetadata = piData.metadata || {};
+    const isPimPurchase = paymentMetadata.type === "PIM_COIN_PURCHASE";
+    
+    if (isPimPurchase) {
+      const pimCoins = paymentMetadata.pimCoins || 0;
+      const bonus = paymentMetadata.bonus || 0;
+      const totalPim = pimCoins + bonus;
+      
+      console.log(`[PIMPAY] PIM purchase detected: ${totalPim} PIM (${pimCoins} + ${bonus} bonus)`);
+      
+      // Credit PIM coins instead of PI
+      const pimResult = await prisma.$transaction(async (tx) => {
+        const pimWallet = await tx.wallet.upsert({
+          where: { userId_currency: { userId, currency: "PIM" } },
+          update: { balance: { increment: totalPim } },
+          create: {
+            userId,
+            currency: "PIM",
+            balance: totalPim,
+            type: WalletType.PIM,
+          },
+        });
+
+        const transaction = await tx.transaction.upsert({
+          where: { externalId: paymentId },
+          update: {
+            status: TransactionStatus.SUCCESS,
+            blockchainTx: txid,
+            toWalletId: pimWallet.id,
+            amount: totalPim,
+            currency: "PIM",
+          },
+          create: {
+            reference: `PIM-${paymentId.slice(-8).toUpperCase()}`,
+            externalId: paymentId,
+            blockchainTx: txid,
+            amount: totalPim,
+            currency: "PIM",
+            type: TransactionType.DEPOSIT,
+            status: TransactionStatus.SUCCESS,
+            description: `Achat de ${totalPim} PIM Coins`,
+            toUserId: userId,
+            toWalletId: pimWallet.id,
+            metadata: {
+              piAmount: piData.amount,
+              productId: paymentMetadata.productId,
+              bonus: bonus,
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        return { pimWallet, transaction };
+      }, { maxWait: 10000, timeout: 30000 });
+
+      console.log(`[PIMPAY] PIM credited: ${totalPim} PIM to user ${userId}`);
+
+      return NextResponse.json({
+        success: true,
+        message: `${totalPim} PIM Coins ajoutes !`,
+        amount: totalPim,
+        currency: "PIM",
+        isPimPurchase: true,
+      });
+    }
+
     // --- 3. RÉCUPÉRATION OU RÉCRÉATION DE LA TRANSACTION ---
     // Correction du crash findUnique : On utilise findUnique mais on gère l'absence
     let transaction = await prisma.transaction.findUnique({

@@ -94,6 +94,7 @@ export async function POST(req: Request) {
     const piTxid = txid || piPayment.transaction?.txid;
     const piAmount = piPayment.amount;
     const piUserId = piPayment.metadata?.userId;
+    const piMetadata = piPayment.metadata;
 
     console.log(`[PIMPAY] Pi payment status: ${JSON.stringify(piPayment.status)}, txid: ${piTxid}`);
 
@@ -101,7 +102,7 @@ export async function POST(req: Request) {
     // The blockchain transaction exists. We need to complete it on our side too.
     if (piTxid && (piStatus === "completed" || piStatus === "confirmed")) {
       // Already done, just sync our DB
-      return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId);
+      return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId, piMetadata);
     }
 
     // ── CASE B: Payment has a blockchain txid but server hasn't completed it ──
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
       const completeData = await completeRes.json().catch(() => ({}));
 
       if (completeRes.ok || completeData.message === "Payment already completed") {
-        return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId);
+        return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId, piMetadata);
       }
     }
 
@@ -177,7 +178,8 @@ async function syncCompletedPayment(
   paymentId: string,
   txid: string,
   amount: number,
-  userId: string | null
+  userId: string | null,
+  metadata?: any
 ) {
   // Find existing transaction in our DB
   const existingTx = await prisma.transaction.findUnique({
@@ -205,54 +207,108 @@ async function syncCompletedPayment(
     });
   }
 
+  // Check if this is a PIM coin purchase
+  const isPimPurchase = metadata?.type === "PIM_COIN_PURCHASE";
+  const pimCoins = metadata?.pimCoins || 0;
+  const bonus = metadata?.bonus || 0;
+  const totalPim = pimCoins + bonus;
+
   // Atomic DB update
   const result = await prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.upsert({
-      where: { userId_currency: { userId: finalUserId, currency: "PI" } },
-      update: { balance: { increment: finalAmount } },
-      create: {
-        userId: finalUserId,
-        currency: "PI",
-        balance: finalAmount,
-        type: WalletType.PI,
-      },
-    });
-
-    const updatedTx = await tx.transaction.upsert({
-      where: { externalId: paymentId },
-      update: {
-        status: TransactionStatus.SUCCESS,
-        blockchainTx: txid,
-        toWalletId: wallet.id,
-        metadata: {
-          recoveredAt: new Date().toISOString(),
-          method: "INCOMPLETE_AUTO_RECOVERY",
+    if (isPimPurchase && totalPim > 0) {
+      // Credit PIM coins
+      const pimWallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: finalUserId, currency: "PIM" } },
+        update: { balance: { increment: totalPim } },
+        create: {
+          userId: finalUserId,
+          currency: "PIM",
+          balance: totalPim,
+          type: WalletType.PIM,
         },
-      },
-      create: {
-        reference: `REC-${paymentId.slice(-6).toUpperCase()}`,
-        externalId: paymentId,
-        blockchainTx: txid,
-        amount: finalAmount,
-        currency: "PI",
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.SUCCESS,
-        toUserId: finalUserId,
-        toWalletId: wallet.id,
-        description: "Depot recupere automatiquement",
-      },
-    });
+      });
 
-    return updatedTx;
+      const updatedTx = await tx.transaction.upsert({
+        where: { externalId: paymentId },
+        update: {
+          status: TransactionStatus.SUCCESS,
+          blockchainTx: txid,
+          toWalletId: pimWallet.id,
+          amount: totalPim,
+          currency: "PIM",
+          metadata: {
+            recoveredAt: new Date().toISOString(),
+            method: "INCOMPLETE_AUTO_RECOVERY",
+            isPimPurchase: true,
+          },
+        },
+        create: {
+          reference: `PIM-${paymentId.slice(-6).toUpperCase()}`,
+          externalId: paymentId,
+          blockchainTx: txid,
+          amount: totalPim,
+          currency: "PIM",
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.SUCCESS,
+          toUserId: finalUserId,
+          toWalletId: pimWallet.id,
+          description: `Achat de ${totalPim} PIM Coins (recupere)`,
+        },
+      });
+
+      return { updatedTx, isPim: true, amount: totalPim };
+    } else {
+      // Credit PI (original behavior)
+      const wallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId: finalUserId, currency: "PI" } },
+        update: { balance: { increment: finalAmount } },
+        create: {
+          userId: finalUserId,
+          currency: "PI",
+          balance: finalAmount,
+          type: WalletType.PI,
+        },
+      });
+
+      const updatedTx = await tx.transaction.upsert({
+        where: { externalId: paymentId },
+        update: {
+          status: TransactionStatus.SUCCESS,
+          blockchainTx: txid,
+          toWalletId: wallet.id,
+          metadata: {
+            recoveredAt: new Date().toISOString(),
+            method: "INCOMPLETE_AUTO_RECOVERY",
+          },
+        },
+        create: {
+          reference: `REC-${paymentId.slice(-6).toUpperCase()}`,
+          externalId: paymentId,
+          blockchainTx: txid,
+          amount: finalAmount,
+          currency: "PI",
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.SUCCESS,
+          toUserId: finalUserId,
+          toWalletId: wallet.id,
+          description: "Depot recupere automatiquement",
+        },
+      });
+
+      return { updatedTx, isPim: false, amount: finalAmount };
+    }
   }, { maxWait: 10000, timeout: 30000 });
 
-  console.log(`[PIMPAY] Paiement ${paymentId} recupere et credite: ${finalAmount} PI`);
+  const currency = result.isPim ? "PIM" : "PI";
+  console.log(`[PIMPAY] Paiement ${paymentId} recupere et credite: ${result.amount} ${currency}`);
 
   return NextResponse.json({
     success: true,
     action: "completed",
-    message: `Depot de ${finalAmount} Pi credite avec succes !`,
-    transaction: result,
+    message: result.isPim 
+      ? `${result.amount} PIM Coins credites avec succes !`
+      : `Depot de ${result.amount} Pi credite avec succes !`,
+    transaction: result.updatedTx,
   });
 }
 
