@@ -186,18 +186,27 @@ export default function WalletPage() {
     ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
   });
 
+  // Price change percentages (24h)
+  const [priceChanges, setPriceChanges] = useState<Record<string, number>>({
+    BTC: 0, USDT: 0, SDA: 0, PI: 0, USDC: 0, DAI: 0, BUSD: 0, XRP: 0, XLM: 0,
+    ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
+  });
+
   const fetchMarketPrices = useCallback(async () => {
     try {
       // Fetch Pi price via internal proxy to avoid CORS/rate-limit issues
       const [piRes, othersRes] = await Promise.all([
         fetch('/api/pi-price', { cache: 'no-store' }),
-        fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd'),
+        fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd&include_24hr_change=true'),
       ]);
 
       if (piRes.ok) {
         const piData = await piRes.json();
         if (piData.success && piData.price > 0) {
           setMarketPrices(prev => ({ ...prev, PI: piData.price }));
+          if (piData.change_24h !== undefined) {
+            setPriceChanges(prev => ({ ...prev, PI: piData.change_24h }));
+          }
         }
       }
 
@@ -219,6 +228,24 @@ export default function WalletPage() {
           ADA: result.cardano?.usd || prev.ADA,
           DOGE: result.dogecoin?.usd || prev.DOGE,
           TON: result["the-open-network"]?.usd || prev.TON,
+        }));
+        // Set price changes (24h)
+        setPriceChanges(prev => ({
+          ...prev,
+          BTC: result.bitcoin?.usd_24h_change || 0,
+          USDT: result.tether?.usd_24h_change || 0,
+          USDC: result["usd-coin"]?.usd_24h_change || 0,
+          DAI: result.dai?.usd_24h_change || 0,
+          BUSD: result["binance-usd"]?.usd_24h_change || 0,
+          XRP: result.ripple?.usd_24h_change || 0,
+          XLM: result.stellar?.usd_24h_change || 0,
+          ETH: result.ethereum?.usd_24h_change || 0,
+          BNB: result.binancecoin?.usd_24h_change || 0,
+          SOL: result.solana?.usd_24h_change || 0,
+          TRX: result.tron?.usd_24h_change || 0,
+          ADA: result.cardano?.usd_24h_change || 0,
+          DOGE: result.dogecoin?.usd_24h_change || 0,
+          TON: result["the-open-network"]?.usd_24h_change || 0,
         }));
       }
     } catch (err) {}
@@ -393,23 +420,23 @@ export default function WalletPage() {
         </div>
 
         <div className="space-y-2.5 mb-8">
-          <AssetCard logo={<PiLogo />} name="Pi Network" symbol="PI" network="Pi Mainnet" balance={piBalance} marketPrice={marketPrices.PI} usdValue={parseFloat(piBalance) * marketPrices.PI} isMain loading={loading} onClick={() => router.push('/wallet/pi')} />
-          <AssetCard logo={<SdaLogo />} name="Sidra Chain" symbol="SDA" network="Sidra Mainnet" balance={sdaBalance} marketPrice={marketPrices.SDA} usdValue={parseFloat(sdaBalance) * marketPrices.SDA} loading={loading} onClick={() => router.push('/wallet/sda')} />
-          <AssetCard logo={<UsdtLogo />} name="Tether USD" symbol="USDT" network="TRC20" balance={usdtBalance} marketPrice={marketPrices.USDT} usdValue={parseFloat(usdtBalance) * marketPrices.USDT} loading={loading} onClick={() => router.push('/wallet/usdt')} />
-          <AssetCard logo={<BtcLogo />} name="Bitcoin" symbol="BTC" network="Bitcoin Mainnet" balance={btcBalance} marketPrice={marketPrices.BTC} usdValue={parseFloat(btcBalance) * marketPrices.BTC} loading={loading} onClick={() => router.push('/wallet/btc')} />
-          <AssetCard logo={<EthLogo />} name="Ethereum" symbol="ETH" network="ERC20" balance={ethBalance} marketPrice={marketPrices.ETH} usdValue={parseFloat(ethBalance) * marketPrices.ETH} loading={loading} onClick={() => router.push('/wallet/eth')} />
-          <AssetCard logo={<BnbLogo />} name="BNB" symbol="BNB" network="BEP20" balance={bnbBalance} marketPrice={marketPrices.BNB} usdValue={parseFloat(bnbBalance) * marketPrices.BNB} loading={loading} onClick={() => router.push('/wallet/bnb')} />
-          <AssetCard logo={<SolLogo />} name="Solana" symbol="SOL" network="Solana Mainnet" balance={solBalance} marketPrice={marketPrices.SOL} usdValue={parseFloat(solBalance) * marketPrices.SOL} loading={loading} onClick={() => router.push('/wallet/sol')} />
-          <AssetCard logo={<XrpLogo />} name="Ripple" symbol="XRP" network="XRP Ledger" balance={xrpBalance} marketPrice={marketPrices.XRP} usdValue={parseFloat(xrpBalance) * marketPrices.XRP} loading={loading} onClick={() => router.push('/wallet/xrp')} />
-          <AssetCard logo={<XlmLogo />} name="Stellar" symbol="XLM" network="Stellar Network" balance={xlmBalance} marketPrice={marketPrices.XLM} usdValue={parseFloat(xlmBalance) * marketPrices.XLM} loading={loading} onClick={() => router.push('/wallet/xlm')} />
-          <AssetCard logo={<TrxLogo />} name="Tron" symbol="TRX" network="TRC20" balance={trxBalance} marketPrice={marketPrices.TRX} usdValue={parseFloat(trxBalance) * marketPrices.TRX} loading={loading} onClick={() => router.push('/wallet/trx')} />
-          <AssetCard logo={<AdaLogo />} name="Cardano" symbol="ADA" network="Cardano Mainnet" balance={adaBalance} marketPrice={marketPrices.ADA} usdValue={parseFloat(adaBalance) * marketPrices.ADA} loading={loading} onClick={() => router.push('/wallet/ada')} />
-          <AssetCard logo={<DogeLogo />} name="Dogecoin" symbol="DOGE" network="Dogecoin Network" balance={dogeBalance} marketPrice={marketPrices.DOGE} usdValue={parseFloat(dogeBalance) * marketPrices.DOGE} loading={loading} onClick={() => router.push('/wallet/doge')} />
-          <AssetCard logo={<TonLogo />} name="Toncoin" symbol="TON" network="TON Network" balance={tonBalance} marketPrice={marketPrices.TON} usdValue={parseFloat(tonBalance) * marketPrices.TON} loading={loading} onClick={() => router.push('/wallet/ton')} />
+          <AssetCard logo={<PiLogo />} name="Pi Network" symbol="PI" network="Pi Mainnet" balance={piBalance} marketPrice={marketPrices.PI} usdValue={parseFloat(piBalance) * marketPrices.PI} priceChange={priceChanges.PI} isMain loading={loading} onClick={() => router.push('/wallet/pi')} />
+          <AssetCard logo={<SdaLogo />} name="Sidra Chain" symbol="SDA" network="Sidra Mainnet" balance={sdaBalance} marketPrice={marketPrices.SDA} usdValue={parseFloat(sdaBalance) * marketPrices.SDA} priceChange={priceChanges.SDA} loading={loading} onClick={() => router.push('/wallet/sda')} />
+          <AssetCard logo={<UsdtLogo />} name="Tether USD" symbol="USDT" network="TRC20" balance={usdtBalance} marketPrice={marketPrices.USDT} usdValue={parseFloat(usdtBalance) * marketPrices.USDT} priceChange={priceChanges.USDT} loading={loading} onClick={() => router.push('/wallet/usdt')} />
+          <AssetCard logo={<BtcLogo />} name="Bitcoin" symbol="BTC" network="Bitcoin Mainnet" balance={btcBalance} marketPrice={marketPrices.BTC} usdValue={parseFloat(btcBalance) * marketPrices.BTC} priceChange={priceChanges.BTC} loading={loading} onClick={() => router.push('/wallet/btc')} />
+          <AssetCard logo={<EthLogo />} name="Ethereum" symbol="ETH" network="ERC20" balance={ethBalance} marketPrice={marketPrices.ETH} usdValue={parseFloat(ethBalance) * marketPrices.ETH} priceChange={priceChanges.ETH} loading={loading} onClick={() => router.push('/wallet/eth')} />
+          <AssetCard logo={<BnbLogo />} name="BNB" symbol="BNB" network="BEP20" balance={bnbBalance} marketPrice={marketPrices.BNB} usdValue={parseFloat(bnbBalance) * marketPrices.BNB} priceChange={priceChanges.BNB} loading={loading} onClick={() => router.push('/wallet/bnb')} />
+          <AssetCard logo={<SolLogo />} name="Solana" symbol="SOL" network="Solana Mainnet" balance={solBalance} marketPrice={marketPrices.SOL} usdValue={parseFloat(solBalance) * marketPrices.SOL} priceChange={priceChanges.SOL} loading={loading} onClick={() => router.push('/wallet/sol')} />
+          <AssetCard logo={<XrpLogo />} name="Ripple" symbol="XRP" network="XRP Ledger" balance={xrpBalance} marketPrice={marketPrices.XRP} usdValue={parseFloat(xrpBalance) * marketPrices.XRP} priceChange={priceChanges.XRP} loading={loading} onClick={() => router.push('/wallet/xrp')} />
+          <AssetCard logo={<XlmLogo />} name="Stellar" symbol="XLM" network="Stellar Network" balance={xlmBalance} marketPrice={marketPrices.XLM} usdValue={parseFloat(xlmBalance) * marketPrices.XLM} priceChange={priceChanges.XLM} loading={loading} onClick={() => router.push('/wallet/xlm')} />
+          <AssetCard logo={<TrxLogo />} name="Tron" symbol="TRX" network="TRC20" balance={trxBalance} marketPrice={marketPrices.TRX} usdValue={parseFloat(trxBalance) * marketPrices.TRX} priceChange={priceChanges.TRX} loading={loading} onClick={() => router.push('/wallet/trx')} />
+          <AssetCard logo={<AdaLogo />} name="Cardano" symbol="ADA" network="Cardano Mainnet" balance={adaBalance} marketPrice={marketPrices.ADA} usdValue={parseFloat(adaBalance) * marketPrices.ADA} priceChange={priceChanges.ADA} loading={loading} onClick={() => router.push('/wallet/ada')} />
+          <AssetCard logo={<DogeLogo />} name="Dogecoin" symbol="DOGE" network="Dogecoin Network" balance={dogeBalance} marketPrice={marketPrices.DOGE} usdValue={parseFloat(dogeBalance) * marketPrices.DOGE} priceChange={priceChanges.DOGE} loading={loading} onClick={() => router.push('/wallet/doge')} />
+          <AssetCard logo={<TonLogo />} name="Toncoin" symbol="TON" network="TON Network" balance={tonBalance} marketPrice={marketPrices.TON} usdValue={parseFloat(tonBalance) * marketPrices.TON} priceChange={priceChanges.TON} loading={loading} onClick={() => router.push('/wallet/ton')} />
           <div className="pt-4 pb-2 px-1"><h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Stablecoins</h3></div>
-          <AssetCard logo={<UsdcLogo />} name="USD Coin" symbol="USDC" network="ERC20 / TRC20" balance={usdcBalance} marketPrice={marketPrices.USDC} usdValue={parseFloat(usdcBalance) * marketPrices.USDC} loading={loading} onClick={() => router.push('/wallet/usdc')} />
-          <AssetCard logo={<DaiLogo />} name="Dai" symbol="DAI" network="ERC20" balance={daiBalance} marketPrice={marketPrices.DAI} usdValue={parseFloat(daiBalance) * marketPrices.DAI} loading={loading} onClick={() => router.push('/wallet/dai')} />
-          <AssetCard logo={<BusdLogo />} name="Binance USD" symbol="BUSD" network="BEP20" balance={busdBalance} marketPrice={marketPrices.BUSD} usdValue={parseFloat(busdBalance) * marketPrices.BUSD} loading={loading} onClick={() => router.push('/wallet/busd')} />
+          <AssetCard logo={<UsdcLogo />} name="USD Coin" symbol="USDC" network="ERC20 / TRC20" balance={usdcBalance} marketPrice={marketPrices.USDC} usdValue={parseFloat(usdcBalance) * marketPrices.USDC} priceChange={priceChanges.USDC} loading={loading} onClick={() => router.push('/wallet/usdc')} />
+          <AssetCard logo={<DaiLogo />} name="Dai" symbol="DAI" network="ERC20" balance={daiBalance} marketPrice={marketPrices.DAI} usdValue={parseFloat(daiBalance) * marketPrices.DAI} priceChange={priceChanges.DAI} loading={loading} onClick={() => router.push('/wallet/dai')} />
+          <AssetCard logo={<BusdLogo />} name="Binance USD" symbol="BUSD" network="BEP20" balance={busdBalance} marketPrice={marketPrices.BUSD} usdValue={parseFloat(busdBalance) * marketPrices.BUSD} priceChange={priceChanges.BUSD} loading={loading} onClick={() => router.push('/wallet/busd')} />
         </div>
         </div>
         )}
@@ -608,14 +635,27 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
   );
 }
 
-function AssetCard({ logo, name, balance, symbol, network, marketPrice, usdValue, isMain, loading, onClick }: { logo: React.ReactNode; name: string; balance: string; symbol: string; network: string; marketPrice: number; usdValue: number; isMain?: boolean; loading?: boolean; onClick: () => void; }) {
+function AssetCard({ logo, name, balance, symbol, network, marketPrice, usdValue, priceChange, isMain, loading, onClick }: { logo: React.ReactNode; name: string; balance: string; symbol: string; network: string; marketPrice: number; usdValue: number; priceChange?: number; isMain?: boolean; loading?: boolean; onClick: () => void; }) {
+  const isPositive = priceChange !== undefined && priceChange >= 0;
+  const changeColor = isPositive ? "text-emerald-400" : "text-red-400";
+  const changeBgColor = isPositive ? "bg-emerald-500/10" : "bg-red-500/10";
+  
   return (
     <div onClick={onClick} className={`p-4 rounded-2xl flex items-center justify-between border transition-all active:scale-[0.98] cursor-pointer group ${isMain ? 'bg-blue-500/[0.06] border-blue-500/15 hover:bg-blue-500/[0.1]' : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]'}`}>
       <div className="flex items-center gap-3.5">
         {logo}
         <div>
           <div className="flex items-center gap-2"><p className="text-[13px] font-black text-white uppercase tracking-tight">{name}</p></div>
-          <div className="flex items-center gap-2 mt-0.5"><span className="text-[9px] font-bold text-slate-500">${marketPrice.toLocaleString()}</span><span className="text-[8px] font-bold text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{network}</span></div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[9px] font-bold text-slate-500">${marketPrice.toLocaleString()}</span>
+            {priceChange !== undefined && priceChange !== 0 && (
+              <span className={`flex items-center gap-0.5 text-[8px] font-bold ${changeColor} ${changeBgColor} px-1.5 py-0.5 rounded`}>
+                {isPositive ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
+                {isPositive ? "+" : ""}{priceChange.toFixed(2)}%
+              </span>
+            )}
+            <span className="text-[8px] font-bold text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{network}</span>
+          </div>
         </div>
       </div>
       <div className="text-right flex items-center gap-2">
