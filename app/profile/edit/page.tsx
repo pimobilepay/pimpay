@@ -190,7 +190,7 @@ export default function EditProfilePage() {
       }
     };
     fetchUserData();
-  }, []);
+  }, [t]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -256,7 +256,7 @@ export default function EditProfilePage() {
         <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center border border-white/10 active:scale-90 transition-transform">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">Modifier le Profil</h1>
+        <h1 className="text-xl font-black italic uppercase tracking-tighter">{t("profile.editProfile")}</h1>
         <div className="w-10" />
       </header>
 
@@ -266,7 +266,7 @@ export default function EditProfilePage() {
           <div className="relative group">
             <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-900 flex items-center justify-center text-4xl font-black italic border-4 border-slate-900 shadow-2xl uppercase overflow-hidden">
               {formData.avatar ? (
-                <img src={formData.avatar} alt="Photo de profil" className="w-full h-full object-cover" />
+                <img src={formData.avatar} alt={t("profile.profilePhoto")} className="w-full h-full object-cover" />
               ) : (
                 formData.username?.[0] || "P"
               )}
@@ -291,7 +291,7 @@ export default function EditProfilePage() {
               <Camera size={18} />
             </button>
           </div>
-          <p className="text-[10px] text-blue-500 font-black uppercase mt-4 tracking-[3px]">Membre Verifie</p>
+          <p className="text-[10px] text-blue-500 font-black uppercase mt-4 tracking-[3px]">{t("profile.verifiedMember")}</p>
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
@@ -299,97 +299,97 @@ export default function EditProfilePage() {
           {/* --- SECTION 1: IDENTITE PERSONNELLE --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <User size={12} /> Identite Personnelle
+              <User size={12} /> {t("profile.personalIdentity")}
             </h3>
 
-            <InputField label="Nom d'utilisateur (public)" icon={Fingerprint} value={formData.username} onChange={updateField("username")} placeholder="pionnier_123" />
+            <InputField label={t("profile.usernamePublic")} icon={Fingerprint} value={formData.username} onChange={updateField("username")} placeholder={t("profile.placeholderUsername")} />
 
             <div className="grid grid-cols-2 gap-4">
-              <InputField label="Prenom" value={formData.firstName} onChange={updateField("firstName")} placeholder="Jean" />
-              <InputField label="Nom de famille" value={formData.lastName} onChange={updateField("lastName")} placeholder="Dupont" />
+              <InputField label={t("profile.firstName")} value={formData.firstName} onChange={updateField("firstName")} placeholder={t("profile.placeholderFirstName")} />
+              <InputField label={t("profile.lastName")} value={formData.lastName} onChange={updateField("lastName")} placeholder={t("profile.placeholderLastName")} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <InputField label="Date de naissance" icon={Calendar} value={formData.birthDate} onChange={updateField("birthDate")} type="date" />
+              <InputField label={t("profile.birthDate")} icon={Calendar} value={formData.birthDate} onChange={updateField("birthDate")} type="date" />
               <SelectField
-                label="Genre"
+                label={t("profile.gender")}
                 icon={User}
                 value={formData.gender}
                 onChange={updateField("gender")}
-                placeholder="Selectionner..."
+                placeholder={t("profile.placeholderSelect")}
                 options={[
-                  { value: "M", label: "Masculin" },
-                  { value: "F", label: "Feminin" },
-                  { value: "OTHER", label: "Autre" },
+                  { value: "M", label: t("profile.genderMale") },
+                  { value: "F", label: t("profile.genderFemale") },
+                  { value: "OTHER", label: t("profile.genderOther") },
                 ]}
               />
             </div>
 
-            <InputField label="Nationalite" icon={Globe} value={formData.nationality} onChange={updateField("nationality")} placeholder="Ex: Camerounais" />
+            <InputField label={t("profile.nationality")} icon={Globe} value={formData.nationality} onChange={updateField("nationality")} placeholder={t("profile.placeholderNationality")} />
           </section>
 
           {/* --- SECTION 2: COORDONNEES --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Mail size={12} /> Coordonnees
+              <Mail size={12} /> {t("profile.contactInfo")}
             </h3>
 
-            <InputField label="Adresse e-mail" icon={Mail} value={formData.email} onChange={updateField("email")} type="email" placeholder="jean@exemple.com" />
-            <InputField label="Numero de telephone" icon={Phone} value={formData.phone} onChange={updateField("phone")} type="tel" placeholder="+237 6XX XXX XXX" />
+            <InputField label={t("profile.emailAddress")} icon={Mail} value={formData.email} onChange={updateField("email")} type="email" placeholder={t("profile.placeholderEmail")} />
+            <InputField label={t("profile.phoneNumber")} icon={Phone} value={formData.phone} onChange={updateField("phone")} type="tel" placeholder={t("profile.placeholderPhone")} />
           </section>
 
           {/* --- SECTION 3: ADRESSE & LOCALISATION --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <MapPin size={12} /> Adresse et Localisation
+              <MapPin size={12} /> {t("profile.addressLocation")}
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <InputField label="Pays" value={formData.country} onChange={updateField("country")} placeholder="Cameroun" />
-              <InputField label="Ville" value={formData.city} onChange={updateField("city")} placeholder="Douala" />
+              <InputField label={t("profile.country")} value={formData.country} onChange={updateField("country")} placeholder={t("profile.placeholderCountry")} />
+              <InputField label={t("profile.city")} value={formData.city} onChange={updateField("city")} placeholder={t("profile.placeholderCity")} />
             </div>
-            <InputField label="Adresse de residence" icon={MapPin} value={formData.address} onChange={updateField("address")} placeholder="Rue, Quartier, Numero" colSpan />
-            <InputField label="Code postal" value={formData.postalCode} onChange={updateField("postalCode")} placeholder="00000" />
+            <InputField label={t("profile.residenceAddress")} icon={MapPin} value={formData.address} onChange={updateField("address")} placeholder={t("profile.placeholderAddress")} colSpan />
+            <InputField label={t("profile.postalCode")} value={formData.postalCode} onChange={updateField("postalCode")} placeholder={t("profile.placeholderPostalCode")} />
           </section>
 
           {/* --- SECTION 4: INFORMATIONS FINANCIERES (FINTECH) --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Briefcase size={12} /> Informations Financieres
+              <Briefcase size={12} /> {t("profile.financialInfo")}
             </h3>
 
             <SelectField
-              label="Profession / Activite"
+              label={t("profile.occupation")}
               icon={Briefcase}
               value={formData.occupation}
               onChange={updateField("occupation")}
-              placeholder="Selectionner votre activite..."
+              placeholder={t("profile.placeholderSelectActivity")}
               options={[
-                { value: "EMPLOYEE", label: "Employe(e)" },
-                { value: "SELF_EMPLOYED", label: "Travailleur independant" },
-                { value: "BUSINESS_OWNER", label: "Chef d'entreprise" },
-                { value: "FREELANCE", label: "Freelance" },
-                { value: "STUDENT", label: "Etudiant(e)" },
-                { value: "RETIRED", label: "Retraite(e)" },
-                { value: "UNEMPLOYED", label: "Sans emploi" },
-                { value: "OTHER", label: "Autre" },
+                { value: "EMPLOYEE", label: t("profile.occupationEmployee") },
+                { value: "SELF_EMPLOYED", label: t("profile.occupationSelfEmployed") },
+                { value: "BUSINESS_OWNER", label: t("profile.occupationBusinessOwner") },
+                { value: "FREELANCE", label: t("profile.occupationFreelance") },
+                { value: "STUDENT", label: t("profile.occupationStudent") },
+                { value: "RETIRED", label: t("profile.occupationRetired") },
+                { value: "UNEMPLOYED", label: t("profile.occupationUnemployed") },
+                { value: "OTHER", label: t("profile.occupationOther") },
               ]}
             />
 
             <SelectField
-              label="Source des fonds"
+              label={t("profile.sourceOfFunds")}
               icon={CreditCard}
               value={formData.sourceOfFunds}
               onChange={updateField("sourceOfFunds")}
-              placeholder="D'ou proviennent vos fonds ?"
+              placeholder={t("profile.placeholderSelectFunds")}
               options={[
-                { value: "SALARY", label: "Salaire" },
-                { value: "BUSINESS_INCOME", label: "Revenus d'entreprise" },
-                { value: "INVESTMENTS", label: "Investissements" },
-                { value: "SAVINGS", label: "Epargne" },
-                { value: "CRYPTO_MINING", label: "Minage de cryptomonnaies" },
-                { value: "FAMILY_SUPPORT", label: "Soutien familial" },
-                { value: "OTHER", label: "Autre" },
+                { value: "SALARY", label: t("profile.fundsSalary") },
+                { value: "BUSINESS_INCOME", label: t("profile.fundsBusinessIncome") },
+                { value: "INVESTMENTS", label: t("profile.fundsInvestments") },
+                { value: "SAVINGS", label: t("profile.fundsSavings") },
+                { value: "CRYPTO_MINING", label: t("profile.fundsCryptoMining") },
+                { value: "FAMILY_SUPPORT", label: t("profile.fundsFamilySupport") },
+                { value: "OTHER", label: t("profile.fundsOther") },
               ]}
             />
           </section>
@@ -397,33 +397,33 @@ export default function EditProfilePage() {
           {/* --- SECTION 5: PIECE D'IDENTITE --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Shield size={12} /> Piece d{"'"}Identite
+              <Shield size={12} /> {t("profile.identityDocument")}
             </h3>
 
             <SelectField
-              label="Type de document"
+              label={t("profile.documentType")}
               icon={BadgeCheck}
               value={formData.idType}
               onChange={updateField("idType")}
-              placeholder="Selectionner le type..."
+              placeholder={t("profile.placeholderSelectType")}
               options={[
-                { value: "NATIONAL_ID", label: "Carte nationale d'identite" },
-                { value: "PASSPORT", label: "Passeport" },
-                { value: "DRIVERS_LICENSE", label: "Permis de conduire" },
-                { value: "RESIDENCE_PERMIT", label: "Titre de sejour" },
+                { value: "NATIONAL_ID", label: t("profile.idNationalId") },
+                { value: "PASSPORT", label: t("profile.idPassport") },
+                { value: "DRIVERS_LICENSE", label: t("profile.idDriversLicense") },
+                { value: "RESIDENCE_PERMIT", label: t("profile.idResidencePermit") },
               ]}
             />
 
-            <InputField label="Numero du document" icon={Shield} value={formData.idNumber} onChange={updateField("idNumber")} placeholder="Ex: AB1234567" />
+            <InputField label={t("profile.documentNumber")} icon={Shield} value={formData.idNumber} onChange={updateField("idNumber")} placeholder={t("profile.placeholderIdNumber")} />
           </section>
 
           {/* --- SECTION 6: PORTEFEUILLE WEB3 --- */}
           <section className="space-y-4">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Wallet size={12} /> Portefeuille Web3
+              <Wallet size={12} /> {t("profile.web3Wallet")}
             </h3>
 
-            <InputField label="Adresse Pi Wallet" icon={Landmark} value={formData.walletAddress} onChange={updateField("walletAddress")} placeholder="GD3A..." mono />
+            <InputField label={t("profile.piWalletAddress")} icon={Landmark} value={formData.walletAddress} onChange={updateField("walletAddress")} placeholder={t("profile.placeholderWallet")} mono />
           </section>
 
           {/* --- ACTIONS --- */}
@@ -431,13 +431,13 @@ export default function EditProfilePage() {
             <Link href="/settings/security/change-password" className="flex items-center justify-between p-4 bg-blue-600/5 border border-blue-500/10 rounded-2xl group transition-all">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center text-blue-500"><Lock size={16} /></div>
-                <span className="text-sm font-bold">Modifier le mot de passe</span>
+                <span className="text-sm font-bold">{t("profile.changePassword")}</span>
               </div>
               <Check size={16} className="text-blue-500 opacity-50" />
             </Link>
 
             <button type="submit" disabled={loading} className="w-full bg-blue-600 h-16 rounded-[17px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-              {loading ? <Loader2 className="animate-spin" /> : "Enregistrer les modifications"}
+              {loading ? <Loader2 className="animate-spin" /> : t("profile.saveChanges")}
             </button>
           </div>
         </form>
