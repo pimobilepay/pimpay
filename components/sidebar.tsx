@@ -38,7 +38,7 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         <div className="mb-6">
           <button
             onClick={() => {
-              router.push('/settings/notifications');
+              router.push('/notifications');
               onClose();
             }}
             className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-white/5 text-slate-400 hover:text-blue-400 transition-all border border-white/5"

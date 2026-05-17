@@ -192,7 +192,7 @@ export default function SettingsPage() {
       title: t("settings.pimpayServices"),
       items: [
         { icon: <CreditCard size={18} />, label: t("settings.myCards"), desc: t("settings.myCardsDesc"), color: "text-pink-400", path: "/cards" },
-        { icon: <Bell size={18} />, label: t("settings.notifications"), desc: t("settings.notificationsDesc"), color: "text-orange-400", path: "/settings/notifications" },
+        { icon: <Bell size={18} />, label: t("settings.notifications"), desc: t("settings.notificationsDesc"), color: "text-orange-400", path: "/notifications" },
       ]
     },
     {

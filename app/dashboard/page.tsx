@@ -215,7 +215,7 @@ export default function UserDashboard() {
                 },
                 action: {
                   label: "Voir",
-                  onClick: () => router.push("/settings/notifications"),
+onClick: () => router.push("/notifications"),
                 },
               });
             }
@@ -272,7 +272,7 @@ export default function UserDashboard() {
               },
               action: {
                 label: "Voir",
-                onClick: () => router.push("/settings/notifications"),
+                onClick: () => router.push("/notifications"),
               },
             });
           }
@@ -477,7 +477,7 @@ export default function UserDashboard() {
         <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1><p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
         <div className="flex items-center gap-2">
           <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
-          <button onClick={() => router.push("/settings/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative">
+          <button onClick={() => router.push("/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative">
             <Bell size={20} />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-black text-white px-1">

@@ -1,29 +1,34 @@
 "use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  ArrowLeft, Bell, CheckCheck, Trash2, 
-  ArrowDownLeft, ArrowUpRight, Shield, Loader2,
-  RefreshCw, AlertCircle,
-  Wallet, X, TrendingUp, Coins, CreditCard,
-  Info, Repeat, Clock, Smartphone, MapPin, Globe,
-  ShieldCheck, Store, LogIn, ChevronRight, Gift, Mail, MessageCircle, Headphones
-} from "lucide-react";
-import TransactionConfirmModal from "@/components/TransactionConfirmModal";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
+import {
+  Bell, Check, Trash2, ArrowLeft, RefreshCcw,
+  CheckCheck, Info, ShieldCheck, ArrowDownLeft,
+  ArrowUpRight, Store, LogIn, Clock, Loader2,
+  Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi,
+  ChevronRight, TrendingUp, Coins, MessageSquare, Send, X, Headphones
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr, enUS } from "date-fns/locale";
+import { fr as frLocale, enUS } from "date-fns/locale";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 import { useLanguage } from "@/context/LanguageContext";
 
-// Helper pour formater les montants PI avec 8 decimales max
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "TRANSACTION_CONFIRM" | string;
+
+// Helper pour formater les montants PI avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
   if (amount === undefined || amount === null) return "0";
   const curr = (currency || "PI").toUpperCase();
+  // Pour PI, afficher jusqu'a 8 decimales significatives
   if (curr === "PI") {
-    return Number(amount).toFixed(8).replace(/\.?0+$/, "") || "0";
+    // Supprimer les zeros de fin
+    const formatted = Number(amount).toFixed(8).replace(/\.?0+$/, "");
+    return formatted || "0";
   }
+  // Pour les autres devises, utiliser toLocaleString classique
   return Number(amount).toLocaleString();
 }
 
@@ -31,27 +36,24 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: string;
-  read: boolean;
+  type: NotificationType;
   createdAt: string;
+  read: boolean;
   metadata?: {
+    device?: string;
+    ip?: string;
+    location?: string;
+    os?: string;
+    browser?: string;
+    fromCurrency?: string;
+    toCurrency?: string;
+    fromAmount?: number;
+    toAmount?: number;
+    rate?: number;
+    reference?: string;
+    // Champs pour les transactions (depot, envoi, reception)
     amount?: number;
     currency?: string;
-    from?: string;
-    to?: string;
-    txId?: string;
-    // Staking specific
-    stakingAmount?: number;
-    rewardAmount?: number;
-    apy?: number;
-    duration?: string;
-    stakingId?: string;
-    stakingStatus?: string;
-    unlockDate?: string;
-    type?: string;
-    cardId?: string;
-    cardLast4?: string;
-    // Payment / transaction
     senderName?: string;
     senderUsername?: string;
     recipientName?: string;
@@ -62,20 +64,16 @@ interface Notification {
     transactionId?: string;
     walletAddress?: string;
     network?: string;
-    // Swap
-    fromCurrency?: string;
-    toCurrency?: string;
-    fromAmount?: number;
-    toAmount?: number;
-    rate?: number;
-    reference?: string;
-    // Session
-    device?: string;
-    ip?: string;
-    location?: string;
-    os?: string;
-    browser?: string;
-    // Support Message
+    // Staking specific
+    stakingAmount?: number;
+    rewardAmount?: number;
+    apy?: number;
+    duration?: string;
+    stakingId?: string;
+    stakingStatus?: string;
+    unlockDate?: string;
+    type?: string;
+    // Support message specific
     fromAdmin?: boolean;
     adminId?: string;
     adminName?: string;
@@ -84,65 +82,236 @@ interface Notification {
   };
 }
 
-type FilterType = "all" | "payment" | "security" | "unread" | "card" | "support";
+// Couleur de fond et bordure laterale selon le type (style page mpay)
+function getNotifCardClass(type: NotificationType, read: boolean): string {
+  if (read) return "bg-white/[0.02] border border-white/10";
+  switch (type) {
+    case "PAYMENT_RECEIVED":
+    case "SUCCESS":
+      return "bg-emerald-500/5 border border-white/10 border-l-2 border-l-emerald-500";
+    case "PAYMENT_SENT":
+      return "bg-red-500/5 border border-white/10 border-l-2 border-l-red-500";
+    case "SECURITY":
+    case "LOGIN":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    case "SWAP":
+      return "bg-indigo-500/5 border border-white/10 border-l-2 border-l-indigo-500";
+    case "MERCHANT":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-400";
+    case "KYC":
+    case "KYC_APPROVED":
+      return "bg-emerald-500/5 border border-white/10 border-l-2 border-l-emerald-500";
+    case "KYC_REJECTED":
+      return "bg-rose-500/5 border border-white/10 border-l-2 border-l-rose-500";
+    case "KYC_PENDING":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    case "STAKING":
+    case "STAKING_REWARD":
+      return "bg-purple-500/5 border border-white/10 border-l-2 border-l-purple-500";
+    case "STAKING_UNSTAKE":
+      return "bg-orange-500/5 border border-white/10 border-l-2 border-l-orange-500";
+    case "SUPPORT_MESSAGE":
+      return "bg-cyan-500/5 border border-white/10 border-l-2 border-l-cyan-500";
+    case "TRANSACTION_CONFIRM":
+      return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
+    default:
+      return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
+  }
+}
 
-interface ConfirmTx {
-  id: string;
-  type: "DEPOSIT" | "WITHDRAWAL";
-  amount: number;
-  currency: string;
-  agentName?: string;
-  createdAt: string;
+// Bg de l'icone rond selon le type
+function getIconBgClass(type: NotificationType, read: boolean): string {
+  if (read) return "bg-slate-800";
+  switch (type) {
+    case "PAYMENT_RECEIVED": case "SUCCESS": case "KYC_APPROVED": return "bg-emerald-500/10";
+    case "PAYMENT_SENT": return "bg-red-500/10";
+    case "SECURITY": case "LOGIN": return "bg-amber-500/10";
+    case "SWAP": return "bg-indigo-500/10";
+    case "MERCHANT": return "bg-amber-500/10";
+    case "KYC_REJECTED": return "bg-rose-500/10";
+    case "KYC_PENDING": return "bg-amber-500/10";
+    case "STAKING": case "STAKING_REWARD": return "bg-purple-500/10";
+    case "STAKING_UNSTAKE": return "bg-orange-500/10";
+    case "SUPPORT_MESSAGE": return "bg-cyan-500/10";
+    case "TRANSACTION_CONFIRM": return "bg-amber-500/10";
+    default: return "bg-blue-500/10";
+  }
+}
+
+// Map devise → nom du réseau blockchain source
+const BLOCKCHAIN_NAMES: Record<string, string> = {
+  PI:   "Pi Network",
+  SDA:  "Sidra Chain",
+  BTC:  "Bitcoin Network",
+  ETH:  "Ethereum Network",
+  BNB:  "BNB Chain",
+  SOL:  "Solana Network",
+  TRX:  "TRON Network",
+  TON:  "TON Blockchain",
+  XRP:  "XRP Ledger",
+  XLM:  "Stellar Network",
+  ADA:  "Cardano Network",
+  DOGE: "Dogecoin Network",
+  USDT: "USDT Network",
+  USDC: "USDC Network",
+  DAI:  "DAI Network",
+};
+
+// Inférer l'expéditeur et le destinataire depuis le contexte d'une notification
+function inferTxParties(notif: Notification): { sender: string; recipient: string } {
+  const meta     = notif.metadata;
+  const currency = (meta?.currency || "PI").toUpperCase();
+  const text     = `${notif.title} ${notif.message}`.toLowerCase();
+
+  // Si les metadata fournissent des noms explicites, on les privilégie
+  const explicitSender    = meta?.senderName    || meta?.senderUsername    || null;
+  const explicitRecipient = meta?.recipientName || meta?.recipientUsername || null;
+
+  // Adresse wallet externe → nom de réseau
+  const networkName = BLOCKCHAIN_NAMES[currency] || `${currency} Network`;
+
+  // Catégories de services détectés dans le texte
+  const isCard    = text.includes("carte") || text.includes("card") || text.includes("visa") || text.includes("mastercard");
+  const isAirtel  = text.includes("airtel");
+  const isMtn     = text.includes("mtn");
+  const isMoMo    = text.includes("mobile money") || text.includes("momo");
+  const isWave    = text.includes("wave");
+  const isPaypal  = text.includes("paypal");
+  const isSwap    = text.includes("swap") || text.includes("exchange") || text.includes("conversion");
+  const isDeposit = text.includes("depot") || text.includes("deposit") || text.includes("dépôt") || text.includes("recharge") || text.includes("réception");
+  const isWithdraw= text.includes("retrait") || text.includes("withdraw") || text.includes("cashout");
+  const isRecharge= text.includes("recharge") || text.includes("top-up");
+  const isPayment = text.includes("paiement") || text.includes("payment") || text.includes("achat");
+
+  const serviceName = isCard   ? "Recharge Carte"
+    : isAirtel  ? "Airtel Money"
+    : isMtn     ? "MTN Mobile Money"
+    : isMoMo    ? "Mobile Money"
+    : isWave    ? "Wave"
+    : isPaypal  ? "PayPal"
+    : isSwap    ? "PimPay Exchange"
+    : isRecharge? "Operateur Telecom"
+    : isPayment ? "Marchand"
+    : null;
+
+  if (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") {
+    // Argent recu : expediteur = source externe ou utilisateur
+    const sender    = explicitSender    || serviceName || (isDeposit ? networkName : "PimPay");
+    const recipient = explicitRecipient || "Vous";
+    return { sender, recipient };
+  }
+
+  if (notif.type === "PAYMENT_SENT") {
+    // Argent envoye : destinataire = cible externe ou utilisateur
+    const sender    = explicitSender    || "Vous";
+    const recipient = explicitRecipient || serviceName || (isWithdraw ? networkName : "Destinataire");
+    return { sender, recipient };
+  }
+
+  // Types generiques avec montant (MERCHANT, SYSTEM, etc.)
+  return {
+    sender:    explicitSender    || "PimPay",
+    recipient: explicitRecipient || "Vous",
+  };
+}
+
+// Icone et couleur selon qu'il s'agit d'un service externe ou d'un utilisateur
+function PartyPill({ label, name, isYou }: { label: string; name: string; isYou?: boolean }) {
+  const isExternal = ["network","chain","blockchain","money","wave","paypal","carte","card","marchand","exchange","operateur","airtel","mtn","pimpay"]
+    .some(k => name.toLowerCase().includes(k));
+
+  return (
+    <div className={`flex-1 rounded-2xl p-3 border ${
+      isYou     ? "bg-blue-600/10 border-blue-500/20"
+      : isExternal ? "bg-cyan-600/10 border-cyan-500/15"
+      : "bg-white/5 border-white/5"
+    }`}>
+      <p className={`text-[8px] font-black uppercase tracking-widest mb-2 ${
+        isYou ? "text-blue-400" : isExternal ? "text-cyan-600" : "text-slate-500"
+      }`}>{label}</p>
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+          isYou     ? "bg-blue-600/20"
+          : isExternal ? "bg-cyan-600/20"
+          : "bg-slate-800"
+        }`}>
+          {isExternal ? <Building2 size={12} className="text-cyan-400" /> : <User size={12} className={isYou ? "text-blue-400" : "text-slate-400"} />}
+        </div>
+        <p className={`text-[11px] font-bold truncate leading-tight ${
+          isYou ? "text-blue-200" : isExternal ? "text-cyan-200" : "text-white"
+        }`}>{name}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function NotificationsPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
-  const dateLocale = locale === "en" ? enUS : fr;
+  const dateLocale = locale === "en" ? enUS : frLocale;
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isMounted = useRef(true);
+
+  const [activeTab, setActiveTab] = useState<string>("ALL");
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
-  // État pour le modal MFA de confirmation de transaction
-  const [confirmTx, setConfirmTx] = useState<ConfirmTx | null>(null);
-  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  
+  // MFA Transaction Confirmation
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  const [confirmTx, setConfirmTx] = useState<{
+    id: string;
+    type: "DEPOSIT" | "WITHDRAWAL";
+    amount: number;
+    currency: string;
+    agentName?: string;
+    createdAt: string;
+  } | null>(null);
 
-  // Fetch notifications
-  const fetchNotifications = useCallback(async (showRefresh = false) => {
-    if (showRefresh) setRefreshing(true);
+  const fetchNotifications = useCallback(async (showSilent = false) => {
+    if (!showSilent) setIsRefreshing(true);
     try {
-      const res = await fetch("/api/user/notifications");
+      const res = await fetch("/api/notifications");
+      if (res.status === 401) {
+        router.push("/auth/login");
+        return;
+      }
+      
       const data = await res.json();
       
-      if (Array.isArray(data)) {
-        setNotifications(data);
-        setUnreadCount(data.filter((n: Notification) => !n.read).length);
-      } else if (data.notifications) {
-        setNotifications(data.notifications);
-        setUnreadCount(data.unreadCount || 0);
+      if (res.ok && isMounted.current) {
+        // CORRECTION : Ton API renvoie directement le tableau de notifications
+        const notifsArray = Array.isArray(data) ? data : (data.notifications || []);
+        setNotifications(notifsArray);
+        
+        // Calcul manuel du compteur pour être sûr de l'exactitude
+        const unread = notifsArray.filter((n: Notification) => !n.read).length;
+        setUnreadCount(unread);
       }
-    } catch (error) {
-      console.error("Erreur notifications:", error);
-      toast.error(t("notifications.loadError"));
+    } catch (err) {
+      console.error("Erreur Notifications:", err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMounted.current) {
+        setIsRefreshing(false);
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
+    isMounted.current = true;
     fetchNotifications();
-    const interval = setInterval(() => {
-      fetchNotifications();
-    }, 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => fetchNotifications(true), 15000);
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
   }, [fetchNotifications]);
 
-  // Récupérer les infos utilisateur (id + 2FA) pour le modal MFA
+  // Fetch user info for MFA
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -155,182 +324,146 @@ export default function NotificationsPage() {
       .catch(() => {});
   }, []);
 
-  // Ouvrir le modal MFA depuis la page notifications
-  const openConfirmModal = useCallback(
-    (notification: Notification) => {
-      const meta = notification.metadata;
-      if (!meta?.transactionId) return;
-      setConfirmTx({
-        id: meta.transactionId,
-        type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
-        amount: meta.amount || 0,
-        currency: meta.currency || "USD",
-        agentName: meta.senderName,
-        createdAt: notification.createdAt,
+  // Open MFA confirmation modal
+  const openConfirmModal = useCallback((notification: Notification) => {
+    const meta = notification.metadata;
+    if (!meta?.transactionId) return;
+    setConfirmTx({
+      id: meta.transactionId,
+      type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
+      amount: meta.amount || 0,
+      currency: meta.currency || "USD",
+      agentName: meta.senderName || (meta as any).agentName,
+      createdAt: notification.createdAt,
+    });
+    setIsMfaModalOpen(true);
+    setSelectedNotification(null);
+  }, []);
+
+  // Reject transaction
+  const rejectTransaction = useCallback(async (notification: Notification) => {
+    const meta = notification.metadata;
+    if (!meta?.transactionId) {
+      toast.error(t("notifications.transactionNotFound"));
+      return;
+    }
+    try {
+      const res = await fetch("/api/transaction/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: meta.transactionId,
+          userId: currentUserId,
+          action: "reject",
+        }),
       });
-      setIsMfaModalOpen(true);
-    },
-    []
-  );
-
-  // Refus direct depuis la page notifications (sans modal MFA)
-  const rejectTransaction = useCallback(
-    async (notification: Notification) => {
-      const meta = notification.metadata;
-      if (!meta?.transactionId) return;
-      try {
-        const res = await fetch("/api/transaction/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transactionId: meta.transactionId,
-            userId: currentUserId,
-            action: "reject",
-          }),
-        });
-        if (res.ok) {
-          toast.success(t("notifications.transactionCancelled"));
-          setNotifications((prev) =>
-            prev.map((n) =>
-              n.id === notification.id ? { ...n, read: true } : n
-            )
-          );
-        } else {
-          toast.error(t("notifications.rejectError"));
-        }
-      } catch {
-        toast.error(t("notifications.networkError"));
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast.success(t("notifications.transactionCancelled"));
+        // Remove the notification from the list
+        setNotifications((prev) =>
+          prev.filter((n) => n.id !== notification.id)
+        );
+        setSelectedNotification(null);
+        // Refresh notifications
+        fetchNotifications(true);
+      } else {
+        toast.error(data.error || t("notifications.rejectError"));
       }
-    },
-    [currentUserId]
-  );
+    } catch {
+      toast.error(t("notifications.networkError"));
+    }
+  }, [currentUserId, fetchNotifications, t]);
 
-  // Mark single notification as read
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+        toast.success(t("notifications.allMarkedRead"));
+      }
+    } catch {
+      toast.error(t("notifications.syncError"));
+    }
+  };
+
   const markAsRead = async (id: string) => {
     try {
-      await fetch("/api/notifications/mark-read", {
+      const res = await fetch("/api/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      
-      setNotifications(prev => 
-        prev.map(n => n.id === id ? { ...n, read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch {
-      toast.error(t("notifications.updateError"));
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (e) {
+      console.error("Erreur marquage comme lu:", e);
     }
   };
 
-  // Mark all as read
-  const markAllAsRead = async () => {
+  const deleteNotif = async (id: string) => {
     try {
-      await fetch("/api/user/notifications", {
-        method: "PUT",
-      });
-      
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      setUnreadCount(0);
-      toast.success(t("notifications.allMarkedRead"));
+      const res = await fetch(`/api/notifications?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
     } catch {
-      toast.error(t("notifications.updateError"));
+      toast.error(t("notifications.deleteFailed"));
     }
   };
 
-  // Delete notification
-  const deleteNotification = async (id: string) => {
-    try {
-      await fetch(`/api/notifications/${id}`, {
-        method: "DELETE",
+  const getIcon = (type: NotificationType) => {
+    switch (type) {
+      case "SECURITY": return <ShieldCheck className="text-rose-500" size={18} />;
+      case "PAYMENT_RECEIVED": 
+      case "SUCCESS": return <ArrowDownLeft className="text-emerald-400" size={18} />;
+      case "PAYMENT_SENT": return <ArrowUpRight className="text-blue-400" size={18} />;
+      case "SWAP": return <Repeat className="text-indigo-400" size={18} />;
+      case "MERCHANT": return <Store className="text-amber-400" size={18} />;
+      case "LOGIN": return <LogIn className="text-indigo-400" size={18} />;
+      case "STAKING":
+      case "STAKING_REWARD": return <TrendingUp className="text-purple-400" size={18} />;
+      case "STAKING_UNSTAKE": return <Coins className="text-orange-400" size={18} />;
+      case "SYSTEM": return <Info className="text-blue-500" size={18} />;
+      case "KYC":
+      case "KYC_APPROVED": return <ShieldCheck className="text-emerald-400" size={18} />;
+      case "KYC_REJECTED": return <ShieldCheck className="text-rose-500" size={18} />;
+      case "KYC_PENDING": return <ShieldCheck className="text-amber-400" size={18} />;
+      case "SUPPORT_MESSAGE": return <MessageSquare className="text-cyan-400" size={18} />;
+      case "TRANSACTION_CONFIRM": return <ShieldCheck className="text-amber-400" size={18} />;
+      default: return <Bell className="text-slate-400" size={18} />;
+    }
+  };
+
+  const tabs = [
+    { id: "ALL", label: t("notifications.filterAll") },
+    { id: "SUCCESS", label: t("notifications.filterReceived") },
+    { id: "SWAP", label: t("notifications.filterSwaps") },
+    { id: "STAKING", label: t("notifications.filterStaking") },
+    { id: "LOGIN", label: t("notifications.filterSessions") },
+    { id: "SECURITY", label: t("notifications.filterSecurity") },
+    { id: "KYC", label: t("notifications.filterKyc") },
+    { id: "SUPPORT_MESSAGE", label: t("notifications.filterSupport") },
+  ];
+
+  const filteredNotifications = activeTab === "ALL"
+    ? notifications
+    : notifications.filter(n => {
+        if (activeTab === "SUCCESS") return n.type === "SUCCESS" || n.type === "PAYMENT_RECEIVED";
+        if (activeTab === "KYC") return n.type === "KYC" || n.type === "KYC_APPROVED" || n.type === "KYC_REJECTED" || n.type === "KYC_PENDING";
+        if (activeTab === "STAKING") return n.type === "STAKING" || n.type === "STAKING_REWARD" || n.type === "STAKING_UNSTAKE" || n.metadata?.type === "STAKING" || n.metadata?.type === "UNSTAKE";
+        if (activeTab === "SUPPORT_MESSAGE") return n.type === "SUPPORT_MESSAGE";
+        return n.type === activeTab;
       });
-      
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      toast.success(t("notifications.deleted"));
-    } catch {
-      toast.error(t("notifications.deleteError"));
-    }
-  };
-
-  // Filter notifications
-  const filteredNotifications = notifications.filter(n => {
-    if (activeFilter === "unread") return !n.read;
-    if (activeFilter === "payment") return n.type === "PAYMENT_RECEIVED" || n.type === "PAYMENT_SENT" || n.type === "success";
-    if (activeFilter === "security") return n.type === "SECURITY" || n.type === "LOGIN";
-    if (activeFilter === "card") return n.type === "CARD" || n.type === "CARD_ORDER" || n.type === "CARD_ACTIVATED";
-    if (activeFilter === "support") return n.type === "SUPPORT_MESSAGE";
-    return true;
-  });
-
-  // Get icon based on notification type
-  const getNotificationIcon = (type: string, metadata?: Notification["metadata"]) => {
-    switch (type) {
-      case "PAYMENT_RECEIVED":
-      case "SUCCESS":
-      case "success":
-        return <ArrowDownLeft size={18} className="text-emerald-400" />;
-      case "PAYMENT_SENT":
-        return <ArrowUpRight size={18} className="text-red-400" />;
-      case "SECURITY":
-        return <ShieldCheck size={18} className="text-rose-400" />;
-      case "LOGIN":
-        return <LogIn size={18} className="text-amber-400" />;
-      case "STAKING":
-      case "STAKING_REWARD":
-        return <TrendingUp size={18} className="text-purple-400" />;
-      case "STAKING_UNSTAKE":
-        return <Coins size={18} className="text-orange-400" />;
-      case "CARD":
-      case "CARD_ORDER":
-      case "CARD_ACTIVATED":
-        return <CreditCard size={18} className="text-cyan-400" />;
-      case "SWAP":
-        return <Repeat size={18} className="text-indigo-400" />;
-      case "MERCHANT":
-        return <Store size={18} className="text-amber-400" />;
-      case "SUPPORT_MESSAGE":
-        return <Mail size={18} className="text-blue-400" />;
-      case "TRANSACTION_CONFIRM":
-        return <ShieldCheck size={18} className="text-amber-400" />;
-      default:
-        if (metadata?.type === "STAKING") return <TrendingUp size={18} className="text-purple-400" />;
-        if (metadata?.type === "UNSTAKE") return <Coins size={18} className="text-orange-400" />;
-        return <Bell size={18} className="text-blue-400" />;
-    }
-  };
-
-  // Get background color based on type
-  const getNotificationBg = (type: string, read: boolean) => {
-    if (read) return "bg-white/[0.02]";
-    switch (type) {
-      case "PAYMENT_RECEIVED":
-      case "SUCCESS":
-      case "success":
-        return "bg-emerald-500/5 border-l-2 border-l-emerald-500";
-      case "PAYMENT_SENT":
-        return "bg-red-500/5 border-l-2 border-l-red-500";
-      case "SECURITY":
-      case "LOGIN":
-        return "bg-amber-500/5 border-l-2 border-l-amber-500";
-      case "CARD":
-      case "CARD_ORDER":
-      case "CARD_ACTIVATED":
-        return "bg-cyan-500/5 border-l-2 border-l-cyan-500";
-      case "STAKING":
-      case "STAKING_REWARD":
-        return "bg-purple-500/5 border-l-2 border-l-purple-500";
-      case "STAKING_UNSTAKE":
-        return "bg-orange-500/5 border-l-2 border-l-orange-500";
-      case "SWAP":
-        return "bg-indigo-500/5 border-l-2 border-l-indigo-500";
-      case "SUPPORT_MESSAGE":
-        return "bg-blue-500/5 border-l-2 border-l-blue-500";
-      case "TRANSACTION_CONFIRM":
-        return "bg-amber-500/5 border-l-2 border-l-amber-500";
-      default:
-        return "bg-blue-500/5 border-l-2 border-l-blue-500";
-    }
-  };
 
   // Notification Detail Modal
   const NotificationDetailModal = ({ notification, onClose }: { notification: Notification; onClose: () => void }) => {
@@ -343,65 +476,117 @@ export default function NotificationsPage() {
           initial={{ opacity: 0, y: 100 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 100 }}
-          className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 bg-[#0f0a1f] border border-white/10 rounded-[2rem] overflow-hidden max-h-[85vh] overflow-y-auto"
+          className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 bg-slate-900 border border-white/10 rounded-[2rem] overflow-hidden max-h-[85vh] overflow-y-auto"
         >
           {/* Header */}
-          <div className="sticky top-0 bg-[#0f0a1f]/95 backdrop-blur-xl border-b border-white/5 p-6">
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-white/5 p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                  notification.type === "PAYMENT_RECEIVED" || notification.type === "success" ? "bg-emerald-500/10" :
-                  notification.type === "PAYMENT_SENT" ? "bg-red-500/10" :
-                  notification.type === "CARD" ? "bg-cyan-500/10" :
-                  notification.type === "SWAP" || notification.type === "SWAP_SUCCESS" ? "bg-indigo-500/10" :
-                  notification.type === "STAKING" || notification.type === "STAKING_REWARD" ? "bg-purple-500/10" :
-                  notification.type === "STAKING_UNSTAKE" ? "bg-orange-500/10" :
-                  "bg-blue-500/10"
-                }`}>
-                  {getNotificationIcon(notification.type, notification.metadata)}
+                <div className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center",
+                  notification.read ? "bg-slate-800" : "bg-blue-600/20"
+                )}>
+                  {getIcon(notification.type)}
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-tight">{notification.title}</h2>
-                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-0.5">
-                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: dateLocale })}
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                    {new Date(notification.createdAt).toLocaleString(locale === "en" ? "en-US" : "fr-FR", { dateStyle: "medium", timeStyle: "short" })}
                   </p>
                 </div>
               </div>
               <button onClick={onClose} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10">
-                <X size={18} />
+                <ArrowLeft size={18} />
               </button>
             </div>
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-6">
+            {/* Message */}
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.message")}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.message")}</p>
               <p className="text-sm text-white leading-relaxed">{notification.message}</p>
             </div>
 
-            {/* Payment Details */}
-            {metadata && metadata.amount && !metadata.stakingAmount && !metadata.rewardAmount && (
-              <div className={`rounded-2xl p-4 border ${
-                notification.type === "PAYMENT_SENT" 
-                  ? "bg-red-500/5 border-red-500/20" 
-                  : "bg-emerald-500/5 border-emerald-500/20"
-              }`}>
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.amount")}</p>
-                <p className={`text-2xl font-black ${
-                  notification.type === "PAYMENT_SENT" ? "text-red-400" : "text-emerald-400"
-                }`}>
-                  {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
-                </p>
-              </div>
-            )}
+            {/* Transaction Details for Payment */}
+            {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (() => {
+              const { sender, recipient } = inferTxParties(notification);
+              const isSent = notification.type === "PAYMENT_SENT";
+              return (
+                <div className="space-y-4">
+                  {/* Montant */}
+                  {metadata?.amount && (
+                    <div className={`rounded-2xl p-4 border ${isSent ? "bg-blue-500/5 border-blue-500/20" : "bg-emerald-500/5 border-emerald-500/20"}`}>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("notifications.amount")}</p>
+                      <p className={`text-2xl font-black ${isSent ? "text-blue-400" : "text-emerald-400"}`}>
+                        {isSent ? "-" : "+"}{formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "PI"}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Expediteur & Destinataire cote a cote */}
+                  <div className="flex gap-3">
+                    <PartyPill label={t("notifications.sender")} name={sender} isYou={isSent} />
+                    <PartyPill label={t("notifications.recipient")} name={recipient} isYou={!isSent} />
+                  </div>
+
+                  {/* Réseau / Méthode */}
+                  {(metadata?.network || metadata?.method) && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex items-center gap-3">
+                      <Wifi size={16} className="text-slate-500 shrink-0" />
+                      <div>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{metadata?.network ? t("notifications.network") : t("notifications.method")}</p>
+                        <p className="text-sm font-bold text-white">{metadata?.network || metadata?.method}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Adresse Wallet */}
+                  {metadata?.walletAddress && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("notifications.walletAddress")}</p>
+                      <p className="text-xs font-mono text-slate-300 break-all">{metadata.walletAddress}</p>
+                    </div>
+                  )}
+
+                  {/* Frais + Statut en ligne */}
+                  <div className="flex gap-3">
+                    {metadata?.fee && metadata.fee > 0 && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("notifications.fees")}</p>
+                        <p className="text-sm font-bold text-amber-400">{formatPiAmount(metadata.fee, metadata.currency)} {metadata.currency || "PI"}</p>
+                      </div>
+                    )}
+                    {metadata?.status && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("notifications.status")}</p>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          metadata.status === "SUCCESS" ? "bg-emerald-500/20 text-emerald-400" :
+                          metadata.status === "PENDING" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-red-500/20 text-red-400"
+                        }`}>{metadata.status}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reference */}
+                  {(metadata?.reference || metadata?.transactionId) && (
+                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("notifications.reference")}</p>
+                      <p className="text-xs font-mono text-slate-300">{metadata?.reference || metadata?.transactionId}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Staking Details */}
             {(notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || metadata?.type === "STAKING" || metadata?.type === "UNSTAKE") && (
               <div className="space-y-3">
                 {metadata?.stakingAmount && (
                   <div className="bg-purple-500/5 rounded-2xl p-4 border border-purple-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.stakingAmount")}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.stakingAmount")}</p>
                     <p className="text-2xl font-black text-purple-400">
                       {Number(metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
                     </p>
@@ -409,7 +594,7 @@ export default function NotificationsPage() {
                 )}
                 {metadata?.rewardAmount && (
                   <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.reward")}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.reward")}</p>
                     <p className="text-2xl font-black text-emerald-400">
                       +{Number(metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.currency || "PI"}
                     </p>
@@ -417,110 +602,134 @@ export default function NotificationsPage() {
                 )}
                 {metadata?.apy && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">APY</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">APY</p>
                     <p className="text-lg font-black text-blue-400">{metadata.apy}%</p>
                   </div>
                 )}
                 {metadata?.duration && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.duration")}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.duration")}</p>
                     <p className="text-sm font-bold text-white">{metadata.duration}</p>
                   </div>
                 )}
                 {metadata?.unlockDate && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.unlockDate")}</p>
-                    <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString('fr-FR')}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.unlockDate")}</p>
+                    <p className="text-sm font-bold text-white">{new Date(metadata.unlockDate).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}</p>
+                  </div>
+                )}
+                {metadata?.stakingId && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.stakingId")}</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.stakingId}</p>
                   </div>
                 )}
               </div>
             )}
 
             {/* Swap Details */}
-            {(notification.type === "SWAP" || notification.type === "SWAP_SUCCESS") && (metadata?.fromAmount || metadata?.fromCurrency) && (
-              <div className="space-y-3">
-                {/* Bloc principal : vendu → reçu */}
+            {metadata && (notification.type === "SWAP" || (metadata.fromCurrency && metadata.toCurrency && metadata.fromAmount)) && (
+              <div className="space-y-4">
                 <div className="bg-gradient-to-r from-rose-500/10 to-emerald-500/10 rounded-2xl p-4 border border-white/10">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.sold")}</p>
-                      <p className="text-2xl font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("notifications.sold")}</p>
+                      <p className="text-lg font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
                     </div>
-                    <Repeat size={22} className="text-white/20" />
+                    <Repeat size={20} className="text-slate-600" />
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.received")}</p>
-                      <p className="text-2xl font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("notifications.received")}</p>
+                      <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
                     </div>
                   </div>
                 </div>
-                {/* Taux de change */}
+
                 {metadata.rate && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.exchangeRate")}</p>
-                    <p className="text-sm font-bold text-blue-400">
-                      1 {metadata.fromCurrency} = {Number(metadata.rate).toFixed(6)} {metadata.toCurrency}
-                    </p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.exchangeRate")}</p>
+                    <p className="text-sm font-bold text-white">1 {metadata.fromCurrency} = {Number(metadata.rate).toFixed(4)} {metadata.toCurrency}</p>
                   </div>
                 )}
-                {/* Référence */}
+
                 {metadata.reference && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.pimpayReference")}</p>
-                    <p className="text-xs font-mono font-bold text-white">{metadata.reference}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.reference")}</p>
+                    <p className="text-xs font-mono text-slate-300">{metadata.reference}</p>
                   </div>
                 )}
-                {/* Statut */}
-                {metadata.status && (
-                  <div className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/20">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{t("notifications.status")}</p>
+              </div>
+            )}
+
+            {/* Session/Security Details */}
+            {metadata && (notification.type === "LOGIN" || notification.type === "SECURITY") && (
+              <div className="space-y-4">
+                {metadata.device && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.device")}</p>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      <p className="text-sm font-black text-emerald-400 uppercase">{metadata.status}</p>
+                      <Smartphone size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.device}</p>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            {metadata?.cardLast4 && (
-              <div className="bg-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">{t("notifications.card")}</p>
-                <p className="text-lg font-mono font-bold text-cyan-400">**** **** **** {metadata.cardLast4}</p>
-              </div>
-            )}
-
-            {/* Support Message Details & Reply Button */}
-            {notification.type === "SUPPORT_MESSAGE" && (
-              <div className="space-y-3">
-                <div className="bg-blue-500/5 rounded-2xl p-4 border border-blue-500/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Headphones size={14} className="text-blue-400" />
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{t("notifications.supportMessage")}</p>
+                {metadata.ip && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.ipAddress")}</p>
+                    <div className="flex items-center gap-2">
+                      <Globe size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.ip}</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-white/80 leading-relaxed">{notification.message}</p>
-                  {metadata?.sentAt && (
-                    <p className="text-[9px] text-white/30 mt-2 font-mono">
-                      {t("notifications.sentOn")} {new Date(metadata.sentAt as string).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { 
-                        day: "2-digit", 
-                        month: "long", 
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
+                )}
+
+                {metadata.location && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.location")}</p>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-slate-400" />
+                      <p className="text-sm font-bold text-white">{metadata.location}</p>
+                    </div>
+                  </div>
+                )}
+
+                {metadata.os && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.system")}</p>
+                    <p className="text-sm font-bold text-white">{metadata.os} {metadata.browser ? `- ${metadata.browser}` : ""}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Support Chat Button for SUPPORT_MESSAGE */}
+            {notification.type === "SUPPORT_MESSAGE" && metadata?.canReply && (
+              <div className="space-y-4">
+                <div className="bg-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                      <Headphones size={18} className="text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">{t("notifications.pimpaySupport")}</p>
+                      <p className="text-[9px] text-slate-500">{metadata.adminName || t("notifications.supportTeam")}</p>
+                    </div>
+                  </div>
+                  {metadata.sentAt && (
+                    <p className="text-[9px] text-slate-500 mb-2">
+                      {t("notifications.sentOn")} {new Date(metadata.sentAt).toLocaleString(locale === "en" ? "en-US" : "fr-FR", { dateStyle: "medium", timeStyle: "short" })}
                     </p>
                   )}
                 </div>
-                
-                {/* Reply Button */}
                 <button 
-                  onClick={() => { 
-                    onClose(); 
-                    router.push("/support"); 
+                  onClick={() => {
+                    onClose();
+                    router.push("/chat?support=true");
                   }}
-                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                  className="w-full py-4 bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-cyan-400 transition-all flex items-center justify-center gap-2"
                 >
-                  <MessageCircle size={16} />
-                  {t("notifications.replyToSupport")}
+                  <MessageSquare size={16} />
+                  {t("notifications.startSupportChat")}
                 </button>
               </div>
             )}
@@ -534,8 +743,8 @@ export default function NotificationsPage() {
                       <ShieldCheck size={24} className="text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-black text-white">{t("notifications.confirmRequired")}</p>
-                      <p className="text-[10px] text-white/40">{t("notifications.awaitingValidation")}</p>
+                      <p className="text-sm font-black text-white">{t("notifications.confirmationRequired")}</p>
+                      <p className="text-[10px] text-slate-400">{t("notifications.transactionAwaitingValidation")}</p>
                     </div>
                   </div>
                   <div className="bg-white/5 rounded-xl p-3 text-center">
@@ -543,7 +752,7 @@ export default function NotificationsPage() {
                       {formatPiAmount(metadata.amount, metadata.currency)} {metadata.currency || "USD"}
                     </p>
                     {(metadata as any).agentName && (
-                      <p className="text-[9px] text-white/40 uppercase tracking-widest mt-1">
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">
                         Agent: {(metadata as any).agentName}
                       </p>
                     )}
@@ -551,14 +760,14 @@ export default function NotificationsPage() {
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => { rejectTransaction(notification); onClose(); }}
+                    onClick={() => rejectTransaction(notification)}
                     className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
                   >
                     <X size={16} />
                     {t("notifications.cancel")}
                   </button>
                   <button
-                    onClick={() => { openConfirmModal(notification); onClose(); }}
+                    onClick={() => openConfirmModal(notification)}
                     className="flex-1 py-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
                   >
                     <ShieldCheck size={16} />
@@ -570,7 +779,7 @@ export default function NotificationsPage() {
 
             {/* Delete Button */}
             <button 
-              onClick={() => { deleteNotification(notification.id); onClose(); }}
+              onClick={() => { deleteNotif(notification.id); onClose(); }}
               className="w-full py-4 bg-red-500/10 text-red-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
             >
               <Trash2 size={16} />
@@ -583,12 +792,20 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030014] text-white font-sans">
-      {/* Background Effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/8 rounded-full blur-[180px]"></div>
-        <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-cyan-500/8 rounded-full blur-[180px]"></div>
-      </div>
+    <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
+      {/* MFA Transaction Confirmation Modal */}
+      <TransactionConfirmModal
+        isOpen={isMfaModalOpen}
+        onClose={() => {
+          setIsMfaModalOpen(false);
+          setConfirmTx(null);
+          // Refresh notifications after closing
+          fetchNotifications(true);
+        }}
+        transaction={confirmTx}
+        userId={currentUserId}
+        twoFactorEnabled={twoFactorEnabled}
+      />
 
       {/* Notification Detail Modal */}
       <AnimatePresence>
@@ -600,275 +817,248 @@ export default function NotificationsPage() {
         )}
       </AnimatePresence>
 
-      {/* Modal MFA pour confirmation de transaction depuis la page notifications */}
-      <TransactionConfirmModal
-        isOpen={isMfaModalOpen}
-        onClose={() => { setIsMfaModalOpen(false); setConfirmTx(null); fetchNotifications(); }}
-        transaction={confirmTx}
-        userId={currentUserId}
-        twoFactorEnabled={twoFactorEnabled}
-      />
-
-      {/* Header */}
-      <header className="relative z-10 px-4 sm:px-6 pt-8 pb-4 flex items-center justify-between bg-[#030014]/80 backdrop-blur-xl sticky top-0 border-b border-white/5">
-        <button 
-          onClick={() => router.back()} 
-          className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="text-center">
-          <h1 className="text-lg font-black uppercase tracking-tight bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            {t("notifications.title")}
-          </h1>
-          <p className="text-[9px] font-bold text-white/40 tracking-[3px] uppercase">
-            {unreadCount > 0 ? t("notifications.unreadCount").replace("{count}", String(unreadCount)) : t("notifications.allRead")}
-          </p>
+      <header className="px-6 pt-12 pb-4 sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/5">
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex flex-col items-center text-center">
+            <h1 className="text-lg font-black uppercase tracking-tight">{t("notifications.title")}</h1>
+            <p className="text-[9px] font-bold text-blue-500 uppercase tracking-[3px] mt-1">
+              {unreadCount > 0 ? t("notifications.unreadCount").replace("{count}", String(unreadCount)) : t("notifications.allRead")}
+            </p>
+          </div>
+          <button onClick={() => fetchNotifications()} className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-white/10 active:scale-95 transition-all">
+            <RefreshCcw size={18} className={isRefreshing ? "animate-spin text-blue-500" : ""} />
+          </button>
         </div>
-        <button 
-          onClick={() => fetchNotifications(true)}
-          disabled={refreshing}
-          className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50"
-        >
-          <RefreshCw size={20} className={refreshing ? "animate-spin" : ""} />
-        </button>
-      </header>
 
-      {/* Filters */}
-      <div className="relative z-10 px-4 sm:px-6 py-4 border-b border-white/5">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {[
-            { id: "all", label: t("notifications.filterAll"), icon: Bell },
-            { id: "unread", label: t("notifications.filterUnread"), icon: AlertCircle },
-            { id: "payment", label: t("notifications.filterPayments"), icon: Wallet },
-            { id: "card", label: t("notifications.filterCards"), icon: CreditCard },
-            { id: "security", label: t("notifications.filterSecurity"), icon: Shield },
-            { id: "support", label: t("notifications.filterSupport"), icon: Mail },
-          ].map((filter) => (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+          {tabs.map((tab) => (
             <button
-              key={filter.id}
-              onClick={() => setActiveFilter(filter.id as FilterType)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border shrink-0 ${
-                activeFilter === filter.id
-                  ? "bg-gradient-to-r from-purple-600 to-cyan-500 border-transparent text-white shadow-lg shadow-purple-500/20"
-                  : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
-              }`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
+                activeTab === tab.id
+                  ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+                  : "bg-white/5 border-white/5 text-slate-500"
+              )}
             >
-              <filter.icon size={14} />
-              {filter.label}
+              {tab.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Mark all as read button */}
-      {unreadCount > 0 && (
-        <div className="relative z-10 px-4 sm:px-6 py-3">
-          <button
-            onClick={markAllAsRead}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-purple-400 hover:bg-purple-500/10 transition-all"
-          >
-            <CheckCheck size={16} />
-            {t("notifications.markAllRead")}
-          </button>
-        </div>
-      )}
+        <button onClick={markAllAsRead} className="w-full flex items-center justify-center gap-2 py-3 mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white/5 rounded-2xl border border-white/5 hover:text-blue-400 transition-all">
+          <CheckCheck size={14} /> {t("notifications.markAllRead")}
+        </button>
+      </header>
 
-      {/* Notifications List */}
-      <main className="relative z-10 px-4 sm:px-6 pb-32">
+      <main className="px-6 py-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 size={32} className="animate-spin text-purple-500" />
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{t("notifications.loadingNotifications")}</p>
+            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+            <p className="text-[10px] font-black uppercase tracking-[3px] text-slate-500">{t("notifications.loadingNotifications")}</p>
           </div>
         ) : filteredNotifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center border border-white/10">
-              <Bell size={32} className="text-white/20" />
-            </div>
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-              {activeFilter === "unread" ? t("notifications.noUnread") : t("notifications.noNotifications")}
-            </p>
+          <div className="flex flex-col items-center justify-center py-32 text-center">
+            <Bell size={40} className="text-slate-800 mb-6" />
+            <p className="text-base font-bold text-slate-400 italic">{t("notifications.noNotifications")}</p>
           </div>
         ) : (
-          <div className="space-y-2 mt-4">
-            {filteredNotifications.map((notification, index) => (
-              <motion.div
-                key={notification.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => {
-                  if (!notification.read) markAsRead(notification.id);
-                  setSelectedNotification(notification);
-                }}
-                className={`rounded-2xl border border-white/10 cursor-pointer hover:bg-white/5 transition-all overflow-hidden ${getNotificationBg(notification.type, notification.read)}`}
-              >
-                <div className="p-4 flex items-start gap-3">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                    notification.read ? "bg-white/5" :
-                    notification.type === "PAYMENT_RECEIVED" || notification.type === "success" || notification.type === "SUCCESS" ? "bg-emerald-500/10" :
-                    notification.type === "PAYMENT_SENT" ? "bg-red-500/10" :
-                    notification.type === "SECURITY" || notification.type === "LOGIN" ? "bg-amber-500/10" :
-                    notification.type === "STAKING" || notification.type === "STAKING_REWARD" ? "bg-purple-500/10" :
-                    notification.type === "STAKING_UNSTAKE" ? "bg-orange-500/10" :
-                    notification.type === "SWAP" ? "bg-indigo-500/10" :
-                    notification.type === "CARD" || notification.type === "CARD_ORDER" || notification.type === "CARD_ACTIVATED" ? "bg-cyan-500/10" :
-                    "bg-white/10"
-                  }`}>
-                    {getNotificationIcon(notification.type, notification.metadata)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className={`text-xs font-black uppercase tracking-tight ${notification.read ? "text-white/60" : "text-white"}`}>
-                        {notification.title}
-                      </h3>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                        )}
-                        <ChevronRight size={14} className="text-white/20" />
-                      </div>
+          <div className="space-y-4">
+            <AnimatePresence mode="popLayout">
+              {filteredNotifications.map((notif) => (
+                <motion.div
+                  key={notif.id}
+                  layout
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className={cn("relative rounded-2xl overflow-hidden transition-all", getNotifCardClass(notif.type, notif.read))}
+                >
+                  <button
+                    onClick={() => {
+                      if (!notif.read) markAsRead(notif.id);
+                      setSelectedNotification(notif);
+                    }}
+                    className="w-full p-4 flex items-start gap-4 text-left hover:bg-white/[0.03] transition-all"
+                  >
+                    {/* Icone */}
+                    <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shrink-0", getIconBgClass(notif.type, notif.read))}>
+                      {getIcon(notif.type)}
                     </div>
-                    <p className={`text-[10px] mt-0.5 line-clamp-2 leading-relaxed ${notification.read ? "text-white/30" : "text-white/50"}`}>
-                      {notification.message}
-                    </p>
 
-                    {/* Badges inline — Staking */}
-                    {(notification.type === "STAKING" || notification.type === "STAKING_REWARD" || notification.type === "STAKING_UNSTAKE" || notification.metadata?.type === "STAKING" || notification.metadata?.type === "UNSTAKE") && (notification.metadata?.stakingAmount || notification.metadata?.rewardAmount) && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {notification.metadata?.stakingAmount && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[9px] font-black border border-purple-500/15">
-                            <TrendingUp size={9} />
-                            {Number(notification.metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} stake
-                          </span>
-                        )}
-                        {notification.metadata?.rewardAmount && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
-                            <Gift size={9} />
-                            {Number(notification.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notification.metadata.currency || "PI"} {locale === "en" ? "reward" : "recompense"}
-                          </span>
-                        )}
-                        {notification.metadata?.apy && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-black border border-blue-500/15">
-                            {notification.metadata.apy}% APY
-                          </span>
-                        )}
-                        {notification.metadata?.duration && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-500/10 text-slate-400 rounded-lg text-[9px] font-bold border border-slate-500/15">
-                            <Clock size={9} /> {notification.metadata.duration}
-                          </span>
-                        )}
+                    {/* Contenu */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className={cn("text-xs font-black uppercase tracking-tight", notif.read ? "text-slate-400" : "text-white")}>
+                          {notif.title}
+                        </h3>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                          <ChevronRight size={14} className="text-slate-600" />
+                        </div>
                       </div>
-                    )}
 
-                    {/* Badges inline — Payment */}
-                    {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "success" || notification.type === "PAYMENT_SENT") && notification.metadata?.amount && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border ${
-                          notification.type === "PAYMENT_SENT" ? "bg-red-500/10 text-red-400 border-red-500/15" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
-                        }`}>
-                          {notification.type === "PAYMENT_SENT" ? <ArrowUpRight size={9} /> : <ArrowDownLeft size={9} />}
-                          {notification.type === "PAYMENT_SENT" ? "-" : "+"}{formatPiAmount(notification.metadata.amount, notification.metadata.currency)} {notification.metadata.currency || "PI"}
-                        </span>
-                        {notification.metadata?.method && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase">
-                            {notification.metadata.method}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Badges inline — Swap */}
-                    {(notification.type === "SWAP" || notification.type === "SWAP_SUCCESS") && notification.metadata?.fromAmount && (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">
-                          <ArrowUpRight size={9} /> {notification.metadata.fromAmount} {notification.metadata.fromCurrency}
-                        </span>
-                        <Repeat size={10} className="text-white/20" />
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
-                          <ArrowDownLeft size={9} /> {notification.metadata.toAmount} {notification.metadata.toCurrency}
-                        </span>
-                        {notification.metadata.rate && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15">
-                            1:{Number(notification.metadata.rate).toFixed(4)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Badges inline — Card */}
-                    {(notification.type === "CARD" || notification.type === "CARD_ORDER" || notification.type === "CARD_ACTIVATED") && notification.metadata?.cardLast4 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 rounded-lg text-[9px] font-black border border-cyan-500/15">
-                          <CreditCard size={9} /> **** {notification.metadata.cardLast4}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Badges inline — Session */}
-                    {(notification.type === "LOGIN" || notification.type === "SECURITY") && notification.metadata?.device && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 rounded-lg text-[9px] font-bold border border-amber-500/15">
-                          <Smartphone size={9} /> {notification.metadata.device}
-                        </span>
-                        {notification.metadata.location && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white/50 rounded-lg text-[9px] font-bold border border-white/5">
-                            <MapPin size={9} /> {notification.metadata.location}
-                          </span>
-                        )}
-                        {notification.metadata.ip && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white/40 rounded-lg text-[9px] font-mono border border-white/5">
-                            <Globe size={9} /> {notification.metadata.ip}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <Clock size={9} className="text-white/20" />
-                      <p className="text-[9px] text-white/30 font-medium">
-                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: dateLocale })}
+                      <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                        {notif.message}
                       </p>
-                    </div>
 
-                    {/* Boutons Confirmer / Annuler pour les transactions en attente */}
-                    {notification.type === "TRANSACTION_CONFIRM" && notification.metadata?.transactionId && !notification.read && (
-                      <div className="mt-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-                        {/* Badge montant */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[10px] font-black border border-amber-500/20">
-                            <ShieldCheck size={12} />
-                            {formatPiAmount(notification.metadata.amount, notification.metadata.currency)} {notification.metadata.currency || "USD"}
-                          </span>
-                          {notification.metadata.senderName && (
-                            <span className="text-[9px] text-white/40">
-                              {t("notifications.from")} {notification.metadata.senderName}
+                      {/* Badges inline — Session */}
+                      {notif.metadata && (notif.type === "LOGIN" || notif.type === "SECURITY") && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {notif.metadata.device && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 rounded-lg text-[9px] font-bold uppercase tracking-wide border border-amber-500/15">
+                              <Smartphone size={9} /> {notif.metadata.device}
+                            </span>
+                          )}
+                          {notif.metadata.location && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-400 rounded-lg text-[9px] font-bold uppercase tracking-wide border border-white/5">
+                              <MapPin size={9} /> {notif.metadata.location}
+                            </span>
+                          )}
+                          {notif.metadata.ip && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-500 rounded-lg text-[9px] font-mono border border-white/5">
+                              <Globe size={9} /> {notif.metadata.ip}
                             </span>
                           )}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => rejectTransaction(notification)}
-                            className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-1"
-                          >
-                            <X size={12} />
-                            {t("notifications.cancel")}
-                          </button>
-                          <button
-                            onClick={() => openConfirmModal(notification)}
-                            className="flex-1 py-2.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/10"
-                          >
-                            <ShieldCheck size={12} />
-                            {t("notifications.confirm")}
-                          </button>
+                      )}
+
+                      {/* Badges inline — Paiement recu / envoye */}
+                      {(notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS" || notif.type === "PAYMENT_SENT") && (() => {
+                        const { sender, recipient } = inferTxParties(notif);
+                        const isSent = notif.type === "PAYMENT_SENT";
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {notif.metadata?.amount && (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border",
+                                isSent ? "bg-red-500/10 text-red-400 border-red-500/15" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              )}>
+                                {isSent ? <ArrowUpRight size={9} /> : <ArrowDownLeft size={9} />}
+                                {isSent ? "-" : "+"}{formatPiAmount(notif.metadata.amount, notif.metadata.currency)} {notif.metadata.currency || "PI"}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-400 rounded-lg text-[9px] font-bold border border-white/5 uppercase tracking-wide">
+                              {isSent ? sender : recipient}
+                            </span>
+                            {notif.metadata?.method && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase tracking-wide">
+                                {notif.metadata.method}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Badges inline — Swap */}
+                      {notif.metadata && notif.type === "SWAP" && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">
+                            <ArrowUpRight size={9} /> {notif.metadata.fromAmount} {notif.metadata.fromCurrency}
+                          </span>
+                          <Repeat size={12} className="text-slate-600 self-center" />
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                            <ArrowDownLeft size={9} /> {notif.metadata.toAmount} {notif.metadata.toCurrency}
+                          </span>
                         </div>
+                      )}
+
+                      {/* Badges inline — KYC */}
+                      {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (() => {
+                        const isApproved = notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED";
+                        const isRejected = notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED";
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <span className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border uppercase tracking-wide",
+                              isApproved ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              : isRejected ? "bg-rose-500/10 text-rose-400 border-rose-500/15"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/15"
+                            )}>
+                              <ShieldCheck size={9} />
+                              {isApproved ? t("notifications.kycVerified") : isRejected ? t("notifications.kycRejected") : t("notifications.kycPending")}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Badges inline — Support Message */}
+                      {notif.type === "SUPPORT_MESSAGE" && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 rounded-lg text-[9px] font-black border border-cyan-500/15 uppercase tracking-wide">
+                            <Headphones size={9} />
+                            {notif.metadata?.adminName || t("notifications.pimpaySupport")}
+                          </span>
+                          {notif.metadata?.canReply && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-bold border border-blue-500/15 uppercase tracking-wide">
+                              <MessageSquare size={9} /> {t("notifications.reply")}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Badges inline — Staking */}
+                      {(notif.type === "STAKING" || notif.type === "STAKING_REWARD" || notif.type === "STAKING_UNSTAKE" || notif.metadata?.type === "STAKING" || notif.metadata?.type === "UNSTAKE") && (notif.metadata?.stakingAmount || notif.metadata?.rewardAmount) && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {notif.metadata?.stakingAmount && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[9px] font-black border border-purple-500/15">
+                              <TrendingUp size={9} />
+                              {Number(notif.metadata.stakingAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} stake
+                            </span>
+                          )}
+                          {notif.metadata?.rewardAmount && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
+                              +{Number(notif.metadata.rewardAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.currency || "PI"} {t("notifications.rewardLabel")}
+                            </span>
+                          )}
+                          {notif.metadata?.apy && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-black border border-blue-500/15">
+                              {notif.metadata.apy}% APY
+                            </span>
+                          )}
+                          {notif.metadata?.duration && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-500/10 text-slate-400 rounded-lg text-[9px] font-bold border border-slate-500/15">
+                              <Clock size={9} /> {notif.metadata.duration}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Badges inline — Generique avec montant */}
+                      {notif.metadata && !["LOGIN", "SECURITY", "SWAP", "PAYMENT_RECEIVED", "SUCCESS", "PAYMENT_SENT", "KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING", "STAKING", "STAKING_REWARD", "STAKING_UNSTAKE", "SUPPORT_MESSAGE"].includes(notif.type) && !notif.metadata.stakingAmount && !notif.metadata.rewardAmount && notif.metadata.amount && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-white rounded-lg text-[9px] font-black border border-white/10">
+                            {Number(notif.metadata.amount).toLocaleString()} {notif.metadata.currency || "PI"}
+                          </span>
+                          {notif.metadata.status && (
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black border uppercase",
+                              notif.metadata.status === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
+                              : notif.metadata.status === "PENDING" ? "bg-amber-500/10 text-amber-400 border-amber-500/15"
+                              : "bg-red-500/10 text-red-400 border-red-500/15"
+                            )}>
+                              {notif.metadata.status}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Heure relative */}
+                      <div className="flex items-center gap-1.5 mt-3">
+                        <Clock size={10} className="text-slate-600" />
+                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">
+                          {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: dateLocale })}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                    </div>
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </main>

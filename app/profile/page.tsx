@@ -333,7 +333,7 @@ export default function ProfilePage() {
       title: "Preferences",
       icon: <Bell size={12} />,
       items: [
-        { label: "Notifications", icon: <Bell size={18} />, path: "/settings/notifications" },
+        { label: "Notifications", icon: <Bell size={18} />, path: "/notifications" },
         { label: "Securite du compte", icon: <Lock size={18} />, path: "/settings/security" },
         { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: `${currencyInfo.code} (${currencyInfo.symbol})`, fieldKey: "currency", editable: true, inputType: "currency" as const },
       ],
