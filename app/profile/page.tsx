@@ -10,7 +10,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useCurrency, CURRENCIES, type CurrencyCode } from "@/context/CurrencyContext";
-import { useLanguage } from "@/context/LanguageContext";
 
 interface UserData {
   id: string;
@@ -60,10 +59,53 @@ interface ProfileSection {
   items: ProfileItem[];
 }
 
+function formatGender(g: string) {
+  if (g === "M") return "Masculin";
+  if (g === "F") return "Feminin";
+  if (g === "OTHER") return "Autre";
+  return "Non renseigne";
+}
+
+function formatOccupation(o: string) {
+  const map: Record<string, string> = {
+    EMPLOYEE: "Employe(e)",
+    SELF_EMPLOYED: "Travailleur independant",
+    BUSINESS_OWNER: "Chef d'entreprise",
+    FREELANCE: "Freelance",
+    STUDENT: "Etudiant(e)",
+    RETIRED: "Retraite(e)",
+    UNEMPLOYED: "Sans emploi",
+    OTHER: "Autre",
+  };
+  return map[o] || o || "Non renseigne";
+}
+
+function formatSourceOfFunds(s: string) {
+  const map: Record<string, string> = {
+    SALARY: "Salaire",
+    BUSINESS_INCOME: "Revenus d'entreprise",
+    INVESTMENTS: "Investissements",
+    SAVINGS: "Epargne",
+    CRYPTO_MINING: "Minage crypto",
+    FAMILY_SUPPORT: "Soutien familial",
+    OTHER: "Autre",
+  };
+  return map[s] || s || "Non renseigne";
+}
+
+function formatIdType(t: string) {
+  const map: Record<string, string> = {
+    NATIONAL_ID: "Carte nationale d'identite",
+    PASSPORT: "Passeport",
+    DRIVERS_LICENSE: "Permis de conduire",
+    RESIDENCE_PERMIT: "Titre de sejour",
+  };
+  return map[t] || t || "Non renseigne";
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { currency, currencyInfo, setCurrency } = useCurrency();
-  const { t, locale, dateLocale } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -74,84 +116,39 @@ export default function ProfilePage() {
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
 
-  // Fonctions de formatage avec traductions
-  function formatGender(g: string) {
-    if (g === "M") return t("profile.genderMale");
-    if (g === "F") return t("profile.genderFemale");
-    if (g === "OTHER") return t("profile.genderOther");
-    return t("profile.notSpecified");
-  }
-
-  function formatOccupation(o: string) {
-    const map: Record<string, string> = {
-      EMPLOYEE: t("profile.occupationEmployee"),
-      SELF_EMPLOYED: t("profile.occupationSelfEmployed"),
-      BUSINESS_OWNER: t("profile.occupationBusinessOwner"),
-      FREELANCE: t("profile.occupationFreelance"),
-      STUDENT: t("profile.occupationStudent"),
-      RETIRED: t("profile.occupationRetired"),
-      UNEMPLOYED: t("profile.occupationUnemployed"),
-      OTHER: t("profile.occupationOther"),
-    };
-    return map[o] || o || t("profile.notSpecified");
-  }
-
-  function formatSourceOfFunds(s: string) {
-    const map: Record<string, string> = {
-      SALARY: t("profile.fundsSalary"),
-      BUSINESS_INCOME: t("profile.fundsBusinessIncome"),
-      INVESTMENTS: t("profile.fundsInvestments"),
-      SAVINGS: t("profile.fundsSavings"),
-      CRYPTO_MINING: t("profile.fundsCryptoMining"),
-      FAMILY_SUPPORT: t("profile.fundsFamilySupport"),
-      OTHER: t("profile.fundsOther"),
-    };
-    return map[s] || s || t("profile.notSpecified");
-  }
-
-  function formatIdType(idType: string) {
-    const map: Record<string, string> = {
-      NATIONAL_ID: t("profile.idNationalId"),
-      PASSPORT: t("profile.idPassport"),
-      DRIVERS_LICENSE: t("profile.idDriversLicense"),
-      RESIDENCE_PERMIT: t("profile.idResidencePermit"),
-    };
-    return map[idType] || idType || t("profile.notSpecified");
-  }
-
   // Options pour les champs select
   const genderOptions = [
-    { value: "M", label: t("profile.genderMale") },
-    { value: "F", label: t("profile.genderFemale") },
-    { value: "OTHER", label: t("profile.genderOther") },
+    { value: "M", label: "Masculin" },
+    { value: "F", label: "Feminin" },
+    { value: "OTHER", label: "Autre" },
   ];
 
   const occupationOptions = [
-    { value: "EMPLOYEE", label: t("profile.occupationEmployee") },
-    { value: "SELF_EMPLOYED", label: t("profile.occupationSelfEmployed") },
-    { value: "BUSINESS_OWNER", label: t("profile.occupationBusinessOwner") },
-    { value: "FREELANCE", label: t("profile.occupationFreelance") },
-    { value: "STUDENT", label: t("profile.occupationStudent") },
-    { value: "RETIRED", label: t("profile.occupationRetired") },
-    { value: "UNEMPLOYED", label: t("profile.occupationUnemployed") },
-    { value: "OTHER", label: t("profile.occupationOther") },
+    { value: "EMPLOYEE", label: "Employe(e)" },
+    { value: "SELF_EMPLOYED", label: "Travailleur independant" },
+    { value: "BUSINESS_OWNER", label: "Chef d'entreprise" },
+    { value: "FREELANCE", label: "Freelance" },
+    { value: "STUDENT", label: "Etudiant(e)" },
+    { value: "RETIRED", label: "Retraite(e)" },
+    { value: "UNEMPLOYED", label: "Sans emploi" },
+    { value: "OTHER", label: "Autre" },
   ];
 
   const sourceOfFundsOptions = [
-    { value: "SALARY", label: t("profile.fundsSalary") },
-    { value: "BUSINESS_INCOME", label: t("profile.fundsBusinessIncome") },
-    { value: "INVESTMENTS", label: t("profile.fundsInvestments") },
-    { value: "SAVINGS", label: t("profile.fundsSavings") },
-    { value: "CRYPTO_MINING", label: t("profile.fundsCryptoMining") },
-    { value: "FAMILY_SUPPORT", label: t("profile.fundsFamilySupport") },
-    { value: "OTHER", label: t("profile.fundsOther") },
+    { value: "SALARY", label: "Salaire" },
+    { value: "BUSINESS_INCOME", label: "Revenus d'entreprise" },
+    { value: "INVESTMENTS", label: "Investissements" },
+    { value: "SAVINGS", label: "Epargne" },
+    { value: "CRYPTO_MINING", label: "Minage crypto" },
+    { value: "FAMILY_SUPPORT", label: "Soutien familial" },
+    { value: "OTHER", label: "Autre" },
   ];
 
   const idTypeOptions = [
-    { value: "NATIONAL_ID", label: t("profile.idNationalId") },
-    { value: "PASSPORT", label: t("profile.idPassport") },
-    { value: "DRIVERS_LICENSE", label: t("profile.idDriversLicense") },
-    { value: "RESIDENCE_PERMIT", label: t("profile.idResidencePermit") },
+    { value: "NATIONAL_ID", label: "Carte nationale d'identite" },
+    { value: "PASSPORT", label: "Passeport" },
+    { value: "DRIVERS_LICENSE", label: "Permis de conduire" },
+    { value: "RESIDENCE_PERMIT", label: "Titre de sejour" },
   ];
 
   const handleStartEdit = (fieldKey: string, currentValue: string, inputType?: string) => {
@@ -187,7 +184,7 @@ export default function ProfilePage() {
         body: JSON.stringify(updateData),
       });
 
-      if (!res.ok) throw new Error(t("profile.updateError"));
+      if (!res.ok) throw new Error("Erreur lors de la mise a jour");
 
       // Mettre a jour l'utilisateur local
       setUser((prev) => {
@@ -200,11 +197,11 @@ export default function ProfilePage() {
         return updated;
       });
 
-      toast.success(t("profile.infoUpdated"));
+      toast.success("Information mise a jour !");
       setEditingField(null);
       setEditValue("");
     } catch {
-      toast.error(t("profile.saveError"));
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -239,7 +236,7 @@ export default function ProfilePage() {
         });
         
         if (res.status === 401) {
-          toast.error(t("profile.sessionExpired"));
+          toast.error("Session expiree, veuillez vous reconnecter");
           window.location.href = "/auth/login";
           return;
         }
@@ -257,18 +254,18 @@ export default function ProfilePage() {
           setUser({
             ...userData,
             name: fullName,
-            joinedAt: new Date(userData.createdAt || Date.now()).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", {
+            joinedAt: new Date(userData.createdAt || Date.now()).toLocaleDateString("fr-FR", {
               month: "long",
               year: "numeric",
             }),
             isVerified: userData.kycStatus === "VERIFIED" || userData.kycStatus === "APPROVED",
           });
         } else {
-          toast.error(t("profile.sessionExpiredShort"));
+          toast.error("Session expiree");
           window.location.href = "/auth/login";
         }
       } catch {
-        toast.error(t("profile.networkSyncError"));
+        toast.error("Erreur de synchronisation reseau");
       } finally {
         setLoading(false);
       }
@@ -278,67 +275,67 @@ export default function ProfilePage() {
 
   const profileSections: ProfileSection[] = [
     {
-      title: t("profile.personalIdentity"),
+      title: "Identite Personnelle",
       icon: <User size={12} />,
       items: [
-        { label: t("profile.username"), icon: <Fingerprint size={18} />, value: user?.username ? `@${user.username}` : t("profile.notSpecified"), fieldKey: "username", editable: true, inputType: "text" },
-        { label: t("profile.firstName"), icon: <User size={18} />, value: user?.firstName || t("profile.notSpecified"), fieldKey: "firstName", editable: true, inputType: "text" },
-        { label: t("profile.lastName"), icon: <User size={18} />, value: user?.lastName || t("profile.notSpecified"), fieldKey: "lastName", editable: true, inputType: "text" },
-        { label: t("profile.gender"), icon: <User size={18} />, value: formatGender(user?.gender || ""), fieldKey: "gender", editable: true, inputType: "select", options: genderOptions },
-        { label: t("profile.birthDate"), icon: <Calendar size={18} />, value: user?.birthDate ? new Date(user.birthDate).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US") : t("profile.notSpecifiedFem"), fieldKey: "birthDate", editable: true, inputType: "date" },
-        { label: t("profile.nationality"), icon: <Globe size={18} />, value: user?.nationality || t("profile.notSpecifiedFem"), fieldKey: "nationality", editable: true, inputType: "text" },
+        { label: "Nom d'utilisateur", icon: <Fingerprint size={18} />, value: user?.username ? `@${user.username}` : "Non renseigne", fieldKey: "username", editable: true, inputType: "text" },
+        { label: "Prenom", icon: <User size={18} />, value: user?.firstName || "Non renseigne", fieldKey: "firstName", editable: true, inputType: "text" },
+        { label: "Nom de famille", icon: <User size={18} />, value: user?.lastName || "Non renseigne", fieldKey: "lastName", editable: true, inputType: "text" },
+        { label: "Genre", icon: <User size={18} />, value: formatGender(user?.gender || ""), fieldKey: "gender", editable: true, inputType: "select", options: genderOptions },
+        { label: "Date de naissance", icon: <Calendar size={18} />, value: user?.birthDate ? new Date(user.birthDate).toLocaleDateString("fr-FR") : "Non renseignee", fieldKey: "birthDate", editable: true, inputType: "date" },
+        { label: "Nationalite", icon: <Globe size={18} />, value: user?.nationality || "Non renseignee", fieldKey: "nationality", editable: true, inputType: "text" },
       ],
     },
     {
-      title: t("profile.contactInfo"),
+      title: "Coordonnees",
       icon: <Mail size={12} />,
       items: [
-        { label: t("profile.emailAddress"), icon: <Mail size={18} />, value: user?.email || t("profile.notSpecified"), fieldKey: "email", editable: true, inputType: "email" },
-        { label: t("profile.phone"), icon: <Phone size={18} />, value: user?.phone || t("profile.notSpecified"), fieldKey: "phone", editable: true, inputType: "tel" },
+        { label: "Adresse e-mail", icon: <Mail size={18} />, value: user?.email || "Non renseigne", fieldKey: "email", editable: true, inputType: "email" },
+        { label: "Telephone", icon: <Phone size={18} />, value: user?.phone || "Non renseigne", fieldKey: "phone", editable: true, inputType: "tel" },
       ],
     },
     {
-      title: t("profile.addressLocation"),
+      title: "Adresse et Localisation",
       icon: <MapPin size={12} />,
       items: [
-        { label: t("profile.country"), icon: <Globe size={18} />, value: user?.country || t("profile.notSpecified"), fieldKey: "country", editable: true, inputType: "text" },
-        { label: t("profile.city"), icon: <Building2 size={18} />, value: user?.city || t("profile.notSpecifiedFem"), fieldKey: "city", editable: true, inputType: "text" },
-        { label: t("profile.residenceAddress"), icon: <MapPin size={18} />, value: user?.address || t("profile.notSpecifiedFem"), fieldKey: "address", editable: true, inputType: "text" },
-        { label: t("profile.postalCode"), icon: <Hash size={18} />, value: user?.postalCode || t("profile.notSpecified"), fieldKey: "postalCode", editable: true, inputType: "text" },
+        { label: "Pays", icon: <Globe size={18} />, value: user?.country || "Non renseigne", fieldKey: "country", editable: true, inputType: "text" },
+        { label: "Ville", icon: <Building2 size={18} />, value: user?.city || "Non renseignee", fieldKey: "city", editable: true, inputType: "text" },
+        { label: "Adresse de residence", icon: <MapPin size={18} />, value: user?.address || "Non renseignee", fieldKey: "address", editable: true, inputType: "text" },
+        { label: "Code postal", icon: <Hash size={18} />, value: user?.postalCode || "Non renseigne", fieldKey: "postalCode", editable: true, inputType: "text" },
       ],
     },
     {
-      title: t("profile.financialInfo"),
+      title: "Informations Financieres",
       icon: <Briefcase size={12} />,
       items: [
-        { label: t("profile.occupation"), icon: <Briefcase size={18} />, value: formatOccupation(user?.occupation || ""), fieldKey: "occupation", editable: true, inputType: "select", options: occupationOptions },
-        { label: t("profile.sourceOfFunds"), icon: <CreditCard size={18} />, value: formatSourceOfFunds(user?.sourceOfFunds || ""), accent: "text-amber-400", fieldKey: "sourceOfFunds", editable: true, inputType: "select", options: sourceOfFundsOptions },
+        { label: "Profession / Activite", icon: <Briefcase size={18} />, value: formatOccupation(user?.occupation || ""), fieldKey: "occupation", editable: true, inputType: "select", options: occupationOptions },
+        { label: "Source des fonds", icon: <CreditCard size={18} />, value: formatSourceOfFunds(user?.sourceOfFunds || ""), accent: "text-amber-400", fieldKey: "sourceOfFunds", editable: true, inputType: "select", options: sourceOfFundsOptions },
       ],
     },
     {
-      title: t("profile.identityDocument"),
+      title: "Piece d'identite",
       icon: <FileText size={12} />,
       items: [
-        { label: t("profile.documentType"), icon: <BadgeCheck size={18} />, value: formatIdType(user?.idType || ""), fieldKey: "idType", editable: true, inputType: "select", options: idTypeOptions },
-        { label: t("profile.documentNumber"), icon: <Shield size={18} />, value: user?.idNumber ? `${user.idNumber.substring(0, 3)}****${user.idNumber.slice(-2)}` : t("profile.notSpecified"), fieldKey: "idNumber", editable: true, inputType: "text" },
+        { label: "Type de document", icon: <BadgeCheck size={18} />, value: formatIdType(user?.idType || ""), fieldKey: "idType", editable: true, inputType: "select", options: idTypeOptions },
+        { label: "Numero du document", icon: <Shield size={18} />, value: user?.idNumber ? `${user.idNumber.substring(0, 3)}****${user.idNumber.slice(-2)}` : "Non renseigne", fieldKey: "idNumber", editable: true, inputType: "text" },
       ],
     },
     {
-      title: t("profile.securityWeb3"),
+      title: "Securite et Web3",
       icon: <Wallet size={12} />,
       items: [
-        { label: t("profile.piWalletAddress"), icon: <Wallet size={18} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...${user.walletAddress.slice(-6)}` : t("profile.notLinked"), fieldKey: "walletAddress", editable: true, inputType: "text" },
-        { label: t("profile.transactionPin"), icon: <Shield size={18} />, value: t("profile.secured"), active: true, path: "/profile/change-pin" },
-        { label: t("profile.biometricAuth"), icon: <Fingerprint size={18} />, toggle: true, path: "/settings/security/biometrics" },
+        { label: "Adresse Pi Wallet", icon: <Wallet size={18} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...${user.walletAddress.slice(-6)}` : "Non liee", fieldKey: "walletAddress", editable: true, inputType: "text" },
+        { label: "Code PIN Transaction", icon: <Shield size={18} />, value: "Securise", active: true, path: "/profile/change-pin" },
+        { label: "Authentification biometrique", icon: <Fingerprint size={18} />, toggle: true, path: "/settings/security/biometrics" },
       ],
     },
     {
-      title: t("profile.preferences"),
+      title: "Preferences",
       icon: <Bell size={12} />,
       items: [
-        { label: t("profile.notifications"), icon: <Bell size={18} />, path: "/notifications" },
-        { label: t("profile.accountSecurity"), icon: <Lock size={18} />, path: "/settings/security" },
-        { label: t("profile.displayCurrency"), icon: <CreditCard size={18} />, value: `${currencyInfo.code} (${currencyInfo.symbol})`, fieldKey: "currency", editable: true, inputType: "currency" as const },
+        { label: "Notifications", icon: <Bell size={18} />, path: "/notifications" },
+        { label: "Securite du compte", icon: <Lock size={18} />, path: "/settings/security" },
+        { label: "Devise d'affichage", icon: <CreditCard size={18} />, value: `${currencyInfo.code} (${currencyInfo.symbol})`, fieldKey: "currency", editable: true, inputType: "currency" as const },
       ],
     },
   ];
@@ -360,7 +357,7 @@ export default function ProfilePage() {
             <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-1 shadow-2xl">
               <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center text-3xl font-black italic overflow-hidden">
                 {user?.avatar ? (
-                  <img src={user.avatar} alt={t("profile.profilePhoto")} className="w-full h-full object-cover" />
+                  <img src={user.avatar} alt="Photo de profil" className="w-full h-full object-cover" />
                 ) : (
                   user?.name?.[0]?.toUpperCase() || "P"
                 )}
@@ -385,7 +382,7 @@ export default function ProfilePage() {
             )}
           </h1>
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
-            {user?.role === "ADMIN" ? t("profile.administrator") : `${t("profile.pioneerSince")} ${user?.joinedAt}`}
+            {user?.role === "ADMIN" ? "Administrateur" : `Pioneer depuis ${user?.joinedAt}`}
           </p>
 
           <Link
@@ -393,7 +390,7 @@ export default function ProfilePage() {
             className="mt-4 flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
           >
             <UserPen size={14} className="text-blue-400" />
-            {t("profile.editMyInfo")}
+            Modifier mes informations
           </Link>
         </div>
       </div>
@@ -401,19 +398,19 @@ export default function ProfilePage() {
       {/* Statistiques rapides */}
       <div className="grid grid-cols-3 gap-3 px-6 mb-8">
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.kycStatus")}</p>
+          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Statut KYC</p>
           <p className={`text-sm font-bold ${user?.isVerified ? "text-emerald-400" : "text-amber-400"}`}>
-            {user?.isVerified ? t("profile.verified") : user?.kycStatus || t("profile.notVerified")}
+            {user?.isVerified ? "Verifie" : user?.kycStatus || "Non verifie"}
           </p>
         </div>
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.network")}</p>
+          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Reseau</p>
           <p className="text-sm font-bold text-white">Pi Mainnet</p>
         </div>
         <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.account")}</p>
+          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Compte</p>
           <p className="text-sm font-bold text-blue-400">
-            {user?.role === "ADMIN" ? t("profile.admin") : t("profile.standard")}
+            {user?.role === "ADMIN" ? "Admin" : "Standard"}
           </p>
         </div>
       </div>
@@ -455,7 +452,7 @@ export default function ProfilePage() {
                                 onKeyDown={handleKeyDown}
                                 className="w-full bg-slate-800 border border-blue-500 rounded-lg px-3 py-2 text-sm text-white outline-none appearance-none cursor-pointer pr-8"
                               >
-                                <option value="" className="bg-slate-900">{t("profile.select")}</option>
+                                <option value="" className="bg-slate-900">Selectionner...</option>
                                 {item.options.map((opt) => (
                                   <option key={opt.value} value={opt.value} className="bg-slate-900">
                                     {opt.label}
@@ -509,7 +506,7 @@ export default function ProfilePage() {
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="p-3 border-b border-slate-800">
-                                  <p className="text-xs text-slate-400 font-bold">{t("profile.chooseCurrency")}</p>
+                                  <p className="text-xs text-slate-400 font-bold">Choisir une devise</p>
                                 </div>
                                 <div className="max-h-72 overflow-y-auto">
                                   {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => {
@@ -521,7 +518,7 @@ export default function ProfilePage() {
                                         onClick={() => {
                                           setCurrency(code);
                                           setShowCurrencySelector(false);
-                                          toast.success(`${t("profile.currencyChanged")} ${info.name}`);
+                                          toast.success(`Devise changee en ${info.name}`);
                                         }}
                                         className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-800 transition-colors ${isSelected ? "bg-blue-600/20 border-l-2 border-blue-500" : ""}`}
                                       >
@@ -596,7 +593,7 @@ export default function ProfilePage() {
           className="w-full flex items-center justify-center gap-3 p-5 rounded-[28px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8 active:scale-95"
         >
           <LogOut size={20} />
-          {t("profile.secureLogout")}
+          Deconnexion Securisee
         </button>
 
         <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest pb-4">

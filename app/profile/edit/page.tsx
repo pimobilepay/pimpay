@@ -12,18 +12,20 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
+import { useLanguage } from "@/context/LanguageContext";
 
 // --- BOTTOM NAV ---
 function BottomNav() {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const navItems = [
-    { href: "/", icon: Home, label: "Accueil" },
-    { href: "/wallet", icon: Wallet, label: "Portefeuille" },
-    { href: "/deposit", icon: ArrowDownToLine, label: "Depot" },
-    { href: "/mpay", icon: Smartphone, label: "MPay", special: true },
-    { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
-    { href: "/transfer", icon: Send, label: "Envoi" },
-    { href: "#", icon: Menu, label: "Menu" },
+    { href: "/", icon: Home, label: t("profile.navHome") },
+    { href: "/wallet", icon: Wallet, label: t("profile.navWallet") },
+    { href: "/deposit", icon: ArrowDownToLine, label: t("profile.navDeposit") },
+    { href: "/mpay", icon: Smartphone, label: t("profile.navMPay"), special: true },
+    { href: "/withdraw", icon: ArrowUpFromLine, label: t("profile.navWithdraw") },
+    { href: "/transfer", icon: Send, label: t("profile.navSend") },
+    { href: "#", icon: Menu, label: t("profile.navMenu") },
   ];
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[90] bg-[#0f172a]/95 backdrop-blur-2xl border-t border-white/10 h-20 flex justify-around items-center px-1">
@@ -118,6 +120,7 @@ function InputField({
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,7 +184,7 @@ export default function EditProfilePage() {
           });
         }
       } catch {
-        toast.error("Erreur de chargement du profil");
+        toast.error(t("profile.profileLoadError"));
       } finally {
         setFetching(false);
       }
@@ -204,10 +207,10 @@ export default function EditProfilePage() {
         body: uploadData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors du telechargement");
+      if (!res.ok) throw new Error(data.error || t("profile.uploadError"));
 
       setFormData(prev => ({ ...prev, avatar: data.avatar }));
-      toast.success("Photo de profil mise a jour !");
+      toast.success(t("profile.avatarUpdated"));
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -224,8 +227,8 @@ export default function EditProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-      if (!res.ok) throw new Error("Erreur lors de la mise a jour");
-      toast.success("Profil mis a jour avec succes !");
+      if (!res.ok) throw new Error(t("profile.updateError"));
+      toast.success(t("profile.profileUpdated"));
       router.push("/profile");
     } catch (err: any) {
       toast.error(err.message);
