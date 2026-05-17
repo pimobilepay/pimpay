@@ -761,7 +761,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           </div>
         </div>
         <button
-          onClick={() => router.push("/mpay/notifications")}
+          onClick={() => router.push("/notifications")}
           className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all relative"
         >
           <Bell size={20} />
