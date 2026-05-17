@@ -307,6 +307,13 @@ export default function WalletPage() {
     setIsMounted(true);
     loadWalletData();
     fetchMarketPrices();
+    
+    // Real-time market price refresh every 30 seconds
+    const priceInterval = setInterval(() => {
+      fetchMarketPrices();
+    }, 30000);
+    
+    return () => clearInterval(priceInterval);
   }, [loadWalletData, fetchMarketPrices]);
 
   const handleCopy = (address: string) => {
@@ -637,8 +644,9 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
 
 function AssetCard({ logo, name, balance, symbol, network, marketPrice, usdValue, priceChange, isMain, loading, onClick }: { logo: React.ReactNode; name: string; balance: string; symbol: string; network: string; marketPrice: number; usdValue: number; priceChange?: number; isMain?: boolean; loading?: boolean; onClick: () => void; }) {
   const isPositive = priceChange !== undefined && priceChange >= 0;
-  const changeColor = isPositive ? "text-emerald-400" : "text-red-400";
-  const changeBgColor = isPositive ? "bg-emerald-500/10" : "bg-red-500/10";
+  // Standard crypto wallet colors: bright green (#00C853) for gains, red (#FF3B30) for losses
+  const changeColor = isPositive ? "text-[#00C853]" : "text-[#FF3B30]";
+  const changeBgColor = isPositive ? "bg-[#00C853]/15" : "bg-[#FF3B30]/15";
   
   return (
     <div onClick={onClick} className={`p-4 rounded-2xl flex items-center justify-between border transition-all active:scale-[0.98] cursor-pointer group ${isMain ? 'bg-blue-500/[0.06] border-blue-500/15 hover:bg-blue-500/[0.1]' : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]'}`}>
@@ -649,8 +657,8 @@ function AssetCard({ logo, name, balance, symbol, network, marketPrice, usdValue
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[9px] font-bold text-slate-500">${marketPrice.toLocaleString()}</span>
             {priceChange !== undefined && priceChange !== 0 && (
-              <span className={`flex items-center gap-0.5 text-[8px] font-bold ${changeColor} ${changeBgColor} px-1.5 py-0.5 rounded`}>
-                {isPositive ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
+              <span className={`flex items-center gap-0.5 text-[9px] font-semibold ${changeColor} ${changeBgColor} px-1.5 py-0.5 rounded-md`}>
+                {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                 {isPositive ? "+" : ""}{priceChange.toFixed(2)}%
               </span>
             )}
