@@ -30,9 +30,9 @@ export async function POST(request: Request) {
 
     console.log(`[PIMPAY] Complete paiement: ${paymentId}, txid: ${txid}, user: ${userId}`);
 
-    // --- 2. VALIDATION PI NETWORK (S2S) ---
+    // --- 2. VALIDATION PI NETWORK TESTNET (S2S) ---
     // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)
-    const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+    const piRes = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,

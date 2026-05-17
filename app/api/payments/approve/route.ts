@@ -31,8 +31,8 @@ export async function POST(req: Request) {
     // Determine if this is a withdraw (external send) or deposit
     const isWithdraw = !!toAddress && currency === "PI";
 
-    // 2. APPROBATION S2S (Server-to-Server) avec Pi Network
-    const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
+    // 2. APPROBATION S2S (Server-to-Server) avec Pi Network Testnet
+    const approveRes = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/approve`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
     // 4. COMPLÉTION FINALE (Optionnel ici car souvent géré par le callback complete, mais sécurisant)
     // On ne bloque pas si ça échoue ici, car le SDK s'en chargera
-    fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+    fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,

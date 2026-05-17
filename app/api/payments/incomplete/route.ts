@@ -13,9 +13,9 @@ const PI_API_KEY = () => {
   return key;
 };
 
-// ── Helper: Get payment details from Pi Network ──────────────────────────────
+// ── Helper: Get payment details from Pi Network Testnet ──────────────────────────────
 async function getPiPaymentDetails(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
+  const res = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}`, {
     headers: { Authorization: `Key ${PI_API_KEY()}` },
   });
   if (!res.ok) return null;
@@ -24,7 +24,7 @@ async function getPiPaymentDetails(paymentId: string) {
 
 // ── Helper: Try to approve a payment ─────────────────────────────────────────
 async function approvePayment(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
+  const res = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/approve`, {
     method: "POST",
     headers: {
       Authorization: `Key ${PI_API_KEY()}`,
@@ -36,7 +36,7 @@ async function approvePayment(paymentId: string) {
 
 // ── Helper: Try to complete a payment ────────────────────────────────────────
 async function completePayment(paymentId: string, txid: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+  const res = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/complete`, {
     method: "POST",
     headers: {
       Authorization: `Key ${PI_API_KEY()}`,
@@ -49,7 +49,7 @@ async function completePayment(paymentId: string, txid: string) {
 
 // ── Helper: Try to cancel a payment ──────────────────────────────────────────
 async function cancelPayment(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/cancel`, {
+  const res = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/cancel`, {
     method: "POST",
     headers: {
       Authorization: `Key ${PI_API_KEY()}`,
@@ -322,8 +322,8 @@ export async function GET() {
       return NextResponse.json({ message: "Configuration en attente", count: 0, details: [] });
     }
 
-    // 1. Fetch incomplete payments from Pi Network
-    const piRes = await fetch("https://api.minepi.com/v2/payments/incomplete", {
+    // 1. Fetch incomplete payments from Pi Network Testnet
+    const piRes = await fetch("https://api.testnet.minepi.com/v2/payments/incomplete", {
       headers: { Authorization: `Key ${apiKey}` },
     });
 
