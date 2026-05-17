@@ -796,7 +796,6 @@ enum KycStatus {
 
 enum WalletType {
   PI
-  PIM
   FIAT
   CRYPTO
   SIDRA

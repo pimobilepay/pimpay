@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut, Bell, Coins } from 'lucide-react';
+import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Utilise "export const" pour que { Sidebar } fonctionne
@@ -13,7 +13,6 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const menuItems = [
     { name: 'Tableau de bord', icon: LayoutDashboard, path: '/dashboard' },
     { name: 'Portefeuille', icon: Wallet, path: '/wallet' },
-    { name: 'PIM Coins', icon: Coins, path: '/pim-coins', highlight: true },
     { name: 'Sécurité', icon: Shield, path: '/settings/security' },
     { name: 'Paramètres', icon: Settings, path: '/settings' },
   ];
@@ -39,7 +38,7 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         <div className="mb-6">
           <button
             onClick={() => {
-              router.push('/notifications');
+              router.push('/settings/notifications');
               onClose();
             }}
             className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-white/5 text-slate-400 hover:text-blue-400 transition-all border border-white/5"
@@ -60,17 +59,10 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 router.push(item.path);
                 onClose();
               }}
-              className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all font-bold uppercase text-xs tracking-widest ${
-                item.highlight 
-                  ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30' 
-                  : 'text-slate-400 hover:bg-blue-600 hover:text-white'
-              }`}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-slate-400 hover:bg-blue-600 hover:text-white transition-all font-bold uppercase text-xs tracking-widest"
             >
               <item.icon size={20} />
               {item.name}
-              {item.highlight && (
-                <span className="ml-auto text-[10px] px-2 py-0.5 bg-amber-500 text-black rounded-full font-black">NEW</span>
-              )}
             </button>
           ))}
         </nav>

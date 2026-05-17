@@ -21,12 +21,12 @@ const nextConfig = {
     return [
       {
         source: '/proxy-api-pi/:path*',
-        destination: 'https://api.testnet.minepi.com/:path*',
+        destination: 'https://api.minepi.com/:path*',
       },
     ];
   },
 
-  // 4. Headers CORS & Sécurité Testnet
+  // 4. Headers CORS & Sécurité Mainnet
   async headers() {
     return [
       {
