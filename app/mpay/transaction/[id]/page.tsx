@@ -18,7 +18,8 @@ import {
   FileText,
   Loader2,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  TrendingUp
 } from "lucide-react";
 import { toast } from "sonner";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
@@ -256,6 +257,31 @@ export default function TransactionDetailsPage() {
     });
   };
   
+  // Currency to USD conversion rates
+  const CURRENCY_RATES: Record<string, number> = {
+    PI: 314159,
+    SDA: 1.2,
+    USDT: 1.0,
+    USDC: 1.0,
+    DAI: 1.0,
+    BUSD: 1.0,
+    XAF: 1 / 615,
+    XOF: 1 / 615,
+    BTC: 65000,
+    ETH: 3500,
+    BNB: 600,
+    SOL: 150,
+    XRP: 0.5,
+    XLM: 0.1,
+    TRX: 0.12,
+    ADA: 0.45,
+    DOGE: 0.15,
+    TON: 6.5,
+  };
+  
+  const rateToUSD = CURRENCY_RATES[transaction.currency?.toUpperCase()] || 1;
+  const amountUSD = transaction.amount * rateToUSD;
+  
   const formattedAmount = formatAmount(transaction.amount, transaction.currency);
 
   const formattedDate = new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
@@ -290,46 +316,50 @@ export default function TransactionDetailsPage() {
       </header>
 
       <main className="px-6 space-y-6">
-        {/* Amount Card */}
-        <div className="bg-slate-900/40 border border-white/10 rounded-[2rem] p-8 text-center relative overflow-hidden">
-          {/* Background gradient */}
-          <div className={`absolute inset-0 ${isSent ? "bg-gradient-to-br from-red-500/5 to-transparent" : "bg-gradient-to-br from-emerald-500/5 to-transparent"}`} />
-          
-          <div className="relative">
-            {/* Status Badge */}
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${statusInfo.bg} mb-6`}>
+        {/* Amount Card - Dashboard Style */}
+        <div className="bg-slate-900/60 border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+          {/* Status Header */}
+          <div className={`py-4 px-6 flex items-center justify-between ${statusLower === "success" ? "bg-emerald-500/10" : statusLower === "pending" ? "bg-amber-500/10" : "bg-red-500/10"}`}>
+            <div className="flex items-center gap-2">
               <StatusIcon size={16} className={statusInfo.color} />
-              <span className={`text-[10px] font-black uppercase tracking-wider ${statusInfo.color}`}>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${statusInfo.color}`}>
                 {statusInfo.label}
               </span>
             </div>
+            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{getTypeLabel()}</span>
+          </div>
 
-            {/* Amount */}
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isSent ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
-                {isSent ? (
-                  <ArrowUpRight size={24} className="text-red-400" />
-                ) : (
-                  <ArrowDownLeft size={24} className="text-emerald-400" />
-                )}
+          <div className="p-8 space-y-6">
+            {/* Main Amount Display */}
+            <div className="flex flex-col items-center text-center">
+              <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Valeur Transactionnelle</p>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-5xl font-black ${isSent ? "text-white" : "text-white"}`}>
+                  {transaction.amount < 0.0001 && transaction.amount > 0 
+                    ? transaction.amount.toFixed(8) 
+                    : transaction.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
+                </span>
+                <span className="text-lg font-bold text-blue-500">{transaction.currency}</span>
               </div>
+              
+              {/* USD Conversion Badge */}
+              <div className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+                <TrendingUp size={12} className="text-blue-400" />
+                <span className="text-[10px] font-bold text-blue-400">≈ ${amountUSD.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USD</span>
+              </div>
+              
+              {/* Fee Display */}
+              {transaction.fee > 0 && (
+                <p className="text-[10px] font-bold text-slate-500 mt-3">
+                  Frais: <span className="text-red-400">{formatAmount(transaction.fee, transaction.currency)} {transaction.currency}</span>
+                </p>
+              )}
             </div>
-            
-            <p className={`text-4xl font-black ${isSent ? "text-red-400" : "text-emerald-400"}`}>
-              {isSent ? "-" : "+"}{formattedAmount} {transaction.currency}
-            </p>
-            
-            {transaction.fee > 0 && (
-              <p className="text-[10px] font-bold text-slate-500 mt-2">
-                Frais: {formatAmount(transaction.fee, transaction.currency)} {transaction.currency}
-              </p>
-            )}
-
-            {/* Transaction Type */}
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg">
-              <Wallet size={12} className="text-blue-400" />
-              <span className="text-[9px] font-black text-slate-400 uppercase">{getTypeLabel()}</span>
-            </div>
+          </div>
+          
+          {/* Footer */}
+          <div className="bg-white/[0.02] py-3 text-center border-t border-white/5">
+            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">Authentifié par PimPay Network</p>
           </div>
         </div>
 
