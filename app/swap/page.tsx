@@ -93,8 +93,14 @@ const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT"
 // ── Tokens routés via ChangeNow (mode fixe) ──────────────────────────────────
 const CHANGENOW_TOKENS = new Set(["BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD"]);
 
+// ── Tokens routés via SimpleSwap (crypto to fiat, plus de paires) ────────────
+const SIMPLESWAP_TOKENS = new Set([
+  "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "TRX",
+  "USDT", "USDC", "DAI", "BUSD", "LTC", "MATIC", "AVAX", "DOT", "ATOM", "LINK"
+]);
+
 // ── Tokens internes PimPay (PI, SDA) ─────────────────────────────────────────
-// Ni Sun.io ni ChangeNow → route interne PimPay
+// Ni Sun.io ni ChangeNow ni SimpleSwap → route interne PimPay
 
 function isSunioSwap(from: string, to: string): boolean {
   return SUNIO_TOKENS.has(from) && SUNIO_TOKENS.has(to) && from !== to;
@@ -105,7 +111,14 @@ function isChangeNowSwap(from: string, to: string): boolean {
   return CHANGENOW_TOKENS.has(from) && CHANGENOW_TOKENS.has(to) && from !== to;
 }
 
-type SwapRoute = "SUNIO" | "CHANGENOW" | "INTERNAL";
+function isSimpleSwapSupported(from: string, to: string): boolean {
+  if (isSunioSwap(from, to)) return false;
+  // SimpleSwap est utilisé pour les paires non supportées par ChangeNow
+  // ou quand l'utilisateur préfère SimpleSwap
+  return SIMPLESWAP_TOKENS.has(from) && SIMPLESWAP_TOKENS.has(to) && from !== to;
+}
+
+type SwapRoute = "SUNIO" | "CHANGENOW" | "SIMPLESWAP" | "INTERNAL";
 
 function getSwapRoute(from: string, to: string): SwapRoute {
   if (isSunioSwap(from, to)) return "SUNIO";
@@ -325,7 +338,7 @@ export default function SwapPage() {
     } catch { /* silently fail */ }
   }, []);
 
-  // ── Quote Sun.io ──────────────────────────────────────────────────────────
+  // ── Quote Sun.io ───���──────────────────────────────────────────────────────
   const fetchSunioQuote = useCallback(async (from: string, to: string, amount: number, slip: number) => {
     if (!isSunioSwap(from, to) || !amount || amount <= 0) {
       setSunioQuote(null);
