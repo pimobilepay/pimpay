@@ -126,14 +126,17 @@ const SAFE_USER_SELECT = {
       id:          true,
       number:      true, // Chiffré en DB, déchiffré côté serveur si besoin
       exp:         true,
+      cvv:         true, // Nécessaire pour affichage carte (caché par défaut)
+      holder:      true,
       brand:       true,
       type:        true,
       isFrozen:    true,
       dailyLimit:  true,
       totalSpent:  true,
+      balanceUSD:  true, // Solde USD sur la carte
+      balanceEUR:  true, // Solde EUR sur la carte
+      allowedCurrencies: true,
       createdAt:   true,
-      // cvv intentionnellement EXCLU (PCI-DSS 3.2 — ne jamais retourner le CVV)
-      // isPrimary retiré — champ absent du schéma Prisma VirtualCard
     },
   },
   referrals: {
