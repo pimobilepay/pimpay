@@ -16,6 +16,7 @@
     "migrate:keys": "tsc --outDir dist scripts/migrate-encrypt-keys.ts lib/crypto.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && ENCRYPTION_KEY=$ENCRYPTION_KEY node dist/scripts/migrate-encrypt-keys.js"
   },
   "dependencies": {
+    "@google/genai": "^2.6.0",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
     "@noble/secp256k1": "^3.0.0",
@@ -174,6 +175,18 @@
       "follow-redirects": ">=1.16.0",
       "node-fetch": ">=2.6.7",
       "protobufjs": ">=7.5.5"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "@google/genai",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "core-js",
+      "eccrypto",
+      "prisma",
+      "protobufjs",
+      "secp256k1"
+    ]
   }
 }
