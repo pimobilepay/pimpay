@@ -90,17 +90,21 @@ const CRYPTO_IDS = [
 // ── Tokens routés via Sun.io (DEX TRON) ──────────────────────────────────────
 const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT", "WIN", "NFT", "WTRX"]);
 
-// ── Tokens routés via ChangeNow (mode fixe) ──────────────────────────────────
+// ── Tokens routés via ChangeNow (mode fixe) - paires SANS USDT ───────────────
+// ChangeNow ne supporte pas bien USDT, on utilise SimpleSwap pour les paires avec USDT
 const CHANGENOW_TOKENS = new Set(["BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD"]);
 
-// ── Tokens routés via SimpleSwap (crypto to fiat, plus de paires) ────────────
+// ── Tokens routés via SimpleSwap (paires avec USDT, LTC, et autres) ──────────
 const SIMPLESWAP_TOKENS = new Set([
   "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "TRX",
   "USDT", "USDC", "DAI", "BUSD", "LTC", "MATIC", "AVAX", "DOT", "ATOM", "LINK"
 ]);
 
+// ── Devises FIAT supportées (via swap interne) ───────────────────────────────
+const FIAT_CURRENCIES = new Set(["USD", "EUR", "XAF", "XOF", "CDF", "NGN", "AED", "MGA"]);
+
 // ── Tokens internes PimPay (PI, SDA) ─────────────────────────────────────────
-// Ni Sun.io ni ChangeNow ni SimpleSwap → route interne PimPay
+const INTERNAL_TOKENS = new Set(["PI", "SDA"]);
 
 function isSunioSwap(from: string, to: string): boolean {
   return SUNIO_TOKENS.has(from) && SUNIO_TOKENS.has(to) && from !== to;
@@ -108,13 +112,18 @@ function isSunioSwap(from: string, to: string): boolean {
 
 function isChangeNowSwap(from: string, to: string): boolean {
   if (isSunioSwap(from, to)) return false;
+  // ChangeNow uniquement pour paires crypto sans USDT (USDT mieux gere par SimpleSwap)
+  if (from === "USDT" || to === "USDT") return false;
   return CHANGENOW_TOKENS.has(from) && CHANGENOW_TOKENS.has(to) && from !== to;
 }
 
-function isSimpleSwapSupported(from: string, to: string): boolean {
+function isSimpleSwapRoute(from: string, to: string): boolean {
   if (isSunioSwap(from, to)) return false;
-  // SimpleSwap est utilisé pour les paires non supportées par ChangeNow
-  // ou quand l'utilisateur préfère SimpleSwap
+  if (isChangeNowSwap(from, to)) return false;
+  // SimpleSwap gere uniquement les paires crypto-to-crypto (pas fiat)
+  // Specialement pour les paires avec USDT, LTC, et autres tokens
+  if (FIAT_CURRENCIES.has(from) || FIAT_CURRENCIES.has(to)) return false;
+  if (INTERNAL_TOKENS.has(from) || INTERNAL_TOKENS.has(to)) return false;
   return SIMPLESWAP_TOKENS.has(from) && SIMPLESWAP_TOKENS.has(to) && from !== to;
 }
 
@@ -123,6 +132,7 @@ type SwapRoute = "SUNIO" | "CHANGENOW" | "SIMPLESWAP" | "INTERNAL";
 function getSwapRoute(from: string, to: string): SwapRoute {
   if (isSunioSwap(from, to)) return "SUNIO";
   if (isChangeNowSwap(from, to)) return "CHANGENOW";
+  if (isSimpleSwapRoute(from, to)) return "SIMPLESWAP";
   return "INTERNAL";
 }
 
@@ -155,7 +165,7 @@ function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
 /*  ROUTE BADGE COMPONENT                                               */
 /* ------------------------------------------------------------------ */
 
-function RouteBadge({ route, cnQuote }: { route: SwapRoute; cnQuote: CNQuoteState | null }) {
+function RouteBadge({ route, cnQuote, ssQuote }: { route: SwapRoute; cnQuote: CNQuoteState | null; ssQuote: SSQuoteState | null }) {
   if (route === "SUNIO") {
     return (
       <motion.div
@@ -189,6 +199,25 @@ function RouteBadge({ route, cnQuote }: { route: SwapRoute; cnQuote: CNQuoteStat
     );
   }
 
+  if (route === "SIMPLESWAP") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center gap-2 mb-4 px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-2xl"
+      >
+        <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
+        <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">
+          Routé via SimpleSwap · Taux Fixe
+        </span>
+        {ssQuote && (
+          <span className="text-[9px] text-orange-400/60 ml-1 flex items-center gap-1">
+            <Timer size={9} /> 5-30 min
+          </span>
+        )}
+      </motion.div>
+    );
+  }
+
   return null;
 }
 
@@ -211,6 +240,18 @@ interface CNQuoteState {
   warningMessage: string | null;
   fromAmount: number;
   toAmount: number;
+}
+
+interface SSQuoteState {
+  estimatedAmount: number;
+  min: number;
+  max: number | null;
+  rateId?: string;
+  warningMessage?: string;
+  fromAmount: number;
+  toAmount: number;
+  fromCurrency: string;
+  toCurrency: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,10 +295,12 @@ export default function SwapPage() {
   const [transactionTime, setTransactionTime] = useState<Date | null>(null);
   const [swapTxHash, setSwapTxHash] = useState<string | null>(null);
   const [changenowId, setChangenowId] = useState<string | null>(null);
+  const [simpleswapId, setSimpleswapId] = useState<string | null>(null);
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   const [sunioQuote, setSunioQuote] = useState<SunioQuoteState | null>(null);
   const [cnQuote, setCnQuote] = useState<CNQuoteState | null>(null);
+  const [ssQuote, setSSQuote] = useState<SSQuoteState | null>(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
 
   /* ---------- ROUTE COURANTE ---------- */
@@ -389,6 +432,34 @@ export default function SwapPage() {
     }
   }, []);
 
+  // ── Quote SimpleSwap (BTC/USDT et autres paires) ──────────────────────────
+  const fetchSimpleSwapQuote = useCallback(async (from: string, to: string, amount: number) => {
+    if (!isSimpleSwapRoute(from, to) || !amount || amount <= 0) {
+      setSSQuote(null);
+      return;
+    }
+    setIsQuoteLoading(true);
+    try {
+      const res = await fetch(
+        `/api/swap/simpleswap?from=${from}&to=${to}&amount=${amount}`,
+        { signal: AbortSignal.timeout(12_000) }
+      );
+      if (!res.ok) { 
+        setSSQuote(null); 
+        return; 
+      }
+      const data = await res.json();
+      if (data.success && data.quote) {
+        setSSQuote(data.quote);
+        setToAmount(data.quote.estimatedAmount);
+      }
+    } catch {
+      setSSQuote(null);
+    } finally {
+      setIsQuoteLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setIsMounted(true);
     fetchPrices();
@@ -418,6 +489,7 @@ export default function SwapPage() {
       setToAmount(0);
       setSunioQuote(null);
       setCnQuote(null);
+      setSSQuote(null);
       return;
     }
 
@@ -428,6 +500,7 @@ export default function SwapPage() {
       const usd = getValueInUsd(fromAsset.id, amount);
       setToAmount(getAmountFromUsd(toAsset.id, usd));
       setCnQuote(null);
+      setSSQuote(null);
       const debounce = setTimeout(() => {
         fetchSunioQuote(fromAsset.id, toAsset.id, amount, slippage);
       }, 600);
@@ -439,8 +512,21 @@ export default function SwapPage() {
       const usd = getValueInUsd(fromAsset.id, amount);
       setToAmount(getAmountFromUsd(toAsset.id, usd));
       setSunioQuote(null);
+      setSSQuote(null);
       const debounce = setTimeout(() => {
         fetchChangeNowQuote(fromAsset.id, toAsset.id, amount);
+      }, 600);
+      return () => clearTimeout(debounce);
+    }
+
+    if (route === "SIMPLESWAP") {
+      // Estimation locale immédiate + quote SimpleSwap différé
+      const usd = getValueInUsd(fromAsset.id, amount);
+      setToAmount(getAmountFromUsd(toAsset.id, usd));
+      setSunioQuote(null);
+      setCnQuote(null);
+      const debounce = setTimeout(() => {
+        fetchSimpleSwapQuote(fromAsset.id, toAsset.id, amount);
       }, 600);
       return () => clearTimeout(debounce);
     }
@@ -450,7 +536,8 @@ export default function SwapPage() {
     setToAmount(getAmountFromUsd(toAsset.id, usd));
     setSunioQuote(null);
     setCnQuote(null);
-  }, [fromAmount, fromAsset, toAsset, slippage, getValueInUsd, getAmountFromUsd, fetchSunioQuote, fetchChangeNowQuote]);
+    setSSQuote(null);
+  }, [fromAmount, fromAsset, toAsset, slippage, getValueInUsd, getAmountFromUsd, fetchSunioQuote, fetchChangeNowQuote, fetchSimpleSwapQuote]);
 
   /* ---------- ACTIONS ---------- */
 
@@ -461,6 +548,7 @@ export default function SwapPage() {
     setFromAmount("");
     setSunioQuote(null);
     setCnQuote(null);
+    setSSQuote(null);
   };
 
   const handleRequestConfirm = () => {
@@ -532,6 +620,7 @@ export default function SwapPage() {
         setTransactionTime(new Date());
         setSwapTxHash(null);
         setChangenowId(data.changenowId || null);
+        setSimpleswapId(null);
         if (data.amountOut) setToAmount(data.amountOut);
         setIsSuccess(true);
         setShowConfirm(false);
@@ -543,7 +632,38 @@ export default function SwapPage() {
         return;
       }
 
-      // ── Route 3 : Swap interne PimPay ─────────────────────────────────
+      // ── Route 3 : SimpleSwap (BTC/USDT et autres paires) ───────────────
+      if (route === "SIMPLESWAP") {
+        const res = await fetch("/api/swap/simpleswap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromToken: fromAsset.id,
+            toToken: toAsset.id,
+            amount,
+            rateId: ssQuote?.rateId,
+            estimatedOut: ssQuote?.estimatedAmount || toAmount,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { toast.error(data.error || "Swap SimpleSwap échoué"); setLoading(false); return; }
+        setTransactionRef(data.reference || `SS-${Date.now().toString(36).toUpperCase()}`);
+        setTransactionTime(new Date());
+        setSwapTxHash(null);
+        setChangenowId(null);
+        setSimpleswapId(data.simpleswapId || null);
+        if (data.amountOut) setToAmount(data.amountOut);
+        setIsSuccess(true);
+        setShowConfirm(false);
+        loadBalances();
+        toast.success("Échange SimpleSwap initié !", {
+          description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
+          duration: 6000,
+        });
+        return;
+      }
+
+      // ── Route 4 : Swap interne PimPay ─────────────────────────────────
       const quoteRes = await fetch("/api/transaction/swap/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -605,6 +725,7 @@ export default function SwapPage() {
     setFromAmount("");
     setSunioQuote(null);
     setCnQuote(null);
+    setSSQuote(null);
   };
 
   const filteredAssets = useMemo(() => {
@@ -647,6 +768,8 @@ export default function SwapPage() {
     if (sunioQuote) return parseFloat(sunioQuote.minAmountOut).toFixed(6);
     // Pour ChangeNow mode fixe : le montant est garanti, pas de min différent
     if (cnQuote) return cnQuote.estimatedAmount.toFixed(6);
+    // Pour SimpleSwap mode fixe : le montant est garanti
+    if (ssQuote) return ssQuote.estimatedAmount.toFixed(6);
     if (toAmount <= 0) return "0.00";
     const min = toAmount * (1 - slippage / 100);
     if (["BTC", "PI", "ETH"].includes(toAsset.id)) return min.toFixed(8);
@@ -659,6 +782,7 @@ export default function SwapPage() {
   const priceSource =
     swapRoute === "SUNIO" ? "Sun.io (SunSwap)" :
     swapRoute === "CHANGENOW" ? "ChangeNow (Taux Fixe)" :
+    swapRoute === "SIMPLESWAP" ? "SimpleSwap (Taux Fixe)" :
     "CoinGecko & ExchangeRate-API";
 
   if (!isMounted) return <div className="min-h-screen bg-[#020617]" />;
@@ -669,18 +793,22 @@ export default function SwapPage() {
   if (isSuccess) {
     const copyRef = () => { navigator.clipboard.writeText(transactionRef); toast.success("Reference copiee!"); };
     const isChangeNow = !!changenowId;
+    const isSimpleSwap = !!simpleswapId;
+    const isExternalSwap = isChangeNow || isSimpleSwap;
+    const swapColor = isSimpleSwap ? "orange" : isChangeNow ? "violet" : "emerald";
+    const swapProvider = isSimpleSwap ? "SimpleSwap" : isChangeNow ? "ChangeNow" : "";
 
     return (
       <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.3, scale: 1.2 }} transition={{ duration: 1.5 }}
-            className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] ${isChangeNow ? "bg-violet-500/20" : "bg-emerald-500/20"} rounded-full blur-[120px]`} />
+            className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-${swapColor}-500/20 rounded-full blur-[120px]`} />
           {[...Array(20)].map((_, i) => (
             <motion.div key={i}
               initial={{ opacity: 0, y: 100, x: Math.random() * 400 - 200 }}
               animate={{ opacity: [0, 1, 0], y: -200, x: Math.random() * 400 - 200 }}
               transition={{ duration: 3 + Math.random() * 2, delay: Math.random() * 2, repeat: Infinity, repeatDelay: Math.random() * 3 }}
-              className={`absolute bottom-0 left-1/2 w-2 h-2 ${isChangeNow ? "bg-violet-400/60" : "bg-emerald-400/60"} rounded-full`}
+              className={`absolute bottom-0 left-1/2 w-2 h-2 bg-${swapColor}-400/60 rounded-full`}
             />
           ))}
         </div>
@@ -688,11 +816,11 @@ export default function SwapPage() {
         <div className="relative z-10 flex flex-col min-h-screen p-6">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between pt-4 mb-6">
             <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 ${isChangeNow ? "bg-violet-500/10" : "bg-emerald-500/10"} rounded-lg flex items-center justify-center`}>
-                <BadgeCheck size={16} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} />
+              <div className={`w-8 h-8 bg-${swapColor}-500/10 rounded-lg flex items-center justify-center`}>
+                <BadgeCheck size={16} className={`text-${swapColor}-400`} />
               </div>
-              <span className={`text-[10px] font-black ${isChangeNow ? "text-violet-400" : "text-emerald-400"} uppercase tracking-[0.15em]`}>
-                {isChangeNow ? "Échange ChangeNow Créé" : "Transaction Confirmée"}
+              <span className={`text-[10px] font-black text-${swapColor}-400 uppercase tracking-[0.15em]`}>
+                {isExternalSwap ? `Échange ${swapProvider} Créé` : "Transaction Confirmée"}
               </span>
             </div>
             <button onClick={copyRef} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 text-[9px] font-bold text-slate-400 hover:bg-white/10 transition-all">
@@ -705,8 +833,8 @@ export default function SwapPage() {
             className="flex justify-center mb-6">
             <div className="relative">
               <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}
-                className={`absolute inset-0 ${isChangeNow ? "bg-violet-500/30" : "bg-emerald-500/30"} rounded-full blur-2xl`} />
-              <div className={`relative w-24 h-24 bg-gradient-to-br ${isChangeNow ? "from-violet-400 to-violet-600 shadow-violet-500/30" : "from-emerald-400 to-emerald-600 shadow-emerald-500/30"} rounded-full flex items-center justify-center shadow-2xl`}>
+                className={`absolute inset-0 ${isSimpleSwap ? "bg-orange-500/30" : isChangeNow ? "bg-violet-500/30" : "bg-emerald-500/30"} rounded-full blur-2xl`} />
+              <div className={`relative w-24 h-24 bg-gradient-to-br ${isSimpleSwap ? "from-orange-400 to-orange-600 shadow-orange-500/30" : isChangeNow ? "from-violet-400 to-violet-600 shadow-violet-500/30" : "from-emerald-400 to-emerald-600 shadow-emerald-500/30"} rounded-full flex items-center justify-center shadow-2xl`}>
                 <CheckCircle2 size={48} className="text-white" strokeWidth={2.5} />
               </div>
               <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.7 }}
@@ -718,19 +846,19 @@ export default function SwapPage() {
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-center mb-8">
             <h1 className="text-2xl font-black uppercase tracking-tight mb-2">
-              Swap <span className={isChangeNow ? "text-violet-400" : "text-emerald-400"}>
-                {isChangeNow ? "Initié" : "Réussi"}
+              Swap <span className={isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"}>
+                {isExternalSwap ? "Initié" : "Réussi"}
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">
-              {isChangeNow
-                ? "Votre échange ChangeNow est en cours. Il sera finalisé sous 10–60 min."
+              {isExternalSwap
+                ? `Votre échange ${swapProvider} est en cours. Il sera finalisé sous 5–60 min.`
                 : "Vos fonds ont été convertis avec succès"}
             </p>
-            {isChangeNow && (
+            {isExternalSwap && (
               <div className="flex items-center justify-center gap-1.5 mt-2">
-                <Timer size={11} className="text-violet-400" />
-                <p className="text-[10px] text-violet-400/70 font-mono">via ChangeNow · Mode Fixe</p>
+                <Timer size={11} className={isSimpleSwap ? "text-orange-400" : "text-violet-400"} />
+                <p className={`text-[10px] ${isSimpleSwap ? "text-orange-400/70" : "text-violet-400/70"} font-mono`}>via {swapProvider} · Mode Fixe</p>
               </div>
             )}
             {swapTxHash && (
@@ -738,15 +866,15 @@ export default function SwapPage() {
             )}
           </motion.div>
 
-          {/* Info ChangeNow en cours */}
-          {isChangeNow && (
+          {/* Info échange externe en cours */}
+          {isExternalSwap && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-              className="flex items-start gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl mb-4">
-              <Timer className="text-violet-400 shrink-0 mt-0.5" size={14} />
+              className={`flex items-start gap-3 p-4 ${isSimpleSwap ? "bg-orange-500/5 border-orange-500/20" : "bg-violet-500/5 border-violet-500/20"} border rounded-2xl mb-4`}>
+              <Timer className={isSimpleSwap ? "text-orange-400" : "text-violet-400"} size={14} />
               <div>
-                <p className="text-[10px] font-black text-violet-400 uppercase mb-1">Échange en cours</p>
-                <p className="text-[9px] text-violet-200/60 leading-relaxed">
-                  ChangeNow traite l'échange automatiquement. Vos fonds {toAsset.symbol} seront crédités dès confirmation blockchain (10–60 min selon le réseau).
+                <p className={`text-[10px] font-black ${isSimpleSwap ? "text-orange-400" : "text-violet-400"} uppercase mb-1`}>Échange en cours</p>
+                <p className={`text-[9px] ${isSimpleSwap ? "text-orange-200/60" : "text-violet-200/60"} leading-relaxed`}>
+                  {swapProvider} traite l&apos;échange automatiquement. Vos fonds {toAsset.symbol} seront crédités dès confirmation blockchain (5–60 min selon le réseau).
                 </p>
               </div>
             </motion.div>
@@ -766,14 +894,14 @@ export default function SwapPage() {
                 </div>
               </div>
               <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
-                className={`w-9 h-9 ${isChangeNow ? "bg-violet-500/10 border-violet-500/20" : "bg-emerald-500/10 border-emerald-500/20"} rounded-full flex items-center justify-center border shrink-0`}>
-                <ArrowRight size={16} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} />
+                className={`w-9 h-9 ${isSimpleSwap ? "bg-orange-500/10 border-orange-500/20" : isChangeNow ? "bg-violet-500/10 border-violet-500/20" : "bg-emerald-500/10 border-emerald-500/20"} rounded-full flex items-center justify-center border shrink-0`}>
+                <ArrowRight size={16} className={isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"} />
               </motion.div>
               <div className="flex-1 min-w-0 text-right">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Reçu</p>
                 <div className="flex items-center gap-2 justify-end">
                   <div className="min-w-0">
-                    <p className={`text-lg font-black ${isChangeNow ? "text-violet-400" : "text-emerald-400"} truncate`}>{formatToAmount()}</p>
+                    <p className={`text-lg font-black ${isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"} truncate`}>{formatToAmount()}</p>
                     <p className="text-xs text-slate-400 font-bold">{toAsset.symbol}</p>
                   </div>
                   <AssetIcon asset={toAsset} size={36} />
@@ -798,11 +926,11 @@ export default function SwapPage() {
                 <p className="text-[10px] text-slate-400">{transactionTime?.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <div className="bg-white/5 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1"><Shield size={10} className={isChangeNow ? "text-violet-400" : "text-emerald-400"} /><p className="text-[8px] font-black text-slate-500 uppercase">Statut</p></div>
+                <div className="flex items-center gap-1.5 mb-1"><Shield size={10} className={isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"} /><p className="text-[8px] font-black text-slate-500 uppercase">Statut</p></div>
                 <div className="flex items-center gap-1.5">
-                  <div className={`w-2 h-2 ${isChangeNow ? "bg-violet-500" : "bg-emerald-500"} rounded-full animate-pulse`} />
-                  <p className={`text-xs font-bold ${isChangeNow ? "text-violet-400" : "text-emerald-400"}`}>
-                    {isChangeNow ? "En cours" : "Confirmé"}
+                  <div className={`w-2 h-2 ${isSimpleSwap ? "bg-orange-500" : isChangeNow ? "bg-violet-500" : "bg-emerald-500"} rounded-full animate-pulse`} />
+                  <p className={`text-xs font-bold ${isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"}`}>
+                    {isExternalSwap ? "En cours" : "Confirmé"}
                   </p>
                 </div>
               </div>
@@ -839,13 +967,22 @@ export default function SwapPage() {
                 </a>
               </div>
             )}
+            {simpleswapId && (
+              <div>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">ID SimpleSwap</p>
+                <a href={`https://simpleswap.io/exchange?id=${simpleswapId}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs font-mono text-orange-400 hover:text-orange-300 transition-colors">
+                  {simpleswapId} <ExternalLink size={10} />
+                </a>
+              </div>
+            )}
           </motion.div>
 
           <div className="flex-1" />
 
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="space-y-3 pb-4">
             <div className="flex gap-3">
-              <button onClick={() => { setIsSuccess(false); setFromAmount(""); setToAmount(0); setSunioQuote(null); setCnQuote(null); setSwapTxHash(null); setChangenowId(null); }}
+              <button onClick={() => { setIsSuccess(false); setFromAmount(""); setToAmount(0); setSunioQuote(null); setCnQuote(null); setSSQuote(null); setSwapTxHash(null); setChangenowId(null); setSimpleswapId(null); }}
                 className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                 <RotateCcw size={14} /> Nouveau Swap
               </button>
@@ -894,7 +1031,7 @@ export default function SwapPage() {
 
       <div className="px-6">
         {/* Badge de routage */}
-        <RouteBadge route={swapRoute} cnQuote={cnQuote} />
+        <RouteBadge route={swapRoute} cnQuote={cnQuote} ssQuote={ssQuote} />
 
         {/* Swap Card */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 space-y-4 shadow-2xl relative">
