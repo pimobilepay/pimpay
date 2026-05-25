@@ -988,7 +988,7 @@ export default function McardPage() {
               </div>
             ) : (
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden divide-y divide-white/5">
-                {cardTransactions.map((tx) => (
+                {cardTransactions.slice(0, 7).map((tx) => (
                   <button 
                     key={tx.id} 
                     onClick={() => {

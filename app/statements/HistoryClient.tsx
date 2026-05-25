@@ -21,6 +21,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
   const [activeService, setActiveService] = useState("all");
   const [startDate, setStartDate] = useState<Date | null>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState(new Date());
+  const [showAll, setShowAll] = useState(false);
 
   // Résoudre le nom affiché d'un user
   const resolveUserName = (user: any): string | null => {
@@ -381,7 +382,8 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           </div>
 
           {filteredTransactions.length > 0 ? (
-            filteredTransactions.map((tx: any) => (
+            <>
+              {(showAll ? filteredTransactions : filteredTransactions.slice(0, 7)).map((tx: any) => (
               <TransactionItem
                 key={tx.id}
                 tx={tx}
@@ -392,7 +394,16 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
                   router.push(`/deposit/receipt?${q}`);
                 }}
               />
-            ))
+            ))}
+              {filteredTransactions.length > 7 && (
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full py-4 text-[10px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/20 rounded-2xl mt-3"
+                >
+                  {showAll ? "Voir moins" : `Voir les ${filteredTransactions.length - 7} autres transactions`}
+                </button>
+              )}
+            </>
           ) : (
             <div className="text-center py-14 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
               Aucune transaction trouvée
