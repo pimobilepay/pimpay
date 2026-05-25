@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useLanguage } from "@/context/LanguageContext";
 import { ReferralProgram } from "@/components/ReferralProgram";
+import { PartnersMarquee } from "@/components/PartnersMarquee";
 import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyContext";
 
 const RATES: Record<string, number> = {
@@ -585,6 +586,7 @@ onClick: () => router.push("/notifications"),
             </div>
           </div>
         </section>
+        <PartnersMarquee />
         <section className="mb-12 relative">
           <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3><div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none italic">7</div><History size={16} className="text-slate-600" /></div>
           <div className="space-y-4 relative z-10 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
