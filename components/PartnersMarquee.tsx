@@ -15,25 +15,27 @@ export function PartnersMarquee() {
       <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-6 mb-4">
         Nos Partenaires
       </h3>
-      <div className="relative">
-        <div className="flex animate-marquee whitespace-nowrap">
-          {[...Array(3)].map((_, setIndex) =>
-            partners.map((partner, index) => (
-              <div
-                key={`${setIndex}-${index}`}
-                className="flex items-center justify-center mx-8 min-w-[180px] h-16 opacity-80 hover:opacity-100 transition-opacity"
-              >
-                <Image
-                  src={partner.logo}
-                  alt={`${partner.name} logo`}
-                  width={140}
-                  height={50}
-                  className="object-contain h-12 w-auto"
-                />
-              </div>
-            ))
-          )}
-        </div>
+      <div className="flex justify-center items-center gap-8 px-6 flex-wrap">
+        {partners.map((partner, index) => (
+          <div
+            key={index}
+            className="flex flex-col items-center justify-center p-4 min-w-[120px] opacity-80 hover:opacity-100 transition-opacity"
+          >
+            <div className="h-16 w-24 relative flex items-center justify-center mb-2">
+              <Image
+                src={partner.logo}
+                alt={`${partner.name} logo`}
+                width={80}
+                height={60}
+                className="object-contain"
+                style={{ maxHeight: "60px", width: "auto" }}
+              />
+            </div>
+            <span className="text-xs text-slate-400 font-medium mt-1">
+              {partner.name}
+            </span>
+          </div>
+        ))}
       </div>
     </section>
   );
