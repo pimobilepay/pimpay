@@ -586,7 +586,6 @@ onClick: () => router.push("/notifications"),
             </div>
           </div>
         </section>
-        <PartnersMarquee />
         <section className="mb-12 relative">
           <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3><div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none italic">7</div><History size={16} className="text-slate-600" /></div>
           <div className="space-y-4 relative z-10 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
@@ -608,6 +607,7 @@ onClick: () => router.push("/notifications"),
             }) : <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">Aucune transaction</div>}
           </div>
         </section>
+        <PartnersMarquee />
       </main>
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
         <div className="flex items-center gap-6">
