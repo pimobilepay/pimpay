@@ -54,8 +54,8 @@ export default function ContactsPage() {
     {
       icon: <Mail className="text-blue-400" size={20} />,
       label: "Email Support",
-      value: "support@pimpay.pi",
-      link: "mailto:support@pimpay.pi"
+      value: "pimobilepay@gmail.com",
+      link: "mailto:pimobilepay@gmail.com"
     },
     {
       icon: <MessageCircle className="text-emerald-400" size={20} />,

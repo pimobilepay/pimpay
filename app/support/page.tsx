@@ -398,7 +398,7 @@ export default function HelpPage() {
         </div>
 
         <div className="mt-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-center space-y-2">
-          <p className="text-xs text-slate-300 font-bold">support@pimpay.pi</p>
+          <p className="text-xs text-slate-300 font-bold">pimobilepay@gmail.com</p>
           <p className="text-xs text-slate-300 font-bold">+242 065 540 305</p>
           <p className="text-[10px] text-slate-600">
             Disponible 7j/7, de 8h a 22h (GMT+1)

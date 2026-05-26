@@ -212,7 +212,7 @@ pimpay/
 
 ## ​📞 Contact
 
-- **Support :** support@pimpay.pi
+- **Support :** pimobilepay@gmail.com
 - **Juridique :** juridique@pimpay.pi
 - **Confidentialite :** privacy@pimpay.pi
 - **Telephone :** +242 065 540 305
