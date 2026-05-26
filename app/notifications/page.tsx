@@ -18,18 +18,26 @@ import { useLanguage } from "@/context/LanguageContext";
 
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "TRANSACTION_CONFIRM" | string;
 
-// Helper pour formater les montants PI avec 8 decimales maximum
+// Helper pour formater les montants avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
   if (amount === undefined || amount === null) return "0";
   const curr = (currency || "PI").toUpperCase();
-  // Pour PI, afficher jusqu'a 8 decimales significatives
-  if (curr === "PI") {
+  // Pour PI et SDA, afficher jusqu'a 8 decimales significatives
+  if (curr === "PI" || curr === "SDA") {
     // Supprimer les zeros de fin
     const formatted = Number(amount).toFixed(8).replace(/\.?0+$/, "");
     return formatted || "0";
   }
   // Pour les autres devises, utiliser toLocaleString classique
   return Number(amount).toLocaleString();
+}
+
+// Helper pour formater les nombres longs dans les messages texte (limite a 8 decimales)
+function formatMessageNumbers(message: string): string {
+  // Regex pour trouver les nombres avec plus de 8 decimales
+  return message.replace(/(\d+\.\d{9,})/g, (match) => {
+    return Number(match).toFixed(8).replace(/\.?0+$/, "");
+  });
 }
 
 interface Notification {
@@ -506,7 +514,7 @@ export default function NotificationsPage() {
             {/* Message */}
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.message")}</p>
-              <p className="text-sm text-white leading-relaxed">{notification.message}</p>
+              <p className="text-sm text-white leading-relaxed">{formatMessageNumbers(notification.message)}</p>
             </div>
 
             {/* Transaction Details for Payment */}
@@ -634,12 +642,12 @@ export default function NotificationsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("notifications.sold")}</p>
-                      <p className="text-lg font-black text-rose-400">{metadata.fromAmount} {metadata.fromCurrency}</p>
+                      <p className="text-lg font-black text-rose-400">{formatPiAmount(metadata.fromAmount, metadata.fromCurrency)} {metadata.fromCurrency}</p>
                     </div>
                     <Repeat size={20} className="text-slate-600" />
                     <div className="text-right">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("notifications.received")}</p>
-                      <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                      <p className="text-lg font-black text-emerald-400">{formatPiAmount(metadata.toAmount, metadata.toCurrency)} {metadata.toCurrency}</p>
                     </div>
                   </div>
                 </div>
