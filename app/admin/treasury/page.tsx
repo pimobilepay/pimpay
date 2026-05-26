@@ -1352,6 +1352,19 @@ export default function TreasuryPage() {
   const [sdaOperatorLoading, setSdaOperatorLoading] = useState(true);
   const [sdaOperatorFetchError, setSdaOperatorFetchError] = useState<string | null>(null);
 
+  // Pi Network Operator Wallet on-chain state
+  const [piOperator, setPiOperator] = useState<{
+    address: string;
+    balance: number;
+    totalUsersPi: number;
+    coverage: number;
+    explorerUrl: string;
+    lastChecked: string;
+    onChainError: string | null;
+  } | null>(null);
+  const [piOperatorLoading, setPiOperatorLoading] = useState(true);
+  const [piOperatorFetchError, setPiOperatorFetchError] = useState<string | null>(null);
+
   // Fetch SDA operator wallet on-chain balance
   const fetchSdaOperator = async () => {
     try {
@@ -1370,6 +1383,27 @@ export default function TreasuryPage() {
       setSdaOperatorFetchError(err?.message || "Erreur de connexion à l'API");
     } finally {
       setSdaOperatorLoading(false);
+    }
+  };
+
+  // Fetch Pi Network operator wallet on-chain balance
+  const fetchPiOperator = async () => {
+    try {
+      setPiOperatorLoading(true);
+      setPiOperatorFetchError(null);
+      const res = await fetch("/api/admin/treasury/pi-operator");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Erreur HTTP ${res.status}`);
+      if (json.success) {
+        setPiOperator(json);
+      } else {
+        throw new Error(json?.error || "Réponse inattendue de l'API");
+      }
+    } catch (err: any) {
+      console.error("[Treasury] Erreur wallet opérateur Pi:", err);
+      setPiOperatorFetchError(err?.message || "Erreur de connexion à l'API");
+    } finally {
+      setPiOperatorLoading(false);
     }
   };
 
@@ -1501,6 +1535,7 @@ export default function TreasuryPage() {
     fetchSystemWallets();
     fetchCentralizedFees();
     fetchSdaOperator();
+    fetchPiOperator();
   }, []);
 
   // Handle wallet settings click
@@ -1981,6 +2016,220 @@ export default function TreasuryPage() {
                 </p>
                 <button
                   onClick={fetchSdaOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Actualiser
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* PI NETWORK OPERATOR WALLET — SOLDE ON-CHAIN */}
+        <div>
+          <SectionTitle>
+            <span className="flex items-center gap-2">
+              <img src="/pi.png" alt="PI" className="w-3.5 h-3.5 object-contain" />
+              Wallet Opérateur Pi Network (On-Chain)
+            </span>
+          </SectionTitle>
+          <div className="bg-slate-900/60 border border-amber-500/20 rounded-[1.5rem] p-5">
+            {piOperatorLoading ? (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <Loader2 size={20} className="animate-spin text-amber-400" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Lecture blockchain Pi Network...
+                </span>
+              </div>
+            ) : piOperator ? (
+              <>
+                {/* Solde principal */}
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                      Solde On-Chain (Pi Network Mainnet)
+                    </p>
+                    <p className="text-3xl font-black text-amber-400">
+                      {piOperator.balance.toFixed(6)}{" "}
+                      <span className="text-lg text-amber-500/70">PI</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      ≈ ${(piOperator.balance * 0.65).toFixed(2)} USD
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black ${
+                      piOperator.onChainError
+                        ? "bg-red-500/10 border-red-500/30 text-red-400"
+                        : piOperator.balance > 0
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                        : "bg-orange-500/10 border-orange-500/30 text-orange-400"
+                    }`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      {piOperator.onChainError
+                        ? "Erreur réseau"
+                        : piOperator.balance > 0
+                        ? "Actif"
+                        : "Vide"}
+                    </div>
+                    <button
+                      onClick={fetchPiOperator}
+                      className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                      title="Actualiser"
+                    >
+                      <RefreshCw size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Adresse Opérateur Pi Network
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-xs font-mono text-amber-400 break-all">
+                      {piOperator.address}
+                    </code>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(piOperator.address);
+                          toast.success("Adresse copiée");
+                        }}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <Copy size={13} className="text-slate-400" />
+                      </button>
+                      <a
+                        href={piOperator.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-colors border border-amber-500/20"
+                      >
+                        <ExternalLink size={13} className="text-amber-400" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Couverture PI — on-chain vs total users DB */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      Couverture des Soldes Utilisateurs
+                    </p>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${
+                      piOperator.coverage >= 80
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : piOperator.coverage >= 50
+                        ? "bg-amber-500/10 text-amber-400"
+                        : "bg-red-500/10 text-red-400"
+                    }`}>
+                      {piOperator.coverage.toFixed(1)}%
+                    </span>
+                  </div>
+                  {/* Barre de progression */}
+                  <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden mb-3">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        piOperator.coverage >= 80
+                          ? "bg-emerald-500"
+                          : piOperator.coverage >= 50
+                          ? "bg-amber-500"
+                          : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.min(piOperator.coverage, 100)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <p className="text-sm font-black text-amber-400">
+                        {piOperator.balance.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">PI On-Chain</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black text-white">
+                        {piOperator.totalUsersPi.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">PI Total Users (DB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alerte si couverture insuffisante */}
+                {piOperator.coverage < 80 && (
+                  <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
+                    piOperator.coverage < 50
+                      ? "bg-red-500/10 border-red-500/30"
+                      : "bg-amber-500/10 border-amber-500/30"
+                  }`}>
+                    <AlertTriangle size={16} className={
+                      piOperator.coverage < 50 ? "text-red-400 shrink-0" : "text-amber-400 shrink-0"
+                    } />
+                    <div>
+                      <p className={`text-[10px] font-black uppercase ${
+                        piOperator.coverage < 50 ? "text-red-400" : "text-amber-400"
+                      }`}>
+                        {piOperator.coverage < 50
+                          ? "⚠️ Couverture critique — rechargez le wallet opérateur"
+                          : "Couverture insuffisante — rechargez bientôt"}
+                      </p>
+                      <p className="text-[9px] text-slate-500 mt-1">
+                        Manque :{" "}
+                        {Math.max(0, piOperator.totalUsersPi - piOperator.balance).toFixed(4)} PI pour couvrir tous les retraits
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Erreur réseau */}
+                {piOperator.onChainError && (
+                  <div className="flex items-start gap-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl mt-3">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[9px] text-red-400">
+                      Erreur Pi Network : {piOperator.onChainError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dernière vérification */}
+                <div className="flex items-center justify-center gap-2 mt-4 text-[8px] text-slate-600">
+                  <Clock size={10} />
+                  <span>
+                    Vérifié {piOperator.lastChecked
+                      ? formatTimeAgo(piOperator.lastChecked)
+                      : "—"}
+                  </span>
+                </div>
+              </>
+            ) : piOperatorFetchError ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-red-400" />
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest text-center">
+                  Erreur de chargement
+                </p>
+                <p className="text-[9px] text-slate-500 text-center max-w-xs">
+                  {piOperatorFetchError}
+                </p>
+                <button
+                  onClick={fetchPiOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Réessayer
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-amber-400" />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+                  Données non disponibles
+                </p>
+                <button
+                  onClick={fetchPiOperator}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
