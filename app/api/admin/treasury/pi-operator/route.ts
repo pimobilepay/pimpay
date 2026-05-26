@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
 // Adresse du wallet opérateur central Pi Network (Mainnet)
+// Utilise PI_WALLET_PUBLIC_KEY en priorité, puis PI_OPERATOR_ADDRESS comme fallback
 const PI_OPERATOR_ADDRESS =
+  process.env.PI_WALLET_PUBLIC_KEY ||
   process.env.PI_OPERATOR_ADDRESS ||
   "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
 
