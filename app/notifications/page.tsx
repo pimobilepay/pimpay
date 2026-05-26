@@ -639,7 +639,7 @@ export default function NotificationsPage() {
                     <Repeat size={20} className="text-slate-600" />
                     <div className="text-right">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("notifications.received")}</p>
-                      <p className="text-lg font-black text-emerald-400">{metadata.toAmount} {metadata.toCurrency}</p>
+                      <p className="text-lg font-black text-emerald-400">{Number(metadata.toAmount).toFixed(8).replace(/\.?0+$/, "")} {metadata.toCurrency}</p>
                     </div>
                   </div>
                 </div>
@@ -777,14 +777,7 @@ export default function NotificationsPage() {
               </div>
             )}
 
-            {/* Delete Button */}
-            <button 
-              onClick={() => { deleteNotif(notification.id); onClose(); }}
-              className="w-full py-4 bg-red-500/10 text-red-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
-            >
-              <Trash2 size={16} />
-              {t("notifications.deleteNotification")}
-            </button>
+
           </div>
         </motion.div>
       </div>
@@ -962,7 +955,7 @@ export default function NotificationsPage() {
                           </span>
                           <Repeat size={12} className="text-slate-600 self-center" />
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/15">
-                            <ArrowDownLeft size={9} /> {notif.metadata.toAmount} {notif.metadata.toCurrency}
+                            <ArrowDownLeft size={9} /> {Number(notif.metadata.toAmount).toFixed(8).replace(/\.?0+$/, "")} {notif.metadata.toCurrency}
                           </span>
                         </div>
                       )}
