@@ -23,12 +23,12 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-
-const PI_GCV_PRICE = 314159;
+import { usePiPrice } from "@/hooks/usePiPrice";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { price: piPrice } = usePiPrice();
 
   const ref = searchParams.get("ref");
   const urlAmount = searchParams.get("amount");
@@ -72,7 +72,7 @@ function SuccessContent() {
 
   const amountUSD =
     currency === "PI"
-      ? amount * PI_GCV_PRICE
+      ? amount * piPrice
       : currency === "XAF"
       ? amount / 600
       : amount;
