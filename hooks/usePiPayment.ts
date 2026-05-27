@@ -8,7 +8,6 @@ declare global {
     Pi: any;
     __PI_SDK_READY__: boolean;
     __PI_SDK_INITIALIZING__: boolean;
-    __PI_AUTH_WITH_PAYMENTS__: boolean;
   }
 }
 
@@ -18,37 +17,51 @@ interface PaymentConfig {
   metadata: Record<string, any>;
 }
 
+interface PaymentCallbacks {
+  onReadyForServerApproval: (paymentId: string) => Promise<void>;
+  onReadyForServerCompletion: (paymentId: string, txid: string) => Promise<void>;
+  onCancel: (paymentId: string) => void;
+  onError: (error: Error, payment?: any) => void;
+}
+
 /**
  * Hook pour les paiements Pi Network (U2A - User to App)
- *
- * Flux conforme à la documentation officielle Pi Network :
- * 1. Pi.init({ version: "2.0", sandbox: true })  — mainnet
- * 2. Pi.authenticate(["username", "payments"], onIncompletePaymentFound)
- * 3. Pi.createPayment(data, { onReadyForServerApproval, onReadyForServerCompletion, onCancel, onError })
- *
- * Le backend appelle :
- *   POST https://api.minepi.com/v2/payments/:id/approve    — dans onReadyForServerApproval
- *   POST https://api.minepi.com/v2/payments/:id/complete   — dans onReadyForServerCompletion
- * avec Authorization: Key <PI_API_KEY>
+ * 
+ * Utilise pour la recharge de solde : l'utilisateur paie en Pi pour crediter son compte PimPay.
+ * 
+ * Le flux complet :
+ * 1. Pi.createPayment() ouvre le dialog de paiement Pi
+ * 2. onReadyForServerApproval: backend appelle /approve sur Pi Network
+ * 3. L'utilisateur signe la transaction dans Pi Browser
+ * 4. onReadyForServerCompletion: backend appelle /complete sur Pi Network et credite le compte
  */
 export const usePiPayment = () => {
   const [loading, setLoading] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const paymentInProgressRef = useRef(false);
 
-  // ─── SDK Init (mainnet, sandbox: true) ──────────────────────────────────
+  /**
+   * Initialiser le SDK Pi de maniere thread-safe
+   */
   const initializePiSDK = useCallback((): boolean => {
-    if (typeof window === "undefined" || !window.Pi) return false;
-    if (window.__PI_SDK_READY__) return true;
-    if (window.__PI_SDK_INITIALIZING__) return false;
+    if (typeof window === "undefined" || !window.Pi) {
+      return false;
+    }
+
+    if (window.__PI_SDK_READY__) {
+      return true;
+    }
+
+    if (window.__PI_SDK_INITIALIZING__) {
+      return false;
+    }
 
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      // IMPORTANT: sandbox MUST be false for mainnet / App Store production
       window.Pi.init({ version: "2.0", sandbox: true });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
-      console.log("[PimPay] Pi SDK 2.0 initialisé (mainnet)");
+      console.log("[PimPay] SDK Pi 2.0 initialise par usePiPayment");
       return true;
     } catch (e: any) {
       window.__PI_SDK_INITIALIZING__ = false;
@@ -61,270 +74,229 @@ export const usePiPayment = () => {
     }
   }, []);
 
-  // ─── Wait for SDK ─────────────────────────────────────────────────────────
-  const waitForPiSDK = useCallback(
-    async (maxWait = 10000): Promise<boolean> => {
-      const start = Date.now();
-      while (Date.now() - start < maxWait) {
-        if (window.__PI_SDK_READY__) return true;
-        if (window.Pi) {
-          if (initializePiSDK()) return true;
-        }
-        await new Promise((r) => setTimeout(r, 100));
+  /**
+   * Attendre que le SDK Pi soit disponible et initialise
+   */
+  const waitForPiSDK = useCallback(async (maxWait = 10000): Promise<boolean> => {
+    const start = Date.now();
+    const checkInterval = 100;
+    
+    while (Date.now() - start < maxWait) {
+      if (window.__PI_SDK_READY__) {
+        return true;
       }
-      return window.__PI_SDK_READY__ || false;
-    },
-    [initializePiSDK]
-  );
+      
+      if (window.Pi) {
+        if (initializePiSDK()) {
+          return true;
+        }
+        if (window.__PI_SDK_INITIALIZING__) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          if (window.__PI_SDK_READY__) {
+            return true;
+          }
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+    
+    return window.__PI_SDK_READY__ || false;
+  }, [initializePiSDK]);
 
-  // ─── onIncompletePaymentFound (REQUIRED by Pi Network docs) ──────────────
-  // Called automatically by Pi SDK when a stale payment is found during authenticate.
-  // Must complete or cancel the in-flight payment via the backend — never ignore it.
+  /**
+   * Gestionnaire des paiements incomplets (obligatoire selon la doc Pi)
+   * 
+   * Cette fonction est appelee automatiquement par le SDK Pi quand un paiement
+   * est reste en suspend. Elle tente de le completer via notre API.
+   */
   const onIncompletePaymentFound = useCallback(async (payment: any) => {
-    console.log(
-      "[PimPay] Paiement incomplet détecté:",
-      payment.identifier,
-      "txid:",
-      payment.transaction?.txid
-    );
-
+    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+    
     try {
-      const res = await fetch("/api/payments/incomplete", {
+      const response = await fetch("/api/payments/incomplete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           paymentId: payment.identifier,
-          txid: payment.transaction?.txid ?? null,
+          txid: payment.transaction?.txid || null,
         }),
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        console.log(
-          `[PimPay] Paiement incomplet ${payment.identifier} traité: ${data.action}`
-        );
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log(`[PimPay] Paiement incomplet ${payment.identifier} traite: ${data.action}`);
         if (data.action === "completed") {
-          toast.success(`Paiement récupéré: ${data.message}`);
+          toast.success(`Paiement recupere: ${data.message}`);
         }
       } else {
-        console.error("[PimPay] Échec traitement paiement incomplet:", data);
+        console.error(`[PimPay] Echec traitement paiement incomplet:`, data);
       }
-    } catch (err) {
-      console.error(
-        "[PimPay] Erreur réseau — traitement paiement incomplet:",
-        err
-      );
+    } catch (error) {
+      console.error("[PimPay] Erreur reseau lors du traitement du paiement incomplet:", error);
     }
   }, []);
 
-  // ─── Authenticate with payments scope ────────────────────────────────────
-  // Pi Network requires authenticate() with "payments" scope before createPayment.
-  // We run it once per session (guarded by __PI_AUTH_WITH_PAYMENTS__).
-  const authenticateWithPayments = useCallback(async (): Promise<boolean> => {
-    if (!window.Pi) return false;
+  /**
+   * Creer un paiement Pi (U2A - User to App)
+   * 
+   * @param config Configuration du paiement (amount, memo, metadata)
+   * @returns Promise avec le resultat du paiement
+   */
+  const createPayment = useCallback(async (config: PaymentConfig): Promise<{ success: boolean; txid?: string; error?: string }> => {
+    if (typeof window === "undefined") {
+      return { success: false, error: "SSR non supporte" };
+    }
 
-    // Already done in this session — skip to avoid a second auth dialog
-    if (window.__PI_AUTH_WITH_PAYMENTS__) return true;
+    if (paymentInProgressRef.current) {
+      console.warn("[PimPay] Paiement deja en cours");
+      return { success: false, error: "Un paiement est deja en cours" };
+    }
+
+    paymentInProgressRef.current = true;
+    setLoading(true);
 
     try {
-      await window.Pi.authenticate(
-        ["username", "payments"],
-        onIncompletePaymentFound
-      );
-      window.__PI_AUTH_WITH_PAYMENTS__ = true;
-      console.log("[PimPay] Authentification Pi (scope: payments) OK");
-      return true;
-    } catch (e: any) {
-      // If the user is already authenticated the SDK may throw "already authenticated"
-      // — treat that as success so createPayment can proceed.
-      if (
-        e?.message?.includes("already") ||
-        e?.message?.includes("authenticated")
-      ) {
-        window.__PI_AUTH_WITH_PAYMENTS__ = true;
-        console.log("[PimPay] Pi déjà authentifié (scope payments assumé OK)");
-        return true;
-      }
-      console.error("[PimPay] Erreur authenticate Pi:", e);
-      return false;
-    }
-  }, [onIncompletePaymentFound]);
-
-  // ─── Create Payment (U2A) ─────────────────────────────────────────────────
-  const createPayment = useCallback(
-    async (
-      config: PaymentConfig
-    ): Promise<{ success: boolean; txid?: string; error?: string }> => {
-      if (typeof window === "undefined") {
-        return { success: false, error: "SSR non supporté" };
+      // Attendre que le SDK soit pret
+      const sdkReady = await waitForPiSDK(10000);
+      
+      if (!sdkReady || !window.Pi) {
+        const errorMsg = !window.Pi 
+          ? "Veuillez ouvrir PimPay dans le Pi Browser."
+          : "Le SDK Pi n'a pas pu s'initialiser. Rechargez la page.";
+        toast.error(errorMsg, { duration: 5000 });
+        return { success: false, error: errorMsg };
       }
 
-      if (paymentInProgressRef.current) {
-        console.warn("[PimPay] Paiement déjà en cours");
-        return { success: false, error: "Un paiement est déjà en cours" };
-      }
+      console.log("[PimPay] Creation paiement Pi:", config);
 
-      paymentInProgressRef.current = true;
-      setLoading(true);
+      return new Promise((resolve) => {
+        const paymentData = {
+          amount: config.amount,
+          memo: config.memo,
+          metadata: config.metadata,
+        };
 
-      try {
-        // Step 1: Ensure SDK is ready (sandbox: true / mainnet)
-        const sdkReady = await waitForPiSDK(10000);
-        if (!sdkReady || !window.Pi) {
-          const msg = !window.Pi
-            ? "Veuillez ouvrir PimPay dans le Pi Browser."
-            : "Le SDK Pi n'a pas pu s'initialiser. Rechargez la page.";
-          toast.error(msg, { duration: 5000 });
-          return { success: false, error: msg };
-        }
+        const paymentCallbacks: PaymentCallbacks = {
+          // Callback 1: Le paiement est cree, on doit l'approuver cote serveur
+          onReadyForServerApproval: async (id: string) => {
+            console.log("[PimPay] onReadyForServerApproval:", id);
+            setPaymentId(id);
+            
+            try {
+              const res = await fetch("/api/payments/approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  paymentId: id,
+                  amount: config.amount,
+                  memo: config.memo,
+                  ...config.metadata,
+                }),
+              });
 
-        // Step 2: Authenticate with "payments" scope BEFORE createPayment
-        // This is mandatory per the official Pi Network documentation.
-        const authed = await authenticateWithPayments();
-        if (!authed) {
-          const msg =
-            "Authentification Pi échouée. Vérifiez que vous utilisez Pi Browser.";
-          toast.error(msg, { duration: 5000 });
-          return { success: false, error: msg };
-        }
+              const data = await res.json();
 
-        console.log("[PimPay] Création paiement Pi:", config);
-
-        // Step 3: createPayment with the three-way handshake callbacks
-        return new Promise((resolve) => {
-          window.Pi.createPayment(
-            {
-              amount: config.amount,
-              memo: config.memo,
-              metadata: config.metadata,
-            },
-            {
-              // ── Phase I: Server-Side Approval ──────────────────────────
-              // Backend calls POST https://api.minepi.com/v2/payments/:id/approve
-              onReadyForServerApproval: async (id: string) => {
-                console.log("[PimPay] onReadyForServerApproval:", id);
-                setPaymentId(id);
-
-                try {
-                  const res = await fetch("/api/payments/approve", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({
-                      paymentId: id,
-                      amount: config.amount,
-                      memo: config.memo,
-                      ...config.metadata,
-                    }),
-                  });
-
-                  const data = await res.json();
-
-                  if (!res.ok) {
-                    console.error("[PimPay] Erreur approbation serveur:", data);
-                    toast.error(data.error || "Erreur lors de l'approbation");
-                    // Do not resolve here — Pi SDK will call onError or onCancel
-                  } else {
-                    console.log("[PimPay] Paiement approuvé par le serveur:", id);
-                  }
-                } catch (err: any) {
-                  console.error("[PimPay] Erreur réseau approbation:", err);
-                  toast.error("Erreur réseau lors de l'approbation");
-                }
-              },
-
-              // ── Phase III: Server-Side Completion ──────────────────────
-              // Backend calls POST https://api.minepi.com/v2/payments/:id/complete
-              onReadyForServerCompletion: async (id: string, txid: string) => {
-                console.log(
-                  "[PimPay] onReadyForServerCompletion:",
-                  id,
-                  "txid:",
-                  txid
-                );
-
-                try {
-                  const res = await fetch("/api/payments/complete", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({ paymentId: id, txid }),
-                  });
-
-                  const data = await res.json();
-
-                  if (!res.ok) {
-                    console.error("[PimPay] Erreur completion serveur:", data);
-                    toast.error(data.error || "Erreur lors de la complétion");
-                    resolve({ success: false, error: data.error });
-                  } else {
-                    console.log("[PimPay] Paiement complété:", id);
-                    toast.success(`Recharge de ${config.amount} Pi effectuée !`);
-                    resolve({ success: true, txid });
-                  }
-                } catch (err: any) {
-                  console.error("[PimPay] Erreur réseau complétion:", err);
-                  toast.error("Erreur réseau lors de la complétion");
-                  resolve({ success: false, error: "Erreur réseau" });
-                }
-              },
-
-              // ── User cancelled ─────────────────────────────────────────
-              onCancel: (id: string) => {
-                console.log("[PimPay] Paiement annulé:", id);
-                toast.info("Paiement annulé");
-                resolve({
-                  success: false,
-                  error: "Paiement annulé par l'utilisateur",
-                });
-              },
-
-              // ── SDK error ──────────────────────────────────────────────
-              onError: (error: Error, payment?: any) => {
-                console.error("[PimPay] Erreur paiement SDK:", error, payment);
-                toast.error(error.message || "Erreur lors du paiement");
-                resolve({ success: false, error: error.message });
-              },
+              if (!res.ok) {
+                console.error("[PimPay] Erreur approbation:", data);
+                toast.error(data.error || "Erreur lors de l'approbation");
+                // On ne resolve pas ici, on attend onError ou onCancel
+              } else {
+                console.log("[PimPay] Paiement approuve:", id);
+              }
+            } catch (error: any) {
+              console.error("[PimPay] Erreur reseau approbation:", error);
+              toast.error("Erreur reseau lors de l'approbation");
             }
-          );
-        });
-      } catch (err: any) {
-        console.error("[PimPay] Erreur création paiement:", err);
-        toast.error(err.message || "Erreur lors du paiement");
-        return { success: false, error: err.message };
-      } finally {
-        setLoading(false);
-        paymentInProgressRef.current = false;
-      }
-    },
-    [waitForPiSDK, authenticateWithPayments]
-  );
+          },
 
-  // ─── createBalanceTopUp (dépôt Pi → solde interne PimPay) ─────────────────
-  const createBalanceTopUp = useCallback(
-    async (
-      amount: number
-    ): Promise<{ success: boolean; txid?: string; error?: string }> => {
-      if (amount <= 0) {
-        toast.error("Le montant doit être supérieur à 0");
-        return { success: false, error: "Montant invalide" };
-      }
+          // Callback 2: L'utilisateur a signe, on doit completer cote serveur
+          onReadyForServerCompletion: async (id: string, txid: string) => {
+            console.log("[PimPay] onReadyForServerCompletion:", id, "txid:", txid);
+            
+            try {
+              const res = await fetch("/api/payments/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  paymentId: id,
+                  txid,
+                }),
+              });
 
-      return createPayment({
-        amount,
-        memo: `Recharge PimPay: ${amount} Pi`,
-        metadata: {
-          type: "BALANCE_TOPUP",
-          currency: "PI",
-          productId: "balance_topup",
-          timestamp: new Date().toISOString(),
-        },
+              const data = await res.json();
+
+              if (!res.ok) {
+                console.error("[PimPay] Erreur completion:", data);
+                toast.error(data.error || "Erreur lors de la completion");
+                resolve({ success: false, error: data.error });
+              } else {
+                console.log("[PimPay] Paiement complete:", id);
+                toast.success(`Recharge de ${config.amount} Pi effectuee !`);
+                resolve({ success: true, txid });
+              }
+            } catch (error: any) {
+              console.error("[PimPay] Erreur reseau completion:", error);
+              toast.error("Erreur reseau lors de la completion");
+              resolve({ success: false, error: "Erreur reseau" });
+            }
+          },
+
+          // Callback 3: L'utilisateur a annule
+          onCancel: (id: string) => {
+            console.log("[PimPay] Paiement annule:", id);
+            toast.info("Paiement annule");
+            resolve({ success: false, error: "Paiement annule par l'utilisateur" });
+          },
+
+          // Callback 4: Une erreur est survenue
+          onError: (error: Error, payment?: any) => {
+            console.error("[PimPay] Erreur paiement:", error, payment);
+            toast.error(error.message || "Erreur lors du paiement");
+            resolve({ success: false, error: error.message });
+          },
+        };
+
+        // Lancer le paiement Pi avec les callbacks
+        window.Pi.createPayment(paymentData, paymentCallbacks);
       });
-    },
-    [createPayment]
-  );
+
+    } catch (error: any) {
+      console.error("[PimPay] Erreur creation paiement:", error);
+      toast.error(error.message || "Erreur lors du paiement");
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+      paymentInProgressRef.current = false;
+    }
+  }, [waitForPiSDK]);
+
+  /**
+   * Creer une recharge de solde Pi
+   * 
+   * @param amount Montant en Pi a recharger
+   * @returns Promise avec le resultat
+   */
+  const createBalanceTopUp = useCallback(async (amount: number): Promise<{ success: boolean; txid?: string; error?: string }> => {
+    if (amount <= 0) {
+      toast.error("Le montant doit etre superieur a 0");
+      return { success: false, error: "Montant invalide" };
+    }
+
+    return createPayment({
+      amount,
+      memo: `Recharge PimPay: ${amount} Pi`,
+      metadata: {
+        type: "BALANCE_TOPUP",
+        currency: "PI",
+        productId: "balance_topup",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }, [createPayment]);
 
   return {
     createPayment,
