@@ -1365,6 +1365,23 @@ export default function TreasuryPage() {
   const [piOperatorLoading, setPiOperatorLoading] = useState(true);
   const [piOperatorFetchError, setPiOperatorFetchError] = useState<string | null>(null);
 
+  // TronGrid Operator Wallet on-chain state
+  const [tronTab, setTronTab] = useState<"TRX" | "USDT">("TRX");
+  const [tronOperator, setTronOperator] = useState<{
+    address: string;
+    trxBalance: number;
+    usdtBalance: number;
+    totalUsersTRX: number;
+    totalUsersUSDT: number;
+    coverageTRX: number;
+    coverageUSDT: number;
+    explorerUrl: string;
+    lastChecked: string;
+    onChainError: string | null;
+  } | null>(null);
+  const [tronOperatorLoading, setTronOperatorLoading] = useState(true);
+  const [tronOperatorFetchError, setTronOperatorFetchError] = useState<string | null>(null);
+
   // Fetch SDA operator wallet on-chain balance
   const fetchSdaOperator = async () => {
     try {
@@ -1404,6 +1421,27 @@ export default function TreasuryPage() {
       setPiOperatorFetchError(err?.message || "Erreur de connexion à l'API");
     } finally {
       setPiOperatorLoading(false);
+    }
+  };
+
+  // Fetch TronGrid operator wallet on-chain balance (TRX + USDT)
+  const fetchTronOperator = async () => {
+    try {
+      setTronOperatorLoading(true);
+      setTronOperatorFetchError(null);
+      const res = await fetch("/api/admin/treasury/tron-operator");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Erreur HTTP ${res.status}`);
+      if (json.success) {
+        setTronOperator(json);
+      } else {
+        throw new Error(json?.error || "Réponse inattendue de l'API");
+      }
+    } catch (err: any) {
+      console.error("[Treasury] Erreur wallet opérateur TRON:", err);
+      setTronOperatorFetchError(err?.message || "Erreur de connexion à l'API");
+    } finally {
+      setTronOperatorLoading(false);
     }
   };
 
@@ -1536,6 +1574,7 @@ export default function TreasuryPage() {
     fetchCentralizedFees();
     fetchSdaOperator();
     fetchPiOperator();
+    fetchTronOperator();
   }, []);
 
   // Handle wallet settings click
@@ -2230,6 +2269,250 @@ export default function TreasuryPage() {
                 </p>
                 <button
                   onClick={fetchPiOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Actualiser
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* TRONGRID OPERATOR WALLET — TRX + USDT */}
+        <div>
+          <SectionTitle>
+            <span className="flex items-center gap-2">
+              {/* TRON logo inline SVG */}
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="8" fill="#E84142"/>
+                <path d="M11.8 5.2L8 2 4.2 5.2l1.1 6.4L8 13l2.7-1.4 1.1-6.4z" fill="white"/>
+              </svg>
+              Wallet Opérateur TRON (On-Chain)
+            </span>
+          </SectionTitle>
+
+          {/* Onglets TRX / USDT */}
+          <div className="flex gap-2 mb-3">
+            {(["TRX", "USDT"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setTronTab(tab)}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  tronTab === tab
+                    ? tab === "TRX"
+                      ? "bg-red-500/20 border border-red-500/40 text-red-400"
+                      : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400"
+                    : "bg-white/5 border border-white/10 text-slate-500 hover:bg-white/10"
+                }`}
+              >
+                {tab === "USDT" ? "USDT (TRC-20)" : "TRX"}
+              </button>
+            ))}
+          </div>
+
+          <div className={`bg-slate-900/60 border rounded-[1.5rem] p-5 ${
+            tronTab === "TRX" ? "border-red-500/20" : "border-emerald-500/20"
+          }`}>
+            {tronOperatorLoading ? (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <Loader2 size={20} className={`animate-spin ${tronTab === "TRX" ? "text-red-400" : "text-emerald-400"}`} />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Lecture blockchain TRON...
+                </span>
+              </div>
+            ) : tronOperator ? (
+              <>
+                {/* Solde principal */}
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                      {tronTab === "TRX" ? "Solde On-Chain (TRON Mainnet)" : "Solde USDT TRC-20"}
+                    </p>
+                    <p className={`text-3xl font-black ${tronTab === "TRX" ? "text-red-400" : "text-emerald-400"}`}>
+                      {tronTab === "TRX"
+                        ? tronOperator.trxBalance.toFixed(6)
+                        : tronOperator.usdtBalance.toFixed(6)}{" "}
+                      <span className={`text-lg ${tronTab === "TRX" ? "text-red-500/70" : "text-emerald-500/70"}`}>
+                        {tronTab}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {tronTab === "TRX"
+                        ? `≈ $${(tronOperator.trxBalance * 0.12).toFixed(2)} USD`
+                        : `≈ $${tronOperator.usdtBalance.toFixed(2)} USD`}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black ${
+                      tronOperator.onChainError
+                        ? "bg-red-500/10 border-red-500/30 text-red-400"
+                        : (tronTab === "TRX" ? tronOperator.trxBalance : tronOperator.usdtBalance) > 0
+                        ? tronTab === "TRX"
+                          ? "bg-red-500/10 border-red-500/30 text-red-400"
+                          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                        : "bg-orange-500/10 border-orange-500/30 text-orange-400"
+                    }`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      {tronOperator.onChainError ? "Erreur réseau" : (tronTab === "TRX" ? tronOperator.trxBalance : tronOperator.usdtBalance) > 0 ? "Actif" : "Vide"}
+                    </div>
+                    <button
+                      onClick={fetchTronOperator}
+                      className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                      title="Actualiser"
+                    >
+                      <RefreshCw size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Adresse Opérateur TRON
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className={`text-xs font-mono break-all ${tronTab === "TRX" ? "text-red-400" : "text-emerald-400"}`}>
+                      {tronOperator.address}
+                    </code>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(tronOperator.address);
+                          toast.success("Adresse copiée");
+                        }}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <Copy size={13} className="text-slate-400" />
+                      </button>
+                      <a
+                        href={tronOperator.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`p-2 rounded-lg border transition-colors ${
+                          tronTab === "TRX"
+                            ? "bg-red-500/10 hover:bg-red-500/20 border-red-500/20"
+                            : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20"
+                        }`}
+                      >
+                        <ExternalLink size={13} className={tronTab === "TRX" ? "text-red-400" : "text-emerald-400"} />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Couverture */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      Couverture des Soldes Utilisateurs
+                    </p>
+                    {(() => {
+                      const cov = tronTab === "TRX" ? tronOperator.coverageTRX : tronOperator.coverageUSDT;
+                      return (
+                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${
+                          cov >= 80 ? "bg-emerald-500/10 text-emerald-400"
+                          : cov >= 50 ? "bg-amber-500/10 text-amber-400"
+                          : "bg-red-500/10 text-red-400"
+                        }`}>{cov.toFixed(1)}%</span>
+                      );
+                    })()}
+                  </div>
+                  {(() => {
+                    const cov = tronTab === "TRX" ? tronOperator.coverageTRX : tronOperator.coverageUSDT;
+                    return (
+                      <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden mb-3">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            cov >= 80 ? "bg-emerald-500" : cov >= 50 ? "bg-amber-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${Math.min(cov, 100)}%` }}
+                        />
+                      </div>
+                    );
+                  })()}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <p className={`text-sm font-black ${tronTab === "TRX" ? "text-red-400" : "text-emerald-400"}`}>
+                        {tronTab === "TRX"
+                          ? tronOperator.trxBalance.toFixed(4)
+                          : tronOperator.usdtBalance.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">{tronTab} On-Chain</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black text-white">
+                        {tronTab === "TRX"
+                          ? tronOperator.totalUsersTRX.toFixed(4)
+                          : tronOperator.totalUsersUSDT.toFixed(4)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">{tronTab} Total Users (DB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alerte couverture insuffisante */}
+                {(() => {
+                  const cov = tronTab === "TRX" ? tronOperator.coverageTRX : tronOperator.coverageUSDT;
+                  const bal = tronTab === "TRX" ? tronOperator.trxBalance : tronOperator.usdtBalance;
+                  const total = tronTab === "TRX" ? tronOperator.totalUsersTRX : tronOperator.totalUsersUSDT;
+                  if (cov >= 80) return null;
+                  return (
+                    <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
+                      cov < 50 ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30"
+                    }`}>
+                      <AlertTriangle size={16} className={cov < 50 ? "text-red-400 shrink-0" : "text-amber-400 shrink-0"} />
+                      <div>
+                        <p className={`text-[10px] font-black uppercase ${cov < 50 ? "text-red-400" : "text-amber-400"}`}>
+                          {cov < 50 ? "⚠️ Couverture critique — rechargez le wallet opérateur" : "Couverture insuffisante — rechargez bientôt"}
+                        </p>
+                        <p className="text-[9px] text-slate-500 mt-1">
+                          Manque : {Math.max(0, total - bal).toFixed(4)} {tronTab} pour couvrir tous les retraits
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Erreur réseau */}
+                {tronOperator.onChainError && (
+                  <div className="flex items-start gap-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl mt-3">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[9px] text-red-400">
+                      Erreur blockchain : {tronOperator.onChainError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dernière vérification */}
+                <div className="flex items-center justify-center gap-2 mt-4 text-[8px] text-slate-600">
+                  <Clock size={10} />
+                  <span>Vérifié {tronOperator.lastChecked ? formatTimeAgo(tronOperator.lastChecked) : "—"}</span>
+                </div>
+              </>
+            ) : tronOperatorFetchError ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-red-400" />
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest text-center">
+                  Erreur de chargement
+                </p>
+                <p className="text-[9px] text-slate-500 text-center max-w-xs">{tronOperatorFetchError}</p>
+                <button
+                  onClick={fetchTronOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Réessayer
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-amber-400" />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+                  Données non disponibles
+                </p>
+                <button
+                  onClick={fetchTronOperator}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
