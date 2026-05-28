@@ -395,9 +395,13 @@ export async function POST(req: NextRequest) {
 
           // — Tentative 1 : wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY)
           const operatorKey = getSidraOperatorKey();
+          let usedOperator = false;
+          let operatorBalanceStr = "N/A";
+          
           if (operatorKey) {
             const operatorWallet = new ethers.Wallet(operatorKey, provider);
             const operatorBalance = await provider.getBalance(operatorWallet.address);
+            operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
 
             if (operatorBalance >= totalNeeded) {
               const txRes = await operatorWallet.sendTransaction({
@@ -408,21 +412,20 @@ export async function POST(req: NextRequest) {
               });
               const receipt = await txRes.wait();
               blockchainTxHash = receipt?.hash || txRes.hash;
+              usedOperator = true;
             } else {
-              // Solde opérateur insuffisant → erreur explicite pour l'admin
-              const availOp = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
-              console.error(
-                `[SDA_TRANSFER] Wallet opérateur insuffisant: ${availOp} SDA disponible, ${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} requis`
-              );
-              throw new Error(
-                `Solde opérateur SDA insuffisant (${availOp} SDA). Contactez le support.`
+              // Solde opérateur insuffisant → tenter le wallet utilisateur
+              console.warn(
+                `[SDA_TRANSFER] Wallet opérateur insuffisant: ${operatorBalanceStr} SDA disponible, ${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} requis. Fallback vers wallet utilisateur...`
               );
             }
-          } else {
-            // — Tentative 2 : wallet personnel de l'utilisateur (ancien comportement)
-            // Utilisé uniquement si SIDRA_OPERATOR_PRIVATE_KEY n'est pas configuré
+          }
+          
+          // — Tentative 2 : wallet personnel de l'utilisateur (fallback)
+          // Utilisé si SIDRA_OPERATOR_PRIVATE_KEY n'est pas configuré OU si solde opérateur insuffisant
+          if (!usedOperator && !blockchainTxHash) {
             if (!senderUser?.sidraPrivateKey) {
-              throw new Error("Aucune clé SDA configurée. Contactez le support.");
+              throw new Error(`Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) et aucune clé utilisateur configurée. Contactez le support.`);
             }
 
             let privateKey = senderUser.sidraPrivateKey;
@@ -438,11 +441,12 @@ export async function POST(req: NextRequest) {
               const avail = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
               const needed = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
               throw new Error(
-                `Solde SDA on-chain insuffisant (${avail} SDA disponible, ${needed} SDA requis). ` +
-                `Configurez SIDRA_OPERATOR_PRIVATE_KEY pour activer les transferts.`
+                `Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) et votre solde on-chain est également insuffisant ` +
+                `(${avail} SDA disponible, ${needed} SDA requis).`
               );
             }
 
+            console.log(`[SDA_TRANSFER] Broadcasting via USER wallet: ${userWallet.address}`);
             const txRes = await userWallet.sendTransaction({
               to: recipientInput,
               value: amountInWei,
