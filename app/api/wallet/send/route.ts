@@ -341,50 +341,6 @@ export async function POST(req: NextRequest) {
             }
           }
         }
-
-          try {
-            let privateKey = operatorPrivateKey;
-            
-            if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
-            
-            // Valider format clé EVM (64 caractères hex après 0x)
-            if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-              throw new Error("Format de clé operateur SDA/EVM invalide");
-            }
-
-            console.log("[v0] [WALLET_SEND] Broadcasting SDA transaction via OPERATOR wallet...");
-            const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
-            const wallet = new ethers.Wallet(privateKey, provider);
-            
-            // Verifier le solde du wallet operateur
-            const operatorBalance = await provider.getBalance(wallet.address);
-            const operatorBalanceEth = parseFloat(ethers.formatEther(operatorBalance));
-            
-            if (operatorBalanceEth < amount) {
-              console.error("[v0] [WALLET_SEND] Solde operateur insuffisant:", operatorBalanceEth, "< montant:", amount);
-              throw new Error(`Liquidite operateur insuffisante. Solde: ${operatorBalanceEth.toFixed(4)} SDA`);
-            }
-            
-            // Fix: Convert amount to fixed-point string to avoid scientific notation (e.g. 1e-8)
-            const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
-            const txRes = await wallet.sendTransaction({ 
-              to: recipientInput, 
-              value: ethers.parseEther(amountStr) 
-            });
-            const receipt = await txRes.wait();
-            blockchainTxHash = receipt?.hash || txRes.hash;
-            txStatus = TransactionStatus.SUCCESS;
-            console.log("[v0] [WALLET_SEND] SDA transaction confirmed via OPERATOR:", blockchainTxHash);
-          } catch (e: any) { 
-            console.error("[v0] [WALLET_SEND] SDA blockchain error:", e.message);
-            // Rembourser l'utilisateur en cas d'echec blockchain
-            await tx.wallet.update({
-              where: { id: senderWallet.id },
-              data: { balance: { increment: amount } }
-            });
-            throw new Error(`Erreur blockchain SDA: ${e.message}`); 
-          }
-        }
         
         // Log de transaction
         const transaction = await tx.transaction.create({
