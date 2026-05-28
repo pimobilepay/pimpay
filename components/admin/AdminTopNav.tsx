@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Bell, ArrowLeft, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -149,6 +149,18 @@ export function AdminTopNav({
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
+  // Calculate unread counts per type (based on localStorage read state)
+  const unreadCounts = useMemo(() => {
+    const unread = notifications.filter(n => !n.read);
+    return {
+      kyc: unread.filter(n => n.type === "KYC_PENDING").length,
+      transactions: unread.filter(n => n.type === "TRANSACTION_PENDING").length,
+      users: unread.filter(n => n.type === "NEW_USER").length,
+      tickets: unread.filter(n => n.type === "SUPPORT_TICKET").length,
+      messages: unread.filter(n => n.type === "MESSAGE").length,
+    };
+  }, [notifications]);
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "urgent": return "bg-red-500/20 text-red-400 border-red-500/30";
@@ -262,14 +274,14 @@ export function AdminTopNav({
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Shows UNREAD counts only */}
             <div className="grid grid-cols-5 gap-1 p-3 border-b border-white/5 bg-white/[0.02]">
               {[
-                { label: "KYC", count: counts.kyc, color: "amber" },
-                { label: "TX", count: counts.transactions, color: "blue" },
-                { label: "Users", count: counts.users, color: "emerald" },
-                { label: "Tickets", count: counts.tickets, color: "purple" },
-                { label: "Msgs", count: counts.messages, color: "cyan" },
+                { label: "KYC", count: unreadCounts.kyc, color: "amber" },
+                { label: "TX", count: unreadCounts.transactions, color: "blue" },
+                { label: "Users", count: unreadCounts.users, color: "emerald" },
+                { label: "Tickets", count: unreadCounts.tickets, color: "purple" },
+                { label: "Msgs", count: unreadCounts.messages, color: "cyan" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center py-2">
                   <p className={`text-sm font-black text-${stat.color}-400`}>{stat.count}</p>
