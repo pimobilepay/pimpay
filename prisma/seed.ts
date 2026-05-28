@@ -5,7 +5,8 @@ import {
   UserStatus, 
   TransactionType, 
   TransactionStatus, 
-  WalletType 
+  WalletType,
+  SystemWalletType
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { encrypt } from '@/lib/crypto';
@@ -49,6 +50,7 @@ async function main() {
   await prisma.wallet.deleteMany({});
   await prisma.session.deleteMany({});
   await prisma.auditLog.deleteMany({});
+  await prisma.systemWallet.deleteMany({});
   await prisma.user.deleteMany({});
 
   // 2. Préparation des identifiants admin — CHARGÉS DEPUIS LES VARIABLES D'ENVIRONNEMENT
@@ -216,6 +218,70 @@ async function main() {
       details:   "Initialisation complète de la base de données avec hachage des accès admin.",
     }
   });
+
+  // -----------------------------------------------------------------------------
+  // 6. CRÉATION DES WALLETS SYSTÈME (MULTI-WALLET TREASURY)
+  // -----------------------------------------------------------------------------
+  console.log("💰 Création des wallets système...");
+
+  const systemWalletsData = [
+    {
+      type: SystemWalletType.ADMIN,
+      name: "Admin Revenue Wallet",
+      nameFr: "Revenus Admin",
+      description: "Frais collectés sur toutes les transactions",
+      publicAddress: "GAPIMPAY_ADMIN_WALLET_PI_NETWORK",
+      balanceUSD: 14250.45,
+      balancePi: 8542.75,
+      balanceXAF: 8750000,
+      dailyLimit: 100000,
+      monthlyLimit: 1000000,
+    },
+    {
+      type: SystemWalletType.TREASURY,
+      name: "Treasury Secure Wallet",
+      nameFr: "Trésorerie Sécurisée",
+      description: "Profits à long terme et réserves stratégiques",
+      publicAddress: "GAPIMPAY_TREASURY_WALLET_PI_NETWORK",
+      balanceUSD: 85000.00,
+      balancePi: 45000.00,
+      balanceXAF: 52000000,
+      dailyLimit: 50000,
+      monthlyLimit: 500000,
+    },
+    {
+      type: SystemWalletType.HOT,
+      name: "Hot Wallet",
+      nameFr: "Gas & Payouts",
+      description: "Fonds pour transactions automatiques et frais de gas",
+      publicAddress: "GAPIMPAY_HOT_WALLET_PI_NETWORK",
+      balanceUSD: 5420.80,
+      balancePi: 3200.50,
+      balanceXAF: 3250000,
+      dailyLimit: 75000,
+      monthlyLimit: 750000,
+    },
+    {
+      type: SystemWalletType.LIQUIDITY,
+      name: "Liquidity Reserve",
+      nameFr: "Réserve de Liquidité",
+      description: "Buffer pour retraits USD/Orange Money",
+      publicAddress: "GAPIMPAY_LIQUIDITY_WALLET_PI_NETWORK",
+      balanceUSD: 25000.00,
+      balancePi: 12500.00,
+      balanceXAF: 15000000,
+      dailyLimit: 100000,
+      monthlyLimit: 1000000,
+    },
+  ];
+
+  for (const walletData of systemWalletsData) {
+    await prisma.systemWallet.create({
+      data: walletData,
+    });
+  }
+
+  console.log(`✅ ${systemWalletsData.length} wallets système créés avec succès!`);
 
   // [FIX #10] Aucune valeur sensible loguée (ni PIN, ni mot de passe, ni données de carte)
   console.log(`✅ Seed terminé avec succès !`);
