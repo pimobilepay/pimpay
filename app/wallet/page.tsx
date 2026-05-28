@@ -453,7 +453,7 @@ export default function WalletPage() {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4 px-1">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.recentActivity")}</h3>
-            <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">{t("wallet.viewAll")}</button>
+            <button onClick={() => router.push('/statements')} className="text-[10px] font-bold text-blue-500 uppercase">{t("wallet.viewAll")}</button>
           </div>
           <div className="space-y-2.5">
             {recentTx.length > 0 ? recentTx.map((tx: any, i: number) => {
