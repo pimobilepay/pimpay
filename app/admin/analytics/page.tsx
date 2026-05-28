@@ -408,6 +408,7 @@ export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
+  const [visitorsPeriod, setVisitorsPeriod] = useState<"today" | "week" | "month">("today");
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineUsersGeo, setOnlineUsersGeo] = useState<OnlineUserGeo[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
@@ -632,6 +633,36 @@ export default function AdminAnalyticsPage() {
     return data?.topCountries?.reduce((sum, c) => sum + c.count, 0) || 0;
   }, [data]);
 
+  // Calculate visitors based on selected period
+  const visitorsData = useMemo(() => {
+    if (!data?.chartData) return { total: 0, label: "" };
+    
+    const chartData = data.chartData;
+    let total = 0;
+    let label = "";
+    
+    switch (visitorsPeriod) {
+      case "today":
+        // Get the most recent day data
+        total = chartData.length > 0 ? chartData[chartData.length - 1].newUsers : 0;
+        label = "Aujourd'hui";
+        break;
+      case "week":
+        // Sum the last 7 days
+        const last7Days = chartData.slice(-7);
+        total = last7Days.reduce((sum, d) => sum + d.newUsers, 0);
+        label = "Cette semaine";
+        break;
+      case "month":
+        // Sum all 30 days
+        total = chartData.reduce((sum, d) => sum + d.newUsers, 0);
+        label = "Ce mois";
+        break;
+    }
+    
+    return { total, label };
+  }, [data, visitorsPeriod]);
+
   // Map center based on view
   const mapCenter = mapView === "africa" ? [10, 5] : [0, 20];
   const mapZoom = mapView === "africa" ? 2.5 : 1;
@@ -745,6 +776,83 @@ export default function AdminAnalyticsPage() {
             <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4 text-center">
               <p className="text-lg font-black text-orange-400">{kpis.suspendedUsers.toLocaleString("fr-FR")}</p>
               <p className="text-[8px] font-black text-slate-500 uppercase tracking-[2px] mt-1">Suspendus</p>
+            </div>
+          </div>
+        </div>
+
+        {/* TOTAL VISITORS BY PERIOD */}
+        <div>
+          <SectionTitle>Total Visiteurs</SectionTitle>
+          <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+            {/* Period selector */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 flex items-center justify-center">
+                  <Eye size={18} className="text-cyan-400" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-[2px]">Visiteurs</p>
+                  <p className="text-[10px] text-slate-400">{visitorsData.label}</p>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setVisitorsPeriod("today")}
+                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                    visitorsPeriod === "today"
+                      ? "bg-cyan-600 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Jour
+                </button>
+                <button
+                  onClick={() => setVisitorsPeriod("week")}
+                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                    visitorsPeriod === "week"
+                      ? "bg-cyan-600 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Semaine
+                </button>
+                <button
+                  onClick={() => setVisitorsPeriod("month")}
+                  className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                    visitorsPeriod === "month"
+                      ? "bg-cyan-600 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Mois
+                </button>
+              </div>
+            </div>
+            
+            {/* Main visitor count */}
+            <div className="text-center py-6 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 rounded-2xl border border-cyan-500/10">
+              <p className="text-5xl font-black text-cyan-400 mb-2">
+                {visitorsData.total.toLocaleString("fr-FR")}
+              </p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[3px]">
+                Nouveaux Utilisateurs
+              </p>
+            </div>
+
+            {/* Additional stats */}
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              <div className="bg-slate-800/50 rounded-xl p-3 text-center">
+                <p className="text-lg font-black text-blue-400">{onlineUsers.length}</p>
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">En ligne</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-3 text-center">
+                <p className="text-lg font-black text-emerald-400">{kpis.newUsersToday}</p>
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">{"Aujourd'hui"}</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-3 text-center">
+                <p className="text-lg font-black text-violet-400">{kpis.newUsersWeek}</p>
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">Cette semaine</p>
+              </div>
             </div>
           </div>
         </div>
