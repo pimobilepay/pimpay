@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
         return { type: 'EXTERNAL', transaction, blockchainTx: blockchainTxHash };
       }
 
-}, { maxWait: 10000, timeout: 30000 });
+    }, { maxWait: 10000, timeout: 30000 });
     
     console.log("[v0] [WALLET_SEND] SUCCES:", { mode: result.type, reference: result.transaction.reference, blockchainTx: result.blockchainTx });
     
