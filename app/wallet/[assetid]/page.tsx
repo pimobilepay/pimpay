@@ -467,7 +467,7 @@ export default function AssetDetailPage() {
         <div className="w-full">
           <div className="flex justify-between items-center mb-4 px-1">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Historique {assetId}</h3>
-            <button onClick={() => router.push('/transactions')} className="text-[10px] font-bold text-blue-500 uppercase">Tout voir</button>
+            <button onClick={() => router.push('/statements')} className="text-[10px] font-bold text-blue-500 uppercase">Tout voir</button>
           </div>
           <div className="space-y-2.5">
             {transactions.length > 0 ? transactions.map((tx, i) => {
