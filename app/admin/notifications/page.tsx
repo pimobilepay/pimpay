@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell, FileCheck, ArrowRightLeft, Users, Headphones, MessageSquare,
@@ -139,6 +139,19 @@ export default function AdminNotificationsPage() {
     }
   }, []); // stable — uses refs only
 
+  // Calculate unread counts per type (based on localStorage read state)
+  const unreadCounts = useMemo(() => {
+    const unread = notifications.filter(n => !n.read);
+    return {
+      kyc: unread.filter(n => n.type === "KYC_PENDING").length,
+      transactions: unread.filter(n => n.type === "TRANSACTION_PENDING" || n.type === "WITHDRAWAL_PENDING").length,
+      users: unread.filter(n => n.type === "NEW_USER").length,
+      tickets: unread.filter(n => n.type === "SUPPORT_TICKET").length,
+      messages: unread.filter(n => n.type === "MESSAGE").length,
+      total: unread.length,
+    };
+  }, [notifications]);
+
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 8000);
@@ -212,12 +225,12 @@ export default function AdminNotificationsPage() {
   });
 
   const filterOptions: { value: FilterType; label: string; icon: React.ReactNode; count: number }[] = [
-    { value: "all",                 label: "Tout",         icon: <Bell size={14} />,           count: notifications.length },
-    { value: "KYC_PENDING",         label: "KYC",          icon: <FileCheck size={14} />,      count: counts.kyc },
-    { value: "TRANSACTION_PENDING", label: "Transactions", icon: <ArrowRightLeft size={14} />, count: counts.transactions },
-    { value: "NEW_USER",            label: "Utilisateurs", icon: <Users size={14} />,          count: counts.users },
-    { value: "SUPPORT_TICKET",      label: "Support",      icon: <Headphones size={14} />,     count: counts.tickets },
-    { value: "MESSAGE",             label: "Messages",     icon: <MessageSquare size={14} />,  count: counts.messages },
+    { value: "all",                 label: "Tout",         icon: <Bell size={14} />,           count: unreadCounts.total },
+    { value: "KYC_PENDING",         label: "KYC",          icon: <FileCheck size={14} />,      count: unreadCounts.kyc },
+    { value: "TRANSACTION_PENDING", label: "Transactions", icon: <ArrowRightLeft size={14} />, count: unreadCounts.transactions },
+    { value: "NEW_USER",            label: "Utilisateurs", icon: <Users size={14} />,          count: unreadCounts.users },
+    { value: "SUPPORT_TICKET",      label: "Support",      icon: <Headphones size={14} />,     count: unreadCounts.tickets },
+    { value: "MESSAGE",             label: "Messages",     icon: <MessageSquare size={14} />,  count: unreadCounts.messages },
   ];
 
   if (loading) {
@@ -238,15 +251,15 @@ export default function AdminNotificationsPage() {
         backPath="/admin"
       />
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Shows UNREAD counts only */}
       <section className="mb-6">
         <div className="grid grid-cols-5 gap-2">
           {[
-            { label: "KYC",          count: counts.kyc,          color: "amber",   path: "/admin/kyc" },
-            { label: "Transactions", count: counts.transactions, color: "blue",    path: "/admin/transactions" },
-            { label: "Nouveaux",     count: counts.users,        color: "emerald", path: "/admin/users" },
-            { label: "Tickets",      count: counts.tickets,      color: "purple",  path: "/admin/support" },
-            { label: "Messages",     count: counts.messages,     color: "cyan",    path: "/admin/messages" },
+            { label: "KYC",          count: unreadCounts.kyc,          color: "amber",   path: "/admin/kyc" },
+            { label: "Transactions", count: unreadCounts.transactions, color: "blue",    path: "/admin/transactions" },
+            { label: "Nouveaux",     count: unreadCounts.users,        color: "emerald", path: "/admin/users" },
+            { label: "Tickets",      count: unreadCounts.tickets,      color: "purple",  path: "/admin/support" },
+            { label: "Messages",     count: unreadCounts.messages,     color: "cyan",    path: "/admin/messages" },
           ].map((stat) => (
             <button
               key={stat.label}
