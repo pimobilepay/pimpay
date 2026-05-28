@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { verifyJWT } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
+import { decrypt } from "@/lib/crypto";
 import { ethers } from "ethers";
 
 const RPC_URLS: Record<string, string> = {
@@ -210,23 +211,136 @@ export async function POST(req: NextRequest) {
           where: { id: senderId },
           select: { 
             piUserId: true, 
-            username: true
+            username: true,
+            sidraAddress: true,
+            sidraPrivateKey: true
           }
         });
 
         let blockchainTxHash: string | null = null;
         let txStatus = TransactionStatus.SUCCESS;
 
-        // --- BROADCAST DIRECT POUR SDA/SIDRA VIA WALLET OPERATEUR CENTRAL ---
+// --- BROADCAST DIRECT POUR SDA/SIDRA ---
+        // Stratégie : 
+        //   1. Essayer le wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY)
+        //   2. Si solde opérateur insuffisant, utiliser le wallet personnel de l'utilisateur
         if ((currency === "SDA" || currency === "SIDRA")) {
-          // Utiliser le wallet operateur central pour les transferts externes
-          // Le solde DB de l'utilisateur a deja ete debite ci-dessus
-          const operatorPrivateKey = process.env.SDA_OPERATOR_PRIVATE_KEY;
+          const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
+          const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
+          const amountInWei = ethers.parseEther(amountStr);
           
-          if (!operatorPrivateKey) {
-            console.error("[v0] [WALLET_SEND] SDA_OPERATOR_PRIVATE_KEY non configuree");
-            throw new Error("Configuration wallet operateur SDA manquante. Contactez l'administrateur.");
+          // Estimer le gas
+          let gasLimit = BigInt(21000);
+          let gasPrice = ethers.parseUnits("1", "gwei");
+          try {
+            const feeData = await provider.getFeeData();
+            if (feeData.gasPrice) gasPrice = feeData.gasPrice;
+          } catch { /* garder les valeurs par défaut */ }
+          
+          const totalNeeded = amountInWei + gasLimit * gasPrice;
+          
+          // Support pour les deux noms de variable (compatibilite)
+          const operatorPrivateKey = process.env.SIDRA_OPERATOR_PRIVATE_KEY || process.env.SDA_OPERATOR_PRIVATE_KEY;
+          
+          let usedOperator = false;
+          let operatorBalanceStr = "N/A";
+          
+          // — Tentative 1 : wallet opérateur central
+          if (operatorPrivateKey) {
+            try {
+              let privateKey = operatorPrivateKey;
+              if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+              
+              if (/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+                const operatorWallet = new ethers.Wallet(privateKey, provider);
+                const operatorBalance = await provider.getBalance(operatorWallet.address);
+                operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
+                
+                if (operatorBalance >= totalNeeded) {
+                  console.log("[v0] [WALLET_SEND] Broadcasting SDA via OPERATOR wallet...");
+                  const txRes = await operatorWallet.sendTransaction({ 
+                    to: recipientInput, 
+                    value: amountInWei,
+                    gasLimit,
+                    gasPrice
+                  });
+                  const receipt = await txRes.wait();
+                  blockchainTxHash = receipt?.hash || txRes.hash;
+                  usedOperator = true;
+                  txStatus = TransactionStatus.SUCCESS;
+                  console.log("[v0] [WALLET_SEND] SDA confirmed via OPERATOR:", blockchainTxHash);
+                } else {
+                  console.log("[v0] [WALLET_SEND] Solde operateur insuffisant:", operatorBalanceStr, "SDA. Tentative wallet utilisateur...");
+                }
+              }
+            } catch (e: any) {
+              console.error("[v0] [WALLET_SEND] Erreur wallet operateur:", e.message);
+            }
           }
+          
+          // — Tentative 2 : wallet personnel de l'utilisateur (fallback)
+          if (!usedOperator && !blockchainTxHash) {
+            if (!senderUser?.sidraPrivateKey || !senderUser?.sidraAddress) {
+              // Rembourser l'utilisateur
+              await tx.wallet.update({
+                where: { id: senderWallet.id },
+                data: { balance: { increment: amount } }
+              });
+              throw new Error(
+                `Transfert annulé : Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA). Contactez le support.. Votre solde a été restitué.`
+              );
+            }
+            
+            try {
+              let privateKey = senderUser.sidraPrivateKey;
+              // Déchiffrer si nécessaire
+              if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+              if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+              
+              if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+                throw new Error("Format de clé SDA utilisateur invalide");
+              }
+              
+              const userWallet = new ethers.Wallet(privateKey, provider);
+              const userOnChainBalance = await provider.getBalance(userWallet.address);
+              
+              if (userOnChainBalance < totalNeeded) {
+                const availUser = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
+                const neededStr = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
+                // Rembourser l'utilisateur
+                await tx.wallet.update({
+                  where: { id: senderWallet.id },
+                  data: { balance: { increment: amount } }
+                });
+                throw new Error(
+                  `Transfert annulé : Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) ` +
+                  `et votre solde on-chain est également insuffisant (${availUser} SDA disponible, ${neededStr} SDA requis). ` +
+                  `Votre solde a été restitué.`
+                );
+              }
+              
+              console.log("[v0] [WALLET_SEND] Broadcasting SDA via USER wallet:", userWallet.address);
+              const txRes = await userWallet.sendTransaction({ 
+                to: recipientInput, 
+                value: amountInWei,
+                gasLimit,
+                gasPrice
+              });
+              const receipt = await txRes.wait();
+              blockchainTxHash = receipt?.hash || txRes.hash;
+              txStatus = TransactionStatus.SUCCESS;
+              console.log("[v0] [WALLET_SEND] SDA confirmed via USER wallet:", blockchainTxHash);
+            } catch (e: any) {
+              console.error("[v0] [WALLET_SEND] Erreur wallet utilisateur:", e.message);
+              // Rembourser l'utilisateur en cas d'echec blockchain
+              await tx.wallet.update({
+                where: { id: senderWallet.id },
+                data: { balance: { increment: amount } }
+              });
+              throw new Error(`Erreur transfert SDA: ${e.message}`);
+            }
+          }
+        }
 
           try {
             let privateKey = operatorPrivateKey;
