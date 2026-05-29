@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
@@ -26,30 +26,40 @@ import {
   Linkedin,
   Wallet as WalletIcon,
   Users as UsersIcon,
+  Download,
+  ArrowLeftRight,
+  Lock,
+  Smartphone,
+  Building2,
+  TrendingUp,
+  TrendingDown,
+  Shield,
+  Star,
+  ChevronRight,
+  PiggyBank,
+  Receipt,
+  Banknote,
+  MessageCircle,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 
 import { formatCryptoBalance } from "@/lib/formatters";
 import { BottomNav } from "@/components/bottom-nav";
 import { Sidebar } from "@/components/sidebar";
 import { toast } from "sonner";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { useLanguage } from "@/context/LanguageContext";
+import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyContext";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PartnersMarquee } from "@/components/PartnersMarquee";
-import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyContext";
 
-const RATES: Record<string, number> = {
-  USD: 1,
-  XAF: 603,
-  XOF: 603,
-  EUR: 0.92,
-  GBP: 0.79,
-  CDF: 2800,
-  AED: 3.67,
-  NGN: 1580,
-  MGA: 4500,
+const USD_TO_XAF = 601.32;
+
+const MARKET_PRICE_INIT: Record<string, number> = {
+  PI: 0, SDA: 1.2, USDT: 1.0, BTC: 0, XRP: 0, XLM: 0, USDC: 1.0,
+  DAI: 1.0, BUSD: 1.0, ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0,
 };
-type CurrencyKey = keyof typeof RATES;
 
 const PIE_COLOR_BY_NAME: Record<string, string> = {
   Sortant: "#3b82f6",
@@ -62,101 +72,106 @@ const PIE_COLOR_BY_NAME: Record<string, string> = {
 
 const pieColor = (name: string) => PIE_COLOR_BY_NAME[name] ?? "#64748b";
 
-// Fonction pour tronquer les adresses blockchain
 const truncateAddress = (address: string, startLen = 6, endLen = 4): string => {
   if (!address || address.length <= startLen + endLen + 3) return address;
   return `${address.slice(0, startLen)}...${address.slice(-endLen)}`;
 };
 
-// Fonction pour formater la description avec adresses tronquées
 const formatDescription = (description: string): string => {
   if (!description) return description;
-  
   let result = description;
-  
-  // Détecte les adresses Ethereum/Sidra (0x...) et les tronque
   result = result.replace(/0x[a-fA-F0-9]{40}/g, (addr) => truncateAddress(addr, 6, 4));
-  
-  // Détecte les adresses Stellar/Pi Network (G..., 56 caractères) et les tronque
   result = result.replace(/G[A-Z2-7]{55}/g, (addr) => truncateAddress(addr, 6, 4));
-  
-  // Détecte aussi les longues chaines alphanumeriques (>20 chars) qui ressemblent a des adresses
   result = result.replace(/[A-Za-z0-9]{30,}/g, (addr) => truncateAddress(addr, 6, 4));
-  
   return result;
 };
+
+// ─── Subcomponents ─────────────────────────────────────────────────────────
+
+function QuickActionBtn({
+  icon,
+  label,
+  color,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+  onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-2 group">
+      <div
+        className={`${color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all group-hover:opacity-90`}
+      >
+        {icon}
+      </div>
+      <span className="text-[9px] font-black text-slate-500 uppercase tracking-wide">{label}</span>
+    </button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon,
+  trend,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ReactNode;
+  trend?: "up" | "down" | null;
+}) {
+  return (
+    <div className="p-4 bg-slate-900/50 border border-white/5 rounded-[20px] flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{label}</span>
+        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-400">{icon}</div>
+      </div>
+      <p className="text-lg font-black text-white leading-none">{value}</p>
+      {sub && (
+        <div className="flex items-center gap-1">
+          {trend === "up" && <TrendingUp size={10} className="text-emerald-400" />}
+          {trend === "down" && <TrendingDown size={10} className="text-rose-400" />}
+          <span className={`text-[9px] font-bold ${trend === "up" ? "text-emerald-400" : trend === "down" ? "text-rose-400" : "text-slate-500"}`}>{sub}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function UserDashboard() {
   const router = useRouter();
   const { locale, setLocale } = useLanguage();
-  const { currency: ctxCurrency, setCurrency: setCtxCurrency, currencyInfo } = useCurrency();
+  const { currency, setCurrency: setCtxCurrency, currencyInfo, convertFromXAF, formatAmount } = useCurrency();
   const [data, setData] = useState<any>(null);
+  const [balances, setBalances] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showCurrencySwitcher, setShowCurrencySwitcher] = useState(false);
   const currencySwitcherRef = useRef<HTMLDivElement>(null);
-  const currency = ctxCurrency as CurrencyKey;
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
-  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const walletRef = useRef<HTMLDivElement>(null);
-  const [activeWalletIndex, setActiveWalletIndex] = useState(0);
-  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({
-    PI: 0,
-    SDA: 1.2,
-    USDT: 1.0,
-    BTC: 0,
-    XRP: 0,
-    XLM: 0,
-    USDC: 1.0,
-    DAI: 1.0,
-    BUSD: 1.0,
-    XAF: 1 / 615,
-  });
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>(MARKET_PRICE_INIT);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // KYC toast notification - show only once per status change, persisted in localStorage
+  // KYC toast
   useEffect(() => {
     if (!data?.kycStatus || !data?.id) return;
-
-    const kycStatus = data.kycStatus;
-    // Clé unique par utilisateur + statut KYC pour ne jamais rejouer le même message
-    const storageKey = `kyc_toast_${data.id}_${kycStatus}`;
-
+    const storageKey = `kyc_toast_${data.id}_${data.kycStatus}`;
     if (localStorage.getItem(storageKey)) return;
-
-    if (kycStatus === "VERIFIED") {
-      toast.success("Votre KYC a ete valide avec succes !", {
-        duration: 5000,
-        style: {
-          background: "rgba(22, 163, 74, 0.9)",
-          border: "1px solid rgba(34, 197, 94, 0.3)",
-          color: "#fff",
-        },
-      });
-    } else if (kycStatus === "APPROVED") {
-      toast.info("Votre KYC est approuve et en cours de traitement.", {
-        duration: 5000,
-        style: {
-          background: "rgba(59, 130, 246, 0.9)",
-          border: "1px solid rgba(96, 165, 250, 0.3)",
-          color: "#fff",
-        },
-      });
-    } else if (kycStatus === "REJECTED") {
-      toast.error("Votre KYC a ete rejete. Veuillez soumettre de nouveaux documents.", {
-        duration: 6000,
-        style: {
-          background: "rgba(220, 38, 38, 0.9)",
-          border: "1px solid rgba(248, 113, 113, 0.3)",
-          color: "#fff",
-        },
-      });
+    if (data.kycStatus === "VERIFIED") {
+      toast.success("Votre KYC a ete valide avec succes !", { duration: 5000 });
+    } else if (data.kycStatus === "REJECTED") {
+      toast.error("Votre KYC a ete rejete. Veuillez soumettre de nouveaux documents.", { duration: 6000 });
     }
-
     localStorage.setItem(storageKey, "1");
   }, [data?.kycStatus, data?.id]);
 
@@ -167,164 +182,40 @@ export default function UserDashboard() {
     fetchUnreadNotifications();
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setShowProfileMenu(false);
-      if (walletRef.current && !walletRef.current.contains(event.target as Node)) setShowWalletSelector(false);
       if (currencySwitcherRef.current && !currencySwitcherRef.current.contains(event.target as Node)) setShowCurrencySwitcher(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Real-time notification polling with toast and balance refresh (like mpay page)
+  // Real-time notification polling
   useEffect(() => {
     let lastNotifId = sessionStorage.getItem("dashboard_last_notif_id") || "";
-    let lastSupportMsgId = sessionStorage.getItem("dashboard_last_support_msg_id") || "";
-    let lastTxCount = parseInt(sessionStorage.getItem("dashboard_last_tx_count") || "0", 10);
-    
     const checkNotifications = async () => {
       try {
-        // Check for new notifications
         const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
         if (res.ok) {
           const result = await res.json();
-          
-          if (result.notifications && result.notifications.length > 0) {
+          setUnreadCount(result.unreadCount || 0);
+          if (result.notifications?.length > 0) {
             const unreadPayments = result.notifications.filter(
-              (n: any) => !n.read && (n.type === "PAYMENT_RECEIVED" || n.type === "success" || n.type === "DEPOSIT" || n.type === "TRANSFER")
+              (n: any) => !n.read && ["PAYMENT_RECEIVED", "success", "DEPOSIT", "TRANSFER"].includes(n.type)
             );
-            
-            // Check for new SUPPORT_MESSAGE from admin
-            const supportMessages = result.notifications.filter(
-              (n: any) => !n.read && n.type === "SUPPORT_MESSAGE"
-            );
-            
-            setUnreadCount(result.unreadCount || 0);
-            
-            // Show toast for new support message from admin
-            if (supportMessages.length > 0 && supportMessages[0].id !== lastSupportMsgId) {
-              const supportMsg = supportMessages[0];
-              lastSupportMsgId = supportMsg.id;
-              sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
-              
-              toast("Message du Support", {
-                description: supportMsg.message || "Vous avez recu un message du support PimPay",
-                duration: 8000,
-                icon: "📧",
-                style: {
-                  background: "rgba(59, 130, 246, 0.95)",
-                  border: "1px solid rgba(96, 165, 250, 0.3)",
-                  color: "#fff",
-                },
-                action: {
-                  label: "Voir",
-onClick: () => router.push("/notifications"),
-                },
-              });
-            }
-            
-            // Show toast for new payment received
             if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
               const latest = unreadPayments[0];
               lastNotifId = latest.id;
               sessionStorage.setItem("dashboard_last_notif_id", latest.id);
-              
-              // Extract amount from notification if available
-              const amount = latest.amount ? ` de ${latest.amount}` : "";
-              const currency = latest.currency || "PI";
-              
               toast.success("Transaction recue !", {
-                description: latest.message || `Vous avez recu un nouveau paiement${amount} ${currency}`,
+                description: latest.message || "Vous avez recu un nouveau paiement",
                 duration: 6000,
-                style: {
-                  background: "rgba(16, 185, 129, 0.95)",
-                  border: "1px solid rgba(52, 211, 153, 0.3)",
-                  color: "#fff",
-                },
               });
-              
-              // Refresh dashboard data to update balance
               fetchDashboardData();
             }
           }
         }
-        
-        // Also check main notifications API for support messages
-        const notifRes = await fetch("/api/notifications", { cache: "no-store" });
-        if (notifRes.ok) {
-          const notifData = await notifRes.json();
-          const allNotifs = Array.isArray(notifData) ? notifData : (notifData.notifications || []);
-          
-          const newSupportMsgs = allNotifs.filter(
-            (n: any) => !n.read && n.type === "SUPPORT_MESSAGE" && n.id !== lastSupportMsgId
-          );
-          
-          if (newSupportMsgs.length > 0) {
-            const supportMsg = newSupportMsgs[0];
-            lastSupportMsgId = supportMsg.id;
-            sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
-            
-            toast("Message du Support", {
-              description: supportMsg.message || "Vous avez recu un message du support PimPay",
-              duration: 8000,
-              icon: "📧",
-              style: {
-                background: "rgba(59, 130, 246, 0.95)",
-                border: "1px solid rgba(96, 165, 250, 0.3)",
-                color: "#fff",
-              },
-              action: {
-                label: "Voir",
-                onClick: () => router.push("/notifications"),
-              },
-            });
-          }
-        }
-        
-        // Also check transaction history for new incoming transactions
-        const historyRes = await fetch("/api/wallet/history?limit=5", { cache: "no-store" });
-        if (historyRes.ok) {
-          const historyData = await historyRes.json();
-          const transactions = historyData.transactions || [];
-          
-          if (transactions.length > lastTxCount && lastTxCount > 0) {
-            // New transaction detected - find incoming ones
-            const newIncoming = transactions.find((tx: any) => 
-              !tx.isDebit && 
-              (tx.type === "DEPOSIT" || tx.type === "TRANSFER" || tx.type === "PAYMENT_RECEIVED")
-            );
-            
-            if (newIncoming && !sessionStorage.getItem(`tx_toast_${newIncoming.id}`)) {
-              sessionStorage.setItem(`tx_toast_${newIncoming.id}`, "1");
-              
-              const txCurrency = newIncoming.currency || "PI";
-              const txAmount = newIncoming.amount || 0;
-              
-              toast.success(`+${txAmount.toFixed(8)} ${txCurrency} recu !`, {
-                description: newIncoming.description || "Nouvelle transaction entrante",
-                duration: 6000,
-                style: {
-                  background: "rgba(16, 185, 129, 0.95)",
-                  border: "1px solid rgba(52, 211, 153, 0.3)",
-                  color: "#fff",
-                },
-              });
-              
-              // Refresh dashboard to update balance
-              fetchDashboardData();
-            }
-          }
-          
-          sessionStorage.setItem("dashboard_last_tx_count", transactions.length.toString());
-          lastTxCount = transactions.length;
-        }
-      } catch (error) {
-        console.error("Notification check error:", error);
-      }
+      } catch {}
     };
-    
-    // Check immediately on mount
     checkNotifications();
-    
-    // Poll every 8 seconds for real-time updates
     const interval = setInterval(checkNotifications, 8000);
     return () => clearInterval(interval);
   }, []);
@@ -336,24 +227,19 @@ onClick: () => router.push("/notifications"),
         const result = await res.json();
         setUnreadCount(result.unreadCount || 0);
       }
-    } catch { }
+    } catch {}
   }
 
   async function fetchMarketPrices() {
     try {
-      // Fetch Pi price via internal proxy (avoids CORS/rate-limit issues)
       const [piRes, othersRes] = await Promise.all([
         fetch("/api/pi-price", { cache: "no-store" }),
-        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar&vs_currencies=usd"),
+        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd"),
       ]);
-
       if (piRes.ok) {
         const piData = await piRes.json();
-        if (piData.success && piData.price > 0) {
-          setMarketPrices((prev) => ({ ...prev, PI: piData.price }));
-        }
+        if (piData.success && piData.price > 0) setMarketPrices((prev) => ({ ...prev, PI: piData.price }));
       }
-
       if (othersRes.ok) {
         const result = await othersRes.json();
         setMarketPrices((prev) => ({
@@ -365,87 +251,94 @@ onClick: () => router.push("/notifications"),
           BUSD: result["binance-usd"]?.usd || prev.BUSD,
           XRP: result.ripple?.usd || prev.XRP,
           XLM: result.stellar?.usd || prev.XLM,
+          ETH: result.ethereum?.usd || prev.ETH,
+          BNB: result.binancecoin?.usd || prev.BNB,
+          SOL: result.solana?.usd || prev.SOL,
+          TRX: result.tron?.usd || prev.TRX,
+          ADA: result.cardano?.usd || prev.ADA,
+          DOGE: result.dogecoin?.usd || prev.DOGE,
+          TON: result["the-open-network"]?.usd || prev.TON,
         }));
       }
-    } catch { }
+    } catch {}
   }
 
   async function fetchDashboardData() {
     try {
-      // ✅ Correction Sidra Sync : appel simplifié pour éviter l'erreur 400 si le body est vide ou mal formé
       fetch("/api/wallet/sidra/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }).catch(() => null);
-      const [profileRes, historyRes] = await Promise.all([
+      const [profileRes, historyRes, balRes] = await Promise.all([
         fetch("/api/user/profile", { cache: "no-store" }),
         fetch("/api/wallet/history", { cache: "no-store" }),
+        fetch("/api/wallet/balance", { cache: "no-store" }),
       ]);
       if (profileRes.ok) {
         const profileJson = await profileRes.json();
         const historyData = historyRes.ok ? await historyRes.json() : { transactions: [] };
         setData({ ...profileJson.user, transactions: historyData.transactions || [] });
-        const piIdx = profileJson.user.wallets?.findIndex((w: any) => w.currency === "PI");
-        if (typeof piIdx === "number" && piIdx >= 0) setActiveWalletIndex(piIdx);
       } else if (profileRes.status === 401) {
         router.push("/auth/login");
+        return;
       }
-    } catch (err) {
+      if (balRes.ok) {
+        const balData = await balRes.json();
+        const parsed: Record<string, number> = {};
+        for (const key of Object.keys(MARKET_PRICE_INIT)) {
+          parsed[key] = parseFloat(balData[key] || "0") || 0;
+        }
+        setBalances(parsed);
+      }
+    } catch {
       toast.error("Sync error");
     } finally {
       setIsLoading(false);
     }
   }
 
-  const wallets = data?.wallets || [];
-  const currentWallet = wallets[activeWalletIndex] || { balance: 0, currency: "PI" };
-  const balance = currentWallet.balance || 0;
-  const currentCurrency = (currentWallet.currency || "PI").toUpperCase();
-  const displayName = data?.name || "PIONEER";
-  const rateToUse = marketPrices[currentCurrency] ?? 1;
-  // Convert wallet balance -> USD -> selected fiat currency
-  const fiatRate = RATES[currency as string] ?? RATES["USD"];
-  const convertedValue = balance * rateToUse * fiatRate;
+  // ── Compute total USD value from ALL wallets (same as wallet page)
+  const totalUSDValue =
+    (balances.PI || 0) * marketPrices.PI +
+    (balances.BTC || 0) * marketPrices.BTC +
+    (balances.SDA || 0) * marketPrices.SDA +
+    (balances.USDT || 0) * marketPrices.USDT +
+    (balances.USDC || 0) * marketPrices.USDC +
+    (balances.DAI || 0) * marketPrices.DAI +
+    (balances.BUSD || 0) * marketPrices.BUSD +
+    (balances.XRP || 0) * marketPrices.XRP +
+    (balances.XLM || 0) * marketPrices.XLM +
+    (balances.ETH || 0) * marketPrices.ETH +
+    (balances.BNB || 0) * marketPrices.BNB +
+    (balances.SOL || 0) * marketPrices.SOL +
+    (balances.TRX || 0) * marketPrices.TRX +
+    (balances.ADA || 0) * marketPrices.ADA +
+    (balances.DOGE || 0) * marketPrices.DOGE +
+    (balances.TON || 0) * marketPrices.TON;
 
-  const computeStats = (txsRaw: any[], walletCurrency: string) => {
-    const filtered = (txsRaw || []).filter(t => t.status === "SUCCESS" || !t.status);
-    
-    // Swap types
+  const totalInXAF = totalUSDValue * USD_TO_XAF;
+  const totalInSelectedCurrency = convertFromXAF(totalInXAF);
+
+  const formatTotalBalance = () => {
+    if (currencyInfo.code === "XAF" || currencyInfo.code === "XOF") {
+      return `${Math.round(totalInSelectedCurrency).toLocaleString("fr-FR")} FCFA`;
+    }
+    if (["CDF", "NGN", "MGA"].includes(currencyInfo.code)) {
+      return `${Math.round(totalInSelectedCurrency).toLocaleString("fr-FR")} ${currencyInfo.symbol}`;
+    }
+    return `${currencyInfo.symbol}${totalInSelectedCurrency.toLocaleString("en-US", {
+      minimumFractionDigits: currencyInfo.decimals,
+      maximumFractionDigits: currencyInfo.decimals,
+    })}`;
+  };
+
+  const displayName = data?.name || "PIONEER";
+
+  const computeStats = (txsRaw: any[]) => {
+    const filtered = (txsRaw || []).filter((t) => t.status === "SUCCESS" || !t.status);
     const swapTypes = ["EXCHANGE", "SWAP"];
-    const swaps = filtered.filter(t => swapTypes.includes(t.type)).length;
-    
-    // Others = MPAY transfers, airtime purchases, payments, staking, deposits, withdrawals, etc.
-    const othersTypes = [
-      "PAYMENT", "CARD_PURCHASE", "AIRDROP", "STAKING_REWARD", "STAKING",
-      "MPAY", "AIRTIME", "BILL_PAYMENT", "MERCHANT_PAYMENT", "FEE",
-      "BONUS", "REFERRAL", "CASHBACK", "REWARD"
-    ];
-    
-    const othersTx = filtered.filter(t => 
-      othersTypes.includes(t.type) || 
-      (t.description && (
-        t.description.toLowerCase().includes("mpay") || 
-        t.description.toLowerCase().includes("airtime") ||
-        t.description.toLowerCase().includes("staking") ||
-        t.description.toLowerCase().includes("bonus") ||
-        t.description.toLowerCase().includes("parrainage")
-      ))
-    );
-    const others = othersTx.length;
-    
-    // Main transaction types (excluding swaps and others)
-    const mainTypes = ["TRANSFER", "DEPOSIT", "WITHDRAW"];
-    const sent = filtered.filter(t => 
-      (t.isDebit || t.type === "WITHDRAW" || t.type === "TRANSFER") && 
-      !swapTypes.includes(t.type) && 
-      !othersTypes.includes(t.type) &&
-      (mainTypes.includes(t.type) || t.isDebit)
-    ).length;
-    
-    const received = filtered.filter(t => 
-      (!t.isDebit || t.type === "DEPOSIT") && 
-      !swapTypes.includes(t.type) && 
-      !othersTypes.includes(t.type) &&
-      (mainTypes.includes(t.type) || !t.isDebit)
-    ).length;
-    
+    const othersTypes = ["PAYMENT", "CARD_PURCHASE", "AIRDROP", "STAKING_REWARD", "STAKING", "MPAY", "AIRTIME", "BILL_PAYMENT", "MERCHANT_PAYMENT", "FEE", "BONUS", "REFERRAL", "CASHBACK", "REWARD"];
+    const swaps = filtered.filter((t) => swapTypes.includes(t.type)).length;
+    const others = filtered.filter((t) => othersTypes.includes(t.type) || (t.description && ["mpay", "airtime", "staking", "bonus", "parrainage"].some((k) => t.description.toLowerCase().includes(k)))).length;
+    const sent = filtered.filter((t) => (t.isDebit || t.type === "WITHDRAW") && !swapTypes.includes(t.type) && !othersTypes.includes(t.type)).length;
+    const received = filtered.filter((t) => (!t.isDebit || t.type === "DEPOSIT") && !swapTypes.includes(t.type) && !othersTypes.includes(t.type)).length;
     const total = sent + received + swaps + others;
     const pie = [
       { name: "Sortant", value: sent },
@@ -453,11 +346,18 @@ onClick: () => router.push("/notifications"),
       { name: "Swaps", value: swaps },
       { name: "Autres", value: others },
     ];
-    return { pie, list: [...pie, { name: "Total", value: total }], total };
+    return { pie, list: [...pie, { name: "Total", value: total }], total, sent, received };
   };
 
-  const stats = computeStats(data?.transactions, currentCurrency);
-  const pieData = stats.total > 0 ? stats.pie.filter(s => s.value > 0) : [{ name: "Aucune", value: 1 }];
+  const stats = computeStats(data?.transactions);
+  const pieData = stats.total > 0 ? stats.pie.filter((s) => s.value > 0) : [{ name: "Aucune", value: 1 }];
+
+  // Top wallets by value
+  const topWallets = Object.entries(balances)
+    .map(([k, v]) => ({ currency: k, balance: v, usdValue: v * (marketPrices[k] || 0) }))
+    .filter((w) => w.usdValue > 0)
+    .sort((a, b) => b.usdValue - a.usdValue)
+    .slice(0, 4);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -466,19 +366,43 @@ onClick: () => router.push("/notifications"),
 
   const getTxIcon = (tx: any) => {
     if (tx.type === "EXCHANGE") return { icon: <RefreshCcw size={18} />, color: "bg-orange-500/10 text-orange-500" };
-    return tx.isDebit ? { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" } : { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
+    return tx.isDebit
+      ? { icon: <ArrowUpCircle size={18} />, color: "bg-blue-500/10 text-blue-500" }
+      : { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
   };
 
-  if (!hasMounted || isLoading) return <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500"><Loader2 className="animate-spin mb-4" size={40} /><p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p></div>;
+  if (!hasMounted || isLoading)
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p>
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      {/* ── Header ── */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
-        <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div><div><h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1><p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p></div></div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
+          <div>
+            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1>
+            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setIsLoading(true); fetchDashboardData(); }} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"><RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} /></button>
-          <button onClick={() => router.push("/notifications")} className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative">
+          <button
+            onClick={() => { setIsLoading(true); fetchDashboardData(); fetchMarketPrices(); }}
+            className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all"
+          >
+            <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={() => router.push("/notifications")}
+            className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"
+          >
             <Bell size={20} />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-black text-white px-1">
@@ -486,143 +410,380 @@ onClick: () => router.push("/notifications"),
               </span>
             )}
           </button>
-
-          <div className="relative" ref={menuRef}><button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-11 h-11 rounded-2xl bg-white/5 text-slate-400 overflow-hidden flex items-center justify-center">{data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={20} />}</button>
-
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-11 h-11 rounded-2xl bg-white/5 text-slate-400 overflow-hidden flex items-center justify-center"
+            >
+              {data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={20} />}
+            </button>
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
-                <div className="p-4 border-b border-white/5 mb-2"><p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p><p className="text-sm font-bold truncate">@{data?.username}</p></div>
+                <div className="p-4 border-b border-white/5 mb-2">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p>
+                  <p className="text-sm font-bold truncate">@{data?.username}</p>
+                </div>
                 <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><Settings size={16} /> Profile</button>
-                <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Parrainage</span></div><span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span></button>
-                <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div><span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span></button>
+                <button onClick={() => router.push("/wallet")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><WalletIcon size={16} className="text-blue-400" /> Mon Wallet</button>
+                <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
+                  <div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Parrainage</span></div>
+                  <span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span>
+                </button>
+                <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
+                  <div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div>
+                  <span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span>
+                </button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left"><LogOut size={16} /> Logout</button>
               </div>
             )}
           </div>
         </div>
       </header>
+
       <main className="px-6 flex-grow pb-10">
-        <div className="relative w-full aspect-[16/9] bg-gradient-to-br from-blue-600 via-indigo-700 to-slate-900 rounded-[32px] p-7 shadow-2xl border border-white/10 mb-6 mt-4 overflow-hidden">
-          <div className="relative z-10 h-full flex flex-col justify-between">
-            <div className="flex justify-between items-start"><div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full"><div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /><span className="text-[9px] font-black uppercase tracking-wider">PIMPAY CARD</span></div>
-              <div className="flex items-center gap-2"><button onClick={() => setShowBalance(!showBalance)} className="text-white/40 p-1">{showBalance ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-                <div className="relative" ref={walletRef}><button onClick={() => setShowWalletSelector(!showWalletSelector)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl border border-white/10 transition-all flex items-center gap-2"><WalletIcon size={16} /><ChevronDown size={14} className={`transition-transform ${showWalletSelector ? "rotate-180" : ""}`} /></button>
-                  {showWalletSelector && (
-                    <div className="absolute right-0 mt-2 w-40 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-1 z-[120]">
-                      {wallets.map((w: any, idx: number) => (
-                        <button key={idx} onClick={() => { setActiveWalletIndex(idx); setShowWalletSelector(false); }} className={`w-full flex items-center justify-between p-3 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeWalletIndex === idx ? "bg-blue-600 text-white" : "hover:bg-white/5 text-slate-400"}`}>{w.currency}<span className="opacity-60 text-[8px]">{showBalance ? formatCryptoBalance(w.balance, w.currency) : "••"}</span></button>
-                      ))}
-                    </div>
-                  )}
+
+        {/* ── Greeting ── */}
+        <div className="mt-5 mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Bonjour 👋</p>
+            <h2 className="text-xl font-black text-white tracking-tight mt-0.5">{displayName}</h2>
+          </div>
+          {data?.kycStatus === "VERIFIED" && (
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+              <Shield size={12} className="text-emerald-400" />
+              <span className="text-[9px] font-black text-emerald-400 uppercase">KYC Verifié</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── FinTech Balance Card (unique design) ── */}
+        <div className="relative w-full mb-6 overflow-hidden rounded-[28px]">
+          {/* Outer glow */}
+          <div className="absolute -inset-0.5 bg-gradient-to-br from-violet-600/40 via-blue-500/20 to-cyan-500/30 rounded-[30px] blur-md" />
+          {/* Card body */}
+          <div className="relative bg-[#050d1f] rounded-[28px] border border-white/8 overflow-hidden">
+            {/* Animated circuit pattern */}
+            <div
+              className="absolute inset-0 opacity-[0.04]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 20% 50%, rgba(139,92,246,0.8) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(59,130,246,0.8) 0%, transparent 40%)",
+              }}
+            />
+            <div
+              className="absolute inset-0 opacity-[0.025]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(139,92,246,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.4) 1px, transparent 1px)",
+                backgroundSize: "32px 32px",
+              }}
+            />
+            {/* Decorative orbs */}
+            <div className="absolute top-0 right-0 w-40 h-40 bg-violet-600/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
+
+            <div className="relative z-10 p-6">
+              {/* Top row */}
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-violet-400">PIMPAY FINTECH</span>
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Portefeuille Total</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowBalance(!showBalance)} className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-xl text-slate-400">
+                    {showBalance ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                  {/* Currency switcher */}
+                  <div className="relative" ref={currencySwitcherRef}>
+                    <button
+                      onClick={() => setShowCurrencySwitcher(!showCurrencySwitcher)}
+                      className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl hover:border-white/20 transition-colors"
+                    >
+                      <span className="text-sm">{currencyInfo.flag}</span>
+                      <span className="text-[10px] font-black text-white">{currencyInfo.code}</span>
+                      <ChevronDown size={10} className={`text-white/40 transition-transform ${showCurrencySwitcher ? "rotate-180" : ""}`} />
+                    </button>
+                    {showCurrencySwitcher && (
+                      <div className="absolute right-0 mt-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[130]">
+                        <div className="px-3 py-2 border-b border-white/5">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Devise d&apos;affichage</p>
+                        </div>
+                        <div className="max-h-52 overflow-y-auto py-1">
+                          {(Object.keys(CURRENCY_LIST) as Array<keyof typeof CURRENCY_LIST>).map((code) => {
+                            const info = CURRENCY_LIST[code];
+                            const isSelected = code === currency;
+                            return (
+                              <button
+                                key={code}
+                                onClick={() => {
+                                  setCtxCurrency(code);
+                                  setShowCurrencySwitcher(false);
+                                  toast.success(`Devise: ${info.name}`);
+                                }}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isSelected ? "bg-violet-600/20 text-violet-400" : "hover:bg-white/5 text-white"}`}
+                              >
+                                <span className="text-base">{info.flag}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] font-black uppercase">{info.code}</p>
+                                  <p className="text-[9px] text-slate-500 truncate">{info.name}</p>
+                                </div>
+                                <span className="text-[10px] text-slate-500">{info.symbol}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Balance */}
+              <div className="mb-5">
+                {isLoading ? (
+                  <div className="h-10 w-52 bg-white/5 rounded-xl animate-pulse" />
+                ) : (
+                  <p className="text-4xl font-black tracking-tight text-white leading-none">
+                    {showBalance ? formatTotalBalance() : "••••••••"}
+                  </p>
+                )}
+                {showBalance && !isLoading && (
+                  <p className="text-[10px] text-slate-500 font-bold mt-1.5">
+                    ≈ ${totalUSDValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  </p>
+                )}
+              </div>
+
+              {/* Bottom row — user + top assets */}
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{displayName}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[9px] font-bold text-emerald-500/80 uppercase">Multi-Chain Active</span>
+                  </div>
+                </div>
+                {/* Mini asset pills */}
+                <div className="flex gap-1 flex-wrap justify-end max-w-[150px]">
+                  {topWallets.map((w) => (
+                    <span key={w.currency} className="text-[8px] font-black text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded-md">
+                      {w.currency}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
-            <div><h2 className="text-4xl font-black tracking-tighter flex items-center gap-2">{showBalance ? formatCryptoBalance(balance, currentCurrency) : "••••••"}<span className="text-xl font-bold text-blue-300">{currentCurrency}</span></h2><p className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em] mt-1">{displayName}</p></div>
-            <div className="flex justify-between items-end">
-              <div className="relative" ref={currencySwitcherRef}>
-                <button
-                  onClick={() => setShowCurrencySwitcher(!showCurrencySwitcher)}
-                  className="bg-black/30 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2 hover:border-white/20 transition-colors"
-                >
-                  <Globe size={12} className="text-blue-400" />
-                  <p className="text-[11px] font-mono font-bold">
-                    ≈ {showBalance ? `${convertedValue.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${currencyInfo.symbol}` : "Locked"}
-                  </p>
-                  <ChevronDown size={10} className={`text-white/40 transition-transform ${showCurrencySwitcher ? "rotate-180" : ""}`} />
-                </button>
-                {showCurrencySwitcher && (
-                  <div className="absolute bottom-full mb-2 left-0 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[130]">
-                    <div className="px-3 py-2 border-b border-white/5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Devise d&apos;affichage</p>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto py-1">
-                      {(Object.keys(CURRENCY_LIST) as Array<keyof typeof CURRENCY_LIST>).map((code) => {
-                        const info = CURRENCY_LIST[code];
-                        const isSelected = code === currency;
-                        return (
-                          <button
-                            key={code}
-                            onClick={() => {
-                              setCtxCurrency(code);
-                              setShowCurrencySwitcher(false);
-                              toast.success(`Devise: ${info.name}`);
-                            }}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isSelected ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-white"}`}
-                          >
-                            <span className="text-base">{info.flag}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-black uppercase">{info.code}</p>
-                              <p className="text-[9px] text-slate-500 truncate">{info.name}</p>
-                            </div>
-                            <span className="text-[10px] text-slate-500">{info.symbol}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <p className="text-[10px] font-bold text-white uppercase italic">{currentCurrency}</p>
+          </div>
+        </div>
+
+        {/* ── Quick Actions ── */}
+        <div className="grid grid-cols-4 gap-3 mb-8">
+          <QuickActionBtn icon={<ArrowUpRight size={22} />} label="Envoyer" color="bg-blue-600" onClick={() => router.push("/transfer")} />
+          <QuickActionBtn icon={<Download size={22} />} label="Recevoir" color="bg-violet-600" onClick={() => router.push("/wallet")} />
+          <QuickActionBtn icon={<ArrowLeftRight size={22} />} label="Swap" color="bg-orange-600" onClick={() => router.push("/swap")} />
+          <QuickActionBtn icon={<ArrowDownLeft size={22} />} label="Retrait" color="bg-emerald-700" onClick={() => router.push("/withdraw")} />
+        </div>
+
+        {/* ── Second row of actions ── */}
+        <div className="grid grid-cols-4 gap-3 mb-8">
+          <QuickActionBtn icon={<Smartphone size={20} />} label="Airtime" color="bg-slate-700" onClick={() => router.push("/airtime")} />
+          <QuickActionBtn icon={<CreditCard size={20} />} label="Carte" color="bg-slate-700" onClick={() => router.push("/dashboard/card")} />
+          <QuickActionBtn icon={<Lock size={20} />} label="Staking" color="bg-slate-700" onClick={() => router.push("/wallet/staking")} />
+          <QuickActionBtn icon={<Receipt size={20} />} label="Factures" color="bg-slate-700" onClick={() => router.push("/statements")} />
+        </div>
+
+        {/* ── Stats Row ── */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          <StatCard
+            label="Transactions"
+            value={stats.total.toString()}
+            sub={`${stats.received} entrantes`}
+            icon={<Activity size={14} />}
+            trend="up"
+          />
+          <StatCard
+            label="Valeur USD"
+            value={`$${totalUSDValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+            sub="Portefeuille total"
+            icon={<TrendingUp size={14} />}
+            trend={totalUSDValue > 0 ? "up" : null}
+          />
+          <StatCard
+            label="Actifs actifs"
+            value={topWallets.length.toString()}
+            sub="avec valeur > 0"
+            icon={<BarChart3 size={14} />}
+          />
+          <StatCard
+            label="Parrainage"
+            value={(data?.referralCount || 0).toString()}
+            sub="Filleuls actifs"
+            icon={<UsersIcon size={14} />}
+          />
+        </div>
+
+        {/* ── Portfolio top assets ── */}
+        {topWallets.length > 0 && (
+          <section className="mb-8 p-5 rounded-[28px] bg-slate-900/40 border border-white/8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Top Actifs</h3>
+              <button onClick={() => router.push("/wallet")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
+                Voir tout <ChevronRight size={12} />
+              </button>
             </div>
-          </div><Zap size={240} className="absolute -right-10 -bottom-10 opacity-10" />
-        </div>
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          {[
-            { icon: <ArrowUpRight />, label: "Send", color: "bg-blue-600", link: "/transfer" },
-            { icon: <ArrowDownLeft />, label: "Withdraw", color: "bg-emerald-600", link: "/withdraw" },
-            { icon: <RefreshCcw />, label: "Swap", color: "bg-orange-600", link: "/swap" },
-            { icon: <CreditCard />, label: "Card", color: "bg-slate-800", link: "/dashboard/card" },
-          ].map((action, i) => (
-            <button key={i} onClick={() => router.push(action.link)} className="flex flex-col items-center gap-2"><div className={`${action.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform`}>{action.icon}</div><span className="text-[9px] font-black text-slate-500 uppercase">{action.label}</span></button>
-          ))}
-        </div>
-        <section className="mb-8 p-6 rounded-[32px] bg-slate-900/40 border border-white/10">
-          <div className="flex justify-between items-center mb-6"><h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3><LayoutGrid size={16} className="text-slate-600" /></div>
-          <div className="flex items-center gap-6"><div className="w-32 h-32 relative"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value">{pieData.map((entry, index) => (<Cell key={index} fill={pieColor(entry.name)} stroke="none" />))}</Pie></PieChart></ResponsiveContainer><div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase text-blue-400">{stats.total > 0 ? "Live" : "N/A"}</div></div>
+            <div className="space-y-3">
+              {topWallets.map((w) => {
+                const pct = totalUSDValue > 0 ? (w.usdValue / totalUSDValue) * 100 : 0;
+                return (
+                  <div key={w.currency} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-[10px] font-black text-slate-400 border border-white/5">{w.currency.slice(0, 2)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-black text-white uppercase">{w.currency}</span>
+                        <span className="text-[10px] font-black text-slate-400">${w.usdValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-violet-500 to-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-black text-slate-500">{pct.toFixed(0)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── Flux de Trésorerie ── */}
+        <section className="mb-8 p-5 rounded-[28px] bg-slate-900/40 border border-white/8">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3>
+            <LayoutGrid size={16} className="text-slate-600" />
+          </div>
+          <div className="flex items-center gap-5">
+            <div className="w-28 h-28 relative flex-shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={46} paddingAngle={4} dataKey="value">
+                    {pieData.map((entry, index) => <Cell key={index} fill={pieColor(entry.name)} stroke="none" />)}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center text-[9px] font-black uppercase text-violet-400">
+                {stats.total > 0 ? "Live" : "N/A"}
+              </div>
+            </div>
             <div className="flex-1 grid grid-cols-1 gap-2">
               {stats.list.map((item, i) => (
-                <div key={i} className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: pieColor(item.name) }} /><span className="text-[9px] font-bold text-slate-400 uppercase">{item.name}</span></div><span className="text-[10px] font-black">{item.value}</span></div>
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: pieColor(item.name) }} />
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{item.name}</span>
+                  </div>
+                  <span className="text-[10px] font-black">{item.value}</span>
+                </div>
               ))}
             </div>
           </div>
         </section>
-        <section className="mb-12 relative">
-          <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Flux de transactions</h3><div className="absolute top-0 right-0 opacity-[0.03] text-[120px] font-black pointer-events-none italic">7</div><History size={16} className="text-slate-600" /></div>
-          <div className="space-y-4 relative z-10 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
-            {data?.transactions?.length > 0 ? data.transactions.slice(0, 7).map((tx: any) => {
-              const { icon, color } = getTxIcon(tx);
-              return (
-                <div 
-                  key={tx.id} 
-                  onClick={() => {
-                    const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
-                    router.push(`/deposit/receipt?${query}`);
-                  }}
-                  className="p-4 bg-slate-900/40 border border-white/5 rounded-[24px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-4"><div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>{icon}</div><div><p className="text-[11px] font-bold uppercase text-white">{formatDescription(tx.description || tx.type)}</p><p className="text-[8px] text-slate-500 font-black uppercase mt-1">{tx.isDebit ? `À: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}` : `DE: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}`}</p></div></div>
-                  <div className="text-right"><p className={`text-sm font-black ${!tx.isDebit ? "text-emerald-400" : "text-blue-400"}`}>{tx.isDebit ? "-" : "+"}{tx.amount.toLocaleString()} {tx.currency}</p><p className="text-[8px] text-slate-500 font-black mt-1">{new Date(tx.createdAt).toLocaleDateString()}</p></div>
+
+        {/* ── Shortcuts section ── */}
+        <section className="mb-8">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4">Services Rapides</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { icon: <Building2 size={18} />, label: "Virement Bancaire", sub: "Envoi vers banque", link: "/bank", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+              { icon: <Banknote size={18} />, label: "Dépôt", sub: "Recharger compte", link: "/deposit", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+              { icon: <Star size={18} />, label: "Pim Coins", sub: "Récompenses", link: "/pim-coins", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
+              { icon: <MessageCircle size={18} />, label: "Support", sub: "Aide & contact", link: "/support", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
+            ].map((s, i) => (
+              <button
+                key={i}
+                onClick={() => router.push(s.link)}
+                className={`flex items-center gap-3 p-4 rounded-[20px] border ${s.color} bg-opacity-10 active:scale-95 transition-all text-left`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${s.color}`}>{s.icon}</div>
+                <div>
+                  <p className="text-[10px] font-black text-white uppercase">{s.label}</p>
+                  <p className="text-[8px] font-bold text-slate-500">{s.sub}</p>
                 </div>
-              );
-            }) : <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[32px]">Aucune transaction</div>}
+              </button>
+            ))}
           </div>
         </section>
+
+        {/* ── Transactions récentes ── */}
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Transactions Récentes</h3>
+            <button onClick={() => router.push("/wallet")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
+              Voir tout <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="space-y-3 max-h-[380px] overflow-y-auto no-scrollbar">
+            {data?.transactions?.length > 0 ? (
+              data.transactions.slice(0, 8).map((tx: any) => {
+                const { icon, color } = getTxIcon(tx);
+                return (
+                  <div
+                    key={tx.id}
+                    onClick={() => {
+                      const query = tx.reference ? `ref=${encodeURIComponent(tx.reference)}` : `id=${encodeURIComponent(tx.id)}`;
+                      router.push(`/deposit/receipt?${query}`);
+                    }}
+                    className="p-4 bg-slate-900/40 border border-white/5 rounded-[20px] flex justify-between items-center active:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>{icon}</div>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase text-white leading-tight">{formatDescription(tx.description || tx.type)}</p>
+                        <p className="text-[8px] text-slate-500 font-black uppercase mt-0.5">
+                          {tx.isDebit ? `À: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}` : `DE: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${!tx.isDebit ? "text-emerald-400" : "text-blue-400"}`}>
+                        {tx.isDebit ? "-" : "+"}
+                        {tx.amount.toLocaleString()} {tx.currency}
+                      </p>
+                      <p className="text-[8px] text-slate-500 font-black mt-0.5">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[28px]">
+                Aucune transaction
+              </div>
+            )}
+          </div>
+        </section>
+
         <PartnersMarquee />
       </main>
+
       <footer className="pt-8 pb-32 border-t border-white/5 flex flex-col items-center gap-6 bg-[#020617]">
         <div className="flex items-center gap-6">
           <a href="https://facebook.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Facebook size={20} /></a>
           <a href="https://x.com/pimobilepay" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all"><Twitter size={20} /></a>
           <a href="https://cg.linkedin.com/in/aimardswana" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all"><Linkedin size={20} /></a>
           <a href="https://youtube.com/@pimpayofficial" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-label="YouTube"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
           </a>
           <a href="https://tiktok.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-label="TikTok"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.19 8.19 0 0 0 4.79 1.52V6.76a4.85 4.85 0 0 1-1.02-.07z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.19 8.19 0 0 0 4.79 1.52V6.76a4.85 4.85 0 0 1-1.02-.07z" /></svg>
           </a>
         </div>
-        <div className="text-center"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p><p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p></div>
+        <div className="text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p>
+        </div>
       </footer>
+
       <BottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
       {showReferral && <ReferralProgram onClose={() => setShowReferral(false)} />}
     </div>
