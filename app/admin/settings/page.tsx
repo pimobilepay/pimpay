@@ -102,6 +102,8 @@ export default function SystemSettings() {
   const [patchNotes, setPatchNotes] = useState('');
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
+  const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
+  const [togglingPiNetwork, setTogglingPiNetwork] = useState(false);
   const [searchAudit, setSearchAudit] = useState('');
   const [showAllAudit, setShowAllAudit] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -186,13 +188,20 @@ export default function SystemSettings() {
   /* ─── API CALLS ─────────────────────────────────────────────── */
   const loadData = async () => {
     try {
-      const res = await fetch("/api/admin/config", { credentials: "include" });
-      if (!res.ok) throw new Error("Erreur serveur");
-      const data = await res.json();
+      const [configRes, piEnvRes] = await Promise.all([
+        fetch("/api/admin/config", { credentials: "include" }),
+        fetch("/api/admin/pi-network", { credentials: "include" }),
+      ]);
+      if (!configRes.ok) throw new Error("Erreur serveur");
+      const data = await configRes.json();
       const { auditLogs: logs, stats: sysStats, ...currentConfig } = data;
       setConfig(prev => ({ ...prev, ...currentConfig }));
       setAuditLogs(logs || []);
       setStats(sysStats || { totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
+      if (piEnvRes.ok) {
+        const piData = await piEnvRes.json();
+        setPiNetworkEnv(piData.network || 'testnet');
+      }
     } catch {
       toast.error("Échec du chargement de la configuration");
     } finally {
@@ -272,6 +281,32 @@ export default function SystemSettings() {
       toast.error("Erreur lors du changement de mode");
     } finally {
       setTogglingMode(null);
+    }
+  };
+
+  const togglePiNetwork = async () => {
+    const next: 'testnet' | 'mainnet' = piNetworkEnv === 'testnet' ? 'mainnet' : 'testnet';
+    setTogglingPiNetwork(true);
+    try {
+      const res = await fetch("/api/admin/pi-network", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ network: next }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Erreur serveur");
+      const data = await res.json();
+      setPiNetworkEnv(data.network);
+      toast.success(
+        data.network === 'mainnet'
+          ? "🚀 Pi Network basculé sur MAINNET — transactions réelles activées"
+          : "🧪 Pi Network basculé sur TESTNET — mode sandbox activé",
+        { duration: 6000 }
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors du changement de réseau Pi");
+    } finally {
+      setTogglingPiNetwork(false);
     }
   };
 
@@ -676,6 +711,112 @@ export default function SystemSettings() {
                       icon={<Rocket size={18} />}
                       color="blue"
                     />
+                  </div>
+                </div>
+
+                {/* Pi Network — Testnet / Mainnet Switch */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Réseau Pi Network</h2>
+                  <div className={`relative overflow-hidden rounded-2xl border p-6 transition-all
+                    ${piNetworkEnv === 'mainnet'
+                      ? 'bg-gradient-to-br from-amber-500/8 via-orange-500/5 to-transparent border-amber-500/25'
+                      : 'bg-gradient-to-br from-blue-500/8 via-indigo-500/5 to-transparent border-blue-500/20'}`}>
+
+                    {/* Glow background */}
+                    <div className={`absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl opacity-[0.06] pointer-events-none
+                      ${piNetworkEnv === 'mainnet' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                      {/* Left — info */}
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-xl border shrink-0
+                          ${piNetworkEnv === 'mainnet'
+                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                            : 'bg-blue-500/15 border-blue-500/30 text-blue-400'}`}>
+                          {/* Pi logo */}
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-black text-white uppercase tracking-tight">Pi Network</p>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border
+                              ${piNetworkEnv === 'mainnet'
+                                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                                : 'bg-blue-500/20 border-blue-500/40 text-blue-300'}`}>
+                              {piNetworkEnv === 'mainnet' ? 'MAINNET · Réel' : 'TESTNET · Sandbox'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-sm">
+                            {piNetworkEnv === 'mainnet'
+                              ? 'Réseau principal actif — les transactions Pi sont réelles et définitives. Horizon : api.mainnet.minepi.com · Passphrase : "Pi Network"'
+                              : 'Réseau de test actif — aucun Pi réel échangé. Horizon : api.testnet.minepi.com · Passphrase : "Pi Testnet"'}
+                          </p>
+                          {piNetworkEnv === 'mainnet' && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                                Transactions réelles — Pi irréversibles
+                              </span>
+                            </div>
+                          )}
+                          {piNetworkEnv === 'testnet' && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                              <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">
+                                Sandbox — aucun Pi réel échangé
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right — toggle */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        {/* Switch visuel */}
+                        <button
+                          type="button"
+                          onClick={togglePiNetwork}
+                          disabled={togglingPiNetwork}
+                          className={`relative flex items-center w-[72px] h-8 rounded-full border transition-all duration-300 outline-none
+                            ${togglingPiNetwork ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                            ${piNetworkEnv === 'mainnet'
+                              ? 'bg-amber-500/20 border-amber-500/40'
+                              : 'bg-slate-700/60 border-white/10'}`}
+                          aria-label={`Basculer vers ${piNetworkEnv === 'mainnet' ? 'Testnet' : 'Mainnet'}`}
+                        >
+                          <span className={`absolute left-1 flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 text-[8px] font-black
+                            ${piNetworkEnv === 'mainnet'
+                              ? 'translate-x-[40px] bg-amber-400 text-amber-900'
+                              : 'translate-x-0 bg-slate-400 text-slate-900'}`}>
+                            {togglingPiNetwork
+                              ? <Loader2 size={10} className="animate-spin" />
+                              : piNetworkEnv === 'mainnet' ? 'M' : 'T'}
+                          </span>
+                          <span className={`absolute text-[7px] font-black uppercase tracking-wider transition-all
+                            ${piNetworkEnv === 'mainnet' ? 'left-2 text-amber-300' : 'right-2 text-slate-500'}`}>
+                            {piNetworkEnv === 'mainnet' ? '' : ''}
+                          </span>
+                        </button>
+                        <span className="text-[9px] font-bold text-slate-500">
+                          {togglingPiNetwork
+                            ? 'Basculement...'
+                            : `→ ${piNetworkEnv === 'mainnet' ? 'Passer en Testnet' : 'Passer en Mainnet'}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Avertissement mainnet */}
+                    {piNetworkEnv !== 'mainnet' && (
+                      <div className="relative z-10 mt-4 flex items-start gap-2.5 p-3.5 bg-amber-500/5 border border-amber-500/15 rounded-xl">
+                        <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] text-amber-300/70 font-medium leading-relaxed">
+                          <span className="font-black text-amber-300">Attention — </span>
+                          Le passage en Mainnet activera les transactions Pi réelles. Assurez-vous que le wallet opérateur est approvisionné et que les clés sont correctement configurées.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 

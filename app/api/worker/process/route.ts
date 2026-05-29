@@ -12,13 +12,27 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 const RPC_URLS = {
   XRP: "wss://s2.ripple.com",
   XLM: "https://horizon.stellar.org",
-  PI: process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com", // Testnet par défaut
+  // PI est lu dynamiquement via getPiHorizonUrl() — voir ci-dessous
   SIDRA: "https://node.sidrachain.com",
   EVM_DEFAULT: "https://bsc-dataseed.binance.org"
 };
 
-// Passphrase réseau Pi Network - Mainnet par défaut
-const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet";
+// Lecture dynamique du réseau Pi à chaque requête
+// (process.env.PI_NETWORK peut être mis à jour par /api/admin/pi-network sans redéploiement)
+function getPiHorizonUrl(): string {
+  return process.env.PI_HORIZON_URL ||
+    (process.env.PI_NETWORK === "mainnet"
+      ? "https://api.mainnet.minepi.com"
+      : "https://api.testnet.minepi.com");
+}
+function getPiPassphrase(): string {
+  return process.env.PI_NETWORK_PASSPHRASE ||
+    (process.env.PI_NETWORK === "mainnet" ? "Pi Network" : "Pi Testnet");
+}
+
+// Passphrase réseau Pi — lue dynamiquement, ce const est conservé pour
+// compatibilité avec les usages existants dans ce fichier
+const PI_NETWORK_PASSPHRASE = getPiPassphrase();
 
 export async function GET(req: NextRequest) {
   // [FIX V3] — Vérification WORKER_SECRET obligatoire
@@ -209,7 +223,7 @@ async function sendPiFromMasterWallet(tx: any, dest: string): Promise<string> {
   const PI_API_URL = "https://api.minepi.com"; // Toujours le meme endpoint
   
   console.log(`[PI_A2U] Configuration:`, {
-    horizonUrl: RPC_URLS.PI,
+    horizonUrl: getPiHorizonUrl(),
     apiUrl: PI_API_URL,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
     masterAddress: PI_MASTER_ADDRESS.substring(0, 10) + "...",
@@ -293,8 +307,8 @@ async function sendPiA2UOfficial(
   // Étape 2: Charger le compte et construire la transaction
   console.log(`[PI_A2U] Étape 2: Construction de la transaction blockchain...`);
   
-  const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
-    allowHttp: RPC_URLS.PI.includes("localhost") 
+  const server = new StellarSdk.Horizon.Server(getPiHorizonUrl(), { 
+    allowHttp: getPiHorizonUrl().includes("localhost") 
   });
   
   const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
@@ -406,7 +420,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   console.log(`[v0] [PI_DIRECT] Demarrage transfert direct`);
   console.log(`[v0] [PI_DIRECT] Destination recue:`, { dest, type: typeof dest, length: dest?.length });
   console.log(`[v0] [PI_DIRECT] Config:`, {
-    horizonUrl: RPC_URLS.PI,
+    horizonUrl: getPiHorizonUrl(),
     networkPassphrase: PI_NETWORK_PASSPHRASE,
     masterAddress: PI_MASTER_ADDRESS?.substring(0, 15) + "...",
     destination: dest?.substring(0, 15) + "...",
@@ -434,8 +448,8 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
     throw new Error(`Adresse Pi invalide (format Stellar attendu): ${cleanDest}`);
   }
   
-  const server = new StellarSdk.Horizon.Server(RPC_URLS.PI, { 
-    allowHttp: RPC_URLS.PI.includes("localhost") 
+  const server = new StellarSdk.Horizon.Server(getPiHorizonUrl(), { 
+    allowHttp: getPiHorizonUrl().includes("localhost") 
   });
   
   // Charger le compte master
@@ -447,7 +461,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   } catch (loadError: any) {
     console.error(`[v0] [PI_DIRECT] Erreur chargement compte:`, loadError.message);
     if (loadError.response?.status === 404) {
-      throw new Error(`Le compte master ${PI_MASTER_ADDRESS} n'existe pas sur ${RPC_URLS.PI}. Verifiez votre configuration.`);
+      throw new Error(`Le compte master ${PI_MASTER_ADDRESS} n'existe pas sur ${getPiHorizonUrl()}. Verifiez votre configuration.`);
     }
     throw loadError;
   }
@@ -553,7 +567,7 @@ async function sendStellarBased(tx: any, dest: string, encryptedKey: string | nu
   if (!encryptedKey) throw new Error("Clé Stellar/Pi manquante");
   
   const isPi = tx.currency === "PI";
-  const url = isPi ? RPC_URLS.PI : RPC_URLS.XLM;
+  const url = isPi ? getPiHorizonUrl() : RPC_URLS.XLM;
   
   // Utiliser la passphrase depuis l'environnement pour Pi, sinon réseau public Stellar
   const networkPassphrase = isPi ? PI_NETWORK_PASSPHRASE : StellarSdk.Networks.PUBLIC;

@@ -30,14 +30,23 @@ const PI_API_URL          = "https://api.minepi.com";
 
 // IMPORTANT: Pi testnet  → https://api.testnet.minepi.com   passphrase "Pi Testnet"
 //            Pi mainnet  → https://api.mainnet.minepi.com   passphrase "Pi Network"
-// Définir PI_NETWORK in .env : "testnet" | "mainnet" (défaut: testnet)
-const PI_ENV              = (process.env.PI_NETWORK || "testnet").toLowerCase();
-const PI_HORIZON_URL      = process.env.PI_HORIZON_URL
-  || (PI_ENV === "mainnet"
-    ? "https://api.mainnet.minepi.com"
-    : "https://api.testnet.minepi.com");
-const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE
-  || (PI_ENV === "mainnet" ? "Pi Network" : "Pi Testnet");
+// La valeur est lue à CHAQUE requête (pas au démarrage du module) pour que
+// le basculement admin via /api/admin/pi-network prenne effet immédiatement
+// sans redéploiement.
+function getPiEnv() {
+  const env = (process.env.PI_NETWORK || "testnet").toLowerCase();
+  return {
+    isMainnet: env === "mainnet",
+    horizonUrl:
+      process.env.PI_HORIZON_URL ||
+      (env === "mainnet"
+        ? "https://api.mainnet.minepi.com"
+        : "https://api.testnet.minepi.com"),
+    passphrase:
+      process.env.PI_NETWORK_PASSPHRASE ||
+      (env === "mainnet" ? "Pi Network" : "Pi Testnet"),
+  };
+}
 
 const PI_API_KEY           = process.env.PI_API_KEY;
 const PI_MASTER_ADDRESS    = process.env.PI_MASTER_WALLET_ADDRESS;
@@ -145,6 +154,8 @@ async function broadcastPi(
   a2uPaymentId?: string   // si A2U, le memo DOIT être le paymentIdentifier (doc Pi officielle)
 ): Promise<string> {
   const startTime = Date.now();
+  // Lire le réseau à chaque appel pour refléter le basculement admin immédiatement
+  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
   
   await logSystemEvent({
     level: "INFO",
@@ -714,6 +725,7 @@ export async function POST(req: NextRequest) {
 // GET: statut du service de retrait
 // ---------------------------------------------------------------------------
 export async function GET() {
+  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
   const configured = !!PI_API_KEY && !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
   let masterBalance: string | null = null;
 
