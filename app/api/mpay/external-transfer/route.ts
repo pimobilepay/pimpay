@@ -381,6 +381,9 @@ export async function POST(req: NextRequest) {
   const { destination, amount, memo, uid } = body;
   const senderId = session.id;
 
+  // Lire la configuration réseau Pi (testnet vs mainnet) pour cette requête
+  const { horizonUrl: _horizonUrl, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
+
   // Log initial de la requete
   await logSystemEvent({
     level: "INFO",
