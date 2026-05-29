@@ -15,17 +15,15 @@ const RPC_URLS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("[v0] [WALLET_SEND] Debut du traitement...");
+    console.log("[v1] [WALLET_SEND] Debut du traitement...");
     
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
 
     if (!token) {
-      console.log("[v0] [WALLET_SEND] Erreur: Non authentifie");
       return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
     }
 
-    // 1. AUTHENTIFICATION via JWT (lib/auth)
     const payload = await verifyJWT(token);
     if (!payload) {
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
@@ -35,64 +33,24 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const amount = parseFloat(body.amount);
     const currency = (body.currency || "PI").toUpperCase();
-    // Support multiple input names: address, recipientIdentifier, recipient
     const recipientInput = (body.address || body.recipientIdentifier || body.recipient || "").trim();
 
-    console.log("[v0] [WALLET_SEND] Params:", { amount, currency, recipientInput: recipientInput.substring(0, 20) + "..." });
-
-    // Minimum de 0.00000001 pour les cryptos
     const MIN_CRYPTO_AMOUNT = 0.00000001;
     
     if (!recipientInput || isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
-      console.log("[v0] [WALLET_SEND] Erreur: Donnees invalides", { recipientInput, amount });
       return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
     }
 
-    // Validation d'adresse selon la devise
     const validateAddress = (addr: string, curr: string): boolean => {
       if (!addr || addr.length < 3) return false;
-      
-      // Pi Network: adresse Stellar (G... 56 chars) OU piUserId
-      if (curr === "PI") {
-        return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3; // piUserId peut être court
-      }
-      
-      // SDA/Sidra: adresse EVM (0x... 42 chars)
-      if (curr === "SDA" || curr === "SIDRA") {
-        return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // USDT TRC20: adresse TRON (T... 34 chars)
-      if (curr === "USDT") {
-        return /^T[a-zA-Z0-9]{33}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // Bitcoin: legacy/bech32
-      if (curr === "BTC") {
-        return /^[13bc1][a-km-zA-HJ-NP-Z1-9]{25,62}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // Ethereum & autres EVM
-      if (["ETH", "BNB", "USDC", "DAI", "BUSD"].includes(curr)) {
-        return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // Stellar/XLM
-      if (curr === "XLM") {
-        return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // XRP
-      if (curr === "XRP") {
-        return /^r[a-zA-Z0-9]{24,33}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // Solana
-      if (curr === "SOL") {
-        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr) || addr.length >= 3;
-      }
-      
-      // Par défaut: accepter si c'est >= 3 caractères (username, email)
+      if (curr === "PI") return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3;
+      if (curr === "SDA" || curr === "SIDRA") return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
+      if (curr === "USDT") return /^T[a-zA-Z0-9]{33}$/.test(addr) || addr.length >= 3;
+      if (curr === "BTC") return /^[13bc1][a-km-zA-HJ-NP-Z1-9]{25,62}$/.test(addr) || addr.length >= 3;
+      if (["ETH", "BNB", "USDC", "DAI", "BUSD"].includes(curr)) return /^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length >= 3;
+      if (curr === "XLM") return /^G[A-Z2-7]{55}$/.test(addr) || addr.length >= 3;
+      if (curr === "XRP") return /^r[a-zA-Z0-9]{24,33}$/.test(addr) || addr.length >= 3;
+      if (curr === "SOL") return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr) || addr.length >= 3;
       return addr.length >= 3;
     };
 
@@ -114,13 +72,8 @@ export async function POST(req: NextRequest) {
         throw new Error(`Solde ${currency} insuffisant sur PimPay.`);
       }
 
-      // B. RECHERCHE DU DESTINATAIRE (Interne vs Externe)
-      // On nettoie l'input si c'est un @username
       const cleanInput = recipientInput.startsWith('@') ? recipientInput.substring(1) : recipientInput;
-
-      // Déterminer si c'est une adresse Stellar/Pi (commence par G, 56 chars)
       const isStellarAddress = /^G[A-Z2-7]{55}$/.test(cleanInput);
-      // Déterminer si c'est une adresse EVM/SDA (commence par 0x, 42 chars)
       const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(cleanInput);
 
       const recipientUser = await tx.user.findFirst({
@@ -147,12 +100,11 @@ export async function POST(req: NextRequest) {
         data: { balance: { decrement: amount } }
       });
 
-      // --- SCENARIO 1 : TRANSFERT INTERNE (ENTRE MEMBRES PIMPAY) ---
+      // --- SCENARIO 1 : TRANSFERT INTERNE ---
       if (recipientUser) {
-        console.log("[v0] [WALLET_SEND] Transfert INTERNE vers:", recipientUser.id);
+        console.log("[v1] [WALLET_SEND] Transfert INTERNE vers:", recipientUser.id);
         if (recipientUser.id === senderId) throw new Error("Vous ne pouvez pas vous envoyer des fonds a vous-meme.");
 
-        // Déterminer le type de wallet selon la monnaie
         const getWalletType = (curr: string): WalletType => {
           if (curr === "PI") return WalletType.PI;
           if (curr === "SDA") return WalletType.SIDRA;
@@ -160,7 +112,6 @@ export async function POST(req: NextRequest) {
           return WalletType.CRYPTO;
         };
 
-        // Crédit du destinataire (Upsert pour créer le wallet s'il n'existe pas encore)
         const toWallet = await tx.wallet.upsert({
           where: { userId_currency: { userId: recipientUser.id, currency } },
           update: { balance: { increment: amount } },
@@ -172,7 +123,6 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        // Log de transaction SUCCESS (Immédiat)
         const transaction = await tx.transaction.create({
           data: {
             reference: `PIM-INT-${nanoid(10).toUpperCase()}`,
@@ -188,7 +138,6 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        // Notification asynchrone pour le destinataire
         await tx.notification.create({
           data: {
             userId: recipientUser.id,
@@ -196,40 +145,41 @@ export async function POST(req: NextRequest) {
             message: `Vous avez reçu ${amount} ${currency} de la part d'un membre PimPay.`,
             type: "payment_received"
           }
-}).catch((e) => console.log("[v0] [WALLET_SEND] Erreur notification:", e.message));
+        }).catch((e) => console.log("[v1] [WALLET_SEND] Erreur notification:", e.message));
       
-      console.log("[v0] [WALLET_SEND] Transaction INTERNE REUSSIE:", transaction.reference);
-      return { type: 'INTERNAL', transaction };
+        console.log("[v1] [WALLET_SEND] Transaction INTERNE REUSSIE:", transaction.reference);
+        return { type: 'INTERNAL', transaction };
       }
 
-      // --- SCENARIO 2 : RETRAIT EXTERNE (VERS BLOCKCHAIN) ---
+      // --- SCENARIO 2 : RETRAIT EXTERNE VERS BLOCKCHAIN ---
       else {
-        console.log("[v0] [WALLET_SEND] Transfert EXTERNE vers adresse:", recipientInput);
+        console.log("[v1] [WALLET_SEND] Transfert EXTERNE vers adresse:", recipientInput);
         
-        // Recuperer l'utilisateur avec ses cles privees pour broadcast direct
+        // Récupérer l'utilisateur avec ses clés privées Sidra
         const senderUser = await tx.user.findUnique({
           where: { id: senderId },
           select: { 
             piUserId: true, 
             username: true,
             sidraAddress: true,
-            sidraPrivateKey: true
+            sidraPrivateKey: true  // clé privée Sidra chiffrée en DB
           }
         });
 
         let blockchainTxHash: string | null = null;
         let txStatus = TransactionStatus.SUCCESS;
 
-// --- BROADCAST DIRECT POUR SDA/SIDRA ---
-        // Stratégie : 
-        //   1. Essayer le wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY)
-        //   2. Si solde opérateur insuffisant, utiliser le wallet personnel de l'utilisateur
-        if ((currency === "SDA" || currency === "SIDRA")) {
+        // --- BROADCAST DIRECT POUR SDA/SIDRA ---
+        // STRATÉGIE CORRIGÉE (v1):
+        //   1. PRIORITÉ : wallet personnel de l'utilisateur (clé Sidra Privacy Key)
+        //      => le solde blockchain de l'utilisateur est réellement débité
+        //   2. FALLBACK : wallet opérateur central si solde on-chain user insuffisant
+        if (currency === "SDA" || currency === "SIDRA") {
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
           const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
           const amountInWei = ethers.parseEther(amountStr);
           
-          // Estimer le gas
+          // Estimation du gas
           let gasLimit = BigInt(21000);
           let gasPrice = ethers.parseUnits("1", "gwei");
           try {
@@ -238,111 +188,116 @@ export async function POST(req: NextRequest) {
           } catch { /* garder les valeurs par défaut */ }
           
           const totalNeeded = amountInWei + gasLimit * gasPrice;
-          
-          // Support pour les deux noms de variable (compatibilite)
-          const operatorPrivateKey = process.env.SIDRA_OPERATOR_PRIVATE_KEY || process.env.SDA_OPERATOR_PRIVATE_KEY;
-          
-          let usedOperator = false;
-          let operatorBalanceStr = "N/A";
-          
-          // — Tentative 1 : wallet opérateur central
-          if (operatorPrivateKey) {
+
+          let usedUserWallet = false;
+
+          // === TENTATIVE 1 : wallet personnel (Sidra Privacy Key) ===
+          if (senderUser?.sidraPrivateKey && senderUser?.sidraAddress) {
             try {
-              let privateKey = operatorPrivateKey;
+              let privateKey = senderUser.sidraPrivateKey;
+              // Déchiffrer la clé stockée en base
+              if (privateKey.includes(":")) privateKey = decrypt(privateKey);
               if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
-              
-              if (/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-                const operatorWallet = new ethers.Wallet(privateKey, provider);
-                const operatorBalance = await provider.getBalance(operatorWallet.address);
-                operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
-                
-                if (operatorBalance >= totalNeeded) {
-                  console.log("[v0] [WALLET_SEND] Broadcasting SDA via OPERATOR wallet...");
-                  const txRes = await operatorWallet.sendTransaction({ 
-                    to: recipientInput, 
-                    value: amountInWei,
-                    gasLimit,
-                    gasPrice
-                  });
-                  const receipt = await txRes.wait();
-                  blockchainTxHash = receipt?.hash || txRes.hash;
-                  usedOperator = true;
-                  txStatus = TransactionStatus.SUCCESS;
-                  console.log("[v0] [WALLET_SEND] SDA confirmed via OPERATOR:", blockchainTxHash);
-                } else {
-                  console.log("[v0] [WALLET_SEND] Solde operateur insuffisant:", operatorBalanceStr, "SDA. Tentative wallet utilisateur...");
-                }
+
+              if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+                throw new Error("Format de clé SDA utilisateur invalide");
+              }
+
+              const userWallet = new ethers.Wallet(privateKey, provider);
+              const userOnChainBalance = await provider.getBalance(userWallet.address);
+
+              console.log(
+                "[v1] [WALLET_SEND] Solde on-chain utilisateur:",
+                ethers.formatEther(userOnChainBalance), "SDA",
+                "| Nécessaire:", ethers.formatEther(totalNeeded), "SDA"
+              );
+
+              if (userOnChainBalance >= totalNeeded) {
+                console.log("[v1] [WALLET_SEND] Broadcasting SDA via USER wallet (Sidra Privacy Key):", userWallet.address);
+                const txRes = await userWallet.sendTransaction({
+                  to: recipientInput,
+                  value: amountInWei,
+                  gasLimit,
+                  gasPrice
+                });
+                const receipt = await txRes.wait();
+                blockchainTxHash = receipt?.hash || txRes.hash;
+                usedUserWallet = true;
+                txStatus = TransactionStatus.SUCCESS;
+                console.log("[v1] [WALLET_SEND] SDA confirmé via USER wallet:", blockchainTxHash);
+              } else {
+                const availUser = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
+                console.log("[v1] [WALLET_SEND] Solde on-chain utilisateur insuffisant:", availUser, "SDA. Tentative wallet opérateur...");
               }
             } catch (e: any) {
-              console.error("[v0] [WALLET_SEND] Erreur wallet operateur:", e.message);
+              console.error("[v1] [WALLET_SEND] Erreur wallet utilisateur:", e.message);
+              // On tente quand même l'opérateur ci-dessous
             }
+          } else {
+            console.log("[v1] [WALLET_SEND] Aucune clé Sidra trouvée pour l'utilisateur, tentative opérateur...");
           }
-          
-          // — Tentative 2 : wallet personnel de l'utilisateur (fallback)
-          if (!usedOperator && !blockchainTxHash) {
-            if (!senderUser?.sidraPrivateKey || !senderUser?.sidraAddress) {
-              // Rembourser l'utilisateur
+
+          // === TENTATIVE 2 : wallet opérateur central (fallback) ===
+          if (!usedUserWallet && !blockchainTxHash) {
+            const operatorPrivateKey = process.env.SIDRA_OPERATOR_PRIVATE_KEY || process.env.SDA_OPERATOR_PRIVATE_KEY;
+
+            if (operatorPrivateKey) {
+              try {
+                let privKey = operatorPrivateKey;
+                if (!privKey.startsWith('0x')) privKey = '0x' + privKey;
+
+                if (/^0x[a-fA-F0-9]{64}$/.test(privKey)) {
+                  const operatorWallet = new ethers.Wallet(privKey, provider);
+                  const operatorBalance = await provider.getBalance(operatorWallet.address);
+                  const operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
+
+                  if (operatorBalance >= totalNeeded) {
+                    console.log("[v1] [WALLET_SEND] Broadcasting SDA via OPERATOR wallet (fallback)...");
+                    const txRes = await operatorWallet.sendTransaction({
+                      to: recipientInput,
+                      value: amountInWei,
+                      gasLimit,
+                      gasPrice
+                    });
+                    const receipt = await txRes.wait();
+                    blockchainTxHash = receipt?.hash || txRes.hash;
+                    txStatus = TransactionStatus.SUCCESS;
+                    console.log("[v1] [WALLET_SEND] SDA confirmé via OPERATOR:", blockchainTxHash);
+                  } else {
+                    // Rembourser — ni l'utilisateur ni l'opérateur n'ont les fonds on-chain
+                    await tx.wallet.update({
+                      where: { id: senderWallet.id },
+                      data: { balance: { increment: amount } }
+                    });
+                    throw new Error(
+                      `Transfert annulé : votre solde Sidra on-chain est insuffisant et le wallet opérateur est également vide (${operatorBalanceStr} SDA). Votre solde PimPay a été restitué.`
+                    );
+                  }
+                }
+              } catch (e: any) {
+                if (e.message.includes("Transfert annulé")) throw e;
+                console.error("[v1] [WALLET_SEND] Erreur wallet opérateur:", e.message);
+                // Rembourser en cas d'erreur opérateur
+                await tx.wallet.update({
+                  where: { id: senderWallet.id },
+                  data: { balance: { increment: amount } }
+                });
+                throw new Error(`Erreur transfert SDA via opérateur: ${e.message}`);
+              }
+            } else {
+              // Pas d'opérateur configuré ET pas de clé utilisateur
               await tx.wallet.update({
                 where: { id: senderWallet.id },
                 data: { balance: { increment: amount } }
               });
               throw new Error(
-                `Transfert annulé : Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA). Contactez le support.. Votre solde a été restitué.`
+                "Transfert annulé : aucune clé Sidra disponible (ni wallet utilisateur ni wallet opérateur). Votre solde a été restitué. Contactez le support."
               );
-            }
-            
-            try {
-              let privateKey = senderUser.sidraPrivateKey;
-              // Déchiffrer si nécessaire
-              if (privateKey.includes(":")) privateKey = decrypt(privateKey);
-              if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
-              
-              if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-                throw new Error("Format de clé SDA utilisateur invalide");
-              }
-              
-              const userWallet = new ethers.Wallet(privateKey, provider);
-              const userOnChainBalance = await provider.getBalance(userWallet.address);
-              
-              if (userOnChainBalance < totalNeeded) {
-                const availUser = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
-                const neededStr = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
-                // Rembourser l'utilisateur
-                await tx.wallet.update({
-                  where: { id: senderWallet.id },
-                  data: { balance: { increment: amount } }
-                });
-                throw new Error(
-                  `Transfert annulé : Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) ` +
-                  `et votre solde on-chain est également insuffisant (${availUser} SDA disponible, ${neededStr} SDA requis). ` +
-                  `Votre solde a été restitué.`
-                );
-              }
-              
-              console.log("[v0] [WALLET_SEND] Broadcasting SDA via USER wallet:", userWallet.address);
-              const txRes = await userWallet.sendTransaction({ 
-                to: recipientInput, 
-                value: amountInWei,
-                gasLimit,
-                gasPrice
-              });
-              const receipt = await txRes.wait();
-              blockchainTxHash = receipt?.hash || txRes.hash;
-              txStatus = TransactionStatus.SUCCESS;
-              console.log("[v0] [WALLET_SEND] SDA confirmed via USER wallet:", blockchainTxHash);
-            } catch (e: any) {
-              console.error("[v0] [WALLET_SEND] Erreur wallet utilisateur:", e.message);
-              // Rembourser l'utilisateur en cas d'echec blockchain
-              await tx.wallet.update({
-                where: { id: senderWallet.id },
-                data: { balance: { increment: amount } }
-              });
-              throw new Error(`Erreur transfert SDA: ${e.message}`);
             }
           }
         }
         
-        // Log de transaction
+        // Log de transaction (WITHDRAW EXTERNE)
         const transaction = await tx.transaction.create({
           data: {
             reference: `PIM-EXT-${nanoid(10).toUpperCase()}`,
@@ -350,11 +305,10 @@ export async function POST(req: NextRequest) {
             currency,
             type: TransactionType.WITHDRAW,
             status: txStatus,
-            statusClass: blockchainTxHash ? undefined : "QUEUED", // QUEUED si pas encore broadcast
-            blockchainTx: blockchainTxHash, // Hash si broadcast direct
+            blockchainTx: blockchainTxHash,
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
-            description: blockchainTxHash 
+            description: blockchainTxHash
               ? `Transfert ${currency} vers ${recipientInput.substring(0, 10)}...`
               : `Retrait ${currency} vers adresse externe : ${recipientInput}`,
             accountNumber: recipientInput,
@@ -373,32 +327,28 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        console.log("[v0] [WALLET_SEND] Transaction EXTERNE creee:", transaction.reference, blockchainTxHash ? `(broadcast: ${blockchainTxHash})` : "(queued)");
+        console.log("[v1] [WALLET_SEND] Transaction EXTERNE créée:", transaction.reference, blockchainTxHash ? `(broadcast: ${blockchainTxHash})` : "(queued)");
         return { type: 'EXTERNAL', transaction, blockchainTx: blockchainTxHash };
       }
 
-    }, { maxWait: 10000, timeout: 30000 });
-    
-    console.log("[v0] [WALLET_SEND] SUCCES:", { mode: result.type, reference: result.transaction.reference, blockchainTx: result.blockchainTx });
+    }, { maxWait: 10000, timeout: 60000 }); // timeout augmenté pour attendre la confirmation blockchain
     
     const isDirectBlockchainTransfer = result.type === 'EXTERNAL' && result.blockchainTx;
     
     return NextResponse.json({
       success: true,
       mode: result.type,
-      message: result.type === 'INTERNAL' 
-        ? "Transfert instantane reussi" 
-        : (isDirectBlockchainTransfer ? "Transfert blockchain confirme" : "Retrait blockchain enregistre (en attente)"),
+      message: result.type === 'INTERNAL'
+        ? "Transfert instantané réussi"
+        : (isDirectBlockchainTransfer ? "Transfert blockchain confirmé" : "Retrait blockchain enregistré (en attente)"),
       reference: result.transaction.reference,
       transaction: result.transaction,
       blockchainTx: result.blockchainTx || null
     });
 
   } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
-    console.error("[v0] [WALLET_SEND] ERREUR:", error.message);
-    // Seuls les messages métier sûrs sont renvoyés (solde insuffisant, etc.)
-    const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle"];
+    console.error("[v1] [WALLET_SEND] ERREUR:", error.message);
+    const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle", "annulé", "restitué", "Sidra"];
     const isSafeError = safeErrors.some(e => error.message?.includes(e));
     return NextResponse.json({ 
       error: isSafeError ? error.message : "Erreur lors du transfert" 
