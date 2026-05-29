@@ -60,7 +60,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
     // Tenter l'init
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: true });
+      window.Pi.init({ version: "2.0", sandbox: false });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       return true;

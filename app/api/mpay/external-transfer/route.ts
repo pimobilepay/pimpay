@@ -19,13 +19,25 @@ import { logSystemEvent, logApiError } from '@/lib/systemLogger';
  *   PI_API_KEY              - Cle API Pi Developer Portal (Authorization: Key <PI_API_KEY>)
  *   PI_MASTER_WALLET_ADDRESS - Adresse publique G... du wallet source
  *   PI_MASTER_WALLET_SECRET  - Cle secrete S... du wallet source (NE PAS exposer cote client)
- *   PI_HORIZON_URL          - (optionnel) Par defaut: https://api.mainnet.minepi.com
- *   PI_NETWORK_PASSPHRASE   - (optionnel) Par defaut: "Pi Network"
+ *   PI_NETWORK              - "testnet" (defaut) ou "mainnet"
+ *   PI_HORIZON_URL          - (optionnel) detecte auto selon PI_NETWORK
+ *                             testnet:  https://api.testnet.minepi.com
+ *                             mainnet:  https://api.mainnet.minepi.com
+ *   PI_NETWORK_PASSPHRASE   - (optionnel) detecte auto: "Pi Testnet" | "Pi Network"
  */
 
 const PI_API_URL          = "https://api.minepi.com";
-const PI_HORIZON_URL      = process.env.PI_HORIZON_URL      || "https://api.mainnet.minepi.com";
-const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE || "Pi Network";
+
+// IMPORTANT: Pi testnet  → https://api.testnet.minepi.com   passphrase "Pi Testnet"
+//            Pi mainnet  → https://api.mainnet.minepi.com   passphrase "Pi Network"
+// Définir PI_NETWORK in .env : "testnet" | "mainnet" (défaut: testnet)
+const PI_ENV              = (process.env.PI_NETWORK || "testnet").toLowerCase();
+const PI_HORIZON_URL      = process.env.PI_HORIZON_URL
+  || (PI_ENV === "mainnet"
+    ? "https://api.mainnet.minepi.com"
+    : "https://api.testnet.minepi.com");
+const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE
+  || (PI_ENV === "mainnet" ? "Pi Network" : "Pi Testnet");
 
 const PI_API_KEY           = process.env.PI_API_KEY;
 const PI_MASTER_ADDRESS    = process.env.PI_MASTER_WALLET_ADDRESS;
@@ -111,13 +123,13 @@ async function a2uCreate(uid: string, amount: number, memo: string, metadata: Re
     source: "MPAY_EXTERNAL_TRANSFER",
     action: "A2U_CREATE_SUCCESS",
     message: `Paiement A2U cree: ${data.identifier}`,
-    details: { paymentId: data.identifier, recipientAddress: data.recipient_address },
+    details: { paymentId: data.identifier, recipientAddress: data.recipient },
     requestId,
   });
 
   return {
-    paymentId:        data.identifier        as string,
-    recipientAddress: data.recipient_address as string,
+    paymentId:        data.identifier as string,
+    recipientAddress: data.recipient  as string,   // champ correct selon doc officielle Pi
   };
 }
 
@@ -125,7 +137,13 @@ async function a2uCreate(uid: string, amount: number, memo: string, metadata: Re
 // Etape 2: signer et broadcaster la transaction Stellar/Pi
 // Retourne: txHash (string)
 // ---------------------------------------------------------------------------
-async function broadcastPi(toAddress: string, amount: number, memo: string, requestId?: string): Promise<string> {
+async function broadcastPi(
+  toAddress: string,
+  amount: number,
+  memo: string,
+  requestId?: string,
+  a2uPaymentId?: string   // si A2U, le memo DOIT être le paymentIdentifier (doc Pi officielle)
+): Promise<string> {
   const startTime = Date.now();
   
   await logSystemEvent({
@@ -225,8 +243,7 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
       requestId,
     });
   } catch (feeError: any) {
-    // Fallback vers des frais fixes élevés si fetchBaseFee échoue
-    dynamicFee = "10000"; // 10000 stroops = 0.001 Pi
+    dynamicFee = "10000";
     await logSystemEvent({
       level: "WARN",
       source: "MPAY_EXTERNAL_TRANSFER",
@@ -237,10 +254,25 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
     });
   }
 
-  // Construire la transaction avec les frais dynamiques
+  // IMPORTANT (doc officielle Pi) :
+  //   - En mode A2U : le memo DOIT être le paymentIdentifier (pas un texte libre)
+  //   - En mode Direct : memo texte libre (max 28 chars)
+  const memoValue = a2uPaymentId ?? memo.slice(0, 28);
+
+  // fetchTimebounds garantit la synchronisation avec l'horloge du réseau (recommandé par doc Stellar/Pi)
+  let timebounds: { minTime: number; maxTime: number };
+  try {
+    timebounds = await server.fetchTimebounds(180);
+  } catch {
+    const now = Math.floor(Date.now() / 1000);
+    timebounds = { minTime: 0, maxTime: now + 180 };
+  }
+
+  // Construire la transaction
   const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: dynamicFee,
     networkPassphrase: PI_NETWORK_PASSPHRASE,
+    timebounds,
   })
     .addOperation(
       StellarSdk.Operation.payment({
@@ -249,8 +281,7 @@ async function broadcastPi(toAddress: string, amount: number, memo: string, requ
         amount: amount.toFixed(7),
       })
     )
-    .addMemo(StellarSdk.Memo.text(memo.slice(0, 28)))
-    .setTimeout(180)
+    .addMemo(StellarSdk.Memo.text(memoValue))
     .build();
 
   tx.sign(StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET));
@@ -517,8 +548,8 @@ export async function POST(req: NextRequest) {
       piPaymentId      = a2u.paymentId;
       recipientAddress = a2u.recipientAddress;
 
-      // b) Broadcaster la transaction blockchain
-      blockchainTxHash = await broadcastPi(recipientAddress, amountNum, memoText, requestId);
+      // b) Broadcaster la transaction blockchain — passer le paymentId comme memo (obligatoire A2U)
+      blockchainTxHash = await broadcastPi(recipientAddress, amountNum, memoText, requestId, piPaymentId!);
 
       // c) Notifier la Pi Platform
       await a2uComplete(piPaymentId, blockchainTxHash, requestId);
@@ -535,6 +566,7 @@ export async function POST(req: NextRequest) {
         requestId,
       });
       
+      // Mode Direct : memo texte libre, pas de paymentId Pi
       blockchainTxHash = await broadcastPi(destination, amountNum, memoText, requestId);
 
     } else {
