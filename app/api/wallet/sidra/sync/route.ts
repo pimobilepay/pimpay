@@ -200,6 +200,58 @@ export async function POST(req: Request) {
           };
         }
 
+        // FIX CRITIQUE: Detecter les transferts internes SDA recents (P2P sans blockchain)
+        // cote EXPEDITEUR. Si l'utilisateur a envoye des SDA en interne, son solde PimPay
+        // a ete debite SANS transaction blockchain => diff positif artificiel.
+        // On doit ignorer cette difference pour ne pas re-crediter l'expediteur.
+        if (diff > 0) {
+          const recentInternalSends = await tx.transaction.findMany({
+            where: {
+              fromUserId: userId,
+              currency: "SDA",
+              type: TransactionType.TRANSFER,
+              status: TransactionStatus.SUCCESS,
+              blockchainTx: null, // Transferts internes P2P sans hash blockchain
+              createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // 24 heures
+            },
+            select: { amount: true },
+          });
+
+          const totalInternalSent = recentInternalSends.reduce(
+            (sum, t) => sum + t.amount,
+            0
+          );
+
+          // Si la difference positive correspond aux envois internes recents,
+          // c'est que le solde blockchain n'a pas bouge mais le solde PimPay a ete debite.
+          // On ne re-credite pas l'expediteur.
+          if (totalInternalSent > 0 && diff <= totalInternalSent * 1.01) {
+            console.log(
+              `[SIDRA_SYNC] Ignoring positive diff ${diff} - recent internal P2P sends: ${totalInternalSent}`
+            );
+            return {
+              updated: false,
+              total: currentBalance,
+              reason: "INTERNAL_SEND_DETECTED",
+            };
+          }
+
+          // Si le diff est superieur aux envois internes, il y a peut-etre un vrai
+          // depot externe en plus. On ne credite que la partie excedentaire.
+          if (totalInternalSent > 0 && diff > totalInternalSent * 1.01) {
+            const adjustedDiff = diff - totalInternalSent;
+            if (adjustedDiff < 0.00000001) {
+              return {
+                updated: false,
+                total: currentBalance,
+                reason: "ADJUSTED_SEND_ZERO",
+              };
+            }
+            // On continue avec adjustedDiff comme nouveau diff effectif
+            // (on laisse le code suivant utiliser realBlockchainIncrease)
+          }
+        }
+
         // FIX: Ne pas ecraser le solde avec le solde blockchain!
         // Le wallet PimPay peut contenir des SDA recus via P2P interne (sans blockchain).
         // On doit AJOUTER la difference (depot blockchain) et non REMPLACER le solde.
