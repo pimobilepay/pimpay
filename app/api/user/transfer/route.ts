@@ -217,13 +217,14 @@ export async function POST(req: NextRequest) {
           throw new Error("Destinataire ou adresse invalide.");
         }
 
-        // Débiter l'expéditeur
+        // Débiter l'expéditeur (solde interne DB — indépendant du wallet on-chain)
         const updatedSender = await tx.wallet.update({
           where: { id: senderWallet.id },
           data: { balance: { decrement: totalDebit } },
         });
 
-        // ─── Transfert INTERNE ────────────────────────────────────────────
+        // ─── Transfert INTERNE (P2P entre utilisateurs PimPay) ───────────
+        // Pas de broadcast blockchain : uniquement mise à jour des soldes DB.
         if (recipientUser) {
           const toWallet = await tx.wallet.upsert({
             where: { userId_currency: { userId: recipientUser.id, currency } },
@@ -280,8 +281,9 @@ export async function POST(req: NextRequest) {
           };
         }
 
-        // ─── Transfert EXTERNE ───────────────────────────────────────────
-        // Créer la transaction en PENDING (le broadcast a lieu HORS de cette tx Prisma)
+        // ─── Transfert EXTERNE (vers blockchain) ─────────────────────────
+        // Le solde DB a déjà été débité ci-dessus.
+        // Le broadcast blockchain aura lieu HORS de cette transaction Prisma.
         const txDescription =
           currency === "PI"
             ? `Retrait PI vers adresse externe : ${recipientInput}`
@@ -315,6 +317,16 @@ export async function POST(req: NextRequest) {
                     isBlockchainWithdraw: true,
                     requestedAt: new Date().toISOString(),
                     ...(senderUser?.piUserId && { piUid: senderUser.piUserId }),
+                  }
+                : currency === "SDA" || currency === "SIDRA"
+                ? {
+                    externalAddress: recipientInput,
+                    toAddress: recipientInput,
+                    network: "Sidra Mainnet",
+                    isBlockchainWithdraw: true,
+                    // FIX : marqué paidByOperator pour que le sync ne re-crédite pas l'utilisateur
+                    paidByOperator: true,
+                    requestedAt: new Date().toISOString(),
                   }
                 : currency === "USDT"
                 ? {
@@ -377,8 +389,13 @@ export async function POST(req: NextRequest) {
         const currency = result.transaction.currency;
 
         // ── SDA / SIDRA ──────────────────────────────────────────────────
-        // Stratégie : utiliser d'abord le wallet opérateur PimPay (SIDRA_OPERATOR_PRIVATE_KEY),
-        // puis fallback sur le wallet personnel de l'utilisateur s'il a un solde on-chain.
+        // IMPORTANT (architecture centralisée) :
+        //   - Le solde DB de l'utilisateur a DÉJÀ été débité à l'étape 1.
+        //   - Le broadcast blockchain utilise UNIQUEMENT le wallet opérateur central
+        //     (SIDRA_OPERATOR_PRIVATE_KEY). C'est ce wallet qui détient les fonds on-chain.
+        //   - Le wallet personnel de l'utilisateur N'EST PLUS utilisé en fallback,
+        //     car depuis la centralisation il ne contient plus de SDA on-chain.
+        //   - Si l'opérateur est insuffisant, on annule et on rembourse l'utilisateur.
         if (currency === "SDA" || currency === "SIDRA") {
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
           const amountInWei = ethers.parseEther(result.transaction.amount.toString());
@@ -393,69 +410,41 @@ export async function POST(req: NextRequest) {
 
           const totalNeeded = amountInWei + gasLimit * gasPrice;
 
-          // — Tentative 1 : wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY)
+          // Wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY) — seul wallet autorisé
           const operatorKey = getSidraOperatorKey();
-          let usedOperator = false;
-          let operatorBalanceStr = "N/A";
-          
-          if (operatorKey) {
-            const operatorWallet = new ethers.Wallet(operatorKey, provider);
-            const operatorBalance = await provider.getBalance(operatorWallet.address);
-            operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
 
-            if (operatorBalance >= totalNeeded) {
-              const txRes = await operatorWallet.sendTransaction({
-                to: recipientInput,
-                value: amountInWei,
-                gasLimit,
-                gasPrice,
-              });
-              const receipt = await txRes.wait();
-              blockchainTxHash = receipt?.hash || txRes.hash;
-              usedOperator = true;
-            } else {
-              // Solde opérateur insuffisant → tenter le wallet utilisateur
-              console.warn(
-                `[SDA_TRANSFER] Wallet opérateur insuffisant: ${operatorBalanceStr} SDA disponible, ${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} requis. Fallback vers wallet utilisateur...`
-              );
-            }
+          if (!operatorKey) {
+            // Pas de clé opérateur configurée → annuler
+            throw new Error(
+              "Le service de retrait SDA n'est pas configuré (SIDRA_OPERATOR_PRIVATE_KEY manquant). Contactez le support."
+            );
           }
-          
-          // — Tentative 2 : wallet personnel de l'utilisateur (fallback)
-          // Utilisé si SIDRA_OPERATOR_PRIVATE_KEY n'est pas configuré OU si solde opérateur insuffisant
-          if (!usedOperator && !blockchainTxHash) {
-            if (!senderUser?.sidraPrivateKey) {
-              throw new Error(`Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) et aucune clé utilisateur configurée. Contactez le support.`);
-            }
 
-            let privateKey = senderUser.sidraPrivateKey;
-            if (privateKey.includes(":")) privateKey = decrypt(privateKey);
-            if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
-            if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
-              throw new Error("Format de clé SDA/EVM invalide");
+          const operatorWallet = new ethers.Wallet(operatorKey, provider);
+          const operatorBalance = await provider.getBalance(operatorWallet.address);
+          const operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
 
-            const userWallet = new ethers.Wallet(privateKey, provider);
-            const userOnChainBalance = await provider.getBalance(userWallet.address);
-
-            if (userOnChainBalance < totalNeeded) {
-              const avail = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
-              const needed = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
-              throw new Error(
-                `Solde opérateur SDA insuffisant (${operatorBalanceStr} SDA) et votre solde on-chain est également insuffisant ` +
-                `(${avail} SDA disponible, ${needed} SDA requis).`
-              );
-            }
-
-            console.log(`[SDA_TRANSFER] Broadcasting via USER wallet: ${userWallet.address}`);
-            const txRes = await userWallet.sendTransaction({
-              to: recipientInput,
-              value: amountInWei,
-              gasLimit,
-              gasPrice,
-            });
-            const receipt = await txRes.wait();
-            blockchainTxHash = receipt?.hash || txRes.hash;
+          if (operatorBalance < totalNeeded) {
+            // Solde opérateur insuffisant → annuler et rembourser (géré ci-dessous)
+            throw new Error(
+              `Retrait SDA temporairement indisponible : le wallet opérateur est insuffisant ` +
+              `(${operatorBalanceStr} SDA disponible, ` +
+              `${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} SDA requis). ` +
+              `Veuillez contacter le support.`
+            );
           }
+
+          // Broadcast depuis le wallet opérateur
+          console.log(`[SDA_TRANSFER] Broadcasting via OPERATOR wallet: ${operatorWallet.address}`);
+          const txRes = await operatorWallet.sendTransaction({
+            to: recipientInput,
+            value: amountInWei,
+            gasLimit,
+            gasPrice,
+          });
+          const receipt = await txRes.wait();
+          blockchainTxHash = receipt?.hash || txRes.hash;
+          console.log(`[SDA_TRANSFER] Success — txHash: ${blockchainTxHash}`);
         }
 
         // ── BNB / ETH ────────────────────────────────────────────────────
@@ -557,7 +546,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (blockchainTxHash) {
-        // ✅ Broadcast réussi → marquer SUCCESS avec le hash
+        // ✅ Broadcast réussi → marquer SUCCESS avec le hash blockchain
         await prisma.transaction.update({
           where: { id: result.transaction.id },
           data: {
@@ -572,7 +561,8 @@ export async function POST(req: NextRequest) {
         });
         result.transaction.blockchainTx = blockchainTxHash;
       } else {
-        // ✅ Broadcast échoué → rembourser + marquer FAILED
+        // ✅ Broadcast échoué → rembourser l'utilisateur + marquer FAILED
+        // Le solde DB avait été débité à l'étape 1 ; on le restitue ici.
         console.warn("[USER_TRANSFER] Remboursement du sender suite à l'échec broadcast");
         await prisma.$transaction([
           prisma.wallet.update({
@@ -643,7 +633,6 @@ export async function POST(req: NextRequest) {
       feeAmount > 0 &&
       FEE_COLLECTED_CURRENCIES.includes(feeCurrency as any)
     ) {
-      // Récupérer la clé privée EVM de l'utilisateur (déjà décryptée dans le flux)
       const getEvmKey = (): string | null => {
         if (!senderUser?.sidraPrivateKey) return null;
         try {
