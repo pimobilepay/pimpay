@@ -434,15 +434,25 @@ export async function POST(req: NextRequest) {
   }
 
   const isPiAddress = /^G[A-Z2-7]{55}$/.test(destination);
-  // uid peut venir du body OU destination peut etre un UID Pi (non-adresse)
-  const piUid: string | null = uid || (!isPiAddress ? destination : null);
+
+  // Les UID Pi Mainnet sont souvent préfixés par "P" suivi d'une chaîne hexadécimale
+  // ex: P5BA1314428A1A687743D78F3AF3D6C6D17933AFE
+  // L'API Pi Platform attend l'UID SANS le préfixe "P" → on le retire avant l'appel A2U
+  const isPPrefixedUid = /^P[0-9A-Fa-f]{20,}$/.test(destination);
+
+  // uid peut venir du body OU destination peut etre un UID Pi (non-adresse G...)
+  // Si c'est un UID avec préfixe P, on retire le P pour l'API Pi Platform
+  const rawUid: string | null = uid || (!isPiAddress ? destination : null);
+  const piUid: string | null = rawUid
+    ? (/^P[0-9A-Fa-f]{20,}$/.test(rawUid) ? rawUid.slice(1) : rawUid)
+    : null;
 
   await logSystemEvent({
     level: "DEBUG",
     source: "MPAY_EXTERNAL_TRANSFER",
     action: "ADDRESS_DETECTION",
-    message: `Detection adresse: isPiAddress=${isPiAddress}, piUid=${piUid ? 'oui' : 'non'}`,
-    details: { isPiAddress, piUid, destination },
+    message: `Detection adresse: isPiAddress=${isPiAddress}, isPPrefixedUid=${isPPrefixedUid}, piUid=${piUid ? 'oui' : 'non'}`,
+    details: { isPiAddress, isPPrefixedUid, piUid, destinationRaw: destination },
     userId: senderId,
     requestId,
   });
