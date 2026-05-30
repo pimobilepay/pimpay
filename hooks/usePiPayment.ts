@@ -169,6 +169,19 @@ export const usePiPayment = () => {
         return { success: false, error: errorMsg };
       }
 
+      // Etape obligatoire: authentifier l'utilisateur avec le scope "payments"
+      // avant de pouvoir creer un paiement. Sans cela, le SDK Pi renvoie
+      // l'erreur "Cannot create a payment without 'payments' scope".
+      try {
+        await window.Pi.authenticate(["username", "payments"], onIncompletePaymentFound);
+        console.log("[PimPay] Authentification avec scope payments reussie");
+      } catch (authError: any) {
+        console.error("[PimPay] Erreur authentification scope payments:", authError);
+        const msg = authError?.message || "Authentification Pi requise pour le paiement";
+        toast.error(msg, { duration: 5000 });
+        return { success: false, error: msg };
+      }
+
       console.log("[PimPay] Creation paiement Pi:", config);
 
       return new Promise((resolve) => {
@@ -272,7 +285,7 @@ export const usePiPayment = () => {
       setLoading(false);
       paymentInProgressRef.current = false;
     }
-  }, [waitForPiSDK]);
+  }, [waitForPiSDK, onIncompletePaymentFound]);
 
   /**
    * Creer une recharge de solde Pi
