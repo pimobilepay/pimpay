@@ -799,6 +799,7 @@ enum WalletType {
   FIAT
   CRYPTO
   SIDRA
+  PIM
 }
 
 enum TransactionType {

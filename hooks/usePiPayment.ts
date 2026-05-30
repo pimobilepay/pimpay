@@ -248,7 +248,11 @@ export const usePiPayment = () => {
                 resolve({ success: false, error: data.error });
               } else {
                 console.log("[PimPay] Paiement complete:", id);
-                toast.success(`Recharge de ${config.amount} Pi effectuee !`);
+                if (config.metadata?.type === "PIM_COIN_PURCHASE") {
+                  toast.success("Paiement confirme !");
+                } else {
+                  toast.success(`Recharge de ${config.amount} Pi effectuee !`);
+                }
                 resolve({ success: true, txid });
               }
             } catch (error: any) {

@@ -83,6 +83,65 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: "Déjà crédité" });
     }
 
+    // --- 4. CAS SPÉCIAL : ACHAT DE PIM COINS ---
+    const txMeta = (transaction.metadata as any) || {};
+    const isPimPurchase = transaction.currency === "PIM" || txMeta?.type === "PIM_COIN_PURCHASE";
+
+    if (isPimPurchase) {
+      const pimCoins = Number(txMeta?.pimCoins) || transaction.amount;
+
+      const pimResult = await prisma.$transaction(async (tx) => {
+        const pimWallet = await tx.wallet.upsert({
+          where: { userId_currency: { userId, currency: "PIM" } },
+          update: { balance: { increment: pimCoins } },
+          create: {
+            userId,
+            currency: "PIM",
+            balance: pimCoins,
+            type: WalletType.PIM,
+          },
+        });
+
+        const updatedTx = await tx.transaction.update({
+          where: { id: transaction!.id },
+          data: {
+            status: TransactionStatus.SUCCESS,
+            blockchainTx: txid,
+            toWalletId: pimWallet.id,
+          },
+        });
+
+        return { pimWallet, updatedTx };
+      }, { maxWait: 10000, timeout: 30000 });
+
+      // Notification de credit PIM (non-bloquante)
+      try {
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "PIM Coins ajoutes !",
+            message: `Vous avez recu ${pimCoins} PIM Coins.${txMeta?.bonus ? ` Bonus inclus: ${txMeta.bonus} PIM !` : ""}`,
+            type: "SUCCESS",
+            metadata: JSON.stringify({
+              pimCoins,
+              piAmount: txMeta?.piAmount,
+              transactionId: pimResult.updatedTx.id,
+              productId: txMeta?.productId,
+            }),
+          },
+        });
+      } catch { /* notification non-bloquante */ }
+
+      console.log(`[PIMPAY] PIM credite: ${pimCoins} PIM pour ${userId}`);
+
+      return NextResponse.json({
+        success: true,
+        message: `${pimCoins} PIM Coins ajoutes !`,
+        pimCoins,
+        newBalance: pimResult.pimWallet.balance,
+      });
+    }
+
     // --- 4. MISE À JOUR BANCAIRE ATOMIQUE ---
     const finalResult = await prisma.$transaction(async (tx) => {
       // Utilisation de upsert pour le Wallet pour éviter tout crash si le wallet PI n'existe pas

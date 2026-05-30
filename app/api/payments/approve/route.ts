@@ -9,7 +9,7 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
-    const { paymentId, amount, memo, txid, toAddress, currency } = await req.json();
+    const { paymentId, amount, memo, txid, toAddress, currency, type, pimCoins, bonus, productId } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
@@ -28,8 +28,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non authentifie. Veuillez vous reconnecter." }, { status: 401 });
     }
 
+    // Determine the payment type
+    const isPimPurchase = type === "PIM_COIN_PURCHASE";
     // Determine if this is a withdraw (external send) or deposit
-    const isWithdraw = !!toAddress && currency === "PI";
+    const isWithdraw = !isPimPurchase && !!toAddress && currency === "PI";
 
     // 2. APPROBATION S2S (Server-to-Server) avec Pi Network
     const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
@@ -65,6 +67,48 @@ export async function POST(req: Request) {
       });
 
       let transaction;
+
+      if (isPimPurchase) {
+        // ACHAT PIM COINS: on prepare une transaction PIM en attente.
+        // Le credit du wallet PIM se fera dans /api/payments/complete.
+        const pimWallet = await tx.wallet.upsert({
+          where: { userId_currency: { userId, currency: "PIM" } },
+          update: {},
+          create: {
+            userId,
+            currency: "PIM",
+            balance: 0,
+            type: WalletType.PIM
+          }
+        });
+
+        transaction = await tx.transaction.upsert({
+          where: { externalId: paymentId },
+          update: { blockchainTx: txid || null },
+          create: {
+            reference: `PIM-${paymentId.slice(-8).toUpperCase()}`,
+            externalId: paymentId,
+            blockchainTx: txid || null,
+            amount: Number(pimCoins) || 0,
+            currency: "PIM",
+            type: TransactionType.DEPOSIT,
+            status: TransactionStatus.PENDING,
+            description: memo || `Achat de ${pimCoins} PIM Coins`,
+            toUserId: userId,
+            toWalletId: pimWallet.id,
+            metadata: {
+              type: "PIM_COIN_PURCHASE",
+              pimCoins: Number(pimCoins) || 0,
+              bonus: Number(bonus) || 0,
+              productId: productId || null,
+              piAmount: parseFloat(amount) || 0,
+              approvedAt: new Date().toISOString()
+            }
+          }
+        });
+
+        return { transaction, isWithdraw: false, isPimPurchase: true };
+      }
 
       if (isWithdraw) {
         // WITHDRAW: Envoi externe vers une adresse Pi
@@ -163,6 +207,11 @@ export async function POST(req: Request) {
     }).catch(e => console.warn("⚠️ Pi /complete auto-call skip"));
 
     // 5. NOTIFICATION utilisateur pour confirmation instantanee avec metadonnees completes
+    // Pour les achats PIM, la notification de credit est creee dans /api/payments/complete.
+    if (result.isPimPurchase) {
+      return NextResponse.json({ success: true, transaction: result });
+    }
+
     try {
       const depositAmount = parseFloat(amount);
       const fee = 0; // Frais Pi (modifiable si besoin)
