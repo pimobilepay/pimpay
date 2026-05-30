@@ -62,7 +62,7 @@ export async function POST(req: Request) {
           userId,
           currency: "PIM",
           balance: pimCoins,
-          type: WalletType.PIM,
+          type: WalletType.CRYPTO,
         },
       });
 
