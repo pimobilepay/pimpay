@@ -331,6 +331,13 @@ export default function UserDashboard() {
 
   const displayName = data?.name || "PIONEER";
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return locale === "fr" ? "Bonjour" : "Good morning";
+    if (hour < 18) return locale === "fr" ? "Bon après-midi" : "Good afternoon";
+    return locale === "fr" ? "Bonsoir" : "Good evening";
+  };
+
   const computeStats = (txsRaw: any[]) => {
     const filtered = (txsRaw || []).filter((t) => t.status === "SUCCESS" || !t.status);
     const swapTypes = ["EXCHANGE", "SWAP"];
@@ -445,7 +452,7 @@ export default function UserDashboard() {
         {/* ── Greeting ── */}
         <div className="mt-5 mb-5 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Bonjour 👋</p>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{getGreeting()} 👋</p>
             <h2 className="text-xl font-black text-white tracking-tight mt-0.5">{displayName}</h2>
           </div>
           {data?.kycStatus === "VERIFIED" && (
