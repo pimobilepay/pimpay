@@ -165,7 +165,7 @@ export default function LoginPage() {
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center p-4 overflow-hidden font-sans">
+    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-start sm:items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-8 sm:py-12 font-sans">
       
       <MFASelector
         isOpen={showMFAModal}
