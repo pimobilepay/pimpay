@@ -431,7 +431,7 @@ export default function SignupPage() {
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center overflow-hidden font-sans p-4">
+    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-start sm:items-center justify-center overflow-y-auto overflow-x-hidden font-sans px-4 py-8 sm:py-12">
       {/* Background Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
 
