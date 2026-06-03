@@ -96,6 +96,8 @@ export const en: TranslationKeys = {
     accountVerified: "Verified Account",
     verifying: "Verifying...",
     logout: "Logout",
+    loggingOut: "Logging out...",
+    loggingOutHint: "You will be redirected to the login page",
     about: "About",
     language: "Language",
     languageCurrent: "English",

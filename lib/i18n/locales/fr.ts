@@ -94,6 +94,8 @@ export const fr = {
     accountVerified: "Compte Verifie",
     verifying: "Verification...",
     logout: "Deconnexion",
+    loggingOut: "Deconnexion en cours...",
+    loggingOutHint: "Vous allez etre redirige vers la page de connexion",
     about: "A propos",
     language: "Langue",
     languageCurrent: "Francais",

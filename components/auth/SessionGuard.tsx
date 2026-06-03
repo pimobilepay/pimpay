@@ -34,6 +34,9 @@ export default function SessionGuard({ children }: SessionGuardProps) {
   // Flag pour savoir si c'est l'utilisateur lui-même qui a révoqué une session
   // depuis la page settings/sessions (pas l'admin, pas un autre appareil)
   const selfRevokedRef = useRef(false);
+  // Flag pour une déconnexion volontaire explicite (bouton "Se déconnecter")
+  // → aucune notification ne doit s'afficher
+  const loggingOutRef = useRef(false);
 
   // Écouter l'event dispatché par RevokeSessionButton / LogoutOthersButton
   // pour savoir que c'est une révocation volontaire par l'utilisateur lui-même
@@ -43,8 +46,16 @@ export default function SessionGuard({ children }: SessionGuardProps) {
       // Reset après 15s pour ne pas bloquer les futures vraies déconnexions forcées
       setTimeout(() => { selfRevokedRef.current = false; }, 15000);
     };
+    // Déconnexion volontaire via le bouton de logout → on coupe toute vérification
+    const handleLoggingOut = () => {
+      loggingOutRef.current = true;
+    };
     window.addEventListener("pimpay:session-revoked", handleSelfRevoke);
-    return () => window.removeEventListener("pimpay:session-revoked", handleSelfRevoke);
+    window.addEventListener("pimpay:logging-out", handleLoggingOut);
+    return () => {
+      window.removeEventListener("pimpay:session-revoked", handleSelfRevoke);
+      window.removeEventListener("pimpay:logging-out", handleLoggingOut);
+    };
   }, []);
 
   const forceLogout = useCallback(async (reason: string) => {
@@ -85,6 +96,9 @@ export default function SessionGuard({ children }: SessionGuardProps) {
   const checkSession = useCallback(async () => {
     // Éviter les vérifications en parallèle
     if (isCheckingRef.current) return;
+
+    // Déconnexion volontaire en cours → ne rien vérifier, ne rien notifier
+    if (loggingOutRef.current) return;
     
     // Ne pas vérifier sur les pages publiques
     if (PUBLIC_PATHS.some(path => pathname === path || pathname?.startsWith(path + "/"))) {

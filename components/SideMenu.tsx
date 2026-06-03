@@ -4,7 +4,7 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Linkedin, Twitter,
-  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles
+  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles, Loader2
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -23,6 +23,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const pathname = usePathname();
   const { locale, setLocale, t } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("pimpay_user");
@@ -144,36 +145,59 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   ];
 
   const logout = async () => {
-    try {
-      onClose();
+    // Empêcher les double-clics
+    if (loggingOut) return;
 
-      // 1. Appel API d'abord pour invalider la session en DB et supprimer les cookies httpOnly
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    // Signaler au SessionGuard que c'est une déconnexion VOLONTAIRE
+    // → évite le faux message "déconnecté par l'administrateur"
+    window.dispatchEvent(new Event("pimpay:logging-out"));
 
-      // 2. Nettoyer le stockage local
+    // Afficher l'écran de chargement
+    setLoggingOut(true);
+
+    const clearClientSession = () => {
       localStorage.removeItem("pimpay_user");
-
-      // 3. Supprimer tous les cookies cote client (fallback pour les cookies non-httpOnly)
       const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
       for (const name of cookieNames) {
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
       }
+    };
 
-      // 4. Rediriger vers la page de login
-      window.location.href = "/auth/login";
-    } catch (err) {
-      // En cas d'erreur reseau, forcer quand meme la deconnexion locale
-      localStorage.removeItem("pimpay_user");
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-      window.location.href = "/auth/login";
+    try {
+      // 1. Appel API pour invalider la session en DB et supprimer les cookies httpOnly
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      // 2. Nettoyer le stockage local + cookies côté client
+      clearClientSession();
+    } catch {
+      // En cas d'erreur réseau, forcer quand même la déconnexion locale
+      clearClientSession();
     }
+
+    // 3. Laisser l'écran de chargement visible un court instant puis rediriger
+    setTimeout(() => {
+      window.location.href = "/auth/login";
+    }, 700);
   };
 
   return (
     <>
+      {loggingOut && (
+        <div className="fixed inset-0 z-[10000] bg-[#020617] flex flex-col items-center justify-center gap-6">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center">
+                <Loader2 size={34} className="text-blue-400 animate-spin" />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="text-white font-black text-base tracking-tight">{t("sideMenu.loggingOut")}</p>
+            <p className="text-slate-500 text-xs font-medium">{t("sideMenu.loggingOutHint")}</p>
+          </div>
+        </div>
+      )}
+
       <div
         onClick={onClose}
         className={`fixed inset-0 z-[9998] bg-black/70 backdrop-blur-md transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
