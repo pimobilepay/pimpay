@@ -996,8 +996,8 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
         />
       )}
 
-      <BottomNav onMenuOpen={() => setIsMenuOpen(true)} />
-      <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <BottomNav onOpenMenu={() => setIsMenuOpen(true)} />
+      <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </div>
   );
 }
