@@ -40,6 +40,8 @@ function isExternalAddress(identifier: string): boolean {
   const s = (identifier || "").trim();
   if (!s || s.length < 20) return false;
   if (/^G[A-Z2-7]{55}$/.test(s)) return true;
+  // UID Pi Network préfixé "P" (ex: P024E6679F8C1093533EC99EB75548CCBFF995FEE)
+  if (/^P[0-9A-Fa-f]{20,}$/.test(s)) return true;
   if (/^0x[a-fA-F0-9]{40}$/.test(s)) return true;
   if (/^T[a-zA-Z0-9]{33}$/.test(s)) return true;
   if (/^r[a-zA-Z0-9]{24,33}$/.test(s)) return true;
@@ -183,6 +185,13 @@ export async function POST(req: NextRequest) {
           ? recipientInput.substring(1)
           : recipientInput;
 
+        // UID Pi Network préfixé "P" : on prépare aussi la version sans le "P"
+        // pour résoudre un membre PimPay dont le piUserId/walletAddress est stocké
+        // sans préfixe (ex: P024E6679... -> 024E6679...).
+        const cleanInputNoP = /^P[0-9A-Fa-f]{20,}$/.test(cleanInput)
+          ? cleanInput.slice(1)
+          : cleanInput;
+
         // Recherche destinataire (interne PimPay)
         let recipientUser = null;
         if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
@@ -200,8 +209,10 @@ export async function POST(req: NextRequest) {
                 { phone: cleanInput },
                 { sidraAddress: cleanInput },
                 { walletAddress: cleanInput },
+                { walletAddress: cleanInputNoP },
                 { xlmAddress: cleanInput },
                 { piUserId: cleanInput },
+                { piUserId: cleanInputNoP },
                 { usdtAddress: cleanInput },
                 { id: cleanInput },
               ],
