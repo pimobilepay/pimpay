@@ -316,6 +316,37 @@ export default function WalletPage() {
     return () => clearInterval(priceInterval);
   }, [loadWalletData, fetchMarketPrices]);
 
+  // Real-time balance auto-refresh: poll notifications and reload balances
+  // automatically when a new payment/deposit arrives (no page reload needed)
+  useEffect(() => {
+    let lastNotifId = sessionStorage.getItem("wallet_last_notif_id") || "";
+    const checkNotifications = async () => {
+      try {
+        const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
+        if (!res.ok) return;
+        const result = await res.json();
+        if (result.notifications?.length > 0) {
+          const unreadPayments = result.notifications.filter(
+            (n: any) => !n.read && ["PAYMENT_RECEIVED", "success", "DEPOSIT", "TRANSFER"].includes(n.type)
+          );
+          if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
+            const latest = unreadPayments[0];
+            lastNotifId = latest.id;
+            sessionStorage.setItem("wallet_last_notif_id", latest.id);
+            toast.success("Transaction recue !", {
+              description: latest.message || "Votre solde a ete mis a jour",
+              duration: 6000,
+            });
+            loadWalletData();
+          }
+        }
+      } catch {}
+    };
+    checkNotifications();
+    const interval = setInterval(checkNotifications, 8000);
+    return () => clearInterval(interval);
+  }, [loadWalletData]);
+
   const handleCopy = (address: string) => {
     if (!address) return;
     navigator.clipboard.writeText(address);

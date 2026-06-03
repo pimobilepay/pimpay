@@ -250,40 +250,44 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [txPriority, setTxPriority] = useState("fast");
 
-  // Fetch user profile
-  useEffect(() => {
-    fetch("/api/user/profile")
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.user) {
-          setUserBalance(data.user.balances?.pi || 0);
-          const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
-          setUserMerchantId(merchantCode);
-          setUserName(data.user.name || data.user.username || "Utilisateur");
-          setUserId(data.user.id || "");
-        }
-      })
-      .catch(() => setUserBalance(0));
+  // Fetch user profile (reusable so the balance can auto-refresh)
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/profile", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUserBalance(data.user.balances?.pi || 0);
+        const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
+        setUserMerchantId(merchantCode);
+        setUserName(data.user.name || data.user.username || "Utilisateur");
+        setUserId(data.user.id || "");
+      }
+    } catch {
+      setUserBalance(0);
+    }
   }, []);
 
-  // Fetch transaction history
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      setTransactionsLoading(true);
-      try {
-        const res = await fetch("/api/transaction/history");
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setTransactions(data.slice(0, 10)); // Get last 10 transactions
-        }
-      } catch (error) {
-        console.error("Error fetching transactions:", error);
-      } finally {
-        setTransactionsLoading(false);
+  // Fetch transaction history (reusable so the list can auto-refresh)
+  const fetchTransactions = useCallback(async () => {
+    setTransactionsLoading(true);
+    try {
+      const res = await fetch("/api/transaction/history", { cache: "no-store" });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTransactions(data.slice(0, 10)); // Get last 10 transactions
       }
-    };
-    fetchTransactions();
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+    } finally {
+      setTransactionsLoading(false);
+    }
   }, []);
+
+  // Initial load of profile + transactions
+  useEffect(() => {
+    fetchProfile();
+    fetchTransactions();
+  }, [fetchProfile, fetchTransactions]);
 
   // Fetch Map of Pi merchants
   const fetchMapOfPiMerchants = useCallback(async () => {
@@ -348,7 +352,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           
           setNotifications(data.unreadCount || 0);
           
-          // Show toast for new payment received
+          // Show toast for new payment received + auto-refresh balance
           if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
             const latest = unreadPayments[0];
             lastNotifId = latest.id;
@@ -363,6 +367,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                 color: "#fff",
               },
             });
+
+            // Refresh balance + transactions automatically (no page reload needed)
+            fetchProfile();
+            fetchTransactions();
           }
         }
       } catch (error) {
@@ -376,7 +384,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
     // Then poll every 10 seconds
     const interval = setInterval(checkNewNotifications, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchProfile, fetchTransactions]);
 
   const handleQRResult = useCallback((data: string) => {
     if (data) {
