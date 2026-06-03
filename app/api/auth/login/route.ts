@@ -159,6 +159,31 @@ export async function POST(req: Request) {
         console.error("Admin security notification error:", e);
       }
 
+      // Notification de sécurité destinée à l'UTILISATEUR concerné
+      // (visible dès sa prochaine connexion réussie)
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: "SECURITY",
+            title: reachedLimit ? "Compte temporairement bloque" : "Tentative de connexion echouee",
+            message: reachedLimit
+              ? `Votre compte a ete bloque pendant 48h apres ${MAX_FAILED_ATTEMPTS} tentatives de connexion echouees. Si ce n'etait pas vous, changez votre mot de passe.`
+              : `Une tentative de connexion a votre compte a echoue (${newAttempts}/${MAX_FAILED_ATTEMPTS}) depuis ${failCity || failCountry || "un lieu inconnu"} (IP ${failClientIp}). Si ce n'etait pas vous, securisez votre compte.`,
+            metadata: {
+              attempts: newAttempts,
+              maxAttempts: MAX_FAILED_ATTEMPTS,
+              locked: reachedLimit,
+              ip: failClientIp,
+              location: failCity || failCountry ? `${failCity || ""}${failCity && failCountry ? ", " : ""}${failCountry || ""}` : null,
+              device: failUserAgent,
+            },
+          },
+        });
+      } catch (e) {
+        console.error("User security notification error:", e);
+      }
+
       if (reachedLimit) {
         return NextResponse.json(
           {
