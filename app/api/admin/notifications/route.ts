@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 interface AdminNotification {
   id: string;
-  type: "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "WITHDRAWAL_PENDING" | "MESSAGE" | "ALERT";
+  type: "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "WITHDRAWAL_PENDING" | "MESSAGE" | "ALERT" | "SECURITY";
   title: string;
   message: string;
   priority: "low" | "medium" | "high" | "urgent";
@@ -143,7 +143,32 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    // 5. Messages admin — table AdminMessage absente du schéma Prisma actuel
+    // 5bis. Sécurité : tentatives de connexion échouées + comptes verrouillés (24h)
+    const securityLogs = await prisma.systemLog.findMany({
+      where: {
+        source: "AUTH",
+        action: { in: ["FAILED_LOGIN", "ACCOUNT_LOCKED"] },
+        createdAt: { gte: last24h },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+
+    securityLogs.forEach((log) => {
+      const locked = log.action === "ACCOUNT_LOCKED";
+      notifications.push({
+        id: `sec-${log.id}`,
+        type: "SECURITY",
+        title: locked ? "Compte verrouille" : "Tentative de connexion echouee",
+        message: log.message,
+        priority: locked ? "urgent" : "medium",
+        read: false,
+        createdAt: log.createdAt,
+        metadata: { logId: log.id, action: log.action, ...(log.details as Record<string, unknown> || {}) },
+      });
+    });
+
+    // 6. Messages admin — table AdminMessage absente du schéma Prisma actuel
     // La table n'existe pas en base → on n'exécute aucune requête pour éviter
     // le spam prisma:error dans les logs Vercel (Code 42P01 relation not found).
     // À réactiver quand le modèle AdminMessage sera ajouté au schéma et migré.
@@ -179,6 +204,7 @@ export async function GET(req: NextRequest) {
         users: newUsers.length,
         tickets: supportTickets.length,
         messages: unreadMessages.length,
+        security: securityLogs.length,
       },
     });
 
@@ -188,7 +214,7 @@ export async function GET(req: NextRequest) {
       notifications: [],
       unreadCount: 0,
       urgentCount: 0,
-      counts: { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 }
+      counts: { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0, security: 0 }
     });
   }
 }

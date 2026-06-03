@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   Bell, FileCheck, ArrowRightLeft, Users, Headphones, MessageSquare,
   AlertTriangle, CheckCircle, Clock, RefreshCw, ChevronRight,
-  Shield, Loader2, X, Search
+  Shield, ShieldAlert, Loader2, X, Search
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
 interface AdminNotification {
   id: string;
-  type: "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "WITHDRAWAL_PENDING" | "MESSAGE" | "ALERT";
+  type: "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "WITHDRAWAL_PENDING" | "MESSAGE" | "ALERT" | "SECURITY";
   title: string;
   message: string;
   priority: "low" | "medium" | "high" | "urgent";
@@ -28,14 +28,15 @@ interface NotificationCounts {
   users: number;
   tickets: number;
   messages: number;
+  security: number;
 }
 
-type FilterType = "all" | "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "MESSAGE";
+type FilterType = "all" | "KYC_PENDING" | "TRANSACTION_PENDING" | "NEW_USER" | "SUPPORT_TICKET" | "MESSAGE" | "SECURITY";
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
-  const [counts, setCounts] = useState<NotificationCounts>({ kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
+  const [counts, setCounts] = useState<NotificationCounts>({ kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0, security: 0 });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,7 +132,7 @@ export default function AdminNotificationsPage() {
       }));
 
       setNotifications(notificationsWithReadState);
-      setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
+      setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0, security: 0 });
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {
@@ -148,6 +149,7 @@ export default function AdminNotificationsPage() {
       users: unread.filter(n => n.type === "NEW_USER").length,
       tickets: unread.filter(n => n.type === "SUPPORT_TICKET").length,
       messages: unread.filter(n => n.type === "MESSAGE").length,
+      security: unread.filter(n => n.type === "SECURITY").length,
       total: unread.length,
     };
   }, [notifications]);
@@ -166,6 +168,7 @@ export default function AdminNotificationsPage() {
       case "NEW_USER": return <Users size={18} />;
       case "SUPPORT_TICKET": return <Headphones size={18} />;
       case "MESSAGE": return <MessageSquare size={18} />;
+      case "SECURITY": return <ShieldAlert size={18} />;
       case "ALERT": return <AlertTriangle size={18} />;
       default: return <Bell size={18} />;
     }
@@ -179,6 +182,7 @@ export default function AdminNotificationsPage() {
       case "NEW_USER": return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
       case "SUPPORT_TICKET": return "bg-purple-500/10 text-purple-400 border-purple-500/20";
       case "MESSAGE": return "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+      case "SECURITY": return "bg-red-500/10 text-red-400 border-red-500/20";
       case "ALERT": return "bg-red-500/10 text-red-400 border-red-500/20";
       default: return "bg-slate-500/10 text-slate-400 border-slate-500/20";
     }
@@ -213,6 +217,7 @@ export default function AdminNotificationsPage() {
       case "NEW_USER":            router.push("/admin/users"); break;
       case "SUPPORT_TICKET":      router.push("/admin/support"); break;
       case "MESSAGE":             router.push("/admin/messages"); break;
+      case "SECURITY":            router.push("/admin/login-attempts"); break;
     }
   };
 
@@ -226,6 +231,7 @@ export default function AdminNotificationsPage() {
 
   const filterOptions: { value: FilterType; label: string; icon: React.ReactNode; count: number }[] = [
     { value: "all",                 label: "Tout",         icon: <Bell size={14} />,           count: unreadCounts.total },
+    { value: "SECURITY",            label: "Securite",     icon: <ShieldAlert size={14} />,    count: unreadCounts.security },
     { value: "KYC_PENDING",         label: "KYC",          icon: <FileCheck size={14} />,      count: unreadCounts.kyc },
     { value: "TRANSACTION_PENDING", label: "Transactions", icon: <ArrowRightLeft size={14} />, count: unreadCounts.transactions },
     { value: "NEW_USER",            label: "Utilisateurs", icon: <Users size={14} />,          count: unreadCounts.users },
@@ -253,8 +259,9 @@ export default function AdminNotificationsPage() {
 
       {/* Stats Cards - Shows UNREAD counts only */}
       <section className="mb-6">
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
+            { label: "Securite",     count: unreadCounts.security,     color: "red",     path: "/admin/login-attempts" },
             { label: "KYC",          count: unreadCounts.kyc,          color: "amber",   path: "/admin/kyc" },
             { label: "Transactions", count: unreadCounts.transactions, color: "blue",    path: "/admin/transactions" },
             { label: "Nouveaux",     count: unreadCounts.users,        color: "emerald", path: "/admin/users" },

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
   Loader2, ShieldAlert, Lock, Unlock, AlertTriangle, Search, X,
-  Clock, MapPin, ChevronLeft, ChevronRight, ShieldX, Activity,
+  Clock, MapPin, ChevronLeft, ChevronRight, ShieldX, Activity, Radio,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
@@ -83,26 +83,59 @@ export default function LoginAttemptsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [unlocking, setUnlocking] = useState<string | null>(null);
+  const [live, setLive] = useState(true);
 
-  const fetchData = useCallback(async () => {
+  // Suivi des IDs déjà connus pour signaler les nouvelles tentatives en temps réel
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLoadRef = useRef(true);
+
+  const fetchData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = new URLSearchParams({ page: page.toString(), limit: "30" });
       if (search) params.set("search", search);
       const res = await fetch(`/api/admin/login-attempts?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Erreur API");
-      const json = await res.json();
+      const json: Data = await res.json();
+
+      // Détection des nouvelles tentatives (uniquement sur la 1re page, sans recherche)
+      if (!isFirstLoadRef.current && page === 1 && !search) {
+        (json.attempts || []).forEach((a) => {
+          if (!knownIdsRef.current.has(a.id)) {
+            const locked = a.action === "ACCOUNT_LOCKED";
+            toast(locked ? "Compte verrouille" : "Nouvelle tentative echouee", {
+              description: a.message,
+              duration: 5000,
+              style: {
+                background: locked ? "rgba(239, 68, 68, 0.95)" : "rgba(245, 158, 11, 0.95)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                color: "#fff",
+              },
+            });
+          }
+        });
+      }
+      knownIdsRef.current = new Set((json.attempts || []).map((a) => a.id));
+      isFirstLoadRef.current = false;
+
       setData(json);
     } catch {
-      toast.error("Impossible de charger les tentatives de connexion");
+      if (!silent) toast.error("Impossible de charger les tentatives de connexion");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, search]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Rafraîchissement automatique en temps réel (sans recharger la page)
+  useEffect(() => {
+    if (!live) return;
+    const interval = setInterval(() => fetchData(true), 7000);
+    return () => clearInterval(interval);
+  }, [live, fetchData]);
 
   const handleUnlock = async (userId: string, label: string) => {
     if (!confirm(`Deverrouiller le compte de ${label} ?`)) return;
@@ -142,6 +175,22 @@ export default function LoginAttemptsPage() {
       />
 
       <div className="px-4 max-w-2xl mx-auto mt-6 space-y-8">
+        {/* LIVE STATUS */}
+        <button
+          onClick={() => setLive((v) => !v)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border w-full justify-center transition-all active:scale-[0.98] ${
+            live
+              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+              : "bg-white/5 border-white/10 text-slate-500"
+          }`}
+        >
+          <Radio size={13} className={live ? "animate-pulse" : ""} />
+          <span className="text-[10px] font-black uppercase tracking-[2px]">
+            {live ? "Suivi en temps reel actif" : "Suivi en temps reel en pause"}
+          </span>
+          {live && <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />}
+        </button>
+
         {/* STATS */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Echecs (24h)" value={data?.stats.failed24h ?? 0} icon={<ShieldAlert size={18} />} color="amber" />
