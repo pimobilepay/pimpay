@@ -394,6 +394,38 @@ export default function AssetDetailPage() {
     fetchMarketPrice();
   }, [loadData, fetchMarketPrice]);
 
+  // Real-time balance auto-refresh: poll notifications and reload the asset
+  // balance automatically when a new payment/deposit arrives (no reload needed)
+  useEffect(() => {
+    const storageKey = `assetid_last_notif_id_${assetId}`;
+    let lastNotifId = sessionStorage.getItem(storageKey) || "";
+    const checkNotifications = async () => {
+      try {
+        const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
+        if (!res.ok) return;
+        const result = await res.json();
+        if (result.notifications?.length > 0) {
+          const unreadPayments = result.notifications.filter(
+            (n: any) => !n.read && ["PAYMENT_RECEIVED", "success", "DEPOSIT", "TRANSFER"].includes(n.type)
+          );
+          if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
+            const latest = unreadPayments[0];
+            lastNotifId = latest.id;
+            sessionStorage.setItem(storageKey, latest.id);
+            toast.success("Transaction recue !", {
+              description: latest.message || "Votre solde a ete mis a jour",
+              duration: 6000,
+            });
+            loadData();
+          }
+        }
+      } catch {}
+    };
+    checkNotifications();
+    const interval = setInterval(checkNotifications, 8000);
+    return () => clearInterval(interval);
+  }, [loadData, assetId]);
+
   const handleCopy = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
