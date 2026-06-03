@@ -47,6 +47,7 @@ model User {
   twoFactorEnabled     Boolean          @default(false)
   twoFactorSecret      String?
   failedLoginAttempts  Int              @default(0)
+  lockedUntil          DateTime?
   lastLoginAt          DateTime?
   lastLoginIp          String?
   createdAt            DateTime         @default(now())
