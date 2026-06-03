@@ -226,6 +226,16 @@ function detectExternalAddress(
 ): DetectedAddress | null {
   if (!address || address.length < 20) return null;
 
+  // ── Pi Network UID préfixé "P" (ex: P024E6679F8C1093533EC99...) ───────────
+  const isPiUid = /^P[0-9A-Fa-f]{20,}$/.test(address);
+  if (isPiUid) {
+    return {
+      isExternal: true,
+      networkLabel: "Pi Network",
+      networkKey: "PI",
+    };
+  }
+
   // ── Pi Network / Stellar (adresses G... de 56 chars) ──────────────────────
   const isStellarLike = /^G[A-Z2-7]{55}$/.test(address);
   if (isStellarLike) {

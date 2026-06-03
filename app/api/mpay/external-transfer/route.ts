@@ -5,7 +5,7 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
-import { TransactionStatus, TransactionType } from '@prisma/client';
+import { TransactionStatus, TransactionType, WalletType } from '@prisma/client';
 import { logSystemEvent, logApiError } from '@/lib/systemLogger';
 
 /**
@@ -505,6 +505,132 @@ export async function POST(req: NextRequest) {
       { success: false, error: `Solde insuffisant. Requis: ${totalDeduction.toFixed(4)} Pi` },
       { status: 400 }
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 4bis. RÉSOLUTION INTERNE PimPay
+  // Une adresse Pi interne (UID préfixé "P" ou adresse Pi enregistrée) peut
+  // appartenir à un membre PimPay. Dans ce cas on effectue un transfert INTERNE
+  // instantané au lieu d'un appel Pi Platform A2U — qui échouerait avec
+  // "User with uid ... was not found" pour un compte non enregistré côté Pi.
+  // On teste la valeur brute ET la valeur sans le préfixe "P".
+  // ─────────────────────────────────────────────────────────────────────────
+  const destTrimmed = String(destination).trim();
+  const destNoP = /^P[0-9A-Fa-f]{20,}$/.test(destTrimmed) ? destTrimmed.slice(1) : destTrimmed;
+
+  const internalRecipient = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { piUserId: destTrimmed },
+        { piUserId: destNoP },
+        { walletAddress: destTrimmed },
+        { walletAddress: destNoP },
+      ],
+    },
+    select: { id: true, name: true, username: true },
+  });
+
+  if (internalRecipient && internalRecipient.id === senderId) {
+    return NextResponse.json(
+      { success: false, error: "Auto-envoi interdit : vous ne pouvez pas vous envoyer des Pi à vous-même." },
+      { status: 400 }
+    );
+  }
+
+  if (internalRecipient) {
+    const internalRef = `PIM-INT-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { name: true, username: true },
+    });
+    const senderName = sender?.name || sender?.username || "Un membre PimPay";
+
+    try {
+      const internalResult = await prisma.$transaction(async (txdb) => {
+        const debited = await txdb.wallet.update({
+          where: { id: senderWallet.id },
+          data: { balance: { decrement: totalDeduction } },
+        });
+
+        const toWallet = await txdb.wallet.upsert({
+          where: { userId_currency: { userId: internalRecipient.id, currency: "PI" } },
+          update: { balance: { increment: amountNum } },
+          create: {
+            userId: internalRecipient.id,
+            currency: "PI",
+            balance: amountNum,
+            type: WalletType.PI,
+          },
+        });
+
+        const transaction = await txdb.transaction.create({
+          data: {
+            reference: internalRef,
+            amount: amountNum,
+            fee,
+            netAmount: amountNum,
+            currency: "PI",
+            type: TransactionType.TRANSFER,
+            status: TransactionStatus.SUCCESS,
+            fromUserId: senderId,
+            toUserId: internalRecipient.id,
+            fromWalletId: senderWallet.id,
+            toWalletId: toWallet.id,
+            description: `Transfert interne Pi vers @${internalRecipient.username || internalRecipient.name || "membre PimPay"}`,
+            metadata: {
+              internalTransfer: true,
+              piAddress: destTrimmed,
+              network: "PimPay (interne)",
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        await txdb.notification
+          .create({
+            data: {
+              userId: internalRecipient.id,
+              title: "Paiement Pi recu !",
+              message: `Vous avez recu ${amountNum} PI de ${senderName}.`,
+              type: "PAYMENT_RECEIVED",
+              metadata: { amount: amountNum, currency: "PI", senderName, reference: internalRef },
+            },
+          })
+          .catch(() => {});
+
+        return { transaction, newBalance: debited.balance };
+      });
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "MPAY_EXTERNAL_TRANSFER",
+        action: "INTERNAL_TRANSFER_SUCCESS",
+        message: `Transfert Pi interne instantane: ${amountNum} Pi vers ${internalRecipient.username || internalRecipient.id}`,
+        details: { internalRef, amount: amountNum, fee, recipientId: internalRecipient.id, piAddress: destTrimmed },
+        userId: senderId,
+        requestId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Transfert Pi interne instantané réussi",
+        data: {
+          txid: internalRef,
+          status: "COMPLETED",
+          mode: "INTERNAL",
+          amount: amountNum,
+          fee,
+          destination: destTrimmed,
+          newBalance: internalResult.newBalance,
+        },
+      });
+    } catch (e: any) {
+      await logApiError("MPAY_EXTERNAL_TRANSFER", "INTERNAL_TRANSFER_FAILED", e, { userId: senderId, requestId });
+      return NextResponse.json(
+        { success: false, error: e.message || "Echec du transfert interne." },
+        { status: 500 }
+      );
+    }
   }
 
   // 5. Creer la transaction DB et debiter le wallet (atomique)

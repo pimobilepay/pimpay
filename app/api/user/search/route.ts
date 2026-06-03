@@ -42,6 +42,10 @@ export async function GET(request: Request) {
       });
     }
     
+    // UID Pi Network préfixé "P" : préparer la version sans préfixe pour
+    // retrouver un membre PimPay (ex: P024E6679... -> 024E6679...).
+    const queryNoP = /^P[0-9A-Fa-f]{20,}$/.test(query) ? query.slice(1) : query;
+
     // Si pas trouve par PIMPAY, rechercher par autres identifiants
     if (!foundUser) {
       foundUser = await prisma.user.findFirst({
@@ -53,6 +57,9 @@ export async function GET(request: Request) {
             { sidraAddress: query },
             { usdtAddress: query },
             { walletAddress: query },
+            { walletAddress: queryNoP },
+            { piUserId: query },
+            { piUserId: queryNoP },
             { id: query } // Recherche directe par ID
           ]
         },
@@ -78,7 +85,8 @@ export async function GET(request: Request) {
     }
 
     // --- 2. DETECTION D'ADRESSE EXTERNE (tous reseaux) ---
-    const isPiAddress = /^G[A-Z2-7]{55}$/.test(query);
+    // Adresse Pi : soit une adresse G... (56 chars), soit un UID préfixé "P".
+    const isPiAddress = /^G[A-Z2-7]{55}$/.test(query) || /^P[0-9A-Fa-f]{20,}$/.test(query);
     const isSdaOrEth = /^0x[a-fA-F0-9]{40}$/.test(query);
     const isTron = /^T[a-zA-Z0-9]{33}$/.test(query);
     const isXrp = /^r[a-zA-Z0-9]{24,33}$/.test(query);

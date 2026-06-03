@@ -80,6 +80,7 @@ export default function AdminDashboard() {
             { label: "Analytics", desc: "Statistiques", icon: <BarChart3 size={20} />, path: "/admin/analytics", color: "indigo" },
             { label: "Tresorerie", desc: "Finances", icon: <Landmark size={20} />, path: "/admin/treasury", color: "amber" },
             { label: "Logs", desc: "Activite users", icon: <Eye size={20} />, path: "/admin/logs", color: "teal" },
+            { label: "Connexions", desc: "Tentatives & blocages", icon: <ShieldCheck size={20} />, path: "/admin/login-attempts", color: "rose" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
             { label: "Banque", desc: "Portail bancaire", icon: <Landmark size={20} />, path: "/bank", color: "blue" },
             { label: "Business", desc: "Portail entreprise", icon: <Globe size={20} />, path: "/business", color: "emerald" },
@@ -237,6 +238,7 @@ export default function AdminDashboard() {
             { label: "Tresorerie", desc: "Gestion des finances et flux", icon: <Landmark size={18} />, path: "/admin/treasury", color: "amber" },
             { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
             { label: "Logs Utilisateurs", desc: "Suivi d'activite en temps reel", icon: <Eye size={18} />, path: "/admin/logs", color: "blue" },
+            { label: "Tentatives Connexion", desc: "Echecs de login et comptes bloques", icon: <ShieldCheck size={18} />, path: "/admin/login-attempts", color: "red" },
             { label: "Mode Rescue", desc: "Outils de recuperation d'urgence", icon: <AlertTriangle size={18} />, path: "/admin/rescue", color: "red" },
           ].map((item) => (
             <button

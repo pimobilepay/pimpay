@@ -7,6 +7,7 @@ import { signSessionToken, signTempToken, signRefreshToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 export async function POST(req: Request) {
   try {
@@ -85,6 +86,78 @@ export async function POST(req: Request) {
           lockedUntil: reachedLimit ? new Date(Date.now() + LOCK_DURATION_MS) : null,
         },
       });
+
+      // --- TRAÇABILITÉ ADMIN : tentative de connexion échouée / blocage ---
+      const failUserAgent = req.headers.get("user-agent") || "Appareil Inconnu";
+      const failClientIp = req.headers.get("x-forwarded-for")?.split(",")[0] || ip || "Inconnue";
+      const failCountry = req.headers.get("x-vercel-ip-country") || null;
+      const failCity = req.headers.get("x-vercel-ip-city") || null;
+
+      // Journal de sécurité rattaché à l'utilisateur (visible dans son historique)
+      try {
+        await prisma.securityLog.create({
+          data: {
+            userId: user.id,
+            action: reachedLimit ? "ACCOUNT_LOCKED" : "FAILED_LOGIN",
+            ip: failClientIp,
+            device: failUserAgent,
+          },
+        });
+      } catch (e) {
+        console.error("SecurityLog create error:", e);
+      }
+
+      // Log système consultable par l'admin (onglet Système + page dédiée)
+      await logSystemEvent({
+        level: reachedLimit ? "ERROR" : "WARN",
+        source: "AUTH",
+        action: reachedLimit ? "ACCOUNT_LOCKED" : "FAILED_LOGIN",
+        message: reachedLimit
+          ? `Compte verrouillé (48h) après ${MAX_FAILED_ATTEMPTS} tentatives échouées : ${user.email || user.username}`
+          : `Tentative de connexion échouée (${newAttempts}/${MAX_FAILED_ATTEMPTS}) : ${user.email || user.username}`,
+        details: {
+          userId: user.id,
+          email: user.email,
+          username: user.username,
+          attempts: newAttempts,
+          maxAttempts: MAX_FAILED_ATTEMPTS,
+          locked: reachedLimit,
+          location: failCity || failCountry ? `${failCity || ""}${failCity && failCountry ? ", " : ""}${failCountry || ""}` : null,
+        },
+        userId: user.id,
+        ip: failClientIp,
+        userAgent: failUserAgent,
+      });
+
+      // Notification interne à destination des administrateurs
+      try {
+        const admins = await prisma.user.findMany({
+          where: { role: "ADMIN", status: "ACTIVE" },
+          select: { id: true },
+        });
+        if (admins.length > 0) {
+          await prisma.notification.createMany({
+            data: admins.map((admin) => ({
+              userId: admin.id,
+              type: reachedLimit ? "SECURITY_ALERT" : "SECURITY",
+              title: reachedLimit ? "Compte utilisateur verrouille" : "Tentative de connexion echouee",
+              message: reachedLimit
+                ? `Le compte ${user.email || user.username} a ete verrouille (48h) apres ${MAX_FAILED_ATTEMPTS} tentatives echouees.`
+                : `Tentative echouee ${newAttempts}/${MAX_FAILED_ATTEMPTS} sur ${user.email || user.username} (IP ${failClientIp}).`,
+              metadata: {
+                targetUserId: user.id,
+                email: user.email,
+                username: user.username,
+                attempts: newAttempts,
+                locked: reachedLimit,
+                ip: failClientIp,
+              },
+            })),
+          });
+        }
+      } catch (e) {
+        console.error("Admin security notification error:", e);
+      }
 
       if (reachedLimit) {
         return NextResponse.json(
