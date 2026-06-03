@@ -45,9 +45,74 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. VÉRIFICATION MOT DE PASSE
-    if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
+    // 2. VÉRIFICATION MOT DE PASSE + VERROUILLAGE DE COMPTE
+    // Politique : 10 tentatives echouees max -> compte bloque 48 heures.
+    const MAX_FAILED_ATTEMPTS = 10;
+    const LOCK_DURATION_MS = 48 * 60 * 60 * 1000; // 48 heures
+
+    // Compte inexistant : pas de fuite d'information.
+    if (!user || !user.password) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
+    }
+
+    // 2.1 Le compte est-il actuellement verrouille ?
+    const lockedUntil = (user as any).lockedUntil ? new Date((user as any).lockedUntil) : null;
+    if (lockedUntil && lockedUntil > new Date()) {
+      const remainingMs = lockedUntil.getTime() - Date.now();
+      const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+      return NextResponse.json(
+        {
+          error: `Compte temporairement bloque suite a trop de tentatives de connexion. Reessayez dans ${remainingHours} heure(s).`,
+          accountStatus: "LOCKED",
+          lockedUntil: lockedUntil.toISOString(),
+        },
+        { status: 423 }
+      );
+    }
+
+    // 2.2 Verification du mot de passe
+    const passwordValid = await bcrypt.compare(password, user.password);
+    if (!passwordValid) {
+      // Si un verrou precedent est expire, on repart de zero.
+      const previousAttempts = lockedUntil && lockedUntil <= new Date() ? 0 : (user.failedLoginAttempts || 0);
+      const newAttempts = previousAttempts + 1;
+      const reachedLimit = newAttempts >= MAX_FAILED_ATTEMPTS;
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: reachedLimit ? 0 : newAttempts,
+          lockedUntil: reachedLimit ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+        },
+      });
+
+      if (reachedLimit) {
+        return NextResponse.json(
+          {
+            error: "Trop de tentatives echouees. Votre compte est bloque pendant 48 heures.",
+            accountStatus: "LOCKED",
+            lockedUntil: new Date(Date.now() + LOCK_DURATION_MS).toISOString(),
+          },
+          { status: 423 }
+        );
+      }
+
+      const remainingAttempts = MAX_FAILED_ATTEMPTS - newAttempts;
+      return NextResponse.json(
+        {
+          error: `Identifiants invalides. Il vous reste ${remainingAttempts} tentative(s) avant le blocage de votre compte.`,
+          remainingAttempts,
+        },
+        { status: 401 }
+      );
+    }
+
+    // 2.3 Mot de passe correct : on remet le compteur a zero si necessaire.
+    if ((user.failedLoginAttempts || 0) > 0 || lockedUntil) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
     }
 
     // 2.5 VÉRIFICATION DU STATUT DU COMPTE

@@ -99,6 +99,19 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
+        // Compte bloque suite a trop de tentatives (10) -> 423
+        if (data?.accountStatus === "LOCKED") {
+          toast.error(data?.error ?? "Compte bloque pendant 48 heures.", {
+            duration: 10000,
+            style: {
+              background: "rgba(220, 38, 38, 0.95)",
+              border: "1px solid rgba(248, 113, 113, 0.4)",
+              color: "#fff",
+            },
+          });
+          setLoading(false);
+          return;
+        }
         toast.error(data?.error ?? t("auth.login.invalidCredentials"));
         setLoading(false);
         return;
