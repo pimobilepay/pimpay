@@ -1383,9 +1383,9 @@ export default function TreasuryPage() {
   const [tronOperatorFetchError, setTronOperatorFetchError] = useState<string | null>(null);
 
   // Fetch SDA operator wallet on-chain balance
-  const fetchSdaOperator = async () => {
+  const fetchSdaOperator = async (silent = false) => {
     try {
-      setSdaOperatorLoading(true);
+      if (!silent) setSdaOperatorLoading(true);
       setSdaOperatorFetchError(null);
       const res = await fetch("/api/admin/treasury/sidra-operator");
       const json = await res.json();
@@ -1404,9 +1404,9 @@ export default function TreasuryPage() {
   };
 
   // Fetch Pi Network operator wallet on-chain balance
-  const fetchPiOperator = async () => {
+  const fetchPiOperator = async (silent = false) => {
     try {
-      setPiOperatorLoading(true);
+      if (!silent) setPiOperatorLoading(true);
       setPiOperatorFetchError(null);
       const res = await fetch("/api/admin/treasury/pi-operator");
       const json = await res.json();
@@ -1425,9 +1425,9 @@ export default function TreasuryPage() {
   };
 
   // Fetch TronGrid operator wallet on-chain balance (TRX + USDT)
-  const fetchTronOperator = async () => {
+  const fetchTronOperator = async (silent = false) => {
     try {
-      setTronOperatorLoading(true);
+      if (!silent) setTronOperatorLoading(true);
       setTronOperatorFetchError(null);
       const res = await fetch("/api/admin/treasury/tron-operator");
       const json = await res.json();
@@ -1446,9 +1446,9 @@ export default function TreasuryPage() {
   };
 
   // Fetch system wallets from API
-  const fetchSystemWallets = async () => {
+  const fetchSystemWallets = async (silent = false) => {
     try {
-      setWalletsLoading(true);
+      if (!silent) setWalletsLoading(true);
       const res = await fetch("/api/admin/system-wallets");
       if (!res.ok) throw new Error("Erreur API wallets");
       const json = await res.json();
@@ -1466,9 +1466,9 @@ export default function TreasuryPage() {
   };
 
   // Fetch centralized fees
-  const fetchCentralizedFees = async () => {
+  const fetchCentralizedFees = async (silent = false) => {
     try {
-      setFeesLoading(true);
+      if (!silent) setFeesLoading(true);
       const res = await fetch("/api/admin/treasury/fees");
       if (!res.ok) throw new Error("Erreur API fees");
       const json = await res.json();
@@ -1529,9 +1529,9 @@ export default function TreasuryPage() {
     setIsConverting(false);
   };
 
-  const fetchTreasury = async () => {
+  const fetchTreasury = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch("/api/admin/treasury");
       if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
@@ -1569,12 +1569,42 @@ export default function TreasuryPage() {
   };
 
   useEffect(() => {
+    // Initial load (shows loading spinners)
     fetchTreasury();
     fetchSystemWallets();
     fetchCentralizedFees();
     fetchSdaOperator();
     fetchPiOperator();
     fetchTronOperator();
+
+    // Real-time auto-refresh: silently reload every balance every 10s so the
+    // main balance of each asset updates without the admin reloading the page.
+    const interval = setInterval(() => {
+      fetchTreasury(true);
+      fetchSystemWallets(true);
+      fetchCentralizedFees(true);
+      fetchSdaOperator(true);
+      fetchPiOperator(true);
+      fetchTronOperator(true);
+    }, 10000);
+
+    // Refresh immediately when the tab regains focus
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchTreasury(true);
+        fetchSystemWallets(true);
+        fetchCentralizedFees(true);
+        fetchSdaOperator(true);
+        fetchPiOperator(true);
+        fetchTronOperator(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Handle wallet settings click
