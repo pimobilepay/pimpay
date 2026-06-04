@@ -85,6 +85,7 @@ export default function LoginAttemptsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [unlocking, setUnlocking] = useState<string | null>(null);
   const [live, setLive] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Suivi des IDs déjà connus pour signaler les nouvelles tentatives en temps réel
   const knownIdsRef = useRef<Set<string>>(new Set());
@@ -208,7 +209,10 @@ export default function LoginAttemptsPage() {
               {data.lockedUsers.map((u) => (
                 <div key={u.id} className="bg-red-500/[0.06] border border-red-500/20 rounded-3xl p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      onClick={() => setSelectedUserId(u.id)}
+                      className="flex items-center gap-3 min-w-0 text-left active:scale-[0.98] transition-transform"
+                    >
                       <div className="w-10 h-10 rounded-2xl bg-red-500/15 flex items-center justify-center text-red-400 font-black text-xs flex-shrink-0">
                         {displayName(u).charAt(0).toUpperCase()}
                       </div>
@@ -216,7 +220,7 @@ export default function LoginAttemptsPage() {
                         <p className="text-[12px] font-black text-white truncate">{displayName(u)}</p>
                         <p className="text-[9px] text-slate-500 truncate">{u.email || u.username}</p>
                       </div>
-                    </div>
+                    </button>
                     <button
                       onClick={() => handleUnlock(u.id, displayName(u))}
                       disabled={unlocking === u.id}
@@ -245,7 +249,11 @@ export default function LoginAttemptsPage() {
             <SectionTitle>Comptes a risque ({data.atRiskUsers.length})</SectionTitle>
             <div className="space-y-2">
               {data.atRiskUsers.map((u) => (
-                <div key={u.id} className="flex items-center justify-between gap-3 bg-amber-500/[0.05] border border-amber-500/15 rounded-2xl px-4 py-3">
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedUserId(u.id)}
+                  className="w-full flex items-center justify-between gap-3 bg-amber-500/[0.05] border border-amber-500/15 rounded-2xl px-4 py-3 text-left active:scale-[0.98] transition-transform"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-400 font-black text-[10px] flex-shrink-0">
                       {displayName(u).charAt(0).toUpperCase()}
@@ -259,7 +267,7 @@ export default function LoginAttemptsPage() {
                     <AlertTriangle size={11} className="text-amber-400" />
                     <span className="text-[10px] font-black text-amber-400">{u.failedLoginAttempts}/{data.maxAttempts}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </section>
@@ -304,12 +312,23 @@ export default function LoginAttemptsPage() {
             <div className="space-y-2">
               {data.attempts.map((a) => {
                 const locked = a.action === "ACCOUNT_LOCKED";
+                const clickable = !!a.userId;
                 return (
                   <div
                     key={a.id}
+                    role={clickable ? "button" : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={clickable ? () => setSelectedUserId(a.userId) : undefined}
+                    onKeyDown={
+                      clickable
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") setSelectedUserId(a.userId);
+                          }
+                        : undefined
+                    }
                     className={`rounded-2xl px-4 py-3 border ${
                       locked ? "bg-red-500/[0.06] border-red-500/20" : "bg-white/[0.03] border-white/10"
-                    }`}
+                    } ${clickable ? "cursor-pointer hover:border-white/20 active:scale-[0.99] transition-all" : ""}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 ${locked ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}>
@@ -356,6 +375,15 @@ export default function LoginAttemptsPage() {
           )}
         </section>
       </div>
+
+      {selectedUserId && (
+        <UserSecurityDetailModal
+          userId={selectedUserId}
+          maxAttempts={data?.maxAttempts ?? 10}
+          onClose={() => setSelectedUserId(null)}
+          onUnlocked={() => fetchData(true)}
+        />
+      )}
     </div>
   );
 }
