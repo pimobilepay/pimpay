@@ -22,6 +22,9 @@ const FALLBACK_CONFIG = {
   forceUpdate: false,
   referralBonus: 0.0000318,       // Bonus parrain - apres KYC + depot du filleul
   referralWelcomeBonus: 0.0000159, // Bonus filleul - apres son KYC + depot
+  maxLoginAttempts: 5,
+  lockoutDuration: 30,
+  sessionTimeout: 60,
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
@@ -264,7 +267,9 @@ export async function POST(req: NextRequest) {
       // Limits
       maxWithdrawal,
       // Referral bonus
-      referralBonus, referralWelcomeBonus
+      referralBonus, referralWelcomeBonus,
+      // Security settings
+      maxLoginAttempts, lockoutDuration, sessionTimeout
     } = body;
 
     // Build update data, handling maintenanceUntil properly
@@ -301,6 +306,10 @@ export async function POST(req: NextRequest) {
     // Referral bonus fields
     if (referralBonus !== undefined) updateData.referralBonus = Number(referralBonus);
     if (referralWelcomeBonus !== undefined) updateData.referralWelcomeBonus = Number(referralWelcomeBonus);
+    // Security settings (sécurité connexion)
+    if (maxLoginAttempts !== undefined) updateData.maxLoginAttempts = Math.max(1, Math.round(Number(maxLoginAttempts)));
+    if (lockoutDuration !== undefined) updateData.lockoutDuration = Math.max(1, Math.round(Number(lockoutDuration)));
+    if (sessionTimeout !== undefined) updateData.sessionTimeout = Math.max(1, Math.round(Number(sessionTimeout)));
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },

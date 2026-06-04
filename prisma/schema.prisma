@@ -190,6 +190,9 @@ model SystemConfig {
   fiatTransferFee      Float     @default(0.005)
   referralBonus        Float     @default(0.0000318)
   referralWelcomeBonus Float     @default(0.0000159)
+  maxLoginAttempts     Int       @default(5)
+  lockoutDuration      Int       @default(30)
+  sessionTimeout       Int       @default(60)
 }
 
 model DailyStats {

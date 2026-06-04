@@ -47,9 +47,31 @@ export async function POST(req: Request) {
     });
 
     // 2. VÉRIFICATION MOT DE PASSE + VERROUILLAGE DE COMPTE
-    // Politique : 10 tentatives echouees max -> compte bloque 48 heures.
-    const MAX_FAILED_ATTEMPTS = 10;
-    const LOCK_DURATION_MS = 48 * 60 * 60 * 1000; // 48 heures
+    // Politique configurable depuis Admin > Paramètres > Sécurité.
+    // maxLoginAttempts : nombre de tentatives avant verrouillage
+    // lockoutDuration  : durée du verrouillage (en minutes)
+    let MAX_FAILED_ATTEMPTS = 5;
+    let LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes par défaut
+    try {
+      const secCfg = await prisma.systemConfig.findUnique({
+        where: { id: "GLOBAL_CONFIG" },
+        select: { maxLoginAttempts: true, lockoutDuration: true },
+      });
+      if (secCfg?.maxLoginAttempts && secCfg.maxLoginAttempts > 0) {
+        MAX_FAILED_ATTEMPTS = secCfg.maxLoginAttempts;
+      }
+      if (secCfg?.lockoutDuration && secCfg.lockoutDuration > 0) {
+        LOCK_DURATION_MS = secCfg.lockoutDuration * 60 * 1000;
+      }
+    } catch (e) {
+      console.error("Security config load error:", e);
+    }
+
+    // Libellé lisible de la durée de verrouillage (ex: "30 minutes", "2 heure(s)")
+    const lockMinutes = Math.round(LOCK_DURATION_MS / 60000);
+    const lockLabel = lockMinutes >= 60
+      ? `${Math.round(lockMinutes / 60)} heure(s)`
+      : `${lockMinutes} minute(s)`;
 
     // Compte inexistant : pas de fuite d'information.
     if (!user || !user.password) {
@@ -113,7 +135,7 @@ export async function POST(req: Request) {
         source: "AUTH",
         action: reachedLimit ? "ACCOUNT_LOCKED" : "FAILED_LOGIN",
         message: reachedLimit
-          ? `Compte verrouillé (48h) après ${MAX_FAILED_ATTEMPTS} tentatives échouées : ${user.email || user.username}`
+          ? `Compte verrouillé (${lockLabel}) après ${MAX_FAILED_ATTEMPTS} tentatives échouées : ${user.email || user.username}`
           : `Tentative de connexion échouée (${newAttempts}/${MAX_FAILED_ATTEMPTS}) : ${user.email || user.username}`,
         details: {
           userId: user.id,
