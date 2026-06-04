@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   X, Loader2, Unlock, Lock, ShieldAlert, ShieldCheck, User, Mail, Phone,
@@ -117,6 +117,12 @@ export function UserSecurityDetailModal({
   const [data, setData] = useState<{ user: UserDetail; recentAttempts: RecentAttempt[] } | null>(null);
   const [unlocking, setUnlocking] = useState(false);
 
+  // Garder une ref stable de onClose pour eviter de relancer le fetch
+  // a chaque re-rendu de la page parente (polling toutes les 7s).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // Ne charger les details QUE lorsque l'utilisateur selectionne change.
   useEffect(() => {
     let active = true;
     (async () => {
@@ -127,14 +133,16 @@ export function UserSecurityDetailModal({
         const json = await res.json();
         if (active) setData(json);
       } catch {
-        toast.error("Impossible de charger les details de l'utilisateur");
-        onClose();
+        if (active) {
+          toast.error("Impossible de charger les details de l'utilisateur");
+          onCloseRef.current();
+        }
       } finally {
         if (active) setLoading(false);
       }
     })();
     return () => { active = false; };
-  }, [userId, onClose]);
+  }, [userId]);
 
   const handleUnlock = async () => {
     if (!data) return;
