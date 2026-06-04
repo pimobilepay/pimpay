@@ -7,6 +7,7 @@ import {
   Clock, MapPin, ChevronLeft, ChevronRight, ShieldX, Activity, Radio,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
+import { UserSecurityDetailModal } from "@/components/admin/UserSecurityDetailModal";
 
 type Attempt = {
   id: string;
