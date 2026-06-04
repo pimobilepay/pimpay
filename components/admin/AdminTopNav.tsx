@@ -53,6 +53,9 @@ export function AdminTopNav({
   // closures where new notifications were never detected correctly.
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
+  // Conserve TOUS les IDs de la derniere recuperation (pas seulement les 5 affiches)
+  // afin que "Tout lu" marque l'integralite des notifications comme lues.
+  const allNotifIdsRef = useRef<string[]>([]);
   
   // Track read notification IDs in localStorage for admin notifications
   const getReadNotifIds = (): Set<string> => {
@@ -102,6 +105,8 @@ export function AdminTopNav({
         
         setUnreadCount(actualUnreadCount);
         setUrgentCount(actualUrgentCount);
+        // Garder la liste complete des IDs pour le "Tout lu"
+        allNotifIdsRef.current = notificationsWithReadState.map((n: AdminNotification) => n.id);
         setNotifications(notificationsWithReadState.slice(0, 5));
         setCounts(data.counts || { kyc: 0, transactions: 0, users: 0, tickets: 0, messages: 0 });
 
@@ -183,7 +188,10 @@ export function AdminTopNav({
 
   // Fonction pour marquer toutes les notifications comme lues
   const handleMarkAllAsRead = () => {
-    const allIds = notifications.map(n => n.id);
+    // Marquer TOUTES les notifications (pas seulement les 5 affichees) comme lues
+    const allIds = allNotifIdsRef.current.length > 0
+      ? allNotifIdsRef.current
+      : notifications.map(n => n.id);
     markAllNotifsAsRead(allIds);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
