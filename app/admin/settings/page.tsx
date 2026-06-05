@@ -138,6 +138,20 @@ export default function SystemSettings() {
   const [auditError, setAuditError] = useState<string | null>(null);
 
   const [stats, setStats] = useState({ totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
+  const [systemInfo, setSystemInfo] = useState<{
+    runtime?: string;
+    nextVersion?: string | null;
+    prismaVersion?: string | null;
+    reactVersion?: string | null;
+    nodeVersion?: string;
+    database?: string;
+    dbConnected?: boolean;
+    environment?: string;
+    mode?: string;
+    forceUpdate?: boolean;
+    deployedVersion?: string | null;
+  } | null>(null);
+  const [systemInfoLoading, setSystemInfoLoading] = useState(false);
   const [uploadingAnnouncementImage, setUploadingAnnouncementImage] = useState(false);
   const announcementFileRef = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState({
@@ -239,6 +253,28 @@ export default function SystemSettings() {
   useEffect(() => {
     if (activeSection === 'audit') {
       fetchAuditLogs();
+    }
+  }, [activeSection]);
+
+  /* ─── FETCH SYSTEM INFO (versions réelles + mode depuis la BDD) ── */
+  const fetchSystemInfo = async () => {
+    setSystemInfoLoading(true);
+    try {
+      const res = await fetch("/api/admin/system-info", { credentials: "include" });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const data = await res.json();
+      setSystemInfo(data);
+    } catch {
+      toast.error("Impossible de charger les informations système");
+    } finally {
+      setSystemInfoLoading(false);
+    }
+  };
+
+  // Charger les infos système dès que l'utilisateur ouvre la section système
+  useEffect(() => {
+    if (activeSection === 'system') {
+      fetchSystemInfo();
     }
   }, [activeSection]);
 
@@ -1115,7 +1151,7 @@ export default function SystemSettings() {
 
             {/* ════════════════════════════════════════════════════ */}
             {/* SECTION: MONETARY                                   */}
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ══════════════════════════════════��═════════════════ */}
             {activeSection === 'monetary' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1775,21 +1811,39 @@ export default function SystemSettings() {
 
                 {/* System Info */}
                 <div className="p-5 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
-                  <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Informations Système</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[3px]">Informations Système</h3>
+                    <button
+                      type="button"
+                      onClick={fetchSystemInfo}
+                      disabled={systemInfoLoading}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-[9px] font-bold text-slate-400 hover:text-white hover:border-white/10 transition-all disabled:opacity-40"
+                    >
+                      <RotateCcw size={10} className={systemInfoLoading ? 'animate-spin' : ''} />
+                      Rafraîchir
+                    </button>
+                  </div>
                   <div className="space-y-2">
                     {[
-                      { label: 'Runtime', value: 'Next.js 14 (App Router)', icon: <Server size={12} /> },
-                      { label: 'Base de données', value: 'PostgreSQL (Neon)', icon: <Database size={12} /> },
-                      { label: 'Version déployée', value: config.appVersion || '—', icon: <GitBranch size={12} /> },
-                      { label: 'Mode actuel', value: config.maintenanceMode ? 'Maintenance' : config.comingSoonMode ? 'Coming Soon' : 'Production', icon: <Radio size={12} /> },
-                      { label: 'Force Update', value: config.forceUpdate ? 'Activé' : 'Désactivé', icon: <Package size={12} /> },
+                      { label: 'Runtime', value: systemInfo?.runtime, icon: <Server size={12} /> },
+                      { label: 'Version Next.js', value: systemInfo?.nextVersion ? `v${systemInfo.nextVersion}` : null, icon: <GitBranch size={12} /> },
+                      { label: 'Version Prisma', value: systemInfo?.prismaVersion ? `v${systemInfo.prismaVersion}` : null, icon: <Database size={12} /> },
+                      { label: 'Version React', value: systemInfo?.reactVersion ? `v${systemInfo.reactVersion}` : null, icon: <Package size={12} /> },
+                      { label: 'Node.js', value: systemInfo?.nodeVersion, icon: <Cpu size={12} /> },
+                      { label: 'Base de données', value: systemInfo?.database, icon: <Database size={12} /> },
+                      { label: 'Environnement', value: systemInfo?.environment, icon: <Server size={12} /> },
+                      { label: 'Version déployée', value: systemInfo?.deployedVersion || config.appVersion, icon: <GitBranch size={12} /> },
+                      { label: 'Mode actuel', value: systemInfo?.mode, icon: <Radio size={12} /> },
+                      { label: 'Force Update', value: systemInfo ? (systemInfo.forceUpdate ? 'Activé' : 'Désactivé') : null, icon: <Package size={12} /> },
                     ].map(info => (
                       <div key={info.label} className="flex items-center justify-between py-2.5 border-b border-white/[0.04] last:border-0">
                         <div className="flex items-center gap-2 text-slate-500">
                           {info.icon}
                           <span className="text-[10px] font-bold">{info.label}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-300">{info.value}</span>
+                        <span className="text-[10px] font-mono text-slate-300">
+                          {systemInfoLoading && !systemInfo ? '…' : (info.value || '—')}
+                        </span>
                       </div>
                     ))}
                   </div>
