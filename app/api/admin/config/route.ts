@@ -19,6 +19,8 @@ const FALLBACK_CONFIG = {
   transactionFee: 0.5,
   minWithdrawal: 10.0,
   globalAnnouncement: "",
+  announcementImage: "",
+  announcementLink: "",
   forceUpdate: false,
   referralBonus: 0.0000318,       // Bonus parrain - apres KYC + depot du filleul
   referralWelcomeBonus: 0.0000159, // Bonus filleul - apres son KYC + depot
@@ -255,7 +257,7 @@ export async function POST(req: NextRequest) {
 
     // 3. ACTION PAR DÉFAUT : SYNC CORE (Mise à jour globale depuis ton formulaire)
     const {
-      appVersion, globalAnnouncement, transactionFee,
+      appVersion, globalAnnouncement, announcementImage, announcementLink, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
       consensusPrice, stakingAPY, forceUpdate, maintenanceUntil,
       // Crypto fee fields
@@ -276,6 +278,8 @@ export async function POST(req: NextRequest) {
     const updateData: any = {};
     if (appVersion !== undefined) updateData.appVersion = appVersion;
     if (globalAnnouncement !== undefined) updateData.globalAnnouncement = globalAnnouncement;
+    if (announcementImage !== undefined) updateData.announcementImage = announcementImage || null;
+    if (announcementLink !== undefined) updateData.announcementLink = announcementLink || null;
     if (transactionFee !== undefined) updateData.transactionFee = Number(transactionFee);
     if (maintenanceMode !== undefined) updateData.maintenanceMode = Boolean(maintenanceMode);
     if (comingSoonMode !== undefined) updateData.comingSoonMode = Boolean(comingSoonMode);

@@ -162,6 +162,8 @@ model SystemConfig {
   appVersion           String    @default("2.4.0")
   forceUpdate          Boolean   @default(false)
   globalAnnouncement   String?
+  announcementImage    String?
+  announcementLink     String?
   maintenanceMode      Boolean   @default(false)
   maintenanceUntil     DateTime?
   transactionFee       Float     @default(0.01)

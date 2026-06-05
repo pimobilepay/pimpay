@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, WifiOff, ExternalLink } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AnnouncementType = "info" | "warning" | "success" | "urgent";
@@ -11,6 +11,7 @@ interface AnnouncementConfig {
   message: string;
   type?: AnnouncementType;
   link?: string;
+  image?: string;
   dismissible?: boolean;
 }
 
@@ -94,17 +95,25 @@ export default function GlobalAnnouncement() {
         if (!res.ok) return;
         const data = await res.json();
         
-        // ✅ FIX: Ne pas afficher d'annonce si globalAnnouncement est vide ou non defini
-        if (data?.globalAnnouncement && data.globalAnnouncement.trim() !== "") {
+        const msg: string = (data?.globalAnnouncement ?? "").trim();
+        const image: string = (data?.announcementImage ?? "").trim();
+        const link: string = (data?.announcementLink ?? "").trim();
+
+        // ✅ FIX: Afficher l'annonce si un message OU une image est defini par l'admin
+        if (msg !== "" || image !== "") {
           // Détecter le type selon le contenu
-          const msg: string = data.globalAnnouncement;
           let type: AnnouncementType = "info";
           if (/urgent|alerte|attention|important/i.test(msg)) type = "urgent";
           else if (/maintenance|fermeture|interruption/i.test(msg)) type = "warning";
           else if (/opérationnel|bienvenue|félicitation|succès/i.test(msg)) type = "success";
 
           setAnnouncements([
-            { message: msg, type, link: "/settings/kyc" },
+            {
+              message: msg || "Nouvelle annonce PimPay",
+              type,
+              link: link || undefined,
+              image: image || undefined,
+            },
           ]);
           setHasAnnouncement(true);
         } else {
@@ -186,15 +195,24 @@ export default function GlobalAnnouncement() {
     sessionStorage.setItem("announcement_dismissed", "true");
   };
 
-  const handleClick = () => {
-    if (current?.link) router.push(current.link);
+  const handleLinkClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!current?.link) return;
+    const link = current.link;
+    // Lien externe -> nouvel onglet, lien interne -> navigation app
+    if (/^https?:\/\//i.test(link)) {
+      window.open(link, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(link);
+    }
   };
 
   if (!mounted || dismissed || !hasAnnouncement || !current) {
     return null; // Ne rien afficher si pas d'annonce publiee
   }
 
-  const isClickable = !!current.link;
+  const hasLink = !!current.link;
+  const hasImage = !!current.image;
 
   return (
     <div
@@ -202,28 +220,34 @@ export default function GlobalAnnouncement() {
         relative h-10 flex items-center overflow-hidden z-[9999]
         bg-gradient-to-r ${style.bg}
         border-b ${style.border}
-        transition-all duration-300
-        ${isClickable ? "cursor-pointer" : "cursor-default"}
+        transition-all duration-300 cursor-default
       `}
       style={{ boxShadow: `0 2px 20px ${style.glow}` }}
-      onClick={isClickable ? handleClick : undefined}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* ── Badge type à gauche ────────────────────────────────────────────── */}
       <div className={`
-        absolute left-0 z-10 px-3 h-full flex items-center gap-2
+        absolute left-0 z-10 px-2 sm:px-3 h-full flex items-center gap-2
         border-r ${style.border}
         bg-black/20 backdrop-blur-sm flex-shrink-0
       `}>
-        {/* Dot animé */}
-        <span className="relative flex h-2 w-2">
-          <span className={`
-            animate-ping absolute inline-flex h-full w-full rounded-full opacity-60
-            ${style.dot}
-          `} />
-          <span className={`relative inline-flex rounded-full h-2 w-2 ${style.dot}`} />
-        </span>
+        {/* Image d'annonce (PNG) si fournie, sinon dot animé */}
+        {hasImage ? (
+          <img
+            src={current.image! || "/placeholder.svg"}
+            alt="Illustration de l'annonce"
+            className="h-7 w-7 rounded-md object-cover border border-white/10 flex-shrink-0"
+          />
+        ) : (
+          <span className="relative flex h-2 w-2">
+            <span className={`
+              animate-ping absolute inline-flex h-full w-full rounded-full opacity-60
+              ${style.dot}
+            `} />
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${style.dot}`} />
+          </span>
+        )}
         {/* Label type */}
         <span className={`
           text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5
@@ -244,7 +268,10 @@ export default function GlobalAnnouncement() {
       {/* ── Marquee ───────────────────────────────────────────────────────── */}
       <div
         className="overflow-hidden flex-1"
-        style={{ paddingLeft: "90px", paddingRight: announcements.length > 1 ? "80px" : "36px" }}
+        style={{
+          paddingLeft: hasImage ? "112px" : "90px",
+          paddingRight: announcements.length > 1 ? "80px" : hasLink ? "130px" : "36px",
+        }}
       >
         <div
           className="relative h-10 flex items-center"
@@ -275,6 +302,23 @@ export default function GlobalAnnouncement() {
           </span>
         </div>
       </div>
+
+      {/* ── Bouton "Cliquez ici" pour le lien (le lien complet reste cache) ── */}
+      {hasLink && announcements.length <= 1 && (
+        <button
+          onClick={handleLinkClick}
+          className={`
+            absolute right-9 z-20 flex items-center gap-1.5 h-6 px-2.5
+            rounded-full border ${style.badge}
+            text-[9px] font-black uppercase tracking-wider
+            hover:brightness-125 active:scale-95 transition-all flex-shrink-0
+          `}
+          title="Accéder au lien de l'annonce"
+        >
+          <ExternalLink className="h-3 w-3" />
+          <span className="hidden sm:inline">Cliquez ici</span>
+        </button>
+      )}
 
       {/* ── Navigation multi-annonces ─────────────────────────────────────── */}
       {announcements.length > 1 && (

@@ -18,7 +18,8 @@ import {
   Fingerprint, UserX, Ban, LogOut, Copy, Eye as EyeIcon, EyeOff,
   Plus, Trash2, RefreshCcw, Globe2, Timer, Power, MonitorSmartphone,
   Edit3, ChevronLeft, Table, FileText, User, Calendar, MapPin, MoreVertical, ExternalLink,
-  Flag, AlertOctagon, Bot, ClipboardCheck, Monitor, Image as ImageIcon
+  Flag, AlertOctagon, Bot, ClipboardCheck, Monitor, Image as ImageIcon,
+  Link as LinkIcon
 } from "lucide-react";
 
 /* ─── TYPES ───────────────────────────────────────────────────── */
@@ -137,9 +138,13 @@ export default function SystemSettings() {
   const [auditError, setAuditError] = useState<string | null>(null);
 
   const [stats, setStats] = useState({ totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
+  const [uploadingAnnouncementImage, setUploadingAnnouncementImage] = useState(false);
+  const announcementFileRef = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState({
     appVersion: "",
     globalAnnouncement: "",
+    announcementImage: "",
+    announcementLink: "",
     transactionFee: 0,
     maintenanceMode: false,
     comingSoonMode: false,
@@ -258,6 +263,48 @@ export default function SystemSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAnnouncementImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Le fichier doit être une image (PNG, JPG...)");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("L'image ne doit pas dépasser 4MB");
+      return;
+    }
+
+    setUploadingAnnouncementImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/admin/announcement/image", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setConfig(prev => ({ ...prev, announcementImage: data.url }));
+        toast.success("Image d'annonce téléchargée. N'oubliez pas de sauvegarder.");
+      } else {
+        throw new Error(data.error || "Échec de l'upload");
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setUploadingAnnouncementImage(false);
+      if (announcementFileRef.current) announcementFileRef.current.value = "";
+    }
+  };
+
+  const removeAnnouncementImage = () => {
+    setConfig(prev => ({ ...prev, announcementImage: "" }));
+    toast.success("Image retirée. N'oubliez pas de sauvegarder.");
   };
 
   const toggleMode = async (modeType: 'maintenanceMode' | 'comingSoonMode') => {
@@ -868,6 +915,83 @@ export default function SystemSettings() {
                         </div>
                       )}
                     </div>
+
+                    {/* Image d'annonce (PNG) */}
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <ImageIcon size={11} className="text-slate-600" />
+                        Image de l'annonce (PNG / JPG — max 4MB)
+                      </label>
+                      <input
+                        ref={announcementFileRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleAnnouncementImageUpload}
+                        className="hidden"
+                      />
+                      {config.announcementImage ? (
+                        <div className="flex items-center gap-4 p-3 bg-black/30 border border-white/[0.06] rounded-xl">
+                          <img
+                            src={config.announcementImage || "/placeholder.svg"}
+                            alt="Aperçu de l'image d'annonce"
+                            className="h-14 w-14 rounded-lg object-cover border border-white/10"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Image active</p>
+                            <p className="text-[9px] text-slate-500 truncate">{config.announcementImage}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => announcementFileRef.current?.click()}
+                              disabled={uploadingAnnouncementImage}
+                              className="px-3 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] text-slate-300 text-[9px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-colors disabled:opacity-50"
+                            >
+                              Remplacer
+                            </button>
+                            <button
+                              type="button"
+                              onClick={removeAnnouncementImage}
+                              className="px-3 h-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-bold uppercase tracking-wider hover:bg-red-500/20 transition-colors"
+                            >
+                              Retirer
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => announcementFileRef.current?.click()}
+                          disabled={uploadingAnnouncementImage}
+                          className="w-full h-[90px] rounded-xl border border-dashed border-white/[0.1] bg-black/20 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-slate-300 hover:border-white/[0.2] transition-all disabled:opacity-50"
+                        >
+                          <ImageIcon size={20} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {uploadingAnnouncementImage ? "Téléchargement..." : "Ajouter une image PNG"}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lien de l'annonce */}
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <LinkIcon size={11} className="text-slate-600" />
+                        Lien de l'annonce (bouton "Cliquez ici")
+                      </label>
+                      <div className="flex items-center gap-2 bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3">
+                        <LinkIcon size={13} className="text-slate-500 shrink-0" />
+                        <input
+                          className="bg-transparent text-white text-sm outline-none w-full placeholder-slate-600"
+                          value={config.announcementLink}
+                          onChange={e => setConfig({ ...config, announcementLink: e.target.value })}
+                          placeholder="https://exemple.com/promo  ou  /settings/kyc"
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-relaxed">
+                        Le lien complet reste masqué. Les utilisateurs voient un bouton « Cliquez ici » qui ouvre ce lien.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1053,7 +1177,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ══════════════════════════���═════════════════════════ */}
             {/* SECTION: REFERRAL                                   */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'referral' && (
