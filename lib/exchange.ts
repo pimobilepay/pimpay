@@ -9,9 +9,11 @@
 /*  CONSTANTES                                                         */
 /* ------------------------------------------------------------------ */
 
-// Pi price is now fetched dynamically from CoinGecko API (id: pi-network)
-// These fallback values are used when API is unavailable
-export const PI_CONSENSUS_RATE = 0; // Will be fetched from CoinGecko
+// Pi price is now configured by the admin (SystemConfig.consensusPrice) and
+// served via /api/pi-price. Server code should pass the admin price explicitly
+// (e.g. via getPiPrice() from lib/fees). These constants remain a last-resort
+// fallback only and should not be relied upon.
+export const PI_CONSENSUS_RATE = 0; // Provided dynamically by admin config
 export const PI_CONSENSUS_USD = PI_CONSENSUS_RATE;
 
 /** Liste exhaustive des IDs crypto reconnus par PimPay */
@@ -255,7 +257,7 @@ export function convert(
  * @param amountInPi - montant en Pi à convertir
  * @param targetCurrency - devise cible (ex: "CDF", "XAF", "USD")
  * @param feePercent - taux de commission (0.001 = 0.1%)
- * @param piPriceUsd - prix live du Pi en USD (depuis CoinGecko). Si omis, utilise PI_CONSENSUS_USD (peut être 0!)
+ * @param piPriceUsd - prix du Pi en USD (configuré par l'admin). Si omis, utilise PI_CONSENSUS_USD (peut être 0!)
  */
 export const calculateExchangeWithFee = (
   amountInPi: number,

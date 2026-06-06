@@ -171,6 +171,38 @@ export async function getFeeConfig(): Promise<FeeConfig> {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  PI PRICE (source unique = prix configuré par l'admin)              */
+/* ------------------------------------------------------------------ */
+
+/** Prix de repli si la DB est injoignable ou non configurée */
+export const DEFAULT_PI_PRICE_USD = 314159.0;
+
+/**
+ * Récupère le prix du Pi en USD configuré par l'administrateur
+ * (SystemConfig.consensusPrice — page Admin → Réglages → Politique Monétaire).
+ *
+ * C'est la SOURCE UNIQUE du prix Pi côté serveur : toutes les routes
+ * (retrait, transfert, conversion de frais, swap, cartes...) doivent
+ * l'utiliser plutôt qu'une valeur figée ou CoinGecko.
+ */
+export async function getPiPrice(): Promise<number> {
+  try {
+    const config = await prisma.systemConfig.findUnique({
+      where: { id: "GLOBAL_CONFIG" },
+      select: { consensusPrice: true },
+    });
+    const price = config?.consensusPrice;
+    if (typeof price === "number" && price > 0) {
+      return price;
+    }
+    return DEFAULT_PI_PRICE_USD;
+  } catch (error) {
+    console.error("[FEES] Failed to load Pi price:", error);
+    return DEFAULT_PI_PRICE_USD;
+  }
+}
+
 /**
  * Returns the correct fee rate for the given transaction type.
  */

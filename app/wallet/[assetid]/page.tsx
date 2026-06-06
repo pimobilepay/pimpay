@@ -278,6 +278,17 @@ export default function AssetDetailPage() {
 
   const fetchMarketPrice = useCallback(async () => {
     if (assetId === "SDA") return; // SDA is not on CoinGecko
+    // PI : prix imposé par l'admin via /api/pi-price (source unique)
+    if (assetId === "PI") {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.price > 0) setMarketPrice(data.price);
+        }
+      } catch { /* keep default */ }
+      return;
+    }
     const geckoId = COINGECKO_IDS[assetId];
     if (!geckoId) return;
     try {

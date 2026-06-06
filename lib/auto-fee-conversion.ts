@@ -6,7 +6,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { PI_CONSENSUS_RATE, FIAT_RATES, convert } from "@/lib/exchange";
+import { FIAT_RATES } from "@/lib/exchange";
+import { getPiPrice } from "@/lib/fees";
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -93,32 +94,47 @@ async function getOrCreateAdminPiWallet() {
 }
 
 /**
- * Convert any currency amount to PI using current rates
+ * Convert any currency amount to PI using the admin-configured Pi price.
+ * @param amount - montant à convertir
+ * @param currency - devise source (PI, USD, XAF, ...)
+ * @param piPrice - prix du Pi en USD (admin)
  */
-function convertToPi(amount: number, currency: string): number {
+function convertToPi(amount: number, currency: string, piPrice: number): number {
   if (currency === "PI") return amount;
+  if (piPrice <= 0) return 0;
 
-  // Use the convert function from exchange.ts
-  const piAmount = convert(currency, "PI", amount);
-  return piAmount;
+  // Convertir la devise source en USD puis en PI
+  let usdValue: number;
+  if (currency === "USD") {
+    usdValue = amount;
+  } else if (FIAT_RATES[currency]) {
+    // FIAT_RATES = combien de devise pour 1 USD
+    usdValue = amount / FIAT_RATES[currency];
+  } else {
+    // Devise inconnue -> on suppose équivalent USD
+    usdValue = amount;
+  }
+
+  return usdValue / piPrice;
 }
 
 /**
- * Get conversion rate from currency to PI
+ * Get conversion rate from currency to PI using the admin-configured Pi price.
  */
-function getConversionRate(currency: string): number {
+function getConversionRate(currency: string, piPrice: number): number {
   if (currency === "PI") return 1;
+  if (piPrice <= 0) return 0;
 
   // For fiat currencies
   if (FIAT_RATES[currency]) {
-    // 1 PI = PI_CONSENSUS_RATE USD
+    // 1 PI = piPrice USD
     // 1 USD = FIAT_RATES[currency] of that currency
-    // So: 1 currency = 1 / FIAT_RATES[currency] USD = (1 / FIAT_RATES[currency]) / PI_CONSENSUS_RATE PI
-    return 1 / (FIAT_RATES[currency] * PI_CONSENSUS_RATE);
+    // So: 1 currency = (1 / FIAT_RATES[currency]) USD = (1 / FIAT_RATES[currency]) / piPrice PI
+    return 1 / (FIAT_RATES[currency] * piPrice);
   }
 
   // For unknown currencies, assume USD equivalent
-  return 1 / PI_CONSENSUS_RATE;
+  return 1 / piPrice;
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,11 +169,14 @@ export async function autoConvertFeeToPi(
   }
 
   try {
+    // Prix Pi configuré par l'admin (source unique)
+    const piPrice = await getPiPrice();
+
     // Calculate USD equivalent for threshold check
     let usdEquivalent = feeAmount;
     if (feeCurrency !== "USD") {
       if (feeCurrency === "PI") {
-        usdEquivalent = feeAmount * PI_CONSENSUS_RATE;
+        usdEquivalent = feeAmount * piPrice;
       } else if (FIAT_RATES[feeCurrency]) {
         usdEquivalent = feeAmount / FIAT_RATES[feeCurrency];
       }
@@ -192,8 +211,8 @@ export async function autoConvertFeeToPi(
     }
 
     // Convert fee to PI
-    const piAmount = feeCurrency === "PI" ? feeAmount : convertToPi(feeAmount, feeCurrency);
-    const conversionRate = getConversionRate(feeCurrency);
+    const piAmount = feeCurrency === "PI" ? feeAmount : convertToPi(feeAmount, feeCurrency, piPrice);
+    const conversionRate = getConversionRate(feeCurrency, piPrice);
 
     // Round to 8 decimal places for precision
     const roundedPiAmount = Math.round(piAmount * 100000000) / 100000000;

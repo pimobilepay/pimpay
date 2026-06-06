@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { PI_CONSENSUS_RATE, calculateExchangeWithFee } from "@/lib/exchange";
-import { getFeeConfig, calculateFee } from "@/lib/fees";
+import { calculateExchangeWithFee } from "@/lib/exchange";
+import { getFeeConfig, calculateFee, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
@@ -93,10 +93,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Transfert vers soi-meme interdit" }, { status: 400 });
     }
 
-    // 4. CALCULS (Conformite GCV) - Frais centralises
+    // 4. CALCULS (Conformite GCV) - Frais centralises + prix Pi admin
     const feeConfig = await getFeeConfig();
+    const piPrice = await getPiPrice();
     const { feeAmount: transferFeeAmount, totalDebit } = calculateFee(amountNum, feeConfig, "transfer");
-    const valueInUsd = amountNum * PI_CONSENSUS_RATE;
+    const valueInUsd = amountNum * piPrice;
 
     // 5. TRANSACTION ATOMIQUE (Correction Erreurs Prisma)
     // IMPORTANT: Toutes les verifications et mises a jour de solde sont dans la transaction

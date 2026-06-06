@@ -29,13 +29,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Solde ${fromCurr} insuffisant` }, { status: 400, headers: cors });
     }
 
-    // 2. Taux reels (crypto + fiat)
+    // PRIX PI : source unique = prix configuré par l'admin (SystemConfig.consensusPrice)
+    const piConfig = await prisma.systemConfig.findUnique({
+      where: { id: "GLOBAL_CONFIG" },
+      select: { consensusPrice: true },
+    });
+    const adminPiPrice = piConfig?.consensusPrice && piConfig.consensusPrice > 0
+      ? piConfig.consensusPrice
+      : 314159.0;
+
+    // 2. Taux reels (crypto + fiat) — le PI est toujours imposé par le prix admin
     let marketRates: Record<string, number> = { ...FALLBACK_FIAT };
     try {
       const [fiatRes, cryptoRes] = await Promise.all([
         fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 60 } }),
         fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=pi-network,bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
           { signal: AbortSignal.timeout(5000) }
         ),
       ]);
@@ -44,7 +53,6 @@ export async function POST(req: Request) {
 
       const cd = await cryptoRes.json();
       if (cd) {
-        marketRates["PI"] = cd["pi-network"]?.usd || 0;
         marketRates["BTC"] = cd.bitcoin?.usd || 95000;
         marketRates["ETH"] = cd.ethereum?.usd || 3200;
         marketRates["BNB"] = cd.binancecoin?.usd || 600;
@@ -61,7 +69,8 @@ export async function POST(req: Request) {
       }
     } catch (e) { console.warn("Fallback rates used"); }
 
-    // PI price is already fetched from CoinGecko above
+    // PI : prix imposé par l'admin (jamais CoinGecko)
+    marketRates["PI"] = adminPiPrice;
     marketRates["SDA"] = 1.2;
     marketRates["BUSD"] = 1;
 
