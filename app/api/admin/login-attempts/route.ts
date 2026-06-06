@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { logSystemEvent } from "@/lib/systemLogger";
 
-const MAX_FAILED_ATTEMPTS = 10;
+const DEFAULT_MAX_FAILED_ATTEMPTS = 5;
 
 // GET : liste des tentatives échouées + comptes verrouillés + comptes à risque
 export async function GET(req: NextRequest) {
@@ -14,6 +14,16 @@ export async function GET(req: NextRequest) {
     if (!payload) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
+
+    // Limite de tentatives configurée depuis la page Admin > Paramètres (Sécurité)
+    const secCfg = await prisma.systemConfig.findUnique({
+      where: { id: "GLOBAL_CONFIG" },
+      select: { maxLoginAttempts: true },
+    });
+    const maxAttempts =
+      secCfg?.maxLoginAttempts && secCfg.maxLoginAttempts > 0
+        ? secCfg.maxLoginAttempts
+        : DEFAULT_MAX_FAILED_ATTEMPTS;
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -97,7 +107,7 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
       lockedUsers,
       atRiskUsers,
-      maxAttempts: MAX_FAILED_ATTEMPTS,
+      maxAttempts: maxAttempts,
       stats: {
         failed24h,
         locked24h,
