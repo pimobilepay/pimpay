@@ -115,11 +115,9 @@ export default function SystemSettings() {
     { id: '2', name: 'Test API', key: 'pk_test_xxxxxxxxxxxxxxxxxxxxx', lastUsed: '2024-01-14', active: true },
   ]);
   const [showApiKey, setShowApiKey] = useState<string | null>(null);
-  const [activeSessions, setActiveSessions] = useState<{ id: string; device: string; ip: string; location: string; lastActive: string }[]>([
-    { id: '1', device: 'Chrome / Windows', ip: '192.168.1.1', location: 'Paris, FR', lastActive: 'Il y a 2 min' },
-    { id: '2', device: 'Safari / iPhone', ip: '192.168.1.2', location: 'Lyon, FR', lastActive: 'Il y a 15 min' },
-    { id: '3', device: 'Firefox / MacOS', ip: '192.168.1.3', location: 'Marseille, FR', lastActive: 'Il y a 1h' },
-  ]);
+  const [activeSessions, setActiveSessions] = useState<{ id: string; device: string; ip: string; location: string; user?: string; lastActive: string }[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [terminatingAll, setTerminatingAll] = useState(false);
   const [terminatingSession, setTerminatingSession] = useState<string | null>(null);
   
   // Database table CRUD states
@@ -277,6 +275,64 @@ export default function SystemSettings() {
       fetchSystemInfo();
     }
   }, [activeSection]);
+
+  /* ─── FETCH ACTIVE SESSIONS (sessions réelles depuis la BDD) ── */
+  const fetchActiveSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const res = await fetch("/api/admin/sessions", { credentials: "include" });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const data = await res.json();
+      setActiveSessions(Array.isArray(data.sessions) ? data.sessions : []);
+    } catch {
+      toast.error("Impossible de charger les sessions actives");
+      setActiveSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  // Charger les sessions dès que l'utilisateur ouvre la section sécurité
+  useEffect(() => {
+    if (activeSection === 'security') {
+      fetchActiveSessions();
+    }
+  }, [activeSection]);
+
+  const terminateSession = async (id: string) => {
+    setTerminatingSession(id);
+    try {
+      const res = await fetch(`/api/admin/sessions?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Échec");
+      setActiveSessions(prev => prev.filter(s => s.id !== id));
+      toast.success("Session terminée");
+    } catch {
+      toast.error("Impossible de terminer la session");
+    } finally {
+      setTerminatingSession(null);
+    }
+  };
+
+  const terminateAllSessions = async () => {
+    setTerminatingAll(true);
+    try {
+      const res = await fetch("/api/admin/sessions?all=true", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Échec");
+      const data = await res.json();
+      setActiveSessions([]);
+      toast.success(`${data.count ?? 0} session(s) terminée(s)`);
+    } catch {
+      toast.error("Impossible de terminer les sessions");
+    } finally {
+      setTerminatingAll(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1577,39 +1633,47 @@ export default function SystemSettings() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px]">Sessions Actives</h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveSessions([]);
-                        toast.success('Toutes les sessions ont été terminées');
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-[9px] font-bold uppercase tracking-wide hover:bg-rose-500/20 transition-all"
-                    >
-                      <Power size={10} /> Tout déconnecter
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchActiveSessions}
+                        disabled={sessionsLoading}
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-slate-400 text-[9px] font-bold uppercase tracking-wide hover:text-white hover:border-white/10 transition-all disabled:opacity-40"
+                      >
+                        <RotateCcw size={10} className={sessionsLoading ? 'animate-spin' : ''} /> Rafraîchir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={terminateAllSessions}
+                        disabled={terminatingAll || activeSessions.length === 0}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-[9px] font-bold uppercase tracking-wide hover:bg-rose-500/20 transition-all disabled:opacity-40"
+                      >
+                        {terminatingAll ? <Loader2 size={10} className="animate-spin" /> : <Power size={10} />} Tout déconnecter
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl divide-y divide-white/[0.04]">
-                    {activeSessions.length > 0 ? activeSessions.map(session => (
+                    {sessionsLoading ? (
+                      <div className="p-8 text-center text-slate-600">
+                        <Loader2 size={24} className="mx-auto mb-2 animate-spin opacity-50" />
+                        <p className="text-[10px] font-bold">Chargement des sessions...</p>
+                      </div>
+                    ) : activeSessions.length > 0 ? activeSessions.map(session => (
                       <div key={session.id} className="flex items-center justify-between p-4">
                         <div className="flex items-center gap-3">
                           <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400"><MonitorSmartphone size={14} /></div>
                           <div>
                             <p className="text-[11px] font-bold text-white">{session.device}</p>
-                            <p className="text-[9px] text-slate-500">{session.ip} - {session.location}</p>
+                            <p className="text-[9px] text-slate-500">
+                              {session.user ? `${session.user} • ` : ''}{session.ip} - {session.location}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-[9px] text-slate-500">{session.lastActive}</span>
                           <button
                             type="button"
-                            onClick={() => {
-                              setTerminatingSession(session.id);
-                              setTimeout(() => {
-                                setActiveSessions(prev => prev.filter(s => s.id !== session.id));
-                                setTerminatingSession(null);
-                                toast.success('Session terminée');
-                              }, 500);
-                            }}
+                            onClick={() => terminateSession(session.id)}
                             disabled={terminatingSession === session.id}
                             className="p-1.5 bg-rose-500/10 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-50"
                           >
