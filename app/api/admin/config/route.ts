@@ -14,6 +14,7 @@ const FALLBACK_CONFIG = {
   appVersion: "2.4.0-STABLE",
   maintenanceMode: false,
   comingSoonMode: false,
+  comingSoonUntil: null,
   consensusPrice: 314159.0,
   stakingAPY: 12.0,
   transactionFee: 0.5,
@@ -190,8 +191,10 @@ export async function POST(req: NextRequest) {
     // AUTO-RESUME: No admin auth needed - server validates time expiry
     if (action === "AUTO_RESUME") {
       const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+      const now = new Date();
+
+      // Reprise automatique de la maintenance
       if (current?.maintenanceMode && current?.maintenanceUntil) {
-        const now = new Date();
         const until = new Date(current.maintenanceUntil);
         if (now >= until) {
           const resumed = await ConfigModel.update({
@@ -208,7 +211,27 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(resumed);
         }
       }
-      return NextResponse.json({ error: "Maintenance encore active" }, { status: 400 });
+
+      // Reprise automatique du mode Coming Soon
+      if (current?.comingSoonMode && current?.comingSoonUntil) {
+        const until = new Date(current.comingSoonUntil);
+        if (now >= until) {
+          const resumed = await ConfigModel.update({
+            where: { id: "GLOBAL_CONFIG" },
+            data: { comingSoonMode: false, comingSoonUntil: null }
+          });
+          await prisma.auditLog.create({
+            data: {
+              adminName: "SYSTEM",
+              action: "AUTO_RESUME_COMING_SOON",
+              details: "Mode Coming Soon desactive automatiquement apres expiration du delai."
+            }
+          }).catch(() => null);
+          return NextResponse.json(resumed);
+        }
+      }
+
+      return NextResponse.json({ error: "Aucun mode a reprendre" }, { status: 400 });
     }
 
     const adminSession = await adminAuth(req);
@@ -246,10 +269,18 @@ export async function POST(req: NextRequest) {
     if (action === "TOGGLE_MODE") {
       const { modeType } = body; // 'maintenanceMode' ou 'comingSoonMode'
       const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
-      
+
+      const nextValue = !current?.[modeType as keyof typeof current];
+      const data: any = { [modeType]: nextValue };
+      // Quand on desactive un mode, on efface aussi sa date de reprise
+      if (!nextValue) {
+        if (modeType === "maintenanceMode") data.maintenanceUntil = null;
+        if (modeType === "comingSoonMode") data.comingSoonUntil = null;
+      }
+
       const updated = await ConfigModel.update({
         where: { id: "GLOBAL_CONFIG" },
-        data: { [modeType]: !current?.[modeType as keyof typeof current] }
+        data,
       });
 
       return NextResponse.json(updated);
@@ -259,7 +290,7 @@ export async function POST(req: NextRequest) {
     const {
       appVersion, globalAnnouncement, announcementImage, announcementLink, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
-      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil,
+      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil, comingSoonUntil,
       // Crypto fee fields
       transferFee, withdrawFee, depositCryptoFee, exchangeFee,
       // Fiat fee fields
@@ -283,6 +314,9 @@ export async function POST(req: NextRequest) {
     if (transactionFee !== undefined) updateData.transactionFee = Number(transactionFee);
     if (maintenanceMode !== undefined) updateData.maintenanceMode = Boolean(maintenanceMode);
     if (comingSoonMode !== undefined) updateData.comingSoonMode = Boolean(comingSoonMode);
+    if (comingSoonUntil !== undefined) updateData.comingSoonUntil = comingSoonUntil ? new Date(comingSoonUntil) : null;
+    // When disabling coming soon, also clear the until date
+    if (comingSoonMode === false) updateData.comingSoonUntil = null;
     if (minWithdrawal !== undefined) updateData.minWithdrawal = Number(minWithdrawal);
     if (maxWithdrawal !== undefined) updateData.maxWithdrawal = Number(maxWithdrawal);
     if (consensusPrice !== undefined) updateData.consensusPrice = Number(consensusPrice);

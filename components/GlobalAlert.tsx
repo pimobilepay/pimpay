@@ -563,14 +563,24 @@ export default function GlobalAlert() {
 
   /* ── Countdown & progress ── */
   useEffect(() => {
-    if (!config?.maintenanceMode) return;
-    const hasEndTime = !!config?.maintenanceUntil;
+    // Determiner le mode actif et sa date de reprise
+    const activeMode = config?.maintenanceMode
+      ? "maintenance"
+      : config?.comingSoonMode
+        ? "comingSoon"
+        : null;
+    if (!activeMode) return;
+    const endValue =
+      activeMode === "maintenance"
+        ? config?.maintenanceUntil
+        : config?.comingSoonUntil;
+    const hasEndTime = !!endValue;
     if (!hasEndTime) {
       setTimeLeft(null);
       setProgress(0);
       return;
     }
-    const targetDate = new Date(config.maintenanceUntil).getTime();
+    const targetDate = new Date(endValue).getTime();
     if (!startTimeRef.current) {
       startTimeRef.current = Date.now();
     }
@@ -640,8 +650,13 @@ export default function GlobalAlert() {
 
   /* ── Formatted end date ── */
   const formattedEndDate = useMemo(() => {
-    if (!config?.maintenanceUntil) return null;
-    const d = new Date(config.maintenanceUntil);
+    const endValue = config?.maintenanceMode
+      ? config?.maintenanceUntil
+      : config?.comingSoonMode
+        ? config?.comingSoonUntil
+        : null;
+    if (!endValue) return null;
+    const d = new Date(endValue);
     return d.toLocaleString("fr-FR", {
       weekday: "long",
       year: "numeric",
@@ -650,7 +665,7 @@ export default function GlobalAlert() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  }, [config?.maintenanceUntil]);
+  }, [config?.maintenanceUntil, config?.comingSoonUntil, config?.maintenanceMode, config?.comingSoonMode]);
 
   /* ── Guard: not mounted / no config ── */
   if (!isMounted || !config) return <div className="hidden" aria-hidden="true" />;
@@ -917,6 +932,193 @@ export default function GlobalAlert() {
               <div className="hud-row">
                 <span className="hud-tag">Nodes:SYNC</span>
                 <span className="hud-tag">Ledger:OK</span>
+                <span className="hud-tag">Network:LIVE</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ═══════════════════════════════════════════
+     SECTION 4 — COMING SOON (verrouillage total)
+     ═══════════════════════════════════════════ */
+  const canBypassComingSoon =
+    config.isAdmin ||
+    config.isBankAdmin ||
+    config.isBusinessAdmin ||
+    config.isAgent;
+
+  if (config.comingSoonMode && !canBypassComingSoon) {
+    return (
+      <>
+        <style>{spaceStyles}</style>
+        <div className="space-bg">
+          {/* ── Scan line ── */}
+          <div className="scan-line" />
+
+          {/* ── Nebulae ── */}
+          <div className="nebula-1" />
+          <div className="nebula-2" />
+          <div className="nebula-3" />
+
+          {/* ── Stars ── */}
+          {STARS.map((s, i) => (
+            <div
+              key={`cs-star-${i}`}
+              className="star"
+              style={{
+                top: s.top,
+                left: s.left,
+                width: s.size,
+                height: s.size,
+                animation: `${s.anim} ${s.dur} ease-in-out ${s.delay} infinite`,
+              }}
+            />
+          ))}
+
+          {/* ── Orbit rings ── */}
+          <div className="orbit-container">
+            <div className="orbit-ring orbit-ring-1">
+              <div className="orbit-dot" />
+            </div>
+            <div className="orbit-ring orbit-ring-2">
+              <div className="orbit-dot" />
+            </div>
+            <div className="orbit-ring orbit-ring-3">
+              <div className="orbit-dot" />
+            </div>
+          </div>
+
+          {/* ── Floating particles ── */}
+          {PARTICLES.map((p, i) => (
+            <div
+              key={`cs-p-${i}`}
+              className="particle"
+              style={{
+                top: p.top,
+                left: p.left,
+                width: p.size,
+                height: p.size,
+                background: p.color,
+                opacity: p.opacity,
+                boxShadow: p.glow ? `0 0 ${p.size * 3}px ${p.color}` : "none",
+                animation: `${p.anim} ${p.dur} ease-in-out ${p.delay} infinite`,
+              }}
+            />
+          ))}
+
+          {/* ── Centered content — fits 100vh ── */}
+          <div
+            style={{
+              position: "relative",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100vh",
+              maxHeight: "100vh",
+              padding: "16px",
+              gap: "20px",
+              overflow: "hidden",
+            }}
+          >
+            {/* ── PIMPAY Logo ── */}
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <div className="pimpay-logo logo-glitch">PIMPAY</div>
+              <div className="core-system">CORE SYSTEM</div>
+            </div>
+
+            {/* ── Glass Card ── */}
+            <div className="glass-card" style={{ position: "relative", flexShrink: 0 }}>
+              {/* Resuming overlay */}
+              {isResuming && (
+                <div className="resuming-overlay">
+                  <div className="resuming-spinner" />
+                  <span
+                    style={{
+                      color: "#22d3ee",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    Lancement en cours…
+                  </span>
+                </div>
+              )}
+
+              {/* Status badge */}
+              <div style={{ textAlign: "center", marginBottom: 12 }}>
+                <div className="status-badge">
+                  <span className="status-dot" />
+                  {maintenanceExpired ? "Lancement imminent" : "Bientôt disponible"}
+                </div>
+              </div>
+
+              {/* Lock icon */}
+              <div className="lock-glow">
+                <Zap size={20} color="#22d3ee" />
+              </div>
+
+              {/* Title */}
+              <div style={{ textAlign: "center" }}>
+                <div className="maintenance-title">LANCEMENT IMMINENT...</div>
+                <div className="maintenance-desc">
+                  {config.comingSoonMessage ||
+                    "PIMPAY se prépare pour son lancement officiel. Le service sera accessible automatiquement à la date prévue."}
+                </div>
+              </div>
+
+              {/* Countdown */}
+              {timeLeft && (
+                <div className="countdown-grid">
+                  {(
+                    [
+                      ["d", "Jours"],
+                      ["h", "Heures"],
+                      ["m", "Minutes"],
+                      ["s", "Secondes"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div
+                      key={key}
+                      className={`countdown-block${key === "s" ? " seconds" : ""}`}
+                    >
+                      <div className="countdown-value">
+                        {timeLeft[key as keyof typeof timeLeft]}
+                      </div>
+                      <div className="countdown-label">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Progress bar */}
+              <div className="progress-container">
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
+                <div className="progress-scan" />
+                <div className="progress-segments">
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="progress-segment" />
+                  ))}
+                </div>
+              </div>
+
+              {/* End date — always visible, prominent */}
+              {formattedEndDate && (
+                <div className="end-date">
+                  <div className="end-date-label">Lancement prévu</div>
+                  {formattedEndDate}
+                </div>
+              )}
+
+              {/* HUD indicators — grey / discrete */}
+              <div className="hud-row">
+                <span className="hud-tag">Secure:E2E</span>
+                <span className="hud-tag">Global:READY</span>
                 <span className="hud-tag">Network:LIVE</span>
               </div>
             </div>
