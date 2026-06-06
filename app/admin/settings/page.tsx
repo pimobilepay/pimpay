@@ -1199,7 +1199,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ═════════════════════════���══════════════════════════ */}
+            {/* ═════════════════════════���══════���═══════════════════ */}
             {/* SECTION: FEES                                       */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'fees' && (
@@ -1300,8 +1300,8 @@ export default function SystemSettings() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <MonetaryCard
                     icon={<Zap size={16} />}
-                    label="Prix GCV (USD)"
-                    sublabel="Valeur de consensus globale du Pi"
+                    label="Prix du Pi (USD)"
+                    sublabel="Prix global appliqué partout : dépôt, retrait, swap, cartes, frais"
                     value={config.consensusPrice}
                     onChange={v => setConfig({ ...config, consensusPrice: v })}
                     prefix="$"

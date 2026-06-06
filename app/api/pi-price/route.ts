@@ -1,95 +1,88 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-// Cache for Pi price (5 minute TTL)
+/**
+ * SOURCE UNIQUE DU PRIX PI
+ *
+ * Le prix du Pi Network est désormais entièrement contrôlé par l'administrateur
+ * depuis la page Admin → Réglages → Politique Monétaire (champ "Prix GCV").
+ * Il est stocké en base dans SystemConfig.consensusPrice (combien de USD pour 1 Pi).
+ *
+ * Toutes les pages et API (recharge, dépôt, retrait, swap, cartes, trésorerie...)
+ * consomment ce prix via cet endpoint ou directement via systemConfig.consensusPrice,
+ * garantissant une valeur cohérente sur toute la plateforme.
+ */
+
+// Cache court pour éviter de frapper la DB à chaque requête (30s)
 let cachedPrice: { price: number; timestamp: number } | null = null;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 1000; // 30 secondes
 
-// Fallback price if CoinGecko is unavailable
-const FALLBACK_PI_PRICE = 1.5;
+// Valeur de repli si la DB est injoignable ET qu'aucun prix n'a encore été chargé
+const FALLBACK_PI_PRICE = 314159.0;
 
-async function fetchPiPriceFromCoinGecko(): Promise<number> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+async function getAdminConfiguredPrice(): Promise<number> {
+  const config = await prisma.systemConfig.findUnique({
+    where: { id: "GLOBAL_CONFIG" },
+    select: { consensusPrice: true },
+  });
 
-  try {
-    const response = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=pi-network&vs_currencies=usd",
-      {
-        signal: controller.signal,
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "PimPay/1.0",
-        },
-        next: { revalidate: 300 }, // 5 min
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`CoinGecko responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    const price = data?.["pi-network"]?.usd;
-
-    if (typeof price !== "number" || price <= 0) {
-      throw new Error("Invalid price from CoinGecko");
-    }
-
-    return price;
-  } finally {
-    clearTimeout(timeout);
+  const price = config?.consensusPrice;
+  if (typeof price !== "number" || price <= 0) {
+    throw new Error("Prix admin non configuré ou invalide");
   }
+  return price;
 }
 
 export async function GET() {
+  const now = Date.now();
+
+  // Retourne le prix mis en cache s'il est encore valide
+  if (cachedPrice && now - cachedPrice.timestamp < CACHE_TTL) {
+    return NextResponse.json({
+      success: true,
+      price: cachedPrice.price,
+      source: "cache",
+      timestamp: cachedPrice.timestamp,
+      currency: "USD",
+    });
+  }
+
+  // Pas de DATABASE_URL → fallback direct
+  if (!process.env.DATABASE_URL) {
+    const price = cachedPrice?.price ?? FALLBACK_PI_PRICE;
+    return NextResponse.json({
+      success: true,
+      price,
+      source: "fallback",
+      timestamp: now,
+      currency: "USD",
+    });
+  }
+
   try {
-    const now = Date.now();
+    const price = await getAdminConfiguredPrice();
 
-    // Return cached price if still valid
-    if (cachedPrice && now - cachedPrice.timestamp < CACHE_TTL) {
-      return NextResponse.json({
-        success: true,
-        price: cachedPrice.price,
-        source: "cache",
-        timestamp: cachedPrice.timestamp,
-        currency: "USD",
-      });
-    }
-
-    // Fetch fresh price from CoinGecko
-    let price: number;
-    let source: string;
-
-    try {
-      price = await fetchPiPriceFromCoinGecko();
-      source = "coingecko";
-    } catch (err) {
-      console.error("[pi-price] CoinGecko fetch failed:", err);
-      // Use previous cache even if expired, or fallback
-      price = cachedPrice?.price ?? FALLBACK_PI_PRICE;
-      source = cachedPrice ? "stale-cache" : "fallback";
-    }
-
-    // Update cache
+    // Met à jour le cache
     cachedPrice = { price, timestamp: now };
 
     return NextResponse.json({
       success: true,
       price,
-      source,
+      source: "admin-config",
       timestamp: now,
       currency: "USD",
     });
   } catch (error) {
-    console.error("[pi-price] Error:", error);
-    const fallbackPrice = cachedPrice?.price ?? FALLBACK_PI_PRICE;
+    console.error("[pi-price] Lecture du prix admin échouée:", error);
+    // Utilise le dernier cache connu, sinon le fallback
+    const price = cachedPrice?.price ?? FALLBACK_PI_PRICE;
     return NextResponse.json({
       success: true,
-      price: fallbackPrice,
-      source: "fallback",
-      timestamp: Date.now(),
+      price,
+      source: cachedPrice ? "stale-cache" : "fallback",
+      timestamp: now,
       currency: "USD",
     });
   }

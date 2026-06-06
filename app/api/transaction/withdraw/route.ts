@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee, PI_CONSENSUS_RATE } from "@/lib/exchange";
+import { calculateExchangeWithFee } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
-import { getFeeConfig } from "@/lib/fees";
+import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 
 export async function POST(req: NextRequest) {
@@ -29,10 +29,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    // 3. Calcul de la conversion (Pi -> Fiat) - Frais centralisés
+    // 3. Calcul de la conversion (Pi -> Fiat) - Frais centralisés + prix Pi admin
     const targetCurrency = currency || "USD";
     const feeConfig = await getFeeConfig();
-    const conversion = calculateExchangeWithFee(piAmount, targetCurrency, feeConfig.withdrawFee);
+    const piPrice = await getPiPrice();
+    const conversion = calculateExchangeWithFee(piAmount, targetCurrency, feeConfig.withdrawFee, piPrice);
 
     // 4. Exécution de la transaction atomique (Prisma $transaction)
     const result = await prisma.$transaction(async (tx) => {
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
           description: description,
           currency: "PI",
           destCurrency: targetCurrency,
-          fee: conversion.fee / PI_CONSENSUS_RATE, // Frais convertis en PI
+          fee: conversion.fee / piPrice, // Frais convertis en PI
           // Stocker directement le numéro de compte/téléphone dans le champ DB
           accountNumber: accountNumberValue,
           accountName: body.details?.accountName || null,
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
             method: method, // "mobile" ou "bank"
             transferDetails: body.details,
             fiatAmount: conversion.total,
-            exchangeRate: PI_CONSENSUS_RATE,
+            exchangeRate: piPrice,
             submittedAt: new Date().toISOString()
           }
         }
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / PI_CONSENSUS_RATE };
+      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / piPrice };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
