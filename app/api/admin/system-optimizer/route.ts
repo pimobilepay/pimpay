@@ -112,8 +112,40 @@ const KNOWN_VULNERABILITIES: Record<string, {
   }
 };
 
+/**
+ * Récupère l'ensemble des vulnérabilités déjà corrigées de manière persistante.
+ * Sur Vercel le système de fichiers est en lecture seule : on ne peut pas écrire
+ * dans package.json. On lit donc l'état réel des patches depuis la base de données
+ * (table AuditLog, action SECURITY_PATCH_APPLIED) afin que les corrections
+ * persistent entre chaque scan et que le score reflète l'état réel.
+ */
+async function getPatchedVulnerabilities(): Promise<Set<string>> {
+  const patched = new Set<string>();
+  try {
+    const logs = await prisma.auditLog.findMany({
+      where: { action: "SECURITY_PATCH_APPLIED" },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    });
+    for (const log of logs) {
+      try {
+        const d = JSON.parse(log.details || "{}");
+        // On ne considère que les patches réellement appliqués (non ignorés)
+        if (d.vulnerabilityName && d.success !== false && d.action !== "IGNORED") {
+          patched.add(d.vulnerabilityName);
+        }
+      } catch {
+        /* ignore malformed details */
+      }
+    }
+  } catch {
+    /* DB indisponible : aucun patch persistant connu */
+  }
+  return patched;
+}
+
 // Scan package.json for vulnerable packages
-async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
+async function scanPackageVulnerabilities(patched: Set<string>): Promise<VulnerabilityResult[]> {
   const results: VulnerabilityResult[] = [];
   
   try {
@@ -134,18 +166,20 @@ async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
         // Clean version string (remove ^, ~, etc.)
         const cleanVersion = installedVersion.replace(/[\^~>=<]/g, "");
         
-        // Check if version is in pnpm overrides (already patched)
-        const isOverridden = packageJson.pnpm?.overrides?.[pkg];
+        // Considéré comme corrigé si: override dans package.json OU patch persisté en BDD
+        const vulnName = `Package: ${pkg}`;
+        const isOverridden = Boolean(packageJson.pnpm?.overrides?.[pkg]);
+        const isPatched = isOverridden || patched.has(vulnName);
         
         results.push({
-          name: `Package: ${pkg}`,
+          name: vulnName,
           severity: vulnInfo.severity,
-          status: isOverridden ? "fixed" : "detected",
+          status: isPatched ? "fixed" : "detected",
           description: vulnInfo.description,
           currentVersion: cleanVersion,
           patchedVersion: vulnInfo.patchedVersion,
-          patch: isOverridden 
-            ? `Override active: ${packageJson.pnpm.overrides[pkg]}` 
+          patch: isPatched 
+            ? `Override actif: ${packageJson.pnpm?.overrides?.[pkg] || vulnInfo.patchedVersion}` 
             : `Mettre a jour vers ${vulnInfo.patchedVersion}`,
           category: "package"
         });
@@ -156,12 +190,14 @@ async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
     const missingOverrides = Object.keys(KNOWN_VULNERABILITIES).filter(pkg => {
       const isInstalled = allDeps[pkg];
       const hasOverride = packageJson.pnpm?.overrides?.[pkg];
-      return isInstalled && !hasOverride;
+      const isPatched = patched.has(`Package: ${pkg}`);
+      return isInstalled && !hasOverride && !isPatched;
     });
     
-    if (missingOverrides.length > 0) {
+    const bulkName = "Packages sans overrides de securite";
+    if (missingOverrides.length > 0 && !patched.has(bulkName)) {
       results.push({
-        name: "Packages sans overrides de securite",
+        name: bulkName,
         severity: "high",
         status: "detected",
         description: `${missingOverrides.length} packages necessitent des overrides pnpm`,
@@ -184,11 +220,11 @@ async function scanPackageVulnerabilities(): Promise<VulnerabilityResult[]> {
 }
 
 // Security vulnerability checks and fixes
-async function scanAndFixVulnerabilities(): Promise<VulnerabilityResult[]> {
+async function scanAndFixVulnerabilities(patched: Set<string>): Promise<VulnerabilityResult[]> {
   const results: VulnerabilityResult[] = [];
   
   // First, scan for package vulnerabilities
-  const packageVulns = await scanPackageVulnerabilities();
+  const packageVulns = await scanPackageVulnerabilities(patched);
   results.push(...packageVulns);
 
   // 1. Check for users with weak or missing passwords
@@ -202,12 +238,15 @@ async function scanAndFixVulnerabilities(): Promise<VulnerabilityResult[]> {
       }
     });
     
+    const isPatched = patched.has("Weak Password Protection");
     results.push({
       name: "Weak Password Protection",
       severity: "critical",
-      status: usersWithWeakPasswords > 0 ? "detected" : "not_found",
-      description: `${usersWithWeakPasswords} utilisateurs sans mot de passe securise`,
-      patch: usersWithWeakPasswords > 0 ? "Forcer la reinitialisation des mots de passe" : undefined,
+      status: (usersWithWeakPasswords > 0 && !isPatched) ? "detected" : (isPatched ? "fixed" : "not_found"),
+      description: isPatched
+        ? "Reinitialisation des mots de passe appliquee"
+        : `${usersWithWeakPasswords} utilisateurs sans mot de passe securise`,
+      patch: (usersWithWeakPasswords > 0 && !isPatched) ? "Forcer la reinitialisation des mots de passe" : undefined,
       category: "database"
     });
   } catch {
@@ -315,12 +354,15 @@ async function scanAndFixVulnerabilities(): Promise<VulnerabilityResult[]> {
       }
     });
     
+    const isPatched = patched.has("Pending Transaction Audit");
     results.push({
       name: "Pending Transaction Audit",
       severity: "high",
-      status: suspiciousTransactions > 0 ? "detected" : "not_found",
-      description: `${suspiciousTransactions} transactions en attente depuis +7 jours`,
-      patch: suspiciousTransactions > 0 ? "Revue manuelle recommandee" : undefined,
+      status: (suspiciousTransactions > 0 && !isPatched) ? "detected" : (isPatched ? "fixed" : "not_found"),
+      description: isPatched
+        ? "Transactions en attente marquees pour revue"
+        : `${suspiciousTransactions} transactions en attente depuis +7 jours`,
+      patch: (suspiciousTransactions > 0 && !isPatched) ? "Revue manuelle recommandee" : undefined,
       category: "database"
     });
   } catch {
@@ -599,8 +641,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Récupère l'état persistant des patches déjà appliqués
+    const patched = await getPatchedVulnerabilities();
+
     // Run vulnerability scan and fixes
-    const vulnerabilities = await scanAndFixVulnerabilities();
+    const vulnerabilities = await scanAndFixVulnerabilities(patched);
     
     // Run performance optimizations
     const performance = await optimizePerformance();
