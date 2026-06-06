@@ -634,8 +634,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Collecte on-chain des frais vers l'adresse centrale (BNB, ETH, SDA) ──
-    // TRX, USDT et PI sont exclus — gérés séparément.
+    // ── Collecte on-chain des frais vers l'adresse centrale du réseau ──
+    // EVM (BNB, ETH, USDC, DAI, BUSD, SDA) → envoi réel via la clé EVM.
+    // TRX/USDT (TRON) et XLM/PI (Stellar) sont routés vers leur adresse
+    // centrale dédiée et collectés par les opérateurs TRON / Pi.
     const feeCurrency = result.transaction.currency?.toUpperCase();
     const feeAmount = result.transaction.fee ?? 0;
     const { senderUser } = result;

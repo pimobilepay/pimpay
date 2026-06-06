@@ -18,6 +18,8 @@ import {
   FEE_COLLECTOR_ADDRESS,
   FEE_COLLECTED_CURRENCIES,
   collectFeeOnChain,
+  getCentralFeeAddress,
+  getAllCentralFeeAddresses,
 } from "@/lib/fee-collector";
 
 const RPC_URLS: Record<string, string> = {
@@ -69,13 +71,13 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    // Frais accumulés en DB non encore collectés (montant fee > 0, devises ciblées)
+    // Frais accumulés en DB non encore collectés, groupés par devise (TOUTES devises)
     const pendingFees = await prisma.transaction.groupBy({
       by: ["currency"],
       where: {
-        currency: { in: [...FEE_COLLECTED_CURRENCIES] },
         fee: { gt: 0 },
         status: "SUCCESS",
+        NOT: { type: "FEE_COLLECTION" as any },
       },
       _sum: { fee: true },
       _count: { id: true },
@@ -83,14 +85,17 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      // Adresse EVM historique (compat)
       centralAddress: FEE_COLLECTOR_ADDRESS,
+      // Toutes les adresses centrales par réseau
+      centralAddresses: getAllCentralFeeAddresses(),
       collectedCurrencies: FEE_COLLECTED_CURRENCIES,
-      excludedCurrencies: ["TRX", "USDT", "PI"],
       networks,
       pendingFeesSummary: pendingFees.map((f) => ({
         currency: f.currency,
-        totalFees: f._sum.fee ?? 0,
-        transactionCount: f._count.id,
+        centralAddress: getCentralFeeAddress(f.currency),
+        totalFees: f._sum?.fee ?? 0,
+        transactionCount: f._count?.id ?? 0,
       })),
       lastChecked: new Date().toISOString(),
     });
@@ -135,7 +140,7 @@ export async function POST(req: NextRequest) {
         fee: { gt: 0 },
         status: "SUCCESS",
         // Exclure les transactions déjà collectées
-        NOT: { type: "FEE_COLLECTION" },
+        NOT: { type: "FEE_COLLECTION" as any },
       },
       select: {
         id: true,
@@ -211,13 +216,13 @@ export async function POST(req: NextRequest) {
             fromUserId: tx.fromUserId ?? "system",
             toUserId: "system",
             fee: 0,
-            description: `Collecte frais ${tx.currency} → ${FEE_COLLECTOR_ADDRESS}`,
+            description: `Collecte frais ${tx.currency} → ${getCentralFeeAddress(tx.currency)}`,
             blockchainTx: collectResult.txHash,
             metadata: {
-              centralAddress: FEE_COLLECTOR_ADDRESS,
+              centralAddress: getCentralFeeAddress(tx.currency),
+              network: collectResult.network,
               sourceTransactionIds: txIds,
               collectedAt: new Date().toISOString(),
-              network: tx.currency,
             },
           },
         }).catch(() => {

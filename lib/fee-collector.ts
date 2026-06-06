@@ -1,34 +1,134 @@
 /**
  * FEE COLLECTOR — PimPay
  *
- * Centralise tous les frais on-chain (BNB, ETH, SDA) vers l'adresse
- * opérateur centrale. TRX, USDT et PI sont exclus intentionnellement.
+ * Centralise TOUS les frais de la plateforme vers une adresse centrale,
+ * choisie selon le RÉSEAU de la devise :
  *
- * Adresse centrale : process.env.SDA_OPERATOR_ADDRESS
+ *   ┌─────────────────────┬──────────────────────────────────────────────┐
+ *   │ Réseau              │ Adresse centrale (variable d'environnement)    │
+ *   ├─────────────────────┼──────────────────────────────────────────────┤
+ *   │ TRON  (TRX, USDT)   │ TRON_OPERATOR_ADDRESS                          │
+ *   │ STELLAR (XLM, PI)   │ PI_WALLET_PUBLIC_KEY / PI_OPERATOR_ADDRESS     │
+ *   │ EVM / SIDRA (reste) │ SDA_OPERATOR_ADDRESS                           │
+ *   │   → BNB, ETH, USDC, │                                                │
+ *   │     DAI, BUSD, SDA… │                                                │
+ *   └─────────────────────┴──────────────────────────────────────────────┘
+ *
+ * L'envoi on-chain réel n'est possible que pour les devises EVM (via ethers).
+ * Pour TRON et Stellar, le routage retourne l'adresse centrale correcte afin
+ * que la comptabilité et les vues admin restent cohérentes (collecte gérée
+ * par les opérateurs dédiés TRON / Pi).
  */
 
 import { ethers } from "ethers";
 
-// ─── Adresse centrale de collecte des frais ──────────────────────────────────
-export const FEE_COLLECTOR_ADDRESS =
+// ─── Familles de réseaux ──────────────────────────────────────────────────────
+export type FeeNetwork = "TRON" | "STELLAR" | "EVM";
+
+// ─── Adresses centrales par réseau ────────────────────────────────────────────
+/** Adresse centrale TRON (TRX + USDT TRC20) */
+export const TRON_FEE_ADDRESS =
+  process.env.TRON_OPERATOR_ADDRESS || "";
+
+/** Adresse centrale Stellar (XLM + Pi Network) */
+export const STELLAR_FEE_ADDRESS =
+  process.env.PI_WALLET_PUBLIC_KEY ||
+  process.env.PI_OPERATOR_ADDRESS ||
+  "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
+
+/** Adresse centrale EVM / Sidra Chain (BNB, ETH, USDC, DAI, BUSD, SDA, etc.) */
+export const EVM_FEE_ADDRESS =
   process.env.SDA_OPERATOR_ADDRESS ||
   "0xe72cC1d1698497440D06B1256216CEEad07Ea3DB";
 
-// ─── Devises concernées (exclu : TRX, USDT, PI) ──────────────────────────────
-export const FEE_COLLECTED_CURRENCIES = ["BNB", "ETH", "SDA", "SIDRA"] as const;
+// ─── Mapping devise → réseau de collecte ──────────────────────────────────────
+const CURRENCY_NETWORK: Record<string, FeeNetwork> = {
+  // TRON
+  TRX: "TRON",
+  USDT: "TRON",
+  // STELLAR
+  XLM: "STELLAR",
+  PI: "STELLAR",
+  // EVM / Sidra (par défaut pour tout le reste)
+  SDA: "EVM",
+  SIDRA: "EVM",
+  BNB: "EVM",
+  ETH: "EVM",
+  USDC: "EVM",
+  DAI: "EVM",
+  BUSD: "EVM",
+};
+
+/**
+ * Retourne le réseau de collecte pour une devise donnée.
+ * Toute devise inconnue est routée par défaut vers l'EVM / Sidra Chain.
+ */
+export function getFeeNetwork(currency: string): FeeNetwork {
+  return CURRENCY_NETWORK[currency.toUpperCase()] || "EVM";
+}
+
+/**
+ * Retourne l'adresse centrale de collecte des frais pour une devise donnée,
+ * selon son réseau. C'est LE point d'entrée unique pour savoir où vont les frais.
+ */
+export function getCentralFeeAddress(currency: string): string {
+  switch (getFeeNetwork(currency)) {
+    case "TRON":
+      return TRON_FEE_ADDRESS;
+    case "STELLAR":
+      return STELLAR_FEE_ADDRESS;
+    case "EVM":
+    default:
+      return EVM_FEE_ADDRESS;
+  }
+}
+
+/** Toutes les adresses centrales regroupées par réseau (pour l'affichage admin). */
+export function getAllCentralFeeAddresses() {
+  return {
+    TRON: { address: TRON_FEE_ADDRESS, currencies: ["TRX", "USDT"] },
+    STELLAR: { address: STELLAR_FEE_ADDRESS, currencies: ["XLM", "PI"] },
+    EVM: {
+      address: EVM_FEE_ADDRESS,
+      currencies: ["SDA", "BNB", "ETH", "USDC", "DAI", "BUSD"],
+    },
+  };
+}
+
+// ─── Compat : adresse EVM historique + devises envoyées on-chain via ethers ────
+/** @deprecated Utiliser getCentralFeeAddress(currency). Conservé pour compat. */
+export const FEE_COLLECTOR_ADDRESS = EVM_FEE_ADDRESS;
+
+/** Devises pour lesquelles l'envoi on-chain est réalisé via ethers (réseau EVM). */
+export const FEE_COLLECTED_CURRENCIES = [
+  "BNB",
+  "ETH",
+  "SDA",
+  "SIDRA",
+  "USDC",
+  "DAI",
+  "BUSD",
+] as const;
 export type FeeCollectedCurrency = (typeof FEE_COLLECTED_CURRENCIES)[number];
 
-// ─── RPC par réseau ───────────────────────────────────────────────────────────
+// ─── RPC par devise EVM ───────────────────────────────────────────────────────
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
   SIDRA: "https://node.sidrachain.com",
   BNB: "https://bsc-dataseed1.binance.org",
   ETH: "https://cloudflare-eth.com",
+  // Stablecoins ERC-20 — collecte du token nécessite l'adresse du contrat,
+  // ces RPC servent pour le solde natif de gas.
+  USDC: "https://cloudflare-eth.com",
+  DAI: "https://cloudflare-eth.com",
+  BUSD: "https://bsc-dataseed1.binance.org",
 };
 
 export interface FeeCollectResult {
   success: boolean;
   currency: string;
+  network: FeeNetwork;
+  centralAddress: string;
   feeAmount: number;
   txHash?: string;
   error?: string;
@@ -37,11 +137,16 @@ export interface FeeCollectResult {
 }
 
 /**
- * Envoie les frais on-chain vers l'adresse centrale pour une devise donnée.
+ * Envoie les frais on-chain vers l'adresse centrale correspondant au réseau
+ * de la devise.
  *
- * @param currency  La devise du frais (BNB | ETH | SDA | SIDRA)
- * @param feeAmount Le montant du frais (en unité native, ex: 0.001 BNB)
- * @param fromPrivateKey  Clé privée du wallet source (déjà décryptée, préfixée 0x)
+ * - EVM : envoi natif réel via ethers vers EVM_FEE_ADDRESS.
+ * - TRON / STELLAR : routage comptable (retourne l'adresse centrale) — l'envoi
+ *   on-chain réel est géré par les opérateurs TRON / Pi dédiés.
+ *
+ * @param currency  La devise du frais
+ * @param feeAmount Le montant du frais (unité native)
+ * @param fromPrivateKey  Clé privée EVM (décryptée, préfixée 0x) — requise pour EVM
  */
 export async function collectFeeOnChain(
   currency: string,
@@ -49,15 +154,19 @@ export async function collectFeeOnChain(
   fromPrivateKey: string
 ): Promise<FeeCollectResult> {
   const curr = currency.toUpperCase();
+  const network = getFeeNetwork(curr);
+  const centralAddress = getCentralFeeAddress(curr);
 
-  // Vérifier que la devise est prise en charge
-  if (!FEE_COLLECTED_CURRENCIES.includes(curr as FeeCollectedCurrency)) {
+  // TRON & STELLAR : routage comptable uniquement (collecte via opérateurs dédiés)
+  if (network !== "EVM") {
     return {
       success: true,
       currency: curr,
+      network,
+      centralAddress,
       feeAmount,
       skipped: true,
-      skipReason: `${curr} exclu de la collecte centralisée (TRX/USDT/PI gérés séparément)`,
+      skipReason: `${curr} routé vers l'adresse centrale ${network} (${centralAddress}). Collecte on-chain gérée par l'opérateur ${network}.`,
     };
   }
 
@@ -67,11 +176,16 @@ export async function collectFeeOnChain(
     ETH: 0.00001,
     SDA: 0.001,
     SIDRA: 0.001,
+    USDC: 0.01,
+    DAI: 0.01,
+    BUSD: 0.01,
   };
   if (feeAmount < (MIN_FEE[curr] ?? 0.00001)) {
     return {
       success: true,
       currency: curr,
+      network,
+      centralAddress,
       feeAmount,
       skipped: true,
       skipReason: `Montant trop faible pour couvrir le gas (${feeAmount} ${curr})`,
@@ -83,6 +197,8 @@ export async function collectFeeOnChain(
     return {
       success: false,
       currency: curr,
+      network,
+      centralAddress,
       feeAmount,
       error: `Aucun RPC configuré pour ${curr}`,
     };
@@ -93,9 +209,9 @@ export async function collectFeeOnChain(
     const senderWallet = new ethers.Wallet(fromPrivateKey, provider);
 
     // Estimer le gas
-    let gasLimit = BigInt(21000);
+    const gasLimit = BigInt(21000);
     let gasPrice =
-      curr === "BNB"
+      curr === "BNB" || curr === "BUSD"
         ? ethers.parseUnits("5", "gwei")
         : ethers.parseUnits("1", "gwei");
 
@@ -107,13 +223,17 @@ export async function collectFeeOnChain(
     }
 
     const gasCost = gasLimit * gasPrice;
-    const feeInWei = ethers.parseEther(feeAmount.toFixed(18).replace(/\.?0+$/, ""));
+    const feeInWei = ethers.parseEther(
+      feeAmount.toFixed(18).replace(/\.?0+$/, "")
+    );
 
     // S'assurer que le frais couvre le gas
     if (feeInWei <= gasCost) {
       return {
         success: true,
         currency: curr,
+        network,
+        centralAddress,
         feeAmount,
         skipped: true,
         skipReason: `Frais (${feeAmount} ${curr}) inférieur au gas estimé`,
@@ -126,14 +246,16 @@ export async function collectFeeOnChain(
       return {
         success: false,
         currency: curr,
+        network,
+        centralAddress,
         feeAmount,
         error: `Solde insuffisant pour envoyer ${feeAmount} ${curr} (disponible: ${ethers.formatEther(senderBalance)})`,
       };
     }
 
-    // Envoyer les frais vers l'adresse centrale
+    // Envoyer les frais vers l'adresse centrale EVM
     const tx = await senderWallet.sendTransaction({
-      to: FEE_COLLECTOR_ADDRESS,
+      to: centralAddress,
       value: feeInWei,
       gasLimit,
       gasPrice,
@@ -143,12 +265,14 @@ export async function collectFeeOnChain(
     const txHash = receipt?.hash || tx.hash;
 
     console.log(
-      `[FEE_COLLECTOR] ✅ ${feeAmount} ${curr} → ${FEE_COLLECTOR_ADDRESS} | txHash: ${txHash}`
+      `[FEE_COLLECTOR] ✅ ${feeAmount} ${curr} → ${centralAddress} (${network}) | txHash: ${txHash}`
     );
 
     return {
       success: true,
       currency: curr,
+      network,
+      centralAddress,
       feeAmount,
       txHash,
     };
@@ -157,6 +281,8 @@ export async function collectFeeOnChain(
     return {
       success: false,
       currency: curr,
+      network,
+      centralAddress,
       feeAmount,
       error: err.message,
     };
@@ -175,6 +301,8 @@ export async function collectSdaOperatorFee(
     return {
       success: true,
       currency: "SDA",
+      network: "EVM",
+      centralAddress: EVM_FEE_ADDRESS,
       feeAmount,
       skipped: true,
       skipReason: "SIDRA_OPERATOR_PRIVATE_KEY non configuré",
@@ -187,6 +315,8 @@ export async function collectSdaOperatorFee(
     return {
       success: false,
       currency: "SDA",
+      network: "EVM",
+      centralAddress: EVM_FEE_ADDRESS,
       feeAmount,
       error: "Format SIDRA_OPERATOR_PRIVATE_KEY invalide",
     };
