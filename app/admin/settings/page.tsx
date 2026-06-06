@@ -103,6 +103,8 @@ export default function SystemSettings() {
   const [patchNotes, setPatchNotes] = useState('');
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
+  const [comingSoonDate, setComingSoonDate] = useState('');
+  const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
   const [togglingPiNetwork, setTogglingPiNetwork] = useState(false);
   const [searchAudit, setSearchAudit] = useState('');
@@ -213,6 +215,14 @@ export default function SystemSettings() {
       const data = await configRes.json();
       const { auditLogs: logs, stats: sysStats, ...currentConfig } = data;
       setConfig(prev => ({ ...prev, ...currentConfig }));
+      // Sync coming soon launch date into datetime-local input format
+      if (currentConfig.comingSoonUntil) {
+        const d = new Date(currentConfig.comingSoonUntil);
+        const pad = (n: number) => n.toString().padStart(2, "0");
+        setComingSoonDate(
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+        );
+      }
       setAuditLogs(logs || []);
       setStats(sysStats || { totalUsers: 0, activeSessions: 0, piVolume24h: 0 });
       if (piEnvRes.ok) {
@@ -420,6 +430,32 @@ export default function SystemSettings() {
       toast.error("Erreur lors du changement de mode");
     } finally {
       setTogglingMode(null);
+    }
+  };
+
+  const saveComingSoonDate = async () => {
+    setSavingComingSoonDate(true);
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          comingSoonUntil: comingSoonDate ? new Date(comingSoonDate).toISOString() : null,
+        }),
+      });
+      if (!res.ok) throw new Error("Erreur serveur");
+      const updated = await res.json();
+      setConfig(prev => ({ ...prev, comingSoonUntil: updated.comingSoonUntil }));
+      toast.success(
+        comingSoonDate
+          ? "Date de lancement planifiée. Reprise automatique activée."
+          : "Date de lancement supprimée."
+      );
+    } catch {
+      toast.error("Erreur lors de l'enregistrement de la date");
+    } finally {
+      setSavingComingSoonDate(false);
     }
   };
 
@@ -853,6 +889,57 @@ export default function SystemSettings() {
                   </div>
                 </div>
 
+                {/* Planificateur de lancement — Coming Soon */}
+                {config.comingSoonMode && (
+                  <div>
+                    <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Date de Lancement Officiel</h2>
+                    <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/8 via-indigo-500/5 to-transparent p-6">
+                      <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl opacity-[0.06] pointer-events-none bg-blue-400" />
+                      <div className="relative z-10 flex flex-col gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 rounded-xl border shrink-0 bg-blue-500/15 border-blue-500/30 text-blue-400">
+                            <Rocket size={20} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">Reprise automatique programmée</p>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                              Définissez la date et l&apos;heure du lancement. À l&apos;expiration du compte à rebours, le mode Coming Soon se désactive automatiquement et le site devient accessible à tous.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <input
+                            type="datetime-local"
+                            value={comingSoonDate}
+                            onChange={(e) => setComingSoonDate(e.target.value)}
+                            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all"
+                          />
+                          <button
+                            onClick={saveComingSoonDate}
+                            disabled={savingComingSoonDate}
+                            className="px-5 py-3 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold uppercase tracking-wide hover:bg-blue-500/30 transition-all disabled:opacity-50"
+                          >
+                            {savingComingSoonDate ? "Enregistrement…" : "Planifier"}
+                          </button>
+                          {comingSoonDate && (
+                            <button
+                              onClick={() => { setComingSoonDate(''); }}
+                              className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs font-bold uppercase tracking-wide hover:bg-white/10 transition-all"
+                            >
+                              Effacer
+                            </button>
+                          )}
+                        </div>
+                        {!comingSoonDate && (
+                          <p className="text-[10px] text-amber-400/80 font-medium">
+                            Sans date définie, le mode reste actif jusqu&apos;à désactivation manuelle.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Pi Network — Testnet / Mainnet Switch */}
                 <div>
                   <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Réseau Pi Network</h2>
@@ -1283,7 +1370,7 @@ export default function SystemSettings() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <ReferralInput
                     label="Bonus Parrain (Pi)"
-                    sublabel="Accordé au parrain après KYC + premier dépôt du filleul"
+                    sublabel="Accordé au parrain après KYC + premier dép��t du filleul"
                     value={config.referralBonus}
                     onChange={v => setConfig({ ...config, referralBonus: v })}
                     icon={<Users size={15} />}

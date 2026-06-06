@@ -177,6 +177,7 @@ model SystemConfig {
   totalUsers           Int       @default(0)
   totalVolumePi        Float     @default(0.0)
   comingSoonMode       Boolean   @default(false)
+  comingSoonUntil      DateTime?
   withdrawFee          Float     @default(0.02)
   depositMobileFee     Float     @default(0.02)
   depositCardFee       Float     @default(0.035)
