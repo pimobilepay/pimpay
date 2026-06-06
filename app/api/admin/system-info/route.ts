@@ -4,12 +4,14 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 
-// Lecture des versions réellement installées (et non celles déclarées dans package.json)
-function readVersion(pkg: string): string | null {
+// Lecture des versions réellement installées (et non celles déclarées dans package.json).
+// IMPORTANT : on utilise des require() STATIQUES (chaînes littérales) et non une
+// variable dynamique `require(`${pkg}/package.json`)`. Le bundler (Turbopack/webpack)
+// ne sait pas résoudre un require dynamique → il retournait `null` et les versions
+// s'affichaient comme "—". Avec des chaînes littérales, le bundler inclut bien le JSON.
+function safeVersion(loader: () => string | undefined): string | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const json = require(`${pkg}/package.json`);
-    return json?.version ?? null;
+    return loader() ?? null;
   } catch {
     return null;
   }
@@ -22,10 +24,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  // Versions runtime réelles
-  const nextVersion = readVersion("next");
-  const prismaVersion = readVersion("@prisma/client") ?? readVersion("prisma");
-  const reactVersion = readVersion("react");
+  // Versions runtime réelles (require statiques résolus par le bundler)
+  const nextVersion = safeVersion(() => require("next/package.json").version);
+  const prismaVersion =
+    safeVersion(() => require("@prisma/client/package.json").version) ??
+    safeVersion(() => require("prisma/package.json").version);
+  const reactVersion = safeVersion(() => require("react/package.json").version);
   const nodeVersion = process.version; // ex: v20.x.x
 
   // Détection du fournisseur de base de données depuis l'URL de connexion
