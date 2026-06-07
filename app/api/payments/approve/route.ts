@@ -9,7 +9,7 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
-    const { paymentId, amount, memo, txid, toAddress, currency, type } = await req.json();
+    const { paymentId, amount, memo, txid, toAddress, currency, type, pimCoins: pimCoinsRaw } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
@@ -52,10 +52,43 @@ export async function POST(req: Request) {
       }
     }
 
-    // Pour un achat de PIM Coins, on s'arrete apres l'approbation Pi.
-    // Le credit du wallet PIM et la creation de la transaction se font
-    // dans /api/payments/pim/complete via le callback onReadyForServerCompletion.
+    // Pour un achat de PIM Coins, on cree (ou met a jour) une transaction PENDING
+    // des l'approbation. C'est indispensable pour deux raisons :
+    //  1. Si /complete echoue ou que le compte a rebours du Pi Wallet expire,
+    //     la transaction reste tracee en PENDING et peut etre reprise (recovery)
+    //     ou debloquee depuis le mode rescue admin.
+    //  2. La page rescue peut lister les achats PIM bloques avec le bon userId.
+    // Le credit effectif du wallet PIM se fait dans /api/payments/pim/complete.
     if (isPimPurchase) {
+      const pimCoins = Number(pimCoinsRaw) || 0;
+      try {
+        await prisma.transaction.upsert({
+          where: { externalId: `PIM-${paymentId}` },
+          update: {
+            blockchainTx: txid || null,
+          },
+          create: {
+            reference: `PIM-${paymentId.slice(-8).toUpperCase()}`,
+            externalId: `PIM-${paymentId}`,
+            blockchainTx: txid || null,
+            amount: pimCoins,
+            currency: "PIM",
+            type: TransactionType.DEPOSIT,
+            status: TransactionStatus.PENDING,
+            description: `Achat de ${pimCoins} PIM Coins`,
+            toUserId: userId,
+            metadata: {
+              type: "PIM_COIN_PURCHASE",
+              piPaymentId: paymentId,
+              piAmount: amount,
+              pimCoins,
+              approvedAt: new Date().toISOString(),
+            },
+          },
+        });
+      } catch (e) {
+        console.warn("[PIMPAY] Upsert transaction PIM PENDING non bloquant:", e);
+      }
       console.log(`[PIMPAY] Approbation achat PIM Coins: ${paymentId} pour ${userId}`);
       return NextResponse.json({ success: true, type: "PIM_COIN_PURCHASE" });
     }

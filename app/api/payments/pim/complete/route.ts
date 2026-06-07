@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
+import { completePiPayment } from "@/lib/pi";
 
 /**
  * POST /api/payments/pim/complete
@@ -48,23 +49,22 @@ export async function POST(req: Request) {
     }
 
     if (txid) {
-      const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-        method: "POST",
-        headers: {
-          Authorization: `Key ${PI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ txid }),
-      });
+      // Retry indispensable : juste apres la signature, le txid n'est pas
+      // toujours confirme. Sans retry, /complete echoue, le Pi Wallet reste
+      // bloque jusqu'a expiration du compte a rebours alors que les PIM
+      // pourraient etre credites.
+      const piResult = await completePiPayment(paymentId, txid, { retries: 4, delayMs: 1500 });
 
-      const piData = await piRes.json().catch(() => ({}));
-      const isAlreadyCompleted = piData?.message === "Payment already completed";
-
-      if (!piRes.ok && !isAlreadyCompleted) {
-        console.error("[PIMPAY] Echec completion Pi Network:", piData);
+      if (!piResult.ok) {
+        console.error("[PIMPAY] Echec completion Pi Network apres retries:", piResult.data);
+        // On laisse la transaction en PENDING (creee a l'approbation) pour
+        // qu'elle puisse etre reprise via /api/payments/incomplete ou le mode rescue.
         return NextResponse.json(
-          { error: "Echec validation Pi Network" },
-          { status: 403 }
+          {
+            error: "La validation Pi Network n'a pas encore abouti. Votre paiement sera finalise automatiquement, reessayez dans quelques instants.",
+            retryable: true,
+          },
+          { status: 409 }
         );
       }
 
