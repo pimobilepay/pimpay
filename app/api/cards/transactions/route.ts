@@ -86,16 +86,22 @@ export async function GET(request: Request) {
       let displayAmount = tx.amount;
       let displayCurrency = txCurrency;
 
+      let meta: {
+        merchant?: string;
+        category?: string;
+        currency?: string;
+        type?: string;
+        priceUSD?: number;
+        priceEUR?: number;
+        priceInPi?: number;
+        piRate?: number;
+        cardTier?: string;
+        cardType?: string;
+        displayCurrency?: string;
+      } = {};
+
       if (tx.metadata && typeof tx.metadata === 'object') {
-        const meta = tx.metadata as {
-          merchant?: string;
-          category?: string;
-          currency?: string;
-          type?: string;
-          priceUSD?: number;
-          priceEUR?: number;
-          displayCurrency?: string;
-        };
+        meta = tx.metadata as typeof meta;
         if (meta.merchant) merchant = meta.merchant;
         if (meta.category) category = meta.category;
         // Get currency from metadata if available (more accurate for card transactions)
@@ -135,19 +141,16 @@ export async function GET(request: Request) {
         displayType = isDebit ? "debit" : "credit";
       }
 
-      // For card purchases, ensure we surface the fiat price instead of the
-      // tiny PI amount that was actually debited from the wallet.
-      if (tx.type === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY")) {
-        if (displayCurrency === "PI") {
-          // Fallback for legacy transactions without fiat price metadata:
-          // derive the price from the card tier mentioned in the description.
-          const inferredPrice = inferCardPriceFromDescription(tx.description);
-          if (inferredPrice !== null) {
-            displayAmount = inferredPrice;
-            displayCurrency = "USD";
-          } else {
-            displayCurrency = txCurrency;
-          }
+      // For card purchases, ensure we surface the fiat price (USD) instead of
+      // the tiny PI amount that was actually debited from the wallet.
+      if (tx.type === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY") || tx.reference?.toUpperCase().startsWith("CARD-PUB")) {
+        const resolvedUsd = resolveCardPurchaseUsdPrice(meta, tx.description);
+        if (resolvedUsd !== null) {
+          displayAmount = resolvedUsd;
+          displayCurrency = "USD";
+        } else if (displayCurrency === "PI") {
+          // Last resort: keep the original currency rather than showing PI dust.
+          displayCurrency = txCurrency === "PI" ? "USD" : txCurrency;
         }
       }
 
@@ -178,6 +181,53 @@ export async function GET(request: Request) {
       success: false
     }, { status: 500 });
   }
+}
+
+// USD price for each card tier (kept in sync with /api/user/card/order config).
+const CARD_TIER_USD_PRICE: Record<string, number> = {
+  PLATINIUM: 10,
+  PREMIUM: 25,
+  GOLD: 50,
+  ULTRA: 100,
+  VISA_CLASSIC: 15,
+  VISA_GOLD: 35,
+  VISA_PLATINUM: 75,
+  VISA_INFINITE: 150,
+};
+
+// Resolve the USD price for a card-purchase transaction.
+// Priority: explicit priceUSD > priceEUR (approx) > tier map > PI * piRate.
+function resolveCardPurchaseUsdPrice(
+  meta: { priceUSD?: number; priceEUR?: number; cardTier?: string; cardType?: string; piRate?: number; priceInPi?: number },
+  description?: string | null
+): number | null {
+  if (typeof meta.priceUSD === "number" && meta.priceUSD > 0) {
+    return meta.priceUSD;
+  }
+
+  // Try to match a known tier from metadata or the description text.
+  const tierKey = (meta.cardTier || meta.cardType || "").toUpperCase();
+  if (tierKey && CARD_TIER_USD_PRICE[tierKey] !== undefined) {
+    return CARD_TIER_USD_PRICE[tierKey];
+  }
+
+  if (description) {
+    const upper = description.toUpperCase();
+    // Check longer keys first so VISA_INFINITE matches before INFINITE, etc.
+    const sortedKeys = Object.keys(CARD_TIER_USD_PRICE).sort((a, b) => b.length - a.length);
+    for (const key of sortedKeys) {
+      if (upper.includes(key.replace(/_/g, " ")) || upper.includes(key)) {
+        return CARD_TIER_USD_PRICE[key];
+      }
+    }
+  }
+
+  // Derive from the PI amount and the GCV rate as a final fallback.
+  if (typeof meta.priceInPi === "number" && typeof meta.piRate === "number" && meta.priceInPi > 0) {
+    return Math.round(meta.priceInPi * meta.piRate * 100) / 100;
+  }
+
+  return null;
 }
 
 function formatDate(date: Date): string {
