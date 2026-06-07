@@ -53,6 +53,29 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Journal d'audit admin (table auditLog affichée dans Admin > Journal d'audit)
+    try {
+      const admin = await prisma.user.findUnique({
+        where: { id: adminPayload.id },
+        select: { id: true, name: true, email: true },
+      });
+      await prisma.auditLog.create({
+        data: {
+          adminId: adminPayload.id,
+          adminName: admin?.name || admin?.email || adminPayload.email || "Admin",
+          action: status === "APPROVED" ? "APPROVE_KYC" : "REJECT_KYC",
+          targetId: updatedUser.id,
+          targetEmail: updatedUser.email || null,
+          details:
+            status === "APPROVED"
+              ? `Approbation du KYC de ${updatedUser.email || updatedUser.username || updatedUser.id}`
+              : `Rejet du KYC de ${updatedUser.email || updatedUser.username || updatedUser.id}${reason ? ` (Motif : ${reason})` : ""}`,
+        },
+      });
+    } catch (auditErr) {
+      console.error("Audit Log Ignored (KYC verify):", auditErr);
+    }
+
     return NextResponse.json({ message: "Statut mis à jour", user: updatedUser });
   } catch (error) {
     console.error("[ADMIN_KYC_VERIFY]", error);
