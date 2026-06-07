@@ -1199,7 +1199,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ═════════════════════════���══════���══���════════════════ */}
+            {/* ═════════════════���═══════���══════���══���════════════════ */}
             {/* SECTION: FEES                                       */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'fees' && (
@@ -1934,7 +1934,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ═════════════════════════��══════════════════════════ */}
             {/* SECTION: SYSTEM                                     */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'system' && (
@@ -2327,7 +2327,7 @@ export default function SystemSettings() {
                           </button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          {Object.entries(editingRecord).filter(([k]) => k !== 'id').map(([key, value]) => (
+                          {Object.entries(editingRecord ?? {}).filter(([k]) => k !== 'id').map(([key, value]) => (
                             <div key={key}>
                               <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{key}</label>
                               <input
