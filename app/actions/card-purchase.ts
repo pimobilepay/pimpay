@@ -50,6 +50,8 @@ export async function purchaseVirtualCard(tier: CardType, priceInPi: number) {
             category: "CARD_PURCHASE",
             cardType: tier,
             piRate: "GCV 314159",
+            priceInPi,
+            displayCurrency: "PI",
             timestamp: new Date().toISOString()
           },
         },
