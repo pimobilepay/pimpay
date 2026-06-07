@@ -228,16 +228,29 @@ export const usePiPayment = () => {
           // Callback 2: L'utilisateur a signe, on doit completer cote serveur
           onReadyForServerCompletion: async (id: string, txid: string) => {
             console.log("[PimPay] onReadyForServerCompletion:", id, "txid:", txid);
-            
+
+            // Achat de PIM Coins -> route dediee qui credite le wallet PIM.
+            // Sinon -> route generique de recharge qui credite le wallet PI.
+            const isPimPurchase = config.metadata?.type === "PIM_COIN_PURCHASE";
+            const completeUrl = isPimPurchase
+              ? "/api/payments/pim/complete"
+              : "/api/payments/complete";
+            const completeBody = isPimPurchase
+              ? {
+                  paymentId: id,
+                  txid,
+                  pimCoins: config.metadata?.pimCoins,
+                  piAmount: config.amount,
+                  metadata: config.metadata,
+                }
+              : { paymentId: id, txid };
+
             try {
-              const res = await fetch("/api/payments/complete", {
+              const res = await fetch(completeUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({
-                  paymentId: id,
-                  txid,
-                }),
+                body: JSON.stringify(completeBody),
               });
 
               const data = await res.json();
@@ -248,7 +261,10 @@ export const usePiPayment = () => {
                 resolve({ success: false, error: data.error });
               } else {
                 console.log("[PimPay] Paiement complete:", id);
-                toast.success(`Recharge de ${config.amount} Pi effectuee !`);
+                // Le toast de succes PIM est gere par usePimCoinPurchase.
+                if (!isPimPurchase) {
+                  toast.success(`Recharge de ${config.amount} Pi effectuee !`);
+                }
                 resolve({ success: true, txid });
               }
             } catch (error: any) {

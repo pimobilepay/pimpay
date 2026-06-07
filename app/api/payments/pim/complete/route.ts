@@ -62,7 +62,9 @@ export async function POST(req: Request) {
           userId,
           currency: "PIM",
           balance: pimCoins,
-          type: WalletType.PIM,
+          // L'enum WalletType ne comporte pas de valeur PIM ; le wallet est
+          // identifie de maniere unique par currency: "PIM".
+          type: WalletType.CRYPTO,
         },
       });
 
