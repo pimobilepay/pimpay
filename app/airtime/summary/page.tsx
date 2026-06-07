@@ -84,7 +84,7 @@ function SummaryContent() {
 
           <div className="text-center space-y-3 mb-6 relative z-10">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Montant a payer</p>
-            <h2 className="text-4xl font-black text-white">Pi {data.pi}</h2>
+            <h2 className="text-4xl font-black text-white">{data.pi} <span className="text-xl text-blue-500">Pi</span></h2>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full">
               <span className="text-[10px] font-black text-blue-400">{data.usd} USD</span>
             </div>
