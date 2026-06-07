@@ -9,7 +9,7 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
-    const { paymentId, amount, memo, txid, toAddress, currency } = await req.json();
+    const { paymentId, amount, memo, txid, toAddress, currency, type } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
@@ -30,6 +30,9 @@ export async function POST(req: Request) {
 
     // Determine if this is a withdraw (external send) or deposit
     const isWithdraw = !!toAddress && currency === "PI";
+    // Achat de PIM Coins : la transaction et le credit sont geres par
+    // /api/payments/pim/complete (wallet PIM). Ici on se limite a l'approbation Pi.
+    const isPimPurchase = type === "PIM_COIN_PURCHASE";
 
     // 2. APPROBATION S2S (Server-to-Server) avec Pi Network
     const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
@@ -47,6 +50,14 @@ export async function POST(req: Request) {
         console.error("❌ Erreur Pi Approve:", err);
         return NextResponse.json({ error: "Pi Network refuse l'approbation" }, { status: 403 });
       }
+    }
+
+    // Pour un achat de PIM Coins, on s'arrete apres l'approbation Pi.
+    // Le credit du wallet PIM et la creation de la transaction se font
+    // dans /api/payments/pim/complete via le callback onReadyForServerCompletion.
+    if (isPimPurchase) {
+      console.log(`[PIMPAY] Approbation achat PIM Coins: ${paymentId} pour ${userId}`);
+      return NextResponse.json({ success: true, type: "PIM_COIN_PURCHASE" });
     }
 
     // 3. TRANSACTION ATOMIQUE PRISMA (Sécurisée contre le cleanup)
