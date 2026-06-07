@@ -159,6 +159,7 @@ model SwapQuote {
 
 model SystemConfig {
   id                   String    @id @default("GLOBAL_CONFIG")
+  piNetwork            String    @default("testnet")
   appVersion           String    @default("2.4.0")
   forceUpdate          Boolean   @default(false)
   globalAnnouncement   String?
