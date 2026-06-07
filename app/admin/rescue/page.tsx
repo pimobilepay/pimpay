@@ -240,7 +240,7 @@ export default function RescuePage() {
               <div>
                 <p className="text-xs font-black text-white uppercase tracking-tight">Annuler un paiement</p>
                 <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
-                  Entrez l'identifiant du paiement pour l'annuler manuellement sur le reseau Pi.
+                  Entrez l'identifiant Pi, la reference, le memo ou le hash blockchain pour annuler le paiement sur le reseau Pi.
                 </p>
               </div>
             </div>
@@ -252,7 +252,7 @@ export default function RescuePage() {
                   type="text"
                   value={specificId}
                   onChange={(e) => setSpecificId(e.target.value)}
-                  placeholder="Payment ID (ex: lEU8r9rfLhK...)"
+                  placeholder="Pi ID, reference, memo ou hash..."
                   className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-9 pr-4 py-3.5 text-[11px] text-white placeholder:text-slate-600 focus:outline-none focus:border-red-500/30 transition-colors font-mono"
                 />
               </div>

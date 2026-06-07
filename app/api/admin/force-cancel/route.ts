@@ -7,16 +7,48 @@ export async function POST(req: NextRequest) {
   if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
 
   try {
-    const { paymentId } = await req.json();
+    const body = await req.json();
+    const rawInput: string = (body.paymentId || body.reference || "").trim();
 
-    if (!paymentId) {
-      return NextResponse.json({ error: "paymentId requis" }, { status: 400 });
+    if (!rawInput) {
+      return NextResponse.json({ error: "Identifiant ou reference requis" }, { status: 400 });
     }
 
     const PI_API_KEY = process.env.PI_API_KEY;
 
+    // L'utilisateur peut saisir un Pi payment ID, une reference interne (memo),
+    // ou un hash blockchain. On resout d'abord vers le vrai Pi payment ID (externalId).
+    const tx = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { externalId: rawInput },
+          { reference: rawInput },
+          { blockchainTx: rawInput },
+          { metadata: { path: ["memo"], equals: rawInput } },
+        ],
+      },
+      select: { id: true, externalId: true, reference: true, blockchainTx: true },
+    });
+
+    // Le Pi payment ID est l'externalId stocke. Si la saisie ressemble deja a un
+    // Pi payment ID (aucune transaction trouvee), on l'utilise tel quel en dernier recours.
+    const piPaymentId = tx?.externalId || (tx ? null : rawInput);
+
+    if (!piPaymentId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message:
+              "Transaction trouvee mais sans Pi payment ID associe. Utilisez 'Debloquer tous les paiements' pour la traiter via le reseau Pi.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+
     // Step 1: Try to approve first (required before cancel if not yet approved)
-    await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
+    await fetch(`https://api.minepi.com/v2/payments/${piPaymentId}/approve`, {
       method: "POST",
       headers: {
         Authorization: `Key ${PI_API_KEY}`,
@@ -25,7 +57,7 @@ export async function POST(req: NextRequest) {
     }).catch(() => {});
 
     // Step 2: Cancel the payment on Pi Network
-    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/cancel`, {
+    const response = await fetch(`https://api.minepi.com/v2/payments/${piPaymentId}/cancel`, {
       method: "POST",
       headers: {
         Authorization: `Key ${PI_API_KEY}`,
@@ -35,9 +67,15 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
-    // Step 3: Mark as FAILED in our DB
+    // Step 3: Mark as FAILED in our DB (par externalId resolu OU par la saisie brute)
     await prisma.transaction.updateMany({
-      where: { externalId: paymentId },
+      where: {
+        OR: [
+          { externalId: piPaymentId },
+          { reference: rawInput },
+          { blockchainTx: rawInput },
+        ],
+      },
       data: {
         status: "FAILED",
         metadata: {
