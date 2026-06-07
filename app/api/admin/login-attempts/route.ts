@@ -157,6 +157,26 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
 
+    // Journal d'audit admin (table auditLog affichée dans Admin > Journal d'audit)
+    try {
+      const admin = await prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { id: true, name: true, email: true },
+      });
+      await prisma.auditLog.create({
+        data: {
+          adminId: payload.id,
+          adminName: admin?.name || admin?.email || payload.email || "Admin",
+          action: "UNLOCK_ACCOUNT",
+          targetId: user.id,
+          targetEmail: user.email || null,
+          details: `Déverrouillage du compte ${user.email || user.username} (verrouillé après trop de tentatives échouées)`,
+        },
+      });
+    } catch (auditErr) {
+      console.error("Audit Log Ignored (UNLOCK_ACCOUNT):", auditErr);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[LOGIN_ATTEMPTS_POST_ERROR]:", error);
