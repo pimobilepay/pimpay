@@ -79,9 +79,23 @@ export async function GET(request: Request) {
       let merchant = tx.description || "Transaction carte";
       let category = "Achat";
       let txCurrency = tx.currency || "USD";
-      
+
+      // Display amount & currency may differ from the stored values.
+      // Card purchases are debited in PI (a tiny fraction), but should be
+      // shown to the user in the card's fiat price (USD/EUR).
+      let displayAmount = tx.amount;
+      let displayCurrency = txCurrency;
+
       if (tx.metadata && typeof tx.metadata === 'object') {
-        const meta = tx.metadata as { merchant?: string; category?: string; currency?: string; type?: string };
+        const meta = tx.metadata as {
+          merchant?: string;
+          category?: string;
+          currency?: string;
+          type?: string;
+          priceUSD?: number;
+          priceEUR?: number;
+          displayCurrency?: string;
+        };
         if (meta.merchant) merchant = meta.merchant;
         if (meta.category) category = meta.category;
         // Get currency from metadata if available (more accurate for card transactions)
@@ -89,6 +103,17 @@ export async function GET(request: Request) {
         // Set category based on transaction type
         if (meta.type === "CARD_RECHARGE") category = "Recharge";
         if (meta.type === "CARD_WITHDRAW") category = "Retrait";
+
+        // Prefer the fiat price stored in metadata for the displayed amount
+        if (meta.displayCurrency && meta.displayCurrency !== "PI") {
+          displayCurrency = meta.displayCurrency;
+          if (meta.displayCurrency === "EUR" && typeof meta.priceEUR === "number") {
+            displayAmount = meta.priceEUR;
+          } else if (typeof meta.priceUSD === "number") {
+            displayAmount = meta.priceUSD;
+            displayCurrency = "USD";
+          }
+        }
       }
 
       // Determine transaction type based on transaction type field
@@ -109,16 +134,32 @@ export async function GET(request: Request) {
         isDebit = tx.fromUserId === userId;
         displayType = isDebit ? "debit" : "credit";
       }
-      
+
+      // For card purchases, ensure we surface the fiat price instead of the
+      // tiny PI amount that was actually debited from the wallet.
+      if (tx.type === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY")) {
+        if (displayCurrency === "PI") {
+          // Fallback for legacy transactions without fiat price metadata:
+          // derive the price from the card tier mentioned in the description.
+          const inferredPrice = inferCardPriceFromDescription(tx.description);
+          if (inferredPrice !== null) {
+            displayAmount = inferredPrice;
+            displayCurrency = "USD";
+          } else {
+            displayCurrency = txCurrency;
+          }
+        }
+      }
+
       return {
         id: tx.id,
         merchant,
-        amount: displayType === "debit" ? `-${tx.amount.toFixed(2)}` : `+${tx.amount.toFixed(2)}`,
+        amount: displayType === "debit" ? `-${displayAmount.toFixed(2)}` : `+${displayAmount.toFixed(2)}`,
         date: formatDate(tx.createdAt),
         type: displayType,
         status: tx.status === "SUCCESS" ? "success" : tx.status === "PENDING" ? "pending" : "failed",
         category,
-        currency: txCurrency,
+        currency: displayCurrency,
         reference: tx.reference,
         fee: tx.fee || 0,
         metadata: tx.metadata,

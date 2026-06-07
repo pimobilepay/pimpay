@@ -76,6 +76,15 @@ export async function POST(req: NextRequest) {
           status: "SUCCESS",
           fromUserId: userId,
           fromWalletId: wallet.id,
+          metadata: {
+            category: "CARD_PURCHASE",
+            cardTier: tier,
+            cardBrand: config.brand,
+            priceUSD: config.price,
+            displayCurrency: "USD",
+            piRate: PI_RATE_GCV,
+            priceInPi,
+          },
         }
       });
 
