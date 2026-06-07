@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  ArrowUpRight,
-  ArrowDownLeft,
   CheckCircle2,
   Clock,
   XCircle,
@@ -322,13 +320,18 @@ export default function TransactionDetailsPage() {
         </button>
       </header>
 
-      <main className="relative px-5 space-y-4">
-        {/* ===== Hero Receipt Card ===== */}
-        <section className="relative rounded-[1.75rem] bg-gradient-to-b from-slate-900/90 to-slate-950/80 border border-white/10 shadow-[0_20px_60px_-20px_rgba(37,99,235,0.45)] overflow-hidden">
+      <main className="relative px-5 pb-10">
+        {/* ===== Single Receipt Card (style récap airtime) ===== */}
+        <section className="relative bg-slate-900/60 border border-white/10 rounded-[2rem] overflow-hidden backdrop-blur-md">
           {/* Top accent line */}
           <div className={`h-1 w-full ${statusLower === "success" ? "bg-gradient-to-r from-emerald-500/0 via-emerald-400 to-emerald-500/0" : statusLower === "pending" ? "bg-gradient-to-r from-amber-500/0 via-amber-400 to-amber-500/0" : "bg-gradient-to-r from-red-500/0 via-red-400 to-red-500/0"}`} />
 
-          <div className="p-7 pt-8 flex flex-col items-center text-center">
+          <div className="absolute top-4 right-4 opacity-5 pointer-events-none">
+            <ShieldCheck size={100} />
+          </div>
+
+          {/* Hero amount */}
+          <div className="p-7 pt-8 flex flex-col items-center text-center relative z-10">
             {/* Status pill */}
             <div className={`inline-flex items-center gap-2 pl-2 pr-3.5 py-1.5 rounded-full border ${statusInfo.bg} ${statusLower === "success" ? "border-emerald-500/30" : statusLower === "pending" ? "border-amber-500/30" : "border-red-500/30"}`}>
               <div className={`h-5 w-5 grid place-items-center rounded-full ${statusLower === "success" ? "bg-emerald-500/20" : statusLower === "pending" ? "bg-amber-500/20" : "bg-red-500/20"}`}>
@@ -342,12 +345,12 @@ export default function TransactionDetailsPage() {
 
             {/* Amount */}
             <div className="mt-2 flex items-end justify-center gap-2">
-              <span className="text-6xl font-black tracking-tight leading-none">
+              <span className="text-5xl font-black tracking-tight leading-none">
                 {transaction.amount < 0.0001 && transaction.amount > 0
                   ? transaction.amount.toFixed(8)
                   : transaction.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
               </span>
-              <span className="text-xl font-black text-blue-400 mb-1.5">{transaction.currency}</span>
+              <span className="text-xl font-black text-blue-400 mb-1">{transaction.currency}</span>
             </div>
 
             {/* USD badge */}
@@ -366,209 +369,189 @@ export default function TransactionDetailsPage() {
             )}
           </div>
 
-          {/* Perforated divider (receipt notch) */}
-          <div className="relative">
-            <div className="absolute -left-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-[#020617]" />
-            <div className="absolute -right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-[#020617]" />
-            <div className="border-t border-dashed border-white/10 mx-6" />
+          {/* Detail rows */}
+          <div className="px-5 pb-5 space-y-3 relative z-10">
+            {/* Expéditeur */}
+            <div className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border border-white/10 shrink-0 overflow-hidden ${isBlockchainDeposit ? "bg-purple-500/10" : "bg-white/5"}`}>
+                  {transaction.fromUser?.avatar && !isBlockchainDeposit ? (
+                    <img src={transaction.fromUser.avatar || "/placeholder.svg"} alt="Expediteur" className="w-full h-full object-cover" />
+                  ) : isBlockchainDeposit ? (
+                    <Wallet size={14} className="text-purple-400" />
+                  ) : (
+                    <User size={14} className="text-slate-400" />
+                  )}
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  {isBlockchainDeposit ? "Source" : "Expéditeur"}
+                </span>
+              </div>
+              <div className="text-right min-w-0 ml-3">
+                <p className="text-xs font-black text-white truncate">
+                  {isBlockchainDeposit ? displayName : (transaction.fromUser?.displayName || transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur")}
+                  {isSent && !isBlockchainDeposit && <span className="ml-1.5 text-[8px] font-black text-blue-400">(Vous)</span>}
+                </p>
+                {!isBlockchainDeposit && transaction.fromUser?.username && (
+                  <p className="text-[10px] text-blue-400 truncate">@{transaction.fromUser.username}</p>
+                )}
+                {isBlockchainDeposit && (
+                  <p className="text-[10px] text-purple-400 truncate">Blockchain {transaction.currency}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Destinataire */}
+            <div className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border border-white/10 shrink-0 overflow-hidden ${isBlockchainWithdraw ? "bg-orange-500/10" : "bg-white/5"}`}>
+                  {transaction.toUser?.avatar && !isBlockchainWithdraw ? (
+                    <img src={transaction.toUser.avatar || "/placeholder.svg"} alt="Destinataire" className="w-full h-full object-cover" />
+                  ) : isBlockchainWithdraw ? (
+                    <Wallet size={14} className="text-orange-400" />
+                  ) : (
+                    <User size={14} className="text-slate-400" />
+                  )}
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  {isBlockchainWithdraw ? "Destination" : "Destinataire"}
+                </span>
+              </div>
+              <div className="text-right min-w-0 ml-3">
+                <p className="text-xs font-black text-white truncate">
+                  {isBlockchainWithdraw ? displayName : (transaction.toUser?.displayName || transaction.toUser?.name || transaction.toUser?.username || "Utilisateur")}
+                  {!isSent && !isBlockchainWithdraw && <span className="ml-1.5 text-[8px] font-black text-emerald-400">(Vous)</span>}
+                </p>
+                {!isBlockchainWithdraw && transaction.toUser?.username && (
+                  <p className="text-[10px] text-emerald-400 truncate">@{transaction.toUser.username}</p>
+                )}
+                {isBlockchainWithdraw && (
+                  <p className="text-[10px] text-orange-400 truncate">Blockchain {transaction.currency}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Référence */}
+            <button
+              onClick={() => copyToClipboard(transaction.reference, "Reference")}
+              className="w-full flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5 hover:bg-white/[0.06] transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                  <Hash size={14} className="text-slate-400" />
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Référence</span>
+              </div>
+              <div className="flex items-center gap-2 min-w-0 ml-3">
+                <span className="text-xs font-black text-white truncate">{transaction.reference}</span>
+                <Copy size={13} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+              </div>
+            </button>
+
+            {/* Date */}
+            <div className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                  <Calendar size={14} className="text-slate-400" />
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Date</span>
+              </div>
+              <span className="text-xs font-black text-white capitalize text-right ml-3">{formattedDate}</span>
+            </div>
+
+            {/* Description */}
+            {transaction.description && (
+              <div className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                    <FileText size={14} className="text-slate-400" />
+                  </div>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Description</span>
+                </div>
+                <span className="text-xs font-black text-white text-right ml-3 truncate">{transaction.description}</span>
+              </div>
+            )}
+
+            {/* Mémo */}
+            {transaction.metadata?.memo && (
+              <div className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                    <FileText size={14} className="text-slate-400" />
+                  </div>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Mémo</span>
+                </div>
+                <span className="text-xs font-black text-white text-right ml-3 truncate">{transaction.metadata.memo}</span>
+              </div>
+            )}
+
+            {/* Hash Blockchain */}
+            {transaction.metadata?.blockchainTxHash && (
+              <button
+                onClick={() => copyToClipboard(transaction.metadata!.blockchainTxHash!, "Hash blockchain")}
+                className="w-full flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5 hover:bg-white/[0.06] transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                    <ExternalLink size={14} className="text-slate-400" />
+                  </div>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Hash</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0 ml-3">
+                  <span className="text-xs font-black text-white truncate">{transaction.metadata.blockchainTxHash}</span>
+                  <Copy size={13} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+                </div>
+              </button>
+            )}
+
+            {/* Explorer Blockchain */}
+            {transaction.metadata?.blockchainTxHash && hasBlockchainExplorer(transaction.currency) && (
+              <a
+                href={getBlockchainTxUrl(transaction.currency, transaction.metadata.blockchainTxHash) || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5 hover:bg-white/[0.06] transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                    <ExternalLink size={14} className="text-cyan-400" />
+                  </div>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Vérifier</span>
+                </div>
+                <div className="flex items-center gap-1.5 ml-3">
+                  <span className="text-xs font-black text-cyan-400 group-hover:underline">{getExplorerName(transaction.currency)}</span>
+                  <ChevronRight size={14} className="text-cyan-400 shrink-0" />
+                </div>
+              </a>
+            )}
+
+            {/* ID Transaction */}
+            <button
+              onClick={() => copyToClipboard(transaction.id, "ID Transaction")}
+              className="w-full flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/5 hover:bg-white/[0.06] transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
+                  <Hash size={14} className="text-slate-400" />
+                </div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">ID Transaction</span>
+              </div>
+              <div className="flex items-center gap-2 min-w-0 ml-3">
+                <span className="text-[10px] font-mono text-slate-400 truncate">{transaction.id}</span>
+                <Copy size={13} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
+              </div>
+            </button>
           </div>
 
           {/* Authenticity footer */}
-          <div className="flex items-center justify-center gap-2 py-4 bg-white/[0.02]">
+          <div className="flex items-center justify-center gap-2 py-4 bg-white/[0.02] border-t border-white/5 relative z-10">
             <ShieldCheck size={13} className="text-emerald-400/70" />
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Authentifié par PimPay</p>
           </div>
         </section>
 
-        {/* ===== Parties (From → To) ===== */}
-        <section className="rounded-[1.5rem] bg-white/[0.03] border border-white/10 p-2">
-          {/* Sender */}
-          <div className="flex items-center gap-3.5 p-3.5">
-            <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isBlockchainDeposit ? "bg-purple-500/10" : "bg-red-500/10"}`}>
-              {transaction.fromUser?.avatar && !isBlockchainDeposit ? (
-                <img src={transaction.fromUser.avatar || "/placeholder.svg"} alt="Expediteur" className="w-full h-full rounded-2xl object-cover" />
-              ) : isBlockchainDeposit ? (
-                <Wallet size={20} className="text-purple-400" />
-              ) : (
-                <User size={20} className="text-red-400" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-                {isBlockchainDeposit ? "Source" : "Expéditeur"}
-              </p>
-              <p className="text-sm font-black text-white truncate">
-                {isBlockchainDeposit ? displayName : (transaction.fromUser?.displayName || transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur")}
-              </p>
-              {!isBlockchainDeposit && transaction.fromUser?.username && (
-                <p className="text-[10px] text-blue-400 truncate">@{transaction.fromUser.username}</p>
-              )}
-              {isBlockchainDeposit && (
-                <p className="text-[10px] text-purple-400 truncate">Blockchain {transaction.currency}</p>
-              )}
-            </div>
-            {isSent && !isBlockchainDeposit && (
-              <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg uppercase">Vous</span>
-            )}
-            {isBlockchainDeposit && (
-              <span className="text-[8px] font-black text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-lg uppercase">Externe</span>
-            )}
-          </div>
-
-          {/* Flow connector */}
-          <div className="flex items-center gap-3 px-3.5">
-            <div className="w-12 flex justify-center">
-              <div className="h-8 w-px bg-gradient-to-b from-red-500/30 via-white/10 to-emerald-500/30" />
-            </div>
-            <div className="flex-1 flex items-center">
-              <div className="h-7 w-7 -ml-3.5 grid place-items-center rounded-full bg-slate-800 border border-white/10">
-                <ArrowDownLeft size={13} className="text-slate-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Recipient */}
-          <div className="flex items-center gap-3.5 p-3.5">
-            <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isBlockchainWithdraw ? "bg-orange-500/10" : "bg-emerald-500/10"}`}>
-              {transaction.toUser?.avatar && !isBlockchainWithdraw ? (
-                <img src={transaction.toUser.avatar || "/placeholder.svg"} alt="Destinataire" className="w-full h-full rounded-2xl object-cover" />
-              ) : isBlockchainWithdraw ? (
-                <Wallet size={20} className="text-orange-400" />
-              ) : (
-                <User size={20} className="text-emerald-400" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-                {isBlockchainWithdraw ? "Destination" : "Destinataire"}
-              </p>
-              <p className="text-sm font-black text-white truncate">
-                {isBlockchainWithdraw ? displayName : (transaction.toUser?.displayName || transaction.toUser?.name || transaction.toUser?.username || "Utilisateur")}
-              </p>
-              {!isBlockchainWithdraw && transaction.toUser?.username && (
-                <p className="text-[10px] text-emerald-400 truncate">@{transaction.toUser.username}</p>
-              )}
-              {isBlockchainWithdraw && (
-                <p className="text-[10px] text-orange-400 truncate">Blockchain {transaction.currency}</p>
-              )}
-            </div>
-            {!isSent && !isBlockchainWithdraw && (
-              <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg uppercase">Vous</span>
-            )}
-            {isBlockchainWithdraw && (
-              <span className="text-[8px] font-black text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded-lg uppercase">Externe</span>
-            )}
-          </div>
-        </section>
-
-        {/* ===== Details ===== */}
-        <section className="rounded-[1.5rem] bg-white/[0.03] border border-white/10 overflow-hidden divide-y divide-white/5">
-          {/* Reference */}
-          <button
-            onClick={() => copyToClipboard(transaction.reference, "Reference")}
-            className="w-full flex items-center gap-3.5 p-4 hover:bg-white/[0.03] transition-all group"
-          >
-            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <Hash size={17} className="text-blue-400" />
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Référence</p>
-              <p className="text-xs font-bold text-white truncate">{transaction.reference}</p>
-            </div>
-            <Copy size={15} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
-          </button>
-
-          {/* Date */}
-          <div className="flex items-center gap-3.5 p-4">
-            <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <Calendar size={17} className="text-purple-400" />
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Date</p>
-              <p className="text-xs font-bold text-white capitalize">{formattedDate}</p>
-            </div>
-          </div>
-
-          {/* Description */}
-          {transaction.description && (
-            <div className="flex items-center gap-3.5 p-4">
-              <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <FileText size={17} className="text-cyan-400" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Description</p>
-                <p className="text-xs font-bold text-white">{transaction.description}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Memo from metadata */}
-          {transaction.metadata?.memo && (
-            <div className="flex items-center gap-3.5 p-4">
-              <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <FileText size={17} className="text-amber-400" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Mémo</p>
-                <p className="text-xs font-bold text-white">{transaction.metadata.memo}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Blockchain Hash */}
-          {transaction.metadata?.blockchainTxHash && (
-            <button
-              onClick={() => copyToClipboard(transaction.metadata!.blockchainTxHash!, "Hash blockchain")}
-              className="w-full flex items-center gap-3.5 p-4 hover:bg-white/[0.03] transition-all group"
-            >
-              <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <ExternalLink size={17} className="text-indigo-400" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash Blockchain</p>
-                <p className="text-xs font-bold text-white truncate">{transaction.metadata.blockchainTxHash}</p>
-              </div>
-              <Copy size={15} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
-            </button>
-          )}
-
-          {/* Blockchain Explorer Link */}
-          {transaction.metadata?.blockchainTxHash && hasBlockchainExplorer(transaction.currency) && (
-            <a
-              href={getBlockchainTxUrl(transaction.currency, transaction.metadata.blockchainTxHash) || "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center gap-3.5 p-4 hover:bg-white/[0.03] transition-all group"
-            >
-              <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <ExternalLink size={17} className="text-cyan-400" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Vérifier sur la Blockchain</p>
-                <p className="text-xs font-bold text-cyan-400 group-hover:underline">{getExplorerName(transaction.currency)}</p>
-              </div>
-              <ChevronRight size={16} className="text-cyan-400 shrink-0" />
-            </a>
-          )}
-
-          {/* Transaction ID */}
-          <button
-            onClick={() => copyToClipboard(transaction.id, "ID Transaction")}
-            className="w-full flex items-center gap-3.5 p-4 hover:bg-white/[0.03] transition-all group"
-          >
-            <div className="w-10 h-10 bg-slate-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <Hash size={17} className="text-slate-400" />
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">ID Transaction</p>
-              <p className="text-[10px] font-mono text-slate-400 truncate">{transaction.id}</p>
-            </div>
-            <Copy size={15} className="text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
-          </button>
-        </section>
-
         {/* ===== Actions ===== */}
-        <div className="flex gap-3 pt-1">
+        <div className="flex gap-3 pt-4">
           {isSent && otherUser && (
             <button
               onClick={() => router.push(`/mpay/send?to=${otherUser.username || otherUser.id}`)}
