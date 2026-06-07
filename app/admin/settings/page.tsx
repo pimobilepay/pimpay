@@ -193,9 +193,9 @@ export default function SystemSettings() {
     emailProvider: 'sendgrid',
     smsProvider: 'twilio',
     // Security settings
-    maxLoginAttempts: 5,
-    lockoutDuration: 30,
-    sessionTimeout: 60,
+    maxLoginAttempts: 5 as number | "",
+    lockoutDuration: 30 as number | "",
+    sessionTimeout: 60 as number | "",
     requireTwoFactor: false,
     ipWhitelist: '',
     geoBlocking: false,
@@ -1199,7 +1199,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ═════════════════════════���══════���═══════════════════ */}
+            {/* ═════════════════════════���══════���══���════════════════ */}
             {/* SECTION: FEES                                       */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'fees' && (
@@ -1292,7 +1292,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ════════════════════════════════════════════════��═══ */}
             {/* SECTION: MONETARY                                   */}
             {/* ══════════════════════════════════��═════════════════ */}
             {activeSection === 'monetary' && (
@@ -1569,8 +1569,9 @@ export default function SystemSettings() {
                       </div>
                       <input
                         type="number" min="1" max="10"
-                        value={config.maxLoginAttempts}
-                        onChange={e => setConfig({ ...config, maxLoginAttempts: parseInt(e.target.value) || 5 })}
+                        value={config.maxLoginAttempts ?? ""}
+                        onChange={e => setConfig({ ...config, maxLoginAttempts: e.target.value === "" ? "" : parseInt(e.target.value) })}
+                        onBlur={e => setConfig({ ...config, maxLoginAttempts: parseInt(e.target.value) || 5 })}
                         className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-rose-500/40 outline-none"
                       />
                     </div>
@@ -1584,8 +1585,9 @@ export default function SystemSettings() {
                       </div>
                       <input
                         type="number" min="5" max="1440"
-                        value={config.lockoutDuration}
-                        onChange={e => setConfig({ ...config, lockoutDuration: parseInt(e.target.value) || 30 })}
+                        value={config.lockoutDuration ?? ""}
+                        onChange={e => setConfig({ ...config, lockoutDuration: e.target.value === "" ? "" : parseInt(e.target.value) })}
+                        onBlur={e => setConfig({ ...config, lockoutDuration: parseInt(e.target.value) || 30 })}
                         className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-amber-500/40 outline-none"
                       />
                     </div>
@@ -1599,8 +1601,9 @@ export default function SystemSettings() {
                       </div>
                       <input
                         type="number" min="5" max="1440"
-                        value={config.sessionTimeout}
-                        onChange={e => setConfig({ ...config, sessionTimeout: parseInt(e.target.value) || 60 })}
+                        value={config.sessionTimeout ?? ""}
+                        onChange={e => setConfig({ ...config, sessionTimeout: e.target.value === "" ? "" : parseInt(e.target.value) })}
+                        onBlur={e => setConfig({ ...config, sessionTimeout: parseInt(e.target.value) || 60 })}
                         className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-blue-500/40 outline-none"
                       />
                     </div>
