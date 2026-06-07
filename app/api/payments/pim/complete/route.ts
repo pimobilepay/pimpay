@@ -39,7 +39,39 @@ export async function POST(req: Request) {
 
     console.log(`[PIMPAY] PIM purchase: ${pimCoins} PIM for user ${userId}, paymentId: ${paymentId}`);
 
-    // 2. Check for duplicate purchase
+    // 2. VALIDATION PI NETWORK (S2S) — indispensable pour que Pi Wallet
+    // marque le paiement comme complete (sinon il reste "incomplet/expire").
+    const PI_API_KEY = process.env.PI_API_KEY;
+    if (!PI_API_KEY) {
+      console.error("[PIMPAY] PI_API_KEY non configuree");
+      return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
+    }
+
+    if (txid) {
+      const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+        method: "POST",
+        headers: {
+          Authorization: `Key ${PI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ txid }),
+      });
+
+      const piData = await piRes.json().catch(() => ({}));
+      const isAlreadyCompleted = piData?.message === "Payment already completed";
+
+      if (!piRes.ok && !isAlreadyCompleted) {
+        console.error("[PIMPAY] Echec completion Pi Network:", piData);
+        return NextResponse.json(
+          { error: "Echec validation Pi Network" },
+          { status: 403 }
+        );
+      }
+
+      console.log(`[PIMPAY] Paiement Pi confirme cote serveur: ${paymentId}`);
+    }
+
+    // 3. Check for duplicate purchase
     const existingTx = await prisma.transaction.findUnique({
       where: { externalId: `PIM-${paymentId}` },
     });
@@ -52,7 +84,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Atomic transaction: credit PIM coins
+    // 4. Atomic transaction: credit PIM coins
     const result = await prisma.$transaction(async (tx) => {
       // Upsert PIM wallet
       const pimWallet = await tx.wallet.upsert({
