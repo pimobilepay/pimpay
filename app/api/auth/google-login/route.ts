@@ -101,9 +101,19 @@ export async function POST(request: Request) {
     //    a. via un Account Google existant
     //    b. sinon via l'email
     //    c. sinon creation d'un nouvel utilisateur
-    let user:
-      | (Awaited<ReturnType<typeof prisma.user.findUnique>> & Record<string, any>)
-      | null = null;
+    type SessionUser = {
+      id: string;
+      username: string | null;
+      role: any;
+      piUserId: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      avatar: string | null;
+      phone: string | null;
+      wallets: { currency: string; balance: number; type: any }[];
+    };
+
+    let user: SessionUser | null = null;
 
     const existingAccount = await prisma.account.findUnique({
       where: {
