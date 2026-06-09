@@ -230,6 +230,231 @@ export async function getUsdtBalance(tronAddress: string): Promise<number> {
 }
 
 /**
+ * Résultat de la vérification du reçu interne d'une transaction TRON.
+ *
+ * IMPORTANT : sur TRON, une transaction peut être incluse dans un bloc
+ * (donc "confirmée" au niveau de la chaîne) tout en ayant ÉCHOUÉ au niveau
+ * de l'exécution du smart contract (revert, manque d'énergie, etc.).
+ * Il faut donc TOUJOURS vérifier le reçu interne (`receipt.result` /
+ * `contractRet`) avant de créditer le solde d'un utilisateur.
+ */
+export interface TronReceiptResult {
+  /** La transaction est-elle incluse dans un bloc (confirmée on-chain) ? */
+  confirmed: boolean;
+  /** La transaction a-t-elle RÉUSSI son exécution (reçu interne OK) ? */
+  success: boolean;
+  /** Code de résultat brut : "SUCCESS" | "REVERT" | "OUT_OF_ENERGY" | "OUT_OF_TIME" | ... */
+  result: string;
+  /** contractRet brut renvoyé par la chaîne (ex: "SUCCESS", "REVERT") */
+  contractRet: string;
+  /** Énergie consommée par la transaction */
+  energyUsed: number;
+  /** Frais réseau (en TRX) prélevés */
+  netFee: number;
+  /** Message d'erreur lisible si la transaction a échoué */
+  errorMessage: string | null;
+}
+
+/**
+ * Vérifie le reçu interne d'une transaction TRON via TronGrid.
+ *
+ * Utilise l'endpoint REST `/wallet/gettransactioninfobyid` (équivalent à
+ * `tronWeb.trx.getTransactionInfo(txId)`) pour lire `receipt.result`.
+ *
+ * Stratégie :
+ *  - On poll jusqu'à `maxAttempts` fois (la tx met quelques secondes à être
+ *    minée + indexée). Tant que le reçu est vide → not confirmed.
+ *  - Dès que `receipt.result` est disponible :
+ *      - "SUCCESS"        → success = true
+ *      - "REVERT"         → échec (slippage / logique contrat)
+ *      - "OUT_OF_ENERGY"  → échec (énergie insuffisante)
+ *      - "OUT_OF_TIME" / "OUT_OF_MEMORY" / etc. → échec
+ *  - `contractRet` (dans le bloc `ret`) est aussi vérifié en complément.
+ */
+export async function verifyTronTransaction(
+  txId: string,
+  maxAttempts: number = 10,
+  delayMs: number = 3000
+): Promise<TronReceiptResult> {
+  const headers = getTronGridHeaders();
+
+  const fail = (result: string, message: string): TronReceiptResult => ({
+    confirmed: true,
+    success: false,
+    result,
+    contractRet: result,
+    energyUsed: 0,
+    netFee: 0,
+    errorMessage: message,
+  });
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch(
+        "https://api.trongrid.io/wallet/gettransactioninfobyid",
+        {
+          method: "POST",
+          signal: controller.signal,
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ value: txId }),
+        }
+      );
+      clearTimeout(tid);
+
+      if (!res.ok) continue;
+
+      const info = await res.json();
+
+      // Reçu vide → transaction pas encore minée/indexée, on réessaie
+      if (!info || Object.keys(info).length === 0 || !info.receipt) {
+        continue;
+      }
+
+      // `receipt.result` n'existe que pour les appels de smart contract.
+      // Pour un simple transfert TRX, il peut être absent mais contractRet=SUCCESS.
+      const receiptResult: string = info.receipt?.result ?? "";
+      const contractRet: string =
+        Array.isArray(info.contractResult) && info.contractRet
+          ? info.contractRet
+          : info.receipt?.result ?? "SUCCESS";
+
+      const energyUsed: number =
+        Number(info.receipt?.energy_usage_total ?? info.receipt?.energy_usage ?? 0);
+      const netFee: number = Number(info.fee ?? 0) / 1_000_000;
+
+      // resMessage est encodé en hex par TronGrid
+      let decodedError: string | null = null;
+      if (info.resMessage) {
+        try {
+          decodedError = Buffer.from(info.resMessage, "hex").toString("utf8");
+        } catch {
+          decodedError = info.resMessage;
+        }
+      }
+
+      // Cas d'échec explicites
+      const failureCodes = [
+        "REVERT",
+        "OUT_OF_ENERGY",
+        "OUT_OF_TIME",
+        "OUT_OF_MEMORY",
+        "BAD_JUMP_DESTINATION",
+        "STACK_TOO_SMALL",
+        "STACK_TOO_LARGE",
+        "ILLEGAL_OPERATION",
+        "TRANSFER_FAILED",
+        "JVM_STACK_OVER_FLOW",
+        "FAILED",
+      ];
+
+      if (receiptResult && failureCodes.includes(receiptResult)) {
+        return {
+          confirmed: true,
+          success: false,
+          result: receiptResult,
+          contractRet,
+          energyUsed,
+          netFee,
+          errorMessage:
+            decodedError ||
+            (receiptResult === "OUT_OF_ENERGY"
+              ? "Énergie insuffisante pour exécuter la transaction"
+              : receiptResult === "REVERT"
+                ? "Transaction annulée par le contrat (slippage ou liquidité insuffisante)"
+                : `Échec d'exécution : ${receiptResult}`),
+        };
+      }
+
+      // contractRet en échec (ex: REVERT au niveau de l'inclusion)
+      if (contractRet && failureCodes.includes(contractRet)) {
+        return {
+          confirmed: true,
+          success: false,
+          result: contractRet,
+          contractRet,
+          energyUsed,
+          netFee,
+          errorMessage: decodedError || `Transaction rejetée : ${contractRet}`,
+        };
+      }
+
+      // Succès : receipt.result === "SUCCESS" (smart contract) OU
+      // simple transfert avec contractRet "SUCCESS" et pas d'erreur.
+      const isSuccess =
+        receiptResult === "SUCCESS" ||
+        (!receiptResult && (contractRet === "SUCCESS" || !contractRet));
+
+      if (isSuccess) {
+        return {
+          confirmed: true,
+          success: true,
+          result: receiptResult || "SUCCESS",
+          contractRet: contractRet || "SUCCESS",
+          energyUsed,
+          netFee,
+          errorMessage: null,
+        };
+      }
+
+      // Reçu présent mais statut inattendu → on considère comme échec prudent
+      return fail(
+        receiptResult || contractRet || "UNKNOWN",
+        decodedError || "Statut de transaction inconnu"
+      );
+    } catch (err: any) {
+      console.warn(`[TRON] verifyTronTransaction attempt ${attempt + 1} failed:`, err.message);
+    }
+  }
+
+  // Après tous les essais : la tx n'a jamais été confirmée/indexée.
+  return {
+    confirmed: false,
+    success: false,
+    result: "NOT_CONFIRMED",
+    contractRet: "",
+    energyUsed: 0,
+    netFee: 0,
+    errorMessage:
+      "Transaction non confirmée sur la blockchain après plusieurs tentatives. Vérifiez manuellement sur Tronscan.",
+  };
+}
+
+/**
+ * Classe une erreur de broadcast/exécution TRON en message utilisateur clair.
+ * Couvre les cas Energy / Bandwidth / Fee Limit les plus fréquents.
+ */
+export function classifyTronError(rawError: string): string {
+  const e = (rawError || "").toLowerCase();
+
+  if (e.includes("out_of_energy") || (e.includes("energy") && e.includes("insufficient"))) {
+    return "Énergie TRON insuffisante. Rechargez votre compte en TRX (ou gelez du TRX pour obtenir de l'énergie) puis réessayez.";
+  }
+  if (e.includes("bandwidth") && (e.includes("insufficient") || e.includes("not enough"))) {
+    return "Bande passante (Bandwidth) TRON insuffisante. Conservez un peu de TRX sur votre adresse pour couvrir les frais réseau.";
+  }
+  if (e.includes("feelimit") || e.includes("fee_limit") || e.includes("fee limit")) {
+    return "Limite de frais (Fee Limit) dépassée pour cette transaction. Le swap nécessite plus de ressources que prévu.";
+  }
+  if (e.includes("balance is not sufficient") || e.includes("insufficient balance")) {
+    return "Solde TRX insuffisant pour couvrir le montant et les frais réseau.";
+  }
+  if (e.includes("revert")) {
+    return "Transaction annulée par le contrat (slippage trop faible ou liquidité insuffisante). Augmentez votre tolérance de slippage et réessayez.";
+  }
+  if (e.includes("timeout") || e.includes("aborted")) {
+    return "Le réseau TRON met trop de temps à répondre. Réessayez dans quelques instants.";
+  }
+  return rawError || "Erreur inconnue lors de l'exécution sur la blockchain TRON.";
+}
+
+/**
  * Récupère les dernières transactions TRX entrantes pour une adresse
  */
 export async function getTrxIncomingTransactions(

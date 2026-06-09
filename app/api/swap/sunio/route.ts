@@ -35,6 +35,7 @@ import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { nanoid } from "nanoid";
 import { TransactionStatus, TransactionType } from "@prisma/client";
+import { verifyTronTransaction, classifyTronError } from "@/lib/blockchain/tron";
 
 // ─── TronWeb ──────────────────────────────────────────────────────────────────
 const TronWebModule = require("tronweb");
@@ -535,11 +536,34 @@ export async function POST(req: NextRequest) {
         user.usdtAddress  // Adresse TRON de l'utilisateur
       );
     } catch (e: any) {
-      swapError = e.message;
+      swapError = classifyTronError(e.message || "");
       console.error("[SWAP_SUNIO] Erreur broadcast:", e.message);
     }
 
+    // ── 9.bis VÉRIFICATION DU REÇU INTERNE ────────────────────────────────────
+    // Un txHash NE SIGNIFIE PAS que le swap a réussi : la transaction peut être
+    // incluse dans un bloc tout en ayant échoué (REVERT, OUT_OF_ENERGY...).
+    // On vérifie donc OBLIGATOIREMENT le reçu interne avant de créditer.
+    let receiptOk = false;
     if (txHash) {
+      try {
+        const receipt = await verifyTronTransaction(txHash);
+        receiptOk = receipt.success;
+        if (!receipt.success) {
+          // Transaction broadcastée mais échouée on-chain → on NE crédite PAS
+          swapError = receipt.errorMessage || classifyTronError(receipt.result);
+          console.error(
+            `[SWAP_SUNIO] Tx ${txHash} échouée on-chain: ${receipt.result} — ${swapError}`
+          );
+        }
+      } catch (e: any) {
+        receiptOk = false;
+        swapError = "Impossible de vérifier le statut de la transaction sur la blockchain. Votre solde a été restitué par sécurité.";
+        console.error("[SWAP_SUNIO] Erreur vérification reçu:", e.message);
+      }
+    }
+
+    if (txHash && receiptOk) {
       // ✅ Swap réussi → créditer le wallet destination + marquer SUCCESS
       await prisma.$transaction([
         prisma.wallet.upsert({
@@ -592,7 +616,7 @@ export async function POST(req: NextRequest) {
       });
 
     } else {
-      // ❌ Swap échoué → rembourser + marquer FAILED
+      // ❌ Swap échoué (broadcast KO OU reçu interne FAILED) → rembourser + FAILED
       await prisma.$transaction([
         prisma.wallet.update({
           where: { userId_currency: { userId, currency: fromToken } },
@@ -603,7 +627,26 @@ export async function POST(req: NextRequest) {
           data: {
             status: TransactionStatus.FAILED,
             statusClass: "SWAP_FAILED",
+            // On conserve le hash on-chain même en cas d'échec (traçabilité Tronscan)
+            blockchainTx: txHash || undefined,
             description: `[ÉCHEC SWAP] ${swapError || "Erreur inconnue"}`,
+            metadata: {
+              ...(txRecord.metadata as object),
+              failed: true,
+              failureReason: swapError || "Erreur blockchain",
+              txHash: txHash || null,
+              refunded: true,
+              failedAt: new Date().toISOString(),
+            },
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            userId,
+            title: "Swap échoué",
+            message: `Votre swap ${fromToken} → ${toToken} a échoué : ${swapError || "erreur blockchain"}. Votre solde a été restitué.`,
+            type: "SWAP_FAILED",
+            metadata: { fromToken, toToken, amountIn, reason: swapError, txHash },
           },
         }),
       ]);
@@ -611,6 +654,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: `Swap annulé : ${swapError || "Erreur blockchain"}. Votre solde a été restitué.`,
+          txHash: txHash || null,
+          failed: true,
         },
         { status: 400 }
       );

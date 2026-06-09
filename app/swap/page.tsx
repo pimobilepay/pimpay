@@ -580,7 +580,7 @@ export default function SwapPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) { toast.error(data.error || "Swap Sun.io échoué"); setLoading(false); return; }
+        if (!res.ok) { toast.error(data.error || "Swap Sun.io échoué", { duration: 7000 }); setLoading(false); return; }
         setTransactionRef(data.reference || `SWAP-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(data.txHash || null);
@@ -588,7 +588,9 @@ export default function SwapPage() {
         if (data.amountOut) setToAmount(data.amountOut);
         setIsSuccess(true);
         setShowConfirm(false);
+        // Refresh temps réel : immédiat + différé (laisse la DB se stabiliser)
         loadBalances();
+        setTimeout(() => loadBalances(), 2500);
         toast.success("Swap Sun.io réussi !", {
           description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
           duration: 5000,
@@ -1146,22 +1148,45 @@ export default function SwapPage() {
 
             {/* Slippage (Sun.io seulement) */}
             {swapRoute === "SUNIO" && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Slippage</span>
-                {editingSlippage ? (
-                  <div className="flex items-center gap-2">
-                    <input type="number" min="0.1" max="50" step="0.1" value={slippageInput}
-                      onChange={(e) => setSlippageInput(e.target.value)}
-                      onBlur={() => { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); } }}
-                      className="w-16 bg-white/10 border border-blue-500/40 rounded-lg px-2 py-1 text-sm font-semibold text-white text-right outline-none" autoFocus />
-                    <span className="text-sm font-semibold text-white">%</span>
-                  </div>
-                ) : (
-                  <button onClick={() => { setSlippageInput(String(slippage)); setEditingSlippage(true); }}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                    {slippage}% <Pencil size={12} className="text-slate-400" />
-                  </button>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-400">Tolérance de slippage</span>
+                  {editingSlippage ? (
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="0.1" max="50" step="0.1" value={slippageInput}
+                        onChange={(e) => setSlippageInput(e.target.value)}
+                        onBlur={() => { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { const v = parseFloat(slippageInput); if (!isNaN(v) && v > 0 && v <= 50) setSlippage(v); else setSlippageInput(String(slippage)); setEditingSlippage(false); } }}
+                        className="w-16 bg-white/10 border border-blue-500/40 rounded-lg px-2 py-1 text-sm font-semibold text-white text-right outline-none" autoFocus />
+                      <span className="text-sm font-semibold text-white">%</span>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setSlippageInput(String(slippage)); setEditingSlippage(true); }}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-white">
+                      {slippage}% <Pencil size={12} className="text-slate-400" />
+                    </button>
+                  )}
+                </div>
+                {/* Presets rapides : évite les échecs par micro-variation de prix */}
+                <div className="flex items-center gap-2">
+                  {[0.5, 1, 3].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => { setSlippage(preset); setSlippageInput(String(preset)); }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        slippage === preset
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                          : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      {preset}%
+                    </button>
+                  ))}
+                </div>
+                {slippage > 5 && (
+                  <p className="text-[11px] text-amber-400/80 flex items-center gap-1">
+                    <AlertCircle size={11} /> Slippage élevé : risque de recevoir nettement moins que prévu.
+                  </p>
                 )}
               </div>
             )}
