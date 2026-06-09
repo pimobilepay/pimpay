@@ -37,7 +37,7 @@ export interface CreditTronResult {
   total: number;
   added: number;
   reference: string | null;
-  reason?: "ALREADY_SYNC" | "THROTTLED" | "CREDITED";
+  reason?: "ALREADY_SYNC" | "THROTTLED" | "CREDITED" | "DUST_IGNORED";
 }
 
 interface CreditTronOptions {
@@ -45,6 +45,17 @@ interface CreditTronOptions {
   currency: "TRX" | "USDT";
   blockchainBalance: number;
 }
+
+/**
+ * Seuil minimum pour enregistrer un dépôt comme transaction + notification.
+ * En dessous, c'est de la "poussière" (dust) : variations négligeables du
+ * solde on-chain dues aux arrondis / frais réseau. On crédite quand même le
+ * solde mais SANS polluer l'historique ni notifier.
+ */
+const MIN_DEPOSIT: Record<"TRX" | "USDT", number> = {
+  TRX: 0.001,
+  USDT: 0.01,
+};
 
 /**
  * Crédite un dépôt TRON et enregistre transaction + notification.
@@ -88,9 +99,28 @@ export async function creditTronDeposit({
         };
       }
 
+      // 3.bis ANTI-DUST : si le dépôt détecté est inférieur au seuil minimum,
+      // on met à jour le solde mais SANS créer de transaction ni de notification.
+      // Évite de polluer l'historique avec des +0.000001 TRX.
+      const isRealDeposit = diff >= MIN_DEPOSIT[currency];
+
+      if (diff > 0 && !isRealDeposit) {
+        const updatedWallet = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: safeBalance },
+        });
+        return {
+          updated: true,
+          total: updatedWallet.balance,
+          added: 0,
+          reference: null,
+          reason: "DUST_IGNORED" as const,
+        };
+      }
+
       // 4. Anti-spam 30s : on vérifie qu'aucun dépôt de cette devise
       //    n'a été enregistré dans les 30 dernières secondes.
-      if (diff > 0) {
+      if (isRealDeposit) {
         const recentDeposit = await tx.transaction.findFirst({
           where: {
             toUserId: userId,
@@ -122,9 +152,9 @@ export async function creditTronDeposit({
         data: { balance: safeBalance },
       });
 
-      // 6. Si dépôt externe détecté → transaction + notification
+      // 6. Si dépôt externe détecté (≥ seuil) → transaction + notification
       let reference: string | null = null;
-      if (diff > 0) {
+      if (isRealDeposit) {
         const isTrx = currency === "TRX";
         reference = `${currency}-DEP-${nanoid(10).toUpperCase()}`;
 
@@ -177,7 +207,7 @@ export async function creditTronDeposit({
       return {
         updated: true,
         total: updatedWallet.balance,
-        added: diff > 0 ? diff : 0,
+        added: isRealDeposit ? diff : 0,
         reference,
         reason: "CREDITED" as const,
       };

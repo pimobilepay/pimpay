@@ -203,7 +203,7 @@ export async function POST(req: Request) {
           },
         });
         
-        if (!existingTx && bcTx.amount > 0) {
+        if (!existingTx && bcTx.amount >= 0.01) {
           // Créer l'entrée manquante
           const reference = `USDT-BC-${nanoid(8).toUpperCase()}`;
           await prisma.transaction.create({

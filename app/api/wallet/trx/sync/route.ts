@@ -80,12 +80,15 @@ export async function POST(req: Request) {
     });
 
     // ── 5. Importer les transactions blockchain manquantes (historique) ───────
+    // Seuil anti-dust : on ignore les micro-transactions (< 0.001 TRX) qui
+    // polluent l'historique (+0.000001 TRX, etc.).
+    const MIN_TRX_TX = 0.001;
     let importedTxCount = 0;
     try {
       const blockchainTxs = await getTrxIncomingTransactions(user.usdtAddress, 20);
 
       for (const bcTx of blockchainTxs) {
-        if (!bcTx.confirmed || bcTx.amount <= 0) continue;
+        if (!bcTx.confirmed || bcTx.amount < MIN_TRX_TX) continue;
 
         const existingTx = await prisma.transaction.findFirst({
           where: {
