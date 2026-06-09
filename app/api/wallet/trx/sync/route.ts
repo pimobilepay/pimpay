@@ -7,10 +7,13 @@ export const runtime = "nodejs";
  * Synchronise le solde TRX natif de l'utilisateur connecté avec le
  * solde réel sur la blockchain TRON (TronGrid API).
  *
- * - Si la balance on-chain > balance DB  → on crédite la différence
- *   et on crée une transaction DEPOSIT dans l'historique.
+ * - Si la balance on-chain > balance DB  → on crédite la différence,
+ *   on crée une transaction DEPOSIT (historique user + admin) et une
+ *   notification SUCCESS (in-app).
  * - Si la balance on-chain <= balance DB → rien (solde déjà à jour).
- * - Anti-spam : 1 sync toutes les 30 secondes maximum.
+ * - On importe également les transactions blockchain individuelles
+ *   manquantes pour un historique complet.
+ * - Anti-spam : 1 dépôt enregistré toutes les 30 secondes maximum.
  */
 
 import { NextResponse } from "next/server";
@@ -19,11 +22,11 @@ import { getAuthUserId } from "@/lib/auth";
 import {
   TransactionStatus,
   TransactionType,
-  WalletType,
   Prisma,
 } from "@prisma/client";
 import { nanoid } from "nanoid";
-import { getTrxBalance } from "@/lib/blockchain/tron";
+import { getTrxBalance, getTrxIncomingTransactions } from "@/lib/blockchain/tron";
+import { creditTronDeposit } from "@/lib/blockchain/tron-credit";
 
 export async function POST(req: Request) {
   try {
@@ -69,123 +72,69 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── 4. Mise à jour atomique en DB ─────────────────────────────────────────
-    const result = await prisma.$transaction(
-      async (tx) => {
-        const wallet = await tx.wallet.upsert({
-          where: { userId_currency: { userId, currency: "TRX" } },
-          update: { type: WalletType.CRYPTO },
-          create: {
-            userId,
-            currency: "TRX",
-            balance: 0,
-            type: WalletType.CRYPTO,
-          },
-        });
+    // ── 4. Crédit + transaction + notification via le helper centralisé ───────
+    const result = await creditTronDeposit({
+      userId,
+      currency: "TRX",
+      blockchainBalance,
+    });
 
-        const currentBalance = wallet.balance;
-        const diff = parseFloat(
-          (blockchainBalance - currentBalance).toFixed(6)
-        );
+    // ── 5. Importer les transactions blockchain manquantes (historique) ───────
+    let importedTxCount = 0;
+    try {
+      const blockchainTxs = await getTrxIncomingTransactions(user.usdtAddress, 20);
 
-        // Déjà synchronisé (seuil 0.000001 TRX)
-        if (Math.abs(diff) < 0.000001) {
-          return { updated: false, total: currentBalance, reason: "ALREADY_SYNC" };
-        }
+      for (const bcTx of blockchainTxs) {
+        if (!bcTx.confirmed || bcTx.amount <= 0) continue;
 
-        // Anti-spam : 30 secondes entre deux syncs
-        const lastSync = await tx.transaction.findFirst({
+        const existingTx = await prisma.transaction.findFirst({
           where: {
-            toUserId: userId,
-            currency: "TRX",
-            type: TransactionType.DEPOSIT,
-            OR: [
-              { description: { contains: "Dépôt TRX" } },
-              { description: { contains: "Depot TRX" } },
-              { description: { contains: "Synchronisation" } },
-            ],
-            createdAt: { gte: new Date(Date.now() - 30_000) },
+            OR: [{ blockchainTx: bcTx.hash }, { externalId: bcTx.hash }],
           },
         });
 
-        if (lastSync) {
-          return { updated: false, total: currentBalance, reason: "THROTTLED" };
-        }
-
-        // Mettre à jour le solde
-        const updated = await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: blockchainBalance },
-        });
-
-        const reference = `TRX-DEP-${nanoid(10).toUpperCase()}`;
-
-        // Créer une transaction DEPOSIT si le solde a augmenté
-        if (diff > 0) {
-          await tx.transaction.create({
+        if (!existingTx) {
+          const reference = `TRX-BC-${nanoid(8).toUpperCase()}`;
+          await prisma.transaction.create({
             data: {
               reference,
-              amount: diff,
+              externalId: bcTx.hash,
+              blockchainTx: bcTx.hash,
+              amount: bcTx.amount,
               currency: "TRX",
               type: TransactionType.DEPOSIT,
               status: TransactionStatus.SUCCESS,
-              description: `Dépôt TRX (+${diff.toFixed(6)} TRX)`,
+              description: `Dépôt TRX (import blockchain)`,
               toUserId: userId,
-              toWalletId: updated.id,
+              createdAt: new Date(bcTx.timestamp),
               metadata: {
-                blockchainBalance,
-                previousBalance: currentBalance,
-                syncType: "AUTOMATIC_BLOCKCHAIN",
-                source: "TRON_MAINNET",
+                importedFromBlockchain: true,
+                fromAddress: bcTx.from,
+                toAddress: bcTx.to,
                 network: "TRON",
               } as Prisma.JsonObject,
             },
           });
-
-          // Notification push dans l'app
-          await tx.notification.create({
-            data: {
-              userId,
-              title: "Dépôt TRX reçu !",
-              message: `Vous avez reçu ${diff.toFixed(6)} TRX sur votre wallet PimPay.`,
-              type: "SUCCESS",
-              read: false,
-              metadata: JSON.stringify({
-                amount: diff,
-                currency: "TRX",
-                network: "TRON",
-                reference,
-                status: "SUCCESS",
-                previousBalance: currentBalance,
-                newBalance: blockchainBalance,
-              }),
-            },
-          });
+          importedTxCount++;
+          console.log(`[TRX_SYNC] Imported blockchain tx: ${bcTx.hash} (${bcTx.amount} TRX)`);
         }
-
-        return {
-          updated: true,
-          total: updated.balance,
-          added: diff,
-          reference: diff > 0 ? reference : null,
-        };
-      },
-      { timeout: 30_000, maxWait: 10_000 }
-    );
-
-    // ── 5. Réponse ────────────────────────────────────────────────────────────
-    if (!result.updated && result.reason === "THROTTLED") {
-      return NextResponse.json(
-        { error: "Veuillez patienter 30s avant une nouvelle synchronisation" },
-        { status: 429 }
-      );
+      }
+    } catch (err: any) {
+      console.warn("[TRX_SYNC] Failed to import blockchain transactions:", err.message);
     }
 
+    // ── 6. Réponse ────────────────────────────────────────────────────────────
     return NextResponse.json({
       success: true,
       total: result.total,
-      added: result.updated ? result.added : 0,
-      message: result.updated ? "Synchronisation TRX réussie" : "Solde déjà à jour",
+      added: result.added,
+      reference: result.reference,
+      importedTxCount,
+      message: result.added > 0
+        ? `Synchronisation TRX réussie (+${result.added.toFixed(6)} TRX)`
+        : importedTxCount > 0
+          ? `${importedTxCount} transaction(s) importée(s)`
+          : "Solde déjà à jour",
     });
   } catch (err: any) {
     console.error("[TRX_SYNC_FATAL]:", err);
