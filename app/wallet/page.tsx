@@ -347,6 +347,26 @@ export default function WalletPage() {
     return () => clearInterval(interval);
   }, [loadWalletData]);
 
+  // Background blockchain sync: periodically poll the on-chain balance for
+  // TRON assets (TRX/USDT) so deposits are detected and credited WITHOUT the
+  // user needing to refresh the page. When a deposit is found, reload balances.
+  useEffect(() => {
+    const syncOnChain = async () => {
+      try {
+        const results = await Promise.all([
+          fetch("/api/wallet/trx/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/wallet/usdt/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        const gotDeposit = results.some((d) => d && d.added && parseFloat(d.added) > 0);
+        if (gotDeposit) {
+          loadWalletData();
+        }
+      } catch {}
+    };
+    const interval = setInterval(syncOnChain, 20000);
+    return () => clearInterval(interval);
+  }, [loadWalletData]);
+
   const handleCopy = (address: string) => {
     if (!address) return;
     navigator.clipboard.writeText(address);

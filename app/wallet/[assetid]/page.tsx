@@ -458,6 +458,30 @@ export default function AssetDetailPage() {
     return () => clearInterval(interval);
   }, [loadData, assetId]);
 
+  // Background blockchain sync for TRON assets (TRX / USDT): periodically poll
+  // the on-chain balance so deposits are auto-detected and credited without the
+  // user refreshing. On a detected deposit we reload and toast.
+  useEffect(() => {
+    if (assetId !== "TRX" && assetId !== "USDT") return;
+    const endpoint = assetId === "TRX" ? "/api/wallet/trx/sync" : "/api/wallet/usdt/sync";
+    const syncOnChain = async () => {
+      try {
+        const res = await fetch(endpoint, { method: "POST" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.added && parseFloat(data.added) > 0) {
+          toast.success(
+            `✅ Dépôt ${assetId} reçu : +${parseFloat(data.added).toFixed(6)} ${assetId} crédité sur votre compte`,
+            { duration: 6000 }
+          );
+          loadData();
+        }
+      } catch {}
+    };
+    const interval = setInterval(syncOnChain, 20000);
+    return () => clearInterval(interval);
+  }, [assetId, loadData]);
+
   const handleCopy = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
