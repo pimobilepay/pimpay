@@ -17,7 +17,12 @@ export async function GET(req: NextRequest) {
     for (const stake of stakings) {
       const reward = (stake.amount * stake.apy) / 100 / 365; // Gain journalier
       const newTotalRewards = (stake.rewardsEarned || 0) + reward;
-      const currency = stake.currency || 'PI';
+      // Devise du stake. Fallback pour les anciens stakings sans devise enregistrée:
+      // les pools SDA sont a 12% APY, les pools PI a 8.5% (flex) ou 14.2% (locked).
+      let currency = stake.currency || 'PI';
+      if (!stake.currency || stake.currency === 'PI') {
+        if (stake.apy === 12) currency = 'SDA';
+      }
       
       // Calculer la date de fin si elle existe
       const endDate = stake.endDate 

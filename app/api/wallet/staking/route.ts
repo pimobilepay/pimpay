@@ -29,6 +29,7 @@ export async function GET() {
       id: s.id,
       amount: s.amount,
       apy: s.apy,
+      currency: s.currency || (s.apy === 12.0 ? 'SDA' : 'PI'),
       startDate: s.startDate,
       endDate: s.endDate,
       isActive: s.isActive,
@@ -119,6 +120,7 @@ export async function POST(req: Request) {
           userId,
           amount,
           apy: pool.apy,
+          currency: pool.currency,
           endDate,
           isActive: true,
           rewardsEarned: 0
