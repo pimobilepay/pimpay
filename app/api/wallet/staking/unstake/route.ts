@@ -44,9 +44,9 @@ export async function POST(req: Request) {
     
     const totalAmount = staking.amount + finalRewards;
 
-    // Determine currency based on staking apy (SDA pools have apy=12.0)
-    // Until a currency field is added to the Staking model, we infer from apy
-    const currency = staking.apy === 12.0 ? 'SDA' : 'PI';
+    // Devise du staking: utilise le champ enregistre, avec fallback sur l'APY
+    // pour les anciens stakings (les pools SDA ont apy=12.0).
+    const currency = staking.currency || (staking.apy === 12.0 ? 'SDA' : 'PI');
 
     // Find or create user's wallet
     let wallet = await prisma.wallet.findFirst({

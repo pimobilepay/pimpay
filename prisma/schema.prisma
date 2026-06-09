@@ -226,6 +226,7 @@ model Staking {
   userId        String
   amount        Float
   apy           Float
+  currency      String    @default("PI")
   startDate     DateTime  @default(now())
   endDate       DateTime?
   isActive      Boolean   @default(true)
