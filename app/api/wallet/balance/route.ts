@@ -13,6 +13,7 @@ import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "@noble/secp256k1";
 import bs58 from "bs58";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
+import { creditTronDeposit } from "@/lib/blockchain/tron-credit";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,23 +68,9 @@ async function syncUsdtBalanceSafe(
 ): Promise<void> {
   try {
     const onChainBalance = await getUsdtBalance(usdtAddress);
-
-    // Lire le solde DB actuel
-    const existing = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: "USDT" } },
-      select: { balance: true },
-    });
-
-    const dbBalance = existing?.balance ?? 0;
-
-    // ✅ On prend le MAX : préserve les crédits internes
-    const safeBalance = Math.max(onChainBalance, dbBalance);
-
-    await prisma.wallet.upsert({
-      where: { userId_currency: { userId, currency: "USDT" } },
-      update: { balance: safeBalance },
-      create: { userId, currency: "USDT", balance: safeBalance, type: "CRYPTO" },
-    });
+    // ✅ FIX : on passe par le helper qui crédite ET enregistre
+    // la transaction DEPOSIT + la notification (historique user/admin).
+    await creditTronDeposit({ userId, currency: "USDT", blockchainBalance: onChainBalance });
   } catch {
     // Silencieux — on garde la valeur DB existante
   }
@@ -96,18 +83,9 @@ async function syncTrxBalanceSafe(
 ): Promise<void> {
   try {
     const onChainBalance = await getTrxBalance(usdtAddress);
-    const existing = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: "TRX" } },
-      select: { balance: true },
-    });
-    const dbBalance = existing?.balance ?? 0;
-    const safeBalance = Math.max(onChainBalance, dbBalance);
-
-    await prisma.wallet.upsert({
-      where: { userId_currency: { userId, currency: "TRX" } },
-      update: { balance: safeBalance },
-      create: { userId, currency: "TRX", balance: safeBalance, type: "CRYPTO" },
-    });
+    // ✅ FIX : on passe par le helper qui crédite ET enregistre
+    // la transaction DEPOSIT + la notification (historique user/admin).
+    await creditTronDeposit({ userId, currency: "TRX", blockchainBalance: onChainBalance });
   } catch {
     // Silencieux
   }

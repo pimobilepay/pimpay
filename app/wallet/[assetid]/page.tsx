@@ -362,7 +362,28 @@ export default function AssetDetailPage() {
         } catch { /* continuer même si la sync échoue */ }
       } else if (assetId === "USDT") {
         // Sync USDT TRC20 depuis TronGrid — crédite automatiquement les dépôts reçus
-        await fetch("/api/wallet/usdt/sync", { method: "POST" }).catch(() => null);
+        const syncRes = await fetch("/api/wallet/usdt/sync", { method: "POST" }).catch(() => null);
+        if (syncRes?.ok) {
+          const syncData = await syncRes.json();
+          if (syncData.added && parseFloat(syncData.added) > 0) {
+            toast.success(
+              `✅ Dépôt USDT reçu : +${parseFloat(syncData.added).toFixed(6)} USDT crédité sur votre compte`,
+              { duration: 6000 }
+            );
+          }
+        }
+      } else if (assetId === "TRX") {
+        // Sync TRX natif depuis TronGrid — crédite automatiquement les dépôts reçus
+        const syncRes = await fetch("/api/wallet/trx/sync", { method: "POST" }).catch(() => null);
+        if (syncRes?.ok) {
+          const syncData = await syncRes.json();
+          if (syncData.added && parseFloat(syncData.added) > 0) {
+            toast.success(
+              `✅ Dépôt TRX reçu : +${parseFloat(syncData.added).toFixed(6)} TRX crédité sur votre compte`,
+              { duration: 6000 }
+            );
+          }
+        }
       } else if (assetId === "BNB") {
         // Sync BNB BSC depuis la blockchain
         await fetch("/api/wallet/bnb/sync", { method: "POST" }).catch(() => null);
