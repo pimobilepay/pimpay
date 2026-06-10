@@ -311,14 +311,34 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          // Le transfert interne doit-il être répliqué on-chain sur TRON ?
+          // ── RÈGLE MÉTIER ────────────────────────────────────────────────
+          // TRX et USDT DOIVENT TOUJOURS passer par la blockchain TRON, même
+          // en interne. Un transfert interne TRX/USDT n'est donc valide que si
+          // l'expéditeur ET le destinataire possèdent une adresse TRON réelle.
+          // Sinon on REJETTE (le throw annule toute la transaction Prisma →
+          // aucun solde n'est débité).
           const recipientTronAddress = recipientUser.usdtAddress || null;
-          const isTronInternal =
-            (currency === "TRX" || currency === "USDT") &&
-            !!recipientTronAddress &&
-            /^T[a-zA-Z0-9]{33}$/.test(recipientTronAddress) &&
-            !!senderUser?.usdtPrivateKey &&
-            !!senderUser?.usdtAddress;
+          const isTronCurrency = currency === "TRX" || currency === "USDT";
+
+          if (isTronCurrency) {
+            if (!senderUser?.usdtPrivateKey || !senderUser?.usdtAddress) {
+              throw new Error(
+                "Votre portefeuille TRON n'est pas initialisé. Impossible d'envoyer du " +
+                  `${currency} on-chain. Contactez le support.`
+              );
+            }
+            if (
+              !recipientTronAddress ||
+              !/^T[a-zA-Z0-9]{33}$/.test(recipientTronAddress)
+            ) {
+              throw new Error(
+                `Le destinataire ne possède pas d'adresse TRON valide. ` +
+                  `Les transferts ${currency} doivent obligatoirement passer par la blockchain TRON.`
+              );
+            }
+          }
+
+          const isTronInternal = isTronCurrency;
 
           const transaction = await tx.transaction.create({
             data: {
@@ -376,6 +396,9 @@ export async function POST(req: NextRequest) {
             // Infos pour le broadcast on-chain TRON (étape 2)
             internalOnChain: isTronInternal,
             recipientTronAddress: isTronInternal ? recipientTronAddress : null,
+            // Infos nécessaires au remboursement si le broadcast on-chain échoue
+            recipientUserId: recipientUser.id,
+            recipientWalletId: toWallet.id,
           };
         }
 
