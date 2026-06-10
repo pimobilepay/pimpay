@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Sankey, Layer, Rectangle
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
 } from "recharts";
 import {
   ComposableMap,
@@ -417,56 +417,6 @@ function getHostMeta(kind: HostKind): { label: string; icon: React.ElementType; 
 function shortHost(host: string | null | undefined): string {
   if (!host || host === "inconnu") return "Inconnu";
   return host.replace(/^www\./, "");
-}
-
-// Custom Sankey node renderer
-function SankeyNode({ x, y, width, height, index, payload }: {
-  x: number; y: number; width: number; height: number; index: number;
-  payload: { name: string; value: number; color?: string };
-}) {
-  const isOut = x + width > 380;
-  return (
-    <Layer key={`node-${index}`}>
-      <Rectangle
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        fill={payload.color || "#3b82f6"}
-        fillOpacity={0.9}
-        radius={2}
-      />
-      <text
-        x={isOut ? x - 6 : x + width + 6}
-        y={y + height / 2}
-        textAnchor={isOut ? "end" : "start"}
-        dominantBaseline="middle"
-        fontSize={9}
-        fontWeight={700}
-        fill="#cbd5e1"
-      >
-        {payload.name}
-      </text>
-    </Layer>
-  );
-}
-
-// Custom Sankey link renderer
-function SankeyLink(props: {
-  sourceX: number; targetX: number; sourceY: number; targetY: number;
-  sourceControlX: number; targetControlX: number; linkWidth: number; index: number;
-}) {
-  const { sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, index } = props;
-  return (
-    <path
-      key={`link-${index}`}
-      d={`M${sourceX},${sourceY}C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
-      fill="none"
-      stroke="#3b82f6"
-      strokeWidth={Math.max(1, linkWidth)}
-      strokeOpacity={0.18}
-    />
-  );
 }
 
 // --- COMPONENTS ---
@@ -920,39 +870,86 @@ export default function AdminAnalyticsPage() {
   const mapCenter = mapView === "africa" ? [10, 5] : [0, 20];
   const mapZoom = mapView === "africa" ? 2.5 : 1;
 
-  // Build Sankey flow topology from the selected user's page journey.
-  // Each page becomes a node; each transition page -> nextPage becomes a weighted link.
-  const sankeyData = useMemo(() => {
+  // Build a hierarchical tree topology from the selected user's page journey.
+  // The entry page is the root; each page is attached to the first page it was
+  // reached from, producing a clean top-down tree (like a network diagram).
+  const navTree = useMemo(() => {
     const journey = userSession?.pageJourney || [];
-    if (journey.length < 2) return null;
+    if (journey.length < 1) return null;
 
-    const linkCounts = new Map<string, number>();
+    const root = getPageLabel(journey[0].page);
+    const allNodes = new Set<string>([root]);
+    const parentOf = new Map<string, string>();
+    const hitCount = new Map<string, number>([[root, 1]]);
+
     for (let i = 0; i < journey.length - 1; i++) {
       const from = getPageLabel(journey[i].page);
       const to = getPageLabel(journey[i + 1].page);
-      if (from === to) continue; // skip self-loops (Sankey can't render them)
-      const key = `${from}|||${to}`;
-      linkCounts.set(key, (linkCounts.get(key) || 0) + 1);
+      allNodes.add(from);
+      allNodes.add(to);
+      hitCount.set(to, (hitCount.get(to) || 0) + 1);
+      if (from === to) continue;
+      // attach each page to the first page it was reached from (avoid cycles)
+      if (to !== root && !parentOf.has(to)) parentOf.set(to, from);
     }
-    if (linkCounts.size === 0) return null;
 
-    const nodeIndex = new Map<string, number>();
-    const nodes: { name: string; color?: string }[] = [];
-    const ensure = (name: string) => {
-      if (!nodeIndex.has(name)) {
-        nodeIndex.set(name, nodes.length);
-        nodes.push({ name, color: "#3b82f6" });
+    if (allNodes.size < 2) return null;
+
+    // depth of a node = number of hops back to the root
+    const depthOf = (n: string): number => {
+      let d = 0;
+      let cur = n;
+      const guard = new Set<string>();
+      while (parentOf.has(cur) && !guard.has(cur)) {
+        guard.add(cur);
+        cur = parentOf.get(cur)!;
+        d++;
       }
-      return nodeIndex.get(name)!;
+      return d;
     };
 
-    const links: { source: number; target: number; value: number }[] = [];
-    linkCounts.forEach((value, key) => {
-      const [from, to] = key.split("|||");
-      links.push({ source: ensure(from), target: ensure(to), value });
+    const levels: string[][] = [];
+    Array.from(allNodes).forEach((n) => {
+      const d = depthOf(n);
+      (levels[d] ||= []).push(n);
     });
 
-    return { nodes, links };
+    // layout geometry (top-down)
+    const levelH = 96;
+    const nodeW = 120;
+    const nodeH = 48;
+    const padTop = 16;
+    const maxCount = Math.max(1, ...levels.map((l) => (l ? l.length : 0)));
+    const W = Math.max(640, maxCount * 156);
+    const height = levels.length * levelH + padTop;
+
+    const pos = new Map<string, { x: number; y: number }>();
+    levels.forEach((lvl, d) => {
+      if (!lvl) return;
+      lvl.forEach((n, i) => {
+        pos.set(n, {
+          x: ((i + 0.5) / lvl.length) * W,
+          y: d * levelH + padTop,
+        });
+      });
+    });
+
+    const edges: { fx: number; fy: number; tx: number; ty: number }[] = [];
+    parentOf.forEach((p, c) => {
+      const pp = pos.get(p);
+      const cp = pos.get(c);
+      if (pp && cp) edges.push({ fx: pp.x, fy: pp.y + nodeH, tx: cp.x, ty: cp.y });
+    });
+
+    const nodes = Array.from(pos.entries()).map(([name, p]) => ({
+      name,
+      x: p.x,
+      y: p.y,
+      isRoot: name === root,
+      hits: hitCount.get(name) || 1,
+    }));
+
+    return { nodes, edges, W, height, nodeW, nodeH, levelCount: levels.length };
   }, [userSession]);
 
   if (loading) {
@@ -1924,8 +1921,8 @@ export default function AdminAnalyticsPage() {
                   </div>
                 )}
 
-                {/* Sankey Topology - Flow between visited pages */}
-                {sankeyData && (
+                {/* Hierarchical Tree Topology - Navigation hierarchy (top-down) */}
+                {navTree && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
@@ -1933,32 +1930,75 @@ export default function AdminAnalyticsPage() {
                         Topologie de Navigation
                       </p>
                       <span className="text-[8px] text-slate-600">
-                        {sankeyData.nodes.length} pages · {sankeyData.links.length} flux
+                        {navTree.nodes.length} pages · {navTree.levelCount} niveaux
                       </span>
                     </div>
-                    <div className="bg-black/30 rounded-xl p-3 border border-white/5">
-                      <ResponsiveContainer width="100%" height={Math.max(180, sankeyData.nodes.length * 34)}>
-                        <Sankey
-                          data={sankeyData}
-                          nodeWidth={10}
-                          nodePadding={18}
-                          margin={{ top: 8, right: 80, bottom: 8, left: 60 }}
-                          link={<SankeyLink {...({} as any)} />}
-                          node={<SankeyNode {...({} as any)} />}
-                        >
-                          <Tooltip
-                            contentStyle={{
-                              background: "#1e293b",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: 12,
-                              fontSize: 10,
-                            }}
-                          />
-                        </Sankey>
-                      </ResponsiveContainer>
+                    <div className="bg-black/30 rounded-xl p-3 border border-white/5 overflow-x-auto">
+                      <svg
+                        viewBox={`0 0 ${navTree.W} ${navTree.height}`}
+                        width="100%"
+                        height={navTree.height}
+                        style={{ minWidth: navTree.W > 640 ? navTree.W : undefined }}
+                        role="img"
+                        aria-label="Arbre hierarchique de navigation"
+                      >
+                        {/* Edges: vertical drop, horizontal run, vertical drop (orthogonal like a network diagram) */}
+                        {navTree.edges.map((e, i) => {
+                          const midY = (e.fy + e.ty) / 2;
+                          return (
+                            <path
+                              key={`edge-${i}`}
+                              d={`M${e.fx},${e.fy} L${e.fx},${midY} L${e.tx},${midY} L${e.tx},${e.ty}`}
+                              fill="none"
+                              stroke="#1d4ed8"
+                              strokeWidth={1.5}
+                              strokeOpacity={0.5}
+                            />
+                          );
+                        })}
+                        {/* Nodes */}
+                        {navTree.nodes.map((n, i) => {
+                          const w = navTree.nodeW;
+                          const h = navTree.nodeH;
+                          return (
+                            <g key={`node-${i}`} transform={`translate(${n.x - w / 2}, ${n.y})`}>
+                              <rect
+                                width={w}
+                                height={h}
+                                rx={10}
+                                fill={n.isRoot ? "#2563eb" : "#0f172a"}
+                                stroke={n.isRoot ? "#60a5fa" : "#1e3a8a"}
+                                strokeWidth={1.5}
+                              />
+                              <text
+                                x={w / 2}
+                                y={h / 2 - 3}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize={11}
+                                fontWeight={800}
+                                fill={n.isRoot ? "#ffffff" : "#cbd5e1"}
+                              >
+                                {n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name}
+                              </text>
+                              <text
+                                x={w / 2}
+                                y={h / 2 + 11}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize={8}
+                                fontWeight={700}
+                                fill={n.isRoot ? "#bfdbfe" : "#64748b"}
+                              >
+                                {n.hits} passage{n.hits > 1 ? "s" : ""}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
                     </div>
                     <p className="text-[8px] text-slate-600 mt-2 leading-relaxed">
-                      Chaque flux represente une transition entre deux pages. L&apos;epaisseur indique le nombre de passages.
+                      Arbre hierarchique des pages visitees. La page d&apos;entree est la racine ; chaque page est rattachee a la premiere page depuis laquelle elle a ete atteinte.
                     </p>
                   </div>
                 )}
