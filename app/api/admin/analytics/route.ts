@@ -4,6 +4,15 @@ import { adminAuth } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
+type ChartPointWithFees = {
+  date: string;
+  label: string;
+  newUsers: number;
+  transactions: number;
+  volume: number;
+  fees?: number;
+};
+
 export async function GET(req: NextRequest) {
   const adminPayload = await adminAuth(req);
   if (!adminPayload) return NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
@@ -35,6 +44,12 @@ export async function GET(req: NextRequest) {
       kycStats,
       recentSignups,
       domainStats,
+      txStatusStats,
+      txTypeStats,
+      txGlobalAgg,
+      txTodayAgg,
+      txWeekAgg,
+      feesLast30Days,
     ] = await Promise.all([
       // Users
       prisma.user.count(),
@@ -109,6 +124,48 @@ export async function GET(req: NextRequest) {
         GROUP BY COALESCE(NULLIF(TRIM("host"), ''), 'inconnu')
         ORDER BY views DESC
       ` as Promise<{ host: string; views: number; users: number; online: number }[]>,
+
+      // Transaction status distribution (all time) - powers the
+      // transactional health & risk tab.
+      prisma.transaction.groupBy({
+        by: ["status"],
+        _count: { id: true },
+        _sum: { amount: true, fee: true },
+      }),
+
+      // Transaction type distribution (all time) - volume & fees per type.
+      prisma.transaction.groupBy({
+        by: ["type"],
+        _count: { id: true },
+        _sum: { amount: true, fee: true },
+      }),
+
+      // Global volume & fee aggregates
+      prisma.transaction.aggregate({
+        _sum: { amount: true, fee: true },
+        _avg: { amount: true, fee: true },
+      }),
+
+      // Today's volume & fees
+      prisma.transaction.aggregate({
+        where: { createdAt: { gte: todayStart } },
+        _sum: { amount: true, fee: true },
+      }),
+
+      // 7-day volume & fees
+      prisma.transaction.aggregate({
+        where: { createdAt: { gte: sevenDaysAgo } },
+        _sum: { amount: true, fee: true },
+      }),
+
+      // Daily fees over the last 30 days
+      prisma.$queryRaw`
+        SELECT DATE("createdAt") as date, COALESCE(SUM(fee), 0)::float as fees
+        FROM "Transaction"
+        WHERE "createdAt" >= ${thirtyDaysAgo}
+        GROUP BY DATE("createdAt")
+        ORDER BY date ASC
+      ` as Promise<{ date: Date; fees: number }[]>,
     ]);
 
     // Build 30-day chart data
@@ -172,6 +229,70 @@ export async function GET(req: NextRequest) {
       kind: classifyHost(d.host),
     }));
 
+    // --- Transactional health & risk ---
+    const STATUS_ORDER = ["SUCCESS", "PENDING", "PENDING_CONFIRMATION", "FAILED", "CANCELLED", "REJECTED", "EXPIRED"];
+    const statusBreakdown = STATUS_ORDER.map((status) => {
+      const row = txStatusStats.find((s) => s.status === status);
+      return {
+        status,
+        count: row?._count.id || 0,
+        volume: Math.round((row?._sum.amount || 0) * 100) / 100,
+        fees: Math.round((row?._sum.fee || 0) * 100) / 100,
+      };
+    }).filter((s) => s.count > 0);
+
+    const totalTxCount = statusBreakdown.reduce((sum, s) => sum + s.count, 0) || totalTransactions || 0;
+    const successCount = statusBreakdown.find((s) => s.status === "SUCCESS")?.count || 0;
+    const failedCount = statusBreakdown
+      .filter((s) => ["FAILED", "CANCELLED", "REJECTED", "EXPIRED"].includes(s.status))
+      .reduce((sum, s) => sum + s.count, 0);
+    const pendingCount = statusBreakdown
+      .filter((s) => ["PENDING", "PENDING_CONFIRMATION"].includes(s.status))
+      .reduce((sum, s) => sum + s.count, 0);
+
+    const successRate = totalTxCount > 0 ? Math.round((successCount / totalTxCount) * 1000) / 10 : 0;
+    const failureRate = totalTxCount > 0 ? Math.round((failedCount / totalTxCount) * 1000) / 10 : 0;
+    const pendingRate = totalTxCount > 0 ? Math.round((pendingCount / totalTxCount) * 1000) / 10 : 0;
+
+    // Volume & fees per transaction type
+    const typeBreakdown = (txTypeStats || [])
+      .map((t) => ({
+        type: t.type,
+        count: t._count.id,
+        volume: Math.round((t._sum.amount || 0) * 100) / 100,
+        fees: Math.round((t._sum.fee || 0) * 100) / 100,
+      }))
+      .sort((a, b) => b.volume - a.volume);
+
+    // Daily fees map merged onto the existing 30-day chart
+    const feesMap = new Map<string, number>();
+    (feesLast30Days || []).forEach((row) => {
+      const key = new Date(row.date).toISOString().split("T")[0];
+      feesMap.set(key, Math.round(row.fees * 100) / 100);
+    });
+    chartData.forEach((point) => {
+      (point as ChartPointWithFees).fees = feesMap.get(point.date) || 0;
+    });
+
+    const txHealth = {
+      totalVolume: Math.round((txGlobalAgg._sum.amount || 0) * 100) / 100,
+      totalFees: Math.round((txGlobalAgg._sum.fee || 0) * 100) / 100,
+      avgAmount: Math.round((txGlobalAgg._avg.amount || 0) * 100) / 100,
+      avgFee: Math.round((txGlobalAgg._avg.fee || 0) * 100) / 100,
+      volumeToday: Math.round((txTodayAgg._sum.amount || 0) * 100) / 100,
+      feesToday: Math.round((txTodayAgg._sum.fee || 0) * 100) / 100,
+      volumeWeek: Math.round((txWeekAgg._sum.amount || 0) * 100) / 100,
+      feesWeek: Math.round((txWeekAgg._sum.fee || 0) * 100) / 100,
+      successRate,
+      failureRate,
+      pendingRate,
+      successCount,
+      failedCount,
+      pendingCount,
+      statusBreakdown,
+      typeBreakdown,
+    };
+
     return NextResponse.json({
       kpis: {
         totalUsers,
@@ -191,6 +312,7 @@ export async function GET(req: NextRequest) {
       chartData,
       topCountries: finalTopCountries,
       domains: finalDomains,
+      txHealth,
       recentSignups: recentSignups.map((u) => ({
         ...u,
         createdAt: u.createdAt.toISOString(),

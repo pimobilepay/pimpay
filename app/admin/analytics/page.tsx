@@ -10,7 +10,9 @@ import {
   Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target,
   Laptop, Tablet, Radio, XCircle, Timer, MousePointerClick,
   Layers, ArrowRight, Wifi, ZoomIn, ZoomOut, Crosshair, RotateCcw,
-  Server, Network, Cloud, Terminal, Globe2, GitBranch
+  Server, Network, Cloud, Terminal, Globe2, GitBranch,
+  CheckCircle2, AlertTriangle, CircleDollarSign, Coins, Percent,
+  Receipt, Gauge, PieChart as PieChartIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +48,7 @@ type ChartPoint = {
   newUsers: number;
   transactions: number;
   volume: number;
+  fees?: number;
 };
 
 type RecentUser = {
@@ -75,6 +78,39 @@ type DomainStat = {
   kind: "pi" | "vercel" | "local" | "custom" | "unknown";
 };
 
+type TxStatusStat = {
+  status: string;
+  count: number;
+  volume: number;
+  fees: number;
+};
+
+type TxTypeStat = {
+  type: string;
+  count: number;
+  volume: number;
+  fees: number;
+};
+
+type TxHealth = {
+  totalVolume: number;
+  totalFees: number;
+  avgAmount: number;
+  avgFee: number;
+  volumeToday: number;
+  feesToday: number;
+  volumeWeek: number;
+  feesWeek: number;
+  successRate: number;
+  failureRate: number;
+  pendingRate: number;
+  successCount: number;
+  failedCount: number;
+  pendingCount: number;
+  statusBreakdown: TxStatusStat[];
+  typeBreakdown: TxTypeStat[];
+};
+
 type AnalyticsData = {
   kpis: KPIs;
   roles: Record<string, number>;
@@ -82,6 +118,7 @@ type AnalyticsData = {
   chartData: ChartPoint[];
   topCountries: CountryData[];
   domains: DomainStat[];
+  txHealth: TxHealth;
   recentSignups: RecentUser[];
 };
 
@@ -465,8 +502,93 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+function RiskBar({ label, value, color, good }: { label: string; value: number; color: string; good?: boolean }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-bold text-slate-300">{label}</span>
+        <span className="text-[11px] font-black" style={{ color }}>{value}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${Math.min(value, 100)}%`, background: color }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EmptyTxState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center">
+      <CircleDollarSign size={28} className="text-slate-700 mb-3" />
+      <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Aucune transaction</p>
+      <p className="text-[9px] text-slate-600 mt-1 max-w-xs">
+        Les données apparaîtront dès que des transactions seront enregistrées.
+      </p>
+    </div>
+  );
+}
+
 const ROLE_COLORS: Record<string, string> = { USER: "#3b82f6", AGENT: "#10b981", MERCHANT: "#f59e0b", ADMIN: "#ef4444" };
 const KYC_COLORS: Record<string, string> = { NONE: "#475569", PENDING: "#f59e0b", VERIFIED: "#10b981", APPROVED: "#3b82f6", REJECTED: "#ef4444" };
+
+// --- Transaction status / type theming (web3 fintech) ---
+const TX_STATUS_COLORS: Record<string, string> = {
+  SUCCESS: "#10b981",
+  PENDING: "#f59e0b",
+  PENDING_CONFIRMATION: "#eab308",
+  FAILED: "#ef4444",
+  CANCELLED: "#94a3b8",
+  REJECTED: "#f43f5e",
+  EXPIRED: "#64748b",
+};
+const TX_STATUS_LABELS: Record<string, string> = {
+  SUCCESS: "Réussies",
+  PENDING: "En attente",
+  PENDING_CONFIRMATION: "Confirmation",
+  FAILED: "Échouées",
+  CANCELLED: "Annulées",
+  REJECTED: "Rejetées",
+  EXPIRED: "Expirées",
+};
+const TX_TYPE_COLORS: Record<string, string> = {
+  TRANSFER: "#3b82f6",
+  WITHDRAW: "#f59e0b",
+  WITHDRAWAL: "#f59e0b",
+  DEPOSIT: "#10b981",
+  PAYMENT: "#8b5cf6",
+  EXCHANGE: "#06b6d4",
+  STAKING_REWARD: "#eab308",
+  AIRDROP: "#ec4899",
+  CARD_PURCHASE: "#14b8a6",
+  CARD_RECHARGE: "#22c55e",
+  CARD_WITHDRAW: "#f97316",
+};
+const TX_TYPE_LABELS: Record<string, string> = {
+  TRANSFER: "Transfert",
+  WITHDRAW: "Retrait",
+  WITHDRAWAL: "Retrait",
+  DEPOSIT: "Dépôt",
+  PAYMENT: "Paiement",
+  EXCHANGE: "Échange",
+  STAKING_REWARD: "Staking",
+  AIRDROP: "Airdrop",
+  CARD_PURCHASE: "Achat carte",
+  CARD_RECHARGE: "Recharge carte",
+  CARD_WITHDRAW: "Retrait carte",
+};
+
+// Compact currency formatter for large fintech amounts.
+function formatAmount(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}Md`;
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+}
+
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
@@ -505,6 +627,7 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState(false);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "health">("overview");
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
   const [visitorsPeriod, setVisitorsPeriod] = useState<"today" | "week" | "month">("today");
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
@@ -761,6 +884,38 @@ export default function AdminAnalyticsPage() {
     return { total, label };
   }, [data, visitorsPeriod]);
 
+  // --- Transactional health & risk derived data ---
+  const txHealth = data?.txHealth;
+
+  const statusPieData = useMemo(() => {
+    if (!txHealth?.statusBreakdown) return [];
+    return txHealth.statusBreakdown.map((s) => ({
+      name: TX_STATUS_LABELS[s.status] || s.status,
+      value: s.count,
+      fill: TX_STATUS_COLORS[s.status] || "#64748b",
+    }));
+  }, [txHealth]);
+
+  const typeBarData = useMemo(() => {
+    if (!txHealth?.typeBreakdown) return [];
+    return txHealth.typeBreakdown.map((t) => ({
+      name: TX_TYPE_LABELS[t.type] || t.type,
+      volume: t.volume,
+      fees: t.fees,
+      count: t.count,
+      fill: TX_TYPE_COLORS[t.type] || "#3b82f6",
+    }));
+  }, [txHealth]);
+
+  const feesChartData = useMemo(() => {
+    if (!data?.chartData) return [];
+    return data.chartData.map((d) => ({
+      label: d.label,
+      fees: d.fees || 0,
+      volume: d.volume || 0,
+    }));
+  }, [data]);
+
   // Map center based on view
   const mapCenter = mapView === "africa" ? [10, 5] : [0, 20];
   const mapZoom = mapView === "africa" ? 2.5 : 1;
@@ -870,6 +1025,34 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <div className="px-4 max-w-2xl mx-auto mt-6 space-y-8">
+
+        {/* TABS NAV */}
+        <div className="sticky top-[57px] z-40 -mx-4 px-4 py-3 bg-[#020617]/90 backdrop-blur-xl">
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-900/60 border border-white/[0.06] rounded-2xl p-1.5">
+            {([
+              { id: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
+              { id: "transactions", label: "Transactions", icon: CircleDollarSign },
+              { id: "health", label: "Santé & Risque", icon: Gauge },
+            ] as const).map((t) => {
+              const Icon = t.icon;
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+                    active ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Icon size={15} />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {activeTab === "overview" && (<>
 
         {/* KPIs */}
         <div>
@@ -1741,6 +1924,45 @@ export default function AdminAnalyticsPage() {
                   </div>
                 )}
 
+                {/* Sankey Topology - Flow between visited pages */}
+                {sankeyData && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                        <GitBranch size={12} />
+                        Topologie de Navigation
+                      </p>
+                      <span className="text-[8px] text-slate-600">
+                        {sankeyData.nodes.length} pages · {sankeyData.links.length} flux
+                      </span>
+                    </div>
+                    <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                      <ResponsiveContainer width="100%" height={Math.max(180, sankeyData.nodes.length * 34)}>
+                        <Sankey
+                          data={sankeyData}
+                          nodeWidth={10}
+                          nodePadding={18}
+                          margin={{ top: 8, right: 80, bottom: 8, left: 60 }}
+                          link={<SankeyLink {...({} as any)} />}
+                          node={<SankeyNode {...({} as any)} />}
+                        >
+                          <Tooltip
+                            contentStyle={{
+                              background: "#1e293b",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 12,
+                              fontSize: 10,
+                            }}
+                          />
+                        </Sankey>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-[8px] text-slate-600 mt-2 leading-relaxed">
+                      Chaque flux represente une transition entre deux pages. L&apos;epaisseur indique le nombre de passages.
+                    </p>
+                  </div>
+                )}
+
                 {/* Page Detail Panel */}
                 {showPageDetail && (
                   <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
@@ -2037,6 +2259,226 @@ export default function AdminAnalyticsPage() {
             ))}
           </div>
         </div>
+
+        </>)}
+
+        {/* ============ TRANSACTIONS TAB ============ */}
+        {activeTab === "transactions" && (
+          <div className="space-y-8">
+            {/* Volume & fees KPIs */}
+            <div>
+              <SectionTitle>Volume & Frais</SectionTitle>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/[0.02] border border-blue-500/15 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CircleDollarSign size={16} className="text-blue-400" />
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Volume Total</p>
+                  </div>
+                  <p className="text-2xl font-black text-white">{formatAmount(txHealth?.totalVolume || 0)}</p>
+                  <p className="text-[9px] text-blue-400 mt-1">+{formatAmount(txHealth?.volumeToday || 0)} {"aujourd'hui"}</p>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.02] border border-emerald-500/15 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Receipt size={16} className="text-emerald-400" />
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Frais Générés</p>
+                  </div>
+                  <p className="text-2xl font-black text-white">{formatAmount(txHealth?.totalFees || 0)}</p>
+                  <p className="text-[9px] text-emerald-400 mt-1">+{formatAmount(txHealth?.feesToday || 0)} {"aujourd'hui"}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Coins size={16} className="text-violet-400" />
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Montant Moyen</p>
+                  </div>
+                  <p className="text-xl font-black text-white">{formatAmount(txHealth?.avgAmount || 0)}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Percent size={16} className="text-amber-400" />
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Frais Moyen</p>
+                  </div>
+                  <p className="text-xl font-black text-white">{formatAmount(txHealth?.avgFee || 0)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Volume per type */}
+            <div>
+              <SectionTitle>Volume par Type</SectionTitle>
+              <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+                {typeBarData.length === 0 ? (
+                  <EmptyTxState />
+                ) : (
+                  <>
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={typeBarData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 8, fill: "#64748b" }} tickFormatter={(v) => formatAmount(v)} axisLine={false} tickLine={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 8, fill: "#94a3b8" }} width={70} axisLine={false} tickLine={false} />
+                          <Tooltip
+                            contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 10 }}
+                            formatter={(v: number, n: string) => [formatAmount(v), n === "volume" ? "Volume" : "Frais"]}
+                          />
+                          <Bar dataKey="volume" radius={[0, 6, 6, 0]}>
+                            {typeBarData.map((entry, i) => (
+                              <Cell key={i} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      {typeBarData.map((t) => (
+                        <div key={t.name} className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.fill }} />
+                            <span className="font-bold text-slate-300">{t.name}</span>
+                            <span className="text-slate-600">({t.count})</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-black text-white">{formatAmount(t.volume)}</span>
+                            <span className="text-emerald-400 text-[9px]">frais {formatAmount(t.fees)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Fees trend 30 days */}
+            <div>
+              <SectionTitle>Évolution des Frais (30j)</SectionTitle>
+              <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={feesChartData} margin={{ left: -16, right: 8 }}>
+                      <defs>
+                        <linearGradient id="feesGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} interval={4} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 8, fill: "#64748b" }} tickFormatter={(v) => formatAmount(v)} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 10 }}
+                        formatter={(v: number) => [formatAmount(v), "Frais"]}
+                      />
+                      <Area type="monotone" dataKey="fees" stroke="#10b981" strokeWidth={2} fill="url(#feesGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============ HEALTH & RISK TAB ============ */}
+        {activeTab === "health" && (
+          <div className="space-y-8">
+            {/* Success / failure rates */}
+            <div>
+              <SectionTitle>Santé Transactionnelle</SectionTitle>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/15 rounded-2xl p-4 text-center">
+                  <CheckCircle2 size={18} className="text-emerald-400 mx-auto mb-2" />
+                  <p className="text-2xl font-black text-emerald-400">{txHealth?.successRate ?? 0}%</p>
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">Succès</p>
+                  <p className="text-[8px] text-slate-600 mt-0.5">{(txHealth?.successCount ?? 0).toLocaleString("fr-FR")} tx</p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/15 rounded-2xl p-4 text-center">
+                  <Timer size={18} className="text-amber-400 mx-auto mb-2" />
+                  <p className="text-2xl font-black text-amber-400">{txHealth?.pendingRate ?? 0}%</p>
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">En attente</p>
+                  <p className="text-[8px] text-slate-600 mt-0.5">{(txHealth?.pendingCount ?? 0).toLocaleString("fr-FR")} tx</p>
+                </div>
+                <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/15 rounded-2xl p-4 text-center">
+                  <AlertTriangle size={18} className="text-red-400 mx-auto mb-2" />
+                  <p className="text-2xl font-black text-red-400">{txHealth?.failureRate ?? 0}%</p>
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">Échecs</p>
+                  <p className="text-[8px] text-slate-600 mt-0.5">{(txHealth?.failedCount ?? 0).toLocaleString("fr-FR")} tx</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Status distribution */}
+            <div>
+              <SectionTitle>Répartition par Statut</SectionTitle>
+              <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+                {statusPieData.length === 0 ? (
+                  <EmptyTxState />
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className="w-32 h-32 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={36} outerRadius={62} paddingAngle={2} dataKey="value" stroke="none">
+                            {statusPieData.map((entry, i) => (
+                              <Cell key={i} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 10 }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      {(txHealth?.statusBreakdown || []).map((s) => (
+                        <div key={s.status} className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: TX_STATUS_COLORS[s.status] || "#64748b" }} />
+                            <span className="font-bold text-slate-300">{TX_STATUS_LABELS[s.status] || s.status}</span>
+                          </div>
+                          <span className="font-black text-white">{s.count.toLocaleString("fr-FR")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Risk gauge / breakdown */}
+            <div>
+              <SectionTitle>Indicateurs de Risque</SectionTitle>
+              <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5 space-y-4">
+                <RiskBar label="Taux de réussite" value={txHealth?.successRate ?? 0} color="#10b981" good />
+                <RiskBar label="Taux d'échec" value={txHealth?.failureRate ?? 0} color="#ef4444" />
+                <RiskBar label="Taux en attente" value={txHealth?.pendingRate ?? 0} color="#f59e0b" />
+                <div className="pt-2 border-t border-white/5 flex items-center gap-2">
+                  {(txHealth?.failureRate ?? 0) > 10 ? (
+                    <>
+                      <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                      <p className="text-[9px] text-red-400 leading-relaxed">
+                        Taux d&apos;échec élevé ({txHealth?.failureRate}%). Vérifiez les passerelles de paiement et la liquidité des wallets.
+                      </p>
+                    </>
+                  ) : (txHealth?.pendingRate ?? 0) > 25 ? (
+                    <>
+                      <Timer size={14} className="text-amber-400 shrink-0" />
+                      <p className="text-[9px] text-amber-400 leading-relaxed">
+                        Beaucoup de transactions en attente ({txHealth?.pendingRate}%). Surveillez les confirmations on-chain.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+                      <p className="text-[9px] text-emerald-400 leading-relaxed">
+                        Système sain. Le taux de réussite est nominal et le risque transactionnel est maîtrisé.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
