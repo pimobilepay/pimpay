@@ -941,15 +941,34 @@ export default function AdminAnalyticsPage() {
       if (pp && cp) edges.push({ fx: pp.x, fy: pp.y + nodeH, tx: cp.x, ty: cp.y });
     });
 
+    // Chronological path actually taken by the user (ordered journey through nodes).
+    // Build the sequence of node centers in visit order, collapsing consecutive repeats.
+    const orderedLabels = journey.map((j) => getPageLabel(j.page));
+    const pathSeq: string[] = [];
+    orderedLabels.forEach((l) => {
+      if (pathSeq[pathSeq.length - 1] !== l) pathSeq.push(l);
+    });
+    const currentNode = pathSeq[pathSeq.length - 1] || root;
+    const onPath = new Set<string>(pathSeq);
+
+    const pathPoints = pathSeq
+      .map((l) => {
+        const p = pos.get(l);
+        return p ? { x: p.x, y: p.y + nodeH / 2 } : null;
+      })
+      .filter((p): p is { x: number; y: number } => p !== null);
+
     const nodes = Array.from(pos.entries()).map(([name, p]) => ({
       name,
       x: p.x,
       y: p.y,
       isRoot: name === root,
       hits: hitCount.get(name) || 1,
+      onPath: onPath.has(name),
+      isCurrent: name === currentNode,
     }));
 
-    return { nodes, edges, W, height, nodeW, nodeH, levelCount: levels.length };
+    return { nodes, edges, W, height, nodeW, nodeH, levelCount: levels.length, pathPoints, currentNode };
   }, [userSession]);
 
   if (loading) {
@@ -1956,19 +1975,64 @@ export default function AdminAnalyticsPage() {
                             />
                           );
                         })}
+                        {/* User journey path: chronological route through the visited pages */}
+                        {navTree.pathPoints.length > 1 && (
+                          <path
+                            d={navTree.pathPoints
+                              .map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`)
+                              .join(" ")}
+                            fill="none"
+                            stroke="#f59e0b"
+                            strokeWidth={2.5}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeOpacity={0.9}
+                            strokeDasharray="6 5"
+                          >
+                            <animate
+                              attributeName="stroke-dashoffset"
+                              from="44"
+                              to="0"
+                              dur="1.2s"
+                              repeatCount="indefinite"
+                            />
+                          </path>
+                        )}
+                        {/* Step markers along the path */}
+                        {navTree.pathPoints.map((p, i) => (
+                          <circle
+                            key={`step-${i}`}
+                            cx={p.x}
+                            cy={p.y}
+                            r={3}
+                            fill="#f59e0b"
+                          />
+                        ))}
                         {/* Nodes */}
                         {navTree.nodes.map((n, i) => {
                           const w = navTree.nodeW;
                           const h = navTree.nodeH;
+                          const stroke = n.isCurrent
+                            ? "#f59e0b"
+                            : n.isRoot
+                              ? "#60a5fa"
+                              : n.onPath
+                                ? "#fbbf24"
+                                : "#1e3a8a";
+                          const fill = n.isCurrent
+                            ? "#78350f"
+                            : n.isRoot
+                              ? "#2563eb"
+                              : "#0f172a";
                           return (
                             <g key={`node-${i}`} transform={`translate(${n.x - w / 2}, ${n.y})`}>
                               <rect
                                 width={w}
                                 height={h}
                                 rx={10}
-                                fill={n.isRoot ? "#2563eb" : "#0f172a"}
-                                stroke={n.isRoot ? "#60a5fa" : "#1e3a8a"}
-                                strokeWidth={1.5}
+                                fill={fill}
+                                stroke={stroke}
+                                strokeWidth={n.isCurrent ? 2.5 : n.onPath ? 2 : 1.5}
                               />
                               <text
                                 x={w / 2}
@@ -1977,7 +2041,7 @@ export default function AdminAnalyticsPage() {
                                 dominantBaseline="middle"
                                 fontSize={11}
                                 fontWeight={800}
-                                fill={n.isRoot ? "#ffffff" : "#cbd5e1"}
+                                fill={n.isCurrent || n.isRoot ? "#ffffff" : "#cbd5e1"}
                               >
                                 {n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name}
                               </text>
@@ -1988,17 +2052,28 @@ export default function AdminAnalyticsPage() {
                                 dominantBaseline="middle"
                                 fontSize={8}
                                 fontWeight={700}
-                                fill={n.isRoot ? "#bfdbfe" : "#64748b"}
+                                fill={n.isCurrent ? "#fde68a" : n.isRoot ? "#bfdbfe" : "#64748b"}
                               >
-                                {n.hits} passage{n.hits > 1 ? "s" : ""}
+                                {n.isCurrent ? "ICI · " : ""}{n.hits} passage{n.hits > 1 ? "s" : ""}
                               </text>
                             </g>
                           );
                         })}
                       </svg>
                     </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                      <span className="flex items-center gap-1.5 text-[8px] text-slate-500">
+                        <span className="inline-block w-4 h-[2px] bg-blue-700/60" /> Liens de hierarchie
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[8px] text-amber-400/90">
+                        <span className="inline-block w-4 border-t-2 border-dashed border-amber-500" /> Parcours de l&apos;utilisateur
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[8px] text-amber-300">
+                        <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-900 border-2 border-amber-500" /> Page actuelle
+                      </span>
+                    </div>
                     <p className="text-[8px] text-slate-600 mt-2 leading-relaxed">
-                      Arbre hierarchique des pages visitees. La page d&apos;entree est la racine ; chaque page est rattachee a la premiere page depuis laquelle elle a ete atteinte.
+                      La ligne orange retrace, dans l&apos;ordre chronologique, le chemin emprunte par l&apos;utilisateur jusqu&apos;a la page ou il se trouve actuellement.
                     </p>
                   </div>
                 )}
