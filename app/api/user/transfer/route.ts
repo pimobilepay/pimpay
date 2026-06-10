@@ -12,6 +12,7 @@ import { decrypt } from "@/lib/crypto";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { collectFeeOnChain, FEE_COLLECTED_CURRENCIES } from "@/lib/fee-collector";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 // Import TronWeb pour les transferts USDT TRC20
 const TronWebModule = require("tronweb");
@@ -667,6 +668,21 @@ export async function POST(req: NextRequest) {
           },
         });
         result.transaction.blockchainTx = blockchainTxHash;
+
+        await logSystemEvent({
+          level: "INFO",
+          source: "TRANSFER",
+          action: "WITHDRAW_ONCHAIN_SUCCESS",
+          message: `Retrait externe ${result.transaction.amount} ${result.transaction.currency} confirme on-chain`,
+          userId: senderId,
+          details: {
+            reference: result.transaction.reference,
+            currency: result.transaction.currency,
+            amount: result.transaction.amount,
+            toAddress: recipientInput,
+            blockchainTx: blockchainTxHash,
+          },
+        });
       } else {
         // ✅ Broadcast échoué → rembourser l'utilisateur + marquer FAILED
         // Le solde DB avait été débité à l'étape 1 ; on le restitue ici.
@@ -690,6 +706,22 @@ export async function POST(req: NextRequest) {
             },
           }),
         ]);
+
+        await logSystemEvent({
+          level: "ERROR",
+          source: "TRANSFER",
+          action: "WITHDRAW_ONCHAIN_FAILED",
+          message: `Echec retrait externe ${result.transaction.currency} : ${broadcastError || "Erreur blockchain"} (rembourse)`,
+          userId: senderId,
+          details: {
+            reference: result.transaction.reference,
+            currency: result.transaction.currency,
+            amount: result.transaction.amount,
+            toAddress: recipientInput,
+            error: broadcastError,
+            refunded: true,
+          },
+        });
 
         return NextResponse.json(
           {
@@ -786,6 +818,23 @@ export async function POST(req: NextRequest) {
           .catch(() => {});
 
         result.transaction.blockchainTx = blockchainTxHash;
+
+        await logSystemEvent({
+          level: "INFO",
+          source: "TRANSFER",
+          action: "P2P_ONCHAIN_SUCCESS",
+          message: `Transfert P2P ${result.transaction.amount} ${currency} confirme on-chain vers @${result.recipientUsername}`,
+          userId: senderId,
+          details: {
+            reference: result.transaction.reference,
+            currency,
+            amount: result.transaction.amount,
+            recipientUserId: result.recipientUserId,
+            recipientUsername: result.recipientUsername,
+            toAddress: result.recipientTronAddress,
+            blockchainTx: blockchainTxHash,
+          },
+        });
       } else {
         // ❌ Broadcast échoué → rembourser l'expéditeur + marquer FAILED
         // Le destinataire n'a jamais été crédité, donc rien à annuler côté receveur.
@@ -811,6 +860,24 @@ export async function POST(req: NextRequest) {
             },
           }),
         ]);
+
+        await logSystemEvent({
+          level: "ERROR",
+          source: "TRANSFER",
+          action: "P2P_ONCHAIN_FAILED",
+          message: `Echec transfert P2P ${currency} on-chain : ${broadcastError || "Erreur blockchain TRON"} (rembourse)`,
+          userId: senderId,
+          details: {
+            reference: result.transaction.reference,
+            currency,
+            amount: result.transaction.amount,
+            recipientUserId: result.recipientUserId,
+            recipientUsername: result.recipientUsername,
+            toAddress: result.recipientTronAddress,
+            error: broadcastError,
+            refunded: true,
+          },
+        });
 
         return NextResponse.json(
           {
@@ -885,6 +952,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await logSystemEvent({
+      level: "INFO",
+      source: "TRANSFER",
+      action: result.type === "INTERNAL" ? "P2P_COMPLETED" : "WITHDRAW_COMPLETED",
+      message: `Transfert ${result.type === "INTERNAL" ? "P2P interne" : "externe"} ${result.transaction.amount} ${result.transaction.currency} traite`,
+      userId: senderId,
+      details: {
+        reference: result.transaction.reference,
+        mode: result.type,
+        currency: result.transaction.currency,
+        amount: result.transaction.amount,
+        fee: result.transaction.fee,
+        status: result.transaction.status,
+        blockchainTx: result.transaction.blockchainTx || null,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       mode: result.type,
@@ -894,6 +978,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[USER_TRANSFER] ERREUR:", error.message);
+    await logSystemEvent({
+      level: "ERROR",
+      source: "TRANSFER",
+      action: "TRANSFER_ERROR",
+      message: `Erreur transfert : ${error?.message || "Erreur inconnue"}`,
+      details: { error: error?.message, stack: error?.stack?.substring(0, 1000) },
+    });
     return NextResponse.json(
       { error: error.message || "Erreur" },
       { status: 400 }

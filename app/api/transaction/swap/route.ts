@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 // [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
@@ -106,9 +107,35 @@ export async function POST(req: Request) {
       }
     }).catch(() => {});
 
+    // Log systeme : swap reussi (visible sur la page Admin > Logs > Systeme)
+    await logSystemEvent({
+      level: "INFO",
+      source: "SWAP",
+      action: "SWAP_SUCCESS",
+      message: `Swap reussi : ${result.amount} ${result.currency} -> ${result.netAmount} ${result.destCurrency}`,
+      userId,
+      details: {
+        reference: result.reference,
+        fromCurrency: result.currency,
+        toCurrency: result.destCurrency,
+        fromAmount: result.amount,
+        toAmount: result.netAmount,
+        rate: result.retailRate,
+        transactionId: result.id,
+      },
+    });
+
     return NextResponse.json({ success: true, reference: result.reference }, { headers: cors });
 
   } catch (error: any) {
+    // Log systeme : echec du swap (visible sur la page Admin > Logs > Systeme)
+    await logSystemEvent({
+      level: "ERROR",
+      source: "SWAP",
+      action: "SWAP_FAILED",
+      message: `Echec du swap : ${error?.message || "Erreur inconnue"}`,
+      details: { error: error?.message, stack: error?.stack?.substring(0, 1000) },
+    });
     return NextResponse.json({ error: error.message }, { status: 400, headers: getCorsHeaders(req) });
   }
 }
