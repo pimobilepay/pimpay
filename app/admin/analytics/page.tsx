@@ -1741,6 +1741,45 @@ export default function AdminAnalyticsPage() {
                   </div>
                 )}
 
+                {/* Sankey Topology - Flow between visited pages */}
+                {sankeyData && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                        <GitBranch size={12} />
+                        Topologie de Navigation
+                      </p>
+                      <span className="text-[8px] text-slate-600">
+                        {sankeyData.nodes.length} pages · {sankeyData.links.length} flux
+                      </span>
+                    </div>
+                    <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                      <ResponsiveContainer width="100%" height={Math.max(180, sankeyData.nodes.length * 34)}>
+                        <Sankey
+                          data={sankeyData}
+                          nodeWidth={10}
+                          nodePadding={18}
+                          margin={{ top: 8, right: 80, bottom: 8, left: 60 }}
+                          link={<SankeyLink {...({} as any)} />}
+                          node={<SankeyNode {...({} as any)} />}
+                        >
+                          <Tooltip
+                            contentStyle={{
+                              background: "#1e293b",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 12,
+                              fontSize: 10,
+                            }}
+                          />
+                        </Sankey>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-[8px] text-slate-600 mt-2 leading-relaxed">
+                      Chaque flux represente une transition entre deux pages. L&apos;epaisseur indique le nombre de passages.
+                    </p>
+                  </div>
+                )}
+
                 {/* Page Detail Panel */}
                 {showPageDetail && (
                   <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
