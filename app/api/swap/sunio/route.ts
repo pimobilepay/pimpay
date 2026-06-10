@@ -189,10 +189,11 @@ async function fetchSunswapRoute(
     );
   }
 
-  // La meilleure route = plus grand amountOut
-  const best: SunswapRoute = json.data.reduce((a: SunswapRoute, b: SunswapRoute) =>
-    parseFloat(b.amountOut) > parseFloat(a.amountOut) ? b : a
-  );
+  // data[0] = route RECOMMANDÉE par SunSwap (chemin propre v1/v2/v3).
+  // ⚠️ On NE prend PAS le plus gros amountOut : la meilleure route peut passer
+  //    par des pools exotiques (Curve/PSM) que le Smart Router historique ne
+  //    sait pas exécuter → REVERT. data[0] est le chemin canonique et sûr.
+  const best: SunswapRoute = json.data[0];
 
   if (!best.tokens?.length || !best.poolVersions?.length) {
     throw new Error("Route SunSwap incomplète.");
@@ -235,21 +236,6 @@ function buildPoolVersionList(poolVersions: string[]): string[] {
   }
   return out;
 }
-
-/**
- * Mapping CoinGecko ID pour chaque token supporté.
- */
-const COINGECKO_IDS: Record<string, string> = {
-  TRX:  "tron",
-  USDT: "tether",
-  USDC: "usd-coin",
-  USDD: "usdd",
-  JST:  "just",
-  SUN:  "sun-token",
-  BTT:  "bittorrent",
-  WIN:  "wink",
-  WTRX: "tron",
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -381,33 +367,37 @@ async function executeSunioSwap(
   const fromUpper = fromToken.toUpperCase();
   const toUpper   = toToken.toUpperCase();
 
-  // Toutes les valeurs en sun (1 TRX = 1_000_000 sun, 6 décimales)
-  const decimals       = 6;
-  const amountInRaw    = Math.floor(amountIn    * Math.pow(10, decimals));
-  const minOutRaw      = Math.floor(minAmountOut * Math.pow(10, decimals));
-  const deadline       = Math.floor(Date.now() / 1000) + 1200; // 20 min (comme la doc)
-
   const isTRXin  = fromUpper === "TRX";
   const isTRXout = toUpper   === "TRX";
 
-  // TRX natif → WTRX dans le path du Smart Router
-  const fromAddress = isTRXin  ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[fromUpper];
-  const toAddress   = isTRXout ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[toUpper];
+  // Décimales RÉELLES par token (USDD/JST/SUN = 18, USDT/USDC/TRX = 6…)
+  const fromDecimals = getDecimals(fromUpper);
+  const toDecimals   = getDecimals(toUpper);
 
-  if (!fromAddress) throw new Error(`Token source non supporté : ${fromToken}`);
-  if (!toAddress)   throw new Error(`Token destination non supporté : ${toToken}`);
+  const amountInRaw = parseUnits(amountIn.toString(), fromDecimals).toString();
+  const minOutRaw   = parseUnits(minAmountOut.toFixed(toDecimals), toDecimals).toString();
+  const deadline    = Math.floor(Date.now() / 1000) + 1200; // 20 min
 
-  // ── Paramètres swapExactInput (doc officielle) ────────────────────────────
-  const path        = [fromAddress, toAddress];
-  const poolVersion = ["v2"];     // SunSwap V2 — pool le plus liquide TRX/USDT
-  const versionLen  = ["2"];      // nombre de tokens dans le path (string, comme la doc)
-  const fees        = [0, 0];     // 0 pour V2, utilisé seulement pour V3
+  // ── Route RÉELLE via l'API officielle SunSwap ─────────────────────────────
+  // On récupère le path multi-hop, les versions de pools et les frais exacts —
+  // identiques à ceux utilisés par l'interface sunswap.com. C'est ce qui évite
+  // le REVERT : un path "v2" codé en dur n'existe pas toujours en pool liquide.
+  const route = await fetchSunswapRoute(fromUpper, toUpper, amountIn);
+
+  // path = adresses complètes (inclut WTRX en hop intermédiaire si nécessaire)
+  const path        = route.tokens;
+  const poolVersion = buildPoolVersionList(route.poolVersions);
+  const versionLen  = buildVersionLen(route.poolVersions);
+  // fees : un frais par pool (V3), 0 pour V1/V2 — fourni directement par l'API
+  const fees        = route.poolFees.map((f) => parseInt(f || "0", 10));
+
+  if (!path.length) throw new Error(`Token source non supporté : ${fromToken}`);
 
   // swapdata : tableau ordonné [amountIn, amountOutMin, to, deadline]
   // ⚠️ Exactement comme le README officiel — pas un objet, pas de clés nommées
   const swapdata = [
-    amountInRaw.toString(),
-    minOutRaw.toString(),
+    amountInRaw,
+    minOutRaw,
     userAddress,          // adresse Base58 — TronWeb convertit automatiquement
     deadline,
   ];
@@ -423,7 +413,7 @@ async function executeSunioSwap(
     txHash = await router
       .swapExactInput(path, poolVersion, versionLen, fees, swapdata)
       .send({
-        callValue:          amountInRaw,  // TRX (en sun) envoyés avec la tx
+        callValue:          Number(amountInRaw),  // TRX (en sun) envoyés avec la tx
         feeLimit:           150_000_000,  // 150 TRX max en énergie
         shouldPollResponse: false,
       });
@@ -443,9 +433,9 @@ async function executeSunioSwap(
         type: "function",
       },
     ];
-    const tokenContract = await tronWeb.contract(tokenABI, fromAddress);
+    const tokenContract = await tronWeb.contract(tokenABI, path[0]);
     await tokenContract
-      .approve(routerAddress, amountInRaw.toString())
+      .approve(routerAddress, amountInRaw)
       .send({ feeLimit: 60_000_000, shouldPollResponse: false });
 
     // Attendre que l'approve soit confirmé sur la blockchain (~3s)
@@ -613,7 +603,7 @@ export async function POST(req: NextRequest) {
           fee: pimpayFee,
           netAmount: amountIn,
           currency: fromToken,
-          type: TransactionType.SWAP,
+          type: TransactionType.EXCHANGE,
           status: TransactionStatus.PENDING,
           statusClass: "SWAP_PENDING",
           fromUserId: userId,
