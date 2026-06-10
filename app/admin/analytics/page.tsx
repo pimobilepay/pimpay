@@ -9,12 +9,13 @@ import {
   Wallet, Headphones, Settings, Shield, Menu,
   Eye, Monitor, Smartphone, Clock, MapPin, Zap, Target,
   Laptop, Tablet, Radio, XCircle, Timer, MousePointerClick,
-  Layers, ArrowRight, Wifi, ZoomIn, ZoomOut, Crosshair, RotateCcw
+  Layers, ArrowRight, Wifi, ZoomIn, ZoomOut, Crosshair, RotateCcw,
+  Server, Network, Cloud, Terminal, Globe2, GitBranch
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Sankey, Layer, Rectangle
 } from "recharts";
 import {
   ComposableMap,
@@ -65,12 +66,22 @@ type CountryData = {
   newCount: number;
 };
 
+type DomainStat = {
+  host: string;
+  views: number;
+  users: number;
+  online: number;
+  share: number;
+  kind: "pi" | "vercel" | "local" | "custom" | "unknown";
+};
+
 type AnalyticsData = {
   kpis: KPIs;
   roles: Record<string, number>;
   kyc: Record<string, number>;
   chartData: ChartPoint[];
   topCountries: CountryData[];
+  domains: DomainStat[];
   recentSignups: RecentUser[];
 };
 
@@ -100,6 +111,7 @@ type OnlineUserGeo = {
   browser: string | null;
   os: string | null;
   ip: string | null;
+  host: string | null;
   lastSeen: string;
 };
 
@@ -122,15 +134,18 @@ type UserSessionData = {
   currentBrowser: string | null;
   currentOS: string | null;
   currentIP: string | null;
+  currentHost: string | null;
   sessionStartTime: string | null;
   totalDuration: number;
   totalPageViews: number;
   totalClicks: number;
+  hosts: { host: string; count: number }[];
   pageVisits: { page: string; count: number }[];
   pageJourney: {
     page: string;
     timestamp: string;
     duration: number;
+    host: string | null;
     nextPage: string | null;
   }[];
   recentActivities: {
@@ -142,6 +157,7 @@ type UserSessionData = {
     browser: string | null;
     os: string | null;
     ip: string | null;
+    host: string | null;
     createdAt: string;
   }[];
 };
@@ -332,6 +348,88 @@ function getDeviceIcon(device: string | null) {
     default:
       return Laptop;
   }
+}
+
+// --- DOMAIN / SERVER HELPERS ---
+type HostKind = "pi" | "vercel" | "local" | "custom" | "unknown";
+
+function classifyHostClient(host: string | null | undefined): HostKind {
+  const h = (host || "").toLowerCase();
+  if (!h || h === "inconnu") return "unknown";
+  if (h.includes("localhost") || h.startsWith("127.") || h.includes(".local")) return "local";
+  if (h.includes("pinet.com") || h.includes("minepi.com") || h.includes("pi.app")) return "pi";
+  if (h.includes("vercel.app") || h.includes("vercel.sh")) return "vercel";
+  return "custom";
+}
+
+function getHostMeta(kind: HostKind): { label: string; icon: React.ElementType; color: string; dot: string } {
+  switch (kind) {
+    case "pi":
+      return { label: "Pi Network", icon: Globe2, color: "text-violet-400 bg-violet-500/10 border-violet-500/20", dot: "#a78bfa" };
+    case "vercel":
+      return { label: "Vercel", icon: Cloud, color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20", dot: "#22d3ee" };
+    case "local":
+      return { label: "Local / Dev", icon: Terminal, color: "text-amber-400 bg-amber-500/10 border-amber-500/20", dot: "#fbbf24" };
+    case "custom":
+      return { label: "Domaine perso", icon: Server, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", dot: "#34d399" };
+    default:
+      return { label: "Inconnu", icon: Network, color: "text-slate-400 bg-slate-500/10 border-slate-500/20", dot: "#94a3b8" };
+  }
+}
+
+function shortHost(host: string | null | undefined): string {
+  if (!host || host === "inconnu") return "Inconnu";
+  return host.replace(/^www\./, "");
+}
+
+// Custom Sankey node renderer
+function SankeyNode({ x, y, width, height, index, payload }: {
+  x: number; y: number; width: number; height: number; index: number;
+  payload: { name: string; value: number; color?: string };
+}) {
+  const isOut = x + width > 380;
+  return (
+    <Layer key={`node-${index}`}>
+      <Rectangle
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={payload.color || "#3b82f6"}
+        fillOpacity={0.9}
+        radius={2}
+      />
+      <text
+        x={isOut ? x - 6 : x + width + 6}
+        y={y + height / 2}
+        textAnchor={isOut ? "end" : "start"}
+        dominantBaseline="middle"
+        fontSize={9}
+        fontWeight={700}
+        fill="#cbd5e1"
+      >
+        {payload.name}
+      </text>
+    </Layer>
+  );
+}
+
+// Custom Sankey link renderer
+function SankeyLink(props: {
+  sourceX: number; targetX: number; sourceY: number; targetY: number;
+  sourceControlX: number; targetControlX: number; linkWidth: number; index: number;
+}) {
+  const { sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, index } = props;
+  return (
+    <path
+      key={`link-${index}`}
+      d={`M${sourceX},${sourceY}C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
+      fill="none"
+      stroke="#3b82f6"
+      strokeWidth={Math.max(1, linkWidth)}
+      strokeOpacity={0.18}
+    />
+  );
 }
 
 // --- COMPONENTS ---
@@ -667,6 +765,41 @@ export default function AdminAnalyticsPage() {
   const mapCenter = mapView === "africa" ? [10, 5] : [0, 20];
   const mapZoom = mapView === "africa" ? 2.5 : 1;
 
+  // Build Sankey flow topology from the selected user's page journey.
+  // Each page becomes a node; each transition page -> nextPage becomes a weighted link.
+  const sankeyData = useMemo(() => {
+    const journey = userSession?.pageJourney || [];
+    if (journey.length < 2) return null;
+
+    const linkCounts = new Map<string, number>();
+    for (let i = 0; i < journey.length - 1; i++) {
+      const from = getPageLabel(journey[i].page);
+      const to = getPageLabel(journey[i + 1].page);
+      if (from === to) continue; // skip self-loops (Sankey can't render them)
+      const key = `${from}|||${to}`;
+      linkCounts.set(key, (linkCounts.get(key) || 0) + 1);
+    }
+    if (linkCounts.size === 0) return null;
+
+    const nodeIndex = new Map<string, number>();
+    const nodes: { name: string; color?: string }[] = [];
+    const ensure = (name: string) => {
+      if (!nodeIndex.has(name)) {
+        nodeIndex.set(name, nodes.length);
+        nodes.push({ name, color: "#3b82f6" });
+      }
+      return nodeIndex.get(name)!;
+    };
+
+    const links: { source: number; target: number; value: number }[] = [];
+    linkCounts.forEach((value, key) => {
+      const [from, to] = key.split("|||");
+      links.push({ source: ensure(from), target: ensure(to), value });
+    });
+
+    return { nodes, links };
+  }, [userSession]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
@@ -854,6 +987,110 @@ export default function AdminAnalyticsPage() {
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1px] mt-1">Cette semaine</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* DOMAINS / SERVERS - Where users connect from */}
+        <div>
+          <SectionTitle>Domaines & Serveurs</SectionTitle>
+          <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Server size={16} className="text-blue-400" />
+              <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                Origine des connexions
+              </span>
+              <span className="text-[9px] text-slate-500">
+                ({(data?.domains?.length || 0)} domaine{(data?.domains?.length || 0) > 1 ? "s" : ""} - 30j)
+              </span>
+            </div>
+
+            {(!data?.domains || data.domains.length === 0) ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Network size={28} className="text-slate-700 mb-3" />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                  Aucune donnee de domaine
+                </p>
+                <p className="text-[9px] text-slate-600 mt-1 max-w-xs">
+                  Les domaines apparaitront des que les visiteurs navigueront sur l&apos;ecosysteme.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Kind summary chips */}
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {Object.entries(
+                    data.domains.reduce((acc, d) => {
+                      acc[d.kind] = (acc[d.kind] || 0) + d.views;
+                      return acc;
+                    }, {} as Record<string, number>)
+                  )
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([kind, views]) => {
+                      const meta = getHostMeta(kind as HostKind);
+                      const Icon = meta.icon;
+                      return (
+                        <div
+                          key={kind}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-wider ${meta.color}`}
+                        >
+                          <Icon size={12} />
+                          {meta.label}
+                          <span className="opacity-60">{views.toLocaleString("fr-FR")}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Domain list with usage bars */}
+                <div className="space-y-2.5">
+                  {data.domains.slice(0, 12).map((d) => {
+                    const meta = getHostMeta(d.kind);
+                    const Icon = meta.icon;
+                    return (
+                      <div
+                        key={d.host}
+                        className="flex items-center gap-3 p-3 bg-black/30 rounded-xl border border-white/[0.04]"
+                      >
+                        <div
+                          className={`flex items-center justify-center w-8 h-8 rounded-lg border flex-shrink-0 ${meta.color}`}
+                        >
+                          <Icon size={14} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-bold text-white truncate" title={d.host}>
+                              {shortHost(d.host)}
+                            </p>
+                            <span className="text-[10px] font-black text-blue-400 flex-shrink-0">
+                              {d.share}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-white/5 rounded-full mt-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${Math.max(2, d.share)}%`, backgroundColor: meta.dot }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-[8px] text-slate-500 flex items-center gap-1">
+                              <Eye size={9} /> {d.views.toLocaleString("fr-FR")} vues
+                            </span>
+                            <span className="text-[8px] text-slate-500 flex items-center gap-1">
+                              <Users size={9} /> {d.users.toLocaleString("fr-FR")} users
+                            </span>
+                            {d.online > 0 && (
+                              <span className="text-[8px] text-emerald-400 flex items-center gap-1">
+                                <Radio size={9} /> {d.online} en ligne
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1264,6 +1501,18 @@ export default function AdminAnalyticsPage() {
                       {user.countryFlag && <span className="text-xs">{user.countryFlag}</span>}
                       <span className="text-[8px] text-slate-500 truncate">{user.country || "Inconnu"}</span>
                     </div>
+                    {user.host && (() => {
+                      const meta = getHostMeta(classifyHostClient(user.host));
+                      const HostIcon = meta.icon;
+                      return (
+                        <div className={`flex items-center gap-1 mb-1.5 px-1.5 py-0.5 rounded-md border w-fit ${meta.color}`}>
+                          <HostIcon size={8} />
+                          <span className="text-[7px] font-bold truncate max-w-[120px]" title={user.host}>
+                            {shortHost(user.host)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-1.5">
                       <Eye size={10} className="text-emerald-400" />
                       <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider truncate">
@@ -1402,6 +1651,56 @@ export default function AdminAnalyticsPage() {
                     <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentBrowser || "N/A"}</p>
                   </div>
                 </div>
+
+                {/* Server / domain identification */}
+                {(() => {
+                  const meta = getHostMeta(classifyHostClient(userSession.currentHost));
+                  const HostIcon = meta.icon;
+                  return (
+                    <div className={`flex items-center gap-3 p-3 rounded-xl border ${meta.color}`}>
+                      <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-black/30 flex-shrink-0">
+                        <HostIcon size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black uppercase tracking-wider opacity-70">
+                          Serveur / Domaine de connexion
+                        </p>
+                        <p className="text-[12px] font-black truncate" title={userSession.currentHost || undefined}>
+                          {shortHost(userSession.currentHost)}
+                        </p>
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-md bg-black/30 flex-shrink-0">
+                        {meta.label}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Distinct domains used in session */}
+                {userSession.hosts && userSession.hosts.length > 1 && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <GitBranch size={12} />
+                      Domaines de la session ({userSession.hosts.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {userSession.hosts.map((h) => {
+                        const meta = getHostMeta(classifyHostClient(h.host));
+                        const HostIcon = meta.icon;
+                        return (
+                          <div
+                            key={h.host}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[8px] font-bold ${meta.color}`}
+                          >
+                            <HostIcon size={10} />
+                            <span className="truncate max-w-[140px]" title={h.host}>{shortHost(h.host)}</span>
+                            <span className="opacity-60">{h.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Page Journey Schema */}
                 {userSession.pageJourney.length > 0 && (
