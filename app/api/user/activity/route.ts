@@ -29,6 +29,17 @@ export async function POST(req: NextRequest) {
     const browser = extractBrowser(userAgent);
     const os = extractOS(userAgent);
 
+    // Identify the domain/server the user is connecting from.
+    // Forwarded headers take priority (set by Vercel/proxies), then origin/referer.
+    const host =
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      extractHost(req.headers.get("origin")) ||
+      extractHost(req.headers.get("referer")) ||
+      null;
+
+    const origin = req.headers.get("origin") || extractHost(req.headers.get("referer")) || null;
+
     const activity = await prisma.userActivity.create({
       data: {
         userId: payload.id,
@@ -39,6 +50,8 @@ export async function POST(req: NextRequest) {
         device,
         browser,
         os,
+        host: host ? host.substring(0, 255) : null,
+        origin: origin ? origin.substring(0, 255) : null,
       },
     });
 
@@ -68,4 +81,14 @@ function extractOS(ua: string): string {
   if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
   if (/linux/i.test(ua)) return "Linux";
   return "Autre";
+}
+
+// Extract the hostname from a full URL (origin/referer header)
+function extractHost(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
 }
