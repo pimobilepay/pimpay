@@ -440,6 +440,10 @@ model UserActivity {
   os        String?
   country   String?
   city      String?
+  domain    String?
+  host      String?
+  origin    String?
+  referrer  String?
   duration  Int?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -447,6 +451,7 @@ model UserActivity {
   @@index([userId])
   @@index([createdAt])
   @@index([page])
+  @@index([domain])
 }
 
 model SupportTicket {
