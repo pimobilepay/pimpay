@@ -65,6 +65,66 @@ function getSidraOperatorKey(): string | null {
   return k;
 }
 
+/**
+ * Diffuse réellement un transfert TRX (natif) ou USDT (TRC20) sur la blockchain
+ * TRON depuis le wallet Tron de l'expéditeur vers une adresse Tron destinataire.
+ *
+ * Utilisé pour :
+ *   - les retraits EXTERNES (adresse hors PimPay)
+ *   - les transferts INTERNES TRX/USDT (membre PimPay possédant une adresse Tron)
+ *     afin que le solde reçu soit AUSSI visible on-chain sur TRON.
+ *
+ * Retourne le hash de la transaction blockchain. Lève une erreur en cas d'échec
+ * (solde on-chain insuffisant, frais/énergie manquants, broadcast rejeté…).
+ */
+async function broadcastTronTransfer(opts: {
+  currency: "TRX" | "USDT";
+  privateKey: string;
+  fromAddress: string;
+  toAddress: string;
+  amount: number;
+}): Promise<string> {
+  const { currency, privateKey, fromAddress, toAddress, amount } = opts;
+  const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
+
+  // ── TRX natif ──────────────────────────────────────────────────────────
+  if (currency === "TRX") {
+    const trxBalanceSun = await tronWeb.trx.getBalance(fromAddress);
+    const amountInSun = Math.floor(amount * 1_000_000);
+    const estimatedFeeSun = 1_000_000;
+
+    if (trxBalanceSun < amountInSun + estimatedFeeSun) {
+      throw new Error(
+        `Solde TRX on-chain insuffisant. Disponible: ${(trxBalanceSun / 1_000_000).toFixed(2)} TRX.`
+      );
+    }
+
+    const txResult = await tronWeb.trx.sendTransaction(toAddress, amountInSun);
+    if (txResult.result) return txResult.txid;
+    throw new Error(txResult.message || "Échec de la transaction TRX");
+  }
+
+  // ── USDT TRC20 ─────────────────────────────────────────────────────────
+  const trxBalance = await tronWeb.trx.getBalance(fromAddress);
+  if (trxBalance / 1_000_000 < 10) {
+    throw new Error("Solde TRX insuffisant pour les frais. Minimum requis: ~10 TRX.");
+  }
+
+  const contract = await tronWeb.contract().at(USDT_CONTRACT_ADDRESS);
+  const usdtBalance = await contract.balanceOf(fromAddress).call();
+  if (Number(usdtBalance) / 1_000_000 < amount) {
+    throw new Error(
+      `Solde USDT on-chain insuffisant. Disponible: ${(Number(usdtBalance) / 1_000_000).toFixed(2)} USDT.`
+    );
+  }
+
+  const amountInSun = Math.floor(amount * 1_000_000);
+  const txResult = await contract
+    .transfer(toAddress, amountInSun)
+    .send({ feeLimit: 100_000_000, callValue: 0 });
+  return txResult;
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting
@@ -235,7 +295,10 @@ export async function POST(req: NextRequest) {
         });
 
         // ─── Transfert INTERNE (P2P entre utilisateurs PimPay) ───────────
-        // Pas de broadcast blockchain : uniquement mise à jour des soldes DB.
+        // Mise à jour des soldes DB. Pour TRX/USDT, si le destinataire possède
+        // une adresse TRON, on diffusera AUSSI le transfert sur la blockchain
+        // TRON (hors transaction Prisma) afin que le solde reçu soit visible
+        // on-chain. Le broadcast on-chain est tenté à l'ÉTAPE 2.
         if (recipientUser) {
           const toWallet = await tx.wallet.upsert({
             where: { userId_currency: { userId: recipientUser.id, currency } },
@@ -248,6 +311,15 @@ export async function POST(req: NextRequest) {
             },
           });
 
+          // Le transfert interne doit-il être répliqué on-chain sur TRON ?
+          const recipientTronAddress = recipientUser.usdtAddress || null;
+          const isTronInternal =
+            (currency === "TRX" || currency === "USDT") &&
+            !!recipientTronAddress &&
+            /^T[a-zA-Z0-9]{33}$/.test(recipientTronAddress) &&
+            !!senderUser?.usdtPrivateKey &&
+            !!senderUser?.usdtAddress;
+
           const transaction = await tx.transaction.create({
             data: {
               reference: `PIM-INT-${nanoid(10).toUpperCase()}`,
@@ -257,6 +329,9 @@ export async function POST(req: NextRequest) {
               currency,
               type: TransactionType.TRANSFER,
               status: TransactionStatus.SUCCESS,
+              // Pour un transfert interne TRON, on garde une trace "QUEUED"
+              // tant que le broadcast on-chain n'est pas confirmé.
+              statusClass: isTronInternal ? "QUEUED" : undefined,
               fromUserId: senderId,
               toUserId: recipientUser.id,
               fromWalletId: updatedSender.id,
@@ -264,6 +339,15 @@ export async function POST(req: NextRequest) {
               description:
                 description ||
                 `Transfert interne vers @${recipientUser.username}`,
+              metadata: isTronInternal
+                ? {
+                    internalOnChain: true,
+                    network: currency === "USDT" ? "TRON TRC20" : "TRON Mainnet",
+                    toAddress: recipientTronAddress,
+                    recipientTronAddress,
+                    requestedAt: new Date().toISOString(),
+                  }
+                : undefined,
             },
           });
 
@@ -289,6 +373,9 @@ export async function POST(req: NextRequest) {
             transaction,
             newBalance: updatedSender.balance,
             senderUser,
+            // Infos pour le broadcast on-chain TRON (étape 2)
+            internalOnChain: isTronInternal,
+            recipientTronAddress: isTronInternal ? recipientTronAddress : null,
           };
         }
 
@@ -507,23 +594,13 @@ export async function POST(req: NextRequest) {
           let privateKey = senderUser.usdtPrivateKey;
           if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 
-          const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
-          const trxBalanceSun = await tronWeb.trx.getBalance(senderUser.usdtAddress);
-          const amountInSun = Math.floor(result.transaction.amount * 1_000_000);
-          const estimatedFeeSun = 1_000_000;
-
-          if (trxBalanceSun < amountInSun + estimatedFeeSun) {
-            throw new Error(
-              `Solde TRX on-chain insuffisant. Disponible: ${(trxBalanceSun / 1_000_000).toFixed(2)} TRX.`
-            );
-          }
-
-          const txResult = await tronWeb.trx.sendTransaction(recipientInput, amountInSun);
-          if (txResult.result) {
-            blockchainTxHash = txResult.txid;
-          } else {
-            throw new Error(txResult.message || "Échec de la transaction TRX");
-          }
+          blockchainTxHash = await broadcastTronTransfer({
+            currency: "TRX",
+            privateKey,
+            fromAddress: senderUser.usdtAddress,
+            toAddress: recipientInput,
+            amount: result.transaction.amount,
+          });
         }
 
         // ── USDT TRC20 ───────────────────────────────────────────────────
@@ -531,25 +608,13 @@ export async function POST(req: NextRequest) {
           let privateKey = senderUser.usdtPrivateKey;
           if (privateKey.includes(":")) privateKey = decrypt(privateKey);
 
-          const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
-          const trxBalance = await tronWeb.trx.getBalance(senderUser.usdtAddress);
-          if (trxBalance / 1_000_000 < 10) {
-            throw new Error("Solde TRX insuffisant pour les frais. Minimum requis: ~10 TRX.");
-          }
-
-          const contract = await tronWeb.contract().at(USDT_CONTRACT_ADDRESS);
-          const usdtBalance = await contract.balanceOf(senderUser.usdtAddress).call();
-          if (Number(usdtBalance) / 1_000_000 < result.transaction.amount) {
-            throw new Error(
-              `Solde USDT on-chain insuffisant. Disponible: ${(Number(usdtBalance) / 1_000_000).toFixed(2)} USDT.`
-            );
-          }
-
-          const amountInSun = Math.floor(result.transaction.amount * 1_000_000);
-          const txResult = await contract
-            .transfer(recipientInput, amountInSun)
-            .send({ feeLimit: 100_000_000, callValue: 0 });
-          blockchainTxHash = txResult;
+          blockchainTxHash = await broadcastTronTransfer({
+            currency: "USDT",
+            privateKey,
+            fromAddress: senderUser.usdtAddress,
+            toAddress: recipientInput,
+            amount: result.transaction.amount,
+          });
         }
       } catch (e: any) {
         broadcastError = e.message;
@@ -601,6 +666,72 @@ export async function POST(req: NextRequest) {
           },
           { status: 400 }
         );
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ÉTAPE 2-bis (INTERNE TRON) : Réplication on-chain du transfert interne
+    // ─────────────────────────────────────────────────────────────────────────
+    // Le destinataire a DÉJÀ été crédité en DB (étape 1). On diffuse en plus le
+    // transfert sur la blockchain TRON vers son adresse Tron pour que le solde
+    // reçu soit visible on-chain (comme un transfert sortant vers un wallet
+    // externe). Best-effort : si le broadcast échoue (gas/énergie insuffisants),
+    // le transfert interne reste valide en DB — on ne rembourse pas, on note
+    // simplement l'échec on-chain dans la transaction.
+    if (
+      result.type === "INTERNAL" &&
+      result.internalOnChain &&
+      result.recipientTronAddress &&
+      result.senderUser?.usdtPrivateKey &&
+      result.senderUser?.usdtAddress
+    ) {
+      const currency = result.transaction.currency as "TRX" | "USDT";
+      let blockchainTxHash: string | null = null;
+      let broadcastError: string | null = null;
+
+      try {
+        let privateKey = result.senderUser.usdtPrivateKey;
+        if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+
+        blockchainTxHash = await broadcastTronTransfer({
+          currency,
+          privateKey,
+          fromAddress: result.senderUser.usdtAddress,
+          toAddress: result.recipientTronAddress,
+          amount: result.transaction.amount,
+        });
+      } catch (e: any) {
+        broadcastError = e.message;
+        console.error("[USER_TRANSFER] Broadcast on-chain interne échoué:", e.message);
+      }
+
+      await prisma.transaction
+        .update({
+          where: { id: result.transaction.id },
+          data: blockchainTxHash
+            ? {
+                statusClass: undefined,
+                blockchainTx: blockchainTxHash,
+                metadata: {
+                  ...(result.transaction.metadata as object),
+                  onChainConfirmed: true,
+                  confirmedAt: new Date().toISOString(),
+                },
+              }
+            : {
+                // L'argent est bien crédité en DB ; seul le miroir on-chain a échoué.
+                statusClass: "ONCHAIN_FAILED",
+                metadata: {
+                  ...(result.transaction.metadata as object),
+                  onChainConfirmed: false,
+                  onChainError: broadcastError || "Broadcast TRON échoué",
+                },
+              },
+        })
+        .catch(() => {});
+
+      if (blockchainTxHash) {
+        result.transaction.blockchainTx = blockchainTxHash;
       }
     }
 
