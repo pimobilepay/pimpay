@@ -171,6 +171,7 @@ export async function GET(req: NextRequest) {
           browser: activity.browser,
           os: activity.os,
           ip: activity.ip,
+          host: activity.host,
           lastSeen: activity.createdAt,
         };
       });

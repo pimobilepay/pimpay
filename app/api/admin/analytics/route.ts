@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       topCountries,
       kycStats,
       recentSignups,
+      domainStats,
     ] = await Promise.all([
       // Users
       prisma.user.count(),
@@ -94,6 +95,20 @@ export async function GET(req: NextRequest) {
         take: 10,
         select: { id: true, name: true, username: true, email: true, country: true, role: true, createdAt: true, status: true },
       }),
+
+      // Domain / server distribution (last 30 days) - identifies which
+      // sub-domain of the Pi ecosystem / Vercel deployment users connect from.
+      prisma.$queryRaw`
+        SELECT
+          COALESCE(NULLIF(TRIM("host"), ''), 'inconnu') as host,
+          COUNT(*)::int as views,
+          COUNT(DISTINCT "userId")::int as users,
+          COUNT(DISTINCT CASE WHEN "createdAt" >= ${new Date(now.getTime() - 5 * 60 * 1000)} THEN "userId" END)::int as online
+        FROM "UserActivity"
+        WHERE "createdAt" >= ${thirtyDaysAgo}
+        GROUP BY COALESCE(NULLIF(TRIM("host"), ''), 'inconnu')
+        ORDER BY views DESC
+      ` as Promise<{ host: string; views: number; users: number; online: number }[]>,
     ]);
 
     // Build 30-day chart data
@@ -145,6 +160,18 @@ export async function GET(req: NextRequest) {
       newCount: c.new_count || 0,
     }));
 
+    // Process domain/server data: classify each host so the admin can quickly
+    // tell apart the Pi Browser sandbox, custom sub-domains, and Vercel previews.
+    const totalDomainViews = (domainStats || []).reduce((sum, d) => sum + d.views, 0);
+    const finalDomains = (domainStats || []).map((d) => ({
+      host: d.host,
+      views: d.views,
+      users: d.users,
+      online: d.online || 0,
+      share: totalDomainViews > 0 ? Math.round((d.views / totalDomainViews) * 1000) / 10 : 0,
+      kind: classifyHost(d.host),
+    }));
+
     return NextResponse.json({
       kpis: {
         totalUsers,
@@ -163,6 +190,7 @@ export async function GET(req: NextRequest) {
       kyc,
       chartData,
       topCountries: finalTopCountries,
+      domains: finalDomains,
       recentSignups: recentSignups.map((u) => ({
         ...u,
         createdAt: u.createdAt.toISOString(),
@@ -172,4 +200,14 @@ export async function GET(req: NextRequest) {
     console.error("[Analytics API Error]", err);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
+}
+
+// Classify a host into a server "kind" so the dashboard can color/label it.
+function classifyHost(host: string): "pi" | "vercel" | "local" | "custom" | "unknown" {
+  const h = (host || "").toLowerCase();
+  if (!h || h === "inconnu") return "unknown";
+  if (h.includes("localhost") || h.startsWith("127.") || h.includes(".local")) return "local";
+  if (h.includes("pinet.com") || h.includes("minepi.com") || h.includes("pi.app")) return "pi";
+  if (h.includes("vercel.app") || h.includes("vercel.sh")) return "vercel";
+  return "custom";
 }

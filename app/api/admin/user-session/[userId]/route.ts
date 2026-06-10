@@ -109,8 +109,18 @@ export async function GET(req: NextRequest, context: RouteContext) {
         page: a.page,
         timestamp: a.createdAt,
         duration: a.duration || 0,
+        host: a.host || null,
         nextPage: arr[i + 1]?.page || null,
       }));
+
+    // Distinct domains/servers used during the session
+    const hostCounts = activities.reduce((acc, a) => {
+      if (a.host) acc[a.host] = (acc[a.host] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const hosts = Object.entries(hostCounts)
+      .map(([host, count]) => ({ host, count }))
+      .sort((a, b) => b.count - a.count);
 
     // Is user currently online (active in last 5 minutes)?
     const isOnline = currentSession !== null;
@@ -128,10 +138,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
       currentBrowser: currentSession?.browser || null,
       currentOS: currentSession?.os || null,
       currentIP: currentSession?.ip || null,
+      currentHost: currentSession?.host || null,
       sessionStartTime,
       totalDuration,
       totalPageViews: activities.filter(a => a.action === "PAGE_VIEW").length,
       totalClicks: clickActions.length,
+      hosts,
       pageVisits: Object.entries(pageVisits)
         .map(([page, count]) => ({ page, count }))
         .sort((a, b) => b.count - a.count),
@@ -145,6 +157,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         browser: a.browser,
         os: a.os,
         ip: a.ip,
+        host: a.host,
         createdAt: a.createdAt,
       })),
     });
