@@ -300,25 +300,47 @@ export async function POST(req: NextRequest) {
         // TRON (hors transaction Prisma) afin que le solde reçu soit visible
         // on-chain. Le broadcast on-chain est tenté à l'ÉTAPE 2.
         if (recipientUser) {
-          const toWallet = await tx.wallet.upsert({
-            where: { userId_currency: { userId: recipientUser.id, currency } },
-            update: { balance: { increment: amount } },
-            create: {
-              userId: recipientUser.id,
-              currency,
-              balance: amount,
-              type: getWalletType(currency),
-            },
-          });
-
-          // Le transfert interne doit-il être répliqué on-chain sur TRON ?
+          // Pour TRX/USDT, le transfert interne DOIT passer par la blockchain
+          // TRON. La blockchain est la source de vérité : le destinataire ne
+          // sera crédité en DB qu'APRÈS confirmation on-chain (étape 2-bis).
           const recipientTronAddress = recipientUser.usdtAddress || null;
-          const isTronInternal =
-            (currency === "TRX" || currency === "USDT") &&
-            !!recipientTronAddress &&
-            /^T[a-zA-Z0-9]{33}$/.test(recipientTronAddress) &&
-            !!senderUser?.usdtPrivateKey &&
-            !!senderUser?.usdtAddress;
+          const isTronCurrency = currency === "TRX" || currency === "USDT";
+
+          if (isTronCurrency) {
+            // 1) Le destinataire DOIT posséder une adresse TRON valide,
+            //    sinon impossible d'envoyer on-chain → on refuse.
+            if (
+              !recipientTronAddress ||
+              !/^T[a-zA-Z0-9]{33}$/.test(recipientTronAddress)
+            ) {
+              throw new Error(
+                `Transfert ${currency} impossible : le destinataire @${recipientUser.username} ne possède pas d'adresse TRON. Le transfert doit passer par la blockchain.`
+              );
+            }
+            // 2) L'expéditeur DOIT disposer d'un wallet TRON pour signer la tx.
+            if (!senderUser?.usdtPrivateKey || !senderUser?.usdtAddress) {
+              throw new Error(
+                `Transfert ${currency} impossible : votre wallet TRON n'est pas configuré.`
+              );
+            }
+          }
+
+          // Pour les devises non-TRON (PI, SDA, FIAT…), on garde le crédit
+          // interne immédiat en DB.
+          let toWalletId: string | undefined = undefined;
+          if (!isTronCurrency) {
+            const toWallet = await tx.wallet.upsert({
+              where: { userId_currency: { userId: recipientUser.id, currency } },
+              update: { balance: { increment: amount } },
+              create: {
+                userId: recipientUser.id,
+                currency,
+                balance: amount,
+                type: getWalletType(currency),
+              },
+            });
+            toWalletId = toWallet.id;
+          }
 
           const transaction = await tx.transaction.create({
             data: {
@@ -328,18 +350,19 @@ export async function POST(req: NextRequest) {
               netAmount: amount,
               currency,
               type: TransactionType.TRANSFER,
-              status: TransactionStatus.SUCCESS,
-              // Pour un transfert interne TRON, on garde une trace "QUEUED"
-              // tant que le broadcast on-chain n'est pas confirmé.
-              statusClass: isTronInternal ? "QUEUED" : undefined,
+              // TRON : en attente de confirmation on-chain. Non-TRON : succès direct.
+              status: isTronCurrency
+                ? TransactionStatus.PENDING
+                : TransactionStatus.SUCCESS,
+              statusClass: isTronCurrency ? "QUEUED" : undefined,
               fromUserId: senderId,
               toUserId: recipientUser.id,
               fromWalletId: updatedSender.id,
-              toWalletId: toWallet.id,
+              toWalletId,
               description:
                 description ||
                 `Transfert interne vers @${recipientUser.username}`,
-              metadata: isTronInternal
+              metadata: isTronCurrency
                 ? {
                     internalOnChain: true,
                     network: currency === "USDT" ? "TRON TRC20" : "TRON Mainnet",
@@ -351,31 +374,39 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          await tx.notification
-            .create({
-              data: {
-                userId: recipientUser.id,
-                title: "Paiement recu !",
-                message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
-                type: "PAYMENT_RECEIVED",
-                metadata: {
-                  amount,
-                  currency,
-                  senderName,
-                  reference: transaction.reference,
+          // Pour les transferts non-TRON, on notifie immédiatement le
+          // destinataire (l'argent est déjà crédité). Pour TRON, la
+          // notification est envoyée après confirmation on-chain (étape 2-bis).
+          if (!isTronCurrency) {
+            await tx.notification
+              .create({
+                data: {
+                  userId: recipientUser.id,
+                  title: "Paiement recu !",
+                  message: `Vous avez recu ${amount.toLocaleString()} ${currency} de ${senderName}.`,
+                  type: "PAYMENT_RECEIVED",
+                  metadata: {
+                    amount,
+                    currency,
+                    senderName,
+                    reference: transaction.reference,
+                  },
                 },
-              },
-            })
-            .catch(() => {});
+              })
+              .catch(() => {});
+          }
 
           return {
             type: "INTERNAL" as const,
             transaction,
             newBalance: updatedSender.balance,
             senderUser,
-            // Infos pour le broadcast on-chain TRON (étape 2)
-            internalOnChain: isTronInternal,
-            recipientTronAddress: isTronInternal ? recipientTronAddress : null,
+            senderName,
+            // Infos pour le broadcast on-chain TRON (étape 2-bis)
+            internalOnChain: isTronCurrency,
+            recipientTronAddress: isTronCurrency ? recipientTronAddress : null,
+            recipientUserId: recipientUser.id,
+            recipientUsername: recipientUser.username,
           };
         }
 
@@ -670,14 +701,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ÉTAPE 2-bis (INTERNE TRON) : Réplication on-chain du transfert interne
+    // ÉTAPE 2-bis (INTERNE TRON) : le transfert PASSE par la blockchain TRON
     // ─────────────────────────────────────────────────────────────────────────
-    // Le destinataire a DÉJÀ été crédité en DB (étape 1). On diffuse en plus le
-    // transfert sur la blockchain TRON vers son adresse Tron pour que le solde
-    // reçu soit visible on-chain (comme un transfert sortant vers un wallet
-    // externe). Best-effort : si le broadcast échoue (gas/énergie insuffisants),
-    // le transfert interne reste valide en DB — on ne rembourse pas, on note
-    // simplement l'échec on-chain dans la transaction.
+    // La blockchain TRON est la SOURCE DE VÉRITÉ. Le destinataire n'a PAS encore
+    // été crédité en DB (étape 1 a seulement débité l'expéditeur). On diffuse le
+    // transfert on-chain :
+    //   - Si le broadcast réussit → on crédite le destinataire en DB, on notifie
+    //     et on marque la transaction SUCCESS avec le hash blockchain.
+    //   - Si le broadcast échoue → on REMBOURSE l'expéditeur, on marque FAILED et
+    //     on renvoie une erreur. Aucun crédit "base de données à base de données".
     if (
       result.type === "INTERNAL" &&
       result.internalOnChain &&
@@ -705,33 +737,87 @@ export async function POST(req: NextRequest) {
         console.error("[USER_TRANSFER] Broadcast on-chain interne échoué:", e.message);
       }
 
-      await prisma.transaction
-        .update({
-          where: { id: result.transaction.id },
-          data: blockchainTxHash
-            ? {
-                statusClass: undefined,
-                blockchainTx: blockchainTxHash,
-                metadata: {
-                  ...(result.transaction.metadata as object),
-                  onChainConfirmed: true,
-                  confirmedAt: new Date().toISOString(),
-                },
-              }
-            : {
-                // L'argent est bien crédité en DB ; seul le miroir on-chain a échoué.
-                statusClass: "ONCHAIN_FAILED",
-                metadata: {
-                  ...(result.transaction.metadata as object),
-                  onChainConfirmed: false,
-                  onChainError: broadcastError || "Broadcast TRON échoué",
-                },
-              },
-        })
-        .catch(() => {});
-
       if (blockchainTxHash) {
+        // ✅ Confirmé on-chain → créditer le destinataire en DB + notifier + SUCCESS
+        const toWallet = await prisma.wallet.upsert({
+          where: {
+            userId_currency: { userId: result.recipientUserId, currency },
+          },
+          update: { balance: { increment: result.transaction.amount } },
+          create: {
+            userId: result.recipientUserId,
+            currency,
+            balance: result.transaction.amount,
+            type: getWalletType(currency),
+          },
+        });
+
+        await prisma.transaction.update({
+          where: { id: result.transaction.id },
+          data: {
+            status: TransactionStatus.SUCCESS,
+            statusClass: undefined,
+            blockchainTx: blockchainTxHash,
+            toWalletId: toWallet.id,
+            metadata: {
+              ...(result.transaction.metadata as object),
+              onChainConfirmed: true,
+              confirmedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        await prisma.notification
+          .create({
+            data: {
+              userId: result.recipientUserId,
+              title: "Paiement recu !",
+              message: `Vous avez recu ${result.transaction.amount.toLocaleString()} ${currency} de ${result.senderName}.`,
+              type: "PAYMENT_RECEIVED",
+              metadata: {
+                amount: result.transaction.amount,
+                currency,
+                senderName: result.senderName,
+                reference: result.transaction.reference,
+                blockchainTx: blockchainTxHash,
+              },
+            },
+          })
+          .catch(() => {});
+
         result.transaction.blockchainTx = blockchainTxHash;
+      } else {
+        // ❌ Broadcast échoué → rembourser l'expéditeur + marquer FAILED
+        // Le destinataire n'a jamais été crédité, donc rien à annuler côté receveur.
+        console.warn(
+          "[USER_TRANSFER] Remboursement du sender suite à l'échec broadcast interne TRON"
+        );
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { userId_currency: { userId: senderId, currency } },
+            data: { balance: { increment: totalDebit } },
+          }),
+          prisma.transaction.update({
+            where: { id: result.transaction.id },
+            data: {
+              status: TransactionStatus.FAILED,
+              statusClass: "BROADCAST_FAILED",
+              description: `[ÉCHEC] ${broadcastError || "Erreur blockchain TRON"}`,
+              metadata: {
+                ...(result.transaction.metadata as object),
+                onChainConfirmed: false,
+                onChainError: broadcastError || "Broadcast TRON échoué",
+              },
+            },
+          }),
+        ]);
+
+        return NextResponse.json(
+          {
+            error: `Transfert annulé : ${broadcastError || "Erreur blockchain TRON"}. Votre solde a été restitué.`,
+          },
+          { status: 400 }
+        );
       }
     }
 
