@@ -36,6 +36,7 @@ import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { nanoid } from "nanoid";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 import { verifyTronTransaction, classifyTronError } from "@/lib/blockchain/tron";
+import { parseUnits } from "ethers";
 
 // ─── TronWeb ──────────────────────────────────────────────────────────────────
 const TronWebModule = require("tronweb");
@@ -67,6 +68,27 @@ const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
 const TRON_FULL_HOST = "https://api.trongrid.io";
 
 /**
+ * API de routage officielle SunSwap — c'est EXACTEMENT l'endpoint utilisé par
+ * l'interface https://sunswap.com pour calculer le meilleur chemin de swap.
+ *
+ * Elle retourne le path multi-hop réel, les versions de pools (v1/v2/v3/psm…),
+ * les frais par pool et le montant de sortie réel. C'est INDISPENSABLE :
+ * un path codé en dur (ex: USDT→TRX en "v2") n'existe pas toujours en pool
+ * liquide → le contrat Smart Router REVERT on-chain.
+ */
+const SUNSWAP_ROUTER_API = "https://rot.endjgfsv.link/swap/router";
+
+/**
+ * Adresse "sentinelle" utilisée par l'API SunSwap pour représenter le TRX natif.
+ * (différent de WTRX qui n'apparaît que dans les hops intermédiaires)
+ */
+const TRX_NATIVE_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb";
+
+/** Liste des types de pools à explorer (comme l'UI SunSwap). */
+const SUNSWAP_POOL_TYPES =
+  "PSM,CURVE,CURVE_COMBINATION,WTRX,SUNSWAP_V1,SUNSWAP_V2,SUNSWAP_V3";
+
+/**
  * Adresses des tokens TRC20 courants sur TRON mainnet.
  * Source : https://tronscan.org
  */
@@ -82,6 +104,137 @@ const TOKEN_ADDRESSES: Record<string, string> = {
   WIN:  "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
   NFT:  "TFczxzPhnThNSqr5by8tvxsdCFRg8vFn4F",
 };
+
+/**
+ * Décimales réelles de chaque token (CRITIQUE).
+ * ⚠️ Tous les tokens TRC20 ne sont PAS en 6 décimales : USDD, JST, SUN, WIN
+ *    sont en 18. Utiliser 6 partout corrompt amountIn/minAmountOut → REVERT.
+ */
+const TOKEN_DECIMALS: Record<string, number> = {
+  TRX: 6,
+  WTRX: 6,
+  USDT: 6,
+  USDC: 6,
+  USDD: 18,
+  JST: 18,
+  SUN: 18,
+  BTT: 18,
+  WIN: 18,
+  NFT: 6,
+};
+
+function getDecimals(symbol: string): number {
+  return TOKEN_DECIMALS[symbol.toUpperCase()] ?? 6;
+}
+
+/** Adresse à passer à l'API SunSwap (TRX natif → sentinelle, sinon contrat). */
+function getRouterTokenAddress(symbol: string): string {
+  const up = symbol.toUpperCase();
+  if (up === "TRX") return TRX_NATIVE_ADDRESS;
+  return TOKEN_ADDRESSES[up];
+}
+
+/**
+ * Une route renvoyée par l'API SunSwap.
+ */
+interface SunswapRoute {
+  amountIn: string;
+  amountOut: string;
+  fee: string;
+  impact: string;
+  tokens: string[];        // chemin complet d'adresses (incl. WTRX intermédiaire)
+  symbols: string[];
+  poolFees: string[];      // frais par pool (string)
+  poolVersions: string[];  // ex: ["v3","v2"]
+}
+
+/**
+ * Interroge l'API de routage officielle SunSwap et renvoie la MEILLEURE route
+ * (celle avec le plus gros amountOut), exactement comme le fait l'UI.
+ */
+async function fetchSunswapRoute(
+  fromSymbol: string,
+  toSymbol: string,
+  amountIn: number
+): Promise<SunswapRoute> {
+  const fromAddress = getRouterTokenAddress(fromSymbol);
+  const toAddress = getRouterTokenAddress(toSymbol);
+  if (!fromAddress) throw new Error(`Token source non supporté : ${fromSymbol}`);
+  if (!toAddress) throw new Error(`Token destination non supporté : ${toSymbol}`);
+
+  const fromDec = getDecimals(fromSymbol);
+  const toDec = getDecimals(toSymbol);
+  const amountInRaw = parseUnits(amountIn.toString(), fromDec).toString();
+
+  const url =
+    `${SUNSWAP_ROUTER_API}?fromToken=${fromAddress}&toToken=${toAddress}` +
+    `&fromTokenDecimal=${fromDec}&toTokenDecimal=${toDec}` +
+    `&amountIn=${amountInRaw}&typeList=${encodeURIComponent(SUNSWAP_POOL_TYPES)}`;
+
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12_000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`API SunSwap indisponible (HTTP ${res.status})`);
+  }
+
+  const json = await res.json();
+  if (json?.code !== 0 || !Array.isArray(json?.data) || json.data.length === 0) {
+    throw new Error(
+      json?.message
+        ? `Aucune route SunSwap : ${json.message}`
+        : "Aucune route de swap disponible pour cette paire."
+    );
+  }
+
+  // La meilleure route = plus grand amountOut
+  const best: SunswapRoute = json.data.reduce((a: SunswapRoute, b: SunswapRoute) =>
+    parseFloat(b.amountOut) > parseFloat(a.amountOut) ? b : a
+  );
+
+  if (!best.tokens?.length || !best.poolVersions?.length) {
+    throw new Error("Route SunSwap incomplète.");
+  }
+  return best;
+}
+
+/**
+ * Construit le tableau `versionLen` attendu par swapExactInput à partir
+ * du path et de la liste des versions de pools.
+ *
+ * Règle officielle (README sun-protocol/smart-exchange-router) :
+ *   versionLen[i] = nombre de tokens consommés par le i-ème groupe de version,
+ *   et le PREMIER élément doit être incrémenté de +1.
+ *
+ * Exemple : path=[A,B,C,D], poolVersions=['v2','v2','v3']
+ *   → groupes : v2 (A,B,C) puis v3 (C,D) → counts [3,1] → versionLen=['3','1']
+ *     (le premier est déjà "nb de tokens du groupe" = 3, qui inclut le +1).
+ *
+ * Concrètement : on regroupe les versions consécutives identiques, on compte
+ * les hops (=versions) par groupe, le 1er groupe = hops+1, les suivants = hops.
+ */
+function buildVersionLen(poolVersions: string[]): string[] {
+  const groups: { version: string; count: number }[] = [];
+  for (const v of poolVersions) {
+    const last = groups[groups.length - 1];
+    if (last && last.version === v) last.count += 1;
+    else groups.push({ version: v, count: 1 });
+  }
+  return groups.map((g, idx) =>
+    idx === 0 ? (g.count + 1).toString() : g.count.toString()
+  );
+}
+
+/** Versions uniques consécutives (poolVersion passé au contrat). */
+function buildPoolVersionList(poolVersions: string[]): string[] {
+  const out: string[] = [];
+  for (const v of poolVersions) {
+    if (out[out.length - 1] !== v) out.push(v);
+  }
+  return out;
+}
 
 /**
  * Mapping CoinGecko ID pour chaque token supporté.
@@ -115,10 +268,12 @@ interface SunioQuoteResponse {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Calcule le prix de swap via CoinGecko.
- * Sun.io n'expose pas d'API REST publique de quote — le prix on-chain
- * est calculé par le contrat Smart Router au moment de l'exécution.
- * On utilise CoinGecko comme oracle de prix pour l'estimation du devis.
+ * Calcule le devis de swap via l'API de routage OFFICIELLE SunSwap.
+ *
+ * ⚠️ AVANT : le prix était estimé via CoinGecko avec un path codé en dur en
+ *    "v2". Ce path n'existe pas toujours en pool liquide → le contrat REVERT
+ *    on-chain (solde débité, jamais crédité). On utilise désormais la même
+ *    source de routage que l'interface SunSwap → path/versions/fees réels.
  */
 async function getSunioQuote(
   fromToken: string,
@@ -128,64 +283,24 @@ async function getSunioQuote(
 ): Promise<SunioQuoteResponse> {
   const fromUpper = fromToken.toUpperCase();
   const toUpper = toToken.toUpperCase();
-  
-  // TRX utilise WTRX pour le path dans les swaps
-  const fromAddress = fromUpper === "TRX" ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[fromUpper];
-  const toAddress = toUpper === "TRX" ? TOKEN_ADDRESSES.WTRX : TOKEN_ADDRESSES[toUpper];
 
-  if (!fromAddress) throw new Error(`Token source non supporté: ${fromToken}`);
-  if (!toAddress) throw new Error(`Token destination non supporté: ${toToken}`);
+  const route = await fetchSunswapRoute(fromUpper, toUpper, amountIn);
 
-  // Récupérer les prix USD via CoinGecko
-  const fromId = fromUpper === "TRX" ? "tron" : COINGECKO_IDS[fromUpper];
-  const toId = toUpper === "TRX" ? "tron" : COINGECKO_IDS[toUpper];
-
-  if (!fromId || !toId) {
-    throw new Error(`Pas de price feed CoinGecko pour ${fromToken} ou ${toToken}`);
-  }
-
-  const ids = [...new Set([fromId, toId])].join(",");
-
-  // Retry jusqu'à 3 fois en cas d'erreur 429 (rate limit CoinGecko)
-  let prices: Record<string, { usd: number }> = {};
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 1200));
-    const cgRes = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
-      { signal: AbortSignal.timeout(10_000) }
-    );
-    lastStatus = cgRes.status;
-    if (cgRes.ok) { prices = await cgRes.json(); break; }
-    if (cgRes.status !== 429) throw new Error(`CoinGecko erreur ${cgRes.status}`);
-  }
-  if (!prices || Object.keys(prices).length === 0) {
-    throw new Error(`CoinGecko erreur ${lastStatus} — service temporairement limité, réessayez dans quelques secondes.`);
-  }
-
-  const fromUsd = prices[fromId]?.usd;
-  const toUsd   = prices[toId]?.usd;
-
-  if (!fromUsd || !toUsd) {
-    throw new Error("Prix indisponibles via CoinGecko, réessayez dans quelques secondes.");
-  }
-
-  const slippagePct   = slippageBps / 10_000;            // ex: 100 bps → 0.01
-  const FEE_PCT       = 0.003;                            // 0.3% frais Sun.io estimés
-  const amountOut     = (amountIn * fromUsd) / toUsd * (1 - FEE_PCT);
-  const minAmountOut  = amountOut * (1 - slippagePct);
-  const priceImpact   = "0.30";                           // estimation (frais pool)
+  const amountOut = parseFloat(route.amountOut);
+  const slippagePct = slippageBps / 10_000; // ex: 100 bps → 0.01
+  const minAmountOut = amountOut * (1 - slippagePct);
+  const priceImpact = Math.abs(parseFloat(route.impact || "0")).toFixed(4);
 
   return {
-    fromToken:    fromUpper,
-    toToken:      toUpper,
-    amountIn:     amountIn.toString(),
-    amountOut:    amountOut.toFixed(6),
+    fromToken: fromUpper,
+    toToken: toUpper,
+    amountIn: amountIn.toString(),
+    amountOut: amountOut.toFixed(6),
     priceImpact,
-    route:        [fromAddress, toAddress],
-    routerAddress: SUNSWAP_SMART_ROUTER,  // ✅ Smart Router officiel Sun.io
+    route: route.tokens,
+    routerAddress: SUNSWAP_SMART_ROUTER,
     minAmountOut: minAmountOut.toFixed(6),
-    fee:          (amountIn * FEE_PCT).toFixed(6),
+    fee: route.fee || "0",
   };
 }
 
@@ -378,7 +493,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────��───────────────────────
 // POST /api/swap/sunio — Exécuter le swap
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
