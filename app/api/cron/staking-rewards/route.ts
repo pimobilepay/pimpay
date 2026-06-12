@@ -17,13 +17,27 @@ export async function GET(req: NextRequest) {
     for (const stake of stakings) {
       const reward = (stake.amount * stake.apy) / 100 / 365; // Gain journalier
       const newTotalRewards = (stake.rewardsEarned || 0) + reward;
-      // Devise du stake. Fallback pour les anciens stakings sans devise enregistrée:
-      // les pools SDA sont a 12% APY, les pools PI a 8.5% (flex) ou 14.2% (locked).
-      let currency = stake.currency || 'PI';
-      if (!stake.currency || stake.currency === 'PI') {
-        if (stake.apy === 12) currency = 'SDA';
+
+      // Identification fiable de la crypto (Pi ou SDA).
+      // L'APY du pool identifie de maniere unique la devise:
+      //   - SDA : 12% (sda-flex / sda-staking)
+      //   - PI  : 8.5% (pi-flex) ou 14.2% (pi-locked)
+      // On se base donc sur l'APY en priorite (corrige les anciens stakings
+      // mal etiquetes 'PI' par defaut), et on retombe sur la devise enregistree
+      // uniquement si l'APY ne correspond a aucun pool connu.
+      const stored = (stake.currency || '').toUpperCase();
+      let currency: 'PI' | 'SDA';
+      if (stake.apy === 12) {
+        currency = 'SDA';
+      } else if (stake.apy === 8.5 || stake.apy === 14.2) {
+        currency = 'PI';
+      } else {
+        currency = stored === 'SDA' ? 'SDA' : 'PI';
       }
-      
+
+      // Backfill: enregistre la devise corrigee pour fiabiliser les prochains calculs
+      const needsBackfill = stored !== currency;
+
       // Calculer la date de fin si elle existe
       const endDate = stake.endDate 
         ? new Date(stake.endDate).toLocaleDateString('fr-FR')
@@ -32,7 +46,9 @@ export async function GET(req: NextRequest) {
       await prisma.$transaction([
         prisma.staking.update({
           where: { id: stake.id },
-          data: { rewardsEarned: { increment: reward } }
+          data: needsBackfill
+            ? { rewardsEarned: { increment: reward }, currency }
+            : { rewardsEarned: { increment: reward } }
         }),
         prisma.notification.create({
           data: {
