@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 import { useLanguage } from "@/context/LanguageContext";
 
-type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "TRANSACTION_CONFIRM" | string;
+type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "SUPPORT_NOTIFICATION" | "TRANSACTION_CONFIRM" | string;
 
 // Helper pour formater les montants PI avec 8 decimales maximum
 function formatPiAmount(amount: number | undefined, currency?: string): string {
@@ -112,6 +112,8 @@ function getNotifCardClass(type: NotificationType, read: boolean): string {
       return "bg-orange-500/5 border border-white/10 border-l-2 border-l-orange-500";
     case "SUPPORT_MESSAGE":
       return "bg-cyan-500/5 border border-white/10 border-l-2 border-l-cyan-500";
+    case "SUPPORT_NOTIFICATION":
+      return "bg-blue-500/5 border border-white/10 border-l-2 border-l-blue-500";
     case "TRANSACTION_CONFIRM":
       return "bg-amber-500/5 border border-white/10 border-l-2 border-l-amber-500";
     default:
@@ -133,6 +135,7 @@ function getIconBgClass(type: NotificationType, read: boolean): string {
     case "STAKING": case "STAKING_REWARD": return "bg-purple-500/10";
     case "STAKING_UNSTAKE": return "bg-orange-500/10";
     case "SUPPORT_MESSAGE": return "bg-cyan-500/10";
+    case "SUPPORT_NOTIFICATION": return "bg-blue-500/10";
     case "TRANSACTION_CONFIRM": return "bg-amber-500/10";
     default: return "bg-blue-500/10";
   }

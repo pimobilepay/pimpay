@@ -73,6 +73,28 @@ export async function POST(
       });
     }
 
+    // Quand le support repond, notifier l'utilisateur proprietaire du ticket.
+    // Cela genere une notification visible dans /notifications + un toast global
+    // (via SupportReplyListener) quelle que soit la page ou se trouve l'utilisateur.
+    if (normalizedSenderId === "SUPPORT" && ticket.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: ticket.userId,
+          title: "Reponse du Support PimPay",
+          message: content.trim(),
+          type: "SUPPORT_MESSAGE",
+          read: false,
+          metadata: {
+            fromAdmin: true,
+            adminName: "Support PimPay",
+            canReply: true,
+            ticketId: id,
+            sentAt: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, message }, { status: 201 });
   } catch (error: any) {
     console.error("PIMPAY_REPLY_ERROR:", error);

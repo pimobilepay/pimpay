@@ -239,21 +239,21 @@ export async function POST(req: NextRequest) {
         ]);
         break;
 
-      // ENVOI DE NOTIFICATION INDIVIDUELLE (Support)
+      // ENVOI DE NOTIFICATION INDIVIDUELLE (Support) — NOTIFICATION informative, NON repliable
       case "SEND_SUPPORT_NOTIFICATION":
         if (!targetUserId || !extraData) return NextResponse.json({ error: "ID utilisateur et message requis" }, { status: 400 });
         await prisma.notification.create({
           data: {
             userId: targetUserId,
-            title: "Message du Support PimPay",
+            title: "Notification du Support PimPay",
             message: extraData,
-            type: "SUPPORT_MESSAGE",
+            type: "SUPPORT_NOTIFICATION",
             read: false,
             metadata: {
               fromAdmin: true,
               adminId: requester.id,
               adminName: requester.name || requester.email || "Support PimPay",
-              canReply: true,
+              canReply: false,
               sentAt: new Date().toISOString(),
             },
           }

@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ActivityTracker } from "@/components/ActivityTracker";
 import TransactionConfirmListener from "@/components/TransactionConfirmListener";
 import AccountStatusListener from "@/components/AccountStatusListener";
+import SupportReplyListener from "@/components/SupportReplyListener";
 import useSWR from "swr";
 
 // Fetcher for user data
@@ -63,6 +64,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       {/* Global account status listener - verifie si le compte est suspendu/maintenance */}
       {userData?.user?.id && (
         <AccountStatusListener userId={userData.user.id} />
+      )}
+      {/* Global support reply listener - toast quand le support repond, sur toutes les pages */}
+      {userData?.user?.id && (
+        <SupportReplyListener userId={userData.user.id} />
       )}
       {!isAuthPage ? (
         <>
