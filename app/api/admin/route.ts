@@ -247,7 +247,15 @@ export async function POST(req: NextRequest) {
             userId: targetUserId,
             title: "Message du Support PimPay",
             message: extraData,
-            type: "INFO"
+            type: "SUPPORT_MESSAGE",
+            read: false,
+            metadata: {
+              fromAdmin: true,
+              adminId: requester.id,
+              adminName: requester.name || requester.email || "Support PimPay",
+              canReply: true,
+              sentAt: new Date().toISOString(),
+            },
           }
         });
         break;

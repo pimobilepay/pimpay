@@ -191,6 +191,7 @@ export default function UserDashboard() {
   // Real-time notification polling
   useEffect(() => {
     let lastNotifId = sessionStorage.getItem("dashboard_last_notif_id") || "";
+    let lastSupportMsgId = sessionStorage.getItem("dashboard_last_support_msg_id") || "";
     const checkNotifications = async () => {
       try {
         const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
@@ -210,6 +211,25 @@ export default function UserDashboard() {
                 duration: 6000,
               });
               fetchDashboardData();
+            }
+
+            // Messages privés / notifications support envoyés par l'admin
+            const supportMessages = result.notifications.filter(
+              (n: any) => !n.read && n.type === "SUPPORT_MESSAGE"
+            );
+            if (supportMessages.length > 0 && supportMessages[0].id !== lastSupportMsgId) {
+              const supportMsg = supportMessages[0];
+              lastSupportMsgId = supportMsg.id;
+              sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
+              toast(supportMsg.title || "Message du Support", {
+                description: supportMsg.message || "Vous avez recu un message du support PimPay",
+                duration: 8000,
+                icon: "📧",
+                action: {
+                  label: "Voir",
+                  onClick: () => router.push("/notifications"),
+                },
+              });
             }
           }
         }
