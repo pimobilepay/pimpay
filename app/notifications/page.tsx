@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import TransactionConfirmModal from "@/components/TransactionConfirmModal";
+import SupportChatModal from "@/components/SupportChatModal";
 import { useLanguage } from "@/context/LanguageContext";
 
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "SUPPORT_NOTIFICATION" | "TRANSACTION_CONFIRM" | string;
@@ -79,6 +80,7 @@ interface Notification {
     adminName?: string;
     canReply?: boolean;
     sentAt?: string;
+    ticketId?: string;
   };
 }
 
@@ -260,6 +262,10 @@ export default function NotificationsPage() {
 
   const [activeTab, setActiveTab] = useState<string>("ALL");
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+
+  // Support chat modal (ouverture en place au lieu de rediriger vers /chat)
+  const [supportChatOpen, setSupportChatOpen] = useState(false);
+  const [supportChatTicketId, setSupportChatTicketId] = useState<string | null>(null);
   
   // MFA Transaction Confirmation
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -727,7 +733,8 @@ export default function NotificationsPage() {
                 <button 
                   onClick={() => {
                     onClose();
-                    router.push("/chat?support=true");
+                    setSupportChatTicketId((metadata?.ticketId as string) || null);
+                    setSupportChatOpen(true);
                   }}
                   className="w-full py-4 bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-cyan-400 transition-all flex items-center justify-center gap-2"
                 >
@@ -801,6 +808,16 @@ export default function NotificationsPage() {
         transaction={confirmTx}
         userId={currentUserId}
         twoFactorEnabled={twoFactorEnabled}
+      />
+
+      {/* Support Chat Modal — discussion en place avec le support */}
+      <SupportChatModal
+        isOpen={supportChatOpen}
+        ticketId={supportChatTicketId}
+        onClose={() => {
+          setSupportChatOpen(false);
+          fetchNotifications(true);
+        }}
       />
 
       {/* Notification Detail Modal */}
