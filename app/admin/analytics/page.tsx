@@ -599,23 +599,51 @@ export default function AdminAnalyticsPage() {
     zoom: 1
   });
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(false);
-      const res = await fetch("/api/admin/analytics");
+      const res = await fetch("/api/admin/analytics", silent ? { cache: "no-store" } : undefined);
       if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
-      setData(json);
+      // Détecte une hausse du nombre d'utilisateurs pour notifier en temps réel
+      setData((prev) => {
+        const prevTotal = prev?.kpis?.totalUsers ?? null;
+        const nextTotal = json?.kpis?.totalUsers ?? null;
+        if (silent && prevTotal !== null && nextTotal !== null && nextTotal > prevTotal) {
+          const diff = nextTotal - prevTotal;
+          toast.success(
+            diff === 1 ? "Nouvel utilisateur inscrit !" : `${diff} nouveaux utilisateurs inscrits !`,
+            {
+              description: `Total : ${nextTotal.toLocaleString("fr-FR")} utilisateurs`,
+              duration: 5000,
+              style: {
+                background: "rgba(59, 130, 246, 0.95)",
+                border: "1px solid rgba(96, 165, 250, 0.3)",
+                color: "#fff",
+              },
+            }
+          );
+        }
+        return json;
+      });
     } catch {
-      setError(true);
-      toast.error("Impossible de charger les analytics");
+      if (!silent) {
+        setError(true);
+        toast.error("Impossible de charger les analytics");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchAnalytics(); }, []);
+  useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
+
+  // Rafraîchit les KPIs en arrière-plan toutes les 8s (compteur utilisateurs en temps réel)
+  useEffect(() => {
+    const interval = setInterval(() => { fetchAnalytics(true); }, 8000);
+    return () => clearInterval(interval);
+  }, [fetchAnalytics]);
 
   // Fetch user session details
   const fetchUserSession = useCallback(async (userId: string) => {
@@ -990,7 +1018,7 @@ export default function AdminAnalyticsPage() {
           <h2 className="text-sm font-black text-white uppercase tracking-wider mb-2">Erreur de chargement</h2>
           <p className="text-[10px] text-slate-500 mb-6">Impossible de charger les analytics. Veuillez reessayer.</p>
           <button
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics()}
             className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
           >
             <RefreshCw size={14} />
@@ -1034,7 +1062,7 @@ export default function AdminAnalyticsPage() {
             <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Analytics</h1>
           </div>
-          <button onClick={fetchAnalytics} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+          <button onClick={() => fetchAnalytics()} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
             <RefreshCw size={18} />
           </button>
         </div>
