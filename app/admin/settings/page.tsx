@@ -107,6 +107,8 @@ export default function SystemSettings() {
   const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
   const [togglingPiNetwork, setTogglingPiNetwork] = useState(false);
+  const [togglingPriceMode, setTogglingPriceMode] = useState(false);
+  const [livePiPrice, setLivePiPrice] = useState<{ price: number; source: string } | null>(null);
   const [searchAudit, setSearchAudit] = useState('');
   const [showAllAudit, setShowAllAudit] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -165,6 +167,7 @@ export default function SystemSettings() {
     minWithdrawal: 0,
     maxWithdrawal: 0,
     consensusPrice: 0,
+    priceMode: "GCV" as "GCV" | "MARKET",
     stakingAPY: 0,
     forceUpdate: false,
     transferFee: 0.01,
@@ -283,6 +286,15 @@ export default function SystemSettings() {
   useEffect(() => {
     if (activeSection === 'system') {
       fetchSystemInfo();
+    }
+  }, [activeSection]);
+
+  // Charger le prix marché temps réel dès que l'utilisateur ouvre la section monétaire
+  useEffect(() => {
+    if (activeSection === 'monetary') {
+      fetchMarketPrice();
+      const interval = setInterval(fetchMarketPrice, 30000);
+      return () => clearInterval(interval);
     }
   }, [activeSection]);
 
@@ -482,6 +494,50 @@ export default function SystemSettings() {
       toast.error(err.message || "Erreur lors du changement de réseau Pi");
     } finally {
       setTogglingPiNetwork(false);
+    }
+  };
+
+  const togglePriceMode = async () => {
+    const next: "GCV" | "MARKET" = config.priceMode === "GCV" ? "MARKET" : "GCV";
+    const previous = config.priceMode;
+    setTogglingPriceMode(true);
+    // Optimistic update
+    setConfig(prev => ({ ...prev, priceMode: next }));
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ priceMode: next }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Erreur serveur");
+      const updated = await res.json();
+      if (updated?.priceMode) setConfig(prev => ({ ...prev, priceMode: updated.priceMode }));
+      toast.success(
+        next === "MARKET"
+          ? "Prix Pi basculé sur le MARCHÉ — cours temps réel appliqué partout"
+          : "Prix Pi basculé sur le GCV — prix fixe admin appliqué partout",
+        { duration: 6000 }
+      );
+    } catch (err: any) {
+      // Rollback on failure
+      setConfig(prev => ({ ...prev, priceMode: previous }));
+      toast.error(err.message || "Erreur lors du changement de mode de prix");
+    } finally {
+      setTogglingPriceMode(false);
+    }
+  };
+
+  const fetchMarketPrice = async () => {
+    try {
+      const res = await fetch("/api/pi-price", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (typeof data?.price === "number") {
+        setLivePiPrice({ price: data.price, source: data.source });
+      }
+    } catch {
+      /* silencieux */
     }
   };
 
@@ -1297,11 +1353,104 @@ export default function SystemSettings() {
             {/* ══════════════════════════════════��═════════════════ */}
             {activeSection === 'monetary' && (
               <div className="space-y-4">
+                {/* ─── SOURCE DU PRIX PI : GCV ↔ MARCHÉ ─── */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Source du Prix Pi Network</h2>
+                  <div className={`relative overflow-hidden rounded-2xl border p-6 transition-all
+                    ${config.priceMode === 'MARKET'
+                      ? 'bg-gradient-to-br from-emerald-500/8 via-teal-500/5 to-transparent border-emerald-500/25'
+                      : 'bg-gradient-to-br from-amber-500/8 via-orange-500/5 to-transparent border-amber-500/25'}`}>
+
+                    {/* Glow background */}
+                    <div className={`absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl opacity-[0.06] pointer-events-none
+                      ${config.priceMode === 'MARKET' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                      {/* Left — info */}
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-xl border shrink-0
+                          ${config.priceMode === 'MARKET'
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                            : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+                          {config.priceMode === 'MARKET' ? <TrendingUp size={20} /> : <Zap size={20} />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-black text-white uppercase tracking-tight">Prix du Pi</p>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border
+                              ${config.priceMode === 'MARKET'
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                : 'bg-amber-500/20 border-amber-500/40 text-amber-300'}`}>
+                              {config.priceMode === 'MARKET' ? 'MARCHÉ · Temps réel' : 'GCV · Prix fixe'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-sm">
+                            {config.priceMode === 'MARKET'
+                              ? 'Le prix suit le cours réel du marché (CoinGecko), mis à jour automatiquement et appliqué partout : dépôt, retrait, swap, cartes, frais.'
+                              : `Prix consensus fixe défini par l'administrateur ($${config.consensusPrice.toLocaleString()}), appliqué partout : dépôt, retrait, swap, cartes, frais.`}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${config.priceMode === 'MARKET' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${config.priceMode === 'MARKET' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {config.priceMode === 'MARKET'
+                                ? livePiPrice
+                                  ? `Cours actuel : $${livePiPrice.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}`
+                                  : 'Récupération du cours marché...'
+                                : `GCV actif : $${config.consensusPrice.toLocaleString()}`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right — toggle */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        <button
+                          type="button"
+                          onClick={togglePriceMode}
+                          disabled={togglingPriceMode}
+                          className={`relative flex items-center w-[72px] h-8 rounded-full border transition-all duration-300 outline-none
+                            ${togglingPriceMode ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                            ${config.priceMode === 'MARKET'
+                              ? 'bg-emerald-500/20 border-emerald-500/40'
+                              : 'bg-amber-500/20 border-amber-500/40'}`}
+                          aria-label={`Basculer le prix Pi vers ${config.priceMode === 'MARKET' ? 'GCV' : 'Marché'}`}
+                        >
+                          <span className={`absolute left-1 flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 text-[8px] font-black
+                            ${config.priceMode === 'MARKET'
+                              ? 'translate-x-[40px] bg-emerald-400 text-emerald-900'
+                              : 'translate-x-0 bg-amber-400 text-amber-900'}`}>
+                            {togglingPriceMode
+                              ? <Loader2 size={10} className="animate-spin" />
+                              : config.priceMode === 'MARKET' ? 'M' : 'G'}
+                          </span>
+                        </button>
+                        <span className="text-[9px] font-bold text-slate-500">
+                          {togglingPriceMode
+                            ? 'Basculement...'
+                            : `→ ${config.priceMode === 'MARKET' ? 'Passer en GCV' : 'Passer au Marché'}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Note mode marché */}
+                    {config.priceMode === 'MARKET' && (
+                      <div className="relative z-10 mt-4 flex items-start gap-2.5 p-3.5 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
+                        <Info size={13} className="text-emerald-400 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-emerald-300/70 leading-relaxed font-medium">
+                          Le prix GCV ci-dessous reste configuré mais n&apos;est pas appliqué tant que le mode Marché est actif. Il sert de valeur de repli si le cours marché est temporairement indisponible.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <MonetaryCard
                     icon={<Zap size={16} />}
-                    label="Prix du Pi (USD)"
-                    sublabel="Prix global appliqué partout : dépôt, retrait, swap, cartes, frais"
+                    label="Prix GCV du Pi (USD)"
+                    sublabel={config.priceMode === 'MARKET'
+                      ? 'Mode Marché actif — valeur de repli uniquement'
+                      : 'Prix global appliqué partout : dépôt, retrait, swap, cartes, frais'}
                     value={config.consensusPrice}
                     onChange={v => setConfig({ ...config, consensusPrice: v })}
                     prefix="$"
@@ -1340,7 +1489,13 @@ export default function SystemSettings() {
                   <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Aperçu de la Politique Économique</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: 'GCV Price', value: `$${config.consensusPrice.toLocaleString()}`, icon: <PieChart size={12} /> },
+                      {
+                        label: config.priceMode === 'MARKET' ? 'Prix Marché' : 'Prix GCV',
+                        value: config.priceMode === 'MARKET'
+                          ? (livePiPrice ? `$${livePiPrice.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}` : '—')
+                          : `$${config.consensusPrice.toLocaleString()}`,
+                        icon: config.priceMode === 'MARKET' ? <TrendingUp size={12} /> : <PieChart size={12} />,
+                      },
                       { label: 'APY', value: `${config.stakingAPY}%`, icon: <TrendingUp size={12} /> },
                       { label: 'Frais base', value: `${config.transactionFee}%`, icon: <Hash size={12} /> },
                       { label: 'Min Retrait', value: config.minWithdrawal.toString(), icon: <ArrowDownToLine size={12} /> },
