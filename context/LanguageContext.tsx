@@ -3,10 +3,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { fr as frDict } from "@/lib/i18n/locales/fr";
 import { en as enDict } from "@/lib/i18n/locales/en";
+import { zh as zhDict } from "@/lib/i18n/locales/zh";
 import type { Locale } from "@/lib/i18n";
 import { LOCALE_STORAGE_KEY, detectBrowserLocale } from "@/lib/i18n";
 
-const dictionaries = { fr: frDict, en: enDict } as const;
+const dictionaries = { fr: frDict, en: enDict, zh: zhDict } as const;
 
 // Utility: deep get by dot-notation key, e.g. "auth.login.title"
 function getNestedValue(obj: any, path: string): string {
@@ -32,7 +33,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
-    if (saved && (saved === "fr" || saved === "en")) {
+    if (saved && (saved === "fr" || saved === "en" || saved === "zh")) {
       setLocaleState(saved);
     } else {
       const detected = detectBrowserLocale();

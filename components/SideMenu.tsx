@@ -93,7 +93,8 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   };
 
   const toggleLanguage = () => {
-    const next = locale === "fr" ? "en" : "fr";
+    const order = ["fr", "en", "zh"] as const;
+    const next = order[(order.indexOf(locale as (typeof order)[number]) + 1) % order.length];
     setLocale(next);
   };
 

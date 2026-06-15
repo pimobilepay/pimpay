@@ -34,6 +34,13 @@ const languages: LanguageOption[] = [
     flag: "EN",
     region: "Global",
   },
+  {
+    code: "zh",
+    label: "Chinois",
+    nativeLabel: "中文",
+    flag: "ZH",
+    region: "China, Asie",
+  },
 ];
 
 export default function LanguagePage() {
@@ -44,7 +51,7 @@ export default function LanguagePage() {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (saved === "en" || saved === "fr") {
+    if (saved === "en" || saved === "fr" || saved === "zh") {
       setCurrentLocale(saved);
     }
   }, []);
@@ -56,7 +63,11 @@ export default function LanguagePage() {
     localStorage.setItem(LOCALE_STORAGE_KEY, code);
 
     toast.success(
-      code === "fr" ? "Langue changee en Francais" : "Language changed to English"
+      code === "fr"
+        ? "Langue changee en Francais"
+        : code === "zh"
+          ? "语言已切换为中文"
+          : "Language changed to English"
     );
 
     // Refresh the page so all components pick up the new locale
