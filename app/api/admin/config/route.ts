@@ -16,6 +16,7 @@ const FALLBACK_CONFIG = {
   comingSoonMode: false,
   comingSoonUntil: null,
   consensusPrice: 314159.0,
+  priceMode: "GCV",
   stakingAPY: 12.0,
   transactionFee: 0.5,
   minWithdrawal: 10.0,
@@ -290,7 +291,7 @@ export async function POST(req: NextRequest) {
     const {
       appVersion, globalAnnouncement, announcementImage, announcementLink, transactionFee,
       maintenanceMode, comingSoonMode, minWithdrawal, 
-      consensusPrice, stakingAPY, forceUpdate, maintenanceUntil, comingSoonUntil,
+      consensusPrice, priceMode, stakingAPY, forceUpdate, maintenanceUntil, comingSoonUntil,
       // Crypto fee fields
       transferFee, withdrawFee, depositCryptoFee, exchangeFee,
       // Fiat fee fields
@@ -320,6 +321,7 @@ export async function POST(req: NextRequest) {
     if (minWithdrawal !== undefined) updateData.minWithdrawal = Number(minWithdrawal);
     if (maxWithdrawal !== undefined) updateData.maxWithdrawal = Number(maxWithdrawal);
     if (consensusPrice !== undefined) updateData.consensusPrice = Number(consensusPrice);
+    if (priceMode !== undefined) updateData.priceMode = priceMode === "MARKET" ? "MARKET" : "GCV";
     if (stakingAPY !== undefined) updateData.stakingAPY = Number(stakingAPY);
     if (forceUpdate !== undefined) updateData.forceUpdate = Boolean(forceUpdate);
     if (maintenanceUntil !== undefined) updateData.maintenanceUntil = maintenanceUntil ? new Date(maintenanceUntil) : null;
