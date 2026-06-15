@@ -31,6 +31,258 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
+
+/* ------------------------------------------------------------------ */
+/*  SWAP TRANSLATIONS (fr / en / zh)                                    */
+/* ------------------------------------------------------------------ */
+
+const SWAP_T = {
+  fr: {
+    catNative: "Ecosysteme", catMajor: "Principales", catStable: "Stablecoins", catFiat: "Devises Fiat",
+    routedSunio: "Routé via Sun.io · SunSwap TRON",
+    routedChangenow: "Routé via ChangeNow · Taux Fixe Garanti",
+    routedSimpleswap: "Routé via SimpleSwap · Taux Fixe",
+    ratesUpdated: "Taux mis a jour!",
+    sunioSuccess: "Swap Sun.io réussi !",
+    changenowInit: "Échange ChangeNow initié !",
+    simpleswapInit: "Échange SimpleSwap initié !",
+    swapDone: "Swap effectue avec succes!",
+    convertedTo: "converti en",
+    refCopied: "Reference copiee!",
+    enterValidAmount: "Entrez un montant valide",
+    insufficientBalance: "Solde insuffisant",
+    copied: "Copie!",
+    swapError: "Erreur lors du swap",
+    insufficientBalanceOf: "insuffisant",
+    swapFailedSunio: "Swap Sun.io échoué",
+    swapFailedChangenow: "Swap ChangeNow échoué",
+    swapFailedSimpleswap: "Swap SimpleSwap échoué",
+    noFixedRate: "Aucun taux fixe disponible. Attendez le chargement du devis.",
+    calcError: "Erreur lors du calcul",
+    swapFailed: "Le swap a echoue",
+    networkError: "Erreur reseau",
+    // success
+    exchangeCreated: "Créé", txConfirmed: "Transaction Confirmée", exchangeWord: "Échange",
+    copyRef: "Copier Ref",
+    swapWord: "Swap", initiated: "Initié", succeeded: "Réussi",
+    externalInProgress: "est en cours. Il sera finalisé sous 5–60 min.",
+    externalPrefix: "Votre échange",
+    fundsConverted: "Vos fonds ont été convertis avec succès",
+    viaWord: "via", fixedMode: "Mode Fixe",
+    exchangeInProgress: "Échange en cours",
+    autoProcess1: "traite l'échange automatiquement. Vos fonds",
+    autoProcess2: "seront crédités dès confirmation blockchain (5–60 min selon le réseau).",
+    sold: "Vendu", received: "Reçu",
+    rate: "Taux", fees: "Frais", date: "Date", status: "Statut",
+    inProgress: "En cours", confirmed: "Confirmé",
+    refPimpay: "Reference PimPay",
+    hashTron: "Hash TRON (Sun.io)",
+    idChangenow: "ID ChangeNow", idSimpleswap: "ID SimpleSwap",
+    newSwap: "Nouveau Swap",
+    backToDashboard: "Retour au Dashboard",
+    shareText1: "J'ai converti", shareText2: "en", shareText3: "sur PimPay!",
+    // main UI
+    loadingQuote: "Chargement devis...", liveRate: "Taux en direct",
+    sell: "Vendre", receive: "Recevoir", balance: "Solde",
+    rateLabel: "Taux", networkFee: "Frais réseau",
+    priceImpact: "Price Impact",
+    guaranteedRate: "Taux garanti", fixed: "✓ Fixe",
+    estimatedTime: "Délai estimé",
+    quoteValidUntil: "Devis valide jusqu'à",
+    slippageTolerance: "Tolérance de slippage",
+    highSlippage: "Slippage élevé : risque de recevoir nettement moins que prévu.",
+    guaranteedAmount: "Montant garanti", minimumReceived: "Minimum reçu",
+    poweredSunio: "Powered by Sun.io · SunSwap",
+    poweredChangenow: "Powered by ChangeNow · Fixed Rate",
+    poolFee: "May include 0.3% pool fee",
+    calcFixedPrice: "Calcul du prix fixe...",
+    loadingChangenow: "Chargement devis ChangeNow...",
+    swapNow: "Echanger maintenant",
+    marketPrice: "Prix du marché",
+    updated: "MAJ",
+    source: "Source", refreshed: "rafraîchi toutes les 30s",
+    securedBy: "Securise par PimPay Ledger Technology",
+    // selector
+    select: "Selectionner", assetToSell: "Actif a vendre", assetToReceive: "Actif a recevoir",
+    searchAsset: "Rechercher un actif...", noMatchingAsset: "Aucun actif correspondant",
+    // confirm
+    summaryOf: "Resume du", verifyDetails: "Verifiez les details avant confirmation",
+    routeSunio: "Sun.io · SunSwap TRON on-chain",
+    routeChangenow: "ChangeNow · Taux Fixe Garanti",
+    routeInternal: "PimPay · Conversion interne",
+    youSell: "Vous vendez", youReceive: "Vous recevez",
+    exchangeRate: "Taux de change",
+    fixedGuaranteed: "✓ Fixe — Montant garanti",
+    slippage: "Slippage",
+    warning: "Attention",
+    warnSunio: "Ce swap est exécuté on-chain sur TRON via Sun.io. Il est irreversible une fois confirmé. Vérifiez le price impact avant de continuer.",
+    warnChangenow: "Le taux est fixe et garanti par ChangeNow. L'opération est irreversible. La finalisation blockchain prendra 10–60 minutes selon les réseaux concernés.",
+    warnInternal: "Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer.",
+    processing: "Traitement en cours...", confirmSwap: "Confirmer le Swap",
+    cancel: "Annuler",
+  },
+  en: {
+    catNative: "Ecosystem", catMajor: "Major", catStable: "Stablecoins", catFiat: "Fiat Currencies",
+    routedSunio: "Routed via Sun.io · SunSwap TRON",
+    routedChangenow: "Routed via ChangeNow · Guaranteed Fixed Rate",
+    routedSimpleswap: "Routed via SimpleSwap · Fixed Rate",
+    ratesUpdated: "Rates updated!",
+    sunioSuccess: "Sun.io swap successful!",
+    changenowInit: "ChangeNow exchange initiated!",
+    simpleswapInit: "SimpleSwap exchange initiated!",
+    swapDone: "Swap completed successfully!",
+    convertedTo: "converted to",
+    refCopied: "Reference copied!",
+    enterValidAmount: "Enter a valid amount",
+    insufficientBalance: "Insufficient balance",
+    copied: "Copied!",
+    swapError: "Error during swap",
+    insufficientBalanceOf: "insufficient",
+    swapFailedSunio: "Sun.io swap failed",
+    swapFailedChangenow: "ChangeNow swap failed",
+    swapFailedSimpleswap: "SimpleSwap swap failed",
+    noFixedRate: "No fixed rate available. Wait for the quote to load.",
+    calcError: "Error during calculation",
+    swapFailed: "The swap failed",
+    networkError: "Network error",
+    exchangeCreated: "Created", txConfirmed: "Transaction Confirmed", exchangeWord: "Exchange",
+    copyRef: "Copy Ref",
+    swapWord: "Swap", initiated: "Initiated", succeeded: "Successful",
+    externalInProgress: "is in progress. It will be finalized within 5–60 min.",
+    externalPrefix: "Your",
+    fundsConverted: "Your funds were converted successfully",
+    viaWord: "via", fixedMode: "Fixed Mode",
+    exchangeInProgress: "Exchange in progress",
+    autoProcess1: "is processing the exchange automatically. Your",
+    autoProcess2: "funds will be credited upon blockchain confirmation (5–60 min depending on the network).",
+    sold: "Sold", received: "Received",
+    rate: "Rate", fees: "Fees", date: "Date", status: "Status",
+    inProgress: "In progress", confirmed: "Confirmed",
+    refPimpay: "PimPay Reference",
+    hashTron: "TRON Hash (Sun.io)",
+    idChangenow: "ChangeNow ID", idSimpleswap: "SimpleSwap ID",
+    newSwap: "New Swap",
+    backToDashboard: "Back to Dashboard",
+    shareText1: "I converted", shareText2: "to", shareText3: "on PimPay!",
+    loadingQuote: "Loading quote...", liveRate: "Live rate",
+    sell: "Sell", receive: "Receive", balance: "Balance",
+    rateLabel: "Rate", networkFee: "Network fee",
+    priceImpact: "Price Impact",
+    guaranteedRate: "Guaranteed rate", fixed: "✓ Fixed",
+    estimatedTime: "Estimated time",
+    quoteValidUntil: "Quote valid until",
+    slippageTolerance: "Slippage tolerance",
+    highSlippage: "High slippage: risk of receiving significantly less than expected.",
+    guaranteedAmount: "Guaranteed amount", minimumReceived: "Minimum received",
+    poweredSunio: "Powered by Sun.io · SunSwap",
+    poweredChangenow: "Powered by ChangeNow · Fixed Rate",
+    poolFee: "May include 0.3% pool fee",
+    calcFixedPrice: "Calculating fixed price...",
+    loadingChangenow: "Loading ChangeNow quote...",
+    swapNow: "Swap now",
+    marketPrice: "Market price",
+    updated: "Updated",
+    source: "Source", refreshed: "refreshed every 30s",
+    securedBy: "Secured by PimPay Ledger Technology",
+    select: "Select", assetToSell: "Asset to sell", assetToReceive: "Asset to receive",
+    searchAsset: "Search an asset...", noMatchingAsset: "No matching asset",
+    summaryOf: "Summary of", verifyDetails: "Check the details before confirming",
+    routeSunio: "Sun.io · SunSwap TRON on-chain",
+    routeChangenow: "ChangeNow · Guaranteed Fixed Rate",
+    routeInternal: "PimPay · Internal conversion",
+    youSell: "You sell", youReceive: "You receive",
+    exchangeRate: "Exchange rate",
+    fixedGuaranteed: "✓ Fixed — Guaranteed amount",
+    slippage: "Slippage",
+    warning: "Warning",
+    warnSunio: "This swap is executed on-chain on TRON via Sun.io. It is irreversible once confirmed. Check the price impact before continuing.",
+    warnChangenow: "The rate is fixed and guaranteed by ChangeNow. The operation is irreversible. Blockchain finalization will take 10–60 minutes depending on the networks involved.",
+    warnInternal: "This conversion operation is irreversible. Make sure the details are correct before confirming.",
+    processing: "Processing...", confirmSwap: "Confirm Swap",
+    cancel: "Cancel",
+  },
+  zh: {
+    catNative: "生态系统", catMajor: "主流币", catStable: "稳定币", catFiat: "法定货币",
+    routedSunio: "通过 Sun.io · SunSwap TRON 路由",
+    routedChangenow: "通过 ChangeNow · 保证固定汇率路由",
+    routedSimpleswap: "通过 SimpleSwap · 固定汇率路由",
+    ratesUpdated: "汇率已更新！",
+    sunioSuccess: "Sun.io 兑换成功！",
+    changenowInit: "ChangeNow 兑换已发起！",
+    simpleswapInit: "SimpleSwap 兑换已发起！",
+    swapDone: "兑换成功完成！",
+    convertedTo: "兑换为",
+    refCopied: "参考号已复制！",
+    enterValidAmount: "请输入有效金额",
+    insufficientBalance: "余额不足",
+    copied: "已复制！",
+    swapError: "兑换出错",
+    insufficientBalanceOf: "余额不足",
+    swapFailedSunio: "Sun.io 兑换失败",
+    swapFailedChangenow: "ChangeNow 兑换失败",
+    swapFailedSimpleswap: "SimpleSwap 兑换失败",
+    noFixedRate: "暂无固定汇率，请等待报价加载。",
+    calcError: "计算出错",
+    swapFailed: "兑换失败",
+    networkError: "网络错误",
+    exchangeCreated: "已创建", txConfirmed: "交易已确认", exchangeWord: "兑换",
+    copyRef: "复制参考号",
+    swapWord: "兑换", initiated: "已发起", succeeded: "成功",
+    externalInProgress: "正在进行中，将在 5–60 分钟内完成。",
+    externalPrefix: "您的",
+    fundsConverted: "您的资金已成功兑换",
+    viaWord: "通过", fixedMode: "固定模式",
+    exchangeInProgress: "兑换进行中",
+    autoProcess1: "正在自动处理兑换。您的",
+    autoProcess2: "资金将在区块链确认后到账（视网络情况 5–60 分钟）。",
+    sold: "卖出", received: "收到",
+    rate: "汇率", fees: "费用", date: "日期", status: "状态",
+    inProgress: "进行中", confirmed: "已确认",
+    refPimpay: "PimPay 参考号",
+    hashTron: "TRON 哈希 (Sun.io)",
+    idChangenow: "ChangeNow ID", idSimpleswap: "SimpleSwap ID",
+    newSwap: "新建兑换",
+    backToDashboard: "返回仪表盘",
+    shareText1: "我在 PimPay 上将", shareText2: "兑换为", shareText3: "！",
+    loadingQuote: "正在加载报价…", liveRate: "实时汇率",
+    sell: "卖出", receive: "收到", balance: "余额",
+    rateLabel: "汇率", networkFee: "网络费用",
+    priceImpact: "价格影响",
+    guaranteedRate: "保证汇率", fixed: "✓ 固定",
+    estimatedTime: "预计时间",
+    quoteValidUntil: "报价有效期至",
+    slippageTolerance: "滑点容差",
+    highSlippage: "滑点过高：可能收到的金额远低于预期。",
+    guaranteedAmount: "保证金额", minimumReceived: "最少收到",
+    poweredSunio: "由 Sun.io · SunSwap 提供支持",
+    poweredChangenow: "由 ChangeNow · 固定汇率提供支持",
+    poolFee: "可能包含 0.3% 资金池费用",
+    calcFixedPrice: "正在计算固定价格…",
+    loadingChangenow: "正在加载 ChangeNow 报价…",
+    swapNow: "立即兑换",
+    marketPrice: "市场价格",
+    updated: "更新",
+    source: "来源", refreshed: "每 30 秒刷新一次",
+    securedBy: "由 PimPay Ledger 技术保障",
+    select: "选择", assetToSell: "卖出资产", assetToReceive: "收到资产",
+    searchAsset: "搜索资产…", noMatchingAsset: "没有匹配的资产",
+    summaryOf: "兑换", verifyDetails: "确认前请核对详情",
+    routeSunio: "Sun.io · SunSwap TRON 链上",
+    routeChangenow: "ChangeNow · 保证固定汇率",
+    routeInternal: "PimPay · 内部兑换",
+    youSell: "您卖出", youReceive: "您收到",
+    exchangeRate: "兑换汇率",
+    fixedGuaranteed: "✓ 固定 — 保证金额",
+    slippage: "滑点",
+    warning: "注意",
+    warnSunio: "此兑换通过 Sun.io 在 TRON 链上执行。一经确认不可撤销。继续前请检查价格影响。",
+    warnChangenow: "汇率由 ChangeNow 固定并保证。操作不可撤销。区块链最终确认将视相关网络情况需要 10–60 分钟。",
+    warnInternal: "此兑换操作不可撤销。确认前请确保详情正确。",
+    processing: "正在处理…", confirmSwap: "确认兑换",
+    cancel: "取消",
+  },
+} as const;
 
 /* ------------------------------------------------------------------ */
 /*  TYPES & DATA                                                        */
@@ -165,7 +417,7 @@ function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
 /*  ROUTE BADGE COMPONENT                                               */
 /* ------------------------------------------------------------------ */
 
-function RouteBadge({ route, cnQuote, ssQuote }: { route: SwapRoute; cnQuote: CNQuoteState | null; ssQuote: SSQuoteState | null }) {
+function RouteBadge({ route, cnQuote, ssQuote, tr }: { route: SwapRoute; cnQuote: CNQuoteState | null; ssQuote: SSQuoteState | null; tr: typeof SWAP_T[keyof typeof SWAP_T] }) {
   if (route === "SUNIO") {
     return (
       <motion.div
@@ -174,7 +426,7 @@ function RouteBadge({ route, cnQuote, ssQuote }: { route: SwapRoute; cnQuote: CN
       >
         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
         <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
-          Routé via Sun.io · SunSwap TRON
+          {tr.routedSunio}
         </span>
       </motion.div>
     );
@@ -188,7 +440,7 @@ function RouteBadge({ route, cnQuote, ssQuote }: { route: SwapRoute; cnQuote: CN
       >
         <div className="w-2 h-2 bg-violet-400 rounded-full animate-pulse" />
         <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest">
-          Routé via ChangeNow · Taux Fixe Garanti
+          {tr.routedChangenow}
         </span>
         {cnQuote && (
           <span className="text-[9px] text-violet-400/60 ml-1 flex items-center gap-1">
@@ -207,7 +459,7 @@ function RouteBadge({ route, cnQuote, ssQuote }: { route: SwapRoute; cnQuote: CN
       >
         <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
         <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">
-          Routé via SimpleSwap · Taux Fixe
+          {tr.routedSimpleswap}
         </span>
         {ssQuote && (
           <span className="text-[9px] text-orange-400/60 ml-1 flex items-center gap-1">
@@ -260,6 +512,17 @@ interface SSQuoteState {
 
 export default function SwapPage() {
   const router = useRouter();
+  const { locale } = useLanguage();
+  const tr = SWAP_T[locale as keyof typeof SWAP_T] ?? SWAP_T.fr;
+  const categoryLabel = (category: string): string => {
+    const map: Record<string, string> = {
+      native: tr.catNative,
+      major: tr.catMajor,
+      stablecoin: tr.catStable,
+      fiat: tr.catFiat,
+    };
+    return map[category] ?? category;
+  };
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSelecting, setIsSelecting] = useState<"from" | "to" | null>(null);
@@ -350,7 +613,7 @@ export default function SwapPage() {
         MGA: fiatData?.rates?.MGA || prev.MGA,
       }));
       setLastPriceUpdate(new Date());
-      if (showLoading) toast.success("Taux mis a jour!");
+      if (showLoading) toast.success(tr.ratesUpdated);
     } catch {
       console.warn("Price fetch failed, using cached values");
     } finally {
@@ -552,9 +815,9 @@ export default function SwapPage() {
   };
 
   const handleRequestConfirm = () => {
-    if (!fromAmount || parseFloat(fromAmount) <= 0) return toast.error("Entrez un montant valide");
+    if (!fromAmount || parseFloat(fromAmount) <= 0) return toast.error(tr.enterValidAmount);
     if (parseFloat(fromAmount) > parseFloat(balances[fromAsset.id] || "0"))
-      return toast.error(`Solde ${fromAsset.symbol} insuffisant`);
+      return toast.error(`${tr.balance} ${fromAsset.symbol} ${tr.insufficientBalanceOf}`);
     setShowConfirm(true);
   };
 
@@ -580,7 +843,7 @@ export default function SwapPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) { toast.error(data.error || "Swap Sun.io échoué", { duration: 7000 }); setLoading(false); return; }
+        if (!res.ok) { toast.error(data.error || tr.swapFailedSunio, { duration: 7000 }); setLoading(false); return; }
         setTransactionRef(data.reference || `SWAP-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(data.txHash || null);
@@ -591,7 +854,7 @@ export default function SwapPage() {
         // Refresh temps réel : immédiat + différé (laisse la DB se stabiliser)
         loadBalances();
         setTimeout(() => loadBalances(), 2500);
-        toast.success("Swap Sun.io réussi !", {
+        toast.success(tr.sunioSuccess, {
           description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
           duration: 5000,
         });
@@ -601,7 +864,7 @@ export default function SwapPage() {
       // ── Route 2 : ChangeNow (mode fixe, autres cryptos) ───────────────
       if (route === "CHANGENOW") {
         if (!cnQuote?.rateId) {
-          toast.error("Aucun taux fixe disponible. Attendez le chargement du devis.");
+          toast.error(tr.noFixedRate);
           setLoading(false);
           return;
         }
@@ -617,7 +880,7 @@ export default function SwapPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) { toast.error(data.error || "Swap ChangeNow échoué"); setLoading(false); return; }
+        if (!res.ok) { toast.error(data.error || tr.swapFailedChangenow); setLoading(false); return; }
         setTransactionRef(data.reference || `CN-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(null);
@@ -627,7 +890,7 @@ export default function SwapPage() {
         setIsSuccess(true);
         setShowConfirm(false);
         loadBalances();
-        toast.success("Échange ChangeNow initié !", {
+        toast.success(tr.changenowInit, {
           description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
           duration: 6000,
         });
@@ -648,7 +911,7 @@ export default function SwapPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) { toast.error(data.error || "Swap SimpleSwap échoué"); setLoading(false); return; }
+        if (!res.ok) { toast.error(data.error || tr.swapFailedSimpleswap); setLoading(false); return; }
         setTransactionRef(data.reference || `SS-${Date.now().toString(36).toUpperCase()}`);
         setTransactionTime(new Date());
         setSwapTxHash(null);
@@ -658,7 +921,7 @@ export default function SwapPage() {
         setIsSuccess(true);
         setShowConfirm(false);
         loadBalances();
-        toast.success("Échange SimpleSwap initié !", {
+        toast.success(tr.simpleswapInit, {
           description: `${fromAmount} ${fromAsset.symbol} → ${data.amountOut?.toFixed(6) || formatToAmount()} ${toAsset.symbol}`,
           duration: 6000,
         });
@@ -678,7 +941,7 @@ export default function SwapPage() {
       });
       if (!quoteRes.ok) {
         const err = await quoteRes.json();
-        toast.error(err.error || "Erreur lors du calcul");
+        toast.error(err.error || tr.calcError);
         setLoading(false);
         return;
       }
@@ -697,16 +960,16 @@ export default function SwapPage() {
         setIsSuccess(true);
         setShowConfirm(false);
         loadBalances();
-        toast.success("Swap effectue avec succes!", {
-          description: `${fromAmount} ${fromAsset.symbol} converti en ${formatToAmount()} ${toAsset.symbol}`,
+        toast.success(tr.swapDone, {
+          description: `${fromAmount} ${fromAsset.symbol} ${tr.convertedTo} ${formatToAmount()} ${toAsset.symbol}`,
           duration: 5000,
         });
       } else {
         const err = await confirmRes.json();
-        toast.error(err.error || "Le swap a echoue");
+        toast.error(err.error || tr.swapFailed);
       }
     } catch {
-      toast.error("Erreur reseau");
+      toast.error(tr.networkError);
     } finally {
       setLoading(false);
     }
@@ -793,7 +1056,7 @@ export default function SwapPage() {
 
   /* ---- SUCCESS SCREEN ---- */
   if (isSuccess) {
-    const copyRef = () => { navigator.clipboard.writeText(transactionRef); toast.success("Reference copiee!"); };
+    const copyRef = () => { navigator.clipboard.writeText(transactionRef); toast.success(tr.refCopied); };
     const isChangeNow = !!changenowId;
     const isSimpleSwap = !!simpleswapId;
     const isExternalSwap = isChangeNow || isSimpleSwap;
@@ -822,11 +1085,11 @@ export default function SwapPage() {
                 <BadgeCheck size={16} className={`text-${swapColor}-400`} />
               </div>
               <span className={`text-[10px] font-black text-${swapColor}-400 uppercase tracking-[0.15em]`}>
-                {isExternalSwap ? `Échange ${swapProvider} Créé` : "Transaction Confirmée"}
+                {isExternalSwap ? `${tr.exchangeWord} ${swapProvider} ${tr.exchangeCreated}` : tr.txConfirmed}
               </span>
             </div>
             <button onClick={copyRef} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 text-[9px] font-bold text-slate-400 hover:bg-white/10 transition-all">
-              <Copy size={10} /> Copier Ref
+              <Copy size={10} /> {tr.copyRef}
             </button>
           </motion.div>
 
@@ -848,19 +1111,19 @@ export default function SwapPage() {
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-center mb-8">
             <h1 className="text-2xl font-black uppercase tracking-tight mb-2">
-              Swap <span className={isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"}>
-                {isExternalSwap ? "Initié" : "Réussi"}
+              {tr.swapWord} <span className={isSimpleSwap ? "text-orange-400" : isChangeNow ? "text-violet-400" : "text-emerald-400"}>
+                {isExternalSwap ? tr.initiated : tr.succeeded}
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">
               {isExternalSwap
-                ? `Votre échange ${swapProvider} est en cours. Il sera finalisé sous 5–60 min.`
-                : "Vos fonds ont été convertis avec succès"}
+                ? `${tr.externalPrefix} ${swapProvider} ${tr.externalInProgress}`
+                : tr.fundsConverted}
             </p>
             {isExternalSwap && (
               <div className="flex items-center justify-center gap-1.5 mt-2">
                 <Timer size={11} className={isSimpleSwap ? "text-orange-400" : "text-violet-400"} />
-                <p className={`text-[10px] ${isSimpleSwap ? "text-orange-400/70" : "text-violet-400/70"} font-mono`}>via {swapProvider} · Mode Fixe</p>
+                <p className={`text-[10px] ${isSimpleSwap ? "text-orange-400/70" : "text-violet-400/70"} font-mono`}>{tr.viaWord} {swapProvider} · {tr.fixedMode}</p>
               </div>
             )}
             {swapTxHash && (
@@ -1033,7 +1296,7 @@ export default function SwapPage() {
 
       <div className="px-6">
         {/* Badge de routage */}
-        <RouteBadge route={swapRoute} cnQuote={cnQuote} ssQuote={ssQuote} />
+        <RouteBadge route={swapRoute} cnQuote={cnQuote} ssQuote={ssQuote} tr={tr} />
 
         {/* Swap Card */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 space-y-4 shadow-2xl relative">
