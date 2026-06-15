@@ -86,6 +86,133 @@ const formatDescription = (description: string): string => {
   return result;
 };
 
+// ─── Dashboard translations (fr / en / zh) ───────────────────────────────────
+const DASH_T = {
+  fr: {
+    virtualBank: "Virtual Bank",
+    account: "Compte PimPay",
+    profile: "Profil",
+    myWallet: "Mon Wallet",
+    referral: "Parrainage",
+    language: "Langue",
+    logout: "Déconnexion",
+    greetingMorning: "Bonjour",
+    greetingAfternoon: "Bon après-midi",
+    greetingEvening: "Bonsoir",
+    kycVerified: "KYC Vérifié",
+    totalPortfolio: "Portefeuille Total",
+    displayCurrency: "Devise d'affichage",
+    multiChainActive: "Multi-Chain Actif",
+    qaSend: "Envoyer", qaReceive: "Recevoir", qaSwap: "Swap", qaWithdraw: "Retrait",
+    qaAirtime: "Airtime", qaCard: "Carte", qaStaking: "Staking", qaBills: "Factures",
+    statTransactions: "Transactions",
+    incoming: "entrantes",
+    statUsdValue: "Valeur USD",
+    totalPortfolioSub: "Portefeuille total",
+    statActiveAssets: "Actifs actifs",
+    withValue: "avec valeur > 0",
+    statReferral: "Parrainage",
+    activeReferrals: "Filleuls actifs",
+    topAssets: "Top Actifs",
+    viewAll: "Voir tout",
+    cashFlow: "Flux de Trésorerie",
+    live: "Live",
+    na: "N/A",
+    pieSortant: "Sortant", pieEntrant: "Entrant", pieSwaps: "Swaps", pieAutres: "Autres", pieTotal: "Total", pieNone: "Aucune",
+    quickServices: "Services Rapides",
+    svcBankTitle: "Virement Bancaire", svcBankSub: "Envoi vers banque",
+    svcDepositTitle: "Dépôt", svcDepositSub: "Recharger compte",
+    svcPimTitle: "Pim Coins", svcPimSub: "Récompenses",
+    svcSupportTitle: "Support", svcSupportSub: "Aide & contact",
+    recentTransactions: "Transactions Récentes",
+    txTo: "À:", txFrom: "DE:", systemPimpay: "SYSTÈME PIMPAY",
+    noTransaction: "Aucune transaction",
+    currencyLabel: "Devise",
+  },
+  en: {
+    virtualBank: "Virtual Bank",
+    account: "PimPay Account",
+    profile: "Profile",
+    myWallet: "My Wallet",
+    referral: "Referral",
+    language: "Language",
+    logout: "Logout",
+    greetingMorning: "Good morning",
+    greetingAfternoon: "Good afternoon",
+    greetingEvening: "Good evening",
+    kycVerified: "KYC Verified",
+    totalPortfolio: "Total Portfolio",
+    displayCurrency: "Display currency",
+    multiChainActive: "Multi-Chain Active",
+    qaSend: "Send", qaReceive: "Receive", qaSwap: "Swap", qaWithdraw: "Withdraw",
+    qaAirtime: "Airtime", qaCard: "Card", qaStaking: "Staking", qaBills: "Bills",
+    statTransactions: "Transactions",
+    incoming: "incoming",
+    statUsdValue: "USD Value",
+    totalPortfolioSub: "Total portfolio",
+    statActiveAssets: "Active assets",
+    withValue: "with value > 0",
+    statReferral: "Referral",
+    activeReferrals: "Active referrals",
+    topAssets: "Top Assets",
+    viewAll: "View all",
+    cashFlow: "Cash Flow",
+    live: "Live",
+    na: "N/A",
+    pieSortant: "Outgoing", pieEntrant: "Incoming", pieSwaps: "Swaps", pieAutres: "Other", pieTotal: "Total", pieNone: "None",
+    quickServices: "Quick Services",
+    svcBankTitle: "Bank Transfer", svcBankSub: "Send to bank",
+    svcDepositTitle: "Deposit", svcDepositSub: "Top up account",
+    svcPimTitle: "Pim Coins", svcPimSub: "Rewards",
+    svcSupportTitle: "Support", svcSupportSub: "Help & contact",
+    recentTransactions: "Recent Transactions",
+    txTo: "To:", txFrom: "FROM:", systemPimpay: "PIMPAY SYSTEM",
+    noTransaction: "No transactions",
+    currencyLabel: "Currency",
+  },
+  zh: {
+    virtualBank: "虚拟银行",
+    account: "PimPay 账户",
+    profile: "个人资料",
+    myWallet: "我的钱包",
+    referral: "推荐",
+    language: "语言",
+    logout: "退出登录",
+    greetingMorning: "早上好",
+    greetingAfternoon: "下午好",
+    greetingEvening: "晚上好",
+    kycVerified: "KYC 已验证",
+    totalPortfolio: "总资产",
+    displayCurrency: "显示货币",
+    multiChainActive: "多链已激活",
+    qaSend: "发送", qaReceive: "接收", qaSwap: "兑换", qaWithdraw: "提现",
+    qaAirtime: "话费", qaCard: "卡片", qaStaking: "质押", qaBills: "账单",
+    statTransactions: "交易",
+    incoming: "笔收入",
+    statUsdValue: "美元价值",
+    totalPortfolioSub: "总资产",
+    statActiveAssets: "活跃资产",
+    withValue: "价值 > 0",
+    statReferral: "推荐",
+    activeReferrals: "活跃推荐人",
+    topAssets: "热门资产",
+    viewAll: "查看全部",
+    cashFlow: "资金流动",
+    live: "实时",
+    na: "无",
+    pieSortant: "支出", pieEntrant: "收入", pieSwaps: "兑换", pieAutres: "其他", pieTotal: "总计", pieNone: "无",
+    quickServices: "快捷服务",
+    svcBankTitle: "银行转账", svcBankSub: "转账到银行",
+    svcDepositTitle: "充值", svcDepositSub: "为账户充值",
+    svcPimTitle: "Pim 币", svcPimSub: "奖励",
+    svcSupportTitle: "客服", svcSupportSub: "帮助与联系",
+    recentTransactions: "最近交易",
+    txTo: "至:", txFrom: "来自:", systemPimpay: "PIMPAY 系统",
+    noTransaction: "暂无交易",
+    currencyLabel: "货币",
+  },
+} as const;
+
 // ─── Subcomponents ─────────────────────────────────────────────────────────
 
 function QuickActionBtn({
@@ -147,6 +274,18 @@ function StatCard({
 export default function UserDashboard() {
   const router = useRouter();
   const { locale, setLocale } = useLanguage();
+  const tr = DASH_T[locale as keyof typeof DASH_T] ?? DASH_T.fr;
+  const pieLabel = (name: string): string => {
+    const map: Record<string, string> = {
+      Sortant: tr.pieSortant,
+      Entrant: tr.pieEntrant,
+      Swaps: tr.pieSwaps,
+      Autres: tr.pieAutres,
+      Total: tr.pieTotal,
+      Aucune: tr.pieNone,
+    };
+    return map[name] ?? name;
+  };
   const { currency, setCurrency: setCtxCurrency, currencyInfo, convertFromXAF, formatAmount } = useCurrency();
   const [data, setData] = useState<any>(null);
   const [balances, setBalances] = useState<Record<string, number>>({});
@@ -353,9 +492,9 @@ export default function UserDashboard() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return locale === "fr" ? "Bonjour" : "Good morning";
-    if (hour < 18) return locale === "fr" ? "Bon après-midi" : "Good afternoon";
-    return locale === "fr" ? "Bonsoir" : "Good evening";
+    if (hour < 12) return tr.greetingMorning;
+    if (hour < 18) return tr.greetingAfternoon;
+    return tr.greetingEvening;
   };
 
   const computeStats = (txsRaw: any[]) => {
@@ -416,7 +555,7 @@ export default function UserDashboard() {
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
           <div>
             <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1>
-            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">Virtual Bank</p>
+            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">{tr.virtualBank}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -447,20 +586,45 @@ export default function UserDashboard() {
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">
                 <div className="p-4 border-b border-white/5 mb-2">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PimPay Account</p>
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{tr.account}</p>
                   <p className="text-sm font-bold truncate">@{data?.username}</p>
                 </div>
-                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><Settings size={16} /> Profile</button>
-                <button onClick={() => router.push("/wallet")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><WalletIcon size={16} className="text-blue-400" /> Mon Wallet</button>
+                <button onClick={() => router.push("/profile")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><Settings size={16} /> {tr.profile}</button>
+                <button onClick={() => router.push("/wallet")} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left"><WalletIcon size={16} className="text-blue-400" /> {tr.myWallet}</button>
                 <button onClick={() => { setShowReferral(true); setShowProfileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
-                  <div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>Parrainage</span></div>
+                  <div className="flex items-center gap-3"><UsersIcon size={16} className="text-blue-400" /><span>{tr.referral}</span></div>
                   <span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{data?.referralCount || 0}</span>
                 </button>
-                <button onClick={() => setLocale(locale === "fr" ? "en" : "fr")} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-xs font-bold uppercase text-left">
-                  <div className="flex items-center gap-3"><Globe size={16} className="text-cyan-400" /><span>{locale === "fr" ? "Francais" : "English"}</span></div>
-                  <span className="text-[10px] font-black text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">{locale === "fr" ? "EN" : "FR"}</span>
-                </button>
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left"><LogOut size={16} /> Logout</button>
+                {/* Language selector — FR / EN / 中文 */}
+                <div className="px-3 py-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Globe size={16} className="text-cyan-400" />
+                    <span className="text-xs font-bold uppercase">{tr.language}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { code: "fr", label: "FR" },
+                      { code: "en", label: "EN" },
+                      { code: "zh", label: "中文" },
+                    ] as const).map((opt) => {
+                      const active = locale === opt.code;
+                      return (
+                        <button
+                          key={opt.code}
+                          onClick={() => setLocale(opt.code)}
+                          className={`py-2 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all active:scale-95 ${
+                            active
+                              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                              : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 text-xs font-bold uppercase text-left"><LogOut size={16} /> {tr.logout}</button>
               </div>
             )}
           </div>
@@ -478,7 +642,7 @@ export default function UserDashboard() {
           {data?.kycStatus === "VERIFIED" && (
             <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
               <Shield size={12} className="text-emerald-400" />
-              <span className="text-[9px] font-black text-emerald-400 uppercase">KYC Verifié</span>
+              <span className="text-[9px] font-black text-emerald-400 uppercase">{tr.kycVerified}</span>
             </div>
           )}
         </div>
@@ -517,7 +681,7 @@ export default function UserDashboard() {
                     <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
                     <span className="text-[9px] font-black uppercase tracking-[0.25em] text-violet-400">PIMPAY FINTECH</span>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Portefeuille Total</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{tr.totalPortfolio}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setShowBalance(!showBalance)} className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-xl text-slate-400">
@@ -536,7 +700,7 @@ export default function UserDashboard() {
                     {showCurrencySwitcher && (
                       <div className="absolute right-0 mt-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[130]">
                         <div className="px-3 py-2 border-b border-white/5">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Devise d&apos;affichage</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">{tr.displayCurrency}</p>
                         </div>
                         <div className="max-h-52 overflow-y-auto py-1">
                           {(Object.keys(CURRENCY_LIST) as Array<keyof typeof CURRENCY_LIST>).map((code) => {
@@ -548,7 +712,7 @@ export default function UserDashboard() {
                                 onClick={() => {
                                   setCtxCurrency(code);
                                   setShowCurrencySwitcher(false);
-                                  toast.success(`Devise: ${info.name}`);
+                                  toast.success(`${tr.currencyLabel}: ${info.name}`);
                                 }}
                                 className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isSelected ? "bg-violet-600/20 text-violet-400" : "hover:bg-white/5 text-white"}`}
                               >
@@ -590,7 +754,7 @@ export default function UserDashboard() {
                   <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{displayName}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[9px] font-bold text-emerald-500/80 uppercase">Multi-Chain Active</span>
+                    <span className="text-[9px] font-bold text-emerald-500/80 uppercase">{tr.multiChainActive}</span>
                   </div>
                 </div>
                 {/* Mini asset pills */}
@@ -608,46 +772,46 @@ export default function UserDashboard() {
 
         {/* ── Quick Actions ── */}
         <div className="grid grid-cols-4 gap-3 mb-8">
-          <QuickActionBtn icon={<ArrowUpRight size={22} />} label="Envoyer" color="bg-blue-600" onClick={() => router.push("/transfer")} />
-          <QuickActionBtn icon={<Download size={22} />} label="Recevoir" color="bg-violet-600" onClick={() => router.push("/wallet")} />
-          <QuickActionBtn icon={<ArrowLeftRight size={22} />} label="Swap" color="bg-orange-600" onClick={() => router.push("/swap")} />
-          <QuickActionBtn icon={<ArrowDownLeft size={22} />} label="Retrait" color="bg-emerald-700" onClick={() => router.push("/withdraw")} />
+          <QuickActionBtn icon={<ArrowUpRight size={22} />} label={tr.qaSend} color="bg-blue-600" onClick={() => router.push("/transfer")} />
+          <QuickActionBtn icon={<Download size={22} />} label={tr.qaReceive} color="bg-violet-600" onClick={() => router.push("/wallet")} />
+          <QuickActionBtn icon={<ArrowLeftRight size={22} />} label={tr.qaSwap} color="bg-orange-600" onClick={() => router.push("/swap")} />
+          <QuickActionBtn icon={<ArrowDownLeft size={22} />} label={tr.qaWithdraw} color="bg-emerald-700" onClick={() => router.push("/withdraw")} />
         </div>
 
         {/* ── Second row of actions ── */}
         <div className="grid grid-cols-4 gap-3 mb-8">
-          <QuickActionBtn icon={<Smartphone size={20} />} label="Airtime" color="bg-slate-700" onClick={() => router.push("/airtime")} />
-          <QuickActionBtn icon={<CreditCard size={20} />} label="Carte" color="bg-slate-700" onClick={() => router.push("/dashboard/card")} />
-          <QuickActionBtn icon={<Lock size={20} />} label="Staking" color="bg-slate-700" onClick={() => router.push("/wallet/staking")} />
-          <QuickActionBtn icon={<Receipt size={20} />} label="Factures" color="bg-slate-700" onClick={() => router.push("/statements")} />
+          <QuickActionBtn icon={<Smartphone size={20} />} label={tr.qaAirtime} color="bg-slate-700" onClick={() => router.push("/airtime")} />
+          <QuickActionBtn icon={<CreditCard size={20} />} label={tr.qaCard} color="bg-slate-700" onClick={() => router.push("/dashboard/card")} />
+          <QuickActionBtn icon={<Lock size={20} />} label={tr.qaStaking} color="bg-slate-700" onClick={() => router.push("/wallet/staking")} />
+          <QuickActionBtn icon={<Receipt size={20} />} label={tr.qaBills} color="bg-slate-700" onClick={() => router.push("/statements")} />
         </div>
 
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-2 gap-3 mb-8">
           <StatCard
-            label="Transactions"
+            label={tr.statTransactions}
             value={stats.total.toString()}
-            sub={`${stats.received} entrantes`}
+            sub={`${stats.received} ${tr.incoming}`}
             icon={<Activity size={14} />}
             trend="up"
           />
           <StatCard
-            label="Valeur USD"
+            label={tr.statUsdValue}
             value={`$${totalUSDValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
-            sub="Portefeuille total"
+            sub={tr.totalPortfolioSub}
             icon={<TrendingUp size={14} />}
             trend={totalUSDValue > 0 ? "up" : null}
           />
           <StatCard
-            label="Actifs actifs"
+            label={tr.statActiveAssets}
             value={topWallets.length.toString()}
-            sub="avec valeur > 0"
+            sub={tr.withValue}
             icon={<BarChart3 size={14} />}
           />
           <StatCard
-            label="Parrainage"
+            label={tr.statReferral}
             value={(data?.referralCount || 0).toString()}
-            sub="Filleuls actifs"
+            sub={tr.activeReferrals}
             icon={<UsersIcon size={14} />}
           />
         </div>
@@ -656,9 +820,9 @@ export default function UserDashboard() {
         {topWallets.length > 0 && (
           <section className="mb-8 p-5 rounded-[28px] bg-slate-900/40 border border-white/8">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Top Actifs</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{tr.topAssets}</h3>
               <button onClick={() => router.push("/wallet")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
-                Voir tout <ChevronRight size={12} />
+                {tr.viewAll} <ChevronRight size={12} />
               </button>
             </div>
             <div className="space-y-3">
@@ -687,7 +851,7 @@ export default function UserDashboard() {
         {/* ── Flux de Trésorerie ── */}
         <section className="mb-8 p-5 rounded-[28px] bg-slate-900/40 border border-white/8">
           <div className="flex justify-between items-center mb-5">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Flux de Trésorerie</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{tr.cashFlow}</h3>
             <LayoutGrid size={16} className="text-slate-600" />
           </div>
           <div className="flex items-center gap-5">
@@ -700,7 +864,7 @@ export default function UserDashboard() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center text-[9px] font-black uppercase text-violet-400">
-                {stats.total > 0 ? "Live" : "N/A"}
+                {stats.total > 0 ? tr.live : tr.na}
               </div>
             </div>
             <div className="flex-1 grid grid-cols-1 gap-2">
@@ -708,7 +872,7 @@ export default function UserDashboard() {
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: pieColor(item.name) }} />
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">{item.name}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{pieLabel(item.name)}</span>
                   </div>
                   <span className="text-[10px] font-black">{item.value}</span>
                 </div>
@@ -719,13 +883,13 @@ export default function UserDashboard() {
 
         {/* ── Shortcuts section ── */}
         <section className="mb-8">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4">Services Rapides</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4">{tr.quickServices}</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { icon: <Building2 size={18} />, label: "Virement Bancaire", sub: "Envoi vers banque", link: "/bank", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-              { icon: <Banknote size={18} />, label: "Dépôt", sub: "Recharger compte", link: "/deposit", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-              { icon: <Star size={18} />, label: "Pim Coins", sub: "Récompenses", link: "/pim-coins", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-              { icon: <MessageCircle size={18} />, label: "Support", sub: "Aide & contact", link: "/support", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
+              { icon: <Building2 size={18} />, label: tr.svcBankTitle, sub: tr.svcBankSub, link: "/bank", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+              { icon: <Banknote size={18} />, label: tr.svcDepositTitle, sub: tr.svcDepositSub, link: "/deposit", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+              { icon: <Star size={18} />, label: tr.svcPimTitle, sub: tr.svcPimSub, link: "/pim-coins", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
+              { icon: <MessageCircle size={18} />, label: tr.svcSupportTitle, sub: tr.svcSupportSub, link: "/support", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
             ].map((s, i) => (
               <button
                 key={i}
@@ -745,9 +909,9 @@ export default function UserDashboard() {
         {/* ── Transactions récentes ── */}
         <section className="mb-12">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Transactions Récentes</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{tr.recentTransactions}</h3>
             <button onClick={() => router.push("/wallet")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
-              Voir tout <ChevronRight size={12} />
+              {tr.viewAll} <ChevronRight size={12} />
             </button>
           </div>
           <div className="space-y-3 max-h-[380px] overflow-y-auto no-scrollbar">
@@ -768,7 +932,7 @@ export default function UserDashboard() {
                       <div>
                         <p className="text-[11px] font-bold uppercase text-white leading-tight">{formatDescription(tx.description || tx.type)}</p>
                         <p className="text-[8px] text-slate-500 font-black uppercase mt-0.5">
-                          {tx.isDebit ? `À: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}` : `DE: ${truncateAddress(tx.peerName || "SYSTÈME PIMPAY")}`}
+                          {tx.isDebit ? `${tr.txTo} ${truncateAddress(tx.peerName || tr.systemPimpay)}` : `${tr.txFrom} ${truncateAddress(tx.peerName || tr.systemPimpay)}`}
                         </p>
                       </div>
                     </div>
@@ -784,7 +948,7 @@ export default function UserDashboard() {
               })
             ) : (
               <div className="text-center py-10 opacity-30 text-[10px] uppercase font-bold border border-dashed border-white/10 rounded-[28px]">
-                Aucune transaction
+                {tr.noTransaction}
               </div>
             )}
           </div>
