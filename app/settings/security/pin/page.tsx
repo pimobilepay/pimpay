@@ -16,8 +16,54 @@ export default function ChangePinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mode CREATION : true si l'utilisateur n'a pas encore configure de PIN.
+  // null = verification en cours, false = PIN existant (mode modification).
+  const [isCreateMode, setIsCreateMode] = useState<boolean | null>(null);
+
   // Utilisation d'une ref pour eviter les appels API en double pendant le chargement
   const isProcessing = useRef(false);
+
+  // Detection de l'existence d'un PIN au montage
+  useEffect(() => {
+    let cancelled = false;
+    const checkPinStatus = async () => {
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        const localToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (localToken) headers["Authorization"] = `Bearer ${localToken}`;
+
+        const res = await fetch("/api/security/pin-status", {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (res.status === 401) {
+          if (!cancelled) router.push("/auth/login");
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+
+        const noPin = res.ok && data.hasPin === false;
+        setIsCreateMode(noPin);
+        // En mode creation, on saute l'etape de verification du PIN actuel.
+        setStep(noPin ? 2 : 1);
+      } catch {
+        if (!cancelled) {
+          // En cas d'erreur, on retombe sur le mode modification classique.
+          setIsCreateMode(false);
+          setStep(1);
+        }
+      }
+    };
+    checkPinStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleUpdatePin = useCallback(async (finalPin: string) => {
     if (isProcessing.current) return;
@@ -43,14 +89,15 @@ export default function ChangePinPage() {
       });
 
       if (res.ok) {
-        toast.success("Code PIN mis a jour !");
+        toast.success(isCreateMode ? "Code PIN cree avec succes !" : "Code PIN mis a jour !");
         router.push("/settings/security");
       } else {
         const data = await res.json();
         setError(data.error || "Echec de la mise a jour");
         toast.error(data.error || "Echec de la mise a jour");
         setPins({ 1: "", 2: "", 3: "" });
-        setStep(1);
+        // En mode creation, on revient a la saisie du nouveau PIN (etape 2).
+        setStep(isCreateMode ? 2 : 1);
         isProcessing.current = false;
       }
     } catch {
@@ -60,7 +107,7 @@ export default function ChangePinPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, isCreateMode]);
 
   const validateStep = useCallback(async () => {
     const currentPin = pins[step as 1 | 2 | 3];
@@ -158,8 +205,22 @@ export default function ChangePinPage() {
     }));
   };
 
-  const titles = ["", "Code PIN Actuel", "Nouveau Code PIN", "Confirmer le PIN"];
-  const subtitles = ["", "Securise par PimPay", "Choisissez 6 chiffres", "Confirmez votre nouveau code"];
+  const titles = isCreateMode
+    ? ["", "Code PIN Actuel", "Creer votre Code PIN", "Confirmer le PIN"]
+    : ["", "Code PIN Actuel", "Nouveau Code PIN", "Confirmer le PIN"];
+  const subtitles = isCreateMode
+    ? ["", "Securise par PimPay", "Choisissez 6 chiffres", "Confirmez votre code PIN"]
+    : ["", "Securise par PimPay", "Choisissez 6 chiffres", "Confirmez votre nouveau code"];
+
+  // Ecran de chargement pendant la detection de l'existence d'un PIN
+  if (isCreateMode === null) {
+    return (
+      <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center justify-center font-sans gap-4">
+        <Loader2 className="animate-spin text-blue-500" size={28} />
+        <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Verification securisee...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col font-sans">
@@ -171,6 +232,11 @@ export default function ChangePinPage() {
         >
           <ArrowLeft size={20} />
         </button>
+        {isCreateMode && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.15em]">Premiere configuration</span>
+          </div>
+        )}
       </div>
 
       {/* Content */}
