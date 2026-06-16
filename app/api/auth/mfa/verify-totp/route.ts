@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         username: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
+        mustChangePassword: true,
       },
     });
 
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest) {
       message: "Authentification 2FA reussie",
       user: { id: user.id, role: user.role },
       redirectTo: getRedirectPath(user.role),
+      mustChangePassword: !!(user as any).mustChangePassword,
     });
 
     const isProduction = process.env.NODE_ENV === "production";

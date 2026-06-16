@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         email: true,
         username: true,
         pin: true,
+        mustChangePassword: true,
       },
     });
 
@@ -167,6 +168,7 @@ export async function POST(req: NextRequest) {
       message: "Code PIN mis a jour avec succes",
       user: { id: user.id, role: user.role },
       redirectTo: getRedirectPath(user.role),
+      mustChangePassword: !!(user as any).mustChangePassword,
     });
 
     const isProduction = process.env.NODE_ENV === "production";
