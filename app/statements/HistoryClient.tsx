@@ -10,13 +10,18 @@ import {
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 import Link from "next/link";
 import { format, subDays, endOfDay } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enUS, zhCN } from "date-fns/locale";
+import { useLanguage } from "@/context/LanguageContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
+const dateLocales: Record<string, any> = { fr, en: enUS, zh: zhCN };
+
 export default function HistoryClient({ initialTransactions, stats, currentUserId }: any) {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dfnsLocale = dateLocales[locale] || fr;
   const [referenceSearch, setReferenceSearch] = useState("");
   const [activeService, setActiveService] = useState("all");
   const [startDate, setStartDate] = useState<Date | null>(subDays(new Date(), 7));
@@ -145,13 +150,13 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
       return {
         id: tx.id,
         reference: tx.reference || null,
-        title: tx.description || tx.purpose || (isIncome ? "Réception" : "Envoi"),
+        title: tx.description || tx.purpose || (isIncome ? t("statements.types.incoming") : t("statements.types.outgoing")),
         type,
         amount: tx.amount,
         fee: tx.fee || 0,
         netAmount: tx.netAmount ?? null,
         currency,
-        date: format(new Date(tx.createdAt), "d MMM yyyy, HH:mm", { locale: fr }),
+        date: format(new Date(tx.createdAt), "d MMM yyyy, HH:mm", { locale: dfnsLocale }),
         status:
           tx.status?.toLowerCase() === "completed" || tx.status?.toLowerCase() === "success"
             ? "success"
@@ -176,7 +181,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         blockchainTxHash: tx.blockchainTx || tx.metadata?.blockchainTxHash || null,
       };
     });
-  }, [initialTransactions, currentUserId]);
+  }, [initialTransactions, currentUserId, t, dfnsLocale]);
 
   const filteredTransactions = useMemo(() => {
     return formattedTransactions.filter((tx: any) => {
@@ -199,7 +204,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
   const handleExportPDF = () => {
     if (filteredTransactions.length === 0) {
-      toast.error("Aucune transaction à exporter");
+      toast.error(t("statements.pdf.nothingToExport"));
       return;
     }
 
@@ -208,26 +213,35 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
     doc.setFontSize(16);
     doc.setTextColor(30, 30, 30);
-    doc.text("Rapport d'historique des transactions - PimPay", pageWidth / 2, 14, { align: "center" });
+    doc.text(t("statements.pdf.reportTitle"), pageWidth / 2, 14, { align: "center" });
 
     doc.setFontSize(9);
     doc.setTextColor(100);
-    const dateRange = `Période : ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} → ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
+    const dateRange = `${t("statements.pdf.period")} : ${startDate ? format(startDate, "dd/MM/yyyy") : "..."} → ${endDate ? format(endDate, "dd/MM/yyyy") : "..."}`;
     doc.text(dateRange, pageWidth / 2, 20, { align: "center" });
 
     const tableData = filteredTransactions.map((tx: any) => [
       tx.reference || "N/A",
-      tx.type === "deposit" ? "Dépôt" : tx.type === "withdraw" ? "Retrait" : tx.type === "transfer" ? "Transfert" : "Recharge",
+      tx.type === "deposit" ? t("statements.pdf.typeDeposit") : tx.type === "withdraw" ? t("statements.pdf.typeWithdraw") : tx.type === "transfer" ? t("statements.pdf.typeTransfer") : t("statements.pdf.typeRecharge"),
       tx.fromName,
       tx.toName,
       tx.date,
       `${tx.isIncome ? "+" : "-"}${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`,
       tx.fee >= 0 ? `${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}` : "—",
-      tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué",
+      tx.status === "success" ? t("statements.status.success") : tx.status === "pending" ? t("statements.status.pending") : t("statements.status.failed"),
     ]);
 
     autoTable(doc, {
-      head: [["Référence", "Type", "Expéditeur", "Destinataire", "Date", "Montant", "Frais", "Statut"]],
+      head: [[
+        t("statements.pdf.colReference"),
+        t("statements.pdf.colType"),
+        t("statements.pdf.colSender"),
+        t("statements.pdf.colRecipient"),
+        t("statements.pdf.colDate"),
+        t("statements.pdf.colAmount"),
+        t("statements.pdf.colFee"),
+        t("statements.pdf.colStatus"),
+      ]],
       body: tableData,
       startY: 26,
       theme: "grid",
@@ -240,10 +254,10 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
     const finalY = (doc as any).lastAutoTable.finalY || 26;
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text(`${filteredTransactions.length} transaction(s) — Généré le ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 10, finalY + 10);
+    doc.text(`${filteredTransactions.length} ${t("statements.pdf.generatedOn")} ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 10, finalY + 10);
 
     doc.save(`pimpay_statements_${format(new Date(), "ddMMyyyy_HHmm")}.pdf`);
-    toast.success("Rapport PDF exporté !");
+    toast.success(t("statements.pdf.exported"));
   };
 
   return (
@@ -259,17 +273,17 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
               </div>
             </Link>
             <div>
-              <h1 className="text-xl font-black tracking-tighter text-white uppercase">Statements</h1>
+              <h1 className="text-xl font-black tracking-tighter text-white uppercase">{t("statements.title")}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <CircleDot size={10} className="text-blue-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">REAL-TIME LEDGER</span>
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">{t("statements.realtimeLedger")}</span>
               </div>
             </div>
           </div>
           <button
             onClick={handleExportPDF}
             className="p-3 rounded-2xl bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/20 transition-all"
-            title="Exporter en PDF"
+            title={t("statements.exportPdf")}
           >
             <FileText size={20} />
           </button>
@@ -278,14 +292,14 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
         {/* STATS */}
         <div className="grid grid-cols-2 gap-4">
           <StatMiniCard
-            label="Entrées"
+            label={t("statements.income")}
             value={`+${stats.income.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowDownLeft size={16} />}
             color="text-green-400"
             bg="from-green-600/20"
           />
           <StatMiniCard
-            label="Sorties"
+            label={t("statements.outcome")}
             value={`-${stats.outcome.toLocaleString()} ${filteredTransactions[0]?.currency || ""}`}
             icon={<ArrowUpRight size={16} />}
             color="text-red-400"
@@ -303,13 +317,13 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
             value={referenceSearch}
             onChange={(e) => setReferenceSearch(e.target.value)}
             className="w-full h-13 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-xs font-bold outline-none focus:border-emerald-500/40 text-white placeholder:text-slate-600 transition-colors"
-            placeholder="Rechercher par référence..."
+            placeholder={t("statements.searchPlaceholder")}
           />
         </div>
 
         {/* FILTRES PAR DATE */}
         <div className="space-y-3">
-          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Période</h4>
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">{t("statements.period")}</h4>
           <div className="grid grid-cols-2 gap-3">
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={13} />
@@ -334,24 +348,24 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
             onClick={() => { setStartDate(subDays(new Date(), 7)); setEndDate(new Date()); }}
             className="w-full text-[10px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest py-2 rounded-lg bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/20"
           >
-            7 derniers jours
+            {t("statements.last7Days")}
           </button>
         </div>
 
         {/* FILTRES PAR TYPE */}
         <div className="space-y-2">
-          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">Type</h4>
+          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[2px] px-1">{t("statements.type")}</h4>
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {[
-              { id: "all",      label: "Tout" },
-              { id: "incoming", label: "Entrants" },
-              { id: "outgoing", label: "Sortants" },
-              { id: "payment",  label: "Paiements" },
-              { id: "transfer", label: "Transferts" },
-              { id: "swap",     label: "Swaps" },
-              { id: "recharge", label: "Recharges" },
-              { id: "deposit",  label: "Dépôts" },
-              { id: "withdraw", label: "Retraits" },
+              { id: "all",      label: t("statements.types.all") },
+              { id: "incoming", label: t("statements.types.incoming") },
+              { id: "outgoing", label: t("statements.types.outgoing") },
+              { id: "payment",  label: t("statements.types.payment") },
+              { id: "transfer", label: t("statements.types.transfer") },
+              { id: "swap",     label: t("statements.types.swap") },
+              { id: "recharge", label: t("statements.types.recharge") },
+              { id: "deposit",  label: t("statements.types.deposit") },
+              { id: "withdraw", label: t("statements.types.withdraw") },
             ].map((s) => (
               <button
                 key={s.id}
@@ -373,10 +387,10 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
           <div className="flex items-center justify-between px-1">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] flex items-center gap-2">
               <Calendar size={12} className="text-blue-500" />
-              {format(endDate, "MMMM yyyy", { locale: fr }).toUpperCase()}
+              {format(endDate, "MMMM yyyy", { locale: dfnsLocale }).toUpperCase()}
             </h3>
             <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
-              {filteredTransactions.length} transaction{filteredTransactions.length > 1 ? "s" : ""}
+              {filteredTransactions.length} {t("statements.transactionLabel")}{locale !== "zh" && filteredTransactions.length > 1 ? "s" : ""}
             </span>
           </div>
 
@@ -395,7 +409,7 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
             ))
           ) : (
             <div className="text-center py-14 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
-              Aucune transaction trouvée
+              {t("statements.noTransactionsFound")}
             </div>
           )}
         </div>
@@ -424,6 +438,7 @@ function StatMiniCard({ label, value, icon, color, bg }: any) {
 
 // --- TRANSACTION CARD ---
 function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
 
   const icons: any = {
@@ -491,7 +506,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
             </span>
           </p>
           <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border ${statusStyles[tx.status]}`}>
-            {tx.status === "success" ? "Complété" : tx.status === "pending" ? "En attente" : "Échoué"}
+            {tx.status === "success" ? t("statements.status.success") : tx.status === "pending" ? t("statements.status.pending") : t("statements.status.failed")}
           </span>
           {expanded
             ? <ChevronUp size={12} className="text-slate-600 mt-1" />
@@ -507,7 +522,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
           {/* FROM / TO */}
           <div className="grid grid-cols-2 gap-3 pt-4">
             <PartyCard
-              label="Expéditeur"
+              label={t("statements.sender")}
               name={tx.fromName}
               username={tx.fromUsername}
               email={tx.fromEmail}
@@ -515,7 +530,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
               isCurrentUser={!tx.isIncome}
             />
             <PartyCard
-              label="Destinataire"
+              label={t("statements.recipient")}
               name={tx.toName}
               username={tx.toUsername}
               email={tx.toEmail}
@@ -526,27 +541,27 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
 
           {/* DONNÉES FINANCIÈRES */}
           <div className="bg-slate-950/60 rounded-2xl p-4 space-y-2">
-            <DetailRow label="Montant brut"  value={`${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} />
+            <DetailRow label={t("statements.grossAmount")}  value={`${tx.amount.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} />
             {tx.fee >= 0 && (
-              <DetailRow label="Frais réseau" value={`${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
+              <DetailRow label={t("statements.networkFee")} value={`${tx.fee.toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 4)} ${tx.currency}`} accent="text-amber-400" />
             )}
             {tx.netAmount !== null && tx.netAmount !== undefined && (
-              <DetailRow label="Montant net"   value={`${Number(tx.netAmount).toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
+              <DetailRow label={t("statements.netAmount")}   value={`${Number(tx.netAmount).toFixed((tx.currency === "PI" || tx.currency === "SDA") ? 8 : 2)} ${tx.currency}`} accent="text-green-400" />
             )}
             {tx.reference && (
-              <DetailRow label="Référence"    value={tx.reference} mono />
+              <DetailRow label={t("statements.reference")}    value={tx.reference} mono />
             )}
             {tx.accountName && (
-              <DetailRow label="Compte"       value={tx.accountName} />
+              <DetailRow label={t("statements.account")}       value={tx.accountName} />
             )}
             {tx.accountNumber && (
-              <DetailRow label="N° compte"    value={tx.accountNumber} mono />
+              <DetailRow label={t("statements.accountNumber")}    value={tx.accountNumber} mono />
             )}
             {tx.note && (
-              <DetailRow label="Note"         value={tx.note} />
+              <DetailRow label={t("statements.note")}         value={tx.note} />
             )}
             {tx.blockchainTxHash && (
-              <DetailRow label="Hash"         value={tx.blockchainTxHash.slice(0, 16) + "..."} mono accent="text-cyan-400" />
+              <DetailRow label={t("statements.hash")}         value={tx.blockchainTxHash.slice(0, 16) + "..."} mono accent="text-cyan-400" />
             )}
           </div>
 
@@ -559,7 +574,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
               className="w-full py-3 rounded-2xl bg-cyan-600/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-widest hover:bg-cyan-600/20 transition-colors flex items-center justify-center gap-2"
             >
               <ExternalLink size={14} />
-              Verifier sur {getExplorerName(tx.currency)}
+              {t("statements.verifyOn").replace("{explorer}", getExplorerName(tx.currency))}
             </a>
           )}
 
@@ -568,7 +583,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
             onClick={onPress}
             className="w-full py-3 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600/20 transition-colors"
           >
-            Voir le reçu complet
+            {t("statements.viewFullReceipt")}
           </button>
         </div>
       )}
