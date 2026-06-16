@@ -990,7 +990,7 @@ export const zh: TranslationKeys = {
   },
 
   kyc: {
-    title: "KYC Verification",
+    title: "KYC 身份验证",
     notVerified: "NOT VERIFIED",
     verified: "VERIFIED",
     pending: "PENDING",
