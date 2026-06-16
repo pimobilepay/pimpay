@@ -42,7 +42,6 @@ export async function POST(req: NextRequest) {
       where: { id: userId },
       data: { 
         password: hashedPassword,
-        passwordChangedAt: new Date(),
         // Optionnel : Enregistrer l'action dans les logs de sécurité
         securityLogs: {
           create: {
