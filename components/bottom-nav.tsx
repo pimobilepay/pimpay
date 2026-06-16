@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface BottomNavProps {
   onOpenMenu: () => void;
@@ -19,6 +20,7 @@ interface BottomNavProps {
 
 export function BottomNav({ onOpenMenu }: BottomNavProps) {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -34,13 +36,13 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
   if (!mounted || isAuthPage) return null;
 
   const navItems = [
-    { href: "/dashboard", icon: Home, label: "Accueil" },
-    { href: "/wallet", icon: Wallet, label: "Wallet" },
-    { href: "/deposit", icon: ArrowDownToLine, label: "Dépôt" },
-    { href: "/mpay", icon: Smartphone, label: "MPay", special: true },
-    { href: "/withdraw", icon: ArrowUpFromLine, label: "Retrait" },
-    { href: "/transfer", icon: Send, label: "Envoi" },
-    { href: "#", icon: Menu, label: "Menu", isMenuButton: true },
+    { href: "/dashboard", icon: Home, label: t("nav.home") },
+    { href: "/wallet", icon: Wallet, label: t("nav.wallet") },
+    { href: "/deposit", icon: ArrowDownToLine, label: t("nav.deposit") },
+    { href: "/mpay", icon: Smartphone, label: t("nav.mpay"), special: true },
+    { href: "/withdraw", icon: ArrowUpFromLine, label: t("nav.withdraw") },
+    { href: "/transfer", icon: Send, label: t("nav.transfer") },
+    { href: "#", icon: Menu, label: t("nav.menu"), isMenuButton: true },
   ];
 
   return (
