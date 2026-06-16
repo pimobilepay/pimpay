@@ -246,14 +246,23 @@ export default function LoginPage() {
       <MFASelector
         isOpen={showMFAModal}
         onClose={() => setShowMFAModal(false)}
-        onSuccess={() => {
-          handlePostLogin(tempRole || "USER");
+        onSuccess={(payload) => {
+          handlePostLogin(tempRole || "USER", payload?.mustChangePassword);
         }}
         userId={tempUserId || ""}
         tempToken={tempToken || undefined}
         userEmail={userEmail || undefined}
         needsPinUpdate={needsPinUpdate}
         twoFactorEnabled={twoFactorEnabled}
+      />
+
+      {/* Changement de mot de passe force (limite de tentatives atteinte ou deblocage admin) */}
+      <ForcePasswordChange
+        isOpen={showForcePasswordChange}
+        onComplete={() => {
+          setShowForcePasswordChange(false);
+          proceedToLanguageOrRedirect(pendingRedirect || getRedirectPath(tempRole || "USER"));
+        }}
       />
 
       {/* Choix de la langue a la premiere connexion */}
