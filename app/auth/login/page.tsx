@@ -10,6 +10,7 @@ import Link from "next/link";
 import { usePiAuth } from "@/hooks/usePiAuth"; 
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import MFASelector from "@/components/auth/MFASelector";
+import LanguageOnboarding, { LANGUAGE_ONBOARDED_KEY } from "@/components/auth/LanguageOnboarding";
 import AccountStatusModal from "@/components/AccountStatusModal";
 import { useLanguage } from "@/context/LanguageContext";
 import ChatBubble from "@/components/ChatBubble";
@@ -47,6 +48,10 @@ export default function LoginPage() {
   const [transitionStep, setTransitionStep] = useState("init");
   const [dynamicMessage, setDynamicMessage] = useState("");
 
+  // Language onboarding (first login only)
+  const [showLanguageOnboarding, setShowLanguageOnboarding] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -73,6 +78,26 @@ export default function LoginPage() {
         window.location.replace(targetPath);
       }, 1000);
     }, 3000);
+  };
+
+  // Apres une authentification reussie : a la premiere connexion, on propose
+  // de choisir la langue avant de rediriger. Sinon redirection directe.
+  const handlePostLogin = (role: string) => {
+    const targetPath = getRedirectPath(role);
+    let alreadyOnboarded = false;
+    try {
+      alreadyOnboarded = localStorage.getItem(LANGUAGE_ONBOARDED_KEY) === "1";
+    } catch {
+      alreadyOnboarded = false;
+    }
+
+    if (!alreadyOnboarded) {
+      setPendingRedirect(targetPath);
+      setShowLanguageOnboarding(true);
+      return;
+    }
+
+    triggerSuccessTransition(targetPath);
   };
 
   // Login Classique (Email/Password)
@@ -137,7 +162,7 @@ export default function LoginPage() {
         setLoading(false);
       } else if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
-        triggerSuccessTransition(getRedirectPath(data.user.role));
+        handlePostLogin(data.user.role);
       }
     } catch (error) {
       toast.error(t("auth.login.serverError"));
@@ -159,7 +184,7 @@ export default function LoginPage() {
       
       if (result && result.success) {
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-        triggerSuccessTransition(getRedirectPath(result.user?.role || "USER"));
+        handlePostLogin(result.user?.role || "USER");
       } else if (result && !result.success) {
         // L'erreur est deja affichee par le hook via toast
         console.log("[v0] Pi login failed:", result.error);
@@ -177,7 +202,7 @@ export default function LoginPage() {
 
       if (result && result.success) {
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-        triggerSuccessTransition(getRedirectPath(result.user?.role || "USER"));
+        handlePostLogin(result.user?.role || "USER");
       } else if (result && !result.success) {
         console.log("[v0] Google login failed:", result.error);
       }
@@ -202,14 +227,22 @@ export default function LoginPage() {
         isOpen={showMFAModal}
         onClose={() => setShowMFAModal(false)}
         onSuccess={() => {
-          const destination = getRedirectPath(tempRole || "USER");
-          triggerSuccessTransition(destination);
+          handlePostLogin(tempRole || "USER");
         }}
         userId={tempUserId || ""}
         tempToken={tempToken || undefined}
         userEmail={userEmail || undefined}
         needsPinUpdate={needsPinUpdate}
         twoFactorEnabled={twoFactorEnabled}
+      />
+
+      {/* Choix de la langue a la premiere connexion */}
+      <LanguageOnboarding
+        isOpen={showLanguageOnboarding}
+        onComplete={() => {
+          setShowLanguageOnboarding(false);
+          triggerSuccessTransition(pendingRedirect || "/dashboard");
+        }}
       />
 
       {/* Modal pour compte suspendu/maintenance */}
