@@ -65,7 +65,6 @@ export async function POST(req: NextRequest) {
       where: { id: userId },
       data: {
         password: hashedPassword,
-        passwordChangedAt: new Date(),
         mustChangePassword: false,
         // Par securite on repart d'un compteur propre.
         failedLoginAttempts: 0,
