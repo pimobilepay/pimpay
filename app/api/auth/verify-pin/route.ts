@@ -187,7 +187,8 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "PIN validé",
       user: { id: user.id, role: user.role },
-      redirectTo: getRedirectPath(user.role)
+      redirectTo: getRedirectPath(user.role),
+      mustChangePassword: !!(user as any).mustChangePassword,
     });
 
     const isProduction = process.env.NODE_ENV === "production";

@@ -11,6 +11,7 @@ import { usePiAuth } from "@/hooks/usePiAuth";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import MFASelector from "@/components/auth/MFASelector";
 import LanguageOnboarding, { LANGUAGE_ONBOARDED_KEY } from "@/components/auth/LanguageOnboarding";
+import ForcePasswordChange from "@/components/auth/ForcePasswordChange";
 import AccountStatusModal from "@/components/AccountStatusModal";
 import { useLanguage } from "@/context/LanguageContext";
 import ChatBubble from "@/components/ChatBubble";
@@ -52,6 +53,9 @@ export default function LoginPage() {
   const [showLanguageOnboarding, setShowLanguageOnboarding] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
+  // Forced password change (after lockout limit reached or admin unlock)
+  const [showForcePasswordChange, setShowForcePasswordChange] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -80,10 +84,9 @@ export default function LoginPage() {
     }, 3000);
   };
 
-  // Apres une authentification reussie : a la premiere connexion, on propose
-  // de choisir la langue avant de rediriger. Sinon redirection directe.
-  const handlePostLogin = (role: string) => {
-    const targetPath = getRedirectPath(role);
+  // Etape langue : a la premiere connexion, proposer le choix de la langue,
+  // sinon rediriger directement.
+  const proceedToLanguageOrRedirect = (targetPath: string) => {
     let alreadyOnboarded = false;
     try {
       alreadyOnboarded = localStorage.getItem(LANGUAGE_ONBOARDED_KEY) === "1";
@@ -98,6 +101,23 @@ export default function LoginPage() {
     }
 
     triggerSuccessTransition(targetPath);
+  };
+
+  // Apres une authentification reussie, enchainement :
+  //   1. Si mustChangePassword (limite de tentatives atteinte ou deblocage admin)
+  //      -> on force le changement de mot de passe.
+  //   2. Sinon, choix de la langue a la premiere connexion.
+  //   3. Puis redirection vers l'espace correspondant au role.
+  const handlePostLogin = (role: string, mustChangePassword?: boolean) => {
+    const targetPath = getRedirectPath(role);
+    setPendingRedirect(targetPath);
+
+    if (mustChangePassword) {
+      setShowForcePasswordChange(true);
+      return;
+    }
+
+    proceedToLanguageOrRedirect(targetPath);
   };
 
   // Login Classique (Email/Password)
@@ -162,7 +182,7 @@ export default function LoginPage() {
         setLoading(false);
       } else if (data?.user) {
         localStorage.setItem("pimpay_user", JSON.stringify(data.user));
-        handlePostLogin(data.user.role);
+        handlePostLogin(data.user.role, data.mustChangePassword);
       }
     } catch (error) {
       toast.error(t("auth.login.serverError"));
@@ -184,7 +204,7 @@ export default function LoginPage() {
       
       if (result && result.success) {
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-        handlePostLogin(result.user?.role || "USER");
+        handlePostLogin(result.user?.role || "USER", (result as any).mustChangePassword);
       } else if (result && !result.success) {
         // L'erreur est deja affichee par le hook via toast
         console.log("[v0] Pi login failed:", result.error);
@@ -202,7 +222,7 @@ export default function LoginPage() {
 
       if (result && result.success) {
         localStorage.setItem("pimpay_user", JSON.stringify(result.user));
-        handlePostLogin(result.user?.role || "USER");
+        handlePostLogin(result.user?.role || "USER", (result as any).mustChangePassword);
       } else if (result && !result.success) {
         console.log("[v0] Google login failed:", result.error);
       }

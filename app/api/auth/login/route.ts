@@ -106,6 +106,9 @@ export async function POST(req: Request) {
         data: {
           failedLoginAttempts: reachedLimit ? 0 : newAttempts,
           lockedUntil: reachedLimit ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+          // [SECURITE] Limite atteinte → on forcera le changement de mot de passe
+          // a la prochaine connexion reussie (apres expiration du verrou ou deblocage admin).
+          ...(reachedLimit ? { mustChangePassword: true } : {}),
         },
       });
 
@@ -351,6 +354,7 @@ export async function POST(req: Request) {
         email: user.email,
         twoFactorEnabled: has2FAEnabled,
         needsPinUpdate: needsPinUpdate && !has2FAEnabled, // Don't require PIN update if 2FA is enabled
+        mustChangePassword: !!(user as any).mustChangePassword,
         // New: indicate which methods are available
         availableMethods: {
           pin: hasPinConfigured,
@@ -419,6 +423,7 @@ export async function POST(req: Request) {
       success: true,
       user: { id: user.id, username: user.username, role: user.role },
       redirectTo: getRedirectPath(user.role),
+      mustChangePassword: !!(user as any).mustChangePassword,
       token: token
     });
 

@@ -145,7 +145,13 @@ export async function POST(req: NextRequest) {
 
     await prisma.user.update({
       where: { id: userId },
-      data: { failedLoginAttempts: 0, lockedUntil: null },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        // [SECURITE] Apres un deblocage, l'utilisateur devra definir un nouveau
+        // mot de passe a sa prochaine connexion reussie.
+        mustChangePassword: true,
+      },
     });
 
     await logSystemEvent({

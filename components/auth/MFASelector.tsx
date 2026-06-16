@@ -23,7 +23,7 @@ type MFAMethod = "authenticator" | "pin" | "sms" | "email";
 interface MFASelectorProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (payload?: { mustChangePassword?: boolean }) => void;
   userId: string;
   tempToken?: string;
   userEmail?: string;
@@ -171,7 +171,7 @@ export default function MFASelector({
       const data = await res.json();
 
       if (res.ok && data.success) {
-        onSuccess();
+        onSuccess({ mustChangePassword: data.mustChangePassword });
         onClose();
         setPin("");
       } else {
@@ -208,7 +208,7 @@ export default function MFASelector({
       const data = await res.json();
 
       if (res.ok && data.success) {
-        onSuccess();
+        onSuccess({ mustChangePassword: data.mustChangePassword });
         onClose();
         setTotpCode("");
       } else {
@@ -254,7 +254,7 @@ export default function MFASelector({
       const data = await res.json();
 
       if (res.ok && data.success) {
-        onSuccess();
+        onSuccess({ mustChangePassword: data.mustChangePassword });
         onClose();
         setPin("");
       } else {
