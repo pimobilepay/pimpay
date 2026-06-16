@@ -24,7 +24,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 
-const PI_GCV_PRICE = 314159;
+// Valeur de repli si l'API prix est injoignable
+const FALLBACK_PI_PRICE = 314159;
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -38,6 +39,8 @@ function SuccessContent() {
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // Prix du Pi contrôlé par l'admin (Réglages → Politique Monétaire)
+  const [piPrice, setPiPrice] = useState<number>(FALLBACK_PI_PRICE);
 
   const fetchTx = useCallback(async () => {
     if (!ref && !txid) {
@@ -70,13 +73,33 @@ function SuccessContent() {
     fetchTx();
   }, [fetchTx]);
 
+  // Récupère le prix du Pi défini par l'admin (mode GCV ou Marché)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          const price = Number(data?.price);
+          if (!cancelled && price > 0) setPiPrice(price);
+        }
+      } catch (e) {
+        console.error("Erreur recuperation prix Pi:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const currency = transaction?.currency || urlCurrency;
   const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
   const blockchainTxHash = transaction?.blockchainTxId || transaction?.txid || txid;
 
   const amountUSD =
     currency === "PI"
-      ? amount * PI_GCV_PRICE
+      ? amount * piPrice
       : currency === "XAF"
       ? amount / 600
       : amount;

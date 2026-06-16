@@ -66,7 +66,7 @@ const UnknownCardIcon = ({ className = "" }: { className?: string }) => (
 );
 
 function DepositBanner({ t }: { t: (key: string) => string }) { return ( <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-600/15 via-blue-800/10 to-transparent border border-white/5 overflow-hidden"> <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.04]"><Zap size={120} className="text-blue-500" /></div> <div className="flex items-start gap-4 relative z-10"> <div className="p-3 bg-blue-600/20 rounded-2xl text-blue-400 border border-blue-500/20 shrink-0"><ShieldCheck size={24} /></div> <div><p className="text-[11px] font-black uppercase tracking-widest text-blue-400">{t("deposit.secureDeposit")}</p><p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">{t("deposit.secureBanner")}</p></div> </div> </section> ); }
-function SecuritySection({ t }: { t: (key: string) => string }) { return ( <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5 mb-10"> <div className="flex items-center gap-2"><Shield size={14} className="text-blue-400" /><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Garanties de sécurité</span></div> <div className="grid gap-4"> <div className="flex items-center gap-4"> <div className="p-2 bg-emerald-500/10 rounded-lg"><Lock size={18} className="text-emerald-500" /></div> <div><p className="text-[10px] font-black uppercase text-white">Chiffrement AES-256</p><p className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Vos données de paiement ne sont jamais stockées en clair sur PimPay.</p></div> </div> </div> </section> ); }
+function SecuritySection({ t }: { t: (key: string) => string }) { return ( <section className="bg-white/[0.03] rounded-3xl border border-white/5 p-6 space-y-5 mb-10"> <div className="flex items-center gap-2"><Shield size={14} className="text-blue-400" /><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{t("deposit.flow.securityGuarantees")}</span></div> <div className="grid gap-4"> <div className="flex items-center gap-4"> <div className="p-2 bg-emerald-500/10 rounded-lg"><Lock size={18} className="text-emerald-500" /></div> <div><p className="text-[10px] font-black uppercase text-white">{t("deposit.flow.aesEncryption")}</p><p className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">{t("deposit.flow.aesEncryptionDesc")}</p></div> </div> </div> </section> ); }
 export default function DepositPage() {
   const router = useRouter(); const { t } = useLanguage(); const [mounted, setMounted] = useState(false); const [isLoading, setIsLoading] = useState(false); const [isMenuOpen, setIsMenuOpen] = useState(false); const [activeTab, setActiveTab] = useState("mobile"); const [amount, setAmount] = useState(""); const [phoneNumber, setPhoneNumber] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
   
@@ -108,7 +108,7 @@ export default function DepositPage() {
   }, [amount, piPrice]);
   useEffect(() => { setMounted(true); }, []);
   const handleInitiateDeposit = async () => {
-    if (!amount || parseFloat(amount) <= 0) { toast.error("Montant invalide"); return; }
+    if (!amount || parseFloat(amount) <= 0) { toast.error(t("deposit.flow.invalidAmount")); return; }
     setIsLoading(true);
     try {
       // Pour les dépôts crypto (Pi), le montant saisi EST déjà en Pi
@@ -126,11 +126,11 @@ export default function DepositPage() {
         countryCode: selectedCountry.code,
       };
       const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const text = await res.text(); let result; try { result = JSON.parse(text); } catch (e) { throw new Error("Réponse serveur corrompue"); }
+      const text = await res.text(); let result; try { result = JSON.parse(text); } catch (e) { throw new Error(t("deposit.flow.serverError")); }
       if (res.ok && result.reference) {
         router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}&method=${activeTab}`);
-      } else { toast.error(result.error || "Erreur lors de l'initialisation"); }
-    } catch (e: any) { toast.error(e.message || "Erreur de connexion"); } finally { setIsLoading(false); }
+      } else { toast.error(result.error || t("deposit.flow.initError")); }
+    } catch (e: any) { toast.error(e.message || t("deposit.flow.connectionError")); } finally { setIsLoading(false); }
   };
   
   // Card deposit handler
@@ -138,27 +138,27 @@ export default function DepositPage() {
     // Validate inputs
     const cleanCardNumber = cardNumber.replace(/\s/g, "");
     if (cleanCardNumber.length !== 16) {
-      toast.error("Numero de carte invalide (16 chiffres requis)");
+      toast.error(t("deposit.flow.invalidCardNumber"));
       return;
     }
     if (!cardExpiry || cardExpiry.length !== 5) {
-      toast.error("Date d'expiration invalide (MM/AA)");
+      toast.error(t("deposit.flow.invalidExpiry"));
       return;
     }
     if (!cardCvv || cardCvv.length < 3) {
-      toast.error("CVV invalide (3-4 chiffres)");
+      toast.error(t("deposit.flow.invalidCvv"));
       return;
     }
     if (!cardHolder.trim()) {
-      toast.error("Nom du titulaire requis");
+      toast.error(t("deposit.flow.holderRequired"));
       return;
     }
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Montant invalide");
+      toast.error(t("deposit.flow.invalidAmount"));
       return;
     }
     if (cardType === "unknown") {
-      toast.error("Type de carte non supporte (Visa ou Mastercard uniquement)");
+      toast.error(t("deposit.flow.unsupportedCard"));
       return;
     }
     
@@ -185,13 +185,13 @@ export default function DepositPage() {
       const result = await res.json();
       
       if (res.ok && result.success) {
-        toast.success("Transaction initiee avec succes");
+        toast.success(t("deposit.flow.txInitiated"));
         router.push(`/deposit/confirm?ref=${result.reference}&amount=${amount}&method=card`);
       } else {
-        toast.error(result.message || "Erreur lors du traitement de la carte");
+        toast.error(result.message || t("deposit.flow.cardError"));
       }
     } catch (e: any) {
-      toast.error(e.message || "Erreur de connexion");
+      toast.error(e.message || t("deposit.flow.connectionError"));
     } finally {
       setIsLoading(false);
     }
@@ -203,14 +203,14 @@ export default function DepositPage() {
       <header className="px-6 pt-10 pb-6 flex items-center justify-between sticky top-0 bg-[#020617]/90 backdrop-blur-xl z-30 border-b border-white/5">
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-transform"><ArrowLeft size={20} /></button>
-          <div><h1 className="text-xl font-black tracking-tighter uppercase leading-none">{t("deposit.title")}</h1><div className="flex items-center gap-2 mt-1"><CircleDot size={8} className="text-blue-500 animate-pulse" /><span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">Liquidity Inflow</span></div></div>
+          <div><h1 className="text-xl font-black tracking-tighter uppercase leading-none">{t("deposit.title")}</h1><div className="flex items-center gap-2 mt-1"><CircleDot size={8} className="text-blue-500 animate-pulse" /><span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">{t("deposit.flow.liquidityInflow")}</span></div></div>
         </div>
         <button onClick={() => window.location.reload()}><RefreshCcw size={18} className="text-slate-500 hover:text-blue-400 transition-colors" /></button>
       </header>
       <main className="px-6 mt-6 space-y-6">
         <DepositBanner t={t} />
         <nav className="grid grid-cols-3 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">
-          {[{ id: "mobile", label: "Mobile", icon: <Smartphone size={16} /> }, { id: "card", label: "Card", icon: <CreditCard size={16} /> }, { id: "crypto", label: "Crypto", icon: <Bitcoin size={16} /> }].map((tab) => (
+          {[{ id: "mobile", label: t("deposit.mobile"), icon: <Smartphone size={16} /> }, { id: "card", label: t("deposit.card"), icon: <CreditCard size={16} /> }, { id: "crypto", label: t("deposit.crypto"), icon: <Bitcoin size={16} /> }].map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === tab.id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-500 hover:text-slate-300"}`}>{tab.icon} {tab.label}</button>
           ))}
         </nav>
@@ -218,7 +218,7 @@ export default function DepositPage() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Choisir un pays</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.chooseCountry")}</label>
                 <button onClick={() => setIsCountryModalOpen(true)} className="w-full h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 flex items-center justify-between hover:border-blue-500/30 transition-all">
                   <div className="flex items-center gap-3">
                     <span className={`fi fi-${selectedCountry.code.toLowerCase()} rounded-sm text-lg`} />
@@ -231,7 +231,7 @@ export default function DepositPage() {
                 </button>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Opérateur</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.operator")}</label>
                 {selectedCountry.operators.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {selectedCountry.operators.map((op) => (
@@ -252,7 +252,7 @@ export default function DepositPage() {
                         />
                         <div className="text-left">
                           <span className="text-[10px] font-black uppercase block">{op.name}</span>
-                          <span className="text-[7px] font-bold text-emerald-500 uppercase">Cash In</span>
+                          <span className="text-[7px] font-bold text-emerald-500 uppercase">{t("deposit.flow.cashIn")}</span>
                         </div>
                       </button>
                     ))}
@@ -260,23 +260,23 @@ export default function DepositPage() {
                 ) : (
                   <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
                     <Loader2 size={16} className="text-amber-400" />
-                    <p className="text-[10px] font-bold text-amber-400">Aucun opérateur disponible pour ce pays</p>
+                    <p className="text-[10px] font-bold text-amber-400">{t("deposit.flow.noOperator")}</p>
                   </div>
                 )}
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Téléphone</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.phone")}</label>
                 <div className="flex gap-2 w-full overflow-hidden">
                   <div className="h-14 px-4 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center gap-2 shrink-0">
                     <span className={`fi fi-${selectedCountry.code.toLowerCase()} rounded-sm`} />
                     <span className="text-xs font-black text-blue-500">{selectedCountry.dialCode}</span>
                   </div>
-                  <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Ex: 812345678" className="flex-1 min-w-0 h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-sm font-black outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700" />
+                  <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder={t("deposit.flow.phonePlaceholder")} className="flex-1 min-w-0 h-14 bg-slate-900/80 rounded-2xl border border-white/10 px-5 text-sm font-black outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700" />
                 </div>
               </div>
             </div>
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
-                <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Montant USD</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-blue-500 outline-none placeholder:text-slate-800 focus:border-blue-500/50 transition-colors" /></div>
+                <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.amountUsd")}</label><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 text-2xl font-black text-blue-500 outline-none placeholder:text-slate-800 focus:border-blue-500/50 transition-colors" /></div>
                 
                 {/* Fee Details */}
                 {parseFloat(amount) > 0 && (
@@ -286,16 +286,16 @@ export default function DepositPage() {
                     className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                   >
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
-                      <span>Montant saisi</span>
+                      <span>{t("deposit.flow.amountEntered")}</span>
                       <span className="text-white">$ {parseFloat(amount).toLocaleString()} USD</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>Frais PimPay (1%)</span>
+                      <span>{t("deposit.flow.pimpayFee1")}</span>
                       <span>- $ {feesCalculation.fee}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>
-                        <span className="text-[9px] font-black text-emerald-500 uppercase block">Vous recevrez</span>
+                        <span className="text-[9px] font-black text-emerald-500 uppercase block">{t("deposit.flow.youReceive")}</span>
                         <span className="text-2xl font-black text-white">$ {(parseFloat(amount) - parseFloat(feesCalculation.fee)).toFixed(2)}</span>
                       </div>
                       <span className="text-sm font-black text-slate-400">USD</span>
@@ -303,25 +303,25 @@ export default function DepositPage() {
                   </motion.div>
                 )}
 
-                <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || !phoneNumber} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : "GÉNÉRER LE RÉCAPITULATIF"}</button>
+                <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || !phoneNumber} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all">{isLoading ? <Loader2 className="animate-spin" /> : t("deposit.flow.generateSummary")}</button>
             </div>
           </motion.div>
         )}
         {activeTab === "crypto" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6 text-center">
             <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20"><Bitcoin size={40} className="text-blue-500" /></div>
-            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Montant Pi à déposer</label><div className="relative"><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 pr-20 text-2xl font-black text-blue-500 outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-800" disabled={isPriceLoading} /><span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Pi</span></div>{parseFloat(amount) > 0 && piPrice > 0 && (<p className="text-[10px] text-slate-500 ml-1 mt-1">≈ <span className="text-blue-400 font-bold">${feesCalculation.usdEquivalent} USD</span> au taux actuel</p>)}</div>
+            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">{t("deposit.flow.piAmountToDeposit")}</label><div className="relative"><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 pr-20 text-2xl font-black text-blue-500 outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-800" disabled={isPriceLoading} /><span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Pi</span></div>{parseFloat(amount) > 0 && piPrice > 0 && (<p className="text-[10px] text-slate-500 ml-1 mt-1">≈ <span className="text-blue-400 font-bold">${feesCalculation.usdEquivalent} USD</span> {t("deposit.flow.atCurrentRate")}</p>)}</div>
             {parseFloat(amount) > 0 && piPrice > 0 && (
               <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3 text-left">
-                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Montant saisi</span><span className="text-white">{parseFloat(amount).toLocaleString()} Pi</span></div>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>Frais PimPay (1%)</span><span>- {feesCalculation.feePi} Pi</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>{t("deposit.flow.amountEntered")}</span><span className="text-white">{parseFloat(amount).toLocaleString()} Pi</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>{t("deposit.flow.pimpayFee1")}</span><span>- {feesCalculation.feePi} Pi</span></div>
                 <div className="border-t border-white/5 pt-3 space-y-2">
-                  <div className="flex justify-between text-[12px] font-black uppercase"><span className="text-emerald-500">Vous recevrez</span><span className="text-emerald-400">{(parseFloat(amount) * 0.99).toFixed(7)} Pi</span></div>
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>Équivalent USD</span><span className="text-slate-400">≈ ${((parseFloat(amount) * 0.99) * piPrice).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-[12px] font-black uppercase"><span className="text-emerald-500">{t("deposit.flow.youReceive")}</span><span className="text-emerald-400">{(parseFloat(amount) * 0.99).toFixed(7)} Pi</span></div>
+                  <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>{t("deposit.flow.usdEquivalent")}</span><span className="text-slate-400">≈ ${((parseFloat(amount) * 0.99) * piPrice).toFixed(2)}</span></div>
                 </div>
               </div>
             )}
-            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0 || isPriceLoading} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="animate-spin" /> : "VÉRIFIER LE DÉPÔT"}</button>
+            <button onClick={handleInitiateDeposit} disabled={isLoading || !amount || parseFloat(amount) <= 0 || isPriceLoading} className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="animate-spin" /> : t("deposit.flow.verifyDeposit")}</button>
           </motion.div>
         )}
         {activeTab === "card" && (
@@ -330,7 +330,7 @@ export default function DepositPage() {
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
               {/* Card Number with detection icon */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Numero de carte</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.cardNumber")}</label>
                 <div className="relative">
                   {/* Card type icon on the left */}
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-7 flex items-center justify-center transition-all duration-300">
@@ -365,14 +365,14 @@ export default function DepositPage() {
                     className="text-[9px] font-bold text-emerald-500 ml-1 flex items-center gap-1"
                   >
                     <CheckCircle2 size={10} />
-                    Carte {cardType === "visa" ? "Visa" : "Mastercard"} detectee
+                    {t("deposit.flow.cardDetected").replace("{type}", cardType === "visa" ? "Visa" : "Mastercard")}
                   </motion.p>
                 )}
               </div>
 
               {/* Card Holder */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nom du titulaire</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.cardHolder")}</label>
                 <div className="relative">
                   <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
                   <input
@@ -388,7 +388,7 @@ export default function DepositPage() {
               {/* Expiry and CVV */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Expiration</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.expiration")}</label>
                   <div className="relative">
                     <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
                     <input
@@ -423,7 +423,7 @@ export default function DepositPage() {
             {/* Amount Section */}
             <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Montant USD</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t("deposit.flow.amountUsd")}</label>
                 <input
                   type="number"
                   placeholder="0.00"
@@ -441,16 +441,16 @@ export default function DepositPage() {
                   className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl space-y-3"
                 >
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
-                    <span>Montant saisi</span>
+                    <span>{t("deposit.flow.amountEntered")}</span>
                     <span className="text-white">$ {parseFloat(amount).toLocaleString()} USD</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                    <span>Frais PimPay (1.5%)</span>
+                    <span>{t("deposit.flow.pimpayFee15")}</span>
                     <span>- $ {(parseFloat(amount) * 0.015).toFixed(2)}</span>
                   </div>
                   <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                     <div>
-                      <span className="text-[9px] font-black text-emerald-500 uppercase block">Vous recevrez</span>
+                      <span className="text-[9px] font-black text-emerald-500 uppercase block">{t("deposit.flow.youReceive")}</span>
                       <span className="text-2xl font-black text-white">$ {(parseFloat(amount) * 0.985).toFixed(2)}</span>
                     </div>
                     <span className="text-sm font-black text-slate-400">USD</span>
@@ -462,7 +462,7 @@ export default function DepositPage() {
               <div className="flex items-center justify-center gap-2 py-2">
                 <Lock size={12} className="text-emerald-500" />
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                  Paiement securise par chiffrement SSL
+                  {t("deposit.flow.sslSecurePayment")}
                 </span>
               </div>
 
@@ -478,7 +478,7 @@ export default function DepositPage() {
                   <>
                     {cardType === "visa" && <VisaIcon className="w-8 h-6" />}
                     {cardType === "mastercard" && <MastercardIcon className="w-8 h-6" />}
-                    EFFECTUER LE DEPOT
+                    {t("deposit.flow.makeDeposit")}
                   </>
                 )}
               </button>
@@ -486,7 +486,7 @@ export default function DepositPage() {
 
             {/* Accepted Cards */}
             <div className="flex items-center justify-center gap-4 py-4">
-              <span className="text-[9px] font-bold text-slate-600 uppercase">Cartes acceptees:</span>
+              <span className="text-[9px] font-bold text-slate-600 uppercase">{t("deposit.flow.acceptedCards")}</span>
               <div className="flex gap-2">
                 <VisaIcon className="w-10 h-7 opacity-60 hover:opacity-100 transition-opacity" />
                 <MastercardIcon className="w-10 h-7 opacity-60 hover:opacity-100 transition-opacity" />
@@ -499,8 +499,8 @@ export default function DepositPage() {
       <AnimatePresence>
         {isCountryModalOpen && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 z-50 bg-[#020617] p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-black uppercase">Choisir un pays</h2><button onClick={() => setIsCountryModalOpen(false)} className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black">FERMER</button></div>
-            <div className="relative mb-6"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} /><input placeholder="Rechercher..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 outline-none" /></div>
+            <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-black uppercase">{t("deposit.flow.chooseCountry")}</h2><button onClick={() => setIsCountryModalOpen(false)} className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black">{t("deposit.flow.close")}</button></div>
+            <div className="relative mb-6"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} /><input placeholder={t("deposit.flow.search")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 outline-none" /></div>
             <div className="flex-1 overflow-y-auto space-y-2">{filteredCountries.map((c) => (<button key={c.code} onClick={() => { setSelectedCountry(c); setSelectedOperator(c.operators[0] || null); setIsCountryModalOpen(false); }} className="w-full p-4 flex items-center justify-between rounded-2xl bg-white/5 border border-white/5"><div className="flex items-center gap-4"><span className={`fi fi-${c.code.toLowerCase()} scale-125`} /><span className="text-xs font-black uppercase">{c.name}</span></div><span className="text-blue-500 font-black">{c.dialCode}</span></button>))}</div>
           </motion.div>
         )}
