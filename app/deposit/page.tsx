@@ -499,8 +499,8 @@ export default function DepositPage() {
       <AnimatePresence>
         {isCountryModalOpen && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 z-50 bg-[#020617] p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-black uppercase">Choisir un pays</h2><button onClick={() => setIsCountryModalOpen(false)} className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black">FERMER</button></div>
-            <div className="relative mb-6"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} /><input placeholder="Rechercher..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 outline-none" /></div>
+            <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-black uppercase">{t("deposit.flow.chooseCountry")}</h2><button onClick={() => setIsCountryModalOpen(false)} className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black">{t("deposit.flow.close")}</button></div>
+            <div className="relative mb-6"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} /><input placeholder={t("deposit.flow.search")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 outline-none" /></div>
             <div className="flex-1 overflow-y-auto space-y-2">{filteredCountries.map((c) => (<button key={c.code} onClick={() => { setSelectedCountry(c); setSelectedOperator(c.operators[0] || null); setIsCountryModalOpen(false); }} className="w-full p-4 flex items-center justify-between rounded-2xl bg-white/5 border border-white/5"><div className="flex items-center gap-4"><span className={`fi fi-${c.code.toLowerCase()} scale-125`} /><span className="text-xs font-black uppercase">{c.name}</span></div><span className="text-blue-500 font-black">{c.dialCode}</span></button>))}</div>
           </motion.div>
         )}
