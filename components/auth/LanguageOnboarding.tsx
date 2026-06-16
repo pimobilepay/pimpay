@@ -29,7 +29,7 @@ const languages: LanguageOption[] = [
     label: "Francais",
     nativeLabel: "Francais",
     flagCode: "fr",
-    region: "Europe, Afrique",
+    region: "France, RDC, Afrique",
   },
   {
     code: "en",
