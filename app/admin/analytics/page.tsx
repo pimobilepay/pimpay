@@ -438,7 +438,7 @@ function KpiCard({ label, value, sub, trend, icon: Icon, color }: {
         )}
       </div>
       <div>
-        <p className="text-2xl font-black text-white tracking-tight">{typeof value === "number" ? value.toLocaleString("fr-FR") : value}</p>
+        <p className="text-2xl font-black text-white tracking-tight">{typeof value === "number" ? formatAmount(value) : value}</p>
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-[2px] mt-1">{label}</p>
         {sub && <p className="text-[9px] text-slate-600 mt-0.5">{sub}</p>}
       </div>
@@ -531,11 +531,12 @@ const TX_TYPE_LABELS: Record<string, string> = {
 };
 
 // Compact currency formatter for large fintech amounts.
+// Seuil binaire : on bascule en notation compacte dès que la valeur dépasse 1024.
 function formatAmount(value: number): string {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}Md`;
-  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  if (abs >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)}Md`;
+  if (abs >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(2)}M`;
+  if (abs > 1024) return `${(value / 1024).toFixed(1)}k`;
   return value.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
 }
 

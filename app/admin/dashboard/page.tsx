@@ -12,6 +12,15 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { Admin2FAModal } from "@/components/admin/Admin2FAModal";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
+// Format compact pour le solde global : bascule en k/M/Md dès que la valeur dépasse 1024.
+function formatCompactPi(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)}Md`;
+  if (abs >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(2)}M`;
+  if (abs > 1024) return `${(value / 1024).toFixed(1)}k`;
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+}
+
 // --- TYPES ---
 type LedgerUser = {
   id: string;
@@ -714,7 +723,7 @@ function DashboardContent() {
 
       <div className="px-4 pt-4 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Volume Ledger" value={`π ${users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0).toLocaleString()}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
+          <StatCard label="Volume Ledger" value={`π ${formatCompactPi(users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0))}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
           <StatCard label="Live Users" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
         </div>
       </div>
