@@ -267,6 +267,8 @@ function DashboardContent() {
   const [sessionInfoTab, setSessionInfoTab] = useState<"sessions" | "activity" | "security">("sessions");
   const [balanceModalUser, setBalanceModalUser] = useState<LedgerUser | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  // Prix Pi configuré par l'admin (Réglages → Politique Monétaire). Repli sur le GCV par défaut.
+  const [piPrice, setPiPrice] = useState<number>(314159);
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
 
   // Live chart states
@@ -300,6 +302,18 @@ function DashboardContent() {
   useEffect(() => {
     setIsMounted(true);
     fetchData();
+    // Récupère le prix Pi configuré côté admin (Politique Monétaire : GCV ou Marché)
+    (async () => {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.success && typeof data.price === "number" && data.price > 0) {
+            setPiPrice(data.price);
+          }
+        }
+      } catch { /* repli sur la valeur par défaut */ }
+    })();
   }, []);
 
   useEffect(() => {
@@ -1815,7 +1829,7 @@ function DashboardContent() {
         const userName = fullName || user?.username || 'Utilisateur PimPay';
         const isSuccess = selectedTx.status === "SUCCESS";
         const isPending = selectedTx.status === "PENDING";
-        const PI_GCV_PRICE = 314159;
+        const PI_GCV_PRICE = piPrice;
         const isPi = selectedTx.currency === "PI" || !selectedTx.currency;
         const amountPI = isPi ? selectedTx.amount : selectedTx.amount / PI_GCV_PRICE;
         const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : selectedTx.amount;
