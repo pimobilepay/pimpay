@@ -35,6 +35,8 @@ function DetailsContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Prix Pi configuré par l'admin (Réglages → Politique Monétaire : GCV ou Marché)
+  const [piPrice, setPiPrice] = useState<number>(PI_GCV_PRICE);
 
   const fetchTx = useCallback(async () => {
     if (!ref && !txId) {
@@ -60,6 +62,23 @@ function DetailsContent() {
     fetchTx();
   }, [fetchTx]);
 
+  // Récupère le prix Pi configuré côté admin (mode GCV ou Marché)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.success && typeof data.price === "number" && data.price > 0) {
+            setPiPrice(data.price);
+          }
+        }
+      } catch {
+        /* repli sur la valeur par défaut */
+      }
+    })();
+  }, []);
+
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-blue-500" size={48} />
@@ -76,7 +95,7 @@ function DetailsContent() {
   
   // Taux de conversion approximatifs pour différentes devises
   const CURRENCY_RATES: Record<string, number> = {
-    PI: PI_GCV_PRICE,
+    PI: piPrice,
     SDA: 1.2,  // Sidra Chain
     USDT: 1.0,
     USDC: 1.0,
