@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 import { useLanguage } from "@/context/LanguageContext";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 interface SettingItem {
   icon: React.ReactNode;
@@ -111,8 +112,8 @@ export default function SettingsPage() {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
       });
 
-      // 3. Vider le storage local
-      try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
+      // 3. Vider le storage local (en conservant le choix de langue)
+      clearSessionKeepLanguage();
 
       toast.dismiss(loadingToast);
       toast.success(t("settings.logoutSuccess"));
@@ -126,7 +127,7 @@ export default function SettingsPage() {
       ["pimpay_token", "token", "pi_session_token"].forEach((name) => {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
-      try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
+      clearSessionKeepLanguage();
       toast.success(t("settings.logoutSuccess"));
       router.push("/auth/login");
     }

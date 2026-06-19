@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 /**
  * Hook partagé — déconnexion forcée immédiate.
@@ -35,13 +36,8 @@ export function useForceLogout() {
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     });
 
-    // 3. Vider le storage local
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch {
-      // Ignoré si le storage est désactivé
-    }
+    // 3. Vider le storage local (en conservant le choix de langue)
+    clearSessionKeepLanguage();
 
     // 4. Rediriger et invalider le cache Next.js
     router.push("/auth/login");

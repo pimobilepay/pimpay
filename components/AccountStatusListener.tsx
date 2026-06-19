@@ -5,6 +5,7 @@ import useSWR from "swr";
 import AccountStatusModal from "./AccountStatusModal";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 interface AccountStatusListenerProps {
   userId?: string;
@@ -65,7 +66,7 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     });
-    try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignoré */ }
+    clearSessionKeepLanguage();
 
     router.push("/auth/login");
     router.refresh();
