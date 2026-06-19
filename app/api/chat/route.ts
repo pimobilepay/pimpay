@@ -1,36 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import {
+  generateElaraReply,
+  detectSupportIntent,
+  SUPPORT_INTENT_REPLY,
+  type ElaraHistoryMessage,
+} from "@/lib/elara-brain";
+import {
+  GUEST_COOKIE,
+  guestCookieOptions,
+  newGuestId,
+  readGuestId,
+} from "@/lib/guest-session";
 
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// GET  — List all tickets OR load a single ticket with messages
+// Identité du demandeur
+// ---------------------------------------------------------------------------
+// - Utilisateur connecté  → on cloisonne par userId (son User.id réel).
+// - Admin / Agent         → accès à tous les tickets.
+// - Visiteur non connecté → on cloisonne par un identifiant d'invité stable
+//                           stocké dans un cookie. Chaque invité ne voit QUE
+//                           ses propres conversations.
+async function resolveIdentity() {
+  const user = await auth().catch(() => null);
+  const isAdmin = user?.role === "ADMIN" || user?.role === "AGENT";
+
+  if (user?.id) {
+    return { userId: user.id as string, guestId: null as string | null, isAdmin, newGuestCookie: null as string | null };
+  }
+
+  // Visiteur : on lit (ou on crée) son identifiant d'invité.
+  let guestId = await readGuestId();
+  let newGuestCookie: string | null = null;
+  if (!guestId) {
+    guestId = newGuestId();
+    newGuestCookie = guestId;
+  }
+  return { userId: null as string | null, guestId, isAdmin, newGuestCookie };
+}
+
+// Attache le cookie invité à la réponse si on vient de le générer.
+function withGuestCookie(res: NextResponse, newGuestCookie: string | null) {
+  if (newGuestCookie) {
+    res.cookies.set(GUEST_COOKIE, newGuestCookie, guestCookieOptions());
+  }
+  return res;
+}
+
+// Construit le filtre de propriété d'un ticket selon l'identité.
+function ownershipWhere(
+  identity: { userId: string | null; guestId: string | null; isAdmin: boolean },
+  extra: Record<string, any> = {},
+) {
+  if (identity.isAdmin) return { ...extra };
+  if (identity.userId) return { ...extra, userId: identity.userId };
+  // Invité : ticket anonyme contenant au moins un message émis par cet invité.
+  return {
+    ...extra,
+    userId: null,
+    messages: { some: { senderId: identity.guestId ?? "__none__" } },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GET — Liste des tickets OU un ticket précis avec ses messages
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
   try {
-    const user = await auth().catch(() => null);
+    const identity = await resolveIdentity();
     const { searchParams } = new URL(req.url);
     const ticketId = searchParams.get("ticketId");
-    const isAdmin = user?.role === "ADMIN" || user?.role === "AGENT";
 
     if (ticketId) {
       const ticket = await prisma.supportTicket.findFirst({
-        where: isAdmin
-          ? { id: ticketId }
-          : user?.id
-            ? { id: ticketId, userId: user.id }
-            : { id: ticketId, userId: null },
+        where: ownershipWhere(identity, { id: ticketId }),
         include: {
           messages: { orderBy: { createdAt: "asc" } },
           user: { select: { name: true, email: true, avatar: true } },
         },
       });
-      return NextResponse.json({ ticket });
+      return withGuestCookie(NextResponse.json({ ticket }), identity.newGuestCookie);
     }
 
     const tickets = await prisma.supportTicket.findMany({
-      where: isAdmin ? {} : user?.id ? { userId: user.id } : { userId: null },
+      where: ownershipWhere(identity),
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true, email: true } },
@@ -38,20 +94,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ tickets });
+    return withGuestCookie(NextResponse.json({ tickets }), identity.newGuestCookie);
   } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
     console.error("CHAT_GET_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors du chargement de la conversation" }, { status: 500 });
   }
 }
 
 // ---------------------------------------------------------------------------
-// POST — Send a message (create ticket if needed) + Elara auto-reply
+// POST — Envoi d'un message (création du ticket si besoin) + réponse d'Elara
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
-    const user = await auth().catch(() => null);
+    const identity = await resolveIdentity();
     const body = await req.json();
     const { ticketId, message, subject } = body;
 
@@ -60,30 +115,26 @@ export async function POST(req: NextRequest) {
     }
 
     const sanitizedMessage = message.trim();
-    const isAdmin = user?.role === "ADMIN" || user?.role === "AGENT";
+    const { isAdmin } = identity;
+
+    // senderId de l'expéditeur : "SUPPORT" pour un agent, sinon l'identifiant
+    // de propriété (userId réel ou identifiant d'invité).
+    const ownerSenderId = identity.userId || identity.guestId || "GUEST";
+    const senderId = isAdmin ? "SUPPORT" : ownerSenderId;
 
     let ticket;
 
     if (!ticketId) {
       ticket = await prisma.supportTicket.create({
         data: {
-          userId: user?.id || null,
+          userId: identity.userId || null,
           subject: subject || sanitizedMessage.slice(0, 50),
-          messages: {
-            create: {
-              senderId: isAdmin ? "SUPPORT" : (user?.id || "GUEST"),
-              content: sanitizedMessage,
-            },
-          },
+          messages: { create: { senderId, content: sanitizedMessage } },
         },
       });
     } else {
       ticket = await prisma.supportTicket.findFirst({
-        where: isAdmin
-          ? { id: ticketId }
-          : user?.id
-            ? { id: ticketId, userId: user.id }
-            : { id: ticketId, userId: null },
+        where: ownershipWhere(identity, { id: ticketId }),
       });
 
       if (!ticket) {
@@ -91,51 +142,42 @@ export async function POST(req: NextRequest) {
       }
 
       await prisma.message.create({
-        data: {
-          ticketId: ticket.id,
-          senderId: isAdmin ? "SUPPORT" : (user?.id || "GUEST"),
-          content: sanitizedMessage,
-        },
+        data: { ticketId: ticket.id, senderId, content: sanitizedMessage },
       });
     }
 
-    // ---- 2. Elara AI Logic with Instant FAQ Priority ----
+    // ---- Réponse automatique d'Elara (jamais pour un message d'agent) ----
     if (!isAdmin) {
-      const allMsgs = await prisma.message.findMany({
-        where: { ticketId: ticket.id },
-        orderBy: { createdAt: "asc" },
-      });
+      let elaraReply: string;
 
-      const userMsgs = allMsgs.filter(
-        (m) => m.senderId !== "ELARA_AI" && m.senderId !== "SUPPORT"
-      );
-
-      const faqResponse = getAutoReply(sanitizedMessage);
-      const isKnownQuestion = !faqResponse.includes("Je n'ai pas trouve de reponse precise");
-
-      let elaraReply = "";
-
-      // Si c'est une question identifiée, on répond direct sans tunnel
-      if (isKnownQuestion) {
-        elaraReply = faqResponse;
-      } 
-      // Sinon, tunnel de collecte de données standard
-      else if (userMsgs.length === 1) {
-        elaraReply = "Bonjour ! Je suis Elara, votre assistante PimPay. Pour mieux vous aider, pouvez-vous me donner votre **Nom complet** ?";
-      } else if (userMsgs.length === 2) {
-        elaraReply = "Merci ! Quelle est votre **adresse email** pour le suivi de ce ticket ?";
-      } else if (userMsgs.length === 3) {
-        elaraReply = "C'est note. Je transmets votre dossier au support PimPay. Comment puis-je vous aider en attendant ?";
+      if (detectSupportIntent(sanitizedMessage)) {
+        // L'utilisateur veut un humain : Elara collecte sa préoccupation
+        // et le rassure en attendant la prise en charge par le support.
+        elaraReply = SUPPORT_INTENT_REPLY;
+        // On remonte la priorité du ticket pour le support.
+        await prisma.supportTicket.update({
+          where: { id: ticket.id },
+          data: { priority: "HIGH" },
+        }).catch(() => {});
       } else {
-        elaraReply = faqResponse;
+        // Réponse précise via l'IA, avec le contexte de la conversation.
+        const allMsgs = await prisma.message.findMany({
+          where: { ticketId: ticket.id },
+          orderBy: { createdAt: "asc" },
+        });
+
+        const history: ElaraHistoryMessage[] = allMsgs.map((m) => ({
+          role: m.senderId === "ELARA_AI" || m.senderId === "SUPPORT" ? "assistant" : "user",
+          content: m.content,
+        }));
+        // Le dernier message (celui qu'on vient d'enregistrer) est passé à part.
+        history.pop();
+
+        elaraReply = await generateElaraReply({ message: sanitizedMessage, history });
       }
 
       await prisma.message.create({
-        data: {
-          ticketId: ticket.id,
-          senderId: "ELARA_AI",
-          content: elaraReply,
-        },
+        data: { ticketId: ticket.id, senderId: "ELARA_AI", content: elaraReply },
       });
     }
 
@@ -144,82 +186,9 @@ export async function POST(req: NextRequest) {
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
 
-    return NextResponse.json({ ticket: updated });
+    return withGuestCookie(NextResponse.json({ ticket: updated }), identity.newGuestCookie);
   } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
     console.error("CHAT_POST_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors de l'envoi du message" }, { status: 500 });
   }
-}
-
-// ---------------------------------------------------------------------------
-// Elara FAQ — Updated with Visual Precisions (Congo-Brazza & DRC)
-// ---------------------------------------------------------------------------
-interface FAQEntry {
-  keywords: string[];
-  response: string;
-  category: string;
-}
-
-const ELARA_FAQ: FAQEntry[] = [
-  {
-    keywords: ["depot", "deposit", "deposer", "alimenter", "recharger", "ajouter argent"],
-    response: "Pour alimenter votre compte PimPay :\n\n1. Allez sur la page **Depot**.\n2. Cliquez sur l'onglet **CRYPTO**.\n3. Utilisez l'option **PI NETWORK GCV BRIDGE** pour vos Pi (actuellement en Testnet).\n\n*Note : Les recharges directes via Mobile Money (MTN/Airtel) seront actives lors du passage au Mainnet.*",
-    category: "depot"
-  },
-  {
-    keywords: ["retrait", "withdraw", "retirer", "recuperer", "sortir argent"],
-    response: "Pour effectuer un retrait sur **PimPay** :\n\n1. Allez sur la page **Retrait**.\n2. Choisissez l'onglet **MOBILE** (pour M-Pesa, Orange, Airtel, Africell) ou **VIREMENT BANCAIRE**.\n3. Entrez le numero beneficiaire et le montant en Pi.\n4. **Statut :** Les retraits s'operent sur le Testnet pour le moment. Le cash-out reel sera disponible au Mainnet.",
-    category: "retrait"
-  },
-  {
-    keywords: ["mpay", "m-pay", "map", "boutique", "magasin", "payer"],
-    response: "La page **MPay** est votre hub d'utilisation :\n\n- **Map of Pi :** Visualisez les commercants (Dakar, etc.) acceptant le Pi.\n- **Scanner/Payer :** Effectuez vos paiements marchands en un clic.\n- **P2P :** Retrouvez vos contacts recents pour des transferts rapides.",
-    category: "mpay"
-  },
-  {
-    keywords: ["swap", "echanger", "convertir", "conversion"],
-    response: "Pour echanger vos devises, allez dans **Swap**. Vous pouvez convertir vos Pi vers d'autres devises ou cryptos. Le taux est calcule en temps reel (0.1% de frais).",
-    category: "swap"
-  },
-  {
-    keywords: ["carte", "card", "visa", "virtuelle"],
-    response: "Les cartes virtuelles PimPay (Classic, Gold, Business, Ultra) sont utilisables partout ou Visa est acceptee. Rendez-vous dans l'onglet **Card** de la page Depot pour voir les options bientot disponibles.",
-    category: "carte"
-  },
-  {
-    keywords: ["kyc", "verification", "identite"],
-    response: "La validation KYC (< 24h) est necessaire pour augmenter vos limites de retrait. Allez dans **Profil** > **Verification** pour uploader vos documents.",
-    category: "kyc"
-  },
-  {
-    keywords: ["frais", "fees", "commission"],
-    response: "**Tarifs PimPay :**\n- Transfert P2P : 1%\n- Swap : 0.1%\n- Depot/Retrait : 2-3.5% selon l'operateur.\n\nTous les frais sont detailles avant chaque validation.",
-    category: "frais"
-  },
-  {
-    keywords: ["merci", "thanks", "ok", "parfait", "super"],
-    response: "Avec plaisir ! Je suis la pour vous aider. N'hesitez pas si vous avez d'autres questions - l'equipe PimPay et moi sommes a votre service 24/7.",
-    category: "politeness"
-  },
-  {
-    keywords: ["bonjour", "salut", "hello", "hi"],
-    response: "Bonjour ! Je suis **Elara**, votre assistante intelligente PimPay.\n\nComment puis-je vous aider aujourd'hui ? Je peux vous guider pour vos depots, retraits ou l'utilisation de MPay.",
-    category: "politeness"
-  },
-];
-
-function getAutoReply(msg: string): string {
-  const low = msg.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  for (const faq of ELARA_FAQ) {
-    for (const keyword of faq.keywords) {
-      const normalizedKeyword = keyword.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (low.includes(normalizedKeyword)) {
-        return faq.response;
-      }
-    }
-  }
-
-  return "Je n'ai pas trouve de reponse precise a votre question dans ma base de connaissances.\n\nUn agent du support PimPay va vous repondre ici tres bientot. En attendant, n'hesitez pas a preciser votre demande !";
 }
