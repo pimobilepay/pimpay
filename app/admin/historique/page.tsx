@@ -130,10 +130,11 @@ function DetailRow({ icon, label, value, onCopy, copyable, valueClassName }: {
 }
 
 // --- DETAIL MODAL ---
-function TransactionDetailModal({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+function TransactionDetailModal({ tx, onClose, piPrice, priceMode }: { tx: Transaction; onClose: () => void; piPrice: number; priceMode: string }) {
   const isPi = tx.currency === "PI" || !tx.currency;
-  const amountPI = isPi ? tx.amount : tx.amount / PI_GCV_PRICE;
-  const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : tx.amount;
+  const amountPI = isPi ? tx.amount : tx.amount / piPrice;
+  const amountUSD = isPi ? (amountPI * piPrice) : tx.amount;
+  const priceLabel = priceMode === "MARKET" ? "Marche" : "GCV";
   const feeAmount = tx.fee || 0;
   const typeInfo = getTypeInfo(tx.type);
   const statusInfo = getStatusInfo(tx.status);
@@ -192,7 +193,7 @@ function TransactionDetailModal({ tx, onClose }: { tx: Transaction; onClose: () 
               <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
                 <TrendingUp size={12} className="text-blue-400" />
                 <span className="text-[10px] font-bold text-blue-400">
-                  {"\u2248"} ${amountUSD.toLocaleString()} USD (GCV)
+                  {"\u2248"} ${amountUSD.toLocaleString()} USD ({priceLabel})
                 </span>
               </div>
             )}
@@ -324,6 +325,26 @@ export default function AdminHistoriquePage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  // Prix Pi configure depuis Reglages -> Politique Monetaire (GCV ou Marche)
+  const [piPrice, setPiPrice] = useState<number>(PI_GCV_PRICE);
+  const [priceMode, setPriceMode] = useState<string>("GCV");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.success && typeof data.price === "number" && data.price > 0) {
+            setPiPrice(data.price);
+            if (data.mode) setPriceMode(data.mode);
+          }
+        }
+      } catch {
+        /* repli sur la valeur par defaut */
+      }
+    })();
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -570,7 +591,7 @@ export default function AdminHistoriquePage() {
       </div>
 
       {/* Transaction Detail Modal */}
-      {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
+      {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} piPrice={piPrice} priceMode={priceMode} />}
     </div>
   );
 }
