@@ -21,6 +21,7 @@ import {
   Fingerprint,
   AlertTriangle,
   ShieldCheck,
+  CircleDot,
 } from "lucide-react";
 import LogoutOthersButton from "@/components/sessions/LogoutOthersButton";
 import RevokeSessionButton from "@/components/sessions/RevokeSessionButton";
@@ -164,15 +165,17 @@ export default async function SessionsPage() {
           <ArrowLeft size={16} strokeWidth={2} />
         </Link>
 
-        {/* Brand */}
-        <div className="ml-3.5 flex items-center gap-2">
-          <span className="text-[15px] font-bold tracking-tight text-white">
-            PimPay Security
-          </span>
-          <span className="text-[11px] text-slate-600">&middot;</span>
-          <span className="text-[11px] font-medium text-slate-500">
-            Sessions
-          </span>
+        {/* Title + subtitle (style identique à la page Retrait) */}
+        <div className="ml-3.5">
+          <h1 className="text-xl font-black tracking-tighter uppercase leading-none text-white">
+            Historique des sessions
+          </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <CircleDot size={8} className="text-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
+              Sessions actives
+            </span>
+          </div>
         </div>
       </header>
 
