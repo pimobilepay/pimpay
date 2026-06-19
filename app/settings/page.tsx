@@ -6,7 +6,7 @@ import {
   Lock, Globe, HelpCircle, LogOut,
   ChevronRight, CreditCard, Palette,
   Loader2, ArrowLeft, Moon, Sun, History, ShieldAlert,
-  Facebook, Twitter, Linkedin, MessageSquare
+  Facebook, Twitter, Linkedin, MessageSquare, CircleDot
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -216,9 +216,12 @@ export default function SettingsPage() {
         </button>
         <div className="flex flex-col">
           <h1 className={`text-xl font-black uppercase tracking-tighter`}>{t("settings.title")}</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-0.5">
-            Gérez votre compte et vos préférences
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <CircleDot size={8} className="text-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">
+              Gérez votre compte et vos préférences
+            </span>
+          </div>
         </div>
       </div>
 
