@@ -98,6 +98,10 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/hub") || 
     pathname.startsWith("/transfer") || 
     pathname.startsWith("/deposit") || 
+    pathname.startsWith("/withdraw") || 
+    pathname.startsWith("/wallet") || 
+    pathname.startsWith("/mpay") || 
+    pathname.startsWith("/statements") || 
     pathname.startsWith("/settings") || 
     pathname.startsWith("/profile");
     
@@ -149,6 +153,8 @@ export const config = {
     "/withdraw/:path*",
     "/settings/:path*",
     "/wallet/:path*",
+    "/mpay/:path*",
+    "/statements/:path*",
     "/login",
     "/",
     "/auth/login",
