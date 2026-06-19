@@ -214,7 +214,12 @@ export default function SettingsPage() {
         <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 shadow-sm text-slate-900'} rounded-2xl border active:scale-90 transition-transform`}>
           <ArrowLeft size={20} />
         </button>
-        <h1 className={`text-xl font-black uppercase tracking-tighter`}>{t("settings.title")}</h1>
+        <div className="flex flex-col">
+          <h1 className={`text-xl font-black uppercase tracking-tighter`}>{t("settings.title")}</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-0.5">
+            Gérez votre compte et vos préférences
+          </p>
+        </div>
       </div>
 
       <header className="p-8 pb-4 text-center">

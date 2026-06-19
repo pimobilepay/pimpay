@@ -132,7 +132,7 @@ export default function AdminKYCPage() {
         toast.success(`Utilisateur ${status === "APPROVED" ? "verifie" : "rejete"}`);
         setSelectedUser(null);
         setRejectReason("");
-        fetchKYCData();
+        fetchKYCData(true);
       }
     } catch (error) {
       toast.error("Erreur lors de la mise a jour");
@@ -166,10 +166,10 @@ export default function AdminKYCPage() {
               }`}
             >
               <RefreshCw size={12} className={autoRefresh ? "animate-spin" : ""} />
-              Auto
+              Live
             </button>
             <button
-              onClick={() => fetchKYCData()}
+              onClick={() => fetchKYCData(true)}
               className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform"
             >
               <RefreshCw size={18} />
