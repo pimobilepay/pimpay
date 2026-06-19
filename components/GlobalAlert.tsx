@@ -12,6 +12,7 @@ import {
   Radio,
   CircleDot,
 } from "lucide-react";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 /* ──────────────────────────────────────────────
    CSS keyframes & animations (pure CSS, no libs)
@@ -531,8 +532,7 @@ export default function GlobalAlert() {
 
   /* ── Force logout ── */
   const forceLogout = () => {
-    localStorage.clear();
-    sessionStorage.clear();
+    clearSessionKeepLanguage();
     document.cookie.split(";").forEach((c) => {
       document.cookie = c
         .replace(/^ +/, "")

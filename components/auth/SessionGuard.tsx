@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 const SESSION_CHECK_INTERVAL = 10000; // 10 seconds - for instant logout detection across devices
 
@@ -63,7 +64,7 @@ export default function SessionGuard({ children }: SessionGuardProps) {
     document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    localStorage.clear();
+    clearSessionKeepLanguage();
 
     // Afficher un message approprié selon la raison et l'origine
     if (reason === "session_revoked") {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldAlert, Clock, Ban, Snowflake, LogOut, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { clearSessionKeepLanguage } from "@/lib/clear-session";
 
 interface AccountStatusModalProps {
   // isOpen est optionnel pour rétro-compatibilité avec AccountStatusListener
@@ -92,13 +93,8 @@ export default function AccountStatusModal({
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     });
 
-    // 3. Vider le localStorage et sessionStorage
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch {
-      // Ignoré si le storage est désactivé
-    }
+    // 3. Vider le localStorage et sessionStorage (en conservant le choix de langue)
+    clearSessionKeepLanguage();
 
     // 4. Fermer le modal (si callback fourni)
     onClose?.();
