@@ -102,6 +102,8 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/wallet") || 
     pathname.startsWith("/mpay") || 
     pathname.startsWith("/statements") || 
+    pathname.startsWith("/swap") || 
+    pathname.startsWith("/airtime") || 
     pathname.startsWith("/settings") || 
     pathname.startsWith("/profile");
     
@@ -155,6 +157,8 @@ export const config = {
     "/wallet/:path*",
     "/mpay/:path*",
     "/statements/:path*",
+    "/swap/:path*",
+    "/airtime/:path*",
     "/login",
     "/",
     "/auth/login",
