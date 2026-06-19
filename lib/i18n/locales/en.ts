@@ -603,6 +603,7 @@ export const en: TranslationKeys = {
   profile: {
     title: "Profile",
     editProfile: "Edit Profile",
+    editProfileSubtitle: "Manage your personal and security information",
     personalInfo: "Personal information",
     name: "Name",
     email: "Email",

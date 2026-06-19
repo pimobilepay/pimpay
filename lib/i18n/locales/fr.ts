@@ -601,6 +601,7 @@ export const fr = {
   profile: {
     title: "Profil",
     editProfile: "Modifier le Profil",
+    editProfileSubtitle: "Gerez vos informations personnelles et de securite",
     personalInfo: "Informations personnelles",
     name: "Nom",
     email: "Email",

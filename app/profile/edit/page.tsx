@@ -256,7 +256,10 @@ export default function EditProfilePage() {
         <button onClick={() => router.back()} className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center border border-white/10 active:scale-90 transition-transform">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">{t("profile.editProfile")}</h1>
+        <div className="flex flex-col items-center text-center">
+          <h1 className="text-xl font-black uppercase tracking-tighter">{t("profile.editProfile")}</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[2px] mt-1">{t("profile.editProfileSubtitle")}</p>
+        </div>
         <div className="w-10" />
       </header>
 

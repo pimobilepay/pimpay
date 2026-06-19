@@ -170,6 +170,34 @@ async function broadcastPi(
     throw new Error("PI_MASTER_WALLET_ADDRESS ou PI_MASTER_WALLET_SECRET non configure");
   }
 
+  // ── Garde anti tx_bad_auth #1 ───────────────────────────────────────────
+  // La cause #1 d'une erreur "tx_bad_auth" est que la cle secrete ne
+  // correspond pas a l'adresse publique du compte source. On le verifie
+  // explicitement AVANT de construire/signer la transaction pour renvoyer un
+  // message clair plutot qu'un rejet 400 cryptique du reseau Stellar.
+  let masterKeypair: StellarSdk.Keypair;
+  try {
+    masterKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+  } catch {
+    throw new Error("PI_MASTER_WALLET_SECRET invalide : ce n'est pas une cle secrete Stellar valide (doit commencer par S).");
+  }
+  if (masterKeypair.publicKey() !== PI_MASTER_ADDRESS) {
+    await logSystemEvent({
+      level: "ERROR",
+      source: "MPAY_EXTERNAL_TRANSFER",
+      action: "MASTER_KEY_MISMATCH",
+      message: "PI_MASTER_WALLET_SECRET ne correspond pas a PI_MASTER_WALLET_ADDRESS",
+      details: {
+        configuredAddress: PI_MASTER_ADDRESS,
+        secretPublicKey: masterKeypair.publicKey(),
+      },
+      requestId,
+    });
+    throw new Error(
+      "Configuration du wallet maitre invalide : la cle secrete (PI_MASTER_WALLET_SECRET) ne correspond pas a l'adresse (PI_MASTER_WALLET_ADDRESS)."
+    );
+  }
+
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(toAddress)) {
     await logSystemEvent({
       level: "ERROR",
@@ -183,6 +211,33 @@ async function broadcastPi(
   }
 
   const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
+
+  // ── Garde anti tx_bad_auth #2 ───────────────────────────────────────────
+  // La 2e cause d'une erreur "tx_bad_auth" est une passphrase reseau qui ne
+  // correspond pas a celle attendue par le Horizon ciblé. On lit la passphrase
+  // REELLE directement depuis la racine du serveur Horizon : ainsi la signature
+  // est toujours calculee avec la meme passphrase que celle du reseau auquel la
+  // transaction est soumise. Fallback sur la valeur configuree si indisponible.
+  let networkPassphrase = PI_NETWORK_PASSPHRASE;
+  try {
+    const rootRes = await fetch(PI_HORIZON_URL, { headers: { Accept: "application/json" } });
+    const root: any = await rootRes.json().catch(() => ({}));
+    if (root?.network_passphrase) {
+      networkPassphrase = root.network_passphrase;
+      if (networkPassphrase !== PI_NETWORK_PASSPHRASE) {
+        await logSystemEvent({
+          level: "WARN",
+          source: "MPAY_EXTERNAL_TRANSFER",
+          action: "PASSPHRASE_OVERRIDE",
+          message: "Passphrase reseau Horizon differente de la config — utilisation de celle d'Horizon",
+          details: { configured: PI_NETWORK_PASSPHRASE, horizon: networkPassphrase },
+          requestId,
+        });
+      }
+    }
+  } catch {
+    // Horizon root indisponible → on garde la passphrase configuree
+  }
 
   // Verifier que le compte destinataire existe
   try {
@@ -282,7 +337,7 @@ async function broadcastPi(
   // Construire la transaction
   const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: dynamicFee,
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    networkPassphrase,
     timebounds,
   })
     .addOperation(
@@ -295,9 +350,37 @@ async function broadcastPi(
     .addMemo(StellarSdk.Memo.text(memoValue))
     .build();
 
-  tx.sign(StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET));
+  tx.sign(masterKeypair);
 
-  const result = await server.submitTransaction(tx);
+  let result: any;
+  try {
+    result = await server.submitTransaction(tx);
+  } catch (submitErr: any) {
+    // L'erreur Axios 400 du reseau contient les result_codes Stellar precis
+    const resultCodes = submitErr?.response?.data?.extras?.result_codes;
+    const txCode = resultCodes?.transaction;
+    await logSystemEvent({
+      level: "ERROR",
+      source: "MPAY_EXTERNAL_TRANSFER",
+      action: "BROADCAST_SUBMIT_ERROR",
+      message: `Soumission rejetee par le reseau: ${txCode || submitErr?.message}`,
+      details: { resultCodes, networkPassphrase, status: submitErr?.response?.status },
+      requestId,
+    });
+    if (txCode === "tx_bad_auth" || txCode === "tx_bad_auth_extra") {
+      throw new Error(
+        "Signature refusee par le reseau Pi (tx_bad_auth). Verifiez que PI_MASTER_WALLET_SECRET correspond bien a l'adresse maitre et que PI_NETWORK (testnet/mainnet) est correct."
+      );
+    }
+    if (txCode === "tx_bad_seq") {
+      throw new Error("Numero de sequence invalide (tx_bad_seq). Reessayez dans quelques instants.");
+    }
+    throw new Error(
+      txCode
+        ? `Transaction rejetee par le reseau Pi: ${txCode}`
+        : (submitErr?.message || "Echec de soumission de la transaction Pi.")
+    );
+  }
   const duration = Date.now() - startTime;
   
   if (!result.successful) {

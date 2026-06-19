@@ -490,7 +490,7 @@ export const zh: TranslationKeys = {
       verifyAndCredit: "在 PimPay 上验证并入账",
       dontLeavePage: "验证期间请勿离开此页面",
       pimpayGateway: "PimPay 网关",
-      securedByBankProtocol: "由银行协议保护",
+      securedByBankProtocol: "由银行协议���护",
       retry: "重试",
       verificationAttempt: "第 {n} 次验证尝试",
       validBadge: "有效",
@@ -606,6 +606,7 @@ export const zh: TranslationKeys = {
   profile: {
     title: "Profile",
     editProfile: "Edit Profile",
+    editProfileSubtitle: "管理您的个人和安全信息",
     personalInfo: "Personal information",
     name: "Name",
     email: "Email",
