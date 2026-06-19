@@ -114,6 +114,7 @@ export default function ProfilePage() {
   const [editValue, setEditValue] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
@@ -352,6 +353,23 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
+      {/* Ecran de deconnexion (localise) */}
+      {loggingOut && (
+        <div className="fixed inset-0 z-[10000] bg-[#020617] flex flex-col items-center justify-center gap-6">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center">
+                <Loader2 size={34} className="text-blue-400 animate-spin" />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="text-white font-black text-base tracking-tight">{t("sideMenu.loggingOut")}</p>
+            <p className="text-slate-500 text-xs font-medium">{t("sideMenu.loggingOutHint")}</p>
+          </div>
+        </div>
+      )}
+
       {/* En-tete du profil */}
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
         <div className="flex flex-col items-center">
@@ -589,10 +607,19 @@ export default function ProfilePage() {
         {/* Bouton deconnexion */}
         <button
           onClick={async () => {
-            await fetch("/api/auth/logout", { method: "POST" });
-            router.replace("/auth/login");
+            if (loggingOut) return;
+            setLoggingOut(true);
+            try {
+              await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+            } catch {
+              /* forcer la deconnexion meme en cas d'erreur reseau */
+            }
+            setTimeout(() => {
+              window.location.href = "/auth/login";
+            }, 700);
           }}
-          className="w-full flex items-center justify-center gap-3 p-5 rounded-[28px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8 active:scale-95"
+          disabled={loggingOut}
+          className="w-full flex items-center justify-center gap-3 p-5 rounded-[28px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8 active:scale-95 disabled:opacity-60"
         >
           <LogOut size={20} />
           {t("profile.secureLogout")}
