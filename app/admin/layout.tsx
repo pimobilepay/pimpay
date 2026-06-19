@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
 import AdminGlobalCallReceiver from "@/components/AdminGlobalCallReceiver";
+import AdminGlobalKycNotifier from "@/components/AdminGlobalKycNotifier";
 
 export const metadata: Metadata = {
   title: 'Administration | PimPay',
@@ -21,6 +22,7 @@ export default function AdminLayout({
         so it can be imported here from a Server Component layout.
       */}
       <AdminGlobalCallReceiver />
+      <AdminGlobalKycNotifier />
       <div className="flex flex-col">
         {children}
       </div>

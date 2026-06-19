@@ -106,6 +106,9 @@ export default function SignupPage() {
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
 
+  // Acceptation des termes et conditions
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
   // Memoize sorted countries list
   const sortedCountries = useMemo(() => getSortedCountries(COUNTRIES), []);
   
@@ -229,6 +232,12 @@ export default function SignupPage() {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       toast.error(t("extra.passwordsMismatch"));
+      return;
+    }
+    if (!acceptedTerms) {
+      toast.error("Veuillez accepter les termes et conditions d'utilisation");
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
       return;
     }
     setLoading(true);
@@ -680,9 +689,37 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Acceptation des termes et conditions */}
+            <label className="flex items-start gap-3 mt-4 cursor-pointer select-none group">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={acceptedTerms}
+                onClick={() => setAcceptedTerms((prev) => !prev)}
+                className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                  acceptedTerms
+                    ? "bg-blue-600 border-blue-600"
+                    : "bg-slate-950/50 border-white/10 group-hover:border-blue-500/50"
+                }`}
+              >
+                {acceptedTerms && <CheckCircle2 className="w-4 h-4 text-white" />}
+              </button>
+              <span className="text-[11px] text-slate-400 leading-relaxed">
+                {"J'accepte les "}
+                <Link href="/legal/terms" target="_blank" className="text-blue-500 font-bold hover:underline">
+                  termes et conditions
+                </Link>
+                {" ainsi que la "}
+                <Link href="/legal/privacy" target="_blank" className="text-blue-500 font-bold hover:underline">
+                  politique de confidentialite
+                </Link>
+                {" de PimPay."}
+              </span>
+            </label>
+
             <Button
               type="submit"
-              disabled={loading || emailStatus === "invalid" || emailStatus === "disposable" || emailStatus === "checking"}
+              disabled={loading || !acceptedTerms || emailStatus === "invalid" || emailStatus === "disposable" || emailStatus === "checking"}
               className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="animate-spin" /> : t("extra.continueButton")}
