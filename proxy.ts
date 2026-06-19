@@ -2,6 +2,50 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import * as jose from "jose";
 
+// Applique des en-têtes de sécurité standards sur toutes les réponses
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  // Empêche le navigateur de deviner le type MIME (protection contre certaines XSS)
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  // Anti-clickjacking : autorise uniquement l'affichage sur la même origine
+  res.headers.set("X-Frame-Options", "SAMEORIGIN");
+  // Limite les infos de referer envoyées vers les autres sites
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Désactive l'ancien filtre XSS (recommandation moderne : on s'appuie sur la CSP)
+  res.headers.set("X-XSS-Protection", "0");
+  // Restreint l'accès aux APIs sensibles du navigateur
+  res.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), browsing-topics=()"
+  );
+  // Force HTTPS pendant 2 ans (inclut les sous-domaines)
+  res.headers.set(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload"
+  );
+  return res;
+}
+
+// Empêche la mise en cache des pages authentifiées (soldes, données sensibles)
+function applyNoStore(res: NextResponse): NextResponse {
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
+// Chemins typiquement ciblés par les scanners / bots malveillants
+const SUSPICIOUS_PATTERNS = [
+  /\/\.env/i,
+  /\/\.git/i,
+  /\/wp-admin/i,
+  /\/wp-login/i,
+  /\/xmlrpc\.php/i,
+  /\/phpmyadmin/i,
+  /\/\.aws/i,
+  /\/\.ssh/i,
+  /\/config\.(php|json|yml|yaml)$/i,
+];
+
 // Fonction helper pour determiner la destination selon le role
 function getDestinationByRole(role: string): string {
   switch (role) {
@@ -21,6 +65,11 @@ function getDestinationByRole(role: string): string {
 // Dans Next 16, la fonction exportée doit s'appeler 'proxy'
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // 0. BLOCAGE DES REQUÊTES MALVEILLANTES (scanners de vulnérabilités, bots)
+  if (SUSPICIOUS_PATTERNS.some((pattern) => pattern.test(pathname))) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
 
   // 1. Récupération des tokens (vérifier tous les noms de cookies utilisés)
   const token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
@@ -83,9 +132,8 @@ export async function proxy(req: NextRequest) {
     // Utiliser redirect 302 au lieu de 307 pour eviter les problemes de cache
     const response = NextResponse.redirect(new URL(dest, req.url), 302);
     // Desactiver le cache pour les pages d'auth
-    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    response.headers.set("Pragma", "no-cache");
-    response.headers.set("Expires", "0");
+    applyNoStore(response);
+    applySecurityHeaders(response);
     return response;
   }
 
@@ -112,8 +160,8 @@ export async function proxy(req: NextRequest) {
   if (!userPayload && isProtectedPath) {
     // Utiliser redirect 302 pour eviter les problemes de cache
     const response = NextResponse.redirect(new URL("/auth/login", req.url), 302);
-    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
-    response.headers.set("Pragma", "no-cache");
+    applyNoStore(response);
+    applySecurityHeaders(response);
     return response;
   }
 
@@ -141,7 +189,12 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
-  return NextResponse.next();
+  // Réponse finale : en-têtes de sécurité + no-store sur les pages authentifiées
+  const response = applySecurityHeaders(NextResponse.next());
+  if (isProtectedPath) {
+    applyNoStore(response);
+  }
+  return response;
 }
 
 export const config = {
