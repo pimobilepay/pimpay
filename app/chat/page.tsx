@@ -26,20 +26,22 @@ interface Ticket {
   messages: Message[];
 }
 
-// FAQ Questions frequentes avec reponses instantanees d'Elara
+// FAQ Questions frequentes avec reponses instantanees d'Elara.
+// `key` pointe vers chat.faq.<key> dans les fichiers de traduction.
 const FAQ_ITEMS = [
-  { question: "Comment faire un depot ?", category: "depot" },
-  { question: "Comment retirer mes fonds ?", category: "retrait" },
-  { question: "Comment echanger/swap ?", category: "swap" },
-  { question: "Ma carte virtuelle", category: "carte" },
-  { question: "Verification KYC", category: "kyc" },
-  { question: "Transfert P2P", category: "transfert" },
-  { question: "Probleme technique", category: "probleme" },
-  { question: "Contacter le support", category: "support" },
+  { key: "deposit", category: "depot" },
+  { key: "withdraw", category: "retrait" },
+  { key: "swap", category: "swap" },
+  { key: "card", category: "carte" },
+  { key: "kyc", category: "kyc" },
+  { key: "p2p", category: "transfert" },
+  { key: "technical", category: "probleme" },
+  { key: "support", category: "support" },
 ];
 
 // Composant Badge pour identifier l'expediteur
 function SenderBadge({ senderId }: { senderId: string }) {
+  const { t } = useLanguage();
   const isElara = senderId === "ELARA_AI";
   const isSupport = senderId === "SUPPORT";
   
@@ -49,8 +51,8 @@ function SenderBadge({ senderId }: { senderId: string }) {
         <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
           <Bot size={10} className="text-white" />
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Elara AI</span>
-        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">IA</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">{t("chat.title")}</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">{t("chat.tagAi")}</span>
       </div>
     );
   }
@@ -61,8 +63,8 @@ function SenderBadge({ senderId }: { senderId: string }) {
         <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
           <Headphones size={10} className="text-white" />
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PimPay</span>
-        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">Agent</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">{t("chat.supportName")}</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">{t("chat.tagAgent")}</span>
       </div>
     );
   }
@@ -71,10 +73,20 @@ function SenderBadge({ senderId }: { senderId: string }) {
 }
 
 // Composant pour afficher un message
+// Detecte un message image au format markdown ![image](url) et renvoie l'URL.
+const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
+function extractImageUrl(content: string): string | null {
+  const match = content.match(IMAGE_MSG_RE);
+  return match ? match[1] : null;
+}
+
 function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: boolean }) {
+  const { t, locale } = useLanguage();
   const isElara = msg.senderId === "ELARA_AI";
   const isSupport = msg.senderId === "SUPPORT";
   const isLeft = isElara || isSupport;
+  const imageUrl = extractImageUrl(msg.content);
+  const localeTag = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
   
   return (
     <div className={`flex ${isLeft ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -82,23 +94,41 @@ function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: bool
         {isLeft && <SenderBadge senderId={msg.senderId} />}
         {!isLeft && isCurrentUser && (
           <div className="flex items-center justify-end gap-1.5 mb-1.5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Vous</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{t("chat.you")}</span>
             <div className="w-5 h-5 rounded-lg bg-slate-700 flex items-center justify-center">
               <User size={10} className="text-slate-300" />
             </div>
           </div>
         )}
-        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-          isElara
-            ? "bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-slate-200 rounded-bl-none"
-            : isSupport
-              ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 text-slate-200 rounded-bl-none"
-              : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
-        }`}>
-          {msg.content}
-        </div>
+        {imageUrl ? (
+          <a
+            href={imageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`block overflow-hidden rounded-2xl border ${
+              isLeft ? "border-white/10 rounded-bl-none" : "border-blue-500/30 rounded-br-none"
+            } active:scale-95 transition-transform`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt={t("chat.imageAlt")}
+              className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
+            />
+          </a>
+        ) : (
+          <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            isElara
+              ? "bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-slate-200 rounded-bl-none"
+              : isSupport
+                ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 text-slate-200 rounded-bl-none"
+                : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
+          }`}>
+            {msg.content}
+          </div>
+        )}
         <p className={`text-[9px] text-slate-600 mt-1 ${isLeft ? "ml-1" : "mr-1 text-right"}`}>
-          {new Date(msg.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          {new Date(msg.createdAt).toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
     </div>
@@ -122,6 +152,7 @@ export default function ChatPage() {
   const [showFAQ, setShowFAQ] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showVoipCall, setShowVoipCall] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -222,10 +253,41 @@ export default function ChatPage() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      alert(`Fichier ${file.name} prêt pour l'envoi (implémentation S3/Upload en cours)`);
+    // On reinitialise l'input pour permettre de renvoyer le meme fichier ensuite.
+    e.target.value = "";
+    if (!file || uploading || sending) return;
+
+    // Validation : uniquement des images, taille max 10 Mo.
+    if (!file.type.startsWith("image/")) {
+      alert(t("chat.invalidImage"));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert(t("chat.imageTooLarge"));
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/chat/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "upload failed");
+      }
+
+      // Le message image est encode en markdown ![image](url) puis envoye au chat.
+      await sendMessage(`![image](${data.url})`);
+    } catch (err) {
+      console.error("Failed to upload image:", err);
+      alert(t("chat.uploadError"));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -245,10 +307,10 @@ export default function ChatPage() {
                 <Sparkles size={18} className="text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-black tracking-tight text-white">Elara AI</h1>
+                <h1 className="text-sm font-black tracking-tight text-white">{t("chat.title")}</h1>
                 <div className="flex items-center gap-1">
                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                   <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">En ligne</p>
+                   <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">{t("chat.online")}</p>
                 </div>
               </div>
             </div>
@@ -259,7 +321,7 @@ export default function ChatPage() {
               <button 
                 onClick={() => setShowVoipCall(true)} 
                 className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl active:scale-90 transition-transform hover:bg-emerald-500/20"
-                aria-label="Appeler le support"
+                aria-label={t("chat.callSupport")}
               >
                 <Phone size={18} className="text-emerald-400" />
               </button>
@@ -283,11 +345,11 @@ export default function ChatPage() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
           <div className="relative w-[85%] h-full bg-[#0a0f1e] p-6 animate-in slide-in-from-left duration-300 border-r border-white/10">
              <div className="flex justify-between items-center mb-8 pt-6">
-                <h2 className="font-black uppercase text-xs tracking-[0.2em] text-blue-500">Conversations</h2>
+                <h2 className="font-black uppercase text-xs tracking-[0.2em] text-blue-500">{t("chat.conversations")}</h2>
                 <button onClick={() => setShowHistory(false)} className="p-2 bg-white/5 rounded-xl"><X size={20} /></button>
              </div>
              <div className="space-y-3 overflow-y-auto h-[80vh]">
-               {tickets.length === 0 && <p className="text-xs text-slate-500 text-center py-10">Aucun historique</p>}
+               {tickets.length === 0 && <p className="text-xs text-slate-500 text-center py-10">{t("chat.noHistory")}</p>}
                {tickets.map(t => (
                  <button key={t.id} onClick={() => loadTicket(t.id)} className="w-full p-4 bg-white/[0.03] rounded-2xl text-left border border-white/5 active:scale-95 transition-all">
                     <p className="text-sm font-bold truncate text-white">{t.subject}</p>
@@ -313,32 +375,32 @@ export default function ChatPage() {
               </div>
             </div>
             
-            <h2 className="text-xl font-black mb-1">Bonjour ! Je suis Elara</h2>
+            <h2 className="text-xl font-black mb-1">{t("chat.greeting")}</h2>
             <p className="text-xs text-slate-500 leading-relaxed max-w-[260px] mb-6">
-              Votre assistante intelligente PimPay. Je peux repondre a vos questions instantanement ou vous connecter au support.
+              {t("chat.intro")}
             </p>
             
             {/* Badges de type */}
             <div className="flex items-center gap-2 mb-6">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20">
                 <Bot size={12} className="text-blue-400" />
-                <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">IA Elara</span>
+                <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">{t("chat.badgeAi")}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
                 <Headphones size={12} className="text-emerald-400" />
-                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Support</span>
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">{t("chat.badgeSupport")}</span>
               </div>
             </div>
             
             {/* FAQ Section */}
             <div className="w-full max-w-sm">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Questions frequentes</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("chat.faqTitle")}</p>
                 <button 
                   onClick={() => setShowFAQ(!showFAQ)}
                   className="text-[9px] font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                 >
-                  {showFAQ ? "Moins" : "Tout voir"}
+                  {showFAQ ? t("chat.seeLess") : t("chat.seeAll")}
                   <ChevronRight size={12} className={`transition-transform ${showFAQ ? "rotate-90" : ""}`} />
                 </button>
               </div>
@@ -346,22 +408,22 @@ export default function ChatPage() {
               <div className="grid grid-cols-2 gap-2">
                 {(showFAQ ? FAQ_ITEMS : FAQ_ITEMS.slice(0, 4)).map((item) => (
                   <button
-                    key={item.question}
-                    onClick={() => sendMessage(item.question)}
+                    key={item.key}
+                    onClick={() => sendMessage(t(`chat.faq.${item.key}`))}
                     className="p-3 bg-white/[0.03] border border-white/5 rounded-xl text-left active:scale-95 transition-all hover:border-blue-500/30 hover:bg-blue-500/5 group"
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <HelpCircle size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
-                      <span className="text-[8px] font-black text-slate-600 uppercase tracking-wider group-hover:text-blue-400 transition-colors">FAQ</span>
+                      <span className="text-[8px] font-black text-slate-600 uppercase tracking-wider group-hover:text-blue-400 transition-colors">{t("chat.faqTag")}</span>
                     </div>
-                    <p className="text-[11px] font-bold text-slate-300 leading-tight">{item.question}</p>
+                    <p className="text-[11px] font-bold text-slate-300 leading-tight">{t(`chat.faq.${item.key}`)}</p>
                   </button>
                 ))}
               </div>
               
               {/* Direct Support Button */}
               <button
-                onClick={() => sendMessage("Je souhaite parler a un agent du support PimPay")}
+                onClick={() => sendMessage(t("chat.supportRequest"))}
                 className="w-full mt-4 p-4 bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-all hover:border-emerald-500/40"
               >
                 <div className="flex items-center gap-3">
@@ -369,8 +431,8 @@ export default function ChatPage() {
                     <Headphones size={18} className="text-emerald-400" />
                   </div>
                   <div className="text-left">
-                    <p className="text-xs font-black text-emerald-400">Contacter le Support</p>
-                    <p className="text-[10px] text-emerald-600">Parler a un agent humain</p>
+                    <p className="text-xs font-black text-emerald-400">{t("chat.contactSupport")}</p>
+                    <p className="text-[10px] text-emerald-600">{t("chat.talkToAgent")}</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-emerald-500" />
@@ -395,8 +457,8 @@ export default function ChatPage() {
                     <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
                       <Bot size={10} className="text-white" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Elara AI</span>
-                    <span className="text-[9px] text-blue-400/60 italic">ecrit...</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">{t("chat.title")}</span>
+                    <span className="text-[9px] text-blue-400/60 italic">{t("chat.typing")}</span>
                   </div>
                   <div className="px-4 py-3 rounded-2xl rounded-bl-none bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20">
                     <div className="flex items-center gap-1.5">
@@ -418,17 +480,19 @@ export default function ChatPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-12 h-12 flex items-center justify-center bg-white/[0.05] border border-white/10 rounded-2xl active:scale-90 transition-all text-slate-400"
+            disabled={uploading || sending}
+            aria-label={t("chat.uploading")}
+            className="w-12 h-12 flex items-center justify-center bg-white/[0.05] border border-white/10 rounded-2xl active:scale-90 transition-all text-slate-400 disabled:opacity-50"
           >
-            <Plus size={22} />
+            {uploading ? <Loader2 size={22} className="animate-spin text-blue-400" /> : <Plus size={22} />}
           </button>
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*,.pdf" />
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
 
           <div className="flex-1 flex items-center bg-white/[0.05] border border-white/10 rounded-2xl px-4 focus-within:border-blue-500/50 transition-all">
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ecrire à Elara..."
+              placeholder={t("chat.inputPlaceholder")}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}

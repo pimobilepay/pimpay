@@ -117,6 +117,12 @@ export async function POST(req: NextRequest) {
     const sanitizedMessage = message.trim();
     const { isAdmin } = identity;
 
+    // Detection d'un message "image" : contenu au format markdown ![image](url).
+    const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
+    const isImageMessage = IMAGE_MSG_RE.test(sanitizedMessage);
+    const IMAGE_ACK_REPLY =
+      "Merci, j'ai bien recu votre image. Un conseiller va l'examiner. N'hesitez pas a ajouter un message pour preciser votre demande.";
+
     // senderId de l'expéditeur : "SUPPORT" pour un agent, sinon l'identifiant
     // de propriété (userId réel ou identifiant d'invité).
     const ownerSenderId = identity.userId || identity.guestId || "GUEST";
@@ -150,7 +156,10 @@ export async function POST(req: NextRequest) {
     if (!isAdmin) {
       let elaraReply: string;
 
-      if (detectSupportIntent(sanitizedMessage)) {
+      if (isImageMessage) {
+        // Pas de generation IA sur une URL d'image : accuse de reception simple.
+        elaraReply = IMAGE_ACK_REPLY;
+      } else if (detectSupportIntent(sanitizedMessage)) {
         // L'utilisateur veut un humain : Elara collecte sa préoccupation
         // et le rassure en attendant la prise en charge par le support.
         elaraReply = SUPPORT_INTENT_REPLY;
