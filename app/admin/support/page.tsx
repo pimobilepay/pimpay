@@ -4,7 +4,7 @@ import {
   ArrowLeft, Clock, User,
   ChevronRight, Inbox, ShieldAlert,
   Send, X, Loader2, CheckCircle, RefreshCw,
-  Phone, PhoneIncoming, PhoneOff
+  Phone, PhoneIncoming, PhoneOff, Bot, Headphones
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -29,6 +29,49 @@ interface Ticket {
   userId: string | null;
   user?: { username?: string; email?: string; firstName?: string; lastName?: string };
   messages: TicketMessage[];
+}
+
+// Detecte un message image au format markdown ![image](url) et renvoie l'URL.
+// Identique a la logique cote client (app/chat/page.tsx) pour un rendu coherent.
+const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
+function extractImageUrl(content: string): string | null {
+  const match = content.trim().match(IMAGE_MSG_RE);
+  return match ? match[1] : null;
+}
+
+// Petit badge d'identification de l'expediteur, calque sur la page client :
+// Elara IA et le Support restent a GAUCHE, le client est a DROITE.
+function AdminSenderBadge({ kind }: { kind: "elara" | "support" | "client" }) {
+  if (kind === "elara") {
+    return (
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+          <Bot size={10} className="text-white" />
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Elara AI</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">IA</span>
+      </div>
+    );
+  }
+  if (kind === "support") {
+    return (
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+          <Headphones size={10} className="text-white" />
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PimPay</span>
+        <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">Agent</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-end gap-1.5 mb-1.5">
+      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Client</span>
+      <div className="w-5 h-5 rounded-lg bg-slate-700 flex items-center justify-center">
+        <User size={10} className="text-slate-300" />
+      </div>
+    </div>
+  );
 }
 
 export default function AdminSupportPage() {
@@ -236,17 +279,49 @@ export default function AdminSupportPage() {
         {/* Messages List */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {selectedTicket.messages.map((msg) => {
-            const isAdmin = msg.senderId === "ADMIN";
+            // Identification de l'expediteur, calquee sur la page client :
+            //  - ELARA_AI       -> Elara IA  (gauche, bleu/violet)
+            //  - SUPPORT/ADMIN  -> Support   (gauche, emeraude)
+            //  - tout le reste  -> Client    (droite, bleu)
+            const isElara = msg.senderId === "ELARA_AI";
+            const isSupport = msg.senderId === "SUPPORT" || msg.senderId === "ADMIN";
+            const isLeft = isElara || isSupport;
+            const kind = isElara ? "elara" : isSupport ? "support" : "client";
+            const imageUrl = extractImageUrl(msg.content);
+
             return (
-              <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-4 ${
-                  isAdmin
-                    ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-md'
-                }`}>
-                  <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                  <p className={`text-[8px] mt-2 ${isAdmin ? 'text-blue-200' : 'text-slate-500'} font-bold`}>
-                    {isAdmin ? "ADMIN" : "CLIENT"} - {new Date(msg.createdAt).toLocaleString("fr-FR")}
+              <div key={msg.id} className={`flex ${isLeft ? "justify-start" : "justify-end"}`}>
+                <div className="max-w-[85%]">
+                  <AdminSenderBadge kind={kind} />
+                  {imageUrl ? (
+                    <a
+                      href={imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block overflow-hidden rounded-2xl border ${
+                        isLeft ? "border-white/10 rounded-bl-none" : "border-blue-500/30 rounded-br-none"
+                      } active:scale-95 transition-transform`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl || "/placeholder.svg"}
+                        alt="Image envoyee par le client"
+                        className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
+                      />
+                    </a>
+                  ) : (
+                    <div className={`px-4 py-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                      isElara
+                        ? "bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-slate-200 rounded-bl-none"
+                        : isSupport
+                          ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 text-slate-200 rounded-bl-none"
+                          : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
+                    }`}>
+                      {msg.content}
+                    </div>
+                  )}
+                  <p className={`text-[9px] text-slate-600 mt-1 ${isLeft ? "ml-1" : "mr-1 text-right"}`}>
+                    {new Date(msg.createdAt).toLocaleString("fr-FR")}
                   </p>
                 </div>
               </div>
@@ -402,7 +477,12 @@ export default function AdminSupportPage() {
               <div className="bg-white/5 rounded-2xl p-4 mb-4 border border-white/5">
                 <h3 className="text-[10px] font-black uppercase text-blue-400 mb-2 tracking-widest">{ticket.subject}</h3>
                 <p className="text-xs text-slate-300 leading-relaxed italic">
-                  {ticket.messages[0]?.content.split('\n\nMessage: ')[1] || ticket.messages[0]?.content || "Aucun message"}
+                  {(() => {
+                    const raw = ticket.messages[0]?.content;
+                    if (!raw) return "Aucun message";
+                    if (extractImageUrl(raw)) return "Image envoyee";
+                    return raw.split('\n\nMessage: ')[1] || raw;
+                  })()}
                 </p>
               </div>
 

@@ -1482,6 +1482,8 @@ export const en: TranslationKeys = {
     uploadError: "Failed to upload image",
     invalidImage: "Please select a valid image",
     imageTooLarge: "Image is too large (max 10 MB)",
+    addCaption: "Add a message to send the image",
+    removeImage: "Remove image",
     faq: {
       deposit: "How do I make a deposit?",
       withdraw: "How do I withdraw funds?",

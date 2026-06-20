@@ -153,6 +153,9 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [showVoipCall, setShowVoipCall] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Image televersee mais PAS encore envoyee : on la met en attente jusqu'a ce
+  // que l'utilisateur ajoute un message texte (envoi combine image + texte).
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -217,18 +220,44 @@ export default function ChatPage() {
 
   const sendMessage = async (text?: string) => {
     const messageText = text || inputValue.trim();
-    if (!messageText || sending) return;
+    // Un message texte est toujours requis. Si une image est en attente,
+    // l'utilisateur doit donc obligatoirement ajouter un texte pour l'envoyer.
+    if (!messageText || sending || uploading) return;
+
+    const imageToSend = pendingImage;
 
     setSending(true);
     setInputValue("");
+    setPendingImage(null);
 
     try {
+      let currentTicketId = activeTicket?.id || null;
+
+      // 1. Si une image est en attente, on l'envoie d'abord comme son propre
+      //    message (format markdown ![image](url)).
+      if (imageToSend) {
+        const imgRes = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `![image](${imageToSend})`,
+            ticketId: currentTicketId,
+          }),
+        });
+        if (imgRes.ok) {
+          const imgData = await imgRes.json();
+          currentTicketId = imgData.ticket?.id || currentTicketId;
+          setActiveTicket(imgData.ticket);
+        }
+      }
+
+      // 2. Puis on envoie le message texte qui accompagne (ou non) l'image.
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: messageText,
-          ticketId: activeTicket?.id || null
+          ticketId: currentTicketId
         }),
       });
 
@@ -281,8 +310,10 @@ export default function ChatPage() {
         throw new Error(data.error || "upload failed");
       }
 
-      // Le message image est encode en markdown ![image](url) puis envoye au chat.
-      await sendMessage(`![image](${data.url})`);
+      // L'image n'est PAS envoyee immediatement : on la met en attente.
+      // L'utilisateur doit ajouter un message texte avant de pouvoir l'envoyer.
+      setPendingImage(data.url);
+      inputRef.current?.focus();
     } catch (err) {
       console.error("Failed to upload image:", err);
       alert(t("chat.uploadError"));
@@ -477,6 +508,31 @@ export default function ChatPage() {
 
       {/* Input Area - NO BOTTOM NAV HERE */}
       <div className="shrink-0 bg-[#020617] border-t border-white/5 px-4 pt-4 pb-12 z-40">
+        {/* Apercu de l'image en attente : l'utilisateur doit ajouter un texte
+            avant de pouvoir l'envoyer. */}
+        {pendingImage && (
+          <div className="mb-3 flex items-center gap-3 p-2.5 bg-white/[0.04] border border-blue-500/20 rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="relative shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={pendingImage || "/placeholder.svg"}
+                alt={t("chat.imageAlt")}
+                className="w-14 h-14 rounded-xl object-cover bg-slate-900 border border-white/10"
+              />
+              <button
+                onClick={() => setPendingImage(null)}
+                aria-label={t("chat.removeImage")}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center bg-red-500 rounded-full active:scale-90 transition-transform shadow-lg"
+              >
+                <X size={12} className="text-white" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ImageIcon size={14} className="text-blue-400 shrink-0" />
+              <p className="text-[11px] font-bold text-slate-400 leading-tight">{t("chat.addCaption")}</p>
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -492,7 +548,7 @@ export default function ChatPage() {
             <input
               ref={inputRef}
               type="text"
-              placeholder={t("chat.inputPlaceholder")}
+              placeholder={pendingImage ? t("chat.addCaption") : t("chat.inputPlaceholder")}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}

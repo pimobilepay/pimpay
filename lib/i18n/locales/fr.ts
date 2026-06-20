@@ -1518,6 +1518,8 @@ export const fr = {
     uploadError: "Echec de l'envoi de l'image",
     invalidImage: "Veuillez selectionner une image valide",
     imageTooLarge: "L'image est trop volumineuse (max 10 Mo)",
+    addCaption: "Ajoutez un message pour envoyer l'image",
+    removeImage: "Retirer l'image",
     faq: {
       deposit: "Comment faire un depot ?",
       withdraw: "Comment retirer mes fonds ?",
