@@ -6,8 +6,16 @@ import * as jose from "jose";
 function applySecurityHeaders(res: NextResponse): NextResponse {
   // Empêche le navigateur de deviner le type MIME (protection contre certaines XSS)
   res.headers.set("X-Content-Type-Options", "nosniff");
-  // Anti-clickjacking : autorise uniquement l'affichage sur la même origine
-  res.headers.set("X-Frame-Options", "SAMEORIGIN");
+  // IMPORTANT : NE PAS utiliser "X-Frame-Options: SAMEORIGIN".
+  // Le Pi Browser charge l'application dans une iframe depuis une origine
+  // différente. SAMEORIGIN (ou DENY) provoque alors net::ERR_BLOCKED_BY_RESPONSE.
+  // On supprime X-Frame-Options et on autorise l'intégration via CSP frame-ancestors,
+  // qui reste une protection anti-clickjacking moderne tout en laissant passer le Pi Browser.
+  res.headers.delete("X-Frame-Options");
+  res.headers.set(
+    "Content-Security-Policy",
+    "frame-ancestors 'self' https://*.minepi.com https://*.pi.app https://sandbox.minepi.com https://app-cdn.minepi.com"
+  );
   // Limite les infos de referer envoyées vers les autres sites
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   // Désactive l'ancien filtre XSS (recommandation moderne : on s'appuie sur la CSP)
