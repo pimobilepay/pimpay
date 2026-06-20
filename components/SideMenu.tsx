@@ -4,11 +4,12 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Linkedin, Twitter,
-  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles, Loader2
+  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
+import LogoutOverlay from "@/components/LogoutOverlay";
 
 interface UserData {
   name: string;
@@ -183,21 +184,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
   return (
     <>
-      {loggingOut && (
-        <div className="fixed inset-0 z-[10000] bg-[#020617] flex flex-col items-center justify-center gap-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_30px_rgba(59,130,246,0.5)]">
-              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center">
-                <Loader2 size={34} className="text-blue-400 animate-spin" />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <p className="text-white font-black text-base tracking-tight">{t("sideMenu.loggingOut")}</p>
-            <p className="text-slate-500 text-xs font-medium">{t("sideMenu.loggingOutHint")}</p>
-          </div>
-        </div>
-      )}
+      {loggingOut && <LogoutOverlay />}
 
       <div
         onClick={onClose}

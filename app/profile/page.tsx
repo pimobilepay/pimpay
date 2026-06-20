@@ -11,6 +11,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useCurrency, CURRENCIES, type CurrencyCode } from "@/context/CurrencyContext";
 import { useLanguage } from "@/context/LanguageContext";
+import LogoutOverlay from "@/components/LogoutOverlay";
 
 interface UserData {
   id: string;
@@ -354,21 +355,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       {/* Ecran de deconnexion (localise) */}
-      {loggingOut && (
-        <div className="fixed inset-0 z-[10000] bg-[#020617] flex flex-col items-center justify-center gap-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_30px_rgba(59,130,246,0.5)]">
-              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center">
-                <Loader2 size={34} className="text-blue-400 animate-spin" />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <p className="text-white font-black text-base tracking-tight">{t("sideMenu.loggingOut")}</p>
-            <p className="text-slate-500 text-xs font-medium">{t("sideMenu.loggingOutHint")}</p>
-          </div>
-        </div>
-      )}
+      {loggingOut && <LogoutOverlay />}
 
       {/* En-tete du profil */}
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
