@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, CheckCircle2, Building2, Landmark, User } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, Lock, Mail, Loader2, Building2, Landmark, User } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 // On utilise le HOOK direct
@@ -73,15 +73,11 @@ export default function LoginPage() {
 
   const triggerSuccessTransition = (targetPath: string) => {
     setShowTransition(true);
-    setDynamicMessage(t("auth.login.init"));
-    setTimeout(() => setDynamicMessage(t("auth.login.securing")), 1000);
-    setTimeout(() => setDynamicMessage(t("auth.login.syncing")), 2000);
+    setDynamicMessage(t("auth.login.securing"));
+    // Un seul loading rapide avant la redirection (pas d'enchainement de messages)
     setTimeout(() => {
-      setTransitionStep("success");
-      setTimeout(() => {
-        window.location.replace(targetPath);
-      }, 1000);
-    }, 3000);
+      window.location.replace(targetPath);
+    }, 600);
   };
 
   // Etape langue : a la premiere connexion, proposer le choix de la langue,
@@ -294,16 +290,14 @@ export default function LoginPage() {
       )}
 
       {showTransition && (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#020617]">
-          <div className={`flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-tr transition-all duration-700 ${
-            transitionStep === "success" ? "from-green-500 to-emerald-700 shadow-green-500/50" : "from-blue-600 to-blue-800 shadow-blue-500/50"
-          }`}>
-            {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
-          </div>
-          <h2 className="mt-6 text-white text-xl font-bold tracking-tighter uppercase">
-            PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
-          </h2>
-          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-3 bg-[#020617]">
+          <div
+            className="rounded-full border-2 border-blue-500/25 border-t-blue-500 animate-spin"
+            style={{ width: 28, height: 28, animationDuration: "0.6s" }}
+            role="status"
+            aria-label="loading"
+          />
+          <p className="text-blue-500 text-sm font-medium tracking-tight">{dynamicMessage}...</p>
         </div>
       )}
 
