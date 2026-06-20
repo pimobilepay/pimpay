@@ -33,12 +33,14 @@ interface Ticket {
   messages: TicketMessage[];
 }
 
-// Detecte un message image au format markdown ![image](url) et renvoie l'URL.
-// Identique a la logique cote client (app/chat/page.tsx) pour un rendu coherent.
-const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
-function extractImageUrl(content: string): string | null {
+// Detecte un message image au format markdown ![image](url) eventuellement
+// suivi d'une legende. Identique a la logique cote client (app/chat/page.tsx)
+// pour un rendu coherent (image en haut, legende en dessous, facon WhatsApp).
+const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)(?:\n([\s\S]*))?$/i;
+function parseImageMessage(content: string): { url: string; caption: string } | null {
   const match = content.trim().match(IMAGE_MSG_RE);
-  return match ? match[1] : null;
+  if (!match) return null;
+  return { url: match[1], caption: (match[2] || "").trim() };
 }
 
 // Petit badge d'identification de l'expediteur, calque sur la page client :
@@ -289,28 +291,41 @@ export default function AdminSupportPage() {
             const isSupport = msg.senderId === "SUPPORT" || msg.senderId === "ADMIN";
             const isLeft = isElara || isSupport;
             const kind = isElara ? "elara" : isSupport ? "support" : "client";
-            const imageUrl = extractImageUrl(msg.content);
+            const image = parseImageMessage(msg.content);
 
             return (
               <div key={msg.id} className={`flex ${isLeft ? "justify-start" : "justify-end"}`}>
                 <div className="max-w-[85%]">
                   <AdminSenderBadge kind={kind} />
-                  {imageUrl ? (
-                    <a
-                      href={imageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`block overflow-hidden rounded-2xl border ${
-                        isLeft ? "border-white/10 rounded-bl-none" : "border-blue-500/30 rounded-br-none"
-                      } active:scale-95 transition-transform`}
+                  {image ? (
+                    <div
+                      className={`overflow-hidden rounded-2xl border ${
+                        isLeft
+                          ? "border-white/10 rounded-bl-none bg-white/[0.03]"
+                          : "border-blue-500/30 rounded-br-none bg-blue-600/10"
+                      }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={imageUrl || "/placeholder.svg"}
-                        alt="Image envoyee par le client"
-                        className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
-                      />
-                    </a>
+                      <a
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block active:scale-95 transition-transform"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={image.url || "/placeholder.svg"}
+                          alt="Image envoyee par le client"
+                          className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
+                        />
+                      </a>
+                      {image.caption && (
+                        <p className={`px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                          isLeft ? "text-slate-200" : "text-white"
+                        }`}>
+                          {image.caption}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <div className={`px-4 py-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
                       isElara
@@ -482,7 +497,10 @@ export default function AdminSupportPage() {
                   {(() => {
                     const raw = ticket.messages[0]?.content;
                     if (!raw) return "Aucun message";
-                    if (extractImageUrl(raw)) return "Image envoyee";
+                    {
+                      const img = parseImageMessage(raw);
+                      if (img) return img.caption || "Image envoyee";
+                    }
                     return raw.split('\n\nMessage: ')[1] || raw;
                   })()}
                 </p>
