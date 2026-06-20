@@ -716,7 +716,7 @@ export const zh: TranslationKeys = {
     secureLogout: "退出登录",
     termsLink: "条款",
     privacyLink: "隐私政策",
-    copyright: "版权所有 © {year} OpenPay by Mrwain Organization。保留所有权利。",
+    copyright: "版权所有 © {year} PimPay。保留所有权利。",
     chooseCurrency: "Choose a currency",
     currencyChanged: "Currency changed to",
     select: "Select...",
@@ -1081,7 +1081,7 @@ export const zh: TranslationKeys = {
     pendingMessage: "您的申请正在审核中。预计时间：24-48 小时。",
     backToDashboard: "返回仪表板",
     // Compliance banner
-    complianceBanner: "您的数据采用端到端加密，符合 AML/KYC 和 GDPR 标准。不会与第三方共享任何数据。",
+    complianceBanner: "您的数据采用端到端加密，符合 AML/KYC 和 GDPR 标准。不会与第三���共享任何数据。",
     // Step titles
     stepTitles: {
       documentType: "证件类型",

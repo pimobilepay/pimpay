@@ -713,7 +713,7 @@ export const en: TranslationKeys = {
     secureLogout: "Log Out",
     termsLink: "Terms",
     privacyLink: "Privacy Policy",
-    copyright: "Copyright © {year} OpenPay by Mrwain Organization. All rights reserved.",
+    copyright: "Copyright © {year} PimPay. All rights reserved.",
     chooseCurrency: "Choose a currency",
     currencyChanged: "Currency changed to",
     select: "Select...",

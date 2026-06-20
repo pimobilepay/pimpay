@@ -711,7 +711,7 @@ export const fr = {
     secureLogout: "Deconnexion",
     termsLink: "Conditions",
     privacyLink: "Politique de confidentialite",
-    copyright: "Copyright © {year} OpenPay by Mrwain Organization. Tous droits reserves.",
+    copyright: "Copyright © {year} PimPay. Tous droits reserves.",
     chooseCurrency: "Choisir une devise",
     currencyChanged: "Devise changee en",
     select: "Selectionner...",
