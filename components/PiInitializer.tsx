@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { PI_SANDBOX } from "@/lib/pi-sdk";
 
 declare global {
   interface Window {
@@ -39,7 +38,7 @@ export function PiInitializer() {
       if (window.Pi) {
         try {
           window.__PI_SDK_INITIALIZING__ = true;
-          window.Pi.init({ version: "2.0", sandbox: PI_SANDBOX });
+          window.Pi.init({ version: "2.0", sandbox: true });
           window.__PI_SDK_READY__ = true;
           window.__PI_SDK_INITIALIZING__ = false;
           console.log("[PimPay] SDK Pi 2.0 initialise avec succes");

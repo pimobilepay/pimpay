@@ -10,22 +10,6 @@ declare global {
 }
 
 /**
- * Mode sandbox du SDK Pi — SOURCE DE VERITE UNIQUE.
- *
- * D'apres la doc officielle Pi Network, `sandbox: true` ne doit etre utilise
- * QUE en developpement local (test via l'URL de developpement enregistree).
- * En production — ce qui inclut a la fois pimpay.vercel.app ET le proxy
- * *.pinet.com, car les deux servent le build de production dans le Pi Browser —
- * il faut imperativement `sandbox: false`.
- *
- * Auparavant, ce flag etait incoherent entre les fichiers (true ici, false
- * dans layout.tsx). A cause du garde `__PI_SDK_READY__`, le premier init
- * gagnait la course : le SDK pouvait se connecter au sandbox au lieu du vrai
- * Pi Browser et casser l'auth/les paiements sur le domaine reel.
- */
-export const PI_SANDBOX: boolean = process.env.NODE_ENV !== "production";
-
-/**
  * Initialise le SDK Pi en mode Production (thread-safe)
  * Retourne true si le SDK est pret, false sinon
  */
@@ -41,7 +25,7 @@ export const initPiSDK = (): boolean => {
   if (window.Pi) {
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: PI_SANDBOX });
+      window.Pi.init({ version: "2.0", sandbox: true });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       console.log("[PimPay] Pi SDK 2.0 initialise");
