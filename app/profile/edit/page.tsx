@@ -6,7 +6,7 @@ import {
   Check, Loader2, Home, Wallet, ArrowDownToLine,
   Smartphone, ArrowUpFromLine, Send, Menu, Globe, MapPin,
   Calendar, Fingerprint, Landmark, Briefcase, CreditCard,
-  Shield, BadgeCheck, ChevronDown
+  Shield, BadgeCheck, ChevronDown, CircleDot
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -258,7 +258,10 @@ export default function EditProfilePage() {
         </button>
         <div className="flex flex-col items-center text-center">
           <h1 className="text-xl font-black uppercase tracking-tighter">{t("profile.editProfile")}</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[2px] mt-1">{t("profile.editProfileSubtitle")}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <CircleDot size={8} className="text-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[2px]">{t("profile.editProfileSubtitle")}</span>
+          </div>
         </div>
         <div className="w-10" />
       </header>
