@@ -69,16 +69,17 @@ const EXECUTABLE_SIGNATURES: { name: string; bytes: number[] }[] = [
 
 // Motifs textuels de payloads injectes (XSS / RCE) que l'on ne veut jamais
 // voir dans une image. Recherche insensible a la casse.
+//
+// IMPORTANT : on ne garde QUE des motifs longs et tres specifiques. Les images
+// (JPEG/PNG/WEBP/GIF) sont des donnees COMPRESSEES a forte entropie : un motif
+// court (ex: "eval(", "<?=") apparait statistiquement par hasard et provoque
+// des faux positifs qui bloquent des images legitimes. Un motif de 7+ octets
+// ASCII consecutifs est, lui, quasi impossible a obtenir par hasard.
 const MALICIOUS_TEXT_PATTERNS: { name: string; pattern: RegExp }[] = [
   { name: "html-script", pattern: /<script[\s>]/i },
   { name: "php-open", pattern: /<\?php/i },
-  { name: "php-short", pattern: /<\?=/i },
-  { name: "asp-jsp", pattern: /<%[^>]*%>/ },
-  { name: "js-event-handler", pattern: /\son\w+\s*=\s*["']?\s*javascript:/i },
-  { name: "js-eval", pattern: /\beval\s*\(/i },
-  { name: "base64-eval", pattern: /\b(?:atob|fromCharCode)\s*\(/i },
-  { name: "svg-embedded", pattern: /<svg[\s>]/i },
   { name: "iframe", pattern: /<iframe[\s>]/i },
+  { name: "svg-embedded", pattern: /<svg[\s>]/i },
   { name: "doctype-html", pattern: /<!DOCTYPE\s+html/i },
 ];
 
@@ -93,12 +94,14 @@ export type ThreatScanResult =
 
 // Analyse approfondie du contenu binaire a la recherche de menaces.
 export function scanBufferForThreats(buf: Buffer): ThreatScanResult {
-  // 1. Executables / archives embarques (verifie aussi APRES l'en-tete image
-  //    pour attraper les polyglots qui cachent un binaire dans le fichier).
-  //    On limite la fenetre de recherche pour rester performant.
-  const scanWindow = buf.subarray(0, Math.min(buf.length, 5 * 1024 * 1024));
+  // 1. Executables : on verifie UNIQUEMENT le tout debut du fichier (offset 0).
+  //    Les signatures courtes (ex: "MZ" = 2 octets) apparaissent par hasard un
+  //    peu partout dans une image compressee : les chercher dans tout le buffer
+  //    rejetterait des images legitimes. Comme l'en-tete a deja ete valide comme
+  //    image, un fichier qui COMMENCE par une signature d'executable est un vrai
+  //    binaire deguise et doit etre bloque.
   for (const sig of EXECUTABLE_SIGNATURES) {
-    if (containsBytes(scanWindow, sig.bytes, 0)) {
+    if (startsWithBytes(buf, sig.bytes)) {
       return {
         safe: false,
         threat: sig.name,
@@ -109,6 +112,7 @@ export function scanBufferForThreats(buf: Buffer): ThreatScanResult {
 
   // 2. Payloads textuels (XSS / scripts). On decode en latin1 pour conserver
   //    chaque octet comme un caractere, ce qui evite de manquer du texte cache.
+  const scanWindow = buf.subarray(0, Math.min(buf.length, 5 * 1024 * 1024));
   const asText = scanWindow.toString("latin1");
   for (const { name, pattern } of MALICIOUS_TEXT_PATTERNS) {
     if (pattern.test(asText)) {
@@ -132,21 +136,13 @@ export function scanBufferForThreats(buf: Buffer): ThreatScanResult {
   return { safe: true };
 }
 
-// Cherche une sequence d'octets dans un buffer a partir d'un offset donne.
-function containsBytes(haystack: Buffer, needle: number[], fromIndex = 0): boolean {
-  if (needle.length === 0) return false;
-  const limit = haystack.length - needle.length;
-  for (let i = fromIndex; i <= limit; i++) {
-    let match = true;
-    for (let j = 0; j < needle.length; j++) {
-      if (haystack[i + j] !== needle[j]) {
-        match = false;
-        break;
-      }
-    }
-    if (match) return true;
+// Verifie si le buffer COMMENCE par la sequence d'octets donnee.
+function startsWithBytes(buf: Buffer, needle: number[]): boolean {
+  if (needle.length === 0 || buf.length < needle.length) return false;
+  for (let i = 0; i < needle.length; i++) {
+    if (buf[i] !== needle[i]) return false;
   }
-  return false;
+  return true;
 }
 
 export type FileValidationResult =
