@@ -207,9 +207,24 @@ export default function SettingsPage() {
     }
   ];
 
+  // Pastilles d'icônes teintées pour un rendu propre en mode clair
+  const lightIcon: Record<string, string> = {
+    "text-blue-400": "bg-blue-50 text-blue-600",
+    "text-emerald-400": "bg-emerald-50 text-emerald-600",
+    "text-amber-400": "bg-amber-50 text-amber-600",
+    "text-purple-400": "bg-purple-50 text-purple-600",
+    "text-rose-400": "bg-rose-50 text-rose-600",
+    "text-yellow-400": "bg-amber-50 text-amber-600",
+    "text-indigo-400": "bg-indigo-50 text-indigo-600",
+    "text-cyan-400": "bg-cyan-50 text-cyan-600",
+    "text-pink-400": "bg-pink-50 text-pink-600",
+    "text-orange-400": "bg-orange-50 text-orange-600",
+    "text-slate-400": "bg-slate-100 text-slate-600",
+  };
+
   // Affichage immédiat avec les données en cache
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} ${isDarkMode ? 'text-white' : 'text-slate-900'} pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#020617] text-white' : 'bg-gradient-to-b from-slate-100 via-white to-slate-100 text-slate-900'} pb-32 font-sans overflow-x-hidden transition-colors duration-500`}>
       <div className="px-6 pt-8 flex items-center gap-4">
         <button onClick={() => router.back()} className={`p-3 ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 shadow-sm text-slate-900'} rounded-2xl border active:scale-90 transition-transform`}>
           <ArrowLeft size={20} />
@@ -227,7 +242,7 @@ export default function SettingsPage() {
 
       <header className="p-8 pb-4 text-center">
         <div className="relative inline-block group">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full mx-auto flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/20 border-4 border-current uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+          <div className={`w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full mx-auto flex items-center justify-center text-3xl font-black text-white shadow-2xl shadow-blue-500/30 border-4 ${isDarkMode ? 'border-[#020617]' : 'border-white ring-1 ring-slate-200'} uppercase group-hover:scale-105 transition-transform duration-300 overflow-hidden`}>
             {user?.avatar ? (
                 <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
@@ -235,7 +250,7 @@ export default function SettingsPage() {
             )}
           </div>
           {userKyc === 'VERIFIED' && (
-            <div className="absolute bottom-0 right-0 bg-emerald-500 p-1.5 rounded-full border-4 border-[#020617] shadow-lg">
+            <div className={`absolute bottom-0 right-0 bg-emerald-500 p-1.5 rounded-full border-4 ${isDarkMode ? 'border-[#020617]' : 'border-white'} shadow-lg`}>
                <ShieldCheck size={14} className="text-white" />
             </div>
           )}
@@ -252,7 +267,7 @@ export default function SettingsPage() {
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">
               {section.title}
             </h3>
-            <div className={`${isDarkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border rounded-[32px] overflow-hidden backdrop-blur-sm`}>
+            <div className={`${isDarkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200/70 shadow-[0_10px_30px_-15px_rgba(15,23,42,0.15)]'} border rounded-[32px] overflow-hidden backdrop-blur-sm`}>
               {section.items.map((item, i) => (
                 <button
                   key={i}
@@ -263,10 +278,10 @@ export default function SettingsPage() {
                       router.push(item.path);
                     }
                   }}
-                  className={`w-full flex items-center justify-between p-5 hover:bg-white/5 active:bg-white/10 transition-all border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'} last:border-0 group`}
+                  className={`w-full flex items-center justify-between p-5 transition-all border-b ${isDarkMode ? 'hover:bg-white/5 active:bg-white/10 border-white/5' : 'hover:bg-slate-50 active:bg-slate-100 border-slate-100'} last:border-0 group`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`${item.color} ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
+                    <div className={`p-3 rounded-2xl group-hover:scale-110 transition-transform ${isDarkMode ? `${item.color} bg-white/5` : (lightIcon[item.color] || 'bg-slate-100 text-slate-600')}`}>
                       {item.icon}
                     </div>
                     <div className="text-left">
@@ -280,7 +295,7 @@ export default function SettingsPage() {
                         {item.badge}
                       </span>
                     )}
-                    <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 transition-colors" />
+                    <ChevronRight size={16} className={`${isDarkMode ? 'text-slate-700' : 'text-slate-300'} group-hover:text-blue-500 transition-colors`} />
                   </div>
                 </button>
               ))}
