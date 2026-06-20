@@ -466,12 +466,18 @@ model SupportTicket {
 }
 
 model Message {
-  id        String        @id @default(cuid())
-  ticketId  String
-  senderId  String
-  content   String
-  createdAt DateTime      @default(now())
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id          String        @id @default(cuid())
+  ticketId    String
+  senderId    String
+  content     String
+  createdAt   DateTime      @default(now())
+  // Accuses de reception facon WhatsApp :
+  //  - deliveredAt : le destinataire a recu le message (2 coches grises)
+  //  - readAt      : le destinataire a ouvert/lu le message (2 coches bleues)
+  // Les deux nuls => message simplement envoye (1 coche grise).
+  deliveredAt DateTime?
+  readAt      DateTime?
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
