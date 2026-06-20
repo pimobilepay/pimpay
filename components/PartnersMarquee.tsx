@@ -21,17 +21,8 @@ const partners = [
   {
     name: "SunSwap",
     logo: "/sunswap.png",
-    bgColor: "bg-white",
-  },
-  {
-    name: "M-Pesa",
-    logo: "/m-pesa.png",
-    bgColor: "bg-white",
-  },
-  {
-    name: "Revolut",
-    logo: "/revolut.png",
-    bgColor: "bg-white",
+    bgColor: "bg-black",
+    wide: true,
   },
 ];
 
@@ -63,14 +54,14 @@ export function PartnersMarquee() {
             >
               <div
                 className={`flex items-center justify-center rounded-xl ${partner.bgColor} p-2 shadow-md overflow-hidden`}
-                style={{ width: 56, height: 56 }}
+                style={{ width: partner.wide ? 120 : 56, height: 56 }}
               >
                 <Image
                   src={partner.logo}
                   alt={`${partner.name} logo`}
-                  width={48}
+                  width={partner.wide ? 110 : 48}
                   height={48}
-                  className="object-contain"
+                  className="object-contain w-full h-full"
                 />
               </div>
               <span className="text-[11px] text-slate-400 font-semibold whitespace-nowrap">
