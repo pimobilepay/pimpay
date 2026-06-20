@@ -3,14 +3,14 @@
 import { useLanguage } from "@/context/LanguageContext";
 
 /**
- * Fin anneau circulaire (style natif navigateur) comme dans la maquette.
- * Anneau fin clair avec un segment plus marqué qui tourne.
+ * Petit anneau circulaire (style natif navigateur) comme dans la maquette.
+ * Utilise la couleur de la plateforme (--primary).
  */
-function RingSpinner({ size = 64 }: { size?: number }) {
+function RingSpinner({ size = 28 }: { size?: number }) {
   return (
     <div
-      className="rounded-full border-[3px] border-white/20 border-t-white/90 animate-spin"
-      style={{ width: size, height: size, animationDuration: "0.8s" }}
+      className="rounded-full border-2 border-primary/25 border-t-primary animate-spin"
+      style={{ width: size, height: size, animationDuration: "0.6s" }}
       role="status"
       aria-label="loading"
     />
@@ -36,11 +36,11 @@ export default function LoadingScreen({ message, fullScreen = true }: LoadingScr
     <div
       className={
         (fullScreen ? "fixed inset-0 z-[999] " : "w-full min-h-[60vh] ") +
-        "bg-[#020617] flex flex-col items-center justify-center gap-5"
+        "bg-background flex flex-col items-center justify-center gap-3"
       }
     >
-      <RingSpinner size={64} />
-      <p className="text-white/90 text-lg font-medium tracking-tight text-pretty text-center px-6">
+      <RingSpinner size={28} />
+      <p className="text-primary text-sm font-medium tracking-tight text-pretty text-center px-6">
         {label}
       </p>
     </div>
