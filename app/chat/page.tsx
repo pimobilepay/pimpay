@@ -82,11 +82,15 @@ function messagesSignature(messages: Message[]): string {
 }
 
 // Composant pour afficher un message
-// Detecte un message image au format markdown ![image](url) et renvoie l'URL.
-const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
-function extractImageUrl(content: string): string | null {
+// Detecte un message image au format markdown ![image](url) eventuellement suivi
+// d'une legende sur les lignes suivantes : ![image](url)\nLegende facultative.
+// Retourne { url, caption } afin d'afficher l'image et son texte dans une seule
+// bulle (image en haut, legende en dessous, facon WhatsApp).
+const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)(?:\n([\s\S]*))?$/i;
+function parseImageMessage(content: string): { url: string; caption: string } | null {
   const match = content.match(IMAGE_MSG_RE);
-  return match ? match[1] : null;
+  if (!match) return null;
+  return { url: match[1], caption: (match[2] || "").trim() };
 }
 
 // Accuses de reception facon WhatsApp affiches sur les messages que J'AI envoyes :
@@ -108,7 +112,7 @@ function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: bool
   const isElara = msg.senderId === "ELARA_AI";
   const isSupport = msg.senderId === "SUPPORT";
   const isLeft = isElara || isSupport;
-  const imageUrl = extractImageUrl(msg.content);
+  const image = parseImageMessage(msg.content);
   const localeTag = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
   
   return (
@@ -123,22 +127,37 @@ function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: bool
             </div>
           </div>
         )}
-        {imageUrl ? (
-          <a
-            href={imageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`block overflow-hidden rounded-2xl border ${
-              isLeft ? "border-white/10 rounded-bl-none" : "border-blue-500/30 rounded-br-none"
-            } active:scale-95 transition-transform`}
+        {image ? (
+          <div
+            className={`overflow-hidden rounded-2xl border ${
+              isLeft
+                ? "border-white/10 rounded-bl-none bg-white/[0.03]"
+                : "border-blue-500/30 rounded-br-none bg-blue-600/10"
+            }`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
-              alt={t("chat.imageAlt")}
-              className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
-            />
-          </a>
+            <a
+              href={image.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block active:scale-95 transition-transform"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.url}
+                alt={t("chat.imageAlt")}
+                className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
+              />
+            </a>
+            {image.caption && (
+              <p
+                className={`px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                  isLeft ? "text-slate-200" : "text-white"
+                }`}
+              >
+                {image.caption}
+              </p>
+            )}
+          </div>
         ) : (
           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
             isElara
@@ -259,32 +278,20 @@ export default function ChatPage() {
     setPendingImage(null);
 
     try {
-      let currentTicketId = activeTicket?.id || null;
+      const currentTicketId = activeTicket?.id || null;
 
-      // 1. Si une image est en attente, on l'envoie d'abord comme son propre
-      //    message (format markdown ![image](url)).
-      if (imageToSend) {
-        const imgRes = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: `![image](${imageToSend})`,
-            ticketId: currentTicketId,
-          }),
-        });
-        if (imgRes.ok) {
-          const imgData = await imgRes.json();
-          currentTicketId = imgData.ticket?.id || currentTicketId;
-          setActiveTicket(imgData.ticket);
-        }
-      }
+      // Si une image est en attente, on l'envoie dans le MEME message que le
+      // texte (format markdown ![image](url)\nLegende). Ainsi l'image et sa
+      // legende restent collees dans une seule bulle, facon WhatsApp.
+      const outgoingMessage = imageToSend
+        ? `![image](${imageToSend})\n${messageText}`
+        : messageText;
 
-      // 2. Puis on envoie le message texte qui accompagne (ou non) l'image.
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: messageText,
+          message: outgoingMessage,
           ticketId: currentTicketId
         }),
       });

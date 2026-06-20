@@ -153,9 +153,13 @@ export async function POST(req: NextRequest) {
     const sanitizedMessage = message.trim();
     const { isAdmin } = identity;
 
-    // Detection d'un message "image" : contenu au format markdown ![image](url).
-    const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
-    const isImageMessage = IMAGE_MSG_RE.test(sanitizedMessage);
+    // Detection d'un message "image" : contenu au format markdown ![image](url)
+    // eventuellement suivi d'une legende sur les lignes suivantes.
+    const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)(?:\n([\s\S]*))?$/i;
+    const imageMatch = sanitizedMessage.match(IMAGE_MSG_RE);
+    const isImageMessage = imageMatch !== null;
+    // Legende qui accompagne l'image (texte saisi par l'utilisateur, sans l'URL).
+    const imageCaption = (imageMatch?.[2] || "").trim();
     const IMAGE_ACK_REPLY =
       "Merci, j'ai bien recu votre image. Un conseiller va l'examiner. N'hesitez pas a ajouter un message pour preciser votre demande.";
 
@@ -192,10 +196,14 @@ export async function POST(req: NextRequest) {
     if (!isAdmin) {
       let elaraReply: string;
 
-      if (isImageMessage) {
-        // Pas de generation IA sur une URL d'image : accuse de reception simple.
+      // Texte effectif a analyser : pour un message image avec legende, on
+      // raisonne sur la legende (pas sur l'URL). Sinon, sur le message complet.
+      const effectiveText = isImageMessage ? imageCaption : sanitizedMessage;
+
+      if (isImageMessage && !imageCaption) {
+        // Image seule, sans legende : simple accuse de reception.
         elaraReply = IMAGE_ACK_REPLY;
-      } else if (detectSupportIntent(sanitizedMessage)) {
+      } else if (detectSupportIntent(effectiveText)) {
         // L'utilisateur veut un humain : Elara collecte sa préoccupation
         // et le rassure en attendant la prise en charge par le support.
         elaraReply = SUPPORT_INTENT_REPLY;
@@ -218,7 +226,7 @@ export async function POST(req: NextRequest) {
         // Le dernier message (celui qu'on vient d'enregistrer) est passé à part.
         history.pop();
 
-        elaraReply = await generateElaraReply({ message: sanitizedMessage, history });
+        elaraReply = await generateElaraReply({ message: effectiveText, history });
       }
 
       await prisma.message.create({
