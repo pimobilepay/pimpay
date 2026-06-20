@@ -6,7 +6,7 @@ import type { TranslationKeys } from "./fr";
 // doit rester strictement identique a fr.ts / en.ts.
 export const zh: TranslationKeys = {
   common: {
-    loading: "Loading...",
+    loading: "加载中...",
     error: "Error",
     success: "Success",
     cancel: "Cancel",
