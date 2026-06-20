@@ -378,11 +378,11 @@ export default function ProfilePage() {
             </Link>
           </div>
 
-          <h1 className="mt-4 text-2xl font-bold flex items-center gap-2 text-balance text-center">
+          <h1 className="mt-4 text-lg font-bold flex items-center gap-2 text-balance text-center">
             {user?.name}
             {user?.isVerified && (
               <CheckCircle2
-                size={20}
+                size={16}
                 fill="#60a5fa"
                 className="text-[#020617] bg-white rounded-full border-none shrink-0"
               />
@@ -612,8 +612,18 @@ export default function ProfilePage() {
           {t("profile.secureLogout")}
         </button>
 
-        <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest pb-4">
-          PimPay Version 2.4.0 - Pi Protocol
+        <div className="flex items-center justify-center gap-2 text-sm font-bold text-blue-400 mb-6">
+          <Link href="/legal/terms" className="hover:text-blue-300 transition-colors">
+            {t("profile.termsLink")}
+          </Link>
+          <span className="text-slate-600">·</span>
+          <Link href="/legal/privacy" className="hover:text-blue-300 transition-colors">
+            {t("profile.privacyLink")}
+          </Link>
+        </div>
+
+        <p className="text-center text-xs text-slate-600 font-medium leading-relaxed text-pretty pb-4">
+          {t("profile.copyright").replace("{year}", String(new Date().getFullYear()))}
         </p>
       </div>
     </div>

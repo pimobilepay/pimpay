@@ -708,7 +708,10 @@ export const fr = {
     pioneerSince: "Pioneer depuis",
     // Actions
     editMyInfo: "Modifier mes informations",
-    secureLogout: "Deconnexion Securisee",
+    secureLogout: "Deconnexion",
+    termsLink: "Conditions",
+    privacyLink: "Politique de confidentialite",
+    copyright: "Copyright © {year} OpenPay by Mrwain Organization. Tous droits reserves.",
     chooseCurrency: "Choisir une devise",
     currencyChanged: "Devise changee en",
     select: "Selectionner...",

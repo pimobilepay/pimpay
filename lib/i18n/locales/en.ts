@@ -710,7 +710,10 @@ export const en: TranslationKeys = {
     pioneerSince: "Pioneer since",
     // Actions
     editMyInfo: "Edit my information",
-    secureLogout: "Secure Logout",
+    secureLogout: "Log Out",
+    termsLink: "Terms",
+    privacyLink: "Privacy Policy",
+    copyright: "Copyright © {year} OpenPay by Mrwain Organization. All rights reserved.",
     chooseCurrency: "Choose a currency",
     currencyChanged: "Currency changed to",
     select: "Select...",
