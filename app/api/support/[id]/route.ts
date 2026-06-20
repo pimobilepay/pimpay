@@ -10,7 +10,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+
+    // Accuses de reception facon WhatsApp : quand le support OUVRE le dossier,
+    // tous les messages du CLIENT (tout sauf SUPPORT / ELARA_AI) sont marques
+    // comme LUS (et donc livres). Le client verra ses coches passer au bleu.
+    const now = new Date();
+    await prisma.message
+      .updateMany({
+        where: { ticketId: id, senderId: { notIn: ["SUPPORT", "ELARA_AI"] }, readAt: null },
+        data: { deliveredAt: now, readAt: now },
+      })
+      .catch(() => {});
+
     const ticket = await prisma.supportTicket.findUnique({
       where: { id },
       include: {

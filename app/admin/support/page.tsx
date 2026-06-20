@@ -4,7 +4,7 @@ import {
   ArrowLeft, Clock, User,
   ChevronRight, Inbox, ShieldAlert,
   Send, X, Loader2, CheckCircle, RefreshCw,
-  Phone, PhoneIncoming, PhoneOff, Bot, Headphones
+  Phone, PhoneIncoming, PhoneOff, Bot, Headphones, Check, CheckCheck
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ interface TicketMessage {
   senderId: string;
   content: string;
   createdAt: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
 }
 
 interface Ticket {

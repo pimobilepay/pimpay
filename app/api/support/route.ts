@@ -87,6 +87,21 @@ export async function GET() {
       })
     ]);
 
+    // En chargeant la liste des dossiers, le support "recoit" les messages des
+    // clients : on les marque LIVRES (2 coches grises) sans les marquer lus.
+    if (tickets.length > 0) {
+      await prisma.message
+        .updateMany({
+          where: {
+            ticketId: { in: tickets.map((t) => t.id) },
+            senderId: { notIn: ["SUPPORT", "ELARA_AI"] },
+            deliveredAt: null,
+          },
+          data: { deliveredAt: new Date() },
+        })
+        .catch(() => {});
+    }
+
     const statistics = {
       total: tickets.length,
       open: stats.find(s => s.status === 'OPEN')?._count._all || 0,

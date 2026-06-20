@@ -75,13 +75,34 @@ export async function GET(req: NextRequest) {
     const ticketId = searchParams.get("ticketId");
 
     if (ticketId) {
-      const ticket = await prisma.supportTicket.findFirst({
+      // On verifie d'abord la propriete du ticket.
+      const owned = await prisma.supportTicket.findFirst({
         where: ownershipWhere(identity, { id: ticketId }),
-        include: {
-          messages: { orderBy: { createdAt: "asc" } },
-          user: { select: { name: true, email: true, avatar: true } },
-        },
+        select: { id: true },
       });
+
+      // Accuses de reception facon WhatsApp : quand le proprietaire (client/invite)
+      // OUVRE la conversation, les messages du SUPPORT sont marques comme LUS
+      // (et donc livres). Le support verra alors ses coches passer au bleu.
+      if (owned && !identity.isAdmin) {
+        const now = new Date();
+        await prisma.message
+          .updateMany({
+            where: { ticketId: owned.id, senderId: "SUPPORT", readAt: null },
+            data: { deliveredAt: now, readAt: now },
+          })
+          .catch(() => {});
+      }
+
+      const ticket = owned
+        ? await prisma.supportTicket.findUnique({
+            where: { id: owned.id },
+            include: {
+              messages: { orderBy: { createdAt: "asc" } },
+              user: { select: { name: true, email: true, avatar: true } },
+            },
+          })
+        : null;
       return withGuestCookie(NextResponse.json({ ticket }), identity.newGuestCookie);
     }
 
@@ -93,6 +114,21 @@ export async function GET(req: NextRequest) {
         messages: { orderBy: { createdAt: "desc" }, take: 1 },
       },
     });
+
+    // En chargeant sa liste de conversations, le client "recoit" les messages
+    // du support : on les marque LIVRES (2 coches grises) sans les marquer lus.
+    if (!identity.isAdmin && tickets.length > 0) {
+      await prisma.message
+        .updateMany({
+          where: {
+            ticketId: { in: tickets.map((t) => t.id) },
+            senderId: "SUPPORT",
+            deliveredAt: null,
+          },
+          data: { deliveredAt: new Date() },
+        })
+        .catch(() => {});
+    }
 
     return withGuestCookie(NextResponse.json({ tickets }), identity.newGuestCookie);
   } catch (error: any) {

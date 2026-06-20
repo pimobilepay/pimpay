@@ -5,7 +5,7 @@ import {
   ArrowLeft, Send, Sparkles, Plus, Clock,
   Loader2, MessageCircle, ChevronRight,
   ShieldCheck, X, Paperclip, FileText, Image as ImageIcon,
-  Bot, Headphones, User, Zap, HelpCircle, Phone
+  Bot, Headphones, User, Zap, HelpCircle, Phone, Check, CheckCheck
 } from "lucide-react";
 import VoipCallOverlay from "@/components/VoipCallOverlay";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,8 @@ interface Message {
   senderId: string;
   content: string;
   createdAt: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
 }
 
 interface Ticket {
@@ -72,12 +74,33 @@ function SenderBadge({ senderId }: { senderId: string }) {
   return null;
 }
 
+// Signature compacte d'une liste de messages : change des qu'un message est
+// ajoute OU qu'un accuse de reception evolue (livre/lu). Sert a declencher le
+// rafraichissement du polling pour mettre a jour les coches.
+function messagesSignature(messages: Message[]): string {
+  return messages.map((m) => `${m.id}:${m.deliveredAt ? 1 : 0}:${m.readAt ? 1 : 0}`).join("|");
+}
+
 // Composant pour afficher un message
 // Detecte un message image au format markdown ![image](url) et renvoie l'URL.
 const IMAGE_MSG_RE = /^!\[image\]\((https?:\/\/[^\s)]+)\)$/i;
 function extractImageUrl(content: string): string | null {
   const match = content.match(IMAGE_MSG_RE);
   return match ? match[1] : null;
+}
+
+// Accuses de reception facon WhatsApp affiches sur les messages que J'AI envoyes :
+//  - envoye       : 1 coche grise
+//  - recu/livre   : 2 coches grises
+//  - lu           : 2 coches bleues
+function MessageTicks({ msg }: { msg: Message }) {
+  if (msg.readAt) {
+    return <CheckCheck size={13} className="text-sky-400" aria-label="Lu" />;
+  }
+  if (msg.deliveredAt) {
+    return <CheckCheck size={13} className="text-slate-400" aria-label="Recu" />;
+  }
+  return <Check size={13} className="text-slate-400" aria-label="Envoye" />;
 }
 
 function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: boolean }) {
@@ -127,9 +150,12 @@ function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: bool
             {msg.content}
           </div>
         )}
-        <p className={`text-[9px] text-slate-600 mt-1 ${isLeft ? "ml-1" : "mr-1 text-right"}`}>
-          {new Date(msg.createdAt).toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" })}
-        </p>
+        <div className={`flex items-center gap-1 mt-1 ${isLeft ? "ml-1 justify-start" : "mr-1 justify-end"}`}>
+          <p className="text-[9px] text-slate-600">
+            {new Date(msg.createdAt).toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" })}
+          </p>
+          {!isLeft && isCurrentUser && <MessageTicks msg={msg} />}
+        </div>
       </div>
     </div>
   );
@@ -174,14 +200,16 @@ export default function ChatPage() {
         const res = await fetch(`/api/chat?ticketId=${activeTicket.id}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.ticket && data.ticket.messages.length !== activeTicket.messages.length) {
+          // On rafraichit si le nombre de messages change OU si un accuse de
+          // reception evolue (livre/lu) pour mettre a jour les coches.
+          if (data.ticket && messagesSignature(data.ticket.messages) !== messagesSignature(activeTicket.messages)) {
             setActiveTicket(data.ticket);
           }
         }
       } catch {}
     }, 5000);
     return () => clearInterval(interval);
-  }, [activeTicket?.id, activeTicket?.messages.length]);
+  }, [activeTicket?.id, activeTicket?.messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
