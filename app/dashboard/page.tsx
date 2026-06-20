@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import LoadingScreen from "@/components/LoadingScreen";
 import {
   ArrowUpRight,
   ArrowDownLeft,
   RefreshCcw,
   Bell,
-  Loader2,
   ArrowUpCircle,
   ArrowDownCircle,
   Eye,
@@ -423,6 +423,7 @@ export default function UserDashboard() {
   }
 
   async function fetchDashboardData() {
+    const startedAt = Date.now();
     try {
       fetch("/api/wallet/sidra/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }).catch(() => null);
       const [profileRes, historyRes, balRes] = await Promise.all([
@@ -449,6 +450,11 @@ export default function UserDashboard() {
     } catch {
       toast.error("Sync error");
     } finally {
+      const MIN_LOADING_MS = 1400;
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_MS - elapsed));
+      }
       setIsLoading(false);
     }
   }
@@ -537,13 +543,7 @@ export default function UserDashboard() {
       : { icon: <ArrowDownCircle size={18} />, color: "bg-emerald-500/10 text-emerald-500" };
   };
 
-  if (!hasMounted || isLoading)
-    return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-blue-500">
-        <Loader2 className="animate-spin mb-4" size={40} />
-        <p className="text-[10px] font-black uppercase tracking-[0.2em]">PIMPAY Sync...</p>
-      </div>
-    );
+  if (!hasMounted || isLoading) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
