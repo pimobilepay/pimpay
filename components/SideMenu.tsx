@@ -199,7 +199,12 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
               <X size={20} />
             </button>
 
-            <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => handleNavigation("/profile")}
+              className="w-full flex items-center gap-4 text-left rounded-2xl -m-2 p-2 hover:bg-white/5 active:scale-[0.98] transition-all"
+              aria-label={t("sideMenu.myProfile")}
+            >
               <div className="relative">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 p-[2px] shadow-[0_0_15px_rgba(59,130,246,0.5)]">
                   <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center overflow-hidden border-2 border-[#020617]">
@@ -231,7 +236,9 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                   </div>
                 </div>
               </div>
-            </div>
+
+              <ChevronRight size={18} className="text-slate-600 shrink-0 self-center" />
+            </button>
           </div>
 
           <div className="px-6 mb-6">
