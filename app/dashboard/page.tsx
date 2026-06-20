@@ -637,7 +637,7 @@ export default function UserDashboard() {
         <div className="mt-5 mb-5 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{getGreeting()} 👋</p>
-            <h2 className="text-xl font-black text-white tracking-tight mt-0.5">{displayName}</h2>
+            <h2 className="text-base font-black text-white tracking-tight mt-0.5">{displayName}</h2>
           </div>
           {data?.kycStatus === "VERIFIED" && (
             <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">

@@ -9,7 +9,7 @@ import { useLanguage } from "@/context/LanguageContext";
 function RingSpinner({ size = 28 }: { size?: number }) {
   return (
     <div
-      className="rounded-full border-2 border-primary/25 border-t-primary animate-spin"
+      className="rounded-full border-2 border-blue-500/25 border-t-blue-500 animate-spin"
       style={{ width: size, height: size, animationDuration: "0.6s" }}
       role="status"
       aria-label="loading"
@@ -40,7 +40,7 @@ export default function LoadingScreen({ message, fullScreen = true }: LoadingScr
       }
     >
       <RingSpinner size={28} />
-      <p className="text-primary text-sm font-medium tracking-tight text-pretty text-center px-6">
+      <p className="text-blue-500 text-sm font-medium tracking-tight text-pretty text-center px-6">
         {label}
       </p>
     </div>
