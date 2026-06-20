@@ -465,6 +465,31 @@ model SupportTicket {
   user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// Trace des visiteurs NON connectés (mode invité), notamment sur la page de
+// chat Elara. Permet de savoir qu'un invité est passé sur la plateforme même
+// s'il n'a jamais envoyé de message. Identifié par le cookie invité opaque.
+model GuestSession {
+  id          String   @id @default(cuid())
+  guestId     String   @unique
+  ip          String?
+  userAgent   String?
+  device      String?
+  browser     String?
+  os          String?
+  country     String?
+  city        String?
+  page        String?
+  host        String?
+  origin      String?
+  referrer    String?
+  visitCount  Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([guestId])
+  @@index([lastSeenAt])
+}
+
 model Message {
   id          String        @id @default(cuid())
   ticketId    String

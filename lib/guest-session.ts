@@ -29,3 +29,26 @@ export function guestCookieOptions() {
     maxAge: 60 * 60 * 24 * 365, // 1 an
   };
 }
+
+// --- Détection légère de l'appareil à partir du User-Agent (sans dépendance) --
+export function detectBrowser(ua: string): string {
+  if (/edg/i.test(ua)) return "Edge";
+  if (/opera|opr/i.test(ua)) return "Opera";
+  if (/chrome|crios/i.test(ua) && !/edg/i.test(ua)) return "Chrome";
+  if (/firefox|fxios/i.test(ua)) return "Firefox";
+  if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) return "Safari";
+  return "Autre";
+}
+
+export function detectOS(ua: string): string {
+  if (/windows/i.test(ua)) return "Windows";
+  if (/macintosh|mac os/i.test(ua)) return "macOS";
+  if (/android/i.test(ua)) return "Android";
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
+  if (/linux/i.test(ua)) return "Linux";
+  return "Autre";
+}
+
+export function detectDevice(ua: string): string {
+  return /mobile|android|iphone|ipad/i.test(ua) ? "Mobile" : "Desktop";
+}

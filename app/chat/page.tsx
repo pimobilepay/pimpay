@@ -205,6 +205,13 @@ export default function ChatPage() {
   useEffect(() => {
     setMounted(true);
     fetchTickets();
+    // Trace la visite (les invités laissent ainsi une trace même sans message).
+    // Le serveur ignore automatiquement les utilisateurs connectés.
+    fetch("/api/guest/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: "/chat" }),
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
