@@ -16,7 +16,7 @@ const partners = [
   {
     name: "ChangeNow",
     logo: "/changenow.png",
-    bgColor: "bg-white",
+    bgColor: "bg-black",
   },
   {
     name: "SunSwap",
