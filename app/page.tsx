@@ -37,10 +37,13 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
-      {/* Loader stylé pour PimPay */}
-      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
-      <p className="text-slate-500 text-xs font-medium tracking-widest uppercase">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-3">
+      {/* Loader unifié PimPay */}
+      <div
+        className="rounded-full border-2 border-blue-500/25 border-t-blue-500 animate-spin"
+        style={{ width: 28, height: 28, animationDuration: "0.6s" }}
+      />
+      <p className="text-blue-500 text-sm font-medium tracking-tight">
         Sécurisation de votre accès...
       </p>
     </div>

@@ -41,8 +41,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   if (!mounted) {
     return (
-      <div className="bg-[#020617] min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="bg-[#020617] min-h-screen flex flex-col items-center justify-center gap-3">
+        <div
+          className="rounded-full border-2 border-blue-500/25 border-t-blue-500 animate-spin"
+          style={{ width: 28, height: 28, animationDuration: "0.6s" }}
+        />
       </div>
     );
   }
