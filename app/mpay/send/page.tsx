@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 // Type for contacts from API
 interface P2PContact {
@@ -68,6 +69,7 @@ const RECENT_USERS_KEY = "pimpay_recent_p2p_users";
 export default function P2PSendPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const preSelectedTo = searchParams.get("to") || "";
 
   const [step, setStep] = useState(1); // 1: select contact, 2: amount, 3: message, 4: confirm
@@ -134,11 +136,11 @@ export default function P2PSendPage() {
       recent = recent.filter(r => r.id !== userId);
       localStorage.setItem(RECENT_USERS_KEY, JSON.stringify(recent));
       setRecentUsers(recent);
-      toast.success("Utilisateur supprime des recents");
+      toast.success(t("mpay.sendFlow.userRemovedRecent"));
     } catch {
       // Ignore storage errors
     }
-  }, []);
+  }, [t]);
 
   // Search user via API
   const searchUser = useCallback(async (query: string) => {
@@ -189,17 +191,17 @@ export default function P2PSendPage() {
         }
         setSearchedUser(data);
       } else if (res.status === 404) {
-        setSearchError("Utilisateur non trouve");
+        setSearchError(t("mpay.sendFlow.userNotFound"));
       } else {
-        setSearchError(data.error || "Erreur de recherche");
+        setSearchError(data.error || t("mpay.sendFlow.searchErr"));
       }
     } catch (error) {
       console.error("Search error:", error);
-      setSearchError("Erreur de connexion");
+      setSearchError(t("mpay.connectionError"));
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [t]);
 
   // Debounced search
   useEffect(() => {
@@ -230,7 +232,7 @@ export default function P2PSendPage() {
       const data = await res.json();
 
       if (data.success) {
-        toast.success("Contact ajoute avec succes");
+        toast.success(t("mpay.sendFlow.contactAdded"));
         // Refresh contacts
         const contactsRes = await fetch("/api/mpay/contacts");
         const contactsData = await contactsRes.json();
@@ -238,11 +240,11 @@ export default function P2PSendPage() {
           setContacts(contactsData.contacts);
         }
       } else {
-        toast.error(data.error || "Erreur lors de l'ajout");
+        toast.error(data.error || t("mpay.sendFlow.addError"));
       }
     } catch (error) {
       console.error("Error adding contact:", error);
-      toast.error("Erreur lors de l'ajout du contact");
+      toast.error(t("mpay.sendFlow.addContactError"));
     } finally {
       setAddingToContacts(false);
     }
@@ -328,7 +330,7 @@ const filteredContacts = contacts.filter(
     const contact: P2PContact = {
       id: user.id,
       contactId: effectiveContactId,
-      name: fullName || user.username || "Utilisateur",
+      name: fullName || user.username || t("mpay.sendFlow.user"),
       username: user.isExternal && user.fullExternalAddress 
         ? user.fullExternalAddress 
         : user.username,
@@ -344,7 +346,7 @@ const filteredContacts = contacts.filter(
     // Save to recent users
     saveRecentUser({
       id: effectiveContactId,
-      name: fullName || user.username || "Utilisateur",
+      name: fullName || user.username || t("mpay.sendFlow.user"),
       username: user.isExternal && user.fullExternalAddress 
         ? user.fullExternalAddress 
         : user.username,
@@ -388,10 +390,10 @@ const filteredContacts = contacts.filter(
 
   const handleAmountNext = () => {
     if (!amount || parseFloat(amount) <= 0) {
-      return toast.error("Veuillez entrer un montant valide");
+      return toast.error(t("mpay.sendFlow.enterValidAmount"));
     }
     if (parseFloat(amount) > userBalance) {
-      return toast.error("Solde insuffisant");
+      return toast.error(t("mpay.insufficientBalance"));
     }
     setStep(3);
   };
@@ -432,7 +434,7 @@ const filteredContacts = contacts.filter(
         
         // Validate the address before sending
         if (!externalAddr || !piAddressRegex.test(externalAddr)) {
-          toast.error("Adresse Pi invalide. Veuillez re-entrer l'adresse.");
+          toast.error(t("mpay.sendFlow.invalidPiAddress"));
           setIsLoading(false);
           return;
         }
@@ -440,7 +442,7 @@ const filteredContacts = contacts.filter(
         const payload = {
           destination: externalAddr,
           amount: parseFloat(amount),
-          memo: message || `Retrait PimPay`
+          memo: message || t("mpay.sendFlow.withdrawalMemo")
         };
         
         const res = await fetch("/api/mpay/external-transfer", {
@@ -456,7 +458,7 @@ const filteredContacts = contacts.filter(
           const txRef = data.data?.txid || `WD-${Date.now()}`;
           const status = data.data?.status || "BROADCASTED";
           const blockchainHash = data.data?.blockchainTxHash || "";
-          toast.success(data.message || "Transfert Pi reussi !");
+          toast.success(data.message || t("mpay.piTransferSuccess"));
           router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
           const errorMsg = data.error || `Erreur ${res.status}`;
@@ -472,7 +474,7 @@ const filteredContacts = contacts.filter(
           body: JSON.stringify({
             recipient: selectedContact.contactId,
             amount: parseFloat(amount),
-            note: message || `Transfert P2P a ${selectedContact.name}`
+            note: message || `${t("mpay.sendFlow.p2pNoteTo")} ${selectedContact.name}`
           }),
         });
         
@@ -484,17 +486,17 @@ const filteredContacts = contacts.filter(
           if (typeof data.newBalance === 'number') {
             setUserBalance(data.newBalance);
           }
-          toast.success("Transfert envoye avec succes !");
-          router.push(`/mpay/success?amount=${amount}&to=${encodeURIComponent(selectedContact.name || "Contact")}&txid=${txRef}&newBalance=${data.newBalance || ''}`);
+          toast.success(t("mpay.sendFlow.transferSent"));
+          router.push(`/mpay/success?amount=${amount}&to=${encodeURIComponent(selectedContact.name || t("mpay.sendFlow.user"))}&txid=${txRef}&newBalance=${data.newBalance || ''}`);
         } else {
-          toast.error(data.error || "Erreur lors du transfert");
-          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || "Erreur inconnue")}`);
+          toast.error(data.error || t("mpay.sendFlow.transferError"));
+          router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || t("mpay.unknownError"))}`);
         }
       }
     } catch (error: any) {
       console.error("Transfer error:", error);
-      toast.error("Erreur lors du transfert");
-      router.push(`/mpay/failed?reason=${encodeURIComponent("Erreur de connexion")}`);
+      toast.error(t("mpay.sendFlow.transferError"));
+      router.push(`/mpay/failed?reason=${encodeURIComponent(t("mpay.connectionError"))}`);
     } finally {
       setIsLoading(false);
     }
@@ -516,9 +518,9 @@ const filteredContacts = contacts.filter(
           <ArrowLeft size={20} />
         </button>
         <div className="text-center">
-          <h1 className="text-lg font-black uppercase tracking-tight">Envoyer P2P</h1>
+          <h1 className="text-lg font-black uppercase tracking-tight">{t("mpay.sendFlow.title")}</h1>
           <p className="text-[9px] font-bold text-cyan-500 tracking-[3px] uppercase">
-            {"Etape " + step + " / 4"}
+            {t("mpay.step") + " " + step + " / 4"}
           </p>
         </div>
         <button
@@ -540,7 +542,7 @@ const filteredContacts = contacts.filter(
               </div>
               <input
                 type="text"
-                placeholder="@username, email, telephone ou adresse G..."
+                placeholder={t("mpay.sendFlow.searchPlaceholder")}
                 className="bg-transparent flex-1 outline-none font-bold text-xs uppercase placeholder:text-slate-700"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -581,8 +583,8 @@ const filteredContacts = contacts.filter(
                     <CheckCircle2 size={12} />
                   )}
                   {searchedUser.isExternal 
-                    ? (addressVerifying ? 'Verification en cours...' : addressVerified?.valid && addressVerified?.exists ? 'Adresse verifiee' : 'Adresse Pi Wallet')
-                    : 'Utilisateur trouve'
+                    ? (addressVerifying ? t("mpay.sendFlow.verifying") : addressVerified?.valid && addressVerified?.exists ? t("mpay.sendFlow.addressVerified") : t("mpay.sendFlow.piWalletAddress"))
+                    : t("mpay.sendFlow.userFound")
                   }
                 </p>
                 <div className={`rounded-2xl p-4 ${
@@ -617,17 +619,17 @@ const filteredContacts = contacts.filter(
                           addressVerifying ? 'text-blue-400' : 
                           addressVerified?.valid && addressVerified?.exists ? 'text-emerald-400' : 'text-emerald-400'
                         }`}>
-                          {addressVerifying ? 'Verification blockchain...' : 
-                           addressVerified?.valid && addressVerified?.exists ? 'Compte actif sur Pi Network' : 
-                           'Adresse validee'}
+                          {addressVerifying ? t("mpay.sendFlow.blockchainVerifying") : 
+                           addressVerified?.valid && addressVerified?.exists ? t("mpay.sendFlow.accountActive") : 
+                           t("mpay.sendFlow.addressValidated")}
                         </p>
                         <p className={`text-[9px] leading-relaxed ${
                           addressVerifying ? 'text-blue-400/80' : 
                           addressVerified?.valid && addressVerified?.exists ? 'text-emerald-400/80' : 'text-emerald-400/80'
                         }`}>
-                          {addressVerifying ? 'Verification de l\'existence du compte sur la blockchain Pi Network...' :
-                           addressVerified?.valid && addressVerified?.exists ? 'Compte verifie et actif. Vous pouvez envoyer en toute securite.' :
-                           'Adresse valide. Verifiez bien car les transactions sont irreversibles.'}
+                          {addressVerifying ? t("mpay.sendFlow.checkingAccount") :
+                           addressVerified?.valid && addressVerified?.exists ? t("mpay.sendFlow.accountVerifiedSafe") :
+                           t("mpay.sendFlow.addressValidIrreversible")}
                         </p>
                       </div>
                     </div>
@@ -667,8 +669,8 @@ const filteredContacts = contacts.filter(
                       )}
                       <p className="text-[9px] font-bold text-slate-500 mt-0.5">
                         {searchedUser.isExternal 
-                          ? (addressVerified?.valid && addressVerified?.exists ? 'Compte Pi Network verifie' : 'Pi Network')
-                          : "Utilisateur PimPay"
+                          ? (addressVerified?.valid && addressVerified?.exists ? t("mpay.sendFlow.piAccountVerified") : 'Pi Network')
+                          : t("mpay.sendFlow.pimpayUser")
                         }
                       </p>
                     </div>
@@ -689,7 +691,7 @@ const filteredContacts = contacts.filter(
                       ) : (
                         <UserPlus size={14} />
                       )}
-                      Ajouter aux contacts
+                      {t("mpay.sendFlow.addToContacts")}
                     </button>
                   )}
                 </div>
@@ -709,7 +711,7 @@ const filteredContacts = contacts.filter(
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
                     <Clock size={12} />
-                    Utilisateurs recents
+                    {t("mpay.sendFlow.recentUsers")}
                   </p>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
@@ -748,25 +750,25 @@ const filteredContacts = contacts.filter(
             <div>
               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Users size={12} />
-                {searchQuery && !searchedUser ? `${filteredContacts.length} contact(s) correspondant(s)` : "Mes contacts"}
+                {searchQuery && !searchedUser ? `${filteredContacts.length} ${t("mpay.sendFlow.matchingContacts")}` : t("mpay.sendFlow.myContacts")}
               </p>
               {contactsLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="animate-spin text-cyan-500 mb-3" size={24} />
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Chargement des contacts...
+                    {t("mpay.sendFlow.loadingContacts")}
                   </span>
                 </div>
               ) : filteredContacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Users size={32} className="text-slate-700 mb-3" />
                   <p className="text-xs font-bold text-slate-500 mb-1">
-                    {searchQuery ? "Aucun contact correspondant" : "Aucun contact"}
+                    {searchQuery ? t("mpay.sendFlow.noMatchingContact") : t("mpay.noContact")}
                   </p>
                   <p className="text-[10px] text-slate-600 text-center">
                     {searchQuery
-                      ? "Utilisez la recherche ci-dessus pour trouver un utilisateur"
-                      : "Ajoutez des contacts depuis la page contacts"}
+                      ? t("mpay.sendFlow.useSearchHint")
+                      : t("mpay.sendFlow.addContactsHint")}
                   </p>
                 </div>
               ) : (
@@ -830,18 +832,18 @@ const filteredContacts = contacts.filter(
 
             {/* Amount Display */}
             <div className="bg-slate-900/40 border border-white/10 rounded-[2rem] p-8 text-center">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Montant a envoyer</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">{t("mpay.sendFlow.amountToSend")}</p>
               <div className="flex items-center justify-center gap-1">
                 <span className="text-4xl font-black text-cyan-500">Pi</span>
                 <span className="text-5xl font-black tracking-tighter">{amount || "0"}</span>
               </div>
               <div className="mt-6 pt-4 border-t border-white/5 flex justify-between px-4">
                 <div className="text-left">
-                  <p className="text-[9px] font-black text-slate-500 uppercase">Solde</p>
+                  <p className="text-[9px] font-black text-slate-500 uppercase">{t("mpay.balanceLabel")}</p>
                   <p className="text-sm font-black text-emerald-400">{userBalance.toLocaleString()} Pi</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-black text-slate-500 uppercase">Frais</p>
+                  <p className="text-[9px] font-black text-slate-500 uppercase">{t("mpay.fee")}</p>
                   <p className="text-sm font-black text-white">0.00 Pi</p>
                 </div>
               </div>
@@ -864,7 +866,7 @@ const filteredContacts = contacts.filter(
               onClick={handleAmountNext}
               className="w-full bg-cyan-600 p-5 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm shadow-2xl shadow-cyan-600/30 active:scale-95 transition-all"
             >
-              Continuer
+              {t("mpay.sendFlow.continue")}
             </button>
           </div>
         )}
@@ -902,10 +904,10 @@ const filteredContacts = contacts.filter(
             <div className="bg-slate-900/40 border border-white/10 rounded-[2rem] p-6">
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare size={16} className="text-cyan-500" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Message (optionnel)</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t("mpay.sendFlow.messageOptional")}</p>
               </div>
               <textarea
-                placeholder="Ajouter un message pour le destinataire..."
+                placeholder={t("mpay.sendFlow.messagePlaceholder")}
                 className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-medium outline-none resize-none h-28 placeholder:text-slate-700 focus:border-cyan-500/50 transition-all"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -919,13 +921,13 @@ const filteredContacts = contacts.filter(
                 onClick={() => setStep(4)}
                 className="flex-1 bg-white/5 border border-white/10 p-5 rounded-[2rem] font-black uppercase tracking-wider text-sm hover:bg-white/10 active:scale-95 transition-all"
               >
-                Passer
+                {t("mpay.sendFlow.skip")}
               </button>
               <button
                 onClick={() => setStep(4)}
                 className="flex-1 bg-cyan-600 p-5 rounded-[2rem] font-black uppercase tracking-wider text-sm shadow-xl shadow-cyan-600/20 active:scale-95 transition-all"
               >
-                Suivant
+                {t("mpay.sendFlow.next")}
               </button>
             </div>
           </div>
@@ -941,12 +943,10 @@ const filteredContacts = contacts.filter(
                 <div>
                   <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide mb-1 flex items-center gap-2">
                     <ExternalLink size={12} />
-                    Transfert vers Pi Wallet externe
+                    {t("mpay.sendFlow.externalTransferTitle")}
                   </p>
                   <p className="text-[10px] text-amber-400/80 leading-relaxed">
-                    Ce transfert sera effectue sur la blockchain Pi Network. 
-                    Assurez-vous que l'adresse est correcte - les transactions blockchain sont irreversibles.
-                    Delai estime: 1-5 minutes.
+                    {t("mpay.sendFlow.externalTransferWarning")}
                   </p>
                 </div>
               </div>
@@ -959,21 +959,21 @@ const filteredContacts = contacts.filter(
 
               <div className="text-center mb-2">
                 <p className={`text-[10px] font-black uppercase tracking-[3px] mb-2 ${isExternalPiAddress ? 'text-amber-500' : 'text-cyan-500'}`}>
-                  {isExternalPiAddress ? 'Retrait Blockchain Pi' : 'Transfert P2P'}
+                  {isExternalPiAddress ? t("mpay.sendFlow.piBlockchainWithdrawal") : t("mpay.sendFlow.p2pTransfer")}
                 </p>
                 <p className="text-3xl font-black">{amount} <span className={isExternalPiAddress ? 'text-amber-500' : 'text-cyan-500'}>Pi</span></p>
               </div>
 
               <div className="space-y-3">
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Destinataire</span>
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">{t("mpay.sendFlow.recipient")}</span>
                   <span className={`font-black text-xs uppercase ${isExternalPiAddress ? 'text-amber-400' : 'text-cyan-400'}`}>
-                    {isExternalPiAddress ? 'Pi Wallet Externe' : (selectedContact.nickname || selectedContact.name)}
+                    {isExternalPiAddress ? t("mpay.sendFlow.externalPiWallet") : (selectedContact.nickname || selectedContact.name)}
                   </span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">
-                    {isExternalPiAddress ? 'Adresse' : 'Username'}
+                    {isExternalPiAddress ? t("mpay.sendFlow.address") : 'Username'}
                   </span>
                   <span className={`font-black text-xs ${isExternalPiAddress && externalAddress ? 'font-mono text-[10px] text-amber-400/80' : 'uppercase'}`}>
                     {isExternalPiAddress && externalAddress && externalAddress.length >= 16
@@ -983,16 +983,16 @@ const filteredContacts = contacts.filter(
                   </span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Frais reseau</span>
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">{t("mpay.sendFlow.networkFee")}</span>
                   <span className={`font-black text-xs uppercase ${isExternalPiAddress ? 'text-amber-400' : 'text-emerald-400'}`}>
                     {isExternalPiAddress ? '~0.01 Pi' : '0.00 Pi'}
                   </span>
                 </div>
                 {isExternalPiAddress && (
                   <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Type</span>
+                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">{t("mpay.sendFlow.type")}</span>
                     <span className="font-black text-xs text-amber-400 uppercase flex items-center gap-1">
-                      <Globe size={12} /> Blockchain Pi
+                      <Globe size={12} /> {t("mpay.sendFlow.blockchainPi")}
                     </span>
                   </div>
                 )}
@@ -1009,7 +1009,7 @@ const filteredContacts = contacts.filter(
                   <Fingerprint size={32} />
                 </div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  {isExternalPiAddress ? 'Confirmer le retrait' : 'Confirmer le transfert'}
+                  {isExternalPiAddress ? t("mpay.sendFlow.confirmWithdrawal") : t("mpay.sendFlow.confirmTransfer")}
                 </p>
               </div>
             </div>
@@ -1025,8 +1025,8 @@ const filteredContacts = contacts.filter(
             >
               {isLoading ? <Loader2 className="animate-spin" /> : (isExternalPiAddress ? <ExternalLink size={18} /> : <Send size={18} />)}
               {isLoading 
-                ? (isExternalPiAddress ? "Traitement blockchain..." : "Envoi en cours...") 
-                : (isExternalPiAddress ? "Confirmer le retrait" : "Envoyer maintenant")
+                ? (isExternalPiAddress ? t("mpay.sendFlow.processingBlockchain") : t("mpay.sendFlow.sending")) 
+                : (isExternalPiAddress ? t("mpay.sendFlow.confirmWithdrawal") : t("mpay.sendFlow.sendNow"))
               }
             </button>
           </div>

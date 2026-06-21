@@ -4,22 +4,24 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, ShieldCheck, Zap, Info, ChevronRight, Loader2, Fingerprint, Landmark } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function PaymentSummary() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t } = useLanguage();
   const [isConfirming, setIsConfirming] = useState(false);
 
   const data = {
     amount: params.get("amount") || "0",
-    to: params.get("to") || "Utilisateur PimPay",
+    to: params.get("to") || t("mpay.sendFlow.pimpayUser"),
     method: params.get("method") || "wallet",
     txid: params.get("txid") || "N/A"
   };
 
   const methodLabels: Record<string, string> = {
     wallet: "Pi Wallet",
-    usd: "Solde USD",
+    usd: t("mpay.summaryPage.usdBalance"),
     card: "Visa PimPay",
     external: "Pi Browser"
   };
@@ -40,7 +42,7 @@ export default function PaymentSummary() {
         router.push(`/mpay/failed?reason=${result.message}`);
       }
     } catch {
-      router.push(`/mpay/failed?reason=Erreur de connexion serveur`);
+      router.push(`/mpay/failed?reason=${encodeURIComponent(t("mpay.summaryPage.serverConnectionError"))}`);
     } finally {
       setIsConfirming(false);
     }
@@ -60,8 +62,8 @@ export default function PaymentSummary() {
             <ArrowLeft size={20} />
           </button>
           <div className="text-center">
-            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Confirmation</p>
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Derniere verification</p>
+            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{t("mpay.summaryPage.confirmation")}</p>
+            <p className="text-[10px] text-slate-500 uppercase font-bold">{t("mpay.summaryPage.lastCheck")}</p>
           </div>
           <div className="w-11" />
         </header>
@@ -83,7 +85,7 @@ export default function PaymentSummary() {
             <Zap size={28} className="text-blue-500" />
           </div>
 
-          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">Montant a envoyer</p>
+          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">{t("mpay.summaryPage.amountToSend")}</p>
           <div className="flex items-baseline justify-center gap-2">
             <span className="text-5xl font-black tracking-tighter">{data.amount}</span>
             <span className="text-xl font-black text-blue-500">Pi</span>
@@ -93,19 +95,19 @@ export default function PaymentSummary() {
         {/* Details Card */}
         <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-4 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
           <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Destinataire</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.summaryPage.recipient")}</span>
             <span className="text-xs font-black uppercase">{data.to}</span>
           </div>
           <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mode</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.summaryPage.method")}</span>
             <span className="text-xs font-black uppercase text-blue-400">{methodLabels[data.method] || data.method}</span>
           </div>
           <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Frais Reseau</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.summaryPage.networkFee")}</span>
             <span className="text-xs font-black uppercase text-emerald-400">0.01 Pi</span>
           </div>
           <div className="flex justify-between items-center p-3 bg-white/[0.03] rounded-xl">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Debite</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.summaryPage.totalDebited")}</span>
             <span className="text-sm font-black uppercase">{(parseFloat(data.amount) + 0.01).toFixed(2)} Pi</span>
           </div>
         </div>
@@ -114,7 +116,7 @@ export default function PaymentSummary() {
         <div className="bg-blue-600/5 border border-blue-500/20 p-4 rounded-2xl flex gap-3 mb-8 animate-in fade-in duration-500 delay-200">
           <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
           <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-            En confirmant, vous autorisez PimPay a debiter votre solde immediatement. Cette action est irreversible.
+            {t("mpay.summaryPage.confirmWarning")}
           </p>
         </div>
 
@@ -123,7 +125,7 @@ export default function PaymentSummary() {
           <div className="p-4 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-500 animate-bounce">
             <Fingerprint size={28} />
           </div>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Signature biometrique requise</p>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t("mpay.biometricRequired")}</p>
         </div>
 
         {/* Confirm Button */}
@@ -133,7 +135,7 @@ export default function PaymentSummary() {
           className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm flex items-center justify-center gap-3 shadow-xl shadow-blue-600/30 disabled:opacity-50 active:scale-95 transition-all"
         >
           {isConfirming ? <Loader2 className="animate-spin" /> : <ShieldCheck size={18} />}
-          {isConfirming ? "Traitement en cours..." : "Confirmer & Payer"}
+          {isConfirming ? t("mpay.summaryPage.processing") : t("mpay.summaryPage.confirmAndPay")}
         </button>
 
         {/* Footer */}

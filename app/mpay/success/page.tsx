@@ -4,21 +4,24 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Home, Share2, Copy, Check, ExternalLink, ShieldCheck, Zap, Globe } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function PaymentSuccess() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t, locale } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [showContent, setShowContent] = useState(false);
 
   const amount = params.get("amount") || "0";
-  const to = params.get("to") || "Utilisateur PimPay";
+  const to = params.get("to") || t("mpay.sendFlow.pimpayUser");
   const txid = params.get("txid") || "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const isExternal = params.get("external") === "true";
   const blockchainHash = params.get("hash") || "";
   const withdrawStatus = params.get("status") || ""; // QUEUED, PROCESSING, BROADCASTED
   const isQueued = withdrawStatus === "QUEUED" || (isExternal && !blockchainHash);
-  const date = new Date().toLocaleString("fr-FR", {
+  const dateLocale = locale === "fr" ? "fr-FR" : locale === "zh" ? "zh-CN" : "en-US";
+  const date = new Date().toLocaleString(dateLocale, {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
   });
   
@@ -34,7 +37,7 @@ export default function PaymentSuccess() {
   const copyTxid = () => {
     navigator.clipboard.writeText(txid);
     setCopied(true);
-    toast.success("ID copie !");
+    toast.success(t("mpay.successPage.idCopied"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -96,12 +99,12 @@ export default function PaymentSuccess() {
             </div>
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">
-            {isExternal ? (isQueued ? 'En Cours' : 'Envoye') : 'Confirme'}
+            {isExternal ? (isQueued ? t("mpay.successPage.inProgress") : t("mpay.successPage.sent")) : t("mpay.successPage.confirmed")}
           </h1>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] text-center">
             {isExternal 
-              ? (isQueued ? 'Retrait en cours de traitement' : 'Transaction blockchain confirmee') 
-              : 'Transaction validee avec succes'}
+              ? (isQueued ? t("mpay.successPage.withdrawalProcessing") : t("mpay.successPage.blockchainConfirmed")) 
+              : t("mpay.successPage.transactionValidated")}
           </p>
         </div>
 

@@ -20,10 +20,14 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   // Désactive l'ancien filtre XSS (recommandation moderne : on s'appuie sur la CSP)
   res.headers.set("X-XSS-Protection", "0");
-  // Restreint l'accès aux APIs sensibles du navigateur
+  // Restreint l'accès aux APIs sensibles du navigateur.
+  // IMPORTANT : camera=* (et non camera=()) est nécessaire pour autoriser
+  // le scanner QR à utiliser getUserMedia, y compris lorsque l'application
+  // est chargée dans l'iframe cross-origin du Pi Browser. camera=() désactivait
+  // totalement la caméra, ce qui provoquait "Accès caméra refusé".
   res.headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), browsing-topics=()"
+    "camera=*, microphone=(), geolocation=(), browsing-topics=()"
   );
   // Force HTTPS pendant 2 ans (inclut les sous-domaines)
   res.headers.set(
