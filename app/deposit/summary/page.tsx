@@ -6,12 +6,15 @@ import { ArrowLeft, Loader2, AlertTriangle, Wallet, ShieldCheck } from "lucide-r
 import { BottomNav } from "@/components/bottom-nav";
 import { PiButton } from "@/components/PiButton"; // Importation du composant PiButton
 import { toast } from "sonner";
-
-const PI_GCV_PRICE = 314159;
+import { useLanguage } from "@/context/LanguageContext";
+import { usePiPrice } from "@/hooks/usePiPrice";
 
 function SummaryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useLanguage();
+  // Prix Pi configuré par l'admin (Réglages → Politique Monétaire), via l'endpoint /api/pi-price
+  const { price: piPrice } = usePiPrice();
 
   const ref = searchParams.get("ref");
   const method = searchParams.get("method") || "mobile";
@@ -71,18 +74,19 @@ function SummaryContent() {
   if (!mounted || loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-blue-500" size={48} />
-      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500/50">Sécurisation du flux...</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500/50">{t("deposit.flow.securingFlow")}</p>
     </div>
   );
 
   // LOGIQUE DE CONVERSION PIMPAY
+  // Le taux Pi provient de la configuration admin (GCV ou Marché) via usePiPrice.
   // Pour les dépôts crypto, le montant est déjà stocké en PI (pas besoin de re-convertir)
   const isPi = method.toLowerCase().includes("pi") || method === "crypto";
   const rawAmount = transaction?.amount || parseFloat(amountParam);
   // Le montant est déjà en PI pour les dépôts crypto, pas de double conversion
-  const piEquivalent = isPi ? rawAmount : rawAmount / PI_GCV_PRICE;
+  const piEquivalent = isPi ? rawAmount : rawAmount / piPrice;
   const fees = transaction?.fee || (rawAmount * 0.01);
-  const feePi = isPi ? fees : fees / PI_GCV_PRICE;
+  const feePi = isPi ? fees : fees / piPrice;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
@@ -91,8 +95,8 @@ function SummaryContent() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tight leading-none">Récapitulatif</h1>
-          <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-1">Validation de dépôt</p>
+          <h1 className="text-xl font-black uppercase tracking-tight leading-none">{t("deposit.flow.summaryTitle")}</h1>
+          <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-1">{t("deposit.flow.depositValidation")}</p>
         </div>
       </div>
 
@@ -102,18 +106,18 @@ function SummaryContent() {
           <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={80} /></div>
           {isPi ? (
             <>
-              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant du depot en Pi</p>
+              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">{t("deposit.flow.depositAmountPi")}</p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-5xl font-black tracking-tighter">{piEquivalent.toFixed(7)}</span>
                 <span className="text-xl font-bold text-blue-500 uppercase">Pi</span>
               </div>
               <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                = ${(rawAmount * PI_GCV_PRICE).toLocaleString()} USD au taux GCV ($314,159 / Pi)
+                = ${(piEquivalent * piPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD {t("deposit.flow.atGcvRate")} (${piPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} / Pi)
               </p>
             </>
           ) : (
             <>
-              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à transférer</p>
+              <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">{t("deposit.flow.amountToTransfer")}</p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-5xl font-black tracking-tighter">{rawAmount.toLocaleString()}</span>
                 <span className="text-xl font-bold text-blue-500 uppercase">USD</span>
@@ -125,22 +129,22 @@ function SummaryContent() {
         {/* DETAILS DE LA TRANSACTION */}
         <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6 space-y-5">
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">ID Référence</span>
+            <span className="text-slate-500">{t("deposit.flow.referenceId")}</span>
             <span className="text-blue-400 font-mono tracking-normal">{ref}</span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Méthode</span>
+            <span className="text-slate-500">{t("deposit.flow.method")}</span>
             <span className="text-white">{method}</span>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Frais de réseau</span>
+            <span className="text-slate-500">{t("deposit.flow.networkFee")}</span>
             <span className="text-red-400">+{isPi ? feePi.toFixed(7) + " Pi" : fees.toFixed(2) + " USD"}</span>
           </div>
           <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Statut</span>
+            <span className="text-slate-500">{t("deposit.flow.status")}</span>
             <span className="flex items-center gap-2 text-amber-500">
               <Loader2 size={12} className="animate-spin" />
-              En attente
+              {t("deposit.flow.pending")}
             </span>
           </div>
         </Card>
@@ -152,8 +156,8 @@ function SummaryContent() {
           </div>
           <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase">
             {isPi 
-              ? "Veuillez utiliser le bouton sécurisé ci-dessous pour signer votre transaction dans le Pi Browser."
-              : "Le système détecte automatiquement votre paiement Mobile Money. Ne fermez pas cette page."}
+              ? t("deposit.flow.piSignInfo")
+              : t("deposit.flow.mobileDetectInfo")}
           </p>
         </div>
 
@@ -162,23 +166,23 @@ function SummaryContent() {
           {isPi ? (
             <PiButton 
               amount={piEquivalent}
-              memo={`Dépôt PimPay Ref: ${ref}`}
+              memo={t("deposit.flow.depositRefMemo").replace("{ref}", ref || "")}
               onSuccess={(txid) => goToSuccess(ref || txid)}
-              label="Payer avec mon Pi Wallet"
+              label={t("deposit.flow.payWithPiWallet")}
             />
           ) : (
             <button
               onClick={fetchTransactionDetails}
               className="w-full h-16 bg-blue-600 text-white rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
             >
-              Vérifier mon paiement
+              {t("deposit.flow.verifyMyPayment")}
             </button>
           )}
         </div>
 
         <div className="flex items-center justify-center gap-2 opacity-30 pt-4">
           <ShieldCheck size={14} />
-          <span className="text-[8px] font-bold uppercase tracking-widest text-white">Sécurisé par PimPay Flow Engine</span>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-white">{t("deposit.flow.securedByFlow")}</span>
         </div>
       </div>
       <BottomNav onOpenMenu={() => {}} />
