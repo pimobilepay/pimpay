@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import {
   generateElaraReply,
   detectSupportIntent,
-  SUPPORT_INTENT_REPLY,
+  detectLang,
+  getSupportIntentReply,
   type ElaraHistoryMessage,
 } from "@/lib/elara-brain";
 
@@ -32,9 +33,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Message vide." }, { status: 400 });
     }
 
-    // Demande explicite d'un agent humain → on collecte la préoccupation.
+    // Demande explicite d'un agent humain → on collecte la préoccupation
+    // (réponse dans la langue détectée du message).
     if (detectSupportIntent(lastUserMessage)) {
-      return NextResponse.json({ reply: SUPPORT_INTENT_REPLY });
+      return NextResponse.json({ reply: getSupportIntentReply(detectLang(lastUserMessage)) });
     }
 
     const history: ElaraHistoryMessage[] = messages

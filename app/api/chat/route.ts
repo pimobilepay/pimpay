@@ -4,7 +4,9 @@ import { auth } from "@/lib/auth";
 import {
   generateElaraReply,
   detectSupportIntent,
-  SUPPORT_INTENT_REPLY,
+  detectLang,
+  getSupportIntentReply,
+  getImageAckReply,
   type ElaraHistoryMessage,
 } from "@/lib/elara-brain";
 import {
@@ -160,8 +162,6 @@ export async function POST(req: NextRequest) {
     const isImageMessage = imageMatch !== null;
     // Legende qui accompagne l'image (texte saisi par l'utilisateur, sans l'URL).
     const imageCaption = (imageMatch?.[2] || "").trim();
-    const IMAGE_ACK_REPLY =
-      "Merci, j'ai bien recu votre image. Un conseiller va l'examiner. N'hesitez pas a ajouter un message pour preciser votre demande.";
 
     // senderId de l'expéditeur : "SUPPORT" pour un agent, sinon l'identifiant
     // de propriété (userId réel ou identifiant d'invité).
@@ -199,14 +199,16 @@ export async function POST(req: NextRequest) {
       // Texte effectif a analyser : pour un message image avec legende, on
       // raisonne sur la legende (pas sur l'URL). Sinon, sur le message complet.
       const effectiveText = isImageMessage ? imageCaption : sanitizedMessage;
+      // Langue detectee (sur la legende/texte, sinon repli FR).
+      const lang = detectLang(effectiveText || sanitizedMessage);
 
       if (isImageMessage && !imageCaption) {
-        // Image seule, sans legende : simple accuse de reception.
-        elaraReply = IMAGE_ACK_REPLY;
+        // Image seule, sans legende : accuse de reception multilingue.
+        elaraReply = getImageAckReply(lang);
       } else if (detectSupportIntent(effectiveText)) {
         // L'utilisateur veut un humain : Elara collecte sa préoccupation
         // et le rassure en attendant la prise en charge par le support.
-        elaraReply = SUPPORT_INTENT_REPLY;
+        elaraReply = getSupportIntentReply(lang);
         // On remonte la priorité du ticket pour le support.
         await prisma.supportTicket.update({
           where: { id: ticket.id },
@@ -226,7 +228,7 @@ export async function POST(req: NextRequest) {
         // Le dernier message (celui qu'on vient d'enregistrer) est passé à part.
         history.pop();
 
-        elaraReply = await generateElaraReply({ message: effectiveText, history });
+        elaraReply = await generateElaraReply({ message: effectiveText, history, hasImage: isImageMessage });
       }
 
       await prisma.message.create({

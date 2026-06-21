@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  ArrowLeft, Send, Sparkles, Plus, Clock,
+  ArrowLeft, Send, Sparkles, Clock,
   Loader2, MessageCircle, ChevronRight,
   ShieldCheck, X, Paperclip, FileText, Image as ImageIcon,
   Bot, Headphones, User, Zap, HelpCircle, Phone, Check, CheckCheck
@@ -582,7 +582,7 @@ export default function ChatPage() {
             aria-label={t("chat.uploading")}
             className="w-12 h-12 flex items-center justify-center bg-white/[0.05] border border-white/10 rounded-2xl active:scale-90 transition-all text-slate-400 disabled:opacity-50"
           >
-            {uploading ? <Loader2 size={22} className="animate-spin text-blue-400" /> : <Plus size={22} />}
+            {uploading ? <Loader2 size={22} className="animate-spin text-blue-400" /> : <ImageIcon size={22} />}
           </button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
 
