@@ -403,6 +403,23 @@ function AssetIcon({ asset, size = 40 }: { asset: Asset; size?: number }) {
       </div>
     );
   }
+  if (asset.flag) {
+    const code = asset.flag.toLowerCase();
+    return (
+      <div
+        className="rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-white/5"
+        style={{ width: size, height: size, border: `1px solid ${asset.color}44` }}
+      >
+        <img
+          src={`https://flagcdn.com/w80/${code}.png`}
+          srcSet={`https://flagcdn.com/w160/${code}.png 2x`}
+          alt={`${asset.name} flag`}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
   return (
     <div
       className="rounded-full flex items-center justify-center shrink-0 font-black text-white"
