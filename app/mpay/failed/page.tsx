@@ -2,16 +2,18 @@
 
 import { XCircle, RefreshCcw, AlertTriangle, Home, MessageCircle, ArrowLeft, ShieldAlert } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function PaymentFailed() {
   const router = useRouter();
   const params = useSearchParams();
-  const reason = params.get("reason") || "Une erreur inconnue est survenue lors de la transaction.";
+  const { t } = useLanguage();
+  const reason = params.get("reason") || t("mpay.failedPage.defaultReason");
 
   const errorTips = [
-    "Verifiez votre connexion internet",
-    "Assurez-vous d'avoir un solde suffisant",
-    "Le reseau PimPay peut etre temporairement indisponible",
+    t("mpay.failedPage.tipConnection"),
+    t("mpay.failedPage.tipBalance"),
+    t("mpay.failedPage.tipNetwork"),
   ];
 
   return (
@@ -35,8 +37,8 @@ export default function PaymentFailed() {
               <XCircle size={48} className="text-red-500" />
             </div>
           </div>
-          <h1 className="text-2xl font-black uppercase tracking-tighter mb-2">Paiement Echoue</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">La transaction a ete rejetee</p>
+          <h1 className="text-2xl font-black uppercase tracking-tighter mb-2">{t("mpay.failedPage.title")}</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">{t("mpay.failedPage.subtitle")}</p>
         </div>
 
         {/* Error Reason Card */}
@@ -46,7 +48,7 @@ export default function PaymentFailed() {
               <AlertTriangle size={16} className="text-red-500" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">Raison de l'echec</p>
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">{t("mpay.failedPage.failureReason")}</p>
               <p className="text-sm font-medium text-slate-300 leading-relaxed">{reason}</p>
             </div>
           </div>
@@ -54,7 +56,7 @@ export default function PaymentFailed() {
 
         {/* Tips */}
         <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Solutions possibles</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">{t("mpay.failedPage.possibleSolutions")}</p>
           <div className="space-y-3">
             {errorTips.map((tip, i) => (
               <div key={i} className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-xl">
@@ -73,18 +75,18 @@ export default function PaymentFailed() {
             onClick={() => router.back()}
             className="w-full bg-blue-600 p-5 rounded-[2rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
           >
-            <RefreshCcw size={16} /> Reessayer
+            <RefreshCcw size={16} /> {t("mpay.failedPage.retry")}
           </button>
 
           <button
             onClick={() => router.push("/mpay")}
             className="w-full bg-white/5 border border-white/10 p-5 rounded-[2rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:bg-white/10 active:scale-95 transition-all"
           >
-            <Home size={16} /> Retour a mPay
+            <Home size={16} /> {t("mpay.failedPage.backToMpay")}
           </button>
 
           <button className="w-full bg-white/[0.02] border border-white/5 p-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 text-slate-500 hover:text-white hover:bg-white/5 transition-all">
-            <MessageCircle size={14} /> Contacter le support
+            <MessageCircle size={14} /> {t("mpay.failedPage.contactSupport")}
           </button>
         </div>
 

@@ -118,7 +118,7 @@ export default function PaymentSuccess() {
 
               {/* Amount */}
               <div className="text-center border-b border-dashed border-white/10 pb-6 mb-6">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Montant envoye</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("mpay.successPage.amountSent")}</p>
                 <div className="flex items-baseline justify-center gap-2">
                   <span className="text-5xl font-black tracking-tighter">{amount}</span>
                   <span className="text-xl font-black text-blue-500">Pi</span>
@@ -128,43 +128,75 @@ export default function PaymentSuccess() {
               {/* Details */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Destinataire</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.recipient")}</span>
                   <span className="text-xs font-black uppercase">{to}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.sender")}</span>
+                  <span className="text-xs font-bold text-slate-300">{t("mpay.successPage.you")}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.date")}</span>
                   <span className="text-xs font-bold text-slate-300">{date}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Statut</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.status")}</span>
                   <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${
                     isExternal 
                       ? (isQueued ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20')
                       : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                   }`}>
                     {isExternal 
-                      ? (isQueued ? 'EN COURS DE TRAITEMENT' : 'BLOCKCHAIN CONFIRME') 
-                      : 'CONFIRME'}
+                      ? (isQueued ? t("mpay.successPage.statusProcessing") : t("mpay.successPage.statusBlockchainConfirmed")) 
+                      : t("mpay.successPage.statusConfirmed")}
                   </span>
                 </div>
                 {isExternal && isQueued && (
                   <div className="mt-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
                     <p className="text-[10px] text-amber-400/80 leading-relaxed">
-                      Votre retrait est en file d'attente. Le transfert blockchain sera effectue automatiquement sous 1-5 minutes.
+                      {t("mpay.successPage.queuedNote")}
                     </p>
                   </div>
                 )}
-                {isExternal && (
+
+                {/* Additional details */}
+                <div className="pt-4 border-t border-dashed border-white/10 space-y-4">
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">{t("mpay.successPage.moreDetails")}</p>
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Type</span>
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-                      <Globe size={12} /> Pi Wallet Externe
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.transactionType")}</span>
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                      {isExternal && <Globe size={12} className="text-amber-400" />}
+                      {isExternal ? t("mpay.successPage.externalWithdrawal") : t("mpay.successPage.p2pTransfer")}
                     </span>
                   </div>
-                )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.networkFee")}</span>
+                    <span className="text-xs font-bold text-emerald-400">{t("mpay.successPage.free")}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.network")}</span>
+                    <span className="text-xs font-bold text-slate-300">{t("mpay.successPage.piMainnet")}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.confirmations")}</span>
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                      <Zap size={12} className="text-blue-500" />
+                      {isExternal && isQueued ? "0" : t("mpay.successPage.instant")}
+                    </span>
+                  </div>
+                  {isExternal && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.type")}</span>
+                      <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+                        <Globe size={12} /> {t("mpay.successPage.externalPiWallet")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-4 border-t border-dashed border-white/10 space-y-3">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">ID Transaction</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">{t("mpay.successPage.transactionId")}</span>
                     <button
                       onClick={copyTxid}
                       className="w-full flex items-center justify-between gap-2 bg-white/5 px-4 py-3 rounded-xl border border-white/5 hover:bg-white/10 transition-all"
@@ -176,7 +208,7 @@ export default function PaymentSuccess() {
                   {blockchainHash && (
                     <div>
                       <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest block mb-2 flex items-center gap-1">
-                        <Globe size={10} /> Hash Blockchain
+                        <Globe size={10} /> {t("mpay.successPage.blockchainHash")}
                       </span>
                       <a
                         href={explorerUrl}
@@ -197,7 +229,7 @@ export default function PaymentSuccess() {
             <div className="grid grid-cols-2 gap-3 mb-6">
               <button className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95">
                 <Share2 size={14} className="text-blue-500" />
-                Partager
+                {t("mpay.successPage.share")}
               </button>
               <a 
                 href={explorerUrl}
@@ -206,7 +238,7 @@ export default function PaymentSuccess() {
                 className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95"
               >
                 <ExternalLink size={14} className={isExternal ? "text-amber-500" : "text-blue-500"} />
-                {isExternal ? 'Pi Explorer' : 'Explorateur'}
+                {isExternal ? t("mpay.successPage.piExplorer") : t("mpay.successPage.explorer")}
               </a>
             </div>
 
@@ -215,7 +247,7 @@ export default function PaymentSuccess() {
               onClick={() => router.push("/mpay")}
               className="w-full bg-white text-[#020617] p-5 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl hover:bg-slate-100 active:scale-95 transition-all mb-4"
             >
-              Retour a mPay
+              {t("mpay.successPage.backToMpay")}
             </button>
 
             <button
@@ -227,7 +259,7 @@ export default function PaymentSuccess() {
 
             <div className="mt-8 flex items-center justify-center gap-2 opacity-30">
               <ShieldCheck size={12} className="text-emerald-500" />
-              <p className="text-[8px] font-black uppercase tracking-[0.3em]">Certifie PimPay Node</p>
+              <p className="text-[8px] font-black uppercase tracking-[0.3em]">{t("mpay.successPage.certifiedNode")}</p>
             </div>
           </div>
         )}
