@@ -502,8 +502,12 @@ model Message {
   // Les deux nuls => message simplement envoye (1 coche grise).
   deliveredAt DateTime?
   readAt      DateTime?
+  // Reactions emoji facon WhatsApp : tableau JSON de { emoji, by }.
+  // `by` = identifiant du reacteur (userId, guestId ou "SUPPORT").
+  // Une personne ne peut avoir qu'une seule reaction par message.
+  reactions   Json?
   ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-}
+  }
 
 model Notification {
   id        String   @id @default(cuid())
