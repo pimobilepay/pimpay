@@ -5,11 +5,14 @@ import {
   ArrowLeft, Send, Sparkles, Clock,
   Loader2, MessageCircle, ChevronRight,
   ShieldCheck, X, Paperclip, FileText, Image as ImageIcon,
-  Bot, Headphones, User, Zap, HelpCircle, Phone, Check, CheckCheck
+  Bot, Headphones, User, Zap, HelpCircle, Phone, Check, CheckCheck, SmilePlus
 } from "lucide-react";
 import VoipCallOverlay from "@/components/VoipCallOverlay";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
+
+// Reaction emoji facon WhatsApp : un emoji + l'identifiant du reacteur.
+type Reaction = { emoji: string; by: string };
 
 interface Message {
   id: string;
@@ -18,6 +21,19 @@ interface Message {
   createdAt: string;
   deliveredAt?: string | null;
   readAt?: string | null;
+  reactions?: Reaction[] | null;
+}
+
+// Palette d'emojis proposes pour reagir a un message.
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+// Agrege les reactions par emoji pour l'affichage : { "👍": 2, "❤️": 1 }.
+function groupReactions(reactions?: Reaction[] | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  (reactions || []).forEach((r) => {
+    if (r?.emoji) out[r.emoji] = (out[r.emoji] || 0) + 1;
+  });
+  return out;
 }
 
 interface Ticket {
@@ -107,17 +123,43 @@ function MessageTicks({ msg }: { msg: Message }) {
   return <Check size={13} className="text-slate-400" aria-label="Envoye" />;
 }
 
-function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: boolean }) {
+function ChatMessage({
+  msg,
+  isCurrentUser,
+  pickerOpen,
+  onTogglePicker,
+  onReact,
+}: {
+  msg: Message;
+  isCurrentUser: boolean;
+  pickerOpen: boolean;
+  onTogglePicker: () => void;
+  onReact: (emoji: string) => void;
+}) {
   const { t, locale } = useLanguage();
   const isElara = msg.senderId === "ELARA_AI";
   const isSupport = msg.senderId === "SUPPORT";
   const isLeft = isElara || isSupport;
   const image = parseImageMessage(msg.content);
   const localeTag = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
-  
+  const grouped = groupReactions(msg.reactions);
+  const hasReactions = Object.keys(grouped).length > 0;
+
+  // Le bouton de reaction et la bulle sont alignes sur une rangee. Le bouton
+  // apparait du cote oppose a la bulle (a droite pour les messages a gauche).
+  const ReactTrigger = (
+    <button
+      onClick={onTogglePicker}
+      aria-label={t("chat.react")}
+      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/[0.04] border border-white/10 text-slate-500 hover:text-blue-400 hover:border-blue-500/30 active:scale-90 transition-all opacity-60 hover:opacity-100"
+    >
+      <SmilePlus size={14} />
+    </button>
+  );
+
   return (
     <div className={`flex ${isLeft ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-      <div className="max-w-[85%]">
+      <div className="max-w-[85%] relative">
         {isLeft && <SenderBadge senderId={msg.senderId} />}
         {!isLeft && isCurrentUser && (
           <div className="flex items-center justify-end gap-1.5 mb-1.5">
@@ -127,6 +169,23 @@ function ChatMessage({ msg, isCurrentUser }: { msg: Message; isCurrentUser: bool
             </div>
           </div>
         )}
+        {/* Selecteur d'emoji (popover) : une rangee d'emojis a poser sur le message. */}
+        {pickerOpen && (
+          <div className={`absolute z-20 -top-11 ${isLeft ? "left-0" : "right-0"} flex items-center gap-1 px-2 py-1.5 bg-[#0a0f1e] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-150`}>
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => onReact(emoji)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-lg hover:bg-white/10 active:scale-90 transition-all"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={`flex items-center gap-2 ${isLeft ? "flex-row" : "flex-row-reverse"}`}>
+          {ReactTrigger}
+          <div className="min-w-0">
         {image ? (
           <div
             className={`overflow-hidden rounded-2xl border ${
