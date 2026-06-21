@@ -135,3 +135,116 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+/**
+ * POST /api/admin/treasury/pi-diagnostic
+ *
+ * Trouve, parmi PLUSIEURS clés secrètes candidates, laquelle correspond au
+ * wallet opérateur cible (celui qui contient les fonds).
+ *
+ * Body JSON : { "secrets": ["S....", "S....", ...] }
+ *   - Vous pouvez aussi envoyer { "secrets": "S...\nS...\nS..." } (séparées
+ *     par des retours à la ligne, des virgules ou des espaces).
+ *
+ * SÉCURITÉ : aucune clé secrète n'est stockée, loggée ou renvoyée. Pour chaque
+ * clé, on ne renvoie QUE l'adresse publique dérivée (masquée) et un booléen
+ * indiquant si elle correspond au wallet cible. Les clés sont effacées de la
+ * mémoire dès la fin du traitement.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const payload = await verifyAuth(req);
+    if (!payload || payload.role !== "ADMIN") {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    // Cible = adresse maître configurée, ou à défaut l'adresse opérateur affichée.
+    const targetAddress =
+      process.env.PI_MASTER_WALLET_ADDRESS ||
+      process.env.PI_WALLET_PUBLIC_KEY ||
+      process.env.PI_OPERATOR_ADDRESS ||
+      null;
+
+    if (!targetAddress) {
+      return NextResponse.json(
+        {
+          error:
+            "Aucune adresse cible : définissez PI_MASTER_WALLET_ADDRESS (ou l'adresse opérateur) avant de tester les clés.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const raw = body?.secrets;
+
+    // Accepte un tableau OU une chaîne (séparée par \n, virgules ou espaces).
+    let candidates: string[] = [];
+    if (Array.isArray(raw)) {
+      candidates = raw.map((s) => String(s).trim()).filter(Boolean);
+    } else if (typeof raw === "string") {
+      candidates = raw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    if (candidates.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Aucune clé fournie. Envoyez { "secrets": ["S...", "S..."] } ou une chaîne de clés séparées par des retours à la ligne.',
+        },
+        { status: 400 }
+      );
+    }
+
+    let matchIndex = -1;
+    const results = candidates.map((secret, index) => {
+      let validFormat = false;
+      let derived: string | null = null;
+      try {
+        const kp = StellarSdk.Keypair.fromSecret(secret);
+        validFormat = true;
+        derived = kp.publicKey();
+      } catch {
+        validFormat = false;
+      }
+      const matches = Boolean(derived) && derived === targetAddress;
+      if (matches && matchIndex === -1) matchIndex = index;
+      return {
+        index,
+        validStellarFormat: validFormat,
+        derivedPublicKey_masked: mask(derived),
+        matchesTarget: matches,
+      };
+    });
+
+    // Effacement défensif des clés en clair.
+    candidates.fill("");
+
+    const found = matchIndex !== -1;
+    return NextResponse.json({
+      success: true,
+      targetAddress_masked: mask(targetAddress),
+      totalTested: results.length,
+      matchFound: found,
+      matchIndex: found ? matchIndex : null,
+      verdict: found
+        ? `Trouvé : la clé n°${matchIndex + 1} correspond au wallet cible ${mask(
+            targetAddress
+          )}. C'est celle-ci qu'il faut mettre dans PI_MASTER_WALLET_SECRET.`
+        : `Aucune des ${results.length} clés testées ne correspond au wallet cible ${mask(
+            targetAddress
+          )}. Vérifiez que vous possédez bien la clé secrète de ce wallet précis.`,
+      results,
+      note: "Les clés secrètes ne sont jamais stockées ni renvoyées. Seules les adresses publiques dérivées (masquées) sont affichées.",
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: "Erreur serveur", details: error?.message },
+      { status: 500 }
+    );
+  }
+}
