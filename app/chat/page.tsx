@@ -129,12 +129,14 @@ function ChatMessage({
   pickerOpen,
   onTogglePicker,
   onReact,
+  onImageClick,
 }: {
   msg: Message;
   isCurrentUser: boolean;
   pickerOpen: boolean;
   onTogglePicker: () => void;
   onReact: (emoji: string) => void;
+  onImageClick: (url: string) => void;
 }) {
   const { t, locale } = useLanguage();
   const isElara = msg.senderId === "ELARA_AI";

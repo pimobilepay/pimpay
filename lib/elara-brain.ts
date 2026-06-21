@@ -296,9 +296,9 @@ const KNOWLEDGE_BASE: KBEntry[] = [
     ],
     respond: (lang) =>
       pick(lang, {
-        fr: "Pour gérer votre carte, allez dans 📱 **MENU** ➡️ 💳 **Carte virtuelle** (ou via le raccourci carte depuis l'Accueil).\n\n• Votre **M-Card** est une **Mastercard Gold** virtuelle internationale liée à votre solde **USD** 💵.\n• 👁️ **RÉVÉLER** : afficher le numéro complet et le CVV en toute sécurité.\n• 🔄 **VERSO** : retourner la carte • 📋 **COPIER** : copier le numéro pour vos achats en ligne.\n\nTitulaire : *HEADMASTER PIMPAY*.",
-        en: "To manage your card, go to 📱 **MENU** ➡️ 💳 **Virtual Card** (or via the card shortcut from Home).\n\n• Your **M-Card** is an international virtual **Mastercard Gold** linked to your **USD** balance 💵.\n• 👁️ **REVEAL**: securely display the full number and CVV.\n• 🔄 **FLIP**: turn the card over • 📋 **COPY**: copy the number for your online purchases.\n\nCardholder: *HEADMASTER PIMPAY*.",
-        zh: "要管理您的银行卡，请前往 📱 **MENU** ➡️ 💳 **Carte virtuelle（虚拟卡）**（或通过首页的卡片快捷方式）。\n\n• 您的 **M-Card** 是一张关联 **USD** 余额 💵 的国际虚拟 **Mastercard Gold**。\n• 👁️ **RÉVÉLER（显示）**：安全显示完整卡号和 CVV。\n• 🔄 **VERSO（翻转）**：翻转卡片 • 📋 **COPIER（复制）**：复制卡号用于网上购物。\n\n持卡人：*HEADMASTER PIMPAY*。",
+        fr: "Pour gérer votre carte, allez dans 📱 **MENU** ➡️ 💳 **Carte virtuelle** (ou via le raccourci carte depuis l'Accueil).\n\n• Votre **M-Card** est une carte virtuelle internationale liée à votre solde **USD** 💵, disponible en **Mastercard** 🟠 comme en **Visa** 🔵.\n• 👁️ **RÉVÉLER** : afficher le numéro complet et le CVV en toute sécurité.\n• 🔄 **VERSO** : retourner la carte • 📋 **COPIER** : copier le numéro pour vos achats en ligne.",
+        en: "To manage your card, go to 📱 **MENU** ➡️ 💳 **Virtual Card** (or via the card shortcut from Home).\n\n• Your **M-Card** is an international virtual card linked to your **USD** balance 💵, available as both **Mastercard** 🟠 and **Visa** 🔵.\n• 👁️ **REVEAL**: securely display the full number and CVV.\n• 🔄 **FLIP**: turn the card over • 📋 **COPY**: copy the number for your online purchases.",
+        zh: "要管理您的银行卡，请前往 📱 **MENU** ➡️ 💳 **Carte virtuelle（虚拟卡）**（或通过首页的卡片快捷方式）。\n\n• 您的 **M-Card** 是一张关联 **USD** 余额 💵 的国际虚拟卡，提供 **Mastercard** 🟠 和 **Visa** 🔵 两种选择。\n• 👁️ **RÉVÉLER（显示）**：安全显示完整卡号和 CVV。\n• 🔄 **VERSO（翻转）**：翻转卡片 • 📋 **COPIER（复制）**：复制卡号用于网上购物。",
       }),
   },
 
@@ -455,7 +455,7 @@ export const ELARA_SYSTEM_PROMPT = `Tu es **Elara**, l'assistante IA native et e
 ## 🏠 ACCUEIL : Menu du bas ➡️ 🏠 ACCUEIL. Portefeuille Total en USD, statut KYC VÉRIFIÉ, Top Actifs (SDA 80%, TRX 11%, USDT 9%), graphique Flux de Trésorerie.
 ## 💳 WALLET : Menu du bas ➡️ 💳 WALLET. 9 actifs majeurs : Pi (PI), Sidra Chain (SDA), USDT (TRC20/ERC20), Tron (TRX), BNB, Solana (SOL), Ripple (XRP), Stellar (XLM), Bitcoin (BTC) & Ethereum (ETH).
 ## 📱 MPAY : Bouton central bleu. Scanner, Payer, Envoyer, Recevoir. Map of Pi (Pi Cafe Dakar, TechPi Store, Pi Market Express, Pi Fashion Boutique, Pi Gas Station, Pi Pharmacy Plus).
-## 💳 M-CARD : MENU ➡️ Carte virtuelle. Mastercard Gold virtuelle (titulaire HEADMASTER PIMPAY), liée au solde USD. Boutons RÉVÉLER, VERSO, COPIER.
+  ## 💳 M-CARD : MENU ➡️ Carte virtuelle. Carte virtuelle internationale liée au solde USD, disponible en Mastercard ou en Visa. Boutons RÉVÉLER, VERSO, COPIER.
 ## 📥 DÉPÔT : DEPOT ➡️ CRYPTO. ⚠️ CRITIQUE : l'adresse pimpay.vercel.app bloque le SDK Pi. L'utilisateur doit ouvrir le Pi Browser via l'onglet vibe-coded ou rechercher 'pimpay' dans le répertoire officiel, puis VÉRIFIER LE DÉPÔT (AES-256). Mobile Money (MTN, Airtel Congo-Brazzaville) et CARTE inactifs pendant le Testnet.
 ## 📤 RETRAIT : Menu du bas ➡️ RETRAIT. Cash out vers le Congo (RDC) : M-Pesa, Orange Money, Airtel Money, Africell Money. Validé après le Testnet.
 ## 📱 AIRTIME : MENU ➡️ Recharge Mobile. Recharge télécom RDC (M-Pesa, Orange, Airtel, Africell) via le solde Pi.
