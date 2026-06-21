@@ -163,7 +163,7 @@ const BLOCKCHAIN_NAMES: Record<string, string> = {
 };
 
 // Inférer l'expéditeur et le destinataire depuis le contexte d'une notification
-function inferTxParties(notif: Notification): { sender: string; recipient: string } {
+function inferTxParties(notif: Notification, t: (key: string) => string): { sender: string; recipient: string } {
   const meta     = notif.metadata;
   const currency = (meta?.currency || "PI").toUpperCase();
   const text     = `${notif.title} ${notif.message}`.toLowerCase();

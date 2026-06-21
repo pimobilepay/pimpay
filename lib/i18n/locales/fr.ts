@@ -1256,6 +1256,13 @@ export const fr = {
     kycPending: "KYC En attente",
     reply: "Repondre",
     rewardLabel: "recompense",
+    you: "Vous",
+    recipientDefault: "Destinataire",
+    rechargeCard: "Recharge Carte",
+    telecomOperator: "Operateur Telecom",
+    merchant: "Marchand",
+    agent: "Agent",
+    stakeSuffix: "stake",
   },
 
   errors: {

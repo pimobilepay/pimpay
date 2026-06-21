@@ -1258,6 +1258,13 @@ export const en: TranslationKeys = {
     kycPending: "KYC Pending",
     reply: "Reply",
     rewardLabel: "reward",
+    you: "You",
+    recipientDefault: "Recipient",
+    rechargeCard: "Card Top-up",
+    telecomOperator: "Telecom Operator",
+    merchant: "Merchant",
+    agent: "Agent",
+    stakeSuffix: "stake",
   },
 
   errors: {
