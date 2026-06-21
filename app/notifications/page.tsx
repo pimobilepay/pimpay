@@ -188,35 +188,35 @@ function inferTxParties(notif: Notification, t: (key: string) => string): { send
   const isRecharge= text.includes("recharge") || text.includes("top-up");
   const isPayment = text.includes("paiement") || text.includes("payment") || text.includes("achat");
 
-  const serviceName = isCard   ? "Recharge Carte"
+  const serviceName = isCard   ? t("notifications.rechargeCard")
     : isAirtel  ? "Airtel Money"
     : isMtn     ? "MTN Mobile Money"
     : isMoMo    ? "Mobile Money"
     : isWave    ? "Wave"
     : isPaypal  ? "PayPal"
     : isSwap    ? "PimPay Exchange"
-    : isRecharge? "Operateur Telecom"
-    : isPayment ? "Marchand"
+    : isRecharge? t("notifications.telecomOperator")
+    : isPayment ? t("notifications.merchant")
     : null;
 
   if (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") {
     // Argent recu : expediteur = source externe ou utilisateur
     const sender    = explicitSender    || serviceName || (isDeposit ? networkName : "PimPay");
-    const recipient = explicitRecipient || "Vous";
+    const recipient = explicitRecipient || t("notifications.you");
     return { sender, recipient };
   }
 
   if (notif.type === "PAYMENT_SENT") {
     // Argent envoye : destinataire = cible externe ou utilisateur
-    const sender    = explicitSender    || "Vous";
-    const recipient = explicitRecipient || serviceName || (isWithdraw ? networkName : "Destinataire");
+    const sender    = explicitSender    || t("notifications.you");
+    const recipient = explicitRecipient || serviceName || (isWithdraw ? networkName : t("notifications.recipientDefault"));
     return { sender, recipient };
   }
 
   // Types generiques avec montant (MERCHANT, SYSTEM, etc.)
   return {
     sender:    explicitSender    || "PimPay",
-    recipient: explicitRecipient || "Vous",
+    recipient: explicitRecipient || t("notifications.you"),
   };
 }
 
@@ -520,7 +520,7 @@ export default function NotificationsPage() {
 
             {/* Transaction Details for Payment */}
             {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (() => {
-              const { sender, recipient } = inferTxParties(notification);
+              const { sender, recipient } = inferTxParties(notification, t);
               const isSent = notification.type === "PAYMENT_SENT";
               return (
                 <div className="space-y-4">
@@ -942,7 +942,7 @@ export default function NotificationsPage() {
 
                       {/* Badges inline — Paiement recu / envoye */}
                       {(notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS" || notif.type === "PAYMENT_SENT") && (() => {
-                        const { sender, recipient } = inferTxParties(notif);
+                        const { sender, recipient } = inferTxParties(notif, t);
                         const isSent = notif.type === "PAYMENT_SENT";
                         return (
                           <div className="mt-2 flex flex-wrap gap-1.5">
