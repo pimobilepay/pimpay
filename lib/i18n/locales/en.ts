@@ -1416,6 +1416,9 @@ export const en: TranslationKeys = {
     biometricEnabledSuffix: "enabled successfully",
     biometricDisabledSuffix: "disabled",
     biometricGenericName: "Biometrics",
+    confirmDisableProtection: "Disabling this protection will reduce the security of your Pimpay protocol. Continue?",
+    toggleActivated: "enabled",
+    toggleDeactivated: "disabled",
   },
 
   kyc: {

@@ -1414,6 +1414,9 @@ export const fr = {
     biometricEnabledSuffix: "activee avec succes",
     biometricDisabledSuffix: "desactivee",
     biometricGenericName: "Biometrie",
+    confirmDisableProtection: "Desactiver cette protection reduira la securite de votre protocole Pimpay. Continuer ?",
+    toggleActivated: "active",
+    toggleDeactivated: "desactive",
   },
 
   kyc: {

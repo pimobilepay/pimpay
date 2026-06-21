@@ -439,7 +439,7 @@ export const zh: TranslationKeys = {
       makeDeposit: "进行充值",
       acceptedCards: "接受的卡：",
       close: "关闭",
-      search: "搜索...",
+      search: "搜���...",
       invalidAmount: "���额无效",
       serverError: "服务器响应已损坏",
       initError: "初始化错误",
@@ -866,7 +866,7 @@ export const zh: TranslationKeys = {
     // Toasts
     piAddressDetected: "检测到 Pi 地址",
     merchantDetected: "检测到商家",
-    invalidMerchantId: "无效的商�� ID",
+    invalidMerchantId: "无效��商�� ID",
     enterAmount: "请输入金额",
     insufficientBalance: "余额不足",
     paymentReceived: "收到付款！",
@@ -1419,6 +1419,9 @@ export const zh: TranslationKeys = {
     biometricEnabledSuffix: "启用成功",
     biometricDisabledSuffix: "已停用",
     biometricGenericName: "生物识别",
+    confirmDisableProtection: "停用此保护将降低您的 Pimpay 协议安全性。是否继续？",
+    toggleActivated: "已启用",
+    toggleDeactivated: "已停用",
   },
 
   kyc: {

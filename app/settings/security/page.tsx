@@ -406,14 +406,14 @@ export default function SecurityPage() {
       // Mode: Activation - Store the face descriptor
       if (mode === 'activate') {
         setFaceScanProgress(100);
-        setFaceDetectionMessage('Enregistrement du visage...');
+        setFaceDetectionMessage(t("security.registeringFace"));
         
         // Store face descriptor
         storeFaceDescriptor(detectedDescriptor);
         
         await new Promise(resolve => setTimeout(resolve, 500));
         setFaceScanStatus('success');
-        setFaceDetectionMessage('Visage enregistre avec succes!');
+        setFaceDetectionMessage(t("security.faceRegisteredSuccess"));
         return true;
       }
       
@@ -423,11 +423,11 @@ export default function SecurityPage() {
         
         if (!storedDescriptor) {
           setFaceScanStatus('error');
-          setFaceDetectionMessage('Aucun visage enregistre trouve.');
+          setFaceDetectionMessage(t("security.noStoredFace"));
           return false;
         }
 
-        setFaceDetectionMessage('Verification du visage...');
+        setFaceDetectionMessage(t("security.verifyingFace"));
         setFaceScanProgress(95);
 
         // Compare face descriptors using Euclidean distance
@@ -437,12 +437,12 @@ export default function SecurityPage() {
           // Face matches - allow deactivation
           setFaceScanProgress(100);
           setFaceScanStatus('success');
-          setFaceDetectionMessage('Visage verifie! Desactivation autorisee.');
+          setFaceDetectionMessage(t("security.faceVerifiedAllowed"));
           clearFaceDescriptor();
           return true;
         } else {
           setFaceScanStatus('error');
-          setFaceDetectionMessage('Visage non reconnu. Ce n\'est pas le visage enregistre.');
+          setFaceDetectionMessage(t("security.faceNotRecognized"));
           return false;
         }
       }
@@ -452,7 +452,7 @@ export default function SecurityPage() {
       clearInterval(progressInterval);
       console.error("Face detection error:", error);
       setFaceScanStatus('error');
-      setFaceDetectionMessage('Erreur lors de la detection du visage.');
+      setFaceDetectionMessage(t("security.faceDetectionError"));
       return false;
     }
   };
@@ -467,16 +467,16 @@ export default function SecurityPage() {
       if (showFaceScanModal.mode === 'activate') {
         setFaceId(true);
         localStorage.setItem('faceId', 'true');
-        toast.success('Reconnaissance Faciale activee avec succes');
+        toast.success(t("security.faceActivatedToast"));
       } else {
         setFaceId(false);
         localStorage.setItem('faceId', 'false');
-        toast.success('Reconnaissance Faciale desactivee');
+        toast.success(t("security.faceDeactivatedToast"));
       }
       stopFaceCamera();
       setShowFaceScanModal(null);
     } else {
-      toast.error('Echec de la verification faciale. Reessayez.');
+      toast.error(t("security.faceVerifFailedToast"));
       setFaceScanStatus('idle');
     }
   };
@@ -491,7 +491,7 @@ export default function SecurityPage() {
   const requestBiometricPermission = async (type: string): Promise<boolean> => {
     // Check if WebAuthn is supported
     if (!window.PublicKeyCredential) {
-      toast.error("La biometrie n'est pas supportee sur cet appareil");
+      toast.error(t("security.biometryNotSupported"));
       return false;
     }
 
@@ -499,7 +499,7 @@ export default function SecurityPage() {
       // Check if platform authenticator is available
       const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
       if (!available) {
-        toast.error("Aucun capteur biometrique detecte sur cet appareil");
+        toast.error(t("security.noBiometricSensor"));
         return false;
       }
 
@@ -540,12 +540,12 @@ export default function SecurityPage() {
     } catch (error: unknown) {
       if (error instanceof Error) {
         if (error.name === "NotAllowedError") {
-          toast.error("Autorisation biometrique refusee");
+          toast.error(t("security.biometricDenied"));
         } else if (error.name === "InvalidStateError") {
           // Credential already exists, try to get it instead
           return true;
         } else {
-          toast.error("Erreur lors de la verification biometrique");
+          toast.error(t("security.biometricErrorToast"));
         }
       }
       return false;
@@ -584,9 +584,9 @@ export default function SecurityPage() {
       if (verified) {
         setValue(false);
         localStorage.setItem(type, "false");
-        toast.success(`${type === "fingerprint" ? "Empreinte Digitale" : type === "voiceAuth" ? "Verification Vocale" : "Biometrie"} desactivee`);
+        toast.success(`${type === "fingerprint" ? t("security.fingerprintLabel") : type === "voiceAuth" ? t("security.voiceAuthLabel") : t("security.biometricGenericName")} ${t("security.biometricDisabledSuffix")}`);
       } else {
-        toast.error("Verification echouee. Impossible de desactiver.");
+        toast.error(t("security.verifFailedNoDisable"));
       }
     } else {
       // Activation - request biometric permission first
@@ -597,7 +597,7 @@ export default function SecurityPage() {
       if (granted) {
         setValue(true);
         localStorage.setItem(type, "true");
-        toast.success(`${type === "fingerprint" ? "Empreinte Digitale" : type === "voiceAuth" ? "Verification Vocale" : "Biometrie"} activee avec succes`);
+        toast.success(`${type === "fingerprint" ? t("security.fingerprintLabel") : type === "voiceAuth" ? t("security.voiceAuthLabel") : t("security.biometricGenericName")} ${t("security.biometricEnabledSuffix")}`);
       }
     }
   };
@@ -628,11 +628,11 @@ export default function SecurityPage() {
   const toggleSwitch = (key: string, value: boolean, setValue: (v: boolean) => void) => {
     const newVal = !value;
     if (!newVal) {
-      if (!window.confirm(`Desactiver cette protection reduira la securite de votre protocole Pimpay. Continuer ?`)) return;
+      if (!window.confirm(t("security.confirmDisableProtection"))) return;
     }
     setValue(newVal);
     localStorage.setItem(key, newVal.toString());
-    toast.success(`${key.replace('otp', 'OTP ')} ${newVal ? 'active' : 'desactive'}`);
+    toast.success(`${key.replace('otp', 'OTP ')} ${newVal ? t("security.toggleActivated") : t("security.toggleDeactivated")}`);
   };
 
   if (!mounted) return null;
@@ -660,8 +660,8 @@ export default function SecurityPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter leading-none">Centre de Securite</h1>
-            <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.3em] mt-1">Pimpay Protocol v4.0</p>
+            <h1 className="text-xl font-black uppercase tracking-tighter leading-none">{t("security.headerTitle")}</h1>
+            <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.3em] mt-1">{t("security.headerSubtitle")}</p>
           </div>
         </div>
       </div>
@@ -676,9 +676,9 @@ export default function SecurityPage() {
 
           <div className="relative z-10 flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-[9px] uppercase font-black text-blue-500 tracking-[0.2em]">{"Etat du Protocole"}</span>
+              <span className="text-[9px] uppercase font-black text-blue-500 tracking-[0.2em]">{t("security.protocolState")}</span>
               <h3 className={`text-2xl font-black uppercase tracking-tighter ${securityScore === 4 ? "text-emerald-400" : "text-white"}`}>
-                {securityScore === 4 ? "Protection Maximale" : securityScore === 0 ? "Alerte Critique" : "Niveau Standard"}
+                {securityScore === 4 ? t("security.maxProtection") : securityScore === 0 ? t("security.criticalAlert") : t("security.standardLevel")}
               </h3>
             </div>
             <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center transition-all duration-500 ${securityScore === 4 ? 'border-emerald-500/30 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'border-blue-500/20 bg-blue-500/5'}`}>
@@ -688,7 +688,7 @@ export default function SecurityPage() {
 
           <div className="mt-8 space-y-3">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
-                <span>{"Fiabilite de l'acces"}</span>
+                <span>{t("security.accessReliability")}</span>
                 <span className={securityScore === 4 ? "text-emerald-500" : "text-blue-500"}>{scorePercentage}%</span>
             </div>
             <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden">
@@ -704,17 +704,17 @@ export default function SecurityPage() {
         <section>
           <div className="flex items-center gap-2 mb-5 ml-2">
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">Double Authentification (2FA)</h3>
+            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{t("security.twoFactorSection")}</h3>
           </div>
           <div className="grid gap-3">
             {/* Email 2FA */}
             <button
               onClick={() => {
                 if (otpEmail) {
-                  if (!window.confirm("Desactiver la protection email reduira la securite de votre compte. Continuer ?")) return;
+                  if (!window.confirm(t("security.confirmDisableEmail"))) return;
                   setOtpEmail(false);
                   localStorage.setItem("otpEmail", "false");
-                  toast.success("Protection Email desactivee");
+                  toast.success(t("security.emailDisabledToast"));
                 } else {
                   setEmailCode("");
                   setEmailCodeSent(false);
@@ -728,9 +728,9 @@ export default function SecurityPage() {
                   <Mail size={20} />
                 </div>
                 <div className="text-left">
-                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">Protection Email</p>
+                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{t("security.emailLabel")}</p>
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
-                    {otpEmail ? "Verification active par email" : "Validation de session par code"}
+                    {otpEmail ? t("security.emailActiveDesc") : t("security.emailInactiveDesc")}
                   </p>
                 </div>
               </div>
@@ -743,10 +743,10 @@ export default function SecurityPage() {
             <button
               onClick={() => {
                 if (otpSms) {
-                  if (!window.confirm("Desactiver la validation SMS reduira la securite de votre compte. Continuer ?")) return;
+                  if (!window.confirm(t("security.confirmDisableSms"))) return;
                   setOtpSms(false);
                   localStorage.setItem("otpSms", "false");
-                  toast.success("Validation SMS desactivee");
+                  toast.success(t("security.smsDisabledToast"));
                 } else {
                   setSmsCode("");
                   setSmsCodeSent(false);
@@ -760,9 +760,9 @@ export default function SecurityPage() {
                   <MessageCircle size={20} />
                 </div>
                 <div className="text-left">
-                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">Validation SMS</p>
+                  <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{t("security.smsLabel")}</p>
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
-                    {otpSms ? "OTP via Mobile Money active" : "OTP via Mobile Money"}
+                    {otpSms ? t("security.smsActiveDesc") : t("security.smsInactiveDesc")}
                   </p>
                 </div>
               </div>
@@ -775,7 +775,7 @@ export default function SecurityPage() {
             {google2faLoading ? (
               <div className="flex items-center justify-center p-5 rounded-[2.2rem] bg-slate-900/40 border border-white/5">
                 <Loader2 size={16} className="animate-spin text-blue-500" />
-                <span className="ml-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chargement...</span>
+                <span className="ml-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("security.loadingShort")}</span>
               </div>
             ) : (
               <button
@@ -801,9 +801,9 @@ export default function SecurityPage() {
                     )}
                   </div>
                   <div className="text-left">
-                    <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">Google Authenticator</p>
+                    <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{t("security.googleAuthLabel")}</p>
                     <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
-                      {google2faEnabled ? "Protection TOTP active" : "Code temporaire a 6 chiffres"}
+                      {google2faEnabled ? t("security.googleAuthActiveDesc") : t("security.googleAuthInactiveDesc")}
                     </p>
                   </div>
                 </div>
@@ -820,23 +820,23 @@ export default function SecurityPage() {
         <section>
           <div className="flex items-center gap-2 mb-5 ml-2">
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{"Cles & Chiffrement"}</h3>
+            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{t("security.keysSection")}</h3>
           </div>
           <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] overflow-hidden">
             <SecurityAction
               icon={<Lock size={20} />}
-              label="Mot de passe Maitre"
+              label={t("security.masterPassword")}
               description={passwordChangedAt 
-                ? `Derniere modification : ${formatDistanceToNow(passwordChangedAt, { addSuffix: false, locale: fr })}`
-                : "Aucune modification recente"
+                ? `${t("security.lastModified")} ${formatDistanceToNow(passwordChangedAt, { addSuffix: false, locale: dfnsLocale })}`
+                : t("security.noRecentModification")
               }
               path="/settings/security/change-password"
             />
             <div className="h-[1px] w-[90%] bg-white/5 mx-auto" />
             <SecurityAction
               icon={<KeyRound size={20} />}
-              label="Code PIN Transactionnel"
-              description="Requis pour chaque retrait"
+              label={t("security.transactionPin")}
+              description={t("security.transactionPinDesc")}
               path="/settings/security/pin"
             />
           </div>
@@ -847,7 +847,7 @@ export default function SecurityPage() {
           <div className="flex items-center gap-2 mb-5 ml-2">
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
             <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">
-              Sessions Actives
+              {t("security.activeSessionsSection")}
               {!loadingSessions && sessions.length > 0 && (
                 <span className="ml-2 text-emerald-500">{sessions.length}</span>
               )}
@@ -858,13 +858,13 @@ export default function SecurityPage() {
             <div className="flex items-center justify-center p-8 rounded-[2rem] bg-slate-900/40 border border-white/5">
               <Loader2 size={20} className="animate-spin text-blue-500" />
               <span className="ml-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Chargement des sessions...
+                {t("security.loadingSessions")}
               </span>
             </div>
           ) : sessions.length === 0 ? (
             <div className="p-8 text-center rounded-[2rem] bg-slate-900/40 border border-dashed border-white/10">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Aucune session active
+                {t("security.noActiveSessions")}
               </p>
             </div>
           ) : (
@@ -899,14 +899,14 @@ export default function SecurityPage() {
                           </p>
                           {session.isCurrent ? (
                             <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">
-                              {"Actuel"}
+                              {t("security.current")}
                               {session.country ? ` \u2022 ${session.city ? `${session.city}, ` : ""}${session.country}` : ""}
                             </p>
                           ) : (
                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
                               {formatDistanceToNow(new Date(session.lastActiveAt), {
                                 addSuffix: true,
-                                locale: fr,
+                                locale: dfnsLocale,
                               })}
                               {session.country ? ` \u2022 ${session.city ? `${session.city}, ` : ""}${session.country}` : ""}
                             </p>
@@ -918,7 +918,7 @@ export default function SecurityPage() {
                         {session.isCurrent ? (
                           <div className="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
                             <span className="text-[8px] font-black text-emerald-500 uppercase">
-                              En ligne
+                              {t("security.online")}
                             </span>
                           </div>
                         ) : (
@@ -954,53 +954,53 @@ export default function SecurityPage() {
                           <div className="flex items-center gap-2 mb-3">
                             <Cpu size={12} className="text-blue-500" />
                             <span className="text-[9px] font-black text-blue-500 uppercase tracking-[0.15em]">
-                              Informations Systeme
+                              {t("security.systemInfo")}
                             </span>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
                             {/* OS */}
                             <SystemInfoItem
-                              label="Systeme"
-                              value={session.os || "Inconnu"}
+                              label={t("security.system")}
+                              value={session.os || t("security.unknown")}
                               icon={<Monitor size={12} />}
                             />
                             {/* Browser */}
                             <SystemInfoItem
-                              label="Navigateur"
+                              label={t("security.browser")}
                               value={`${session.browser}${session.browserVersion ? ` ${session.browserVersion}` : ""}`}
                               icon={<Globe size={12} />}
                             />
                             {/* Device */}
                             <SystemInfoItem
-                              label="Appareil"
+                              label={t("security.device")}
                               value={
                                 session.deviceVendor || session.deviceModel
                                   ? `${session.deviceVendor || ""} ${session.deviceModel || ""}`.trim()
-                                  : session.isMobile ? "Mobile" : "Desktop"
+                                  : session.isMobile ? t("security.mobile") : t("security.desktop")
                               }
                               icon={session.isMobile ? <Smartphone size={12} /> : <Monitor size={12} />}
                             />
                             {/* Type */}
                             <SystemInfoItem
-                              label="Type"
+                              label={t("security.type")}
                               value={
-                                session.deviceType === "mobile" ? "Mobile"
-                                : session.deviceType === "tablet" ? "Tablette"
-                                : "Ordinateur"
+                                session.deviceType === "mobile" ? t("security.mobile")
+                                : session.deviceType === "tablet" ? t("security.tablet")
+                                : t("security.desktop")
                               }
                               icon={getDeviceIcon(session)}
                             />
                             {/* IP */}
                             <SystemInfoItem
-                              label="Adresse IP"
+                              label={t("security.ipAddress")}
                               value={session.ip}
                               icon={<Wifi size={12} />}
                             />
                             {/* Engine */}
                             {session.engineName && (
                               <SystemInfoItem
-                                label="Moteur"
+                                label={t("security.engine")}
                                 value={session.engineName}
                                 icon={<Cpu size={12} />}
                               />
@@ -1008,7 +1008,7 @@ export default function SecurityPage() {
                             {/* CPU Architecture */}
                             {session.cpuArch && (
                               <SystemInfoItem
-                                label="Architecture"
+                                label={t("security.architecture")}
                                 value={session.cpuArch}
                                 icon={<Cpu size={12} />}
                               />
@@ -1028,37 +1028,37 @@ export default function SecurityPage() {
         <section className="pb-12">
           <div className="flex items-center gap-2 mb-5 ml-2">
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{"Acces Biometrique"}</h3>
+            <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">{t("security.biometricSection")}</h3>
           </div>
           <div className="grid gap-3">
             <BiometricToggle
               icon={<Fingerprint size={20} />}
-              label="Biometrie Native"
-              description="Touch ID / Face ID"
+              label={t("security.biometricNative")}
+              description={t("security.biometricNativeDesc")}
               value={biometric}
               loading={biometricLoading === "biometric"}
               onToggle={() => handleBiometricToggle("biometric", biometric, setBiometric)}
             />
             <BiometricToggle
               icon={<Scan size={20} />}
-              label="Reconnaissance Faciale"
-              description="Deverrouillage par visage"
+              label={t("security.faceRecognition")}
+              description={t("security.faceRecognitionDesc")}
               value={faceId}
               loading={biometricLoading === "faceId"}
               onToggle={() => handleBiometricToggle("faceId", faceId, setFaceId)}
             />
             <BiometricToggle
               icon={<Eye size={20} />}
-              label="Empreinte Digitale"
-              description="Capteur biometrique avance"
+              label={t("security.fingerprintLabel")}
+              description={t("security.fingerprintDesc")}
               value={fingerprint}
               loading={biometricLoading === "fingerprint"}
               onToggle={() => handleBiometricToggle("fingerprint", fingerprint, setFingerprint)}
             />
             <BiometricToggle
               icon={<Mic size={20} />}
-              label="Verification Vocale"
-              description="Empreinte vocale unique"
+              label={t("security.voiceAuthLabel")}
+              description={t("security.voiceAuthDesc")}
               value={voiceAuth}
               loading={biometricLoading === "voiceAuth"}
               onToggle={() => handleBiometricToggle("voiceAuth", voiceAuth, setVoiceAuth)}
@@ -1074,8 +1074,8 @@ export default function SecurityPage() {
             {/* Modal header */}
             <div className="flex items-center justify-between p-6 pb-0">
               <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">Google Authenticator</h2>
-                <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">Configuration TOTP</p>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">{t("security.googleAuthLabel")}</h2>
+                <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">{t("security.totpConfig")}</p>
               </div>
               <button
                 onClick={() => {
@@ -1093,7 +1093,7 @@ export default function SecurityPage() {
               <div className="p-6 space-y-6">
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-5">
-                    Scannez ce QR code avec Google Authenticator
+                    {t("security.scanQrCode")}
                   </p>
                   <div className="inline-flex p-4 bg-white rounded-2xl">
                     <QRCodeSVG
@@ -1109,7 +1109,7 @@ export default function SecurityPage() {
                 {/* Secret key for manual entry */}
                 <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4">
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-2">
-                    {"Cle secrete (saisie manuelle)"}
+                    {t("security.secretKeyManual")}
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs font-mono text-blue-400 bg-slate-950 rounded-xl px-3 py-2.5 break-all select-all">
@@ -1128,14 +1128,14 @@ export default function SecurityPage() {
                   onClick={() => setSetupStep("verify")}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-sm tracking-widest rounded-2xl transition-all active:scale-[0.98]"
                 >
-                  Continuer
+                  {t("security.continueBtn")}
                 </button>
               </div>
             ) : (
               <div className="p-6 space-y-6">
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">
-                    Entrez le code affiche dans Google Authenticator
+                    {t("security.enterCodeDisplayed")}
                   </p>
                 </div>
 
@@ -1156,7 +1156,7 @@ export default function SecurityPage() {
                     onClick={() => setSetupStep("qr")}
                     className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
                   >
-                    Retour
+                    {t("security.backBtn")}
                   </button>
                   <button
                     onClick={handleVerify2fa}
@@ -1164,7 +1164,7 @@ export default function SecurityPage() {
                     className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     {verifyLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                    Activer
+                    {t("security.activateBtn")}
                   </button>
                 </div>
               </div>
@@ -1179,8 +1179,8 @@ export default function SecurityPage() {
           <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center justify-between p-6 pb-0">
               <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">Desactiver 2FA</h2>
-                <p className="text-[9px] text-rose-500 font-bold uppercase tracking-[0.2em] mt-1">Cela reduira votre securite</p>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">{t("security.disable2fa")}</h2>
+                <p className="text-[9px] text-rose-500 font-bold uppercase tracking-[0.2em] mt-1">{t("security.willReduceSecurity")}</p>
               </div>
               <button
                 onClick={() => {
@@ -1195,7 +1195,7 @@ export default function SecurityPage() {
 
             <div className="p-6 space-y-6">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
-                Entrez le code Google Authenticator pour confirmer
+                {t("security.enterCodeConfirm")}
               </p>
 
               <input
@@ -1216,7 +1216,7 @@ export default function SecurityPage() {
                   }}
                   className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
                 >
-                  Annuler
+                  {t("security.cancelBtn")}
                 </button>
                 <button
                   onClick={handleDisable2fa}
@@ -1224,7 +1224,7 @@ export default function SecurityPage() {
                   className="flex-1 py-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   {disableLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                  Desactiver
+                  {t("security.disableBtn")}
                 </button>
               </div>
             </div>
@@ -1238,8 +1238,8 @@ export default function SecurityPage() {
           <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center justify-between p-6 pb-0">
               <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">Protection Email</h2>
-                <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">Activation 2FA par Email</p>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">{t("security.emailLabel")}</h2>
+                <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">{t("security.email2faActivation")}</p>
               </div>
               <button
                 onClick={() => setShowEmail2faModal(false)}
@@ -1255,9 +1255,9 @@ export default function SecurityPage() {
                   <Mail size={18} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">Comment ca marche</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">{t("security.howItWorks")}</p>
                   <p className="text-[9px] text-slate-400 font-bold mt-1">
-                    Un code de verification sera envoye a votre adresse email a chaque nouvelle connexion.
+                    {t("security.emailHowDesc")}
                   </p>
                 </div>
               </div>
@@ -1269,19 +1269,19 @@ export default function SecurityPage() {
                     await new Promise(r => setTimeout(r, 1500));
                     setEmailCodeSent(true);
                     setEmailLoading(false);
-                    toast.success("Code envoye a votre adresse email");
+                    toast.success(t("security.emailCodeSentToast"));
                   }}
                   disabled={emailLoading}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black uppercase text-sm tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   {emailLoading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
-                  Envoyer le code de verification
+                  {t("security.sendVerifCode")}
                 </button>
               ) : (
                 <>
                   <div>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">
-                      Entrez le code recu par email
+                      {t("security.enterEmailCode")}
                     </p>
                     <input
                       type="text"
@@ -1299,24 +1299,24 @@ export default function SecurityPage() {
                       onClick={() => setShowEmail2faModal(false)}
                       className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
                     >
-                      Annuler
+                      {t("security.cancelBtn")}
                     </button>
                     <button
                       onClick={async () => {
-                        if (emailCode.length !== 6) { toast.error("Entrez un code a 6 chiffres"); return; }
+                        if (emailCode.length !== 6) { toast.error(t("security.enter6digit")); return; }
                         setEmailLoading(true);
                         await new Promise(r => setTimeout(r, 1000));
                         setOtpEmail(true);
                         localStorage.setItem("otpEmail", "true");
                         setShowEmail2faModal(false);
                         setEmailLoading(false);
-                        toast.success("Protection Email activee avec succes");
+                        toast.success(t("security.emailActivatedToast"));
                       }}
                       disabled={emailLoading || emailCode.length !== 6}
                       className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       {emailLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                      Activer
+                      {t("security.activateBtn")}
                     </button>
                   </div>
                 </>
@@ -1332,8 +1332,8 @@ export default function SecurityPage() {
           <div className="w-full max-w-md bg-[#0a0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center justify-between p-6 pb-0">
               <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">Validation SMS</h2>
-                <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em] mt-1">Activation OTP Mobile</p>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">{t("security.smsLabel")}</h2>
+                <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em] mt-1">{t("security.smsActivationOtp")}</p>
               </div>
               <button
                 onClick={() => setShowSms2faModal(false)}
@@ -1349,9 +1349,9 @@ export default function SecurityPage() {
                   <MessageCircle size={18} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Verification Mobile</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">{t("security.mobileVerif")}</p>
                   <p className="text-[9px] text-slate-400 font-bold mt-1">
-                    Un code OTP sera envoye par SMS a votre numero Mobile Money pour chaque transaction sensible.
+                    {t("security.smsHowDesc")}
                   </p>
                 </div>
               </div>
@@ -1363,19 +1363,19 @@ export default function SecurityPage() {
                     await new Promise(r => setTimeout(r, 1500));
                     setSmsCodeSent(true);
                     setSmsLoading(false);
-                    toast.success("Code OTP envoye par SMS");
+                    toast.success(t("security.smsCodeSentToast"));
                   }}
                   disabled={smsLoading}
                   className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black uppercase text-sm tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   {smsLoading ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
-                  Envoyer le code SMS
+                  {t("security.sendSmsCode")}
                 </button>
               ) : (
                 <>
                   <div>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">
-                      Entrez le code recu par SMS
+                      {t("security.enterSmsCode")}
                     </p>
                     <input
                       type="text"
@@ -1393,24 +1393,24 @@ export default function SecurityPage() {
                       onClick={() => setShowSms2faModal(false)}
                       className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98]"
                     >
-                      Annuler
+                      {t("security.cancelBtn")}
                     </button>
                     <button
                       onClick={async () => {
-                        if (smsCode.length !== 6) { toast.error("Entrez un code a 6 chiffres"); return; }
+                        if (smsCode.length !== 6) { toast.error(t("security.enter6digit")); return; }
                         setSmsLoading(true);
                         await new Promise(r => setTimeout(r, 1000));
                         setOtpSms(true);
                         localStorage.setItem("otpSms", "true");
                         setShowSms2faModal(false);
                         setSmsLoading(false);
-                        toast.success("Validation SMS activee avec succes");
+                        toast.success(t("security.smsActivatedToast"));
                       }}
                       disabled={smsLoading || smsCode.length !== 6}
                       className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       {smsLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                      Activer
+                      {t("security.activateBtn")}
                     </button>
                   </div>
                 </>
@@ -1432,10 +1432,10 @@ export default function SecurityPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-tight">
-                    {showFaceScanModal.mode === 'activate' ? 'Activer Reconnaissance Faciale' : 'Verification Faciale'}
+                    {showFaceScanModal.mode === 'activate' ? t("security.faceActivateTitle") : t("security.faceVerifyTitle")}
                   </h3>
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                    {showFaceScanModal.mode === 'activate' ? 'Enregistrez votre visage' : 'Verifiez votre identite'}
+                    {showFaceScanModal.mode === 'activate' ? t("security.registerYourFace") : t("security.verifyYourIdentity")}
                   </p>
                 </div>
               </div>
@@ -1533,7 +1533,7 @@ export default function SecurityPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-black text-green-400 uppercase tracking-widest flex items-center gap-2">
                           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                          {isLoadingModels ? 'Chargement IA...' : 'Scan en cours'}
+                          {isLoadingModels ? t("security.loadingAi") : t("security.scanInProgress")}
                         </span>
                         <span className="text-[10px] font-bold text-white">{faceScanProgress}%</span>
                       </div>
@@ -1556,7 +1556,7 @@ export default function SecurityPage() {
                         <Check size={48} className="text-white" />
                       </div>
                       <p className="text-lg font-black text-white uppercase tracking-tight">
-                        {showFaceScanModal?.mode === 'activate' ? 'Visage Enregistre' : 'Visage Verifie'}
+                        {showFaceScanModal?.mode === 'activate' ? t("security.faceRegistered") : t("security.faceVerified")}
                       </p>
                       <p className="text-[10px] text-emerald-300 mt-1">{faceDetectionMessage}</p>
                     </div>
@@ -1570,7 +1570,7 @@ export default function SecurityPage() {
                       <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center mx-auto mb-4 shadow-[0_0_60px_rgba(239,68,68,0.6)] animate-in zoom-in duration-300">
                         <X size={48} className="text-white" />
                       </div>
-                      <p className="text-lg font-black text-white uppercase tracking-tight">Echec de Verification</p>
+                      <p className="text-lg font-black text-white uppercase tracking-tight">{t("security.verifFailed")}</p>
                       <p className="text-[10px] text-red-300 mt-1 max-w-[200px] mx-auto">{faceDetectionMessage}</p>
                     </div>
                   </div>
@@ -1580,16 +1580,16 @@ export default function SecurityPage() {
               {/* Instructions */}
               <div className="mt-5 text-center">
                 <p className="text-[11px] text-slate-400 font-medium">
-                  {faceScanStatus === 'idle' && 'Positionnez votre visage dans le cercle et appuyez sur Scanner'}
+                  {faceScanStatus === 'idle' && t("security.faceIdleInstruction")}
                   {faceScanStatus === 'scanning' && faceDetectionMessage}
-                  {faceScanStatus === 'success' && 'Verification reussie!'}
-                  {faceScanStatus === 'error' && 'Appuyez sur Scanner pour reessayer'}
+                  {faceScanStatus === 'success' && t("security.verifSuccess")}
+                  {faceScanStatus === 'error' && t("security.tapScanRetry")}
                 </p>
                 {faceScanStatus === 'idle' && showFaceScanModal?.mode === 'activate' && (
-                  <p className="text-[9px] text-blue-400 mt-2">Votre visage sera utilise pour securiser votre compte</p>
+                  <p className="text-[9px] text-blue-400 mt-2">{t("security.faceActivateHint")}</p>
                 )}
                 {faceScanStatus === 'idle' && showFaceScanModal?.mode === 'deactivate' && (
-                  <p className="text-[9px] text-orange-400 mt-2">Verifiez votre identite pour desactiver</p>
+                  <p className="text-[9px] text-orange-400 mt-2">{t("security.faceDeactivateHint")}</p>
                 )}
               </div>
             </div>
@@ -1601,7 +1601,7 @@ export default function SecurityPage() {
                 disabled={faceScanStatus === 'scanning' || isLoadingModels}
                 className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Annuler
+                {t("security.cancelBtn")}
               </button>
               <button
                 onClick={handleFaceScanComplete}
@@ -1617,7 +1617,7 @@ export default function SecurityPage() {
                 ) : (
                   <Scan size={16} />
                 )}
-                {isLoadingModels ? 'Chargement...' : faceScanStatus === 'scanning' ? 'Analyse...' : 'Scanner'}
+                {isLoadingModels ? t("security.loadingShort") : faceScanStatus === 'scanning' ? t("security.analyzing") : t("security.scan")}
               </button>
             </div>
           </div>
@@ -1663,6 +1663,7 @@ function SecurityToggle({ icon, label, description, value, onToggle }: { icon: R
 }
 
 function BiometricToggle({ icon, label, description, value, loading, onToggle }: { icon: React.ReactNode; label: string; description: string; value: boolean; loading: boolean; onToggle: () => void }) {
+  const { t } = useLanguage();
   return (
     <button
       onClick={onToggle}
@@ -1676,7 +1677,7 @@ function BiometricToggle({ icon, label, description, value, loading, onToggle }:
         <div className="text-left">
           <p className="text-[13px] font-black uppercase tracking-tight text-white leading-none">{label}</p>
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
-            {loading ? "Verification en cours..." : description}
+            {loading ? t("security.verifying") : description}
           </p>
         </div>
       </div>
