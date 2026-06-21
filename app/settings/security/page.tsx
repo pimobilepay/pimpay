@@ -12,9 +12,12 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enUS, zhCN } from "date-fns/locale";
 import { QRCodeSVG } from "qrcode.react";
 import * as faceapi from "face-api.js";
+import { useLanguage } from "@/context/LanguageContext";
+
+const dateLocales: Record<string, typeof fr> = { fr, en: enUS, zh: zhCN };
 
 // Face Recognition Constants
 const FACE_MATCH_THRESHOLD = 0.5; // Lower = more strict matching
@@ -45,6 +48,8 @@ interface SessionData {
 
 export default function SecurityPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dfnsLocale = dateLocales[locale] || fr;
   const [mounted, setMounted] = useState(false);
   const [otpEmail, setOtpEmail] = useState(false);
   const [otpSms, setOtpSms] = useState(false);
@@ -150,19 +155,19 @@ export default function SecurityPage() {
   }, []);
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!window.confirm("Voulez-vous vraiment déconnecter cet appareil ?")) return;
+    if (!window.confirm(t("security.confirmDisconnectDevice"))) return;
     setDeletingSessionId(sessionId);
     try {
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-        toast.success("Appareil déconnecté instantanément.");
+        toast.success(t("security.deviceDisconnected"));
         window.dispatchEvent(new Event("pimpay:session-revoked"));
       } else {
-        toast.error("Erreur lors de la révocation");
+        toast.error(t("security.revokeError"));
       }
     } catch {
-      toast.error("Une erreur est survenue");
+      toast.error(t("security.genericError"));
     } finally {
       setDeletingSessionId(null);
     }
@@ -180,10 +185,10 @@ export default function SecurityPage() {
         setShowSetupModal(true);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Erreur lors de l'initialisation");
+        toast.error(data.error || t("security.initError"));
       }
     } catch {
-      toast.error("Une erreur est survenue");
+      toast.error(t("security.genericError"));
     } finally {
       setSetupLoading(false);
     }
@@ -191,7 +196,7 @@ export default function SecurityPage() {
 
   const handleVerify2fa = async () => {
     if (verifyCode.length !== 6) {
-      toast.error("Entrez un code a 6 chiffres");
+      toast.error(t("security.enter6digit"));
       return;
     }
     setVerifyLoading(true);
@@ -206,13 +211,13 @@ export default function SecurityPage() {
         setShowSetupModal(false);
         setSetupData(null);
         setVerifyCode("");
-        toast.success("Google Authenticator active avec succes");
+        toast.success(t("security.googleActivated"));
       } else {
         const data = await res.json();
-        toast.error(data.error || "Code incorrect");
+        toast.error(data.error || t("security.codeIncorrect"));
       }
     } catch {
-      toast.error("Une erreur est survenue");
+      toast.error(t("security.genericError"));
     } finally {
       setVerifyLoading(false);
     }
@@ -220,7 +225,7 @@ export default function SecurityPage() {
 
   const handleDisable2fa = async () => {
     if (disableCode.length !== 6) {
-      toast.error("Entrez un code a 6 chiffres");
+      toast.error(t("security.enter6digit"));
       return;
     }
     setDisableLoading(true);
@@ -234,13 +239,13 @@ export default function SecurityPage() {
         setGoogle2faEnabled(false);
         setShowDisableModal(false);
         setDisableCode("");
-        toast.success("Google Authenticator desactive");
+        toast.success(t("security.googleDisabled"));
       } else {
         const data = await res.json();
-        toast.error(data.error || "Code incorrect");
+        toast.error(data.error || t("security.codeIncorrect"));
       }
     } catch {
-      toast.error("Une erreur est survenue");
+      toast.error(t("security.genericError"));
     } finally {
       setDisableLoading(false);
     }
@@ -271,7 +276,7 @@ export default function SecurityPage() {
     } catch (error) {
       console.error("Error loading face-api models:", error);
       setIsLoadingModels(false);
-      toast.error("Erreur de chargement des modeles de reconnaissance faciale");
+      toast.error(t("security.faceModelLoadError"));
       return false;
     }
   };
@@ -326,7 +331,7 @@ export default function SecurityPage() {
       return true;
     } catch (error) {
       console.error("Camera error:", error);
-      toast.error("Impossible d'acceder a la camera");
+      toast.error(t("security.cameraError"));
       return false;
     }
   };
@@ -349,13 +354,13 @@ export default function SecurityPage() {
   // Real face scanning process with face-api.js
   const performFaceScan = async (): Promise<boolean> => {
     if (!videoRef.current || !modelsLoaded) {
-      toast.error("La camera ou les modeles ne sont pas prets");
+      toast.error(t("security.cameraModelsNotReady"));
       return false;
     }
 
     setFaceScanStatus('scanning');
     setFaceScanProgress(0);
-    setFaceDetectionMessage('Analyse du visage en cours...');
+    setFaceDetectionMessage(t("security.analyzingFace"));
 
     const video = videoRef.current;
     const mode = showFaceScanModal?.mode;
@@ -373,7 +378,7 @@ export default function SecurityPage() {
       // Try to detect face multiple times
       while (attempts < maxAttempts && !detectedDescriptor) {
         attempts++;
-        setFaceDetectionMessage(`Recherche du visage... (${attempts}/${maxAttempts})`);
+        setFaceDetectionMessage(`${t("security.searchingFace")} (${attempts}/${maxAttempts})`);
 
         const detections = await faceapi
           .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 }))
@@ -382,7 +387,7 @@ export default function SecurityPage() {
 
         if (detections) {
           detectedDescriptor = detections.descriptor;
-          setFaceDetectionMessage('Visage detecte!');
+          setFaceDetectionMessage(t("security.faceDetected"));
           break;
         }
 
@@ -394,7 +399,7 @@ export default function SecurityPage() {
       if (!detectedDescriptor) {
         setFaceScanProgress(0);
         setFaceScanStatus('error');
-        setFaceDetectionMessage('Aucun visage detecte. Positionnez votre visage dans le cercle.');
+        setFaceDetectionMessage(t("security.noFaceDetected"));
         return false;
       }
 
