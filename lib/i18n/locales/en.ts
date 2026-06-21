@@ -1712,6 +1712,7 @@ export const en: TranslationKeys = {
     talkToAgent: "Talk to a human agent",
     you: "You",
     typing: "typing...",
+    react: "React",
     supportName: "PimPay Support",
     tagAi: "AI",
     tagAgent: "Agent",

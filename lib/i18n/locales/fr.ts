@@ -1748,6 +1748,7 @@ export const fr = {
     talkToAgent: "Parler a un agent humain",
     you: "Vous",
     typing: "ecrit...",
+    react: "Reagir",
     supportName: "Support PimPay",
     tagAi: "IA",
     tagAgent: "Agent",
