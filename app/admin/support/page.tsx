@@ -94,6 +94,10 @@ export default function AdminSupportPage() {
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [closingTicket, setClosingTicket] = useState(false);
+  // Vrai quand le CLIENT est en train d'ecrire sur le ticket ouvert.
+  const [userTyping, setUserTyping] = useState(false);
+  const typingStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingPingRef = useRef<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // State for incoming calls
@@ -151,6 +155,52 @@ export default function AdminSupportPage() {
     return () => clearInterval(interval);
   }, [selectedTicket?.id, selectedTicket?.messages.length]);
 
+  // Presence "en train d'ecrire" : on interroge l'etat du client toutes les
+  // 2,5s tant qu'un dossier est ouvert pour afficher l'animation des points.
+  useEffect(() => {
+    if (!selectedTicket?.id) {
+      setUserTyping(false);
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/chat/typing?ticketId=${selectedTicket.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUserTyping(!!data.user);
+        }
+      } catch {}
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [selectedTicket?.id]);
+
+  // Signale au serveur que l'agent (support) est (ou non) en train d'ecrire.
+  const pingTyping = (typing: boolean) => {
+    const ticketId = selectedTicket?.id;
+    if (!ticketId) return;
+    fetch("/api/chat/typing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId, typing }),
+    }).catch(() => {});
+  };
+
+  // A chaque frappe : ping "typing=true" au plus toutes les 2s, puis programme
+  // un "typing=false" 3s apres la derniere frappe (inactivite).
+  const handleTypingActivity = () => {
+    if (!selectedTicket?.id) return;
+    const now = Date.now();
+    if (now - lastTypingPingRef.current > 2000) {
+      lastTypingPingRef.current = now;
+      pingTyping(true);
+    }
+    if (typingStopRef.current) clearTimeout(typingStopRef.current);
+    typingStopRef.current = setTimeout(() => {
+      lastTypingPingRef.current = 0;
+      pingTyping(false);
+    }, 3000);
+  };
+
   const fetchTickets = async () => {
     try {
       const res = await fetch("/api/support");
@@ -181,6 +231,10 @@ export default function AdminSupportPage() {
   const sendReply = async () => {
     if (!replyText.trim() || !selectedTicket) return;
     setSending(true);
+    // On coupe l'indicateur "en train d'ecrire" : la reponse part maintenant.
+    if (typingStopRef.current) clearTimeout(typingStopRef.current);
+    lastTypingPingRef.current = 0;
+    pingTyping(false);
     try {
       const res = await fetch(`/api/support/${selectedTicket.id}`, {
         method: "POST",
@@ -344,6 +398,22 @@ export default function AdminSupportPage() {
               </div>
             );
           })}
+
+          {/* Indicateur "en train d'ecrire" du CLIENT (affiche a droite). */}
+          {userTyping && (
+            <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="max-w-[85%]">
+                <AdminSenderBadge kind="client" />
+                <div className="px-4 py-3 rounded-2xl rounded-br-none bg-gradient-to-br from-blue-600/20 to-blue-700/20 border border-blue-500/30">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-blue-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-blue-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-blue-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -354,7 +424,10 @@ export default function AdminSupportPage() {
               <div className="flex gap-3">
                 <textarea
                   value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
+                  onChange={(e) => {
+                    setReplyText(e.target.value);
+                    handleTypingActivity();
+                  }}
                   placeholder="Ecrire une reponse..."
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm outline-none focus:border-blue-500/50 transition-all resize-none min-h-[48px] max-h-[120px]"
                   rows={2}

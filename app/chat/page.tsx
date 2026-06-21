@@ -169,6 +169,8 @@ function ChatMessage({
             </div>
           </div>
         )}
+        {/* Cliquer en dehors du selecteur le referme. */}
+        {pickerOpen && <div className="fixed inset-0 z-10" onClick={onTogglePicker} aria-hidden="true" />}
         {/* Selecteur d'emoji (popover) : une rangee d'emojis a poser sur le message. */}
         {pickerOpen && (
           <div className={`absolute z-20 -top-11 ${isLeft ? "left-0" : "right-0"} flex items-center gap-1 px-2 py-1.5 bg-[#0a0f1e] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-150`}>
@@ -234,6 +236,22 @@ function ChatMessage({
           </p>
           {!isLeft && isCurrentUser && <MessageTicks msg={msg} />}
         </div>
+        {/* Pastilles de reactions agregees (emoji + compteur) facon WhatsApp. */}
+        {hasReactions && (
+          <div className={`flex flex-wrap gap-1 mt-1 ${isLeft ? "ml-1 justify-start" : "mr-1 justify-end"}`}>
+            {Object.entries(grouped).map(([emoji, count]) => (
+              <span
+                key={emoji}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/10"
+              >
+                <span className="text-[12px] leading-none">{emoji}</span>
+                {count > 1 && <span className="text-[9px] font-bold text-slate-400">{count}</span>}
+              </span>
+            ))}
+          </div>
+        )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -260,6 +278,13 @@ export default function ChatPage() {
   // Image televersee mais PAS encore envoyee : on la met en attente jusqu'a ce
   // que l'utilisateur ajoute un message texte (envoi combine image + texte).
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  // Message dont le selecteur de reaction (emoji) est actuellement ouvert.
+  const [reactPickerId, setReactPickerId] = useState<string | null>(null);
+  // Vrai quand le SUPPORT est en train d'ecrire sur le ticket actif.
+  const [supportTyping, setSupportTyping] = useState(false);
+  // Pour limiter le debit des pings "en train d'ecrire" et arreter apres inactivite.
+  const typingStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingPingRef = useRef<number>(0);
 
   useEffect(() => {
     setMounted(true);
@@ -295,6 +320,82 @@ export default function ChatPage() {
     }, 5000);
     return () => clearInterval(interval);
   }, [activeTicket?.id, activeTicket?.messages]);
+
+  // Presence "en train d'ecrire" : on interroge l'etat du support toutes les
+  // 2,5s pendant qu'un ticket est ouvert pour afficher l'animation des points.
+  useEffect(() => {
+    if (!activeTicket?.id) {
+      setSupportTyping(false);
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/chat/typing?ticketId=${activeTicket.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSupportTyping(!!data.support);
+        }
+      } catch {}
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [activeTicket?.id]);
+
+  // Signale au serveur que l'utilisateur est (ou n'est plus) en train d'ecrire.
+  const pingTyping = useCallback(
+    (typing: boolean) => {
+      const ticketId = activeTicket?.id;
+      if (!ticketId) return;
+      fetch("/api/chat/typing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, typing }),
+      }).catch(() => {});
+    },
+    [activeTicket?.id],
+  );
+
+  // A chaque frappe : on ping "typing=true" au plus une fois toutes les 2s, puis
+  // on programme un "typing=false" 3s apres la derniere frappe (inactivite).
+  const handleTypingActivity = useCallback(() => {
+    if (!activeTicket?.id) return;
+    const now = Date.now();
+    if (now - lastTypingPingRef.current > 2000) {
+      lastTypingPingRef.current = now;
+      pingTyping(true);
+    }
+    if (typingStopRef.current) clearTimeout(typingStopRef.current);
+    typingStopRef.current = setTimeout(() => {
+      lastTypingPingRef.current = 0;
+      pingTyping(false);
+    }, 3000);
+  }, [activeTicket?.id, pingTyping]);
+
+  // Bascule (toggle) une reaction emoji sur un message via l'API existante.
+  const handleReact = useCallback(async (messageId: string, emoji: string) => {
+    setReactPickerId(null);
+    try {
+      const res = await fetch("/api/chat/react", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, emoji }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveTicket((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === messageId ? { ...m, reactions: data.reactions ?? [] } : m,
+                ),
+              }
+            : prev,
+        );
+      }
+    } catch (err) {
+      console.error("Failed to react:", err);
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -342,6 +443,10 @@ export default function ChatPage() {
     setSending(true);
     setInputValue("");
     setPendingImage(null);
+    // On arrete l'indicateur "en train d'ecrire" : le message part maintenant.
+    if (typingStopRef.current) clearTimeout(typingStopRef.current);
+    lastTypingPingRef.current = 0;
+    pingTyping(false);
 
     try {
       const currentTicketId = activeTicket?.id || null;
@@ -578,9 +683,34 @@ export default function ChatPage() {
                 key={msg.id} 
                 msg={msg} 
                 isCurrentUser={msg.senderId !== "ELARA_AI" && msg.senderId !== "SUPPORT"} 
+                pickerOpen={reactPickerId === msg.id}
+                onTogglePicker={() => setReactPickerId((id) => (id === msg.id ? null : msg.id))}
+                onReact={(emoji) => handleReact(msg.id, emoji)}
               />
             ))}
-            
+
+            {/* Indicateur "en train d'ecrire" du SUPPORT (agent humain). */}
+            {supportTyping && (
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="max-w-[85%]">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+                      <Headphones size={10} className="text-white" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">{t("chat.supportName")}</span>
+                    <span className="text-[9px] text-emerald-400/60 italic">{t("chat.typing")}</span>
+                  </div>
+                  <div className="px-4 py-3 rounded-2xl rounded-bl-none bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Typing Indicator */}
             {isTyping && (
               <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -651,7 +781,10 @@ export default function ChatPage() {
               type="text"
               placeholder={pendingImage ? t("chat.addCaption") : t("chat.inputPlaceholder")}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                handleTypingActivity();
+              }}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               className="w-full bg-transparent py-4 text-sm text-white placeholder:text-slate-600 outline-none font-medium"
             />
