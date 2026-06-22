@@ -4,24 +4,18 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-/**
- * GET /api/pi-network  (PUBLIC, lecture seule)
- *
- * Expose le mode reseau Pi configure par l'admin (testnet | mainnet) afin que
- * le SDK Pi cote client soit initialise avec la bonne valeur `sandbox`.
- *
- *  - testnet  -> sandbox: true   (mode developpement / sandbox.minepi.com)
- *  - mainnet  -> sandbox: false  (mode production, Pi Browser uniquement)
- *
- * Source de verite : SystemConfig.piNetwork (modifiable depuis
- * Admin -> Reglages -> Politique Monetaire). Aucune donnee sensible n'est
- * exposee : uniquement le mode reseau et le flag sandbox.
- */
 type PiNetwork = "testnet" | "mainnet";
 
 const CONFIG_KEY = "GLOBAL_CONFIG";
 
 async function getCurrentNetwork(): Promise<PiNetwork> {
+  // On lit la variable exacte présente sur ton Vercel
+  const v0Env = process.env.PI_NETWORK_PHRASE;
+  
+  if (v0Env === "mainnet") return "mainnet";
+  if (v0Env === "testnet") return "testnet";
+
+  // Fallback sur la base de données si la variable Vercel n'est pas lue
   try {
     const cfg = await prisma.systemConfig.findUnique({
       where: { id: CONFIG_KEY },
@@ -29,14 +23,16 @@ async function getCurrentNetwork(): Promise<PiNetwork> {
     });
     const val = (cfg as any)?.piNetwork;
     return val === "mainnet" ? "mainnet" : "testnet";
-  } catch {
-    return process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet";
+  } catch (error) {
+    console.error("[PimPay API] Erreur Prisma, fallback sur testnet:", error);
+    return "testnet";
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const network = await getCurrentNetwork();
   const sandbox = network !== "mainnet";
+  const origin = request.headers.get("origin") || "*";
 
   return NextResponse.json(
     {
@@ -49,8 +45,27 @@ export async function GET() {
       passphrase: network === "mainnet" ? "Pi Network" : "Pi Testnet",
     },
     {
-      // Cache court : le mode change rarement, mais doit se propager vite
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=120" },
+      headers: {
+        "Cache-Control": "public, max-age=30, stale-while-revalidate=120",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Credentials": "true",
+      },
     }
   );
 }
+
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get("origin") || "*";
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Credentials": "true",
+    },
+  });
+}
+
