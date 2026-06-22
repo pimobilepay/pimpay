@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 // ----- Types -----
 interface StakingPool {
@@ -19,7 +20,7 @@ interface StakingPool {
   minStake: number;
   lockDays: number;
   totalStaked: number;
-  description: string;
+  descKey: string;
   color: string;
   borderColor: string;
 }
@@ -59,7 +60,7 @@ const STAKING_POOLS: StakingPool[] = [
     minStake: 1,
     lockDays: 30,
     totalStaked: 1240000,
-    description: "Stakez vos Pi et gagnez des récompenses passives tous les jours.",
+    descKey: "staking.poolPiFlexDesc",
     color: "bg-blue-500/10",
     borderColor: "border-blue-500/20",
   },
@@ -72,7 +73,7 @@ const STAKING_POOLS: StakingPool[] = [
     minStake: 10,
     lockDays: 90,
     totalStaked: 860000,
-    description: "Blocage 90 jours pour un rendement optimisé et des bonus exclusifs.",
+    descKey: "staking.poolPiLockedDesc",
     color: "bg-indigo-500/10",
     borderColor: "border-indigo-500/20",
   },
@@ -85,7 +86,7 @@ const STAKING_POOLS: StakingPool[] = [
     minStake: 5,
     lockDays: 30,
     totalStaked: 420000,
-    description: "Stakez SDA et profitez des récompenses du réseau Sidra Chain.",
+    descKey: "staking.poolSdaFlexDesc",
     color: "bg-emerald-500/10",
     borderColor: "border-emerald-500/20",
   },
@@ -101,6 +102,7 @@ function StakeModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { t } = useLanguage();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -112,7 +114,7 @@ function StakeModal({
   const handleStake = async () => {
     const val = parseFloat(amount);
     if (!val || val < pool.minStake) {
-      toast.error(`Montant minimum : ${pool.minStake} ${pool.symbol}`);
+      toast.error(`${t("staking.minAmount")} : ${pool.minStake} ${pool.symbol}`);
       return;
     }
     setLoading(true);
@@ -129,14 +131,14 @@ function StakeModal({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`${val} ${pool.symbol} mis en staking avec succès !`);
+        toast.success(`${val} ${pool.symbol} ${t("staking.stakeSuccessSuffix")}`);
         onSuccess();
         onClose();
       } else {
-        toast.error(data.error || "Erreur lors du staking");
+        toast.error(data.error || t("staking.stakeError"));
       }
     } catch (err) {
-      toast.error("Erreur de connexion");
+      toast.error(t("staking.connectionError"));
     }
     setLoading(false);
   };
@@ -149,22 +151,22 @@ function StakeModal({
           {pool.logo}
           <div>
             <h3 className="text-base font-black text-white uppercase tracking-tight">
-              Staker {pool.symbol}
+              {t("staking.stakeAsset")} {pool.symbol}
             </h3>
             <p className="text-[10px] font-bold text-slate-500 uppercase">
-              {pool.apy}% APY · {pool.lockDays} jours
+              {pool.apy}% APY · {pool.lockDays} {t("staking.days")}
             </p>
           </div>
         </div>
 
         <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 mb-4">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
-            Montant
+            {t("staking.amount")}
           </p>
           <div className="flex items-center gap-3">
             <input
               type="number"
-              placeholder={`Min. ${pool.minStake}`}
+              placeholder={`${t("staking.min")} ${pool.minStake}`}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="flex-1 bg-transparent text-2xl font-black text-white outline-none placeholder:text-slate-700"
@@ -176,15 +178,15 @@ function StakeModal({
 
         <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3 mb-5 space-y-2">
           <div className="flex justify-between text-xs">
-            <span className="text-slate-500">APY</span>
+            <span className="text-slate-500">{t("staking.apy")}</span>
             <span className="font-bold text-emerald-400">{pool.apy}%</span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-slate-500">Durée de blocage</span>
-            <span className="font-bold text-white">{pool.lockDays} jours</span>
+            <span className="text-slate-500">{t("staking.lockDuration")}</span>
+            <span className="font-bold text-white">{pool.lockDays} {t("staking.days")}</span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-slate-500">Revenus estimés / an</span>
+            <span className="text-slate-500">{t("staking.estimatedYearly")}</span>
             <span className="font-bold text-emerald-400">
               {estimatedYearly} {pool.symbol}
             </span>
@@ -193,7 +195,7 @@ function StakeModal({
           <div className="flex items-center gap-1.5">
             <Info size={11} className="text-slate-600" />
             <span className="text-[10px] text-slate-600">
-              Les récompenses sont distribuées chaque jour
+              {t("staking.rewardsDaily")}
             </span>
           </div>
         </div>
@@ -208,13 +210,13 @@ function StakeModal({
           ) : (
             <Lock size={16} />
           )}
-          Confirmer le Staking
+          {t("staking.confirmStaking")}
         </button>
         <button
           onClick={onClose}
           className="w-full mt-3 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest"
         >
-          Annuler
+          {t("staking.cancel")}
         </button>
       </div>
     </div>
@@ -224,6 +226,8 @@ function StakeModal({
 // ----- Main Page -----
 export default function StakingPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
   const [isMounted, setIsMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedPool, setSelectedPool] = useState<StakingPool | null>(null);
@@ -286,10 +290,10 @@ export default function StakingPage() {
             </button>
             <div>
               <h1 className="text-xl font-black uppercase tracking-tighter">
-                <span className="text-blue-500">Staking</span>
+                <span className="text-blue-500">{t("staking.title")}</span>
               </h1>
               <p className="text-[9px] font-black text-blue-400/70 uppercase tracking-[0.2em] mt-0.5">
-                Gagnez des revenus passifs
+                {t("staking.subtitle")}
               </p>
             </div>
           </div>
@@ -310,7 +314,7 @@ export default function StakingPage() {
             <div className="relative z-10 grid grid-cols-3 gap-4">
               <div className="text-center">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                  En Staking
+                  {t("staking.staked")}
                 </p>
                 <p className="text-lg font-black text-white">
                   {totalStakedValue.toLocaleString()}
@@ -319,19 +323,19 @@ export default function StakingPage() {
               </div>
               <div className="text-center border-x border-white/5">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                  Revenus
+                  {t("staking.earnings")}
                 </p>
                 <p className="text-lg font-black text-emerald-400">
                   +{totalEarned.toFixed(4)}
                 </p>
-                <p className="text-[9px] text-slate-600 font-bold">Cumulés</p>
+                <p className="text-[9px] text-slate-600 font-bold">{t("staking.cumulative")}</p>
               </div>
               <div className="text-center">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                  APY Max
+                  {t("staking.apyMax")}
                 </p>
                 <p className="text-lg font-black text-blue-400">14.2%</p>
-                <p className="text-[9px] text-slate-600 font-bold">Annuel</p>
+                <p className="text-[9px] text-slate-600 font-bold">{t("staking.annual")}</p>
               </div>
             </div>
           </div>
@@ -344,14 +348,14 @@ export default function StakingPage() {
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === "pools" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
           >
             <Layers size={14} />
-            Pools
+            {t("staking.pools")}
           </button>
           <button
             onClick={() => setActiveTab("my-stakes")}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === "my-stakes" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
           >
             <BarChart3 size={14} />
-            Mes Stakes
+            {t("staking.myStakes")}
           </button>
         </div>
 
@@ -360,11 +364,11 @@ export default function StakingPage() {
           <div className="space-y-3 mb-8">
             <div className="flex items-center justify-between px-1 mb-1">
               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                Pools disponibles
+                {t("staking.availablePools")}
               </h3>
               <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-[9px] font-black text-emerald-400 uppercase">Live</span>
+                <span className="text-[9px] font-black text-emerald-400 uppercase">{t("staking.live")}</span>
               </div>
             </div>
 
@@ -395,26 +399,26 @@ export default function StakingPage() {
                 </div>
 
                 <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
-                  {pool.description}
+                  {t(pool.descKey)}
                 </p>
 
                 <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/5">
                   <div className="flex items-center gap-1.5">
                     <Clock size={10} className="text-slate-600" />
                     <span className="text-[10px] font-bold text-slate-500">
-                      {pool.lockDays} jours
+                      {pool.lockDays} {t("staking.days")}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Shield size={10} className="text-slate-600" />
                     <span className="text-[10px] font-bold text-slate-500">
-                      Min. {pool.minStake} {pool.symbol}
+                      {t("staking.min")} {pool.minStake} {pool.symbol}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <TrendingUp size={10} className="text-slate-600" />
                     <span className="text-[10px] font-bold text-slate-500">
-                      {(pool.totalStaked / 1000).toFixed(0)}K stakés
+                      {(pool.totalStaked / 1000).toFixed(0)}K {t("staking.stakedSuffix")}
                     </span>
                   </div>
                 </div>
@@ -425,7 +429,7 @@ export default function StakingPage() {
             <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mt-2">
               <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Le staking vous permet de bloquer vos actifs pour une période donnée et de recevoir des récompenses quotidiennes. Les fonds peuvent être retirés à la fin de la période.
+                {t("staking.infoBox")}
               </p>
             </div>
           </div>
@@ -463,21 +467,21 @@ export default function StakingPage() {
                         </span>
                       </div>
                       <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${stake.status === "ACTIVE" ? "bg-emerald-500/10 text-emerald-400" : stake.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" : "bg-slate-500/10 text-slate-400"}`}>
-                        {stake.status}
+                        {stake.status === "ACTIVE" ? t("staking.statusActive") : stake.status === "PENDING" ? t("staking.statusPending") : t("staking.statusCompleted")}
                       </span>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-center">
                       <div>
-                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">APY</p>
+                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">{t("staking.apy")}</p>
                         <p className="text-[11px] font-black text-emerald-400">{stake.apy}%</p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">Gagné</p>
+                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">{t("staking.gained")}</p>
                         <p className="text-[11px] font-black text-white">+{stake.earned.toFixed(4)}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">Fin</p>
-                        <p className="text-[11px] font-black text-white">{new Date(stake.endDate).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">{t("staking.endDate")}</p>
+                        <p className="text-[11px] font-black text-white">{new Date(stake.endDate).toLocaleDateString(dateLocale)}</p>
                       </div>
                     </div>
                     {/* Early withdrawal warning */}
@@ -485,7 +489,7 @@ export default function StakingPage() {
                       <div className="mt-3 flex items-start gap-2 p-2 bg-yellow-500/5 border border-yellow-500/10 rounded-lg">
                         <Info size={12} className="text-yellow-500 shrink-0 mt-0.5" />
                         <p className="text-[9px] text-yellow-500/80 leading-relaxed">
-                          Retrait anticipé: pénalité de 50% sur les récompenses
+                          {t("staking.earlyWithdrawalWarning")}
                         </p>
                       </div>
                     )}
@@ -504,12 +508,12 @@ export default function StakingPage() {
                               const currency = details.currency || stake.symbol;
                               if (details.isEarlyWithdrawal) {
                                 toast.success(
-                                  `Retrait anticipé effectué ! Principal: ${details.principal.toFixed(2)} ${currency}, Récompenses: +${details.rewards.toFixed(4)} ${currency} (pénalité: ${details.penalty.toFixed(4)} ${currency})`,
+                                  `${t("staking.earlyWithdrawalDone")} ${t("staking.principal")}: ${details.principal.toFixed(2)} ${currency}, ${t("staking.rewards")}: +${details.rewards.toFixed(4)} ${currency} (${t("staking.penalty")}: ${details.penalty.toFixed(4)} ${currency})`,
                                   { duration: 6000 }
                                 );
                               } else {
                                 toast.success(
-                                  `Staking clôturé ! +${details.rewards.toFixed(4)} ${currency} de récompenses après ${details.daysStaked} jours`,
+                                  `${t("staking.stakingClosed")} +${details.rewards.toFixed(4)} ${currency} ${t("staking.rewardsAfter")} ${details.daysStaked} ${t("staking.days")}`,
                                   { duration: 5000 }
                                 );
                               }
@@ -517,15 +521,15 @@ export default function StakingPage() {
                               // Redirect to the correct wallet (PI or SDA)
                               router.push(`/wallet/${currency.toLowerCase()}`);
                             } else {
-                              toast.error(data.error || "Erreur lors du retrait");
+                              toast.error(data.error || t("staking.withdrawError"));
                             }
                           } catch (err) {
-                            toast.error("Erreur de connexion");
+                            toast.error(t("staking.connectionError"));
                           }
                         }}
                         className="w-full mt-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-black text-red-400 uppercase tracking-widest active:scale-95 transition-all"
                       >
-                        Retirer le staking
+                        {t("staking.withdrawStake")}
                       </button>
                     )}
                   </div>
@@ -537,17 +541,17 @@ export default function StakingPage() {
                   <Lock size={28} className="text-slate-700" />
                 </div>
                 <p className="text-[13px] font-black text-slate-500 uppercase tracking-wide mb-1">
-                  Aucun staking actif
+                  {t("staking.noActiveStake")}
                 </p>
                 <p className="text-[11px] text-slate-600 mb-5">
-                  Commencez à staker pour gagner des récompenses.
+                  {t("staking.startStaking")}
                 </p>
                 <button
                   onClick={() => setActiveTab("pools")}
                   className="flex items-center gap-2 px-5 py-3 bg-blue-600 rounded-xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all"
                 >
                   <Zap size={14} fill="currentColor" className="text-yellow-400" />
-                  Voir les pools
+                  {t("staking.viewPools")}
                 </button>
               </div>
             )}
