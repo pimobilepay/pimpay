@@ -58,6 +58,72 @@ function fmtPi(value: number): string {
 // Fiat currencies list
 const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
 
+// Mapping devise fiat -> code drapeau (comme la page swap)
+const CURRENCY_FLAG: Record<string, string> = {
+  USD: "us",
+  EUR: "eu",
+  XAF: "cm",
+  XOF: "sn",
+  CDF: "cd",
+  NGN: "ng",
+  AED: "ae",
+  MGA: "mg",
+  GHS: "gh",
+  KES: "ke",
+  ZAR: "za",
+};
+
+// Mapping crypto -> logo
+const CRYPTO_LOGO: Record<string, string> = {
+  PI: "/pi.png",
+  SDA: "/sda.png",
+  BTC: "/btc.png",
+  ETH: "/eth.png",
+  USDT: "/usdt.png",
+  USDC: "/usdc.png",
+};
+
+// Icône de devise : drapeau fiat (flagcdn) ou logo crypto, comme sur la page swap
+function CurrencyIcon({ currency, size = 40 }: { currency: string; size?: number }) {
+  const cur = (currency || "").toUpperCase();
+  const logo = CRYPTO_LOGO[cur];
+  if (logo) {
+    return (
+      <div
+        className="rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-white/5 border border-white/10"
+        style={{ width: size, height: size }}
+      >
+        <img src={logo} alt={cur} className="w-3/4 h-3/4 object-contain" />
+      </div>
+    );
+  }
+  const flag = CURRENCY_FLAG[cur];
+  if (flag) {
+    return (
+      <div
+        className="rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-white/5 border border-white/10"
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={`https://flagcdn.com/w80/${flag}.png`}
+          srcSet={`https://flagcdn.com/w160/${flag}.png 2x`}
+          alt={`${cur} flag`}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="rounded-full flex items-center justify-center shrink-0 font-black text-white bg-blue-600"
+      style={{ width: size, height: size, fontSize: size * 0.35 }}
+    >
+      {cur.slice(0, 2)}
+    </div>
+  );
+}
+
 function SummaryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -357,15 +423,18 @@ const data = useMemo(() => {
       </header>
 
       <main className="relative px-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* HERO MONTANT */}
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-blue-600/15 via-slate-900/60 to-slate-900/80 p-8 shadow-2xl">
-          <div className="absolute -top-6 -right-6 opacity-[0.07]">
+        {/* BLOC UNIQUE : MONTANT + SOLDE + BÉNÉFICIAIRE + DÉTAILS */}
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-blue-600/15 via-slate-900/60 to-slate-900/80 p-6 shadow-2xl">
+          <div className="absolute -top-6 -right-6 opacity-[0.07] pointer-events-none">
             <Send size={140} />
           </div>
-          <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.25em]">
+
+          {/* Montant avec icône de devise */}
+          <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.25em] text-center">
             Montant à envoyer
           </p>
-          <div className="mt-4 flex items-end justify-center gap-2">
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <CurrencyIcon currency={data.currency} size={44} />
             <span className="text-5xl font-black tracking-tighter leading-none break-all">
               {amountDisplay}
             </span>
@@ -376,16 +445,18 @@ const data = useMemo(() => {
               {"\u2248"} ${usdValue.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} USD
             </p>
           )}
+
+          {/* Solde disponible */}
           <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-black/30 border border-white/5 py-2.5">
             <Wallet size={13} className="text-slate-400" />
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
               Solde disponible : {balanceDisplay} {data.currency}
             </span>
           </div>
-        </section>
 
-        {/* BÉNÉFICIAIRE */}
-        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-5">
+          <div className="my-6 h-px bg-white/10" />
+
+          {/* Bénéficiaire */}
           <div className="flex items-center gap-4">
             {data.avatar ? (
               <div className="w-14 h-14 rounded-2xl border-2 border-blue-500 p-0.5 shrink-0">
@@ -430,11 +501,11 @@ const data = useMemo(() => {
               )}
             </button>
           )}
-        </section>
 
-        {/* DÉTAILS */}
-        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-6">
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4">
+          <div className="my-6 h-px bg-white/10" />
+
+          {/* Détails de l'opération */}
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
             Détails de l'opération
           </p>
           <div className="space-y-1">
@@ -466,32 +537,12 @@ const data = useMemo(() => {
               truncate
             />
           </div>
-          <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
             <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
               Total à débiter
             </span>
             <span className={`text-xl font-black ${isInsufficient ? "text-red-500" : "text-white"}`}>
               {totalDisplay} {data.currency}
-            </span>
-          </div>
-        </section>
-
-        {/* PORTEFEUILLE SOURCE */}
-        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-blue-500/10 rounded-2xl flex items-center justify-center">
-                <Wallet size={18} className="text-blue-400" />
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  Portefeuille source
-                </p>
-                <p className="text-[12px] font-black uppercase text-white">{data.currency}</p>
-              </div>
-            </div>
-            <span className="text-sm font-black text-white">
-              {balanceDisplay} {data.currency}
             </span>
           </div>
         </section>

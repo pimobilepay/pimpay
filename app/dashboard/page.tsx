@@ -203,7 +203,7 @@ const DASH_T = {
     pieSortant: "支出", pieEntrant: "收入", pieSwaps: "兑换", pieAutres: "其他", pieTotal: "总计", pieNone: "无",
     quickServices: "快捷服务",
     svcBankTitle: "银行转账", svcBankSub: "转账到银行",
-    svcDepositTitle: "充值", svcDepositSub: "为账户充值",
+    svcDepositTitle: "���值", svcDepositSub: "为账户充值",
     svcPimTitle: "Pim 币", svcPimSub: "奖励",
     svcSupportTitle: "客服", svcSupportSub: "帮助与联系",
     recentTransactions: "最近交易",
@@ -910,7 +910,7 @@ export default function UserDashboard() {
         <section className="mb-12">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{tr.recentTransactions}</h3>
-            <button onClick={() => router.push("/wallet")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
+            <button onClick={() => router.push("/statements")} className="flex items-center gap-1 text-[10px] font-black text-blue-400 uppercase tracking-wide">
               {tr.viewAll} <ChevronRight size={12} />
             </button>
           </div>
