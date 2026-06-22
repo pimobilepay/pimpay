@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { getPiSandbox, getCachedPiSandbox } from "@/lib/pi-config";
 
 declare global {
   interface Window {
@@ -43,6 +44,9 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
       return false;
     }
 
+    // Resoudre le mode reseau (testnet/mainnet) configure par l'admin
+    await getPiSandbox();
+
     // Deja pret
     if (window.__PI_SDK_READY__) return true;
 
@@ -60,7 +64,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
     // Tenter l'init
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: true });
+      window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       return true;

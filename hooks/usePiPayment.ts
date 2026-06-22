@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import { getPiSandbox, getCachedPiSandbox } from "@/lib/pi-config";
 
 declare global {
   interface Window {
@@ -58,10 +59,10 @@ export const usePiPayment = () => {
 
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: true });
+      window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
-      console.log("[PimPay] SDK Pi 2.0 initialise par usePiPayment");
+      console.log(`[PimPay] SDK Pi 2.0 initialise par usePiPayment (sandbox=${getCachedPiSandbox()})`);
       return true;
     } catch (e: any) {
       window.__PI_SDK_INITIALIZING__ = false;
@@ -78,6 +79,9 @@ export const usePiPayment = () => {
    * Attendre que le SDK Pi soit disponible et initialise
    */
   const waitForPiSDK = useCallback(async (maxWait = 10000): Promise<boolean> => {
+    // Resoudre le mode reseau (testnet/mainnet) avant d'initialiser le SDK
+    await getPiSandbox();
+
     const start = Date.now();
     const checkInterval = 100;
     

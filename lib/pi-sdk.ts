@@ -1,5 +1,7 @@
 "use client";
 
+import { getPiSandbox, getCachedPiSandbox } from "./pi-config";
+
 // Définition des types pour éviter les erreurs TypeScript sur window.Pi
 declare global {
   interface Window {
@@ -10,7 +12,8 @@ declare global {
 }
 
 /**
- * Initialise le SDK Pi en mode Production (thread-safe)
+ * Initialise le SDK Pi (thread-safe) avec le mode reseau configure par l'admin.
+ * Le flag `sandbox` provient de /api/pi-network (testnet => true, mainnet => false).
  * Retourne true si le SDK est pret, false sinon
  */
 export const initPiSDK = (): boolean => {
@@ -25,7 +28,7 @@ export const initPiSDK = (): boolean => {
   if (window.Pi) {
     try {
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: true });
+      window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       console.log("[PimPay] Pi SDK 2.0 initialise");
@@ -49,7 +52,10 @@ export const initPiSDK = (): boolean => {
  */
 export const waitForPiSDK = async (maxWait = 8000): Promise<boolean> => {
   if (typeof window === "undefined") return false;
-  
+
+  // Resoudre le mode reseau (testnet/mainnet) AVANT d'initialiser le SDK
+  await getPiSandbox();
+
   const start = Date.now();
   const checkInterval = 150;
   

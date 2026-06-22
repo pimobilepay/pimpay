@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { getPiSandbox, getCachedPiSandbox } from "@/lib/pi-config";
 
 declare global {
   interface Window {
@@ -38,10 +39,10 @@ export function PiInitializer() {
       if (window.Pi) {
         try {
           window.__PI_SDK_INITIALIZING__ = true;
-          window.Pi.init({ version: "2.0", sandbox: true });
+          window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
           window.__PI_SDK_READY__ = true;
           window.__PI_SDK_INITIALIZING__ = false;
-          console.log("[PimPay] SDK Pi 2.0 initialise avec succes");
+          console.log(`[PimPay] SDK Pi 2.0 initialise (sandbox=${getCachedPiSandbox()})`);
           return true;
         } catch (error: any) {
           window.__PI_SDK_INITIALIZING__ = false;
@@ -78,12 +79,18 @@ export function PiInitializer() {
       }
     };
 
-    // Verification immediate
-    if (window.Pi && !initAttemptedRef.current) {
-      initAttemptedRef.current = true;
-      initPi();
-      checkIncompletePayments();
-    } else if (!window.Pi) {
+    // Resoudre le mode reseau (testnet/mainnet) AVANT toute initialisation,
+    // puis initialiser le SDK avec la bonne valeur `sandbox`.
+    getPiSandbox().finally(() => {
+      // Verification immediate
+      if (window.Pi && !initAttemptedRef.current) {
+        initAttemptedRef.current = true;
+        initPi();
+        checkIncompletePayments();
+      }
+    });
+
+    if (!window.Pi) {
       // Polling si le script sdk n'est pas encore charge
       const interval = setInterval(() => {
         if (window.Pi && !initAttemptedRef.current) {
