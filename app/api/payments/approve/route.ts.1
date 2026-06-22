@@ -4,12 +4,10 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
+// Import des Enums pour garantir la compatibilité avec ton schéma
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 export async function POST(req: Request) {
-  // Récupération de l'origine pour la configuration CORS
-  const origin = req.headers.get("origin") || "*";
-
   try {
     const { paymentId, amount, memo, txid, toAddress, currency, type, pimCoins: pimCoinsRaw } = await req.json();
     const PI_API_KEY = process.env.PI_API_KEY;
@@ -27,26 +25,17 @@ export async function POST(req: Request) {
     const userId = await getAuthUserId();
     if (!userId) {
       console.error("[PIMPAY] Utilisateur non authentifie pour approve");
-      return NextResponse.json(
-        { error: "Non authentifie. Veuillez vous reconnecter." },
-        { 
-          status: 401,
-          headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-        }
-      );
+      return NextResponse.json({ error: "Non authentifie. Veuillez vous reconnecter." }, { status: 401 });
     }
 
+    // Determine if this is a withdraw (external send) or deposit
     const isWithdraw = !!toAddress && currency === "PI";
+    // Achat de PIM Coins : la transaction et le credit sont geres par
+    // /api/payments/pim/complete (wallet PIM). Ici on se limite a l'approbation Pi.
     const isPimPurchase = type === "PIM_COIN_PURCHASE";
 
-    // DETECTION DYNAMIQUE DE L'URL PI NETWORK (Ajustement selon la variable d'environnement)
-    const isMainnet = process.env.PI_NETWORK_PHRASE === "mainnet";
-    const PI_API_BASE_URL = isMainnet 
-      ? "https://api.minepi.com" 
-      : "https://api.testnet.minepi.com";
-
-    // 2. APPROBATION S2S (Server-to-Server) avec Pi Network (Testnet ou Mainnet automatisé)
-    const approveRes = await fetch(`${PI_API_BASE_URL}/v2/payments/${paymentId}/approve`, {
+    // 2. APPROBATION S2S (Server-to-Server) avec Pi Network
+    const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,
@@ -56,24 +45,28 @@ export async function POST(req: Request) {
 
     if (!approveRes.ok) {
       const err = await approveRes.json();
+      // Si c'est déjà approuvé, on ne bloque pas la logique Prisma
       if (err.message !== "Payment already approved") {
         console.error("❌ Erreur Pi Approve:", err);
-        return NextResponse.json(
-          { error: "Pi Network refuse l'approbation" },
-          { 
-            status: 403,
-            headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-          }
-        );
+        return NextResponse.json({ error: "Pi Network refuse l'approbation" }, { status: 403 });
       }
     }
 
+    // Pour un achat de PIM Coins, on cree (ou met a jour) une transaction PENDING
+    // des l'approbation. C'est indispensable pour deux raisons :
+    //  1. Si /complete echoue ou que le compte a rebours du Pi Wallet expire,
+    //     la transaction reste tracee en PENDING et peut etre reprise (recovery)
+    //     ou debloquee depuis le mode rescue admin.
+    //  2. La page rescue peut lister les achats PIM bloques avec le bon userId.
+    // Le credit effectif du wallet PIM se fait dans /api/payments/pim/complete.
     if (isPimPurchase) {
       const pimCoins = Number(pimCoinsRaw) || 0;
       try {
         await prisma.transaction.upsert({
           where: { externalId: `PIM-${paymentId}` },
-          update: { blockchainTx: txid || null },
+          update: {
+            blockchainTx: txid || null,
+          },
           create: {
             reference: `PIM-${paymentId.slice(-8).toUpperCase()}`,
             externalId: `PIM-${paymentId}`,
@@ -96,14 +89,14 @@ export async function POST(req: Request) {
       } catch (e) {
         console.warn("[PIMPAY] Upsert transaction PIM PENDING non bloquant:", e);
       }
-      return NextResponse.json(
-        { success: true, type: "PIM_COIN_PURCHASE" },
-        { headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" } }
-      );
+      console.log(`[PIMPAY] Approbation achat PIM Coins: ${paymentId} pour ${userId}`);
+      return NextResponse.json({ success: true, type: "PIM_COIN_PURCHASE" });
     }
 
-    // 3. TRANSACTION ATOMIQUE PRISMA
+    // 3. TRANSACTION ATOMIQUE PRISMA (Sécurisée contre le cleanup)
     const result = await prisma.$transaction(async (tx) => {
+      
+      // Gérer le Wallet avec UPSERT (Crée le wallet s'il n'existe pas encore)
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
         update: {},
@@ -118,15 +111,19 @@ export async function POST(req: Request) {
       let transaction;
 
       if (isWithdraw) {
+        // WITHDRAW: Envoi externe vers une adresse Pi
+        // Vérifier le solde avant de créer la transaction
         if (wallet.balance < parseFloat(amount)) {
           throw new Error("Solde PI insuffisant");
         }
 
+        // Débiter immédiatement le wallet
         await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: { decrement: parseFloat(amount) } }
         });
 
+        // Créer la transaction de retrait
         transaction = await tx.transaction.create({
           data: {
             reference: `WD-PI-${paymentId.slice(-8).toUpperCase()}`,
@@ -136,13 +133,19 @@ export async function POST(req: Request) {
             currency: "PI",
             type: TransactionType.WITHDRAW,
             status: TransactionStatus.PENDING,
-            description: `Envoi Pi vers ${toAddress.substring(0, 8)}...`,
+            description: `Envoi Pi vers ${toAddress.substring(0, 8)}...${toAddress.substring(toAddress.length - 4)}`,
             fromUserId: userId,
             fromWalletId: wallet.id,
-            metadata: { toAddress, network: "Pi Network", approvedAt: new Date().toISOString() }
+            metadata: {
+              toAddress,
+              network: "Pi Network",
+              approvedAt: new Date().toISOString()
+            }
           }
         });
       } else {
+        // DEPOSIT: Réception de Pi
+        // Chercher la transaction PENDING existante créée par /api/pi/transaction
         const existingPendingTx = await tx.transaction.findFirst({
           where: {
             fromUserId: userId,
@@ -154,6 +157,7 @@ export async function POST(req: Request) {
         });
 
         if (existingPendingTx) {
+          // Mettre à jour la transaction existante au lieu d'en créer une nouvelle
           transaction = await tx.transaction.update({
             where: { id: existingPendingTx.id },
             data: {
@@ -165,9 +169,13 @@ export async function POST(req: Request) {
             }
           });
         } else {
+          // Fallback : upsert sur externalId si aucune transaction PENDING trouvée
           transaction = await tx.transaction.upsert({
             where: { externalId: paymentId },
-            update: { blockchainTx: txid || null, toWalletId: wallet.id },
+            update: {
+              blockchainTx: txid || null,
+              toWalletId: wallet.id
+            },
             create: {
               reference: `DEP-${paymentId.slice(-6).toUpperCase()}`,
               externalId: paymentId,
@@ -187,8 +195,9 @@ export async function POST(req: Request) {
       return { transaction, isWithdraw };
     }, { maxWait: 10000, timeout: 30000 });
 
-    // 4. COMPLÉTION FINALE AUTOMATISÉE SUR LE BON RÉSEAU
-    fetch(`${PI_API_BASE_URL}/v2/payments/${paymentId}/complete`, {
+    // 4. COMPLÉTION FINALE (Optionnel ici car souvent géré par le callback complete, mais sécurisant)
+    // On ne bloque pas si ça échoue ici, car le SDK s'en chargera
+    fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,
@@ -197,57 +206,41 @@ export async function POST(req: Request) {
       body: JSON.stringify({ txid: txid || "" }),
     }).catch(e => console.warn("⚠️ Pi /complete auto-call skip"));
 
-    // 5. NOTIFICATION
+    // 5. NOTIFICATION utilisateur pour confirmation instantanee avec metadonnees completes
     try {
       const depositAmount = parseFloat(amount);
+      const fee = 0; // Frais Pi (modifiable si besoin)
+      const netAmount = depositAmount - fee;
+      
       await prisma.notification.create({
         data: {
           userId,
           title: result.isWithdraw ? "Retrait Pi approuve !" : "Depot Pi approuve !",
-          message: result.isWithdraw
-            ? `Votre envoi de ${depositAmount} PI est en cours.`
-            : `Votre depot de ${depositAmount} PI a ete credite.`,
+          message: result.isWithdraw 
+            ? `Votre envoi de ${depositAmount} PI vers ${toAddress?.substring(0, 8)}... est en cours de traitement.`
+            : `Votre depot de ${depositAmount} PI a ete credite automatiquement.`,
           type: result.isWithdraw ? "PAYMENT_SENT" : "SUCCESS",
           metadata: JSON.stringify({
-            amount: depositAmount,
+            amount: netAmount,
             currency: "PI",
+            fee: fee,
             reference: result.transaction?.reference || `PI-${paymentId?.slice(-8)}`,
             transactionId: result.transaction?.id,
+            method: "Pi Network",
             status: "SUCCESS",
+            network: "Pi Mainnet",
+            walletAddress: toAddress || null,
             blockchainTx: txid || null,
             paymentId: paymentId,
           }),
         }
       });
-    } catch (_) {}
+    } catch (_) { /* notification non-bloquante */ }
 
-    return NextResponse.json(
-      { success: true, transaction: result },
-      { headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" } }
-    );
+    return NextResponse.json({ success: true, transaction: result });
 
   } catch (error: any) {
     console.error("❌ [APPROVE_ERROR]:", error.message);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-      }
-    );
+    return NextResponse.json({ error: error.message || "Erreur serveur" }, { status: 500 });
   }
-}
-
-// Gestion globale CORS pour requêtes de pré-vérification (Preflight)
-export async function OPTIONS(req: Request) {
-  const origin = req.headers.get("origin") || "*";
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
-    },
-  });
 }

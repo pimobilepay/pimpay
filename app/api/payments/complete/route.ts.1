@@ -7,58 +7,32 @@ import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
 
 export async function POST(request: Request) {
-  // Récupération de l'origine pour la gestion CORS
-  const origin = request.headers.get("origin") || "*";
-
   try {
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
       console.error("[PIMPAY] PI_API_KEY non configuree");
-      return NextResponse.json(
-        { error: "Configuration serveur incomplete" }, 
-        { 
-          status: 500,
-          headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-        }
-      );
+      return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
     }
 
     // --- 1. AUTHENTIFICATION ---
     const userId = await getAuthUserId();
     if (!userId) {
       console.error("[PIMPAY] Utilisateur non authentifie pour complete");
-      return NextResponse.json(
-        { error: "Session expiree. Veuillez vous reconnecter." }, 
-        { 
-          status: 401,
-          headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-        }
-      );
+      return NextResponse.json({ error: "Session expiree. Veuillez vous reconnecter." }, { status: 401 });
     }
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {
       console.error("[PIMPAY] Donnees incompletes pour complete:", { paymentId, txid });
-      return NextResponse.json(
-        { error: "Donnees incompletes (paymentId et txid requis)" }, 
-        { 
-          status: 400,
-          headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-        }
-      );
+      return NextResponse.json({ error: "Donnees incompletes (paymentId et txid requis)" }, { status: 400 });
     }
 
     console.log(`[PIMPAY] Complete paiement: ${paymentId}, txid: ${txid}, user: ${userId}`);
 
-    // CONFIGURATION DYNAMIQUE DE L'URL SERVEUR PI
-    const isMainnet = process.env.PI_NETWORK_PHRASE === "mainnet";
-    const PI_API_BASE_URL = isMainnet 
-      ? "https://api.minepi.com" 
-      : "https://api.testnet.minepi.com";
-
     // --- 2. VALIDATION PI NETWORK (S2S) ---
-    const piRes = await fetch(`${PI_API_BASE_URL}/v2/payments/${paymentId}/complete`, {
+    // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)
+    const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${PI_API_KEY}`,
@@ -68,27 +42,27 @@ export async function POST(request: Request) {
     });
 
     const piData = await piRes.json();
+    
+    // Si Pi dit que c'est déjà complété, on continue pour synchroniser notre base
     const isAlreadyCompleted = piData.message === "Payment already completed";
-
+    
     if (!piRes.ok && !isAlreadyCompleted) {
       console.error("❌ Pi Network Error:", piData);
-      return NextResponse.json(
-        { error: "Échec validation Pi Network" }, 
-        { 
-          status: 403,
-          headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-        }
-      );
+      return NextResponse.json({ error: "Échec validation Pi Network" }, { status: 403 });
     }
 
     // --- 3. RÉCUPÉRATION OU RÉCRÉATION DE LA TRANSACTION ---
+    // Correction du crash findUnique : On utilise findUnique mais on gère l'absence
     let transaction = await prisma.transaction.findUnique({
       where: { externalId: paymentId }
     });
 
+    // Si la transaction n'existe pas (cas du db-clean-up), on la recrée
     if (!transaction) {
       console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
-      const amountFromPi = piData.amount || 0;
+      
+      // On récupère le montant depuis piData ou on met une valeur par défaut sécurisée
+      const amountFromPi = piData.amount || 0; 
 
       transaction = await prisma.transaction.create({
         data: {
@@ -104,15 +78,14 @@ export async function POST(request: Request) {
       });
     }
 
+    // Sécurité : Éviter le double crédit
     if (transaction.status === TransactionStatus.SUCCESS) {
-      return NextResponse.json(
-        { success: true, message: "Déjà crédité" },
-        { headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" } }
-      );
+      return NextResponse.json({ success: true, message: "Déjà crédité" });
     }
 
-    // --- 4. MISE À ZONE BANCAIRE ATOMIQUE ---
+    // --- 4. MISE À JOUR BANCAIRE ATOMIQUE ---
     const finalResult = await prisma.$transaction(async (tx) => {
+      // Utilisation de upsert pour le Wallet pour éviter tout crash si le wallet PI n'existe pas
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
         update: { balance: { increment: transaction!.amount } },
@@ -124,6 +97,7 @@ export async function POST(request: Request) {
         }
       });
 
+      // Mise à jour de la transaction en SUCCESS
       return await tx.transaction.update({
         where: { id: transaction!.id },
         data: {
@@ -137,40 +111,17 @@ export async function POST(request: Request) {
         }
       });
     }, { maxWait: 10000, timeout: 30000 });
-
+  
     console.log(`[PIMPAY] Portefeuille credite : ${transaction.amount} PI pour ${userId}`);
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Solde mis à jour !",
-        amount: transaction.amount
-      },
-      { headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" } }
-    );
+    return NextResponse.json({
+      success: true,
+      message: "Solde mis à jour !",
+      amount: transaction.amount
+    });
 
   } catch (error: any) {
     console.error("❌ [CRITICAL_PAYMENT_ERROR]:", error.message);
-    return NextResponse.json(
-      { error: "Erreur de traitement" }, 
-      { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
-      }
-    );
+    return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
   }
-}
-
-// Gestion globale CORS pour requêtes de pré-vérification OPTIONS
-export async function OPTIONS(request: Request) {
-  const origin = request.headers.get("origin") || "*";
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
-    },
-  });
 }
