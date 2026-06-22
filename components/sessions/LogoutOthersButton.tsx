@@ -4,13 +4,15 @@ import { useState } from "react";
 import { LogOut, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function LogoutOthersButton() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleLogoutOthers = async () => {
-    if (!confirm("Voulez-vous déconnecter tous les autres appareils connectés à pimpay ?")) return;
+    if (!confirm(t("sessions.confirmLogoutOthers"))) return;
 
     setLoading(true);
     try {
@@ -24,8 +26,8 @@ export default function LogoutOthersButton() {
         const count = data.count || 0;
         toast.success(
           count > 0
-            ? `${count} appareil${count > 1 ? "s" : ""} déconnecté${count > 1 ? "s" : ""} instantanément.`
-            : "Aucune autre session active."
+            ? `${count} ${t("sessions.devicesDisconnectedInstantly")}`
+            : t("sessions.noOtherSessions")
         );
         window.dispatchEvent(
           new CustomEvent("pimpay:session-revoked", { detail: { source: "self" } })
@@ -33,10 +35,10 @@ export default function LogoutOthersButton() {
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Une erreur est survenue");
+        toast.error(data.error || t("sessions.genericError"));
       }
     } catch {
-      toast.error("Impossible de contacter le serveur");
+      toast.error(t("sessions.serverError"));
     } finally {
       setLoading(false);
     }
@@ -53,7 +55,7 @@ export default function LogoutOthersButton() {
       ) : (
         <LogOut size={16} strokeWidth={2} />
       )}
-      Déconnecter les autres appareils
+      {t("sessions.logoutOthers")}
     </button>
   );
 }
