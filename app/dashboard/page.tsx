@@ -203,7 +203,7 @@ const DASH_T = {
     pieSortant: "支出", pieEntrant: "收入", pieSwaps: "兑换", pieAutres: "其他", pieTotal: "总计", pieNone: "无",
     quickServices: "快捷服务",
     svcBankTitle: "银行转账", svcBankSub: "转账到银行",
-    svcDepositTitle: "���值", svcDepositSub: "为账户充值",
+    svcDepositTitle: "�����值", svcDepositSub: "为账户充值",
     svcPimTitle: "Pim 币", svcPimSub: "奖励",
     svcSupportTitle: "客服", svcSupportSub: "帮助与联系",
     recentTransactions: "最近交易",
@@ -773,7 +773,7 @@ export default function UserDashboard() {
         {/* ── Quick Actions ── */}
         <div className="grid grid-cols-4 gap-3 mb-8">
           <QuickActionBtn icon={<ArrowUpRight size={22} />} label={tr.qaSend} color="bg-blue-600" onClick={() => router.push("/transfer")} />
-          <QuickActionBtn icon={<Download size={22} />} label={tr.qaReceive} color="bg-violet-600" onClick={() => router.push("/wallet")} />
+          <QuickActionBtn icon={<Download size={22} />} label={tr.qaReceive} color="bg-violet-600" onClick={() => router.push("/deposit")} />
           <QuickActionBtn icon={<ArrowLeftRight size={22} />} label={tr.qaSwap} color="bg-orange-600" onClick={() => router.push("/swap")} />
           <QuickActionBtn icon={<ArrowDownLeft size={22} />} label={tr.qaWithdraw} color="bg-emerald-700" onClick={() => router.push("/withdraw")} />
         </div>

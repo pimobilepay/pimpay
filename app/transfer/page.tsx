@@ -224,7 +224,18 @@ function getCurrencyMeta(currency: string) {
   }
   // 2) Depuis les métadonnées statiques ci-dessus
   if (STATIC_META[key]) return { ...STATIC_META[key], flag };
-  // 3) Fallback XAF
+  // 3) Devise fiat connue (drapeau) non définie dans STATIC_META -> meta fiat générée
+  if (flag) {
+    return {
+      symbol: key,
+      network: "PimPay",
+      color: "text-emerald-400",
+      logo: "",
+      flag,
+      addressType: "internal",
+    };
+  }
+  // 4) Fallback XAF
   return { ...STATIC_META.XAF, flag: CURRENCY_FLAG.XAF };
 }
 
@@ -359,7 +370,7 @@ export default function SendPage() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [wallets, setWallets] = useState<WalletData[]>([]);
-  const [selectedCurrency, setSelectedCurrency] = useState("XAF");
+  const [selectedCurrency, setSelectedCurrency] = useState("PI");
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
 
@@ -415,10 +426,12 @@ export default function SendPage() {
         const userWallets: WalletData[] = data.user?.wallets || [];
         setWallets(userWallets);
 
-        // Sélection par défaut intelligente
-        const hasXAF = userWallets.find((w) => w.currency === "XAF");
-        if (!hasXAF && userWallets.length > 0) {
-          setSelectedCurrency(userWallets[0].currency);
+        // Sélection par défaut intelligente : Pi Network en priorité
+        const hasPI = userWallets.find((w) => w.currency === "PI");
+        if (hasPI) {
+          setSelectedCurrency("PI");
+        } else if (userWallets.length > 0) {
+          setSelectedCurrency(sortWallets(userWallets)[0].currency);
         }
       }
     } catch (err) {
