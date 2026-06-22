@@ -9,8 +9,11 @@ import {
   Copy, TrendingUp, Loader2, X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePiPrice } from '@/hooks/usePiPrice';
 
-const PI_GCV_PRICE = 314159;
+// Valeur de repli uniquement si le prix admin n'est pas encore chargé.
+// Le prix réel provient de Admin → Réglages → Politique Monétaire via /api/pi-price.
+const FALLBACK_PI_PRICE = 314159;
 
 function resolveUserName(user?: { firstName?: string; lastName?: string; username?: string; email?: string }): { displayName: string; subLabel: string } {
   if (!user) return { displayName: "Utilisateur Inconnu", subLabel: "" };
@@ -52,16 +55,22 @@ interface Transaction {
   toUserId?: string;
 }
 
-function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing }: { 
+function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing, piPrice, priceSource }: { 
   tx: Transaction; 
   onClose: () => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   isProcessing: boolean;
+  piPrice: number;
+  priceSource: string | null;
 }) {
+  // Prix Pi configuré par l'admin (Réglages → Politique Monétaire) via /api/pi-price
+  const effectivePrice = piPrice > 0 ? piPrice : FALLBACK_PI_PRICE;
+  const isMarket = priceSource === "market" || priceSource === "market-fallback-gcv";
+  const priceLabel = isMarket ? "Marché" : "GCV";
   const isPi = tx.currency === "PI" || !tx.currency;
-  const amountPI = isPi ? tx.amount : tx.amount / PI_GCV_PRICE;
-  const amountUSD = isPi ? (amountPI * PI_GCV_PRICE) : tx.amount;
+  const amountPI = isPi ? tx.amount : tx.amount / effectivePrice;
+  const amountUSD = isPi ? (amountPI * effectivePrice) : tx.amount;
   const feePI = tx.fee || (amountPI * 0.01);
 
   const isSuccess = tx.status === "SUCCESS";
@@ -126,7 +135,7 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing 
             <div className="mt-2 flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
               <TrendingUp size={12} className="text-blue-400" />
               <span className="text-[10px] font-bold text-blue-400">
-                {'\u2248'} ${amountUSD.toLocaleString()} USD (GCV)
+                {'\u2248'} ${amountUSD.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USD ({priceLabel})
               </span>
             </div>
           </div>
@@ -274,6 +283,8 @@ export default function AdminTransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  // Prix Pi unique configuré par l'admin (Réglages → Politique Monétaire)
+  const { price: piPrice, source: priceSource } = usePiPrice();
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -575,6 +586,8 @@ export default function AdminTransactionsPage() {
           onApprove={(id) => handleAction(id, 'approve')}
           onReject={(id) => handleAction(id, 'reject')}
           isProcessing={!!isProcessing}
+          piPrice={piPrice}
+          priceSource={priceSource}
         />
       )}
     </div>

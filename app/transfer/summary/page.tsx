@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card } from "@/components/ui/card";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,8 +9,18 @@ import {
   Wallet,
   ShieldCheck,
   Send,
+  Copy,
+  Check,
+  Globe,
+  Users,
+  Clock,
+  Network,
+  FileText,
+  Lock,
+  Banknote,
 } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
+import { usePiPrice } from "@/hooks/usePiPrice";
 import { toast } from "sonner";
 function detectExternalAddress(identifier: string): boolean {
   const clean = (identifier || "").trim();
@@ -25,6 +34,26 @@ function detectExternalAddress(identifier: string): boolean {
   if (/^bc1[a-zA-HJ-NP-Z0-9]{39,59}$/.test(clean)) return true;
   if (/^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(clean)) return true;
   return false;
+}
+// Détecte le réseau blockchain à partir de l'adresse pour afficher plus de détails
+function detectNetwork(identifier: string, currency: string): string {
+  const clean = (identifier || "").trim();
+  if (/^G[A-Z2-7]{55}$/.test(clean)) return "Pi Network";
+  if (/^0x[a-fA-F0-9]{40}$/.test(clean)) return "Ethereum (EVM)";
+  if (/^T[a-zA-Z0-9]{33}$/.test(clean)) return "Tron (TRC20)";
+  if (/^r[a-zA-Z0-9]{24,33}$/.test(clean)) return "XRP Ledger";
+  if (/^bc1[a-zA-HJ-NP-Z0-9]{39,59}$/.test(clean)) return "Bitcoin (SegWit)";
+  if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(clean)) return "Bitcoin";
+  if (/^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(clean)) return "Litecoin";
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean)) return "Solana";
+  return currency === "PI" ? "Réseau PimPay" : `Réseau ${currency}`;
+}
+// Formate un montant Pi proprement (sans zéros superflus)
+function fmtPi(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return value < 0.0001
+    ? value.toFixed(10).replace(/0+$/, "").replace(/\.$/, "")
+    : value.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
 }
 // Fiat currencies list
 const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
@@ -41,6 +70,9 @@ function SummaryContent() {
     fiatTransferFee: number;
   }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
   const [feeLoading, setFeeLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  // Prix Pi configuré par l'admin (Réglages → Politique Monétaire)
+  const { price: piPrice } = usePiPrice();
 
   useEffect(() => {
     setMounted(true);
@@ -94,6 +126,23 @@ const data = useMemo(() => {
   };
   }, [searchParams, feeConfig]);
   const totalRequired = useMemo(() => data.amount + data.fee, [data.amount, data.fee]);
+  const network = useMemo(
+    () => detectNetwork(data.recipientId, data.currency),
+    [data.recipientId, data.currency]
+  );
+  // Estimation de la valeur en USD pour les transferts Pi (détail supplémentaire)
+  const usdValue = useMemo(() => {
+    if (data.currency !== "PI" || !piPrice || piPrice <= 0) return null;
+    return data.amount * piPrice;
+  }, [data.currency, data.amount, piPrice]);
+  const estimatedTime = data.isExternal ? "1 - 5 min" : "Instantané";
+  const copyAddress = () => {
+    if (!data.recipientId) return;
+    navigator.clipboard.writeText(data.recipientId);
+    setCopied(true);
+    toast.success("Adresse copiée");
+    setTimeout(() => setCopied(false), 1500);
+  };
   useEffect(() => {
     if (!mounted) return;
     const ac = new AbortController();
@@ -261,158 +310,225 @@ const data = useMemo(() => {
       </div>
     );
   }
+  const amountDisplay = data.currency === "PI" ? fmtPi(data.amount) : data.amount.toLocaleString();
+  const balanceDisplay =
+    walletBalance !== null
+      ? data.currency === "PI"
+        ? fmtPi(walletBalance)
+        : walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
+      : "—";
+  const totalDisplay =
+    data.currency === "PI"
+      ? fmtPi(totalRequired)
+      : totalRequired.toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const shortAddress = data.isExternal
+    ? `${data.recipientId.slice(0, 8)}…${data.recipientId.slice(-6)}`
+    : data.recipientId;
+
   return (
-    <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
-      <div className="px-6 pt-10 pb-6 flex items-center gap-4">
+    <div className="min-h-screen bg-[#020617] text-white pb-40 font-sans overflow-x-hidden">
+      {/* Glow décoratif */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[120%] h-72 bg-blue-600/10 blur-3xl rounded-full" />
+
+      {/* Header */}
+      <header className="relative px-6 pt-10 pb-4 flex items-center gap-4">
         <button
           onClick={() => router.back()}
-          className="p-3 rounded-xl bg-white/5 border border-white/10 active:scale-95 transition-transform"
+          className="p-3 rounded-2xl bg-white/5 border border-white/10 active:scale-95 transition-transform"
+          aria-label="Retour"
         >
           <ArrowLeft size={20} />
         </button>
-        <div>
-          <h1 className="text-xl font-black uppercase tracking-tight leading-none">Récapitulatif</h1>
-          <p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-1">Validation de transfert</p>
-        </div>
-      </div>
-      <div className="px-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <Card className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-10 text-center relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><Send size={80} /></div>
-          <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">Montant à envoyer</p>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-5xl font-black tracking-tighter">
-              {data.currency === "PI" 
-                ? (data.amount < 0.0001 
-                    ? data.amount.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
-                    : data.amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                : data.amount.toLocaleString()}
-            </span>
-            <span className="text-xl font-bold text-blue-500 uppercase">{data.currency}</span>
-          </div>
-          <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-            Solde disponible: {walletBalance !== null 
-              ? `${data.currency === "PI" 
-                  ? (walletBalance < 0.0001 
-                      ? walletBalance.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
-                      : walletBalance.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                  : walletBalance.toLocaleString()} ${data.currency}` 
-              : "—"}
+        <div className="flex-1">
+          <h1 className="text-2xl font-black tracking-tight leading-none">Récapitulatif</h1>
+          <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.25em] mt-1.5">
+            Validation de transfert
           </p>
-        </Card>
-        <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6">
+        </div>
+        <span
+          className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+            data.isExternal
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
+          }`}
+        >
+          {data.isExternal ? "Externe" : "Interne"}
+        </span>
+      </header>
+
+      <main className="relative px-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* HERO MONTANT */}
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-blue-600/15 via-slate-900/60 to-slate-900/80 p-8 shadow-2xl">
+          <div className="absolute -top-6 -right-6 opacity-[0.07]">
+            <Send size={140} />
+          </div>
+          <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.25em]">
+            Montant à envoyer
+          </p>
+          <div className="mt-4 flex items-end justify-center gap-2">
+            <span className="text-5xl font-black tracking-tighter leading-none break-all">
+              {amountDisplay}
+            </span>
+            <span className="text-2xl font-black text-blue-400 uppercase mb-0.5">{data.currency}</span>
+          </div>
+          {usdValue !== null && (
+            <p className="mt-3 text-center text-[11px] font-bold text-slate-300">
+              {"\u2248"} ${usdValue.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} USD
+            </p>
+          )}
+          <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-black/30 border border-white/5 py-2.5">
+            <Wallet size={13} className="text-slate-400" />
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+              Solde disponible : {balanceDisplay} {data.currency}
+            </span>
+          </div>
+        </section>
+
+        {/* BÉNÉFICIAIRE */}
+        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-5">
           <div className="flex items-center gap-4">
             {data.avatar ? (
-              <div className="w-14 h-14 rounded-full border-2 border-blue-500 p-0.5 shrink-0">
-                <img
-                  src={data.avatar}
-                  alt="Avatar"
-                  className="w-full h-full rounded-full object-cover"
-                />
+              <div className="w-14 h-14 rounded-2xl border-2 border-blue-500 p-0.5 shrink-0">
+                <img src={data.avatar} alt="Avatar" className="w-full h-full rounded-xl object-cover" />
               </div>
             ) : (
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-900 rounded-full flex items-center justify-center text-xl font-black border-2 border-white/10 shrink-0">
-                {data.name.charAt(0).toUpperCase()}
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black border-2 border-white/10 shrink-0 ${
+                  data.isExternal
+                    ? "bg-gradient-to-br from-amber-600 to-amber-900"
+                    : "bg-gradient-to-br from-blue-600 to-blue-900"
+                }`}
+              >
+                {data.isExternal ? <Globe size={22} /> : data.name.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Bénéficiaire</p>
-              <p className="text-white font-black text-lg truncate">{data.name}</p>
-              <p className={`text-[9px] font-bold uppercase tracking-widest ${data.isExternal ? "text-amber-400" : "text-blue-400"}`}>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                Bénéficiaire
+              </p>
+              <p className="text-white font-black text-base truncate">{data.name}</p>
+              <p
+                className={`text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 ${
+                  data.isExternal ? "text-amber-400" : "text-blue-400"
+                }`}
+              >
+                {data.isExternal ? <Globe size={10} /> : <Users size={10} />}
                 {data.isExternal ? "Adresse externe" : "Compte PimPay"}
               </p>
             </div>
           </div>
-        </Card>
-        <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-6 space-y-5">
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Montant</span>
-            <span className="text-white">
-              {data.currency === "PI" 
-                ? (data.amount < 0.0001 
-                    ? data.amount.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
-                    : data.amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                : data.amount.toLocaleString()} {data.currency}
+          {data.isExternal && (
+            <button
+              onClick={copyAddress}
+              className="mt-4 w-full flex items-center justify-between gap-2 rounded-xl bg-black/30 border border-white/5 px-4 py-3 active:scale-[0.98] transition-transform"
+            >
+              <span className="text-[11px] font-mono text-slate-300 truncate">{shortAddress}</span>
+              {copied ? (
+                <Check size={14} className="text-emerald-400 shrink-0" />
+              ) : (
+                <Copy size={14} className="text-slate-500 shrink-0" />
+              )}
+            </button>
+          )}
+        </section>
+
+        {/* DÉTAILS */}
+        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-6">
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4">
+            Détails de l'opération
+          </p>
+          <div className="space-y-1">
+            <DetailLine
+              icon={<ArrowRight size={15} />}
+              label="Montant"
+              value={`${amountDisplay} ${data.currency}`}
+            />
+            <DetailLine
+              icon={<Banknote size={15} />}
+              label="Frais de réseau"
+              value={`+${data.fee} ${data.currency}`}
+              valueClass="text-red-400"
+            />
+            <DetailLine
+              icon={<Network size={15} />}
+              label="Réseau"
+              value={network}
+            />
+            <DetailLine
+              icon={<Clock size={15} />}
+              label="Délai estimé"
+              value={estimatedTime}
+            />
+            <DetailLine
+              icon={<FileText size={15} />}
+              label="Description"
+              value={data.description}
+              truncate
+            />
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+              Total à débiter
+            </span>
+            <span className={`text-xl font-black ${isInsufficient ? "text-red-500" : "text-white"}`}>
+              {totalDisplay} {data.currency}
             </span>
           </div>
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Frais de réseau</span>
-            <span className="text-red-400">+{data.fee} {data.currency}</span>
-          </div>
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-slate-500">Description</span>
-            <span className="text-white truncate max-w-[150px]">{data.description}</span>
-          </div>
-          <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-            <span className="text-blue-400">Total à débiter</span>
-            <span className={`text-lg ${isInsufficient ? "text-red-500" : "text-white"}`}>
-              {data.currency === "PI" 
-                ? (totalRequired < 0.0001 
-                    ? totalRequired.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
-                    : totalRequired.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                : totalRequired.toLocaleString(undefined, { minimumFractionDigits: 2 })} {data.currency}
-            </span>
-          </div>
-        </Card>
-        <Card className="bg-white/[0.03] border border-white/5 rounded-3xl p-5">
+        </section>
+
+        {/* PORTEFEUILLE SOURCE */}
+        <section className="rounded-[1.75rem] border border-white/5 bg-white/[0.03] p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                <Wallet size={18} className="text-blue-500" />
+              <div className="w-11 h-11 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                <Wallet size={18} className="text-blue-400" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase">Portefeuille source</p>
-                <p className="text-[11px] font-black uppercase text-white">{data.currency}</p>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Portefeuille source
+                </p>
+                <p className="text-[12px] font-black uppercase text-white">{data.currency}</p>
               </div>
             </div>
             <span className="text-sm font-black text-white">
-              {walletBalance !== null
-                ? `${data.currency === "PI" 
-                    ? (walletBalance < 0.0001 
-                        ? walletBalance.toFixed(10).replace(/0+$/, '').replace(/\.$/, '') 
-                        : walletBalance.toFixed(8).replace(/0+$/, '').replace(/\.$/, ''))
-                    : walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${data.currency}`
-                : "—"}
+              {balanceDisplay} {data.currency}
             </span>
           </div>
-        </Card>
+        </section>
+
+        {/* ALERTES */}
         {data.isExternal && (
-          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex gap-4">
-            <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <AlertTriangle className="text-amber-500" size={20} />
-            </div>
-            <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase">
-              Vérifie attentivement l'adresse. Un envoi externe peut être irréversible.
-            </p>
-          </div>
+          <NoticeBox tone="amber">
+            Vérifie attentivement l'adresse et le réseau. Un envoi externe est irréversible.
+          </NoticeBox>
         )}
         {isInsufficient && (
-          <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex gap-4">
-            <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <AlertTriangle className="text-red-500" size={20} />
-            </div>
-            <p className="text-[9px] font-bold text-red-400 leading-relaxed uppercase">
-              Solde insuffisant pour couvrir le montant + les frais.
-            </p>
-          </div>
+          <NoticeBox tone="red">Solde insuffisant pour couvrir le montant + les frais.</NoticeBox>
         )}
         {!data.isExternal && !isInsufficient && (
-          <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-4">
-            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
-              <AlertTriangle className="text-blue-500" size={20} />
-            </div>
-            <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase">
-              Vérifiez les informations avant de confirmer. Cette action est définitive.
-            </p>
-          </div>
+          <NoticeBox tone="blue">
+            Vérifiez les informations avant de confirmer. Cette action est définitive.
+          </NoticeBox>
         )}
-        <div className="space-y-4">
+
+        <div className="flex items-center justify-center gap-2 opacity-30 pt-2">
+          <Lock size={12} />
+          <span className="text-[8px] font-bold uppercase tracking-widest text-white">
+            Sécurisé par PimPay Flow Engine
+          </span>
+        </div>
+      </main>
+
+      {/* CTA STICKY */}
+      <div className="fixed bottom-20 inset-x-0 px-6 z-40">
+        <div className="max-w-md mx-auto rounded-[1.5rem] bg-[#020617]/80 backdrop-blur-xl border border-white/10 p-2 shadow-2xl">
           <button
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={`w-full h-16 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 ${
+            className={`w-full h-15 py-4 rounded-[1.1rem] font-black uppercase text-[12px] tracking-widest transition-all flex items-center justify-center gap-3 ${
               !canConfirm
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                : "bg-blue-600 text-white shadow-blue-600/20 active:scale-95"
+                : "bg-blue-600 text-white shadow-lg shadow-blue-600/30 active:scale-[0.98]"
             }`}
           >
             {isLoading ? (
@@ -422,18 +538,64 @@ const data = useMemo(() => {
               </>
             ) : (
               <>
+                <ShieldCheck size={18} />
                 <span>Confirmer le transfert</span>
-                <ArrowRight size={20} />
+                <ArrowRight size={18} />
               </>
             )}
           </button>
         </div>
-        <div className="flex items-center justify-center gap-2 opacity-30 pt-4">
-          <ShieldCheck size={14} />
-          <span className="text-[8px] font-bold uppercase tracking-widest text-white">Sécurisé par PimPay Flow Engine</span>
-        </div>
       </div>
+
       <BottomNav onOpenMenu={() => {}} />
+    </div>
+  );
+}
+
+function DetailLine({
+  icon,
+  label,
+  value,
+  valueClass,
+  truncate,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueClass?: string;
+  truncate?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
+          {icon}
+        </div>
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
+      </div>
+      <span
+        className={`text-[12px] font-bold ${valueClass || "text-white"} ${
+          truncate ? "truncate max-w-[140px]" : "text-right"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function NoticeBox({ tone, children }: { tone: "amber" | "red" | "blue"; children: React.ReactNode }) {
+  const tones = {
+    amber: { bg: "bg-amber-500/5", border: "border-amber-500/20", icon: "text-amber-500", text: "text-slate-400" },
+    red: { bg: "bg-red-500/5", border: "border-red-500/20", icon: "text-red-500", text: "text-red-400" },
+    blue: { bg: "bg-blue-500/5", border: "border-blue-500/20", icon: "text-blue-500", text: "text-slate-400" },
+  }[tone];
+  return (
+    <div className={`p-4 ${tones.bg} border ${tones.border} rounded-2xl flex gap-4 items-center`}>
+      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
+        <AlertTriangle className={tones.icon} size={18} />
+      </div>
+      <p className={`text-[9px] font-bold ${tones.text} leading-relaxed uppercase`}>{children}</p>
     </div>
   );
 }
