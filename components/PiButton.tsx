@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { getPiSandbox, getCachedPiSandbox } from "@/lib/pi-config";
@@ -24,6 +24,8 @@ interface PiButtonProps {
   onError?: (error: string) => void;
   /** Label du bouton */
   label?: string;
+  /** Declenche automatiquement le paiement Pi des que le SDK est pret (redirige vers le Pi Wallet) */
+  autoStart?: boolean;
 }
 
 /**
@@ -32,9 +34,10 @@ interface PiButtonProps {
  * S'appuie sur PiInitializer pour l'init du SDK (charge dans layout.tsx).
  * Gere le flux complet: authenticate -> createPayment -> approve -> complete.
  */
-export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonProps) {
+export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }: PiButtonProps) {
   const [loading, setLoading] = useState(false);
   const paymentInProgressRef = useRef(false);
+  const autoStartedRef = useRef(false);
 
   const ensureSdkReady = useCallback(async (): Promise<boolean> => {
     if (typeof window === "undefined") return false;
@@ -237,6 +240,21 @@ export function PiButton({ amount, memo, onSuccess, onError, label }: PiButtonPr
       setLoading(false);
     }
   };
+
+  // Auto-declenchement : ouvre directement le Pi Wallet a l'arrivee sur la page
+  // (utilise pour le flux de depot ou l'utilisateur doit signer immediatement).
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return;
+    if (typeof window === "undefined" || !window.Pi) return;
+    if (!amount || amount <= 0) return;
+    autoStartedRef.current = true;
+    // Petit delai pour laisser le SDK Pi finir son initialisation
+    const timer = setTimeout(() => {
+      handlePayment();
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, amount]);
 
   return (
     <button

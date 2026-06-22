@@ -169,6 +169,7 @@ function SummaryContent() {
               memo={t("deposit.flow.depositRefMemo").replace("{ref}", ref || "")}
               onSuccess={(txid) => goToSuccess(ref || txid)}
               label={t("deposit.flow.payWithPiWallet")}
+              autoStart
             />
           ) : (
             <button

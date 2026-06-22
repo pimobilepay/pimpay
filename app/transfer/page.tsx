@@ -191,9 +191,25 @@ const STATIC_META: Record<
   },
 };
 
+/** Mapping devise fiat -> code drapeau (comme la page swap) */
+const CURRENCY_FLAG: Record<string, string> = {
+  XAF: "cm",
+  XOF: "sn",
+  EUR: "eu",
+  USD: "us",
+  CDF: "cd",
+  NGN: "ng",
+  GHS: "gh",
+  KES: "ke",
+  ZAR: "za",
+  AED: "ae",
+  MGA: "mg",
+};
+
 /** Récupère les métadonnées d'une devise (CRYPTO_ASSETS d'abord, puis fallback statique) */
 function getCurrencyMeta(currency: string) {
   const key = currency.toUpperCase();
+  const flag = CURRENCY_FLAG[key] ?? "";
   // 1) Depuis la config centralisée du projet
   const config = CRYPTO_ASSETS[key];
   if (config) {
@@ -202,13 +218,14 @@ function getCurrencyMeta(currency: string) {
       network: config.network,
       color: config.accentColor,
       logo: config.logo ?? "",
+      flag,
       addressType: STATIC_META[key]?.addressType ?? "internal",
     };
   }
   // 2) Depuis les métadonnées statiques ci-dessus
-  if (STATIC_META[key]) return STATIC_META[key];
+  if (STATIC_META[key]) return { ...STATIC_META[key], flag };
   // 3) Fallback XAF
-  return STATIC_META.XAF;
+  return { ...STATIC_META.XAF, flag: CURRENCY_FLAG.XAF };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -636,6 +653,14 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
                     />
+                  ) : currencyMeta.flag ? (
+                    <img
+                      src={`https://flagcdn.com/w80/${currencyMeta.flag}.png`}
+                      srcSet={`https://flagcdn.com/w160/${currencyMeta.flag}.png 2x`}
+                      alt={`${selectedCurrency} flag`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   ) : (
                     <WalletIcon className="w-5 h-5 text-slate-400" />
                   )}
@@ -685,6 +710,14 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = "none";
                               }}
+                            />
+                          ) : meta?.flag ? (
+                            <img
+                              src={`https://flagcdn.com/w80/${meta.flag}.png`}
+                              srcSet={`https://flagcdn.com/w160/${meta.flag}.png 2x`}
+                              alt={`${w.currency} flag`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
                             />
                           ) : (
                             <span className="text-[10px] font-black text-slate-400">
