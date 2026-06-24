@@ -14,7 +14,7 @@ const SDA_OPERATOR_ADDRESS =
 const SIDRA_RPC = "https://node.sidrachain.com";
 
 // Explorer Sidra Chain
-const SIDRA_EXPLORER = "https://explorer.sidrachain.com";
+const SIDRA_EXPLORER = "https://ledger.sidrachain.com";
 
 export async function GET(req: NextRequest) {
   try {
