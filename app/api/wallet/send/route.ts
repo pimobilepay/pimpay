@@ -170,86 +170,51 @@ export async function POST(req: NextRequest) {
         let txStatus = TransactionStatus.SUCCESS;
 
         // --- BROADCAST DIRECT POUR SDA/SIDRA ---
-        // STRATÉGIE (v3) :
-        //   - La transaction on-chain part TOUJOURS du wallet PERSONNEL de
-        //     l'utilisateur (sa clé Sidra). C'est SON propre solde SDA qui est
-        //     dépensé.
-        //   - Le wallet central/opérateur n'est PLUS utilisé pour envoyer les
-        //     fonds : il sert uniquement à recevoir les frais de service.
-        //   - Le solde ledger PimPay (DB) est débité plus haut (étape C).
-        if (currency === "SDA" || currency === "SIDRA") {
-          const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
-          const amountStr = amount.toFixed(18).replace(/\.?0+$/, '');
-          const amountInWei = ethers.parseEther(amountStr);
-
-          // Estimation du gas
-          let gasLimit = BigInt(21000);
-          let gasPrice = ethers.parseUnits("1", "gwei");
-          try {
-            const feeData = await provider.getFeeData();
-            if (feeData.gasPrice) gasPrice = feeData.gasPrice;
-          } catch { /* garder les valeurs par défaut */ }
-
-          const totalNeeded = amountInWei + gasLimit * gasPrice;
-
-          const refund = async () => {
-            await tx.wallet.update({
-              where: { id: senderWallet.id },
-              data: { balance: { increment: amount } }
-            });
-          };
-
-          // === TOUJOURS : utiliser le wallet PERSONNEL de l'utilisateur ===
-          if (!senderUser?.sidraPrivateKey || !senderUser?.sidraAddress) {
-            await refund();
-            throw new Error(
-              "Transfert annulé : aucune clé Sidra personnelle trouvée pour effectuer le retrait depuis votre wallet. Votre solde a été restitué."
-            );
-          }
-
+        // La transaction on-chain part TOUJOURS du wallet PERSONNEL de
+        // l'utilisateur (sa clé Sidra). C'est SON propre solde SDA qui est
+        // dépensé. Le wallet central/opérateur n'envoie jamais les fonds : il
+        // sert uniquement à recevoir les frais de service.
+        // NB : en cas d'erreur (throw), le prisma.$transaction annule
+        // automatiquement le débit DB effectué plus haut — pas besoin de
+        // rembourser manuellement.
+        if ((currency === "SDA" || currency === "SIDRA") && senderUser?.sidraPrivateKey) {
           try {
             let privateKey = senderUser.sidraPrivateKey;
-            if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+
+            // Déchiffrement sécurisé de la clé stockée en DB
+            if (privateKey.includes(':')) {
+              try {
+                const decrypted = decrypt(privateKey);
+                if (decrypted && decrypted.length > 0) {
+                  privateKey = decrypted;
+                }
+              } catch (decryptError: any) {
+                console.error("[v1] [WALLET_SEND] Erreur déchiffrement clé SDA:", decryptError.message);
+                throw new Error(`Clé SDA invalide ou corrompue: ${decryptError.message}`);
+              }
+            }
+
             if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
 
+            // Valider format clé EVM (64 caractères hex après 0x)
             if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-              throw new Error("Format de clé SDA utilisateur invalide");
+              throw new Error("Format de clé SDA/EVM invalide");
             }
 
-            const userWallet = new ethers.Wallet(privateKey, provider);
-            const userOnChainBalance = await provider.getBalance(userWallet.address);
-            console.log(
-              "[v3] [WALLET_SEND] Solde on-chain utilisateur:",
-              ethers.formatEther(userOnChainBalance), "SDA",
-              "| Nécessaire:", ethers.formatEther(totalNeeded), "SDA"
-            );
-
-            if (userOnChainBalance < totalNeeded) {
-              await refund();
-              const availUser = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
-              throw new Error(
-                `Transfert annulé : votre solde Sidra on-chain est insuffisant (${availUser} SDA disponibles, frais de réseau inclus). Votre solde PimPay a été restitué.`
-              );
-            }
-
-            console.log("[v3] [WALLET_SEND] Broadcasting SDA via USER wallet:", userWallet.address);
-            const txRes = await userWallet.sendTransaction({
+            console.log("[v1] [WALLET_SEND] Broadcasting SDA via USER wallet...");
+            const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
+            const wallet = new ethers.Wallet(privateKey, provider);
+            const txRes = await wallet.sendTransaction({
               to: recipientInput,
-              value: amountInWei,
-              gasLimit,
-              gasPrice
+              value: ethers.parseEther(amount.toString())
             });
-            // Hash capturé dès la diffusion (pas d'attente bloquante : éviter
-            // un timeout Prisma qui annulerait le débit DB alors que les SDA
-            // on-chain sont déjà engagés).
-            blockchainTxHash = txRes.hash;
+            const receipt = await txRes.wait();
+            blockchainTxHash = receipt?.hash || txRes.hash;
             txStatus = TransactionStatus.SUCCESS;
-            console.log("[v3] [WALLET_SEND] SDA confirmé via USER wallet:", blockchainTxHash);
+            console.log("[v1] [WALLET_SEND] SDA confirmé via USER wallet:", blockchainTxHash);
           } catch (e: any) {
-            if (e.message.includes("Transfert annulé")) throw e;
-            console.error("[v3] [WALLET_SEND] Erreur wallet utilisateur:", e.message);
-            await refund();
-            throw new Error(`Erreur transfert SDA depuis votre wallet : ${e.message}`);
+            console.error("[v1] [WALLET_SEND] Erreur blockchain SDA:", e.message);
+            throw new Error(`Erreur blockchain SDA: ${e.message}`);
           }
         }
         
@@ -304,7 +269,7 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("[v1] [WALLET_SEND] ERREUR:", error.message);
-    const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle", "annulé", "restitué", "Sidra"];
+    const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle", "Clé", "annulé", "restitué", "Sidra", "blockchain", "SDA", "corrompue"];
     const isSafeError = safeErrors.some(e => error.message?.includes(e));
     return NextResponse.json({ 
       error: isSafeError ? error.message : "Erreur lors du transfert" 
