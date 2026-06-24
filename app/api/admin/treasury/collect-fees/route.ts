@@ -29,7 +29,7 @@ const RPC_URLS: Record<string, string> = {
 };
 
 const EXPLORER_URLS: Record<string, string> = {
-  SDA: "https://explorer.sidrachain.com",
+  SDA: "https://ledger.sidrachain.com",
   BNB: "https://bscscan.com",
   ETH: "https://etherscan.io",
 };
