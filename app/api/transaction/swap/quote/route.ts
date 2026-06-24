@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
+import { getPiPrice } from "@/lib/fees";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 
@@ -29,14 +30,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Solde ${fromCurr} insuffisant` }, { status: 400, headers: cors });
     }
 
-    // PRIX PI : source unique = prix configuré par l'admin (SystemConfig.consensusPrice)
-    const piConfig = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" },
-      select: { consensusPrice: true },
-    });
-    const adminPiPrice = piConfig?.consensusPrice && piConfig.consensusPrice > 0
-      ? piConfig.consensusPrice
-      : 314159.0;
+    // PRIX PI : source unique = prix configuré par l'admin (page Admin →
+    // Réglages → Politique Monétaire). getPiPrice() respecte le mode choisi :
+    //  - GCV    → prix fixe consensusPrice
+    //  - MARKET → cours temps réel CoinGecko (repli GCV si indisponible)
+    const adminPiPrice = await getPiPrice();
 
     // 2. Taux reels (crypto + fiat) — le PI est toujours imposé par le prix admin
     let marketRates: Record<string, number> = { ...FALLBACK_FIAT };

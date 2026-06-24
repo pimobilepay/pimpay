@@ -179,24 +179,60 @@ export async function getFeeConfig(): Promise<FeeConfig> {
 export const DEFAULT_PI_PRICE_USD = 314159.0;
 
 /**
+ * Récupère le prix marché temps réel du Pi Network depuis CoinGecko.
+ * Lève une erreur si indisponible (le repli GCV est géré par l'appelant).
+ */
+async function fetchMarketPiPrice(): Promise<number> {
+  const res = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=pi-network&vs_currencies=usd",
+    { headers: { accept: "application/json" }, cache: "no-store" }
+  );
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+  const data = await res.json();
+  const price = data?.["pi-network"]?.usd;
+  if (typeof price !== "number" || price <= 0) {
+    throw new Error("Prix marché Pi indisponible");
+  }
+  return price;
+}
+
+/**
  * Récupère le prix du Pi en USD configuré par l'administrateur
- * (SystemConfig.consensusPrice — page Admin → Réglages → Politique Monétaire).
+ * (page Admin → Réglages → Politique Monétaire).
+ *
+ * Respecte le mode de prix défini par l'admin (SystemConfig.priceMode) :
+ *  - "GCV"    : prix fixe `consensusPrice`.
+ *  - "MARKET" : prix temps réel du marché (CoinGecko), avec repli sur le
+ *               prix GCV si le marché est temporairement injoignable.
  *
  * C'est la SOURCE UNIQUE du prix Pi côté serveur : toutes les routes
  * (retrait, transfert, conversion de frais, swap, cartes...) doivent
- * l'utiliser plutôt qu'une valeur figée ou CoinGecko.
+ * l'utiliser plutôt qu'une valeur figée ou CoinGecko en direct.
  */
 export async function getPiPrice(): Promise<number> {
   try {
     const config = await prisma.systemConfig.findUnique({
       where: { id: "GLOBAL_CONFIG" },
-      select: { consensusPrice: true },
+      select: { consensusPrice: true, priceMode: true },
     });
-    const price = config?.consensusPrice;
-    if (typeof price === "number" && price > 0) {
-      return price;
+
+    const gcvPrice =
+      typeof config?.consensusPrice === "number" && config.consensusPrice > 0
+        ? config.consensusPrice
+        : DEFAULT_PI_PRICE_USD;
+
+    // Mode MARCHÉ : on tente le cours temps réel, repli GCV si indisponible.
+    if (config?.priceMode === "MARKET") {
+      try {
+        return await fetchMarketPiPrice();
+      } catch (e) {
+        console.error("[FEES] Prix marché Pi indisponible, repli GCV:", e);
+        return gcvPrice;
+      }
     }
-    return DEFAULT_PI_PRICE_USD;
+
+    // Mode GCV (par défaut) : prix fixe admin.
+    return gcvPrice;
   } catch (error) {
     console.error("[FEES] Failed to load Pi price:", error);
     return DEFAULT_PI_PRICE_USD;

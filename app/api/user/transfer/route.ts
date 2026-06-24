@@ -572,9 +572,26 @@ export async function POST(req: NextRequest) {
             gasLimit,
             gasPrice,
           });
-          const receipt = await txRes.wait();
-          blockchainTxHash = receipt?.hash || txRes.hash;
-          console.log(`[SDA_TRANSFER] Success — txHash: ${blockchainTxHash}`);
+
+          // ⚠️ CORRECTIF anti double-débit on-chain :
+          // Dès que sendTransaction() retourne, la transaction est DÉJÀ diffusée
+          // sur la blockchain Sidra (les SDA on-chain sont engagés). On capture
+          // donc le hash IMMÉDIATEMENT. Si l'attente de confirmation (wait())
+          // échoue ensuite (timeout RPC, coupure réseau...), on NE rembourse PAS
+          // l'utilisateur — sinon son solde resterait intact alors que les SDA
+          // on-chain ont bel et bien été dépensés.
+          blockchainTxHash = txRes.hash;
+          try {
+            const receipt = await txRes.wait();
+            blockchainTxHash = receipt?.hash || txRes.hash;
+            console.log(`[SDA_TRANSFER] Confirmé — txHash: ${blockchainTxHash}`);
+          } catch (waitErr: any) {
+            // La tx est diffusée mais la confirmation n'a pas pu être lue.
+            // On conserve le hash : le retrait est considéré comme parti.
+            console.warn(
+              `[SDA_TRANSFER] Diffusée mais confirmation non lue (${waitErr?.message}). Hash conservé: ${blockchainTxHash}`
+            );
+          }
         }
 
         // ── BNB / ETH ────────────────────────────────────────────────────
@@ -617,8 +634,19 @@ export async function POST(req: NextRequest) {
             gasLimit,
             gasPrice,
           });
-          const receipt = await txRes.wait();
-          blockchainTxHash = receipt?.hash || txRes.hash;
+
+          // Même correctif que SDA : la tx est diffusée dès sendTransaction(),
+          // on capture le hash avant d'attendre la confirmation pour éviter un
+          // remboursement erroné si wait() échoue après diffusion on-chain.
+          blockchainTxHash = txRes.hash;
+          try {
+            const receipt = await txRes.wait();
+            blockchainTxHash = receipt?.hash || txRes.hash;
+          } catch (waitErr: any) {
+            console.warn(
+              `[${currency}_TRANSFER] Diffusée mais confirmation non lue (${waitErr?.message}). Hash conservé: ${blockchainTxHash}`
+            );
+          }
         }
 
         // ── TRX (TRON natif) ─────────────────────────────────────────────

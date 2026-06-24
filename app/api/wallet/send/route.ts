@@ -220,8 +220,12 @@ export async function POST(req: NextRequest) {
                   gasLimit,
                   gasPrice
                 });
-                const receipt = await txRes.wait();
-                blockchainTxHash = receipt?.hash || txRes.hash;
+                // Hash capturé dès la diffusion (la tx est déjà émise on-chain).
+                // On n'attend PAS la confirmation ici : un await bloquant
+                // risquerait de dépasser le timeout de la transaction Prisma,
+                // ce qui annulerait le débit DB alors que les SDA on-chain sont
+                // déjà dépensés (solde intact mais on-chain consommé).
+                blockchainTxHash = txRes.hash;
                 usedUserWallet = true;
                 txStatus = TransactionStatus.SUCCESS;
                 console.log("[v1] [WALLET_SEND] SDA confirmé via USER wallet:", blockchainTxHash);
@@ -259,8 +263,10 @@ export async function POST(req: NextRequest) {
                       gasLimit,
                       gasPrice
                     });
-                    const receipt = await txRes.wait();
-                    blockchainTxHash = receipt?.hash || txRes.hash;
+                    // Hash capturé dès la diffusion (pas d'attente bloquante de
+                    // la confirmation : éviter un timeout Prisma qui annulerait
+                    // le débit DB alors que les SDA on-chain sont déjà engagés).
+                    blockchainTxHash = txRes.hash;
                     txStatus = TransactionStatus.SUCCESS;
                     console.log("[v1] [WALLET_SEND] SDA confirmé via OPERATOR:", blockchainTxHash);
                   } else {
