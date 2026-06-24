@@ -631,8 +631,21 @@ async function sendEVM(tx: any, dest: string, encryptedKey: string | null, rpc: 
     to: dest,
     value: ethers.parseEther(amountStr)
   });
-  
-  // Attendre la confirmation de la transaction
-  const receipt = await response.wait();
-  return receipt?.hash || response.hash;
+
+  // ⚠️ CORRECTIF anti double-débit on-chain (SDA, USDT, BNB/ETH) :
+  // Dès que sendTransaction() retourne, la transaction est DÉJÀ diffusée sur la
+  // blockchain (les fonds on-chain sont engagés). On retourne donc le hash
+  // IMMÉDIATEMENT. Si l'attente de confirmation échoue ensuite (timeout RPC,
+  // coupure réseau...), on NE doit PAS propager l'erreur : sinon l'appelant
+  // marquerait la transaction FAILED et rembourserait l'utilisateur alors que
+  // les fonds on-chain ont bel et bien été dépensés (solde intact / on-chain consommé).
+  try {
+    const receipt = await response.wait();
+    return receipt?.hash || response.hash;
+  } catch (waitErr: any) {
+    console.warn(
+      `[WORKER] ${tx.currency} diffusée mais confirmation non lue (${waitErr?.message}). Hash conservé: ${response.hash}`
+    );
+    return response.hash;
+  }
 }

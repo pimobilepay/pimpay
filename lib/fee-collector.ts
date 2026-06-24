@@ -261,8 +261,18 @@ export async function collectFeeOnChain(
       gasPrice,
     });
 
-    const receipt = await tx.wait();
-    const txHash = receipt?.hash || tx.hash;
+    // Anti double-envoi : la tx est diffusée dès sendTransaction(). On capture
+    // le hash immédiatement et on traite un échec de confirmation comme un
+    // succès (avec hash), sinon un retry renverrait les frais on-chain en double.
+    let txHash = tx.hash;
+    try {
+      const receipt = await tx.wait();
+      txHash = receipt?.hash || tx.hash;
+    } catch (waitErr: any) {
+      console.warn(
+        `[FEE_COLLECTOR] ${curr} diffusée mais confirmation non lue (${waitErr?.message}). Hash conservé: ${txHash}`
+      );
+    }
 
     console.log(
       `[FEE_COLLECTOR] ✅ ${feeAmount} ${curr} → ${centralAddress} (${network}) | txHash: ${txHash}`
