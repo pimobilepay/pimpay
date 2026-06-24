@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Scan, ArrowLeft, Zap, ShieldCheck,
   Store, Loader2, CheckCircle2,
@@ -214,6 +214,8 @@ export default function MPayPage() {
   const [userBalance, setUserBalance] = useState(0);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [notifications, setNotifications] = useState(0);
+  // Avoids showing the "payment received" toast for pre-existing notifications on first load/login
+  const notifFirstCheck = useRef(true);
   const [isOnline, setIsOnline] = useState(true);
   const [userMerchantId, setUserMerchantId] = useState("");
   const [userName, setUserName] = useState("");
@@ -344,7 +346,8 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
 
   // Real notification polling
   useEffect(() => {
-    let lastNotifId = sessionStorage.getItem("mpay_last_notif_id") || "";
+    // Persisted across sessions so a payment that was already announced is not re-announced on the next login
+    let lastNotifId = localStorage.getItem("mpay_last_notif_id") || "";
     
     const checkNewNotifications = async () => {
       try {
@@ -358,29 +361,39 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           
           setNotifications(data.unreadCount || 0);
           
-          // Show toast for new payment received + auto-refresh balance
-          if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
+          if (unreadPayments.length > 0) {
             const latest = unreadPayments[0];
-            lastNotifId = latest.id;
-            sessionStorage.setItem("mpay_last_notif_id", latest.id);
-            
-            toast.success(t("mpay.paymentReceived"), {
-              description: latest.message || t("mpay.paymentReceivedDesc"),
-              duration: 6000,
-              style: {
-                background: "rgba(16, 185, 129, 0.95)",
-                border: "1px solid rgba(52, 211, 153, 0.3)",
-                color: "#fff",
-              },
-            });
 
-            // Refresh balance + transactions automatically (no page reload needed)
-            fetchProfile();
-            fetchTransactions();
+            // On the first poll after (re)load, just establish the baseline silently.
+            // This prevents the toast from firing on every login for older / already-seen transactions.
+            if (notifFirstCheck.current) {
+              lastNotifId = latest.id;
+              localStorage.setItem("mpay_last_notif_id", latest.id);
+            } else if (latest.id !== lastNotifId) {
+              // Genuinely new payment received during this active session -> notify + refresh
+              lastNotifId = latest.id;
+              localStorage.setItem("mpay_last_notif_id", latest.id);
+
+              toast.success(t("mpay.paymentReceived"), {
+                description: latest.message || t("mpay.paymentReceivedDesc"),
+                duration: 6000,
+                style: {
+                  background: "rgba(16, 185, 129, 0.95)",
+                  border: "1px solid rgba(52, 211, 153, 0.3)",
+                  color: "#fff",
+                },
+              });
+
+              // Refresh balance + transactions automatically (no page reload needed)
+              fetchProfile();
+              fetchTransactions();
+            }
           }
         }
       } catch (error) {
         console.error("Notification check error:", error);
+      } finally {
+        notifFirstCheck.current = false;
       }
     };
     
