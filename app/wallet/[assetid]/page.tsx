@@ -458,7 +458,7 @@ export default function AssetDetailPage() {
     return () => clearInterval(interval);
   }, [loadData, assetId]);
 
-  // Background blockchain sync for on-chain assets (SDA / TRX / USDT): periodically
+  // Background blockchain sync for on-chain assets (SDA / TRX / USDT / BNB): periodically
   // poll the on-chain balance so deposits are auto-detected and credited without the
   // user refreshing. On a detected deposit we reload and toast.
   useEffect(() => {
@@ -466,10 +466,18 @@ export default function AssetDetailPage() {
       SDA: "/api/wallet/sidra/sync",
       TRX: "/api/wallet/trx/sync",
       USDT: "/api/wallet/usdt/sync",
+      BNB: "/api/wallet/bnb/sync",
+    };
+    // Display precision per asset
+    const SYNC_DECIMALS: Record<string, number> = {
+      SDA: 4,
+      TRX: 6,
+      USDT: 6,
+      BNB: 8,
     };
     const endpoint = SYNC_ENDPOINTS[assetId];
     if (!endpoint) return;
-    const decimals = assetId === "SDA" ? 4 : 6;
+    const decimals = SYNC_DECIMALS[assetId] ?? 6;
     const syncOnChain = async () => {
       try {
         const res = await fetch(endpoint, { method: "POST" });
@@ -484,8 +492,9 @@ export default function AssetDetailPage() {
         }
       } catch {}
     };
-    // SDA sync is throttled server-side to 30s, so we poll at that cadence
-    const interval = setInterval(syncOnChain, assetId === "SDA" ? 30000 : 20000);
+    // SDA and BNB sync are throttled server-side to 30s, so we poll at that cadence
+    const pollInterval = assetId === "SDA" || assetId === "BNB" ? 30000 : 20000;
+    const interval = setInterval(syncOnChain, pollInterval);
     return () => clearInterval(interval);
   }, [assetId, loadData]);
 
