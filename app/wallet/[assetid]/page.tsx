@@ -458,15 +458,22 @@ export default function AssetDetailPage() {
     return () => clearInterval(interval);
   }, [loadData, assetId]);
 
-  // Background blockchain sync for on-chain assets (SDA / TRX / USDT / BNB): periodically
-  // poll the on-chain balance so deposits are auto-detected and credited without the
-  // user refreshing. On a detected deposit we reload and toast.
+  // Background blockchain sync for on-chain assets: periodically poll the on-chain
+  // balance so deposits are auto-detected and credited without the user refreshing.
+  // On a detected deposit we reload and toast.
   useEffect(() => {
     const SYNC_ENDPOINTS: Record<string, string> = {
       SDA: "/api/wallet/sidra/sync",
       TRX: "/api/wallet/trx/sync",
       USDT: "/api/wallet/usdt/sync",
       BNB: "/api/wallet/bnb/sync",
+      BTC: "/api/wallet/btc/sync",
+      SOL: "/api/wallet/sol/sync",
+      XRP: "/api/wallet/xrp/sync",
+      XLM: "/api/wallet/xlm/sync",
+      USDC: "/api/wallet/usdc/sync",
+      BUSD: "/api/wallet/busd/sync",
+      DAI: "/api/wallet/dai/sync",
     };
     // Display precision per asset
     const SYNC_DECIMALS: Record<string, number> = {
@@ -474,7 +481,16 @@ export default function AssetDetailPage() {
       TRX: 6,
       USDT: 6,
       BNB: 8,
+      BTC: 8,
+      SOL: 8,
+      XRP: 6,
+      XLM: 7,
+      USDC: 4,
+      BUSD: 4,
+      DAI: 4,
     };
+    // Assets whose sync endpoint is throttled server-side to 30s
+    const SLOW_SYNC = new Set(["SDA", "BNB", "USDC", "BUSD", "DAI"]);
     const endpoint = SYNC_ENDPOINTS[assetId];
     if (!endpoint) return;
     const decimals = SYNC_DECIMALS[assetId] ?? 6;
@@ -492,8 +508,7 @@ export default function AssetDetailPage() {
         }
       } catch {}
     };
-    // SDA and BNB sync are throttled server-side to 30s, so we poll at that cadence
-    const pollInterval = assetId === "SDA" || assetId === "BNB" ? 30000 : 20000;
+    const pollInterval = SLOW_SYNC.has(assetId) ? 30000 : 20000;
     const interval = setInterval(syncOnChain, pollInterval);
     return () => clearInterval(interval);
   }, [assetId, loadData]);
