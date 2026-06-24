@@ -458,12 +458,18 @@ export default function AssetDetailPage() {
     return () => clearInterval(interval);
   }, [loadData, assetId]);
 
-  // Background blockchain sync for TRON assets (TRX / USDT): periodically poll
-  // the on-chain balance so deposits are auto-detected and credited without the
+  // Background blockchain sync for on-chain assets (SDA / TRX / USDT): periodically
+  // poll the on-chain balance so deposits are auto-detected and credited without the
   // user refreshing. On a detected deposit we reload and toast.
   useEffect(() => {
-    if (assetId !== "TRX" && assetId !== "USDT") return;
-    const endpoint = assetId === "TRX" ? "/api/wallet/trx/sync" : "/api/wallet/usdt/sync";
+    const SYNC_ENDPOINTS: Record<string, string> = {
+      SDA: "/api/wallet/sidra/sync",
+      TRX: "/api/wallet/trx/sync",
+      USDT: "/api/wallet/usdt/sync",
+    };
+    const endpoint = SYNC_ENDPOINTS[assetId];
+    if (!endpoint) return;
+    const decimals = assetId === "SDA" ? 4 : 6;
     const syncOnChain = async () => {
       try {
         const res = await fetch(endpoint, { method: "POST" });
@@ -471,14 +477,15 @@ export default function AssetDetailPage() {
         const data = await res.json();
         if (data.added && parseFloat(data.added) > 0) {
           toast.success(
-            `✅ Dépôt ${assetId} reçu : +${parseFloat(data.added).toFixed(6)} ${assetId} crédité sur votre compte`,
+            `✅ Dépôt ${assetId} reçu : +${parseFloat(data.added).toFixed(decimals)} ${assetId} crédité sur votre compte`,
             { duration: 6000 }
           );
           loadData();
         }
       } catch {}
     };
-    const interval = setInterval(syncOnChain, 20000);
+    // SDA sync is throttled server-side to 30s, so we poll at that cadence
+    const interval = setInterval(syncOnChain, assetId === "SDA" ? 30000 : 20000);
     return () => clearInterval(interval);
   }, [assetId, loadData]);
 
