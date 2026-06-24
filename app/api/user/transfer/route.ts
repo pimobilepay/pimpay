@@ -53,20 +53,6 @@ function isExternalAddress(identifier: string): boolean {
 }
 
 /**
- * Retourne la clé privée opérateur SDA depuis les variables d'environnement.
- * Le wallet opérateur est le wallet PimPay central qui signe toutes les sorties SDA.
- * Configurez SIDRA_OPERATOR_PRIVATE_KEY dans votre .env / Vercel env vars.
- */
-function getSidraOperatorKey(): string | null {
-  const key = process.env.SIDRA_OPERATOR_PRIVATE_KEY;
-  if (!key) return null;
-  let k = key.trim();
-  if (!k.startsWith("0x")) k = "0x" + k;
-  if (!/^0x[a-fA-F0-9]{64}$/.test(k)) return null;
-  return k;
-}
-
-/**
  * Diffuse réellement un transfert TRX (natif) ou USDT (TRC20) sur la blockchain
  * TRON depuis le wallet Tron de l'expéditeur vers une adresse Tron destinataire.
  *
@@ -454,8 +440,9 @@ export async function POST(req: NextRequest) {
                     toAddress: recipientInput,
                     network: "Sidra Mainnet",
                     isBlockchainWithdraw: true,
-                    // FIX : marqué paidByOperator pour que le sync ne re-crédite pas l'utilisateur
-                    paidByOperator: true,
+                    // Le retrait part du wallet PERSONNEL de l'utilisateur : son
+                    // solde on-chain baisse, donc le sync (diff < 0) ne re-crédite pas.
+                    paidByOperator: false,
                     requestedAt: new Date().toISOString(),
                   }
                 : currency === "USDT"
@@ -519,15 +506,30 @@ export async function POST(req: NextRequest) {
         const currency = result.transaction.currency;
 
         // ── SDA / SIDRA ──────────────────────────────────────────────────
-        // IMPORTANT (architecture centralisée) :
+        // ARCHITECTURE : les fonds partent du WALLET PERSONNEL de l'utilisateur.
         //   - Le solde DB de l'utilisateur a DÉJÀ été débité à l'étape 1.
-        //   - Le broadcast blockchain utilise UNIQUEMENT le wallet opérateur central
-        //     (SIDRA_OPERATOR_PRIVATE_KEY). C'est ce wallet qui détient les fonds on-chain.
-        //   - Le wallet personnel de l'utilisateur N'EST PLUS utilisé en fallback,
-        //     car depuis la centralisation il ne contient plus de SDA on-chain.
-        //   - Si l'opérateur est insuffisant, on annule et on rembourse l'utilisateur.
+        //   - Le broadcast blockchain utilise la clé Sidra PERSONNELLE de
+        //     l'utilisateur (senderUser.sidraPrivateKey) : c'est SON propre
+        //     solde SDA on-chain qui est dépensé.
+        //   - Le wallet opérateur central n'envoie PLUS les fonds ; il sert
+        //     uniquement à recevoir les frais de service.
+        //   - Si le solde on-chain de l'utilisateur est insuffisant, on annule
+        //     et on rembourse son solde DB (géré plus bas).
         if (currency === "SDA" || currency === "SIDRA") {
+          if (!senderUser?.sidraPrivateKey || !senderUser?.sidraAddress) {
+            throw new Error(
+              "Aucun wallet Sidra personnel configuré pour effectuer ce retrait. Contactez le support."
+            );
+          }
+
+          let privateKey = senderUser.sidraPrivateKey;
+          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+          if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
+          if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey))
+            throw new Error("Format de clé SDA/EVM invalide");
+
           const provider = new ethers.JsonRpcProvider(RPC_URLS.SDA);
+          const wallet = new ethers.Wallet(privateKey, provider);
           const amountInWei = ethers.parseEther(result.transaction.amount.toString());
 
           // Estimer le gas
@@ -540,33 +542,20 @@ export async function POST(req: NextRequest) {
 
           const totalNeeded = amountInWei + gasLimit * gasPrice;
 
-          // Wallet opérateur central (SIDRA_OPERATOR_PRIVATE_KEY) — seul wallet autorisé
-          const operatorKey = getSidraOperatorKey();
-
-          if (!operatorKey) {
-            // Pas de clé opérateur configurée → annuler
+          // Vérifier le solde on-chain du wallet PERSONNEL de l'utilisateur
+          const userOnChainBalance = await provider.getBalance(wallet.address);
+          if (userOnChainBalance < totalNeeded) {
+            const availStr = parseFloat(ethers.formatEther(userOnChainBalance)).toFixed(6);
+            const reqStr = parseFloat(ethers.formatEther(totalNeeded)).toFixed(6);
             throw new Error(
-              "Le service de retrait SDA n'est pas configuré (SIDRA_OPERATOR_PRIVATE_KEY manquant). Contactez le support."
+              `Solde SDA on-chain insuffisant sur votre wallet ` +
+              `(${availStr} SDA disponible, ${reqStr} SDA requis avec les frais réseau).`
             );
           }
 
-          const operatorWallet = new ethers.Wallet(operatorKey, provider);
-          const operatorBalance = await provider.getBalance(operatorWallet.address);
-          const operatorBalanceStr = parseFloat(ethers.formatEther(operatorBalance)).toFixed(6);
-
-          if (operatorBalance < totalNeeded) {
-            // Solde opérateur insuffisant → annuler et rembourser (géré ci-dessous)
-            throw new Error(
-              `Retrait SDA temporairement indisponible : le wallet opérateur est insuffisant ` +
-              `(${operatorBalanceStr} SDA disponible, ` +
-              `${parseFloat(ethers.formatEther(totalNeeded)).toFixed(6)} SDA requis). ` +
-              `Veuillez contacter le support.`
-            );
-          }
-
-          // Broadcast depuis le wallet opérateur
-          console.log(`[SDA_TRANSFER] Broadcasting via OPERATOR wallet: ${operatorWallet.address}`);
-          const txRes = await operatorWallet.sendTransaction({
+          // Broadcast depuis le wallet PERSONNEL de l'utilisateur
+          console.log(`[SDA_TRANSFER] Broadcasting via USER wallet: ${wallet.address}`);
+          const txRes = await wallet.sendTransaction({
             to: recipientInput,
             value: amountInWei,
             gasLimit,
