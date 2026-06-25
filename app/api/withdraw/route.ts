@@ -2,49 +2,36 @@ import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { getAuthUserId } from "@/lib/auth";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { parseAmount } from "@/lib/amount-guard";
+import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 
 // Force le rendu dynamique pour le build Vercel
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    // [FIX #7] Rate limiting — 20 requêtes / 60s par IP (anti wash-trading / DDoS financier)
-    const ip = getClientIp(req);
-    const rl = checkRateLimit(`withdraw:${ip}`, 20, 60_000);
-    if (rl.limited) {
-      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
-      return NextResponse.json(
-        { error: "Trop de requêtes. Veuillez patienter avant de réessayer." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(retryAfter),
-            "X-RateLimit-Limit": "20",
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": String(rl.resetAt),
-          },
-        }
-      );
-    }
-
     // #2 FIX: userId extrait du token JWT, jamais du body client
     const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
     }
 
+    // [FIX #7] Rate limiting DISTRIBUÉ — 2 req / 60s par utilisateur ET par IP
+    // (anti wash-trading / DDoS financier, partagé entre toutes les lambdas Vercel).
+    const ip = getClientIp(req);
+    const limited = await enforceTxRateLimit({ userId, ip, action: "withdraw" });
+    if (limited) return limited;
+
     const { amountUSD, phone, prefix } = await req.json();
 
-    // #19 FIX: Validation du montant maximum (AML/limites journalières)
+    // #19 FIX: Validation stricte du montant + plafond par retrait (AML).
     const DAILY_LIMIT_USD = 500;
     const MAX_SINGLE_WITHDRAW_USD = 200;
-    if (!amountUSD || amountUSD <= 0) {
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    const parsed = parseAmount(amountUSD, { max: MAX_SINGLE_WITHDRAW_USD, decimals: 2 });
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-    if (amountUSD > MAX_SINGLE_WITHDRAW_USD) {
-      return NextResponse.json({ error: `Montant maximum par retrait : ${MAX_SINGLE_WITHDRAW_USD} USD` }, { status: 400 });
-    }
+    const amountUSDNum = parsed.value;
 
     // Vérification limite journalière
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
@@ -53,14 +40,14 @@ export async function POST(req: Request) {
       _sum: { amount: true }
     });
     const dailySpent = dailyTotal._sum.amount || 0;
-    if (dailySpent + amountUSD > DAILY_LIMIT_USD) {
+    if (dailySpent + amountUSDNum > DAILY_LIMIT_USD) {
       return NextResponse.json({ error: `Limite journalière atteinte (${DAILY_LIMIT_USD} USD/jour)` }, { status: 400 });
     }
 
     // Frais centralisés
     const feeConfig = await getFeeConfig();
-    const { feeRate: FEE_PERCENT, feeAmount, totalDebit: totalToDeduct } = calculateFee(amountUSD, feeConfig, "withdraw");
-    const amountXAF = Math.floor(amountUSD * 600);
+    const { feeRate: FEE_PERCENT, feeAmount, totalDebit: totalToDeduct } = calculateFee(amountUSDNum, feeConfig, "withdraw");
+    const amountXAF = Math.floor(amountUSDNum * 600);
 
     const result = await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({
@@ -79,7 +66,7 @@ export async function POST(req: Request) {
       const transaction = await tx.transaction.create({
         data: {
           reference: `WDR-${Date.now()}`,
-          amount: amountUSD,
+          amount: amountUSDNum,
           fee: feeAmount,
           currency: "USD",
           type: "WITHDRAW",
@@ -94,10 +81,10 @@ export async function POST(req: Request) {
         data: {
           userId: userId,
           title: "Retrait initie !",
-          message: `Votre demande de ${amountUSD}$ est en cours de traitement vers le ${phone}.`,
+          message: `Votre demande de ${amountUSDNum}$ est en cours de traitement vers le ${phone}.`,
           type: "PAYMENT_SENT",
           metadata: JSON.stringify({
-            amount: amountUSD,
+            amount: amountUSDNum,
             currency: "USD",
             fee: feeAmount,
             reference: transaction.reference,

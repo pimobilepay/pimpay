@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 import { logSystemEvent } from "@/lib/systemLogger";
+import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 
 // [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
@@ -19,6 +20,13 @@ export async function POST(req: Request) {
     const payload = await verifyJWT(token);
     if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401, headers: cors });
     const userId = payload.id;
+
+    // RATE LIMITING distribué — 2 req / 60s par utilisateur ET par IP.
+    const ip = getClientIp(req);
+    const limited = await enforceTxRateLimit({ userId, ip, action: "swap" });
+    if (limited) {
+      return NextResponse.json(await limited.json(), { status: 429, headers: { ...cors, ...Object.fromEntries(limited.headers) } });
+    }
 
     const { quoteId } = await req.json();
 

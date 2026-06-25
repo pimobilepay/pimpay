@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { WalletType } from "@prisma/client";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { parseAmount } from "@/lib/amount-guard";
+import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 
 export async function POST(req: Request) {
   try {
@@ -14,15 +16,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { recipientId, amount, description } = body;
     const senderId = session.id;
 
-    // 2. Validation
-    const amountNum = parseFloat(amount);
-    if (!recipientId || isNaN(amountNum) || amountNum <= 0) {
+    // 1.b RATE LIMITING distribué — 2 req / 60s par utilisateur ET par IP.
+    const ip = getClientIp(req);
+    const limited = await enforceTxRateLimit({ userId: senderId, ip, action: "send" });
+    if (limited) return limited;
+
+    const body = await req.json();
+    const { recipientId, amount, description } = body;
+
+    // 2. Validation stricte du montant (anti-négatif / overflow / décimales).
+    if (!recipientId || typeof recipientId !== "string") {
       return NextResponse.json({ error: "Donnees invalides" }, { status: 400 });
     }
+    const parsed = parseAmount(amount);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const amountNum = parsed.value;
 
     if (recipientId === senderId) {
       return NextResponse.json({ error: "Envoi a soi-meme impossible" }, { status: 400 });
