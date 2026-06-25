@@ -18,12 +18,15 @@ import {
   RotateCcw,
   ArrowLeft,
   FileText,
+  Hash,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePiPrice } from "@/hooks/usePiPrice";
+import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -39,6 +42,7 @@ function SuccessContent() {
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [hashCopied, setHashCopied] = useState(false);
 
   const fetchTx = useCallback(async () => {
     if (!ref) {
@@ -144,6 +148,22 @@ function SuccessContent() {
     setCopied(true);
     toast.success("Reference copiee !");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Hash blockchain de la transaction (présent pour les transferts on-chain).
+  const txHash: string | null = transaction?.blockchainTx || null;
+  // Lien vers l'explorateur blockchain : uniquement pour un transfert externe
+  // dont la devise est prise en charge et qui possède un hash.
+  const explorerUrl = isExternalMode && txHash ? getBlockchainTxUrl(currency, txHash) : null;
+  const explorerName = getExplorerName(currency);
+  const showHash = !!txHash && (isExternalMode || hasBlockchainExplorer(currency));
+
+  const copyHash = () => {
+    if (!txHash) return;
+    navigator.clipboard.writeText(txHash);
+    setHashCopied(true);
+    toast.success("Hash copie !");
+    setTimeout(() => setHashCopied(false), 2000);
   };
 
   if (loading && !urlAmount)
@@ -490,6 +510,53 @@ function SuccessContent() {
             </button>
           </div>
         </motion.div>
+
+        {/* Hash Blockchain de la transaction */}
+        {showHash && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                  <Hash size={10} className="text-blue-400" />
+                  Hash Blockchain
+                </p>
+                <p className="text-xs font-mono font-bold text-white truncate">{txHash}</p>
+              </div>
+              <button
+                onClick={copyHash}
+                aria-label="Copier le hash"
+                className="w-10 h-10 shrink-0 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all"
+              >
+                {hashCopied ? (
+                  <CheckCircle2 size={14} className="text-emerald-400" />
+                ) : (
+                  <Copy size={14} className="text-slate-400" />
+                )}
+              </button>
+            </div>
+
+            {/* Lien vers l'explorateur blockchain (transfert externe uniquement) */}
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 w-full py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center gap-2 text-blue-400 hover:bg-blue-500/20 transition-all"
+              >
+                <ExternalLink size={14} />
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  Voir sur {explorerName}
+                </span>
+                <ArrowRight size={14} />
+              </a>
+            )}
+          </motion.div>
+        )}
 
         {/* Network Info */}
         <motion.div
