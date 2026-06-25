@@ -1386,6 +1386,19 @@ export default function TreasuryPage() {
   const [tronOperatorLoading, setTronOperatorLoading] = useState(true);
   const [tronOperatorFetchError, setTronOperatorFetchError] = useState<string | null>(null);
 
+  // Bitcoin Operator Wallet on-chain state
+  const [btcOperator, setBtcOperator] = useState<{
+    address: string;
+    balance: number;
+    totalUsersBTC: number;
+    coverage: number;
+    explorerUrl: string;
+    lastChecked: string;
+    onChainError: string | null;
+  } | null>(null);
+  const [btcOperatorLoading, setBtcOperatorLoading] = useState(true);
+  const [btcOperatorFetchError, setBtcOperatorFetchError] = useState<string | null>(null);
+
   // Fetch SDA operator wallet on-chain balance
   const fetchSdaOperator = async (silent = false) => {
     try {
@@ -1446,6 +1459,27 @@ export default function TreasuryPage() {
       setTronOperatorFetchError(err?.message || "Erreur de connexion à l'API");
     } finally {
       setTronOperatorLoading(false);
+    }
+  };
+
+  // Fetch Bitcoin operator wallet on-chain balance
+  const fetchBtcOperator = async (silent = false) => {
+    try {
+      if (!silent) setBtcOperatorLoading(true);
+      setBtcOperatorFetchError(null);
+      const res = await fetch("/api/admin/treasury/btc-operator");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Erreur HTTP ${res.status}`);
+      if (json.success) {
+        setBtcOperator(json);
+      } else {
+        throw new Error(json?.error || "Réponse inattendue de l'API");
+      }
+    } catch (err: any) {
+      console.error("[Treasury] Erreur wallet opérateur BTC:", err);
+      setBtcOperatorFetchError(err?.message || "Erreur de connexion à l'API");
+    } finally {
+      setBtcOperatorLoading(false);
     }
   };
 
@@ -1580,6 +1614,7 @@ export default function TreasuryPage() {
     fetchSdaOperator();
     fetchPiOperator();
     fetchTronOperator();
+    fetchBtcOperator();
 
     // Real-time auto-refresh: silently reload every balance every 10s so the
     // main balance of each asset updates without the admin reloading the page.
@@ -1590,6 +1625,7 @@ export default function TreasuryPage() {
       fetchSdaOperator(true);
       fetchPiOperator(true);
       fetchTronOperator(true);
+      fetchBtcOperator(true);
     }, 10000);
 
     // Refresh immediately when the tab regains focus
@@ -1601,6 +1637,7 @@ export default function TreasuryPage() {
         fetchSdaOperator(true);
         fetchPiOperator(true);
         fetchTronOperator(true);
+        fetchBtcOperator(true);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -2600,6 +2637,231 @@ export default function TreasuryPage() {
                 </p>
                 <button
                   onClick={fetchTronOperator}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Actualiser
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* BITCOIN OPERATOR WALLET — On-Chain */}
+        <div>
+          <SectionTitle>
+            <span className="flex items-center gap-2">
+              {/* Bitcoin logo inline SVG */}
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="8" fill="#F7931A" />
+                <path
+                  d="M11.1 7c.15-1-.6-1.5-1.65-1.85l.34-1.36-.83-.2-.33 1.32c-.22-.05-.44-.1-.66-.15l.33-1.33-.82-.2-.34 1.36c-.18-.04-.35-.08-.52-.12v-.01l-1.14-.28-.22.88s.61.14.6.15c.34.08.4.3.39.48l-.39 1.55c.02.01.05.02.09.03l-.1-.02-.54 2.17c-.04.1-.15.26-.39.2 0 .01-.6-.15-.6-.15l-.41.95 1.07.27c.2.05.4.1.59.15l-.34 1.38.82.2.34-1.36c.22.06.44.11.65.16l-.34 1.35.83.2.34-1.37c1.4.27 2.46.16 2.9-1.11.36-1.02-.02-1.61-.76-2 .54-.12.94-.48 1.05-1.2zm-1.88 2.64c-.26 1.02-1.98.47-2.53.33l.46-1.83c.56.14 2.34.42 2.07 1.5zm.25-2.66c-.23.93-1.66.46-2.13.34l.41-1.66c.47.12 1.96.34 1.72 1.32z"
+                  fill="white"
+                />
+              </svg>
+              Wallet Opérateur Bitcoin (On-Chain)
+            </span>
+          </SectionTitle>
+
+          <div className="bg-slate-900/60 border border-orange-500/20 rounded-[1.5rem] p-5">
+            {btcOperatorLoading ? (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <Loader2 size={20} className="animate-spin text-orange-400" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Lecture blockchain Bitcoin...
+                </span>
+              </div>
+            ) : btcOperator ? (
+              <>
+                {/* Solde principal */}
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                      Solde On-Chain (Bitcoin Mainnet)
+                    </p>
+                    <p className="text-3xl font-black text-orange-400">
+                      {btcOperator.balance.toFixed(8)}{" "}
+                      <span className="text-lg text-orange-500/70">BTC</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      ≈ ${(btcOperator.balance * 65000).toFixed(2)} USD
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black ${
+                        btcOperator.onChainError
+                          ? "bg-red-500/10 border-red-500/30 text-red-400"
+                          : btcOperator.balance > 0
+                          ? "bg-orange-500/10 border-orange-500/30 text-orange-400"
+                          : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      {btcOperator.onChainError
+                        ? "Erreur réseau"
+                        : btcOperator.balance > 0
+                        ? "Actif"
+                        : "Vide"}
+                    </div>
+                    <button
+                      onClick={() => fetchBtcOperator()}
+                      className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                      title="Actualiser"
+                    >
+                      <RefreshCw size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Adresse Opérateur Bitcoin
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-xs font-mono break-all text-orange-400">
+                      {btcOperator.address || "Non configurée"}
+                    </code>
+                    {btcOperator.address && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(btcOperator.address);
+                            toast.success("Adresse copiée");
+                          }}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                        >
+                          <Copy size={13} className="text-slate-400" />
+                        </button>
+                        <a
+                          href={btcOperator.explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg border border-orange-500/20 bg-orange-500/10 hover:bg-orange-500/20 transition-colors"
+                        >
+                          <ExternalLink size={13} className="text-orange-400" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Couverture */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      Couverture des Soldes Utilisateurs
+                    </p>
+                    <span
+                      className={`text-[10px] font-black px-2 py-1 rounded-lg ${
+                        btcOperator.coverage >= 80
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : btcOperator.coverage >= 50
+                          ? "bg-amber-500/10 text-amber-400"
+                          : "bg-red-500/10 text-red-400"
+                      }`}
+                    >
+                      {btcOperator.coverage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden mb-3">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        btcOperator.coverage >= 80
+                          ? "bg-emerald-500"
+                          : btcOperator.coverage >= 50
+                          ? "bg-amber-500"
+                          : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.min(btcOperator.coverage, 100)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <p className="text-sm font-black text-orange-400">
+                        {btcOperator.balance.toFixed(8)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">BTC On-Chain</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black text-white">
+                        {btcOperator.totalUsersBTC.toFixed(8)}
+                      </p>
+                      <p className="text-[8px] text-slate-500">BTC Total Users (DB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alerte couverture insuffisante */}
+                {btcOperator.coverage < 80 && (
+                  <div
+                    className={`flex items-start gap-3 p-4 rounded-2xl border ${
+                      btcOperator.coverage < 50
+                        ? "bg-red-500/10 border-red-500/30"
+                        : "bg-amber-500/10 border-amber-500/30"
+                    }`}
+                  >
+                    <AlertTriangle
+                      size={16}
+                      className={btcOperator.coverage < 50 ? "text-red-400 shrink-0" : "text-amber-400 shrink-0"}
+                    />
+                    <div>
+                      <p
+                        className={`text-[10px] font-black uppercase ${
+                          btcOperator.coverage < 50 ? "text-red-400" : "text-amber-400"
+                        }`}
+                      >
+                        {btcOperator.coverage < 50
+                          ? "Couverture critique — rechargez le wallet opérateur"
+                          : "Couverture insuffisante — rechargez bientôt"}
+                      </p>
+                      <p className="text-[9px] text-slate-500 mt-1">
+                        Manque : {Math.max(0, btcOperator.totalUsersBTC - btcOperator.balance).toFixed(8)} BTC pour couvrir tous les retraits
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Erreur réseau */}
+                {btcOperator.onChainError && (
+                  <div className="flex items-start gap-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl mt-3">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[9px] text-red-400">
+                      Erreur blockchain : {btcOperator.onChainError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dernière vérification */}
+                <div className="flex items-center justify-center gap-2 mt-4 text-[8px] text-slate-600">
+                  <Clock size={10} />
+                  <span>Vérifié {btcOperator.lastChecked ? formatTimeAgo(btcOperator.lastChecked) : "—"}</span>
+                </div>
+              </>
+            ) : btcOperatorFetchError ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-red-400" />
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest text-center">
+                  Erreur de chargement
+                </p>
+                <p className="text-[9px] text-slate-500 text-center max-w-xs">{btcOperatorFetchError}</p>
+                <button
+                  onClick={() => fetchBtcOperator()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
+                >
+                  <RefreshCw size={11} />
+                  Réessayer
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <AlertTriangle size={24} className="text-amber-400" />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+                  Données non disponibles
+                </p>
+                <button
+                  onClick={() => fetchBtcOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
