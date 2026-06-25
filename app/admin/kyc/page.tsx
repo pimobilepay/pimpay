@@ -9,6 +9,7 @@ import {
   BadgeCheck, Ban, FileText, Phone, Mail, Globe, Briefcase
 } from "lucide-react";
 import { toast } from "sonner";
+import ImageLightbox from "@/components/ImageLightbox";
 
 interface KYCUser {
   id: string;
@@ -60,6 +61,8 @@ export default function AdminKYCPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  // Image actuellement ouverte dans la visionneuse plein écran (lightbox).
+  const [viewer, setViewer] = useState<{ url: string; label: string; flip?: boolean } | null>(null);
 
   useEffect(() => {
     fetchKYCData();
@@ -281,9 +284,9 @@ export default function AdminKYCPage() {
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* Documents */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <DocPreview label="Recto Document" url={selectedUser.kycFrontUrl} />
-                  <DocPreview label="Verso Document" url={selectedUser.kycBackUrl} />
-                  <DocPreview label="Selfie Verification" url={selectedUser.kycSelfieUrl} isSelfie />
+                  <DocPreview label="Recto Document" url={selectedUser.kycFrontUrl} onView={(url, label) => setViewer({ url, label })} />
+                  <DocPreview label="Verso Document" url={selectedUser.kycBackUrl} onView={(url, label) => setViewer({ url, label })} />
+                  <DocPreview label="Selfie Verification" url={selectedUser.kycSelfieUrl} isSelfie onView={(url, label) => setViewer({ url, label, flip: true })} />
                 </div>
 
                 {/* Informations detaillees */}
@@ -377,6 +380,16 @@ export default function AdminKYCPage() {
           </div>
         </div>
       </div>
+
+      {/* Visionneuse d'image plein écran (remplace l'ouverture en popup) */}
+      {viewer && (
+        <ImageLightbox
+          url={viewer.url}
+          alt={viewer.label}
+          flip={viewer.flip}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -488,12 +501,22 @@ function UserCard({
   );
 }
 
-function DocPreview({ label, url, isSelfie }: { label: string; url: string | null; isSelfie?: boolean }) {
+function DocPreview({
+  label,
+  url,
+  isSelfie,
+  onView,
+}: {
+  label: string;
+  url: string | null;
+  isSelfie?: boolean;
+  onView?: (url: string, label: string) => void;
+}) {
   return (
     <div className="space-y-2">
       <p className="text-[9px] font-black text-slate-500 uppercase text-center tracking-tighter">{label}</p>
       <div
-        onClick={() => url && window.open(url, "_blank")}
+        onClick={() => url && onView?.(url, label)}
         className="aspect-[4/3] rounded-3xl bg-slate-900 border border-white/10 overflow-hidden relative group cursor-pointer shadow-2xl"
       >
         <img

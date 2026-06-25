@@ -8,6 +8,7 @@ import {
   Bot, Headphones, User, Zap, HelpCircle, Phone, Check, CheckCheck, SmilePlus
 } from "lucide-react";
 import VoipCallOverlay from "@/components/VoipCallOverlay";
+import ImageLightbox from "@/components/ImageLightbox";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -198,11 +199,10 @@ function ChatMessage({
                 : "border-blue-500/30 rounded-br-none bg-blue-600/10"
             }`}
           >
-            <a
-              href={image.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block active:scale-95 transition-transform"
+            <button
+              type="button"
+              onClick={() => onImageClick(image.url)}
+              className="block w-full active:scale-95 transition-transform cursor-zoom-in"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -210,7 +210,7 @@ function ChatMessage({
                 alt={t("chat.imageAlt")}
                 className="max-w-[220px] max-h-[280px] w-full object-cover bg-slate-900"
               />
-            </a>
+            </button>
             {image.caption && (
               <p
                 className={`px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${
@@ -282,6 +282,8 @@ export default function ChatPage() {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   // Message dont le selecteur de reaction (emoji) est actuellement ouvert.
   const [reactPickerId, setReactPickerId] = useState<string | null>(null);
+  // Image ouverte dans la visionneuse plein écran (remplace l'ouverture en popup).
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // Vrai quand le SUPPORT est en train d'ecrire sur le ticket actif.
   const [supportTyping, setSupportTyping] = useState(false);
   // Pour limiter le debit des pings "en train d'ecrire" et arreter apres inactivite.
@@ -578,6 +580,15 @@ export default function ChatPage() {
         onClose={() => setShowVoipCall(false)} 
       />
 
+      {/* Visionneuse d'image plein écran (remplace l'ouverture en popup) */}
+      {lightboxUrl && (
+        <ImageLightbox
+          url={lightboxUrl}
+          alt={t("chat.imageAlt")}
+          onClose={() => setLightboxUrl(null)}
+        />
+      )}
+
       {/* History Sidebar */}
       {showHistory && (
         <div className="absolute inset-0 z-[100] flex">
@@ -688,6 +699,7 @@ export default function ChatPage() {
                 pickerOpen={reactPickerId === msg.id}
                 onTogglePicker={() => setReactPickerId((id) => (id === msg.id ? null : msg.id))}
                 onReact={(emoji) => handleReact(msg.id, emoji)}
+                onImageClick={(url) => setLightboxUrl(url)}
               />
             ))}
 
