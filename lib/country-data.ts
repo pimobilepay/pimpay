@@ -86,7 +86,7 @@ const OP: Record<string, string> = {
   chinaunicom:   "/china-unicom.png",
   chinatelecom:  "/china-telecom.jpg",
   // India (logos to add in /public)
-  paytm:         "/paytm.png",
+  paytm:         "/paytm.jpg",
   phonepe:       "/phonepe.png",
   gpay:          "/google-pay.png",
   bhim:          "/bhim-upi.png",
