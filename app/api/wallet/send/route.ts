@@ -7,6 +7,8 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from 'nanoid';
 import { decrypt } from "@/lib/crypto";
 import { ethers } from "ethers";
+import { parseAmount } from "@/lib/amount-guard";
+import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
@@ -30,15 +32,24 @@ export async function POST(req: NextRequest) {
     }
     const senderId = payload.id;
 
+    // RATE LIMITING distribué — 2 req / 60s par utilisateur ET par IP.
+    const ip = getClientIp(req);
+    const limited = await enforceTxRateLimit({ userId: senderId, ip, action: "send" });
+    if (limited) return limited;
+
     const body = await req.json();
-    const amount = parseFloat(body.amount);
     const currency = (body.currency || "PI").toUpperCase();
     const recipientInput = (body.address || body.recipientIdentifier || body.recipient || "").trim();
 
-    const MIN_CRYPTO_AMOUNT = 0.00000001;
-    
-    if (!recipientInput || isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
-      return NextResponse.json({ error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` }, { status: 400 });
+    // Validation stricte du montant (anti-négatif / overflow / décimales).
+    const parsed = parseAmount(body.amount);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const amount = parsed.value;
+
+    if (!recipientInput) {
+      return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
 
     const validateAddress = (addr: string, curr: string): boolean => {

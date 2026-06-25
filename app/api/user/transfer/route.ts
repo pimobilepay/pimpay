@@ -11,7 +11,8 @@ import { ethers } from "ethers";
 import { decrypt } from "@/lib/crypto";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { collectFeeOnChain, FEE_COLLECTED_CURRENCIES } from "@/lib/fee-collector";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { parseAmount } from "@/lib/amount-guard";
+import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
 
 // Import TronWeb pour les transferts USDT TRC20
@@ -114,25 +115,6 @@ async function broadcastTronTransfer(opts: {
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limiting
-    const ip = getClientIp(req);
-    const rl = checkRateLimit(`transfer:${ip}`, 20, 60_000);
-    if (rl.limited) {
-      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
-      return NextResponse.json(
-        { error: "Trop de requêtes. Veuillez patienter avant de réessayer." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(retryAfter),
-            "X-RateLimit-Limit": "20",
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": String(rl.resetAt),
-          },
-        }
-      );
-    }
-
     // Auth
     const cookieStore = await cookies();
     const token =
@@ -148,8 +130,12 @@ export async function POST(req: NextRequest) {
     }
     const senderId = payload.id;
 
+    // RATE LIMITING distribué — 2 req / 60s par utilisateur ET par IP.
+    const ip = getClientIp(req);
+    const limited = await enforceTxRateLimit({ userId: senderId, ip, action: "send" });
+    if (limited) return limited;
+
     const body = await req.json();
-    const amount = parseFloat(body.amount);
     const currency = (body.currency || "PI").toUpperCase().trim();
     const recipientInput = (
       body.recipientIdentifier ||
@@ -164,13 +150,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
     }
 
-    const MIN_CRYPTO_AMOUNT = 0.00000001;
-    if (isNaN(amount) || amount < MIN_CRYPTO_AMOUNT) {
-      return NextResponse.json(
-        { error: `Montant minimum: ${MIN_CRYPTO_AMOUNT}` },
-        { status: 400 }
-      );
+    // Validation stricte du montant (anti-négatif / overflow / décimales).
+    const parsed = parseAmount(body.amount);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const amount = parsed.value;
 
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
@@ -749,7 +734,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ──────────────────��──────────────────────────────────────────────────────
     // ÉTAPE 2-bis (INTERNE TRON) : le transfert PASSE par la blockchain TRON
     // ─────────────────────────────────────────────────────────────────────────
     // La blockchain TRON est la SOURCE DE VÉRITÉ. Le destinataire n'a PAS encore
