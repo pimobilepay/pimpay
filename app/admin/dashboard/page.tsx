@@ -233,7 +233,7 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, 
           const amount = prompt(`Ajuster solde :`);
           if (amount) onUpdateBalance(parseFloat(amount));
         }} title="Ajuster Balance" className="p-2 bg-green-500/10 text-green-500 rounded-xl shrink-0"><CreditCard size={14} /></button>
-        <button onClick={onResetBalance} title="Reinitialiser Solde" className="p-2 bg-red-500/10 text-red-500 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><Wallet size={14} /></button>
+        <button onClick={onResetBalance} title="Supprimer tout le solde (crypto + fiat)" className="p-2 bg-red-500/10 text-red-500 rounded-xl shrink-0 hover:bg-red-500/20 transition-colors"><Wallet size={14} /></button>
         <button onClick={onAirdrop} title="Airdrop" className="p-2 bg-amber-500/10 text-amber-500 rounded-xl shrink-0"><Gift size={14} /></button>
         <button onClick={onDelete} title="Supprimer l'utilisateur" className="p-2 bg-red-500/20 text-red-500 rounded-xl shrink-0 hover:bg-red-500/30 transition-colors"><Trash2 size={14} /></button>
       </div>
@@ -958,8 +958,8 @@ function DashboardContent() {
                               () => handleAction(user.id, 'UPDATE_BALANCE', a)
                             )}
                             onResetBalance={() => requireTwoFa(
-                              `Réinitialiser le solde de ${user.username || user.name}`,
-                              `Le solde de ${user.username || user.name} sera remis à 0. Confirmez avec votre code Google Authenticator.`,
+                              `Supprimer tout le solde de ${user.username || user.name}`,
+                              `L'intégralité du solde (crypto et fiat) de ${user.username || user.name} sera remise à 0. Confirmez avec votre code Google Authenticator.`,
                               () => handleAction(user.id, 'RESET_USER_BALANCE')
                             )}
                             onAirdrop={() => { const a = prompt("Airdrop (π):"); if(a) handleAirdropWith2FA(user.id, user.username || user.name || "Utilisateur", parseFloat(a)); }}
@@ -992,15 +992,15 @@ function DashboardContent() {
                     ))}
                     <button
                       onClick={() => requireTwoFa(
-                        "Réinitialiser tous les soldes",
-                        "Cette action va remettre le solde de TOUS les utilisateurs à 0. Confirmez avec votre code Google Authenticator.",
+                        "Supprimer tout le solde des utilisateurs",
+                        "Cette action va remettre à 0 l'intégralité des soldes (crypto et fiat) de TOUS les utilisateurs. Confirmez avec votre code Google Authenticator.",
                         () => handleAction(null, "RESET_ALL_BALANCES")
                       )}
                       className="w-full h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between px-6 text-red-400 hover:bg-red-500/20 transition-colors active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-3">
                         <Wallet size={16} className="shrink-0" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Réinitialiser tous les soldes</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Supprimer tout le solde des utilisateurs</span>
                       </div>
                       <span className="text-[8px] font-black uppercase tracking-widest bg-red-500/20 px-2 py-1 rounded-full border border-red-500/30">Dangereux</span>
                     </button>

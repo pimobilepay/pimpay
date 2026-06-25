@@ -193,6 +193,48 @@ export async function POST(req: NextRequest) {
         });
         break;
 
+      // --- RÉINITIALISATION SOLDE (CRYPTO + FIAT) D'UN UTILISATEUR ---
+      case "RESET_USER_BALANCE":
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        // Remet TOUS les portefeuilles de l'utilisateur à 0 (toutes devises crypto et fiat)
+        await prisma.wallet.updateMany({
+          where: { userId: targetUserId },
+          data: { balance: 0 },
+        });
+        await prisma.notification.create({
+          data: {
+            userId: targetUserId,
+            title: "Solde Réinitialisé",
+            message: "L'intégralité de votre solde (crypto et fiat) a été réinitialisée à 0 par l'administration.",
+            type: "WARNING",
+            read: false,
+          },
+        });
+        break;
+
+      // --- RÉINITIALISATION SOLDE (CRYPTO + FIAT) DE TOUS LES UTILISATEURS ---
+      case "RESET_ALL_BALANCES": {
+        // Remet TOUS les portefeuilles à 0 (toutes devises crypto et fiat, tous les utilisateurs)
+        await prisma.wallet.updateMany({
+          data: { balance: 0 },
+        });
+        const allBalanceUsers = await prisma.user.findMany({ select: { id: true } });
+        await prisma.$transaction(
+          allBalanceUsers.map((u) =>
+            prisma.notification.create({
+              data: {
+                userId: u.id,
+                title: "Solde Réinitialisé",
+                message: "L'intégralité de votre solde (crypto et fiat) a été réinitialisée à 0 par l'administration PimPay.",
+                type: "WARNING",
+                read: false,
+              },
+            })
+          )
+        );
+        break;
+      }
+
       case "TOGGLE_MAINTENANCE":
         const currentConfig = await prisma.systemConfig.findFirst();
         await prisma.systemConfig.upsert({
