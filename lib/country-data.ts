@@ -96,9 +96,9 @@ const OP: Record<string, string> = {
   momo_vn:       "/momo.png",
   zalopay:       "/zalopay.png",
   vnpay:         "/vnpay.png",
-  viettel:       "/viettel-money.png",
+  viettel:       "/viettel-money.jpg",
   mobifone:      "/mobifone.png",
-  vinaphone:     "/vinaphone.png",
+  vinaphone:     "/vinaphone.jpg",
 };
 
 // ---------------------------------------------------------------------------
