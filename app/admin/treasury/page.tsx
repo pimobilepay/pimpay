@@ -1355,6 +1355,20 @@ export default function TreasuryPage() {
   const [sdaOperatorFetchError, setSdaOperatorFetchError] = useState<string | null>(null);
   // Affiche/masque la liste des actifs EVM partageant l'adresse opérateur SDA
   const [showSdaSharedAssets, setShowSdaSharedAssets] = useState(false);
+  // Actif EVM sélectionné + solde on-chain associé
+  const [selectedSdaAsset, setSelectedSdaAsset] = useState<string | null>(null);
+  const [sdaAssetBalances, setSdaAssetBalances] = useState<
+    Record<
+      string,
+      {
+        balance: number | null;
+        network: string;
+        explorerUrl: string;
+        onChainError: string | null;
+        loading: boolean;
+      }
+    >
+  >({});
 
   // Pi Network Operator Wallet on-chain state
   const [piOperator, setPiOperator] = useState<{
@@ -1417,6 +1431,57 @@ export default function TreasuryPage() {
       setSdaOperatorFetchError(err?.message || "Erreur de connexion à l'API");
     } finally {
       setSdaOperatorLoading(false);
+    }
+  };
+
+  // Sélection d'un actif EVM + lecture de son solde on-chain à l'adresse opérateur
+  const handleSelectSdaAsset = async (asset: string) => {
+    // Toggle : reclic sur l'actif déjà sélectionné => on referme
+    if (selectedSdaAsset === asset) {
+      setSelectedSdaAsset(null);
+      return;
+    }
+    setSelectedSdaAsset(asset);
+
+    setSdaAssetBalances((prev) => ({
+      ...prev,
+      [asset]: {
+        balance: prev[asset]?.balance ?? null,
+        network: prev[asset]?.network ?? "EVM",
+        explorerUrl: prev[asset]?.explorerUrl ?? "",
+        onChainError: null,
+        loading: true,
+      },
+    }));
+
+    try {
+      const res = await fetch(
+        `/api/admin/treasury/sda-asset-balance?asset=${encodeURIComponent(asset)}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Erreur HTTP ${res.status}`);
+      setSdaAssetBalances((prev) => ({
+        ...prev,
+        [asset]: {
+          balance: json.balance,
+          network: json.network,
+          explorerUrl: json.explorerUrl,
+          onChainError: json.onChainError,
+          loading: false,
+        },
+      }));
+    } catch (err: any) {
+      console.error(`[Treasury] Erreur solde ${asset}:`, err);
+      setSdaAssetBalances((prev) => ({
+        ...prev,
+        [asset]: {
+          balance: null,
+          network: prev[asset]?.network ?? "EVM",
+          explorerUrl: prev[asset]?.explorerUrl ?? "",
+          onChainError: err?.message || "Erreur de connexion",
+          loading: false,
+        },
+      }));
     }
   };
 
@@ -2036,22 +2101,70 @@ export default function TreasuryPage() {
                         canalisés vers la même adresse opérateur que le SDA.
                       </p>
                       <div className="grid grid-cols-2 gap-2">
-                        {["BNB", "ETH", "USDC", "DAI", "BUSD"].map((asset) => (
-                          <div
-                            key={asset}
-                            className="flex items-center justify-between bg-slate-900/60 border border-white/5 rounded-xl px-3 py-2.5"
-                          >
-                            <span className="flex items-center gap-2">
-                              <Coins size={12} className="text-emerald-400/70" />
-                              <span className="text-[11px] font-black text-white">
-                                {asset}
+                        {["BNB", "ETH", "USDC", "DAI", "BUSD"].map((asset) => {
+                          const info = sdaAssetBalances[asset];
+                          const isSelected = selectedSdaAsset === asset;
+                          return (
+                            <button
+                              key={asset}
+                              type="button"
+                              onClick={() => handleSelectSdaAsset(asset)}
+                              className={`flex flex-col gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-500/10 border border-emerald-500/40"
+                                  : "bg-slate-900/60 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5"
+                              }`}
+                            >
+                              <span className="flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                  <Coins
+                                    size={12}
+                                    className={isSelected ? "text-emerald-400" : "text-emerald-400/70"}
+                                  />
+                                  <span className="text-[11px] font-black text-white">
+                                    {asset}
+                                  </span>
+                                </span>
+                                <span className="text-[8px] font-bold text-emerald-400/80 uppercase tracking-wider">
+                                  EVM
+                                </span>
                               </span>
-                            </span>
-                            <span className="text-[8px] font-bold text-emerald-400/80 uppercase tracking-wider">
-                              EVM
-                            </span>
-                          </div>
-                        ))}
+
+                              {isSelected && (
+                                <span className="flex items-center justify-between border-t border-white/5 pt-1.5">
+                                  {info?.loading ? (
+                                    <span className="flex items-center gap-1.5">
+                                      <Loader2 size={11} className="animate-spin text-emerald-400" />
+                                      <span className="text-[9px] text-slate-500">Lecture...</span>
+                                    </span>
+                                  ) : info?.onChainError ? (
+                                    <span className="text-[9px] text-red-400">{info.onChainError}</span>
+                                  ) : (
+                                    <span className="flex flex-col">
+                                      <span className="text-sm font-black text-emerald-400">
+                                        {info?.balance != null ? info.balance.toFixed(6) : "—"}
+                                      </span>
+                                      <span className="text-[8px] text-slate-500 uppercase tracking-wider">
+                                        Solde on-chain · {info?.network || "EVM"}
+                                      </span>
+                                    </span>
+                                  )}
+                                  {info?.explorerUrl && !info?.loading && (
+                                    <a
+                                      href={info.explorerUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                                    >
+                                      <ExternalLink size={11} className="text-emerald-400" />
+                                    </a>
+                                  )}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                       <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
                         <Wallet size={12} className="text-emerald-400 shrink-0" />
