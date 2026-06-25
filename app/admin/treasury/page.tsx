@@ -19,6 +19,8 @@ import {
   Coins,
   ArrowRightLeft,
   ChevronRight,
+  ChevronDown,
+  Layers,
   Shield,
   DollarSign,
   Activity,
@@ -1351,6 +1353,8 @@ export default function TreasuryPage() {
   } | null>(null);
   const [sdaOperatorLoading, setSdaOperatorLoading] = useState(true);
   const [sdaOperatorFetchError, setSdaOperatorFetchError] = useState<string | null>(null);
+  // Affiche/masque la liste des actifs EVM partageant l'adresse opérateur SDA
+  const [showSdaSharedAssets, setShowSdaSharedAssets] = useState(false);
 
   // Pi Network Operator Wallet on-chain state
   const [piOperator, setPiOperator] = useState<{
@@ -1967,6 +1971,59 @@ export default function TreasuryPage() {
                       </a>
                     </div>
                   </div>
+                </div>
+
+                {/* Actifs partageant l'adresse opérateur SDA (réseau EVM / Sidra) */}
+                <div className="bg-slate-800/50 border border-white/5 rounded-2xl overflow-hidden mb-4">
+                  <button
+                    onClick={() => setShowSdaSharedAssets((v) => !v)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Layers size={13} className="text-emerald-400" />
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        Autres actifs sur cette adresse
+                      </span>
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className={`text-slate-500 transition-transform ${
+                        showSdaSharedAssets ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {showSdaSharedAssets && (
+                    <div className="px-4 pb-4 pt-1 border-t border-white/5">
+                      <p className="text-[9px] text-slate-500 mb-3 leading-relaxed">
+                        Les frais de ces actifs (réseau EVM / Sidra Chain) sont
+                        canalisés vers la même adresse opérateur que le SDA.
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {["BNB", "ETH", "USDC", "DAI", "BUSD"].map((asset) => (
+                          <div
+                            key={asset}
+                            className="flex items-center justify-between bg-slate-900/60 border border-white/5 rounded-xl px-3 py-2.5"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Coins size={12} className="text-emerald-400/70" />
+                              <span className="text-[11px] font-black text-white">
+                                {asset}
+                              </span>
+                            </span>
+                            <span className="text-[8px] font-bold text-emerald-400/80 uppercase tracking-wider">
+                              EVM
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
+                        <Wallet size={12} className="text-emerald-400 shrink-0" />
+                        <code className="text-[9px] font-mono text-emerald-400/80 break-all">
+                          {sdaOperator.address}
+                        </code>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Couverture SDA — on-chain vs total users DB */}

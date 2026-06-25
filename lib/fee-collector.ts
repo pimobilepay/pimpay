@@ -9,21 +9,22 @@
  *   ├─────────────────────┼──────────────────────────────────────────────┤
  *   │ TRON  (TRX, USDT)   │ TRON_OPERATOR_ADDRESS                          │
  *   │ STELLAR (XLM, PI)   │ PI_WALLET_PUBLIC_KEY / PI_OPERATOR_ADDRESS     │
+ *   │ BITCOIN (BTC)       │ BTC_OPERATOR_ADDRESS                           │
  *   │ EVM / SIDRA (reste) │ SDA_OPERATOR_ADDRESS                           │
  *   │   → BNB, ETH, USDC, │                                                │
  *   │     DAI, BUSD, SDA… │                                                │
  *   └─────────────────────┴──────────────────────────────────────────────┘
  *
  * L'envoi on-chain réel n'est possible que pour les devises EVM (via ethers).
- * Pour TRON et Stellar, le routage retourne l'adresse centrale correcte afin
- * que la comptabilité et les vues admin restent cohérentes (collecte gérée
- * par les opérateurs dédiés TRON / Pi).
+ * Pour TRON, Stellar et Bitcoin, le routage retourne l'adresse centrale
+ * correcte afin que la comptabilité et les vues admin restent cohérentes
+ * (collecte gérée par les opérateurs dédiés TRON / Pi / BTC).
  */
 
 import { ethers } from "ethers";
 
 // ─── Familles de réseaux ──────────────────────────────────────────────────────
-export type FeeNetwork = "TRON" | "STELLAR" | "EVM";
+export type FeeNetwork = "TRON" | "STELLAR" | "BTC" | "EVM";
 
 // ─── Adresses centrales par réseau ────────────────────────────────────────────
 /** Adresse centrale TRON (TRX + USDT TRC20) */
@@ -35,6 +36,10 @@ export const STELLAR_FEE_ADDRESS =
   process.env.PI_WALLET_PUBLIC_KEY ||
   process.env.PI_OPERATOR_ADDRESS ||
   "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
+
+/** Adresse centrale Bitcoin (BTC) — réception comptable des frais BTC */
+export const BTC_FEE_ADDRESS =
+  process.env.BTC_OPERATOR_ADDRESS || "";
 
 /** Adresse centrale EVM / Sidra Chain (BNB, ETH, USDC, DAI, BUSD, SDA, etc.) */
 export const EVM_FEE_ADDRESS =
@@ -49,6 +54,8 @@ const CURRENCY_NETWORK: Record<string, FeeNetwork> = {
   // STELLAR
   XLM: "STELLAR",
   PI: "STELLAR",
+  // BITCOIN
+  BTC: "BTC",
   // EVM / Sidra (par défaut pour tout le reste)
   SDA: "EVM",
   SIDRA: "EVM",
@@ -77,6 +84,8 @@ export function getCentralFeeAddress(currency: string): string {
       return TRON_FEE_ADDRESS;
     case "STELLAR":
       return STELLAR_FEE_ADDRESS;
+    case "BTC":
+      return BTC_FEE_ADDRESS;
     case "EVM":
     default:
       return EVM_FEE_ADDRESS;
@@ -88,6 +97,7 @@ export function getAllCentralFeeAddresses() {
   return {
     TRON: { address: TRON_FEE_ADDRESS, currencies: ["TRX", "USDT"] },
     STELLAR: { address: STELLAR_FEE_ADDRESS, currencies: ["XLM", "PI"] },
+    BTC: { address: BTC_FEE_ADDRESS, currencies: ["BTC"] },
     EVM: {
       address: EVM_FEE_ADDRESS,
       currencies: ["SDA", "BNB", "ETH", "USDC", "DAI", "BUSD"],
