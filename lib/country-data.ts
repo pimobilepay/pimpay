@@ -84,7 +84,7 @@ const OP: Record<string, string> = {
   unionpay:      "/unionpay.png",
   chinamobile:   "/china-mobile.png",
   chinaunicom:   "/china-unicom.png",
-  chinatelecom:  "/china-telecom.png",
+  chinatelecom:  "https://upload.wikimedia.org/wikipedia/fr/f/f3/Chinatelecom_logo.svg",
   // India (logos to add in /public)
   paytm:         "/paytm.png",
   phonepe:       "/phonepe.png",
