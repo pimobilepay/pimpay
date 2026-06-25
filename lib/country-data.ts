@@ -50,7 +50,7 @@ const OP: Record<string, string> = {
   africell:     "https://upload.wikimedia.org/wikipedia/commons/9/99/Logoafricell.png",
   free:         "https://upload.wikimedia.org/wikipedia/commons/5/52/Free_logo.svg",
   tigo:         "https://upload.wikimedia.org/wikipedia/commons/4/47/Tigo.JPG",
-  opay:         "https://upload.wikimedia.org/wikipedia/commons/c/cb/Opay_Digital_Services_Limited.png",
+  opay:         "/opay.jpg",
   palmpay:      "https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/z4x0x9sfkglbdwitqyfl?ik-sanitizeSvg=true",
   kuda:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRuLb2uzmNv3ppmEscXSZjF98IM7Y9NqRSlpw&s",
   paga:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqPAPAbO45MAnmN3Zgq9kqg9B2Yw1ClZU-q49IeHIFkrN44eowFIC2PuRp&s=10",
