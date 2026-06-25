@@ -78,6 +78,27 @@ const OP: Record<string, string> = {
   vodafone_ro:  "https://upload.wikimedia.org/wikipedia/commons/e/ef/Vodafone_Logo.svg",
   orange_ro:    "https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg",
   telekom_ro:   "https://pimpay.vercel.app/dl-telekom-logo.png",
+  // China (logos to add in /public)
+  alipay:        "/alipay.png",
+  wechatpay:     "/wechat-pay.png",
+  unionpay:      "/unionpay.png",
+  chinamobile:   "/china-mobile.png",
+  chinaunicom:   "/china-unicom.png",
+  chinatelecom:  "/china-telecom.png",
+  // India (logos to add in /public)
+  paytm:         "/paytm.png",
+  phonepe:       "/phonepe.png",
+  gpay:          "/google-pay.png",
+  bhim:          "/bhim-upi.png",
+  jio:           "/jio.png",
+  vi:            "/vi.png",
+  // Vietnam (logos to add in /public)
+  momo_vn:       "/momo.png",
+  zalopay:       "/zalopay.png",
+  vnpay:         "/vnpay.png",
+  viettel:       "/viettel-money.png",
+  mobifone:      "/mobifone.png",
+  vinaphone:     "/vinaphone.png",
 };
 
 // ---------------------------------------------------------------------------
@@ -605,18 +626,35 @@ export const worldCountries: Country[] = [
       { id: "revolut_ro",  name: "Revolut",          icon: OP.revolut,     features: { cashIn: true,  cashOut: true,  airtime: false } },
     ],
   },
-  { name: "China",               code: "CN", flag: "CN", currency: "CNY", currencySymbol: "¥",   piToLocalRate: 7.1,    dialCode: "+86",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
+  { name: "China",               code: "CN", flag: "CN", currency: "CNY", currencySymbol: "¥",   piToLocalRate: 7.1,    dialCode: "+86",    continent: "ASIA",    isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "ICBC",         bic: "ICBKCNBJ", swift: "ICBKCNBJ", logo: BK.icbc },
       { name: "Bank of China",bic: "BKCHCNBJ", swift: "BKCHCNBJ", logo: BK.boc_cn },
-    ], operators: [] },
+    ],
+    operators: [
+      { id: "alipay_cn",       name: "Alipay",         icon: OP.alipay,       features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "wechatpay_cn",    name: "WeChat Pay",     icon: OP.wechatpay,    features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "unionpay_cn",     name: "UnionPay",       icon: OP.unionpay,     features: { cashIn: true,  cashOut: true,  airtime: false } },
+      { id: "chinamobile_cn",  name: "China Mobile",   icon: OP.chinamobile,  features: { cashIn: false, cashOut: false, airtime: true  } },
+      { id: "chinaunicom_cn",  name: "China Unicom",   icon: OP.chinaunicom,  features: { cashIn: false, cashOut: false, airtime: true  } },
+      { id: "chinatelecom_cn", name: "China Telecom",  icon: OP.chinatelecom, features: { cashIn: false, cashOut: false, airtime: true  } },
+    ] },
   { name: "Japan",               code: "JP", flag: "JP", currency: "JPY", currencySymbol: "¥",   piToLocalRate: 150,    dialCode: "+81",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
-  { name: "India",               code: "IN", flag: "IN", currency: "INR", currencySymbol: "₹",   piToLocalRate: 83,     dialCode: "+91",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
+  { name: "India",               code: "IN", flag: "IN", currency: "INR", currencySymbol: "₹",   piToLocalRate: 83,     dialCode: "+91",    continent: "ASIA",    isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "State Bank of India", bic: "SBININBB", swift: "SBININBB", logo: BK.sbi },
       { name: "HDFC Bank",           bic: "HDFCINBB", swift: "HDFCINBB", logo: BK.hdfc },
       { name: "ICICI Bank",          bic: "ICICINBB", swift: "ICICINBB", logo: BK.icici },
-    ], operators: [] },
+    ],
+    operators: [
+      { id: "paytm_in",   name: "Paytm",       icon: OP.paytm,   features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "phonepe_in", name: "PhonePe",     icon: OP.phonepe, features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "gpay_in",    name: "Google Pay",  icon: OP.gpay,    features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "bhim_in",    name: "BHIM UPI",    icon: OP.bhim,    features: { cashIn: true,  cashOut: true,  airtime: false } },
+      { id: "jio_in",     name: "Jio",         icon: OP.jio,     features: { cashIn: false, cashOut: false, airtime: true  } },
+      { id: "airtel_in",  name: "Airtel",      icon: OP.airtel,  features: { cashIn: false, cashOut: false, airtime: true  } },
+      { id: "vi_in",      name: "Vi",          icon: OP.vi,      features: { cashIn: false, cashOut: false, airtime: true  } },
+    ] },
   { name: "South Korea",         code: "KR", flag: "KR", currency: "KRW", currencySymbol: "₩",   piToLocalRate: 1340,   dialCode: "+82",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
   { name: "Indonesia",           code: "ID", flag: "ID", currency: "IDR", currencySymbol: "Rp",  piToLocalRate: 15700,  dialCode: "+62",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
     banks: [
@@ -624,10 +662,18 @@ export const worldCountries: Country[] = [
       { name: "Bank Central Asia (BCA)",     bic: "CENAIDJA", swift: "CENAIDJA", logo: BK.bca },
       { name: "Bank Mandiri",               bic: "BMRIIDJA", swift: "BMRIIDJA", logo: BK.mandiri },
     ], operators: [] },
-  { name: "Vietnam",             code: "VN", flag: "VN", currency: "VND", currencySymbol: "₫",   piToLocalRate: 25450,  dialCode: "+84",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
+  { name: "Vietnam",             code: "VN", flag: "VN", currency: "VND", currencySymbol: "₫",   piToLocalRate: 25450,  dialCode: "+84",    continent: "ASIA",    isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Vietcombank", bic: "BFTVVNVX", swift: "BFTVVNVX", logo: BK.vietcombank },
-    ], operators: [] },
+    ],
+    operators: [
+      { id: "momo_vn",      name: "MoMo",          icon: OP.momo_vn,  features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "zalopay_vn",   name: "ZaloPay",       icon: OP.zalopay,  features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "vnpay_vn",     name: "VNPay",         icon: OP.vnpay,    features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "viettel_vn",   name: "Viettel Money", icon: OP.viettel,  features: { cashIn: true,  cashOut: true,  airtime: true  } },
+      { id: "mobifone_vn",  name: "MobiFone",      icon: OP.mobifone, features: { cashIn: false, cashOut: false, airtime: true  } },
+      { id: "vinaphone_vn", name: "VinaPhone",     icon: OP.vinaphone,features: { cashIn: false, cashOut: false, airtime: true  } },
+    ] },
   { name: "Thailand",            code: "TH", flag: "TH", currency: "THB", currencySymbol: "฿",   piToLocalRate: 36,     dialCode: "+66",    continent: "ASIA",    isoStandard: "ISO20022", isActive: false,
     banks: [
       { name: "Siam Commercial Bank (SCB)", bic: "SICOTHBK", swift: "SICOTHBK", logo: BK.scb },
