@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { QRScanner } from "@/components/qr-scanner";
 import { ReceiveQR } from "@/components/receive-qr";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 import { useLanguage } from "@/context/LanguageContext";
 
 // Types for Map of Pi merchants
@@ -257,6 +258,8 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   const [payStep, setPayStep] = useState(1); // 1: search, 2: amount, 3: confirm
   const [isLoading, setIsLoading] = useState(false);
   const [txPriority, setTxPriority] = useState("fast");
+  // KYC / limites de retrait — message professionnel
+  const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
 
   // Fetch user profile (reusable so the balance can auto-refresh)
   const fetchProfile = useCallback(async () => {
@@ -473,6 +476,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           toast.success(data.message || t("mpay.piTransferSuccess"));
           router.push(`/mpay/success?amount=${amount}&to=${merchantId.slice(0, 8)}...${merchantId.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error, code: data.code });
+            return;
+          }
           const errorMsg = data.error || `${t("mpay.error")} ${res.status}`;
           toast.error(errorMsg);
           router.push(`/mpay/failed?reason=${encodeURIComponent(errorMsg)}`);
@@ -496,6 +503,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           toast.success(t("mpay.mpayConfirmed"));
           router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
         } else {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error || data.message, code: data.code });
+            return;
+          }
           toast.error(data.message || t("mpay.transactionFailed"));
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.message || t("mpay.unknownError"))}`);
         }
@@ -775,6 +786,12 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   // ============================================
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans overflow-x-hidden">
+      <KycRequiredModal
+        open={kycModal.open}
+        message={kycModal.message}
+        code={kycModal.code}
+        onClose={() => setKycModal({ open: false })}
+      />
       {/* HEADER */}
       <header className="px-6 pt-12 pb-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
         <button onClick={() => router.back()} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">

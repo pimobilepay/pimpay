@@ -656,7 +656,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
               className="w-full bg-[#0c1629] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:border-blue-500/30 transition-all"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
                   {currencyMeta.logo ? (
                     <img
                       src={currencyMeta.logo}
@@ -714,7 +714,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
                         }}
                         className="w-full p-4 flex items-center gap-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
                       >
-                        <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {meta?.logo ? (
                             <img
                               src={meta.logo}

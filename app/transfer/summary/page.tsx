@@ -22,6 +22,7 @@ import {
 import { BottomNav } from "@/components/bottom-nav";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { toast } from "sonner";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 function detectExternalAddress(identifier: string): boolean {
   const clean = (identifier || "").trim();
   if (!clean || clean.length < 20) return false;
@@ -137,6 +138,8 @@ function SummaryContent() {
   }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
   const [feeLoading, setFeeLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // KYC / limites — message professionnel
+  const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
   // Prix Pi configuré par l'admin (Réglages → Politique Monétaire)
   const { price: piPrice } = usePiPrice();
 
@@ -297,6 +300,11 @@ const data = useMemo(() => {
           if (blockchainHash) qs.set("hash", blockchainHash);
           router.push(`/transfer/success?${qs.toString()}`);
         } else {
+          if (isKycPolicyError(result)) {
+            setKycModal({ open: true, message: result.error, code: result.code });
+            setIsLoading(false);
+            return;
+          }
           const errorMsg = result?.error || `Erreur ${response.status}`;
           router.push(`/transfer/failed?error=${encodeURIComponent(errorMsg)}`);
         }
@@ -338,6 +346,11 @@ const data = useMemo(() => {
         if (typeof result.newBalance === 'number') qs.set("newBalance", String(result.newBalance));
         router.push(`/transfer/success?${qs.toString()}`);
       } else {
+        if (isKycPolicyError(result)) {
+          setKycModal({ open: true, message: result.error, code: result.code });
+          setIsLoading(false);
+          return;
+        }
         const msg = result?.error || "Transaction refusée";
         router.push(`/transfer/failed?error=${encodeURIComponent(msg)}`);
       }
@@ -393,6 +406,12 @@ const data = useMemo(() => {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-40 font-sans overflow-x-hidden">
+      <KycRequiredModal
+        open={kycModal.open}
+        message={kycModal.message}
+        code={kycModal.code}
+        onClose={() => setKycModal({ open: false })}
+      />
       {/* Glow décoratif */}
       <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[120%] h-72 bg-blue-600/10 blur-3xl rounded-full" />
 

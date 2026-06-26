@@ -14,6 +14,7 @@ import { QRCodeSVG } from "qrcode.react";
 // Importation du scanner QR
 import { QRScanner } from "@/components/qr-scanner"; 
 import { toast } from "sonner";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 
 /**
  * CONFIGURATION DES ACTIFS
@@ -275,6 +276,8 @@ export default function AssetDetailPage() {
   const [addressVerifying, setAddressVerifying] = useState(false);
   const [addressVerified, setAddressVerified] = useState<{ valid: boolean; exists: boolean; network?: string; error?: string } | null>(null);
   const [sendRecipientAddress, setSendRecipientAddress] = useState("");
+  // KYC / limites — message professionnel
+  const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
 
   const fetchMarketPrice = useCallback(async () => {
     if (assetId === "SDA") return; // SDA is not on CoinGecko
@@ -526,6 +529,12 @@ export default function AssetDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col pb-52">
+      <KycRequiredModal
+        open={kycModal.open}
+        message={kycModal.message}
+        code={kycModal.code}
+        onClose={() => setKycModal({ open: false })}
+      />
       <div className="px-5 pt-12 pb-3 flex justify-between items-center">
         <button onClick={() => router.back()} className="p-2.5 bg-white/5 rounded-xl border border-white/10 active:scale-90 transition-transform">
           <ArrowLeft size={20} className="text-slate-400" />
@@ -1173,6 +1182,11 @@ export default function AssetDetailPage() {
                             toast.success("Retrait Pi lancé avec succès !");
                           }
                         } else {
+                          if (isKycPolicyError(result)) {
+                            setKycModal({ open: true, message: result.error, code: result.code });
+                            setSendStatus("idle");
+                            return;
+                          }
                           toast.error(result.error || "Erreur lors de l'envoi Pi");
                           setSendStatus("idle");
                         }
@@ -1211,6 +1225,11 @@ export default function AssetDetailPage() {
                             toast.success("Transfert SDA réussi !");
                           }
                         } else {
+                          if (isKycPolicyError(result)) {
+                            setKycModal({ open: true, message: result.error, code: result.code });
+                            setSendStatus("idle");
+                            return;
+                          }
                           toast.error(result.error || "Erreur lors de l'envoi SDA");
                           setSendStatus("idle");
                         }
@@ -1248,6 +1267,11 @@ export default function AssetDetailPage() {
                           toast.success(`Transfert ${assetId} réussi !`);
                         }
                       } else { 
+                        if (isKycPolicyError(result)) {
+                          setKycModal({ open: true, message: result.error, code: result.code });
+                          setSendStatus("idle");
+                          return;
+                        }
                         toast.error(result.error || "Erreur lors de l'envoi"); 
                         setSendStatus("idle"); 
                       }
