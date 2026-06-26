@@ -621,6 +621,24 @@ model SystemLog {
   @@index([userId])
 }
 
+// Liste noire d'adresses IP — utilisée par le journal de détection d'intrusion
+// pour "riposter" (bloquer) une source malveillante. Vérifiée à la connexion.
+model BlockedIp {
+  id        String    @id @default(cuid())
+  ip        String    @unique
+  reason    String?
+  threat    String?   // niveau de menace au moment du blocage (LOW/MEDIUM/HIGH/CRITICAL)
+  blockedBy String?   // id de l'admin ayant exécuté la riposte
+  active    Boolean   @default(true)
+  hits      Int       @default(0) // nombre de requêtes rejetées depuis le blocage
+  expiresAt DateTime? // null = blocage permanent
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ip])
+  @@index([active])
+}
+
 model BankAdmin {
   id        String   @id
   userId    String   @unique
