@@ -8,11 +8,30 @@ import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
+import { isIpBlocked } from "@/lib/ipBlock";
 
 export async function POST(req: Request) {
   try {
     // [FIX V8] Rate limiting — 10 tentatives / 60s par IP sur login
     const ip = getClientIp(req);
+
+    // [IDS] Riposte — rejet immédiat des IP bloquées par l'admin via le journal
+    // de détection d'intrusion. Défense active : on coupe le trafic entrant.
+    if (await isIpBlocked(ip)) {
+      await logSystemEvent({
+        level: "WARN",
+        source: "SECURITY",
+        action: "BLOCKED_IP_HIT",
+        message: `Tentative de connexion rejetee depuis une IP bloquee : ${ip}`,
+        details: { ip },
+        ip,
+      });
+      return NextResponse.json(
+        { error: "Accès refusé. Votre adresse a été bloquée pour activité suspecte." },
+        { status: 403 }
+      );
+    }
+
     const rl = checkRateLimit(`login:${ip}`, 10, 60_000);
     if (rl.limited) {
       const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);

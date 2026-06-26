@@ -6,7 +6,7 @@ import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
-  BarChart3, ArrowLeft, History, Eye, Bell
+  BarChart3, ArrowLeft, History, Eye, Bell, Crosshair
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -81,6 +81,7 @@ export default function AdminDashboard() {
             { label: "Tresorerie", desc: "Finances", icon: <Landmark size={20} />, path: "/admin/treasury", color: "amber" },
             { label: "Logs", desc: "Activite users", icon: <Eye size={20} />, path: "/admin/logs", color: "teal" },
             { label: "Connexions", desc: "Tentatives & blocages", icon: <ShieldCheck size={20} />, path: "/admin/login-attempts", color: "rose" },
+            { label: "Intrusion", desc: "Détection & riposte", icon: <Crosshair size={20} />, path: "/admin/intrusion", color: "rose" },
             { label: "Parametres", desc: "Configuration", icon: <Settings size={20} />, path: "/admin/settings", color: "cyan" },
             { label: "Banque", desc: "Portail bancaire", icon: <Landmark size={20} />, path: "/bank", color: "blue" },
             { label: "Business", desc: "Portail entreprise", icon: <Globe size={20} />, path: "/business", color: "emerald" },
@@ -239,6 +240,7 @@ export default function AdminDashboard() {
             { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
             { label: "Logs Utilisateurs", desc: "Suivi d'activite en temps reel", icon: <Eye size={18} />, path: "/admin/logs", color: "blue" },
             { label: "Tentatives Connexion", desc: "Echecs de login et comptes bloques", icon: <ShieldCheck size={18} />, path: "/admin/login-attempts", color: "red" },
+            { label: "Detection Intrusion", desc: "Journal IDS et riposte defensive", icon: <Crosshair size={18} />, path: "/admin/intrusion", color: "red" },
             { label: "Mode Rescue", desc: "Outils de recuperation d'urgence", icon: <AlertTriangle size={18} />, path: "/admin/rescue", color: "red" },
           ].map((item) => (
             <button
