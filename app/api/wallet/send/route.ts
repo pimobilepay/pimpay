@@ -9,6 +9,7 @@ import { decrypt } from "@/lib/crypto";
 import { ethers } from "ethers";
 import { parseAmount } from "@/lib/amount-guard";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
+import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
 
 const RPC_URLS: Record<string, string> = {
   SDA: "https://node.sidrachain.com",
@@ -71,6 +72,15 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Statut KYC (pour la politique de plafonds Pi)
+    const senderKycRow = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { kycStatus: true },
+    });
+    const senderKyc = senderKycRow?.kycStatus;
+    // Retenue admin pour les gros retraits Pi (renseignee dans la transaction).
+    let piRequiresAdminApproval = false;
+
     // 2. TRANSACTION ATOMIQUE
     const result = await prisma.$transaction(async (tx) => {
       
@@ -104,6 +114,20 @@ export async function POST(req: NextRequest) {
           ]
         }
       });
+
+      // POLITIQUE KYC + PLAFONDS (denominee en Pi) — uniquement pour PI.
+      // Destinataire interne => transfert (pas de limite journaliere/retenue).
+      // Adresse externe => retrait (limite journaliere + retenue admin gros montant).
+      if (currency === "PI") {
+        const isExternalPiWithdrawal = !recipientUser;
+        const policy = await enforcePiPolicy(tx, {
+          userId: senderId,
+          amountPi: amount,
+          kycStatus: senderKyc,
+          countDaily: isExternalPiWithdrawal,
+        });
+        piRequiresAdminApproval = isExternalPiWithdrawal && policy.requiresAdminApproval;
+      }
 
       // C. DÉBIT DE L'EXPÉDITEUR
       const updatedSender = await tx.wallet.update({
@@ -236,7 +260,9 @@ export async function POST(req: NextRequest) {
             amount,
             currency,
             type: TransactionType.WITHDRAW,
-            status: txStatus,
+            // Gros retrait Pi => PENDING en attente de validation admin.
+            status: piRequiresAdminApproval ? TransactionStatus.PENDING : txStatus,
+            statusClass: piRequiresAdminApproval ? "MANUAL_REVIEW" : undefined,
             blockchainTx: blockchainTxHash,
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
@@ -270,8 +296,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       mode: result.type,
-      message: result.type === 'INTERNAL'
-        ? "Transfert instantané r��ussi"
+      requiresAdminApproval: piRequiresAdminApproval,
+      message: piRequiresAdminApproval
+        ? "Demande de retrait transmise. En attente de validation administrateur."
+        : result.type === 'INTERNAL'
+        ? "Transfert instantané réussi"
         : (isDirectBlockchainTransfer ? "Transfert blockchain confirmé" : "Retrait blockchain enregistré (en attente)"),
       reference: result.transaction.reference,
       transaction: result.transaction,
@@ -280,6 +309,13 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("[v1] [WALLET_SEND] ERREUR:", error.message);
+    // Violations de politique (KYC, plafonds, limite journaliere)
+    if (error instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
     const safeErrors = ["Solde", "insuffisant", "invalide", "vous-meme", "Cle", "Clé", "annulé", "restitué", "Sidra", "blockchain", "SDA", "corrompue"];
     const isSafeError = safeErrors.some(e => error.message?.includes(e));
     return NextResponse.json({ 

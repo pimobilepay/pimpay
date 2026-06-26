@@ -14,6 +14,7 @@ import { collectFeeOnChain, FEE_COLLECTED_CURRENCIES } from "@/lib/fee-collector
 import { parseAmount } from "@/lib/amount-guard";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
+import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
 
 // Import TronWeb pour les transferts USDT TRC20
 const TronWebModule = require("tronweb");
@@ -180,6 +181,35 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POLITIQUE KYC + PLAFONDS (denominee en Pi) — uniquement pour la devise PI.
+    //  - Sortie vers une adresse externe => retrait (limite journaliere + retenue
+    //    admin pour les gros montants des comptes verifies).
+    //  - Sortie vers un membre PimPay => transfert interne (pas de limite
+    //    journaliere ni de retenue admin).
+    // ─────────────────────────────────────────────────────────────────────────
+    let piRequiresAdminApproval = false;
+    if (currency === "PI") {
+      const isExternalPiWithdrawal = isExternalAddress(recipientInput);
+      try {
+        const policy = await enforcePiPolicy(prisma, {
+          userId: senderId,
+          amountPi: amount,
+          kycStatus,
+          countDaily: isExternalPiWithdrawal,
+        });
+        piRequiresAdminApproval = isExternalPiWithdrawal && policy.requiresAdminApproval;
+      } catch (e: any) {
+        if (e instanceof WithdrawalPolicyError) {
+          return NextResponse.json(
+            { error: e.message, code: e.code },
+            { status: e.status }
+          );
+        }
+        throw e;
+      }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -390,8 +420,13 @@ export async function POST(req: NextRequest) {
             ? `Retrait PI vers adresse externe : ${recipientInput}`
             : description || `Retrait ${currency} vers adresse externe : ${recipientInput}`;
 
+        // PI : SUCCESS direct, sauf si une validation admin est requise => PENDING.
         const initialStatus =
-          currency === "PI" ? TransactionStatus.SUCCESS : TransactionStatus.PENDING;
+          currency === "PI"
+            ? piRequiresAdminApproval
+              ? TransactionStatus.PENDING
+              : TransactionStatus.SUCCESS
+            : TransactionStatus.PENDING;
 
         const transaction = await tx.transaction.create({
           data: {
@@ -402,7 +437,7 @@ export async function POST(req: NextRequest) {
             currency,
             type: TransactionType.WITHDRAW,
             status: initialStatus,
-            statusClass: "QUEUED",
+            statusClass: piRequiresAdminApproval ? "MANUAL_REVIEW" : "QUEUED",
             blockchainTx: null,
             fromUserId: senderId,
             fromWalletId: updatedSender.id,
@@ -736,7 +771,7 @@ export async function POST(req: NextRequest) {
 
     // ──────────────────��──────────────────────────────────────────────────────
     // ÉTAPE 2-bis (INTERNE TRON) : le transfert PASSE par la blockchain TRON
-    // ─────────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────���──────────────────────────────────────────
     // La blockchain TRON est la SOURCE DE VÉRITÉ. Le destinataire n'a PAS encore
     // été crédité en DB (étape 1 a seulement débité l'expéditeur). On diffuse le
     // transfert on-chain :
@@ -890,8 +925,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Déclencher le worker Pi si nécessaire
-    if (result.type === "EXTERNAL" && result.transaction.currency === "PI") {
+    // Déclencher le worker Pi si nécessaire — SAUF si le retrait est en attente
+    // de validation administrateur (gros montant), auquel cas il ne doit pas
+    // etre diffuse tant qu'un admin ne l'a pas approuve.
+    if (
+      result.type === "EXTERNAL" &&
+      result.transaction.currency === "PI" &&
+      !piRequiresAdminApproval
+    ) {
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
@@ -974,6 +1015,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       mode: result.type,
+      requiresAdminApproval: piRequiresAdminApproval,
+      message: piRequiresAdminApproval
+        ? "Demande de retrait transmise. En attente de validation administrateur."
+        : undefined,
       transaction: result.transaction,
       blockchainTx: result.transaction.blockchainTx || null,
       newBalance: result.newBalance,

@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { TransactionStatus, TransactionType, WalletType } from '@prisma/client';
 import { logSystemEvent, logApiError } from '@/lib/systemLogger';
+import { enforcePiPolicy, WithdrawalPolicyError } from '@/lib/withdrawal-limits';
 
 /**
  * POST /api/mpay/external-transfer
@@ -591,6 +592,17 @@ export async function POST(req: NextRequest) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // POLITIQUE KYC + PLAFONDS (denominee en Pi)
+  // Recuperee une seule fois ; appliquee differemment selon transfert interne
+  // (P2P) ou retrait externe (blockchain). Voir lib/withdrawal-limits.ts.
+  // ─────────────────────────────────────────────────────────────────────────
+  const senderForKyc = await prisma.user.findUnique({
+    where: { id: senderId },
+    select: { kycStatus: true },
+  });
+  const senderKyc = senderForKyc?.kycStatus;
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 4bis. RÉSOLUTION INTERNE PimPay
   // Une adresse Pi interne (UID préfixé "P" ou adresse Pi enregistrée) peut
   // appartenir à un membre PimPay. Dans ce cas on effectue un transfert INTERNE
@@ -621,6 +633,25 @@ export async function POST(req: NextRequest) {
   }
 
   if (internalRecipient) {
+    // Transfert P2P interne : KYC obligatoire (>5 Pi) + plafond 100 Pi/tx (verifies).
+    // Pas de limite journaliere (countDaily=false) ni de validation admin.
+    try {
+      await enforcePiPolicy(prisma, {
+        userId: senderId,
+        amountPi: amountNum,
+        kycStatus: senderKyc,
+        countDaily: false,
+      });
+    } catch (e: any) {
+      if (e instanceof WithdrawalPolicyError) {
+        return NextResponse.json(
+          { success: false, error: e.message, code: e.code },
+          { status: e.status }
+        );
+      }
+      throw e;
+    }
+
     const internalRef = `PIM-INT-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
@@ -716,6 +747,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // RETRAIT EXTERNE : politique complete (KYC > 5 Pi, plafond 100 Pi/tx,
+  // 10 retraits/jour pour comptes non verifies) + retenue admin pour les gros
+  // montants des comptes verifies.
+  // ─────────────────────────────────────────────────────────────────────────
+  let requiresAdminApproval = false;
+  try {
+    const policy = await enforcePiPolicy(prisma, {
+      userId: senderId,
+      amountPi: amountNum,
+      kycStatus: senderKyc,
+      countDaily: true,
+    });
+    requiresAdminApproval = policy.requiresAdminApproval;
+  } catch (e: any) {
+    if (e instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { success: false, error: e.message, code: e.code },
+        { status: e.status }
+      );
+    }
+    throw e;
+  }
+
   // 5. Creer la transaction DB et debiter le wallet (atomique)
   const txRef = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
   const memoText = memo || `Retrait PimPay ${txRef.slice(-8)}`;
@@ -750,6 +805,57 @@ export async function POST(req: NextRequest) {
       data:  { balance: { decrement: totalDeduction } },
     }),
   ]);
+
+  // 5bis. RETENUE ADMIN : si le montant exige une validation administrateur,
+  // on NE diffuse PAS sur la blockchain. Le wallet est deja debite (section 5)
+  // et la transaction reste PENDING/MANUAL_REVIEW jusqu'a validation par un admin.
+  if (requiresAdminApproval) {
+    await prisma.transaction.update({
+      where: { id: dbTx.id },
+      data: {
+        statusClass: "MANUAL_REVIEW",
+        metadata: {
+          ...(dbTx.metadata as object),
+          requiresAdminApproval: true,
+          heldForReviewAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    await prisma.notification
+      .create({
+        data: {
+          userId: senderId,
+          title: "Retrait en attente de validation",
+          message: `Votre retrait de ${amountNum} Pi depasse le seuil autorise et doit etre valide par un administrateur avant diffusion.`,
+          type: "INFO",
+        },
+      })
+      .catch(() => {});
+
+    await logSystemEvent({
+      level: "INFO",
+      source: "MPAY_EXTERNAL_TRANSFER",
+      action: "WITHDRAW_HELD_FOR_REVIEW",
+      message: `Retrait Pi de ${amountNum} Pi mis en attente de validation admin`,
+      details: { txRef, amount: amountNum },
+      userId: senderId,
+      requestId,
+    });
+
+    return NextResponse.json({
+      success: true,
+      requiresAdminApproval: true,
+      message: "Demande de retrait transmise. En attente de validation administrateur.",
+      data: {
+        txid: txRef,
+        status: "PENDING",
+        amount: amountNum,
+        fee,
+        destination: isPiAddress ? destination : piUid,
+      },
+    });
+  }
 
   // 6. Executer le transfert
   let blockchainTxHash: string | null = null;

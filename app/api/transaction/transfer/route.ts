@@ -7,6 +7,10 @@ import { cookies } from "next/headers";
 import { calculateExchangeWithFee } from "@/lib/exchange";
 import { getFeeConfig, calculateFee, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import {
+  enforcePiPolicy,
+  WithdrawalPolicyError,
+} from "@/lib/withdrawal-limits";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,7 +47,8 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         name: true,
-        username: true
+        username: true,
+        kycStatus: true
       }
     });
 
@@ -98,6 +103,17 @@ export async function POST(req: NextRequest) {
     const piPrice = await getPiPrice();
     const { feeAmount: transferFeeAmount, totalDebit } = calculateFee(amountNum, feeConfig, "transfer");
     const valueInUsd = amountNum * piPrice;
+
+    // POLITIQUE KYC + PLAFONDS (denominee en Pi)
+    // Transfert P2P interne instantane : on applique le KYC obligatoire (>5 Pi)
+    // et le plafond de 100 Pi/tx pour les comptes verifies. La limite journaliere
+    // (countDaily) ne s'applique pas aux transferts P2P, uniquement aux retraits.
+    await enforcePiPolicy(prisma, {
+      userId: sender.id,
+      amountPi: amountNum,
+      kycStatus: sender.kycStatus,
+      countDaily: false,
+    });
 
     // 5. TRANSACTION ATOMIQUE (Correction Erreurs Prisma)
     // IMPORTANT: Toutes les verifications et mises a jour de solde sont dans la transaction
@@ -207,7 +223,15 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("[TRANSFER] ERREUR:", error.message);
-    
+
+    // Violations de politique (KYC, plafonds, limite journaliere)
+    if (error instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { success: false, error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
+
     // Messages d'erreur securises a renvoyer au client
     const safeErrorPatterns = [
       "Solde insuffisant",

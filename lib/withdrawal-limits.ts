@@ -120,6 +120,50 @@ export function evaluatePiWithdrawal(params: {
 }
 
 /**
+ * Politique de sortie de fonds UNIFIEE (denominee en Pi).
+ *
+ * A appeler sur TOUTES les routes de transactions sortantes (retrait, transfert,
+ * mpay, envoi crypto) afin de garantir un comportement coherent :
+ *
+ *  1. KYC obligatoire au-dela de 5 Pi (comptes non verifies).
+ *  2. Plafond de 100 Pi par transaction pour les comptes verifies.
+ *  3. Maximum 10 retraits par jour pour les comptes NON verifies.
+ *  4. Validation admin obligatoire pour les gros montants (comptes verifies).
+ *
+ * @param db        client Prisma (global ou transactionnel) exposant transaction.count
+ * @param userId    identifiant de l'utilisateur emetteur
+ * @param amountPi  montant exprime en Pi (utiliser toPiEquivalent pour convertir)
+ * @param kycStatus statut KYC de l'utilisateur
+ * @param countDaily si false, n'applique pas la limite journaliere (ex: transfert P2P interne)
+ *
+ * @returns requiresAdminApproval : le retrait doit rester PENDING en attente admin.
+ *          verified : true si le compte est KYC verifie.
+ */
+export async function enforcePiPolicy(
+  db: TxCounter,
+  params: {
+    userId: string;
+    amountPi: number;
+    kycStatus?: string | null;
+    countDaily?: boolean;
+  }
+): Promise<{ requiresAdminApproval: boolean; verified: boolean }> {
+  const verified = isKycVerified(params.kycStatus);
+
+  // Limite journaliere : appliquee aux comptes NON verifies.
+  if (!verified && params.countDaily !== false) {
+    await assertDailyWithdrawalCount(db, params.userId);
+  }
+
+  const { requiresAdminApproval } = evaluatePiWithdrawal({
+    amountPi: params.amountPi,
+    kycStatus: params.kycStatus,
+  });
+
+  return { requiresAdminApproval, verified };
+}
+
+/**
  * Convertit un montant d'une devise vers son equivalent en Pi.
  * - "PI" : identite.
  * - "USD" : amount / prix du Pi en USD.

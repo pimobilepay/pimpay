@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { CRYPTO_ASSETS } from "@/lib/crypto-config";
 import { validateAddress, CRYPTO_RULES } from "@/lib/crypto-validator";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 import "flag-icons/css/flag-icons.min.css";
 
 // Ordered list of cryptos available for withdrawal
@@ -74,6 +75,9 @@ export default function WithdrawPage() {
   // Loading & confirmation
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // KYC / limites — message professionnel
+  const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
 
   useEffect(() => {
     setMounted(true);
@@ -199,6 +203,11 @@ export default function WithdrawPage() {
         const data = await res.json();
 
         if (!res.ok) {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error, code: data.code });
+            setIsSubmitting(false);
+            return;
+          }
           throw new Error(data.error || "Erreur lors du retrait");
         }
 
@@ -227,6 +236,11 @@ export default function WithdrawPage() {
         const data = await res.json();
 
         if (!res.ok) {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error, code: data.code });
+            setIsSubmitting(false);
+            return;
+          }
           throw new Error(data.error || "Erreur lors du retrait");
         }
 
@@ -338,6 +352,12 @@ export default function WithdrawPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans pb-32 overflow-x-hidden">
       <SideMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <KycRequiredModal
+        open={kycModal.open}
+        message={kycModal.message}
+        code={kycModal.code}
+        onClose={() => setKycModal({ open: false })}
+      />
 
       {/* HEADER */}
       <header className="px-6 pt-10 pb-6 flex items-center justify-between sticky top-0 bg-[#020617]/80 backdrop-blur-md z-30">
