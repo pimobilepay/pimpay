@@ -5,7 +5,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
-import { completePiPayment } from "@/lib/pi";
+import { completePiPayment, getPiPayment } from "@/lib/pi";
+import { resolvePimCoins } from "@/lib/pim-packages";
 
 /**
  * POST /api/payments/pim/complete
@@ -20,11 +21,14 @@ import { completePiPayment } from "@/lib/pi";
  */
 export async function POST(req: Request) {
   try {
-    const { paymentId, txid, pimCoins, piAmount, metadata } = await req.json();
+    // NOTE SECURITE : `pimCoins` et `piAmount` envoyes par le client ne sont
+    // PAS dignes de confiance et ne servent qu'a titre indicatif. Le nombre de
+    // PIM credite est recalcule cote serveur a partir du montant Pi verifie.
+    const { paymentId, txid, metadata } = await req.json();
 
-    if (!paymentId || !pimCoins || pimCoins <= 0) {
+    if (!paymentId) {
       return NextResponse.json(
-        { error: "Donnees invalides pour l'achat PIM" },
+        { error: "Donnees invalides pour l'achat PIM (paymentId requis)" },
         { status: 400 }
       );
     }
@@ -38,7 +42,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`[PIMPAY] PIM purchase: ${pimCoins} PIM for user ${userId}, paymentId: ${paymentId}`);
+    console.log(`[PIMPAY] PIM purchase request for user ${userId}, paymentId: ${paymentId}`);
 
     // 2. VALIDATION PI NETWORK (S2S) — indispensable pour que Pi Wallet
     // marque le paiement comme complete (sinon il reste "incomplet/expire").
@@ -70,6 +74,38 @@ export async function POST(req: Request) {
 
       console.log(`[PIMPAY] Paiement Pi confirme cote serveur: ${paymentId}`);
     }
+
+    // 2bis. SOURCE DE VERITE : montant Pi reellement paye + statut verifie.
+    // FAILLE CORRIGEE : on ne credite plus le `pimCoins` fourni par le client.
+    const piPayment = await getPiPayment(paymentId);
+    if (!piPayment) {
+      return NextResponse.json({ error: "Paiement Pi introuvable" }, { status: 404 });
+    }
+
+    const isVerified =
+      piPayment.status?.transaction_verified === true ||
+      piPayment.transaction?.verified === true;
+
+    if (!isVerified) {
+      console.error("[PIMPAY] Paiement PIM non verifie:", paymentId, piPayment.status);
+      return NextResponse.json(
+        { error: "Paiement non verifie sur la blockchain Pi", retryable: true },
+        { status: 409 }
+      );
+    }
+
+    const verifiedPiAmount = Number(piPayment.amount);
+
+    // Calcul EXCLUSIVEMENT cote serveur du nombre de PIM a crediter.
+    const resolved = resolvePimCoins(metadata?.productId, verifiedPiAmount);
+    if (!resolved.ok) {
+      console.error("[PIMPAY] Resolution PIM refusee:", resolved.reason);
+      return NextResponse.json(
+        { error: resolved.reason || "Achat PIM invalide" },
+        { status: 400 }
+      );
+    }
+    const pimCoins = resolved.pimCoins;
 
     // 3. Check for duplicate purchase
     const existingTx = await prisma.transaction.findUnique({
@@ -104,6 +140,7 @@ export async function POST(req: Request) {
       const transaction = await tx.transaction.upsert({
         where: { externalId: `PIM-${paymentId}` },
         update: {
+          amount: pimCoins,
           status: TransactionStatus.SUCCESS,
           blockchainTx: txid,
           toWalletId: pimWallet.id,
@@ -120,9 +157,9 @@ export async function POST(req: Request) {
           toUserId: userId,
           toWalletId: pimWallet.id,
           metadata: {
-            piAmount,
+            piAmount: verifiedPiAmount,
             productId: metadata?.productId,
-            bonus: metadata?.bonus || 0,
+            bonus: resolved.bonus,
             purchasedAt: new Date().toISOString(),
           },
         },
@@ -137,11 +174,11 @@ export async function POST(req: Request) {
         data: {
           userId,
           title: "PIM Coins ajoutes !",
-          message: `Vous avez recu ${pimCoins} PIM Coins.${metadata?.bonus ? ` Bonus inclus: ${metadata.bonus} PIM !` : ""}`,
+          message: `Vous avez recu ${pimCoins} PIM Coins.${resolved.bonus ? ` Bonus inclus: ${resolved.bonus} PIM !` : ""}`,
           type: "SUCCESS",
           metadata: JSON.stringify({
             pimCoins,
-            piAmount,
+            piAmount: verifiedPiAmount,
             transactionId: result.transaction.id,
             productId: metadata?.productId,
           }),

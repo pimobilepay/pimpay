@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
+import { getPiPayment } from "@/lib/pi";
 
 export async function POST(request: Request) {
   try {
@@ -51,6 +52,46 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Échec validation Pi Network" }, { status: 403 });
     }
 
+    // --- 2bis. SOURCE DE VÉRITÉ : LE MONTANT VÉRIFIÉ PAR PI NETWORK ---
+    // FAILLE CORRIGÉE : auparavant on créditait `transaction.amount`, une valeur
+    // d'origine cliente (créée dans /api/pi/transaction). Un utilisateur pouvait
+    // donc créditer n'importe quel montant sans payer. On ne fait désormais
+    // confiance QU'AU montant et au statut retournés par Pi Network.
+    const piPayment = await getPiPayment(paymentId);
+
+    if (!piPayment) {
+      console.error("[PIMPAY] Paiement Pi introuvable cote serveur:", paymentId);
+      return NextResponse.json({ error: "Paiement Pi introuvable" }, { status: 404 });
+    }
+
+    // Le paiement doit etre verifie sur la blockchain ET avoir le txid attendu.
+    const isVerified =
+      piPayment.status?.transaction_verified === true ||
+      piPayment.transaction?.verified === true ||
+      isAlreadyCompleted;
+
+    if (!isVerified) {
+      console.error("[PIMPAY] Paiement Pi non verifie:", paymentId, piPayment.status);
+      return NextResponse.json(
+        { error: "Paiement non verifie sur la blockchain Pi", retryable: true },
+        { status: 409 }
+      );
+    }
+
+    // Le txid fourni doit correspondre a celui enregistre par Pi (si present).
+    const piTxid = piPayment.transaction?.txid;
+    if (piTxid && txid && piTxid !== txid) {
+      console.error("[PIMPAY] txid incoherent:", { fourni: txid, attendu: piTxid });
+      return NextResponse.json({ error: "txid incoherent avec Pi Network" }, { status: 403 });
+    }
+
+    // Montant reellement paye, valide cote serveur.
+    const verifiedAmount = Number(piPayment.amount);
+    if (!Number.isFinite(verifiedAmount) || verifiedAmount <= 0) {
+      console.error("[PIMPAY] Montant Pi invalide:", piPayment.amount);
+      return NextResponse.json({ error: "Montant Pi invalide" }, { status: 400 });
+    }
+
     // --- 3. RÉCUPÉRATION OU RÉCRÉATION DE LA TRANSACTION ---
     // Correction du crash findUnique : On utilise findUnique mais on gère l'absence
     let transaction = await prisma.transaction.findUnique({
@@ -60,15 +101,12 @@ export async function POST(request: Request) {
     // Si la transaction n'existe pas (cas du db-clean-up), on la recrée
     if (!transaction) {
       console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
-      
-      // On récupère le montant depuis piData ou on met une valeur par défaut sécurisée
-      const amountFromPi = piData.amount || 0; 
 
       transaction = await prisma.transaction.create({
         data: {
           reference: `REC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
           externalId: paymentId,
-          amount: amountFromPi,
+          amount: verifiedAmount,
           currency: "PI",
           type: TransactionType.DEPOSIT,
           status: TransactionStatus.PENDING,
@@ -84,40 +122,44 @@ export async function POST(request: Request) {
     }
 
     // --- 4. MISE À JOUR BANCAIRE ATOMIQUE ---
-    const finalResult = await prisma.$transaction(async (tx) => {
+    // On crédite EXCLUSIVEMENT le montant vérifié par Pi Network.
+    await prisma.$transaction(async (tx) => {
       // Utilisation de upsert pour le Wallet pour éviter tout crash si le wallet PI n'existe pas
       const wallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PI" } },
-        update: { balance: { increment: transaction!.amount } },
+        update: { balance: { increment: verifiedAmount } },
         create: {
           userId,
           currency: "PI",
-          balance: transaction!.amount,
+          balance: verifiedAmount,
           type: WalletType.PI
         }
       });
 
-      // Mise à jour de la transaction en SUCCESS
+      // Mise à jour de la transaction en SUCCESS, en alignant le montant
+      // enregistre sur la valeur reellement payee.
       return await tx.transaction.update({
         where: { id: transaction!.id },
         data: {
+          amount: verifiedAmount,
           status: TransactionStatus.SUCCESS,
           blockchainTx: txid,
           toWalletId: wallet.id,
           metadata: {
             completedAt: new Date().toISOString(),
+            verifiedAmount,
             recoveredAfterCleanup: true
           }
         }
       });
     }, { maxWait: 10000, timeout: 30000 });
   
-    console.log(`[PIMPAY] Portefeuille credite : ${transaction.amount} PI pour ${userId}`);
+    console.log(`[PIMPAY] Portefeuille credite : ${verifiedAmount} PI pour ${userId}`);
 
     return NextResponse.json({
       success: true,
       message: "Solde mis à jour !",
-      amount: transaction.amount
+      amount: verifiedAmount
     });
 
   } catch (error: any) {
