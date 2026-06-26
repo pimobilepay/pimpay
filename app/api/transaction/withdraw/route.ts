@@ -7,6 +7,11 @@ import { calculateExchangeWithFee } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import {
+  assertDailyWithdrawalCount,
+  evaluatePiWithdrawal,
+  WithdrawalPolicyError,
+} from "@/lib/withdrawal-limits";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,10 +55,16 @@ export async function POST(req: NextRequest) {
         throw new Error("Solde Pi insuffisant pour cette opération");
       }
 
-      // B. Vérification du statut KYC pour les limites
-      if (user?.kycStatus !== "VERIFIED" && piAmount > 50) {
-        throw new Error("Limite de retrait (50 PI) dépassée pour les comptes non vérifiés.");
-      }
+      // B. POLITIQUE DE RETRAIT (KYC + plafonds + limite journaliere)
+      // - > 5 Pi : KYC verifie obligatoire
+      // - compte verifie : max 100 Pi / transaction
+      // - max 10 retraits / jour
+      // - > 50 Pi (verifie) : validation admin obligatoire
+      await assertDailyWithdrawalCount(tx, userId);
+      const { requiresAdminApproval } = evaluatePiWithdrawal({
+        amountPi: piAmount,
+        kycStatus: user?.kycStatus,
+      });
 
       // C. Débiter le montant du wallet immédiatement (Sécurité Anti-Double dépense)
       const updatedWallet = await tx.wallet.update({
@@ -82,7 +93,10 @@ export async function POST(req: NextRequest) {
           reference: `WTH-${Date.now()}-${userId.slice(0, 4)}`.toUpperCase(),
           amount: piAmount,
           type: "WITHDRAW",
-          status: TransactionStatus.PENDING,
+          // Grand montant => en attente d'une validation admin.
+          // Petit montant => auto-approuve (paiement traite manuellement, hors worker on-chain).
+          status: requiresAdminApproval ? TransactionStatus.PENDING : TransactionStatus.SUCCESS,
+          statusClass: requiresAdminApproval ? "MANUAL_REVIEW" : "AUTO_APPROVED",
           fromUserId: userId,
           fromWalletId: userWallet.id,
           description: description,
@@ -98,6 +112,8 @@ export async function POST(req: NextRequest) {
             transferDetails: body.details,
             fiatAmount: conversion.total,
             exchangeRate: piPrice,
+            requiresAdminApproval,
+            autoApproved: !requiresAdminApproval,
             submittedAt: new Date().toISOString()
           }
         }
@@ -108,12 +124,14 @@ export async function POST(req: NextRequest) {
         data: {
           userId: userId,
           title: "Demande de retrait reçue",
-          message: `Votre retrait de ${piAmount} PI est en attente de traitement (${method}).`,
+          message: requiresAdminApproval
+            ? `Votre retrait de ${piAmount} PI (${method}) dépasse ${50} PI et doit être validé par un administrateur.`
+            : `Votre retrait de ${piAmount} PI est en cours de traitement (${method}).`,
           type: "INFO"
         }
       });
 
-      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / piPrice };
+      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / piPrice, requiresAdminApproval };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
@@ -130,12 +148,22 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Demande de retrait transmise avec succès",
+      message: result.requiresAdminApproval
+        ? "Demande de retrait transmise. En attente de validation administrateur."
+        : "Demande de retrait transmise avec succès",
+      requiresAdminApproval: result.requiresAdminApproval,
       reference: result.transaction.reference,
       newBalance: result.newBalance
     });
 
   } catch (error: any) {
+    // Violations de politique de retrait (KYC, plafonds, limite journaliere)
+    if (error instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
     console.error("WITHDRAW_ERROR:", error.message);
     return NextResponse.json(
       { error: error.message || "Erreur lors du traitement du retrait" },
