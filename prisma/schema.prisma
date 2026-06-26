@@ -201,6 +201,16 @@ model SystemConfig {
   maxLoginAttempts     Int       @default(5)
   lockoutDuration      Int       @default(30)
   sessionTimeout       Int       @default(60)
+  // [IDS] Détection & défense contre proxy / VPN / Tor / datacenter
+  proxyDetectionEnabled Boolean  @default(true)
+  proxyDetectionMode    String   @default("BLOCK") // BLOCK | MONITOR
+  blockVpn              Boolean  @default(true)
+  blockProxy            Boolean  @default(true)
+  blockTor              Boolean  @default(true)
+  blockDatacenter       Boolean  @default(false)
+  riskScoreThreshold    Int      @default(70) // 0-100, au-delà = blocage
+  ipWhitelist           String?  // IP/CIDR de confiance, séparés par virgule
+  autoBlockOnDetection  Boolean  @default(false) // ajoute l'IP à la liste noire
 }
 
 model DailyStats {
@@ -637,6 +647,33 @@ model BlockedIp {
 
   @@index([ip])
   @@index([active])
+}
+
+// [IDS] Journal des détections de proxy/VPN/Tor — trafic potentiellement malveillant.
+model ProxyDetection {
+  id           String   @id @default(cuid())
+  ip           String
+  isProxy      Boolean  @default(false)
+  isVpn        Boolean  @default(false)
+  isTor        Boolean  @default(false)
+  isDatacenter Boolean  @default(false)
+  proxyType    String?  // VPN, TOR, PUB (public proxy), DCH (datacenter)...
+  riskScore    Int      @default(0) // 0-100
+  country      String?
+  countryCode  String?
+  isp          String?
+  provider     String?
+  action       String   @default("LOGGED") // LOGGED | BLOCKED | AUTO_BLOCKED
+  context      String?  // login, transfer, withdraw...
+  userId       String?
+  userAgent    String?
+  source       String   @default("api") // api | heuristic
+  createdAt    DateTime @default(now())
+
+  @@index([ip])
+  @@index([action])
+  @@index([createdAt])
+  @@index([riskScore])
 }
 
 model BankAdmin {

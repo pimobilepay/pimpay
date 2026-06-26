@@ -8,6 +8,7 @@ import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { TransactionStatus, TransactionType, WalletType } from '@prisma/client';
 import { logSystemEvent, logApiError } from '@/lib/systemLogger';
 import { enforcePiPolicy, WithdrawalPolicyError } from '@/lib/withdrawal-limits';
+import { guardRequest } from '@/lib/defenseGuard';
 
 /**
  * POST /api/mpay/external-transfer
@@ -446,6 +447,21 @@ export async function POST(req: NextRequest) {
   const session = await auth() as any;
   if (!session?.id) {
     return NextResponse.json({ success: false, error: "Non autorise" }, { status: 401 });
+  }
+
+  // [IDS] Défense : bloque les opérations sensibles via IP en liste noire ou
+  // réseau anonyme (VPN/proxy/Tor) selon les réglages admin.
+  const guard = await guardRequest(req, { context: "external-transfer", userId: session.id });
+  if (!guard.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: guard.blockedByList
+          ? "Accès refusé. Adresse bloquée pour activité suspecte."
+          : "Opération refusée. Les transferts via VPN, proxy ou réseau anonyme ne sont pas autorisés.",
+      },
+      { status: guard.status }
+    );
   }
 
   let body: any;

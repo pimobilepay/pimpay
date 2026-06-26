@@ -8,27 +8,25 @@ import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
-import { isIpBlocked } from "@/lib/ipBlock";
+import { guardRequest } from "@/lib/defenseGuard";
 
 export async function POST(req: Request) {
   try {
     // [FIX V8] Rate limiting — 10 tentatives / 60s par IP sur login
     const ip = getClientIp(req);
 
-    // [IDS] Riposte — rejet immédiat des IP bloquées par l'admin via le journal
-    // de détection d'intrusion. Défense active : on coupe le trafic entrant.
-    if (await isIpBlocked(ip)) {
-      await logSystemEvent({
-        level: "WARN",
-        source: "SECURITY",
-        action: "BLOCKED_IP_HIT",
-        message: `Tentative de connexion rejetee depuis une IP bloquee : ${ip}`,
-        details: { ip },
-        ip,
-      });
+    // [IDS] Garde de défense unifié : liste noire (riposte admin), détection
+    // proxy/VPN/Tor/datacenter et application des règles. Défense active : on
+    // refuse le trafic entrant suspect, sans action offensive.
+    const guard = await guardRequest(req, { context: "login" });
+    if (!guard.allowed) {
       return NextResponse.json(
-        { error: "Accès refusé. Votre adresse a été bloquée pour activité suspecte." },
-        { status: 403 }
+        {
+          error: guard.blockedByList
+            ? "Accès refusé. Votre adresse a été bloquée pour activité suspecte."
+            : "Accès refusé. La connexion via VPN, proxy ou réseau anonyme n'est pas autorisée.",
+        },
+        { status: guard.status }
       );
     }
 
