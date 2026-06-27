@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import {
   Loader2, ShieldAlert, ShieldX, ShieldCheck, Radio, Search, X, Clock,
@@ -189,15 +189,19 @@ export default function IntrusionPage() {
       if (!isFirstLoadRef.current && page === 1 && !search) {
         (json.events || []).forEach((e) => {
           if (!knownIdsRef.current.has(e.id)) {
-            toast("Évènement de sécurité détecté", {
-              description: e.message,
-              duration: 5000,
-              style: {
-                background: "rgba(239, 68, 68, 0.95)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                color: "#fff",
-              },
-            });
+            const isOverLimit = e.action === "WITHDRAWAL_LIMIT_EXCEEDED";
+            toast(
+              isOverLimit ? "Retrait au-dessus de la limite autorisée" : "Évènement de sécurité détecté",
+              {
+                description: e.message,
+                duration: isOverLimit ? 8000 : 5000,
+                style: {
+                  background: isOverLimit ? "rgba(217, 119, 6, 0.97)" : "rgba(239, 68, 68, 0.95)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "#fff",
+                },
+              }
+            );
           }
         });
       }
@@ -223,6 +227,12 @@ export default function IntrusionPage() {
     const interval = setInterval(() => fetchData(true), 8000);
     return () => clearInterval(interval);
   }, [live, fetchData]);
+
+  // Tentatives de retrait au-dessus de la limite autorisée (alerte dédiée).
+  const overLimitEvents = useMemo(
+    () => (data?.events || []).filter((e) => e.action === "WITHDRAWAL_LIMIT_EXCEEDED"),
+    [data]
+  );
 
   const openRiposte = (ip: string, threat: ThreatLevel) => {
     setRiposteTarget({ ip, threat });
@@ -407,6 +417,32 @@ export default function IntrusionPage() {
           <StatCard label="Sources uniques" value={data?.stats.uniqueSources ?? 0} icon={<Globe size={18} />} color="blue" />
           <StatCard label="IP bloquées" value={data?.stats.activeBlocks ?? 0} icon={<Ban size={18} />} color="rose" />
         </div>
+
+        {/* ALERTE : tentatives de retrait au-dessus de la limite autorisée */}
+        {overLimitEvents.length > 0 && (
+          <button
+            onClick={() => {
+              setTab("journal");
+              setSearchInput("WITHDRAWAL_LIMIT_EXCEEDED");
+              setSearch("WITHDRAWAL_LIMIT_EXCEEDED");
+              setPage(1);
+            }}
+            className="w-full text-left rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3.5 flex items-center gap-3 transition-all hover:bg-amber-500/[0.14] active:scale-[0.99]"
+          >
+            <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 flex-shrink-0">
+              <AlertTriangle size={16} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                {overLimitEvents.length} retrait{overLimitEvents.length > 1 ? "s" : ""} au-dessus de la limite
+              </p>
+              <p className="text-[9px] text-amber-200/70 truncate mt-0.5">
+                {overLimitEvents[0].message}
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-amber-400/70 flex-shrink-0" />
+          </button>
+        )}
 
         {/* TABS */}
         <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">

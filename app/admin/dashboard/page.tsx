@@ -11,6 +11,7 @@ import {                                                LogOut, Shield, Users, Z
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { Admin2FAModal } from "@/components/admin/Admin2FAModal";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
+import { AssetLogo } from "@/components/AssetLogo";
 
 // Format compact pour le solde global : bascule en k/M/Md dès que la valeur dépasse 1024.
 function formatCompactPi(value: number): string {
@@ -1696,15 +1697,7 @@ function DashboardContent() {
                   balanceModalUser.wallets?.filter((w: any) => ["PI", "SDA", "BTC", "ETH", "USDT", "USDC"].includes(w.currency.toUpperCase())).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-amber-500/20 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] ${
-                          wallet.currency.toUpperCase() === "PI" ? "bg-amber-500/20 text-amber-400" :
-                          wallet.currency.toUpperCase() === "SDA" ? "bg-emerald-500/20 text-emerald-400" :
-                          wallet.currency.toUpperCase() === "BTC" ? "bg-orange-500/20 text-orange-400" :
-                          wallet.currency.toUpperCase() === "ETH" ? "bg-blue-500/20 text-blue-400" :
-                          "bg-green-500/20 text-green-400"
-                        }`}>
-                          {wallet.currency.toUpperCase() === "PI" ? "π" : wallet.currency.substring(0, 3).toUpperCase()}
-                        </div>
+                        <AssetLogo symbol={wallet.currency} />
                         <div>
                           <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
                           <p className="text-[9px] text-slate-500 font-bold">Crypto</p>
@@ -1735,19 +1728,7 @@ function DashboardContent() {
                   balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-blue-500/20 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] ${
-                          wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "bg-green-500/20 text-green-400" :
-                          wallet.currency.toUpperCase() === "MGA" ? "bg-teal-500/20 text-teal-400" :
-                          wallet.currency.toUpperCase() === "EUR" ? "bg-blue-500/20 text-blue-400" :
-                          wallet.currency.toUpperCase() === "USD" ? "bg-emerald-500/20 text-emerald-400" :
-                          "bg-purple-500/20 text-purple-400"
-                        }`}>
-                          {wallet.currency.toUpperCase() === "XAF" || wallet.currency.toUpperCase() === "XOF" ? "F" :
-                           wallet.currency.toUpperCase() === "MGA" ? "Ar" :
-                           wallet.currency.toUpperCase() === "EUR" ? "€" :
-                           wallet.currency.toUpperCase() === "USD" ? "$" :
-                           wallet.currency.toUpperCase() === "GBP" ? "£" : wallet.currency.substring(0, 2)}
-                        </div>
+                        <AssetLogo symbol={wallet.currency} />
                         <div>
                           <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
                           <p className="text-[9px] text-slate-500 font-bold">Fiat</p>
@@ -1782,9 +1763,7 @@ function DashboardContent() {
                   ).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-slate-700/50 flex items-center justify-center font-black text-[10px] text-slate-400">
-                          {wallet.currency.substring(0, 3).toUpperCase()}
-                        </div>
+                        <AssetLogo symbol={wallet.currency} />
                         <div>
                           <p className="text-xs font-black text-white uppercase">{wallet.currency}</p>
                           <p className="text-[9px] text-slate-500 font-bold">Autre</p>

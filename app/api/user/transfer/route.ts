@@ -175,9 +175,31 @@ export async function POST(req: NextRequest) {
     const txLimit =
       senderForAml?.dailyLimit || AML_TX_LIMITS[kycStatus] || AML_TX_LIMITS["NONE"];
     if (amount > txLimit) {
+      // Évènement de sécurité : tentative de retrait/transfert au-dessus de la
+      // limite autorisée. Remonté dans la page admin d'intrusion (action
+      // WITHDRAWAL_LIMIT_EXCEEDED) pour surveillance.
+      await logSystemEvent({
+        level: "WARN",
+        source: "SECURITY",
+        action: "WITHDRAWAL_LIMIT_EXCEEDED",
+        message: `Tentative de retrait au-dessus de la limite : ${amount.toLocaleString()} ${currency} (max ${txLimit.toLocaleString()}, KYC ${kycStatus})`,
+        userId: senderId,
+        ip,
+        userAgent: req.headers.get("user-agent") || undefined,
+        details: {
+          amount,
+          currency,
+          limit: txLimit,
+          kycStatus,
+          recipient: recipientInput,
+          ratio: Number((amount / txLimit).toFixed(2)),
+        },
+      }).catch(() => {});
+
       return NextResponse.json(
         {
           error: `Limite de transfert dépassée. Maximum autorisé pour votre statut KYC (${kycStatus}) : ${txLimit.toLocaleString()} ${currency}.`,
+          code: "WITHDRAWAL_LIMIT_EXCEEDED",
         },
         { status: 400 }
       );
@@ -203,6 +225,21 @@ export async function POST(req: NextRequest) {
         piRequiresAdminApproval = isExternalPiWithdrawal && policy.requiresAdminApproval;
       } catch (e: any) {
         if (e instanceof WithdrawalPolicyError) {
+          // Les violations de plafond (limite journaliere / par transaction)
+          // sont remontees comme evenements de securite dans la page admin
+          // d'intrusion.
+          if (e.code === "DAILY_LIMIT_REACHED" || e.code === "PER_TX_LIMIT") {
+            await logSystemEvent({
+              level: "WARN",
+              source: "SECURITY",
+              action: "WITHDRAWAL_LIMIT_EXCEEDED",
+              message: `Tentative de retrait Pi au-dessus de la limite : ${amount.toLocaleString()} PI (${e.code})`,
+              userId: senderId,
+              ip,
+              userAgent: req.headers.get("user-agent") || undefined,
+              details: { amount, currency, code: e.code, kycStatus, recipient: recipientInput },
+            }).catch(() => {});
+          }
           return NextResponse.json(
             { error: e.message, code: e.code },
             { status: e.status }
