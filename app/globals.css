@@ -127,4 +127,12 @@
   .animate-marquee {
     animation: marquee 8s linear infinite;
   }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import {
   Loader2, ShieldAlert, ShieldX, ShieldCheck, Radio, Search, X, Clock,
   MapPin, ChevronLeft, ChevronRight, Crosshair, Ban, Activity, Globe,
-  AlertTriangle, Zap, Lock, Unlock, ShieldOff, Skull,
+  AlertTriangle, Zap, Lock, Unlock, ShieldOff, Skull, Wifi, Server,
+  Plus, Save, SlidersHorizontal, Network, Eye,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
@@ -47,6 +48,36 @@ type BlockedIp = {
   createdAt: string;
 };
 
+type DefenseSettings = {
+  proxyDetectionEnabled: boolean;
+  proxyDetectionMode: "BLOCK" | "MONITOR";
+  blockVpn: boolean;
+  blockProxy: boolean;
+  blockTor: boolean;
+  blockDatacenter: boolean;
+  riskScoreThreshold: number;
+  ipWhitelist: string;
+  autoBlockOnDetection: boolean;
+};
+
+type ProxyDetectionRec = {
+  id: string;
+  ip: string;
+  isProxy: boolean;
+  isVpn: boolean;
+  isTor: boolean;
+  isDatacenter: boolean;
+  proxyType: string | null;
+  riskScore: number;
+  country: string | null;
+  countryCode: string | null;
+  isp: string | null;
+  action: string;
+  context: string | null;
+  source: string;
+  createdAt: string;
+};
+
 type Data = {
   events: SecEvent[];
   total: number;
@@ -54,7 +85,19 @@ type Data = {
   totalPages: number;
   threats: Threat[];
   blockedIps: BlockedIp[];
-  stats: { events24h: number; uniqueSources: number; activeBlocks: number; critical: number };
+  settings: DefenseSettings;
+  proxyDetections: ProxyDetectionRec[];
+  stats: {
+    events24h: number;
+    uniqueSources: number;
+    activeBlocks: number;
+    critical: number;
+    proxyDetected24h: number;
+    proxyBlocked24h: number;
+    vpnDetected: number;
+    torDetected: number;
+    datacenterDetected: number;
+  };
 };
 
 const THREAT_STYLES: Record<ThreatLevel, { bg: string; text: string; ring: string; label: string }> = {
@@ -95,13 +138,22 @@ export default function IntrusionPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [live, setLive] = useState(true);
-  const [tab, setTab] = useState<"threats" | "journal" | "blocked">("threats");
+  const [tab, setTab] = useState<"threats" | "journal" | "proxy" | "blocked" | "protection">("threats");
 
   // Modal de riposte
   const [riposteTarget, setRiposteTarget] = useState<{ ip: string; threat: ThreatLevel } | null>(null);
   const [riposteReason, setRiposteReason] = useState("");
   const [riposteDuration, setRiposteDuration] = useState(1440);
   const [submitting, setSubmitting] = useState(false);
+
+  // Blocage manuel d'IP
+  const [manualIp, setManualIp] = useState("");
+  const [manualReason, setManualReason] = useState("");
+  const [manualBlocking, setManualBlocking] = useState(false);
+
+  // Réglages de protection (proxy / VPN)
+  const [settings, setSettings] = useState<DefenseSettings | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
@@ -134,6 +186,8 @@ export default function IntrusionPage() {
       isFirstLoadRef.current = false;
 
       setData(json);
+      // On hydrate les réglages une seule fois pour ne pas écraser les éditions en cours.
+      setSettings((prev) => prev ?? json.settings);
     } catch {
       if (!silent) toast.error("Impossible de charger le journal d'intrusion");
     } finally {
@@ -199,6 +253,63 @@ export default function IntrusionPage() {
     }
   };
 
+  const handleManualBlock = async () => {
+    const ip = manualIp.trim();
+    if (!ip) {
+      toast.error("Saisissez une adresse IP");
+      return;
+    }
+    try {
+      setManualBlocking(true);
+      const res = await fetch("/api/admin/intrusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "block",
+          ip,
+          threat: "HIGH",
+          reason: manualReason || "Blocage manuel par l'administrateur",
+          durationMinutes: 0,
+        }),
+      });
+      if (!res.ok) throw new Error("Erreur");
+      toast.success(`IP ${ip} ajoutée à la liste noire`);
+      setManualIp("");
+      setManualReason("");
+      fetchData(true);
+    } catch {
+      toast.error("Échec du blocage de l'IP");
+    } finally {
+      setManualBlocking(false);
+    }
+  };
+
+  const saveSettings = async (next: DefenseSettings) => {
+    setSettings(next); // optimiste
+    try {
+      setSavingSettings(true);
+      const res = await fetch("/api/admin/intrusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-settings", settings: next }),
+      });
+      if (!res.ok) throw new Error("Erreur");
+      const json = await res.json();
+      if (json.settings) setSettings(json.settings);
+      toast.success("Protection mise à jour");
+    } catch {
+      toast.error("Échec de la mise à jour");
+      fetchData(true);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const updateSetting = <K extends keyof DefenseSettings>(key: K, value: DefenseSettings[K]) => {
+    if (!settings) return;
+    saveSettings({ ...settings, [key]: value });
+  };
+
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
@@ -236,16 +347,18 @@ export default function IntrusionPage() {
         </div>
 
         {/* TABS */}
-        <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
+        <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
           {[
             { id: "threats", label: "Menaces", icon: <Crosshair size={13} /> },
             { id: "journal", label: "Journal", icon: <Activity size={13} /> },
+            { id: "proxy", label: "Proxy/VPN", icon: <Wifi size={13} /> },
             { id: "blocked", label: "Riposte", icon: <ShieldX size={13} /> },
+            { id: "protection", label: "Protection", icon: <SlidersHorizontal size={13} /> },
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id as typeof tab)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+              className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
                 tab === t.id ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
@@ -407,9 +520,149 @@ export default function IntrusionPage() {
           </section>
         )}
 
+        {/* ===== PROXY / VPN ===== */}
+        {tab === "proxy" && (
+          <section>
+            {/* Bandeau d'état de la protection */}
+            <div
+              className={`flex items-center gap-3 rounded-3xl p-4 border mb-5 ${
+                settings?.proxyDetectionEnabled
+                  ? settings.proxyDetectionMode === "BLOCK"
+                    ? "bg-emerald-500/10 border-emerald-500/25"
+                    : "bg-amber-500/10 border-amber-500/25"
+                  : "bg-white/[0.03] border-white/10"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-xl ${
+                  settings?.proxyDetectionEnabled
+                    ? settings.proxyDetectionMode === "BLOCK"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-amber-500/15 text-amber-400"
+                    : "bg-white/5 text-slate-500"
+                }`}
+              >
+                {settings?.proxyDetectionEnabled ? <ShieldCheck size={18} /> : <ShieldOff size={18} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black text-white uppercase tracking-wide">
+                  {settings?.proxyDetectionEnabled
+                    ? settings.proxyDetectionMode === "BLOCK"
+                      ? "Protection active — blocage"
+                      : "Protection active — surveillance"
+                    : "Protection désactivée"}
+                </p>
+                <p className="text-[9px] text-slate-500 mt-0.5">
+                  {settings?.proxyDetectionEnabled
+                    ? settings.proxyDetectionMode === "BLOCK"
+                      ? "Les connexions VPN/Proxy/Tor sont refusées"
+                      : "Les connexions sont journalisées mais autorisées"
+                    : "Aucune détection proxy/VPN en cours"}
+                </p>
+              </div>
+              <button
+                onClick={() => setTab("protection")}
+                className="flex-shrink-0 p-2 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-slate-400"
+                title="Réglages de protection"
+              >
+                <SlidersHorizontal size={15} />
+              </button>
+            </div>
+
+            {/* Stats proxy */}
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <StatCard label="Détections (24h)" value={data?.stats.proxyDetected24h ?? 0} icon={<Wifi size={18} />} color="blue" />
+              <StatCard label="Bloquées (24h)" value={data?.stats.proxyBlocked24h ?? 0} icon={<ShieldX size={18} />} color="red" />
+              <StatCard label="VPN (7j)" value={data?.stats.vpnDetected ?? 0} icon={<Network size={18} />} color="amber" />
+              <StatCard label="Datacenter (7j)" value={data?.stats.datacenterDetected ?? 0} icon={<Server size={18} />} color="rose" />
+            </div>
+
+            <SectionTitle>Détections proxy / VPN / Tor</SectionTitle>
+            {data && data.proxyDetections.length > 0 ? (
+              <div className="space-y-2">
+                {data.proxyDetections.map((d) => {
+                  const enforced = d.action === "BLOCKED" || d.action === "AUTO_BLOCKED";
+                  const tag = d.isTor ? "TOR" : d.isVpn ? "VPN" : d.isDatacenter ? "DATACENTER" : d.proxyType || "PROXY";
+                  return (
+                    <div
+                      key={d.id}
+                      className={`rounded-2xl px-4 py-3 border ${enforced ? "bg-red-500/[0.06] border-red-500/20" : "bg-amber-500/[0.05] border-amber-500/15"}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 ${enforced ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}>
+                          {d.isTor ? <Eye size={12} /> : d.isVpn ? <Network size={12} /> : d.isDatacenter ? <Server size={12} /> : <Wifi size={12} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[11px] font-black text-white truncate font-mono">{d.ip}</p>
+                            <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${enforced ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}>
+                              {tag}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                            <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-slate-400">
+                              {enforced ? "Bloqué" : "Détecté"}
+                            </span>
+                            <Meta icon={<Zap size={9} />} text={`risque ${d.riskScore}`} />
+                            {d.context && <Meta icon={<Activity size={9} />} text={d.context} />}
+                            {d.country && <Meta icon={<MapPin size={9} />} text={d.country} />}
+                            <Meta icon={<Clock size={9} />} text={timeAgo(d.createdAt)} />
+                          </div>
+                          {d.isp && <p className="text-[9px] text-slate-600 mt-1 truncate">{d.isp}</p>}
+                        </div>
+                        <button
+                          onClick={() => openRiposte(d.ip, d.riskScore >= 85 ? "CRITICAL" : "HIGH")}
+                          className="flex-shrink-0 p-2 bg-red-500/10 border border-red-500/25 rounded-xl text-red-400 hover:bg-red-600 hover:text-white transition-all active:scale-95"
+                          title="Bloquer cette IP"
+                        >
+                          <Crosshair size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState text="Aucune connexion proxy/VPN détectée" />
+            )}
+          </section>
+        )}
+
         {/* ===== RIPOSTE / IP BLOQUÉES ===== */}
         {tab === "blocked" && (
           <section>
+            {/* Blocage manuel d'une IP */}
+            <div className="rounded-3xl p-4 border bg-white/[0.03] border-white/10 mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 rounded-lg bg-red-500/15 text-red-400">
+                  <Ban size={14} />
+                </div>
+                <h3 className="text-[10px] font-black text-white uppercase tracking-[2px]">Bloquer une IP manuellement</h3>
+              </div>
+              <div className="space-y-2.5">
+                <input
+                  value={manualIp}
+                  onChange={(e) => setManualIp(e.target.value)}
+                  placeholder="Adresse IP (ex. 203.0.113.45)"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40 font-mono"
+                />
+                <input
+                  value={manualReason}
+                  onChange={(e) => setManualReason(e.target.value)}
+                  placeholder="Motif (optionnel)"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40"
+                />
+                <button
+                  onClick={handleManualBlock}
+                  disabled={manualBlocking}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {manualBlocking ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  Ajouter à la liste noire
+                </button>
+              </div>
+            </div>
+
             <SectionTitle>IP bloquées ({data?.blockedIps.filter((b) => b.active).length ?? 0})</SectionTitle>
             {data && data.blockedIps.length > 0 ? (
               <div className="space-y-3">
@@ -451,6 +704,161 @@ export default function IntrusionPage() {
               </div>
             ) : (
               <EmptyState text="Aucune IP bloquée" />
+            )}
+          </section>
+        )}
+
+        {/* ===== PROTECTION (réglages défense proxy/VPN) ===== */}
+        {tab === "protection" && (
+          <section className="space-y-5">
+            {!settings ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 text-red-500 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Interrupteur maître */}
+                <div className={`rounded-3xl p-5 border ${settings.proxyDetectionEnabled ? "bg-emerald-500/[0.06] border-emerald-500/20" : "bg-white/[0.03] border-white/10"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2.5 rounded-2xl ${settings.proxyDetectionEnabled ? "bg-emerald-500/15 text-emerald-400" : "bg-white/5 text-slate-500"}`}>
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-black text-white uppercase tracking-wide">Protection Proxy / VPN</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Détection et blocage du trafic anonymisé</p>
+                      </div>
+                    </div>
+                    <Toggle
+                      on={settings.proxyDetectionEnabled}
+                      disabled={savingSettings}
+                      onClick={() => updateSetting("proxyDetectionEnabled", !settings.proxyDetectionEnabled)}
+                    />
+                  </div>
+                </div>
+
+                {/* Mode d'application */}
+                <div className={`rounded-3xl p-4 border bg-white/[0.03] border-white/10 ${!settings.proxyDetectionEnabled ? "opacity-50 pointer-events-none" : ""}`}>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Mode d&apos;application</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { id: "BLOCK", label: "Bloquer", icon: <Ban size={13} /> },
+                      { id: "MONITOR", label: "Surveiller", icon: <Eye size={13} /> },
+                    ] as const).map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => updateSetting("proxyDetectionMode", m.id)}
+                        className={`flex items-center justify-center gap-1.5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wider border transition-all ${
+                          settings.proxyDetectionMode === m.id
+                            ? "bg-red-600 border-red-600 text-white"
+                            : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20"
+                        }`}
+                      >
+                        {m.icon}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-600 mt-2.5 leading-relaxed">
+                    {settings.proxyDetectionMode === "BLOCK"
+                      ? "Les connexions détectées sont refusées (HTTP 403)."
+                      : "Les connexions sont uniquement journalisées, sans blocage."}
+                  </p>
+                </div>
+
+                {/* Catégories à bloquer */}
+                <div className={`rounded-3xl border bg-white/[0.03] border-white/10 divide-y divide-white/5 ${!settings.proxyDetectionEnabled ? "opacity-50 pointer-events-none" : ""}`}>
+                  <SettingRow
+                    icon={<Network size={15} />}
+                    label="VPN"
+                    desc="NordVPN, ExpressVPN, Surfshark…"
+                    on={settings.blockVpn}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockVpn", !settings.blockVpn)}
+                  />
+                  <SettingRow
+                    icon={<Wifi size={15} />}
+                    label="Proxy public"
+                    desc="Proxies ouverts / anonymes"
+                    on={settings.blockProxy}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockProxy", !settings.blockProxy)}
+                  />
+                  <SettingRow
+                    icon={<Eye size={15} />}
+                    label="Réseau Tor"
+                    desc="Nœuds de sortie Tor"
+                    on={settings.blockTor}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockTor", !settings.blockTor)}
+                  />
+                  <SettingRow
+                    icon={<Server size={15} />}
+                    label="Datacenter / Hébergeur"
+                    desc="AWS, OVH, Hetzner… (peut bloquer des bots légitimes)"
+                    on={settings.blockDatacenter}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockDatacenter", !settings.blockDatacenter)}
+                  />
+                </div>
+
+                {/* Auto-blocage */}
+                <div className={`rounded-3xl border bg-white/[0.03] border-white/10 ${!settings.proxyDetectionEnabled ? "opacity-50 pointer-events-none" : ""}`}>
+                  <SettingRow
+                    icon={<Lock size={15} />}
+                    label="Auto-blocage durable"
+                    desc="Ajoute l'IP à la liste noire pendant 24h lors d'une détection"
+                    on={settings.autoBlockOnDetection}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("autoBlockOnDetection", !settings.autoBlockOnDetection)}
+                  />
+                </div>
+
+                {/* Seuil de risque */}
+                <div className={`rounded-3xl p-4 border bg-white/[0.03] border-white/10 ${!settings.proxyDetectionEnabled ? "opacity-50 pointer-events-none" : ""}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Seuil de risque</label>
+                    <span className="text-[12px] font-black text-white font-mono">{settings.riskScoreThreshold}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={settings.riskScoreThreshold}
+                    onChange={(e) => setSettings({ ...settings, riskScoreThreshold: Number(e.target.value) })}
+                    onMouseUp={(e) => updateSetting("riskScoreThreshold", Number((e.target as HTMLInputElement).value))}
+                    onTouchEnd={(e) => updateSetting("riskScoreThreshold", Number((e.target as HTMLInputElement).value))}
+                    className="w-full accent-red-600"
+                  />
+                  <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
+                    Score (0-100) au-delà duquel une IP proxy est considérée comme une menace.
+                  </p>
+                </div>
+
+                {/* Liste blanche */}
+                <div className="rounded-3xl p-4 border bg-white/[0.03] border-white/10">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Liste blanche (IP / CIDR de confiance)</label>
+                  <textarea
+                    value={settings.ipWhitelist}
+                    onChange={(e) => setSettings({ ...settings, ipWhitelist: e.target.value })}
+                    placeholder="203.0.113.10, 198.51.100.0/24"
+                    rows={2}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40 font-mono resize-none"
+                  />
+                  <button
+                    onClick={() => updateSetting("ipWhitelist", settings.ipWhitelist)}
+                    disabled={savingSettings}
+                    className="w-full mt-2.5 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Enregistrer la liste blanche
+                  </button>
+                  <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
+                    Ces adresses contournent toute la détection proxy/VPN. Séparées par des virgules.
+                  </p>
+                </div>
+              </>
             )}
           </section>
         )}
@@ -531,6 +939,48 @@ export default function IntrusionPage() {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[10px] font-black text-red-500 uppercase tracking-[3px] mb-4">{children}</h2>;
+}
+
+function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      role="switch"
+      aria-checked={on}
+      className={`relative w-12 h-7 rounded-full flex-shrink-0 transition-all disabled:opacity-50 ${on ? "bg-emerald-500" : "bg-white/10"}`}
+    >
+      <span
+        className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? "translate-x-5" : "translate-x-0"}`}
+      />
+    </button>
+  );
+}
+
+function SettingRow({
+  icon, label, desc, on, onToggle, disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  desc: string;
+  on: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 p-4">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`p-2 rounded-xl flex-shrink-0 ${on ? "bg-emerald-500/15 text-emerald-400" : "bg-white/5 text-slate-500"}`}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-black text-white">{label}</p>
+          <p className="text-[9px] text-slate-500 truncate">{desc}</p>
+        </div>
+      </div>
+      <Toggle on={on} onClick={onToggle} disabled={disabled} />
+    </div>
+  );
 }
 
 function Meta({ icon, text }: { icon: React.ReactNode; text: string }) {

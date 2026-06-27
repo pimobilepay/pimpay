@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { invalidateIpCache, normalizeIp } from "@/lib/ipBlock";
+import { getDefenseSettings, invalidateSettingsCache } from "@/lib/defenseGuard";
 
 // Actions considérées comme des évènements de sécurité / intrusion.
 const INTRUSION_ACTIONS = [
@@ -162,7 +163,48 @@ export async function GET(req: NextRequest) {
       createdAt: b.createdAt.toISOString(),
     }));
 
-    // 4. Statistiques rapides
+    // 4. Réglages de défense (toggles proxy/VPN/Tor) + journal des détections proxy
+    const settings = await getDefenseSettings();
+
+    let proxyDetections: any[] = [];
+    let proxyStats = { detected24h: 0, blocked24h: 0, vpn: 0, tor: 0, datacenter: 0 };
+    try {
+      const [detections, detected24h, blocked24h, vpn, tor, datacenter] = await Promise.all([
+        prisma.proxyDetection.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 60,
+        }),
+        prisma.proxyDetection.count({ where: { createdAt: { gte: last24h } } }),
+        prisma.proxyDetection.count({
+          where: { createdAt: { gte: last24h }, action: { in: ["BLOCKED", "AUTO_BLOCKED"] } },
+        }),
+        prisma.proxyDetection.count({ where: { createdAt: { gte: last7d }, isVpn: true } }),
+        prisma.proxyDetection.count({ where: { createdAt: { gte: last7d }, isTor: true } }),
+        prisma.proxyDetection.count({ where: { createdAt: { gte: last7d }, isDatacenter: true } }),
+      ]);
+      proxyDetections = detections.map((d) => ({
+        id: d.id,
+        ip: d.ip,
+        isProxy: d.isProxy,
+        isVpn: d.isVpn,
+        isTor: d.isTor,
+        isDatacenter: d.isDatacenter,
+        proxyType: d.proxyType,
+        riskScore: d.riskScore,
+        country: d.country,
+        countryCode: d.countryCode,
+        isp: d.isp,
+        action: d.action,
+        context: d.context,
+        source: d.source,
+        createdAt: d.createdAt.toISOString(),
+      }));
+      proxyStats = { detected24h, blocked24h, vpn, tor, datacenter };
+    } catch {
+      // Table absente (migration non appliquée) → on renvoie des valeurs vides.
+    }
+
+    // 5. Statistiques rapides
     const events24h = await prisma.systemLog.count({
       where: { ...baseWhere, createdAt: { gte: last24h } },
     });
@@ -176,11 +218,18 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
       threats,
       blockedIps,
+      settings,
+      proxyDetections,
       stats: {
         events24h,
         uniqueSources: byIp.size,
         activeBlocks,
         critical: criticalCount,
+        proxyDetected24h: proxyStats.detected24h,
+        proxyBlocked24h: proxyStats.blocked24h,
+        vpnDetected: proxyStats.vpn,
+        torDetected: proxyStats.tor,
+        datacenterDetected: proxyStats.datacenter,
       },
     });
   } catch (error: any) {
@@ -201,7 +250,55 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const action = body.action as "block" | "unblock";
+    const action = body.action as "block" | "unblock" | "update-settings";
+
+    // ===== Mise à jour des réglages de défense (protection proxy/VPN/Tor) =====
+    if (action === "update-settings") {
+      const s = body.settings || {};
+      const data: any = {};
+      if (typeof s.proxyDetectionEnabled === "boolean") data.proxyDetectionEnabled = s.proxyDetectionEnabled;
+      if (s.proxyDetectionMode === "BLOCK" || s.proxyDetectionMode === "MONITOR") data.proxyDetectionMode = s.proxyDetectionMode;
+      if (typeof s.blockVpn === "boolean") data.blockVpn = s.blockVpn;
+      if (typeof s.blockProxy === "boolean") data.blockProxy = s.blockProxy;
+      if (typeof s.blockTor === "boolean") data.blockTor = s.blockTor;
+      if (typeof s.blockDatacenter === "boolean") data.blockDatacenter = s.blockDatacenter;
+      if (typeof s.autoBlockOnDetection === "boolean") data.autoBlockOnDetection = s.autoBlockOnDetection;
+      if (Number.isFinite(s.riskScoreThreshold)) {
+        data.riskScoreThreshold = Math.max(0, Math.min(100, Math.floor(s.riskScoreThreshold)));
+      }
+      if (typeof s.ipWhitelist === "string") data.ipWhitelist = s.ipWhitelist.slice(0, 2000);
+
+      await prisma.systemConfig.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        create: { id: "GLOBAL_CONFIG", ...data },
+        update: data,
+      });
+      invalidateSettingsCache();
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "SECURITY",
+        action: "DEFENSE_SETTINGS_UPDATED",
+        message: `Réglages de défense proxy/VPN mis à jour par l'admin`,
+        details: { changes: data, adminId: payload.id, adminEmail: payload.email },
+      });
+
+      try {
+        await prisma.auditLog.create({
+          data: {
+            adminId: payload.id,
+            adminName: payload.name || payload.email || "Admin",
+            action: "UPDATE_DEFENSE_SETTINGS",
+            targetId: "GLOBAL_CONFIG",
+            details: `Mise à jour de la protection proxy/VPN : ${JSON.stringify(data)}`,
+          },
+        });
+      } catch {}
+
+      const settings = await getDefenseSettings();
+      return NextResponse.json({ success: true, settings });
+    }
+
     const ip = normalizeIp(body.ip);
 
     if (!ip || ip === "unknown") {
