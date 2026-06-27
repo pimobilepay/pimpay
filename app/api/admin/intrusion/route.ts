@@ -250,7 +250,73 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const action = body.action as "block" | "unblock" | "update-settings";
+    const action = body.action as
+      | "block"
+      | "unblock"
+      | "update-settings"
+      | "whitelist-add"
+      | "whitelist-remove";
+
+    // ===== Liste blanche : ajout / retrait d'une entrée (IP ou CIDR) =====
+    if (action === "whitelist-add" || action === "whitelist-remove") {
+      const raw = String(body.entry || "").trim();
+      if (!raw) {
+        return NextResponse.json({ error: "Adresse manquante" }, { status: 400 });
+      }
+      // Valide une IPv4 ou un CIDR IPv4 (ex. 203.0.113.4 ou 198.51.100.0/24).
+      const isValid = /^(\d{1,3}\.){3}\d{1,3}(\/(\d|[12]\d|3[0-2]))?$/.test(raw)
+        && raw.split("/")[0].split(".").every((o) => Number(o) >= 0 && Number(o) <= 255);
+      if (action === "whitelist-add" && !isValid) {
+        return NextResponse.json({ error: "Adresse IP ou CIDR invalide" }, { status: 400 });
+      }
+
+      const settings = await getDefenseSettings();
+      const list = String(settings.ipWhitelist || "")
+        .split(",")
+        .map((e: string) => e.trim())
+        .filter(Boolean);
+
+      let next: string[];
+      if (action === "whitelist-add") {
+        if (list.includes(raw)) {
+          return NextResponse.json({ error: "Adresse déjà présente", settings }, { status: 409 });
+        }
+        next = [...list, raw];
+      } else {
+        next = list.filter((e) => e !== raw);
+      }
+
+      const ipWhitelist = next.join(", ").slice(0, 2000);
+      await prisma.systemConfig.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        create: { id: "GLOBAL_CONFIG", ipWhitelist },
+        update: { ipWhitelist },
+      });
+      invalidateSettingsCache();
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "SECURITY",
+        action: action === "whitelist-add" ? "WHITELIST_IP_ADDED" : "WHITELIST_IP_REMOVED",
+        message: `${action === "whitelist-add" ? "Ajout" : "Retrait"} de ${raw} ${action === "whitelist-add" ? "à" : "de"} la liste blanche`,
+        details: { entry: raw, adminId: payload.id, adminEmail: payload.email },
+      });
+
+      try {
+        await prisma.auditLog.create({
+          data: {
+            adminId: payload.id,
+            adminName: payload.name || payload.email || "Admin",
+            action: action === "whitelist-add" ? "WHITELIST_ADD" : "WHITELIST_REMOVE",
+            targetId: raw,
+            details: `${action === "whitelist-add" ? "Ajout" : "Retrait"} liste blanche : ${raw}`,
+          },
+        });
+      } catch {}
+
+      const updated = await getDefenseSettings();
+      return NextResponse.json({ success: true, settings: updated });
+    }
 
     // ===== Mise à jour des réglages de défense (protection proxy/VPN/Tor) =====
     if (action === "update-settings") {

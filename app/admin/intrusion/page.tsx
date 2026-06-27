@@ -6,7 +6,7 @@ import {
   Loader2, ShieldAlert, ShieldX, ShieldCheck, Radio, Search, X, Clock,
   MapPin, ChevronLeft, ChevronRight, Crosshair, Ban, Activity, Globe,
   AlertTriangle, Zap, Lock, Unlock, ShieldOff, Skull, Wifi, Server,
-  Plus, Save, SlidersHorizontal, Network, Eye,
+  Plus, SlidersHorizontal, Network, Eye,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
@@ -154,6 +154,10 @@ export default function IntrusionPage() {
   // Réglages de protection (proxy / VPN)
   const [settings, setSettings] = useState<DefenseSettings | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Liste blanche d'IP de confiance
+  const [whitelistInput, setWhitelistInput] = useState("");
+  const [whitelistAdding, setWhitelistAdding] = useState(false);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
@@ -308,6 +312,43 @@ export default function IntrusionPage() {
   const updateSetting = <K extends keyof DefenseSettings>(key: K, value: DefenseSettings[K]) => {
     if (!settings) return;
     saveSettings({ ...settings, [key]: value });
+  };
+
+  const whitelistEntries = (settings?.ipWhitelist || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  const mutateWhitelist = async (action: "whitelist-add" | "whitelist-remove", entry: string) => {
+    try {
+      if (action === "whitelist-add") setWhitelistAdding(true);
+      const res = await fetch("/api/admin/intrusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, entry }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json?.error || "Échec de l'opération");
+        return;
+      }
+      if (json.settings) setSettings(json.settings);
+      toast.success(action === "whitelist-add" ? `${entry} ajoutée à la liste blanche` : `${entry} retirée de la liste blanche`);
+      if (action === "whitelist-add") setWhitelistInput("");
+    } catch {
+      toast.error("Échec de l'opération");
+    } finally {
+      setWhitelistAdding(false);
+    }
+  };
+
+  const handleWhitelistAdd = () => {
+    const entry = whitelistInput.trim();
+    if (!entry) {
+      toast.error("Saisissez une adresse IP ou un CIDR");
+      return;
+    }
+    mutateWhitelist("whitelist-add", entry);
   };
 
   if (loading && !data) {
@@ -837,26 +878,65 @@ export default function IntrusionPage() {
                 </div>
 
                 {/* Liste blanche */}
-                <div className="rounded-3xl p-4 border bg-white/[0.03] border-white/10">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Liste blanche (IP / CIDR de confiance)</label>
-                  <textarea
-                    value={settings.ipWhitelist}
-                    onChange={(e) => setSettings({ ...settings, ipWhitelist: e.target.value })}
-                    placeholder="203.0.113.10, 198.51.100.0/24"
-                    rows={2}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40 font-mono resize-none"
-                  />
-                  <button
-                    onClick={() => updateSetting("ipWhitelist", settings.ipWhitelist)}
-                    disabled={savingSettings}
-                    className="w-full mt-2.5 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all active:scale-[0.98] disabled:opacity-50"
-                  >
-                    {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Enregistrer la liste blanche
-                  </button>
-                  <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
-                    Ces adresses contournent toute la détection proxy/VPN. Séparées par des virgules.
-                  </p>
+                <div className="rounded-3xl p-4 border bg-emerald-500/[0.04] border-emerald-500/15">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400">
+                      <ShieldCheck size={14} />
+                    </div>
+                    <div>
+                      <h3 className="text-[10px] font-black text-white uppercase tracking-[2px]">Liste blanche</h3>
+                      <p className="text-[9px] text-slate-500 mt-0.5">IP / CIDR de confiance — contournent toute la détection</p>
+                    </div>
+                  </div>
+
+                  {/* Champ d'ajout */}
+                  <div className="flex gap-2">
+                    <input
+                      value={whitelistInput}
+                      onChange={(e) => setWhitelistInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleWhitelistAdd();
+                      }}
+                      placeholder="203.0.113.10 ou 198.51.100.0/24"
+                      className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-emerald-500/40 font-mono"
+                    />
+                    <button
+                      onClick={handleWhitelistAdd}
+                      disabled={whitelistAdding}
+                      className="flex-shrink-0 flex items-center justify-center gap-1.5 px-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {whitelistAdding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Ajouter
+                    </button>
+                  </div>
+
+                  {/* Liste des entrées */}
+                  {whitelistEntries.length > 0 ? (
+                    <ul className="mt-3 space-y-1.5">
+                      {whitelistEntries.map((entry) => (
+                        <li
+                          key={entry}
+                          className="flex items-center justify-between gap-2 bg-white/5 border border-white/10 rounded-2xl pl-4 pr-2 py-2.5"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ShieldCheck size={12} className="text-emerald-400 flex-shrink-0" />
+                            <span className="text-[11px] font-mono text-white truncate">{entry}</span>
+                          </div>
+                          <button
+                            onClick={() => mutateWhitelist("whitelist-remove", entry)}
+                            className="flex-shrink-0 p-2 bg-white/5 rounded-xl text-slate-400 hover:bg-red-600 hover:text-white transition-all active:scale-95"
+                            title="Retirer de la liste blanche"
+                          >
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[9px] text-slate-600 mt-3 leading-relaxed">
+                      Aucune adresse de confiance. Ajoutez vos IP fixes (bureau, VPN d&apos;entreprise…) pour qu&apos;elles ne soient jamais bloquées.
+                    </p>
+                  )}
                 </div>
               </>
             )}
