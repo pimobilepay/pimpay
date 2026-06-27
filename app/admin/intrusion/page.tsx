@@ -115,6 +115,21 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(diff / 86400)}j`;
 }
 
+// Valide une adresse IPv4 (ex. 203.0.113.45) ou IPv6 simplifiée.
+function isValidIp(value: string): boolean {
+  const ip = value.trim();
+  if (!ip) return false;
+  // IPv4 : 4 octets 0-255
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const m = ip.match(ipv4);
+  if (m) {
+    return m.slice(1).every((o) => Number(o) >= 0 && Number(o) <= 255 && String(Number(o)) === o);
+  }
+  // IPv6 : présence de ":" et caractères hexadécimaux valides
+  const ipv6 = /^(([0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}|::1|::)$/;
+  return ipv6.test(ip);
+}
+
 function timeUntil(dateStr: string | null): string {
   if (!dateStr) return "permanent";
   const diff = Math.floor((new Date(dateStr).getTime() - Date.now()) / 1000);
@@ -260,7 +275,11 @@ export default function IntrusionPage() {
   const handleManualBlock = async () => {
     const ip = manualIp.trim();
     if (!ip) {
-      toast.error("Saisissez une adresse IP");
+      toast.error("Saisissez une adresse IP dans le champ « Adresse IP »");
+      return;
+    }
+    if (!isValidIp(ip)) {
+      toast.error("Adresse IP invalide — format attendu : 203.0.113.45");
       return;
     }
     try {
@@ -276,13 +295,15 @@ export default function IntrusionPage() {
           durationMinutes: 0,
         }),
       });
-      if (!res.ok) throw new Error("Erreur");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Erreur");
       toast.success(`IP ${ip} ajoutée à la liste noire`);
       setManualIp("");
       setManualReason("");
+      setTab("blocked");
       fetchData(true);
-    } catch {
-      toast.error("Échec du blocage de l'IP");
+    } catch (err: any) {
+      toast.error(err?.message || "Échec du blocage de l'IP");
     } finally {
       setManualBlocking(false);
     }
@@ -681,22 +702,38 @@ export default function IntrusionPage() {
                 <h3 className="text-[10px] font-black text-white uppercase tracking-[2px]">Bloquer une IP manuellement</h3>
               </div>
               <div className="space-y-2.5">
-                <input
-                  value={manualIp}
-                  onChange={(e) => setManualIp(e.target.value)}
-                  placeholder="Adresse IP (ex. 203.0.113.45)"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40 font-mono"
-                />
-                <input
-                  value={manualReason}
-                  onChange={(e) => setManualReason(e.target.value)}
-                  placeholder="Motif (optionnel)"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40"
-                />
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Adresse IP à bloquer</label>
+                  <input
+                    value={manualIp}
+                    onChange={(e) => setManualIp(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !manualBlocking) handleManualBlock();
+                    }}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="203.0.113.45"
+                    className={`w-full bg-white/5 border rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40 font-mono ${
+                      manualIp.trim() && !isValidIp(manualIp) ? "border-red-500/50" : "border-white/10"
+                    }`}
+                  />
+                  {manualIp.trim() && !isValidIp(manualIp) && (
+                    <p className="text-[9px] text-red-400 mt-1.5">Format d&apos;adresse IP invalide</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Motif (optionnel)</label>
+                  <input
+                    value={manualReason}
+                    onChange={(e) => setManualReason(e.target.value)}
+                    placeholder="Ex. tentatives de fraude répétées"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[11px] text-white placeholder:text-slate-600 outline-none focus:border-red-500/40"
+                  />
+                </div>
                 <button
                   onClick={handleManualBlock}
-                  disabled={manualBlocking}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-50"
+                  disabled={manualBlocking || !isValidIp(manualIp)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {manualBlocking ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                   Ajouter à la liste noire

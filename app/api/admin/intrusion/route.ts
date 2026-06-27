@@ -150,18 +150,23 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 50);
 
-    // 3. IP actuellement bloquées (riposte active)
-    const blockedIps = blockedRecords.map((b) => ({
-      id: b.id,
-      ip: b.ip,
-      reason: b.reason,
-      threat: b.threat,
-      blockedBy: b.blockedBy,
-      active: b.active && (!b.expiresAt || b.expiresAt > now),
-      hits: b.hits,
-      expiresAt: b.expiresAt?.toISOString() || null,
-      createdAt: b.createdAt.toISOString(),
-    }));
+    // 3. IP actuellement bloquées (riposte active) — actives affichées en premier
+    const blockedIps = blockedRecords
+      .map((b) => ({
+        id: b.id,
+        ip: b.ip,
+        reason: b.reason,
+        threat: b.threat,
+        blockedBy: b.blockedBy,
+        active: b.active && (!b.expiresAt || b.expiresAt > now),
+        hits: b.hits,
+        expiresAt: b.expiresAt?.toISOString() || null,
+        createdAt: b.createdAt.toISOString(),
+      }))
+      .sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
 
     // 4. Réglages de défense (toggles proxy/VPN/Tor) + journal des détections proxy
     const settings = await getDefenseSettings();
@@ -407,6 +412,15 @@ export async function POST(req: NextRequest) {
     }
 
     // action === "block" → riposte
+    // Validation stricte du format (IPv4 ou IPv6) avant tout enregistrement.
+    const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipv4Match = ip.match(ipv4);
+    const validIpv4 = !!ipv4Match && ipv4Match.slice(1).every((o) => Number(o) >= 0 && Number(o) <= 255);
+    const validIpv6 = /^(([0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}|::1|::)$/.test(ip);
+    if (!validIpv4 && !validIpv6) {
+      return NextResponse.json({ error: "Format d'adresse IP invalide" }, { status: 400 });
+    }
+
     const reason: string = (body.reason || "Activité malveillante détectée").toString().slice(0, 280);
     const threat: ThreatLevel = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(body.threat)
       ? body.threat
