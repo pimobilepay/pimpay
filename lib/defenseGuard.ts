@@ -30,6 +30,11 @@ interface GuardOptions {
   userId?: string | null;
 }
 
+// Verrouillage total : si l'admin descend le seuil de risque à cette valeur ou
+// en dessous, on considère qu'il s'agit d'un blocage volontaire de TOUT le
+// trafic entrant (mode panique). Seules les IP de la liste blanche passent.
+export const LOCKDOWN_THRESHOLD = 30;
+
 // Cache court des réglages pour éviter un hit DB par requête.
 let settingsCache: { data: any; expiresAt: number } | null = null;
 const SETTINGS_TTL_MS = 30_000;
@@ -151,6 +156,33 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
 
   // 3. Détection désactivée → on laisse passer.
   if (!settings.proxyDetectionEnabled) {
+    return { allowed: true, status: 200, ip };
+  }
+
+  // 3b. Verrouillage total : seuil descendu à 30 ou moins → l'admin bloque
+  //     volontairement TOUT le trafic entrant (la liste blanche ci-dessus reste
+  //     prioritaire pour ne pas verrouiller les IP de confiance).
+  if (settings.riskScoreThreshold <= LOCKDOWN_THRESHOLD) {
+    const enforce = settings.proxyDetectionMode === "BLOCK";
+    await logSystemEvent({
+      level: enforce ? "WARN" : "INFO",
+      source: "SECURITY",
+      action: enforce ? "LOCKDOWN_BLOCKED" : "LOCKDOWN_DETECTED",
+      message: `${enforce ? "Accès refusé" : "Détection"} (verrouillage total, seuil ${settings.riskScoreThreshold}) sur ${opts.context} — ${ip}`,
+      details: { ip, context: opts.context, riskScoreThreshold: settings.riskScoreThreshold, lockdown: true },
+      ip,
+      userAgent,
+      userId: opts.userId ?? undefined,
+    });
+    if (enforce) {
+      return {
+        allowed: false,
+        status: 403,
+        reason: "Verrouillage total actif — tout accès est temporairement bloqué",
+        ip,
+      };
+    }
+    // Mode SURVEILLER : on journalise mais on laisse passer.
     return { allowed: true, status: 200, ip };
   }
 

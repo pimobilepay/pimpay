@@ -953,7 +953,9 @@ export default function IntrusionPage() {
                     <div className="flex items-center gap-2">
                       {(() => {
                         const v = settings.riskScoreThreshold;
-                        const tag = v < 50
+                        const tag = v <= 30
+                          ? { label: "Verrouillage total", cls: "bg-red-600/25 text-red-300" }
+                          : v < 50
                           ? { label: "Agressif", cls: "bg-red-500/15 text-red-400" }
                           : v < 70
                           ? { label: "Strict", cls: "bg-orange-500/15 text-orange-400" }
@@ -977,11 +979,23 @@ export default function IntrusionPage() {
                     className="w-full accent-red-600"
                   />
                   <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
-                    Score (0-100) au-delà duquel une IP VPN/proxy est bloquée. Un seuil trop bas
+                    Score (0-100) au-delà duquel une IP VPN/proxy est bloquée. À{" "}
+                    <span className="text-red-400 font-bold">30 ou moins</span>, le verrouillage total
+                    s&apos;active : tout accès est bloqué (sauf liste blanche). Un seuil trop bas
                     (&lt; 50) bloque des adresses normales sans réelle menace.{" "}
                     <span className="text-emerald-400/80 font-bold">Recommandé : 75.</span>
                   </p>
-                  {settings.riskScoreThreshold < 50 && (
+                  {settings.riskScoreThreshold <= 30 ? (
+                    <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-red-600/15 border border-red-500/30 p-2.5">
+                      <ShieldX size={13} className="text-red-400 mt-0.5 shrink-0" />
+                      <p className="text-[9px] text-red-300/90 leading-relaxed">
+                        <span className="font-black uppercase tracking-wide">Verrouillage total actif.</span>{" "}
+                        En mode « Bloquer », tout le trafic entrant (connexion, transferts) est refusé
+                        (HTTP 403), à l&apos;exception des IP de la liste blanche. Remontez le seuil pour
+                        rétablir l&apos;accès.
+                      </p>
+                    </div>
+                  ) : settings.riskScoreThreshold < 50 && (
                     <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">
                       <AlertTriangle size={13} className="text-amber-400 mt-0.5 shrink-0" />
                       <p className="text-[9px] text-amber-300/90 leading-relaxed">
