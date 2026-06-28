@@ -12,6 +12,7 @@ const FIAT_META: Record<string, { label: string; className: string }> = {
   USD: { label: "$", className: "bg-emerald-500/20 text-emerald-400" },
   GBP: { label: "£", className: "bg-purple-500/20 text-purple-400" },
   NGN: { label: "₦", className: "bg-purple-500/20 text-purple-400" },
+  CNY: { label: "¥", className: "bg-red-500/20 text-red-400" },
 };
 
 /**

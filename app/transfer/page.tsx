@@ -204,6 +204,7 @@ const CURRENCY_FLAG: Record<string, string> = {
   ZAR: "za",
   AED: "ae",
   MGA: "mg",
+  CNY: "cn",
 };
 
 /** Récupère les métadonnées d'une devise (CRYPTO_ASSETS d'abord, puis fallback statique) */
@@ -463,7 +464,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
   };
 
   // Determine if selected currency is fiat (XAF, EUR, USD, etc.) or crypto
-  const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR"];
+  const FIAT_CURRENCIES = ["XAF", "EUR", "USD", "XOF", "GHS", "NGN", "KES", "ZAR", "CNY"];
   const isFiatCurrency = FIAT_CURRENCIES.includes(selectedCurrency.toUpperCase());
   
   // Use fiatTransferFee for fiat currencies, transferFee for crypto

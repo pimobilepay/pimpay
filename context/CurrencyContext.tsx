@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type CurrencyCode = "XAF" | "EUR" | "USD" | "XOF" | "GBP" | "CDF" | "AED" | "NGN" | "MGA";
+export type CurrencyCode = "XAF" | "EUR" | "USD" | "XOF" | "GBP" | "CDF" | "AED" | "NGN" | "MGA" | "CNY";
 
 export interface CurrencyInfo {
   code: CurrencyCode;
@@ -99,6 +99,15 @@ export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
     rateToXAF: 0.134,
     decimals: 0,
     locale: "fr-MG"
+  },
+  CNY: {
+    code: "CNY",
+    name: "Yuan chinois",
+    symbol: "¥",
+    flag: "🇨🇳",
+    rateToXAF: 83.06,
+    decimals: 2,
+    locale: "zh-CN"
   },
 };
 

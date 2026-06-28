@@ -324,6 +324,7 @@ const ALL_ASSETS: Asset[] = [
   { id: "NGN",  name: "Naira Nigerian",     symbol: "NGN",  color: "#16a34a", category: "fiat",       flag: "NG",        network: "PimPay" },
   { id: "AED",  name: "Dirham Emirats",     symbol: "AED",  color: "#dc2626", category: "fiat",       flag: "AE",        network: "PimPay" },
   { id: "MGA",  name: "Ariary Malgache",    symbol: "MGA",  color: "#059669", category: "fiat",       flag: "MG",        network: "PimPay" },
+  { id: "CNY",  name: "Yuan Chinois",       symbol: "CNY",  color: "#de2910", category: "fiat",       flag: "CN",        network: "PimPay" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -353,7 +354,7 @@ const SIMPLESWAP_TOKENS = new Set([
 ]);
 
 // ── Devises FIAT supportées (via swap interne) ───────────────────────────────
-const FIAT_CURRENCIES = new Set(["USD", "EUR", "XAF", "XOF", "CDF", "NGN", "AED", "MGA"]);
+const FIAT_CURRENCIES = new Set(["USD", "EUR", "XAF", "XOF", "CDF", "NGN", "AED", "MGA", "CNY"]);
 
 // ── Tokens internes PimPay (PI, SDA) ─────────────────────────────────────────
 const INTERNAL_TOKENS = new Set(["PI", "SDA"]);

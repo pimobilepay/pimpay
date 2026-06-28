@@ -41,9 +41,10 @@ const CURRENCY_DATA: Record<string, CurrencyInfo> = {
   CDF: { code: 'CDF', name: 'Franc Congolais', flag: '🇨🇩', rateToXAF: 0.215 },
   AED: { code: 'AED', name: 'Dirham emiratis', flag: '🇦🇪', rateToXAF: 163.71 },
   MGA: { code: 'MGA', name: 'Ariary malgache', flag: '🇲🇬', rateToXAF: 0.134 },
+  CNY: { code: 'CNY', name: 'Yuan chinois', flag: '🇨🇳', rateToXAF: 83.06 },
 };
 
-const DEFAULT_CURRENCIES = ['XAF', 'XOF', 'EUR', 'USD', 'CDF', 'AED', 'NGN', 'MGA'];
+const DEFAULT_CURRENCIES = ['XAF', 'XOF', 'EUR', 'USD', 'CDF', 'AED', 'NGN', 'MGA', 'CNY'];
 
 // ─────────────────────────────────────────────
 // CurrencySelector

@@ -1724,8 +1724,8 @@ function DashboardContent() {
                 <p className="text-[9px] font-black text-blue-400 uppercase tracking-[2px]">Fiat Balances</p>
               </div>
               <div className="space-y-2">
-                {balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())).length > 0 ? (
-                  balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())).map((wallet: any) => (
+                {balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA", "CNY"].includes(w.currency.toUpperCase())).length > 0 ? (
+                  balanceModalUser.wallets?.filter((w: any) => ["XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA", "CNY"].includes(w.currency.toUpperCase())).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-blue-500/20 transition-colors">
                       <div className="flex items-center gap-3">
                         <AssetLogo symbol={wallet.currency} />
@@ -1750,7 +1750,7 @@ function DashboardContent() {
 
             {/* Other Balances */}
             {balanceModalUser.wallets?.filter((w: any) => 
-              !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())
+              !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA", "CNY"].includes(w.currency.toUpperCase())
             ).length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -1759,7 +1759,7 @@ function DashboardContent() {
                 </div>
                 <div className="space-y-2">
                   {balanceModalUser.wallets?.filter((w: any) => 
-                    !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA"].includes(w.currency.toUpperCase())
+                    !["PI", "SDA", "BTC", "ETH", "USDT", "USDC", "XAF", "XOF", "EUR", "USD", "GBP", "NGN", "MGA", "CNY"].includes(w.currency.toUpperCase())
                   ).map((wallet: any) => (
                     <div key={wallet.currency} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-3">
                       <div className="flex items-center gap-3">
