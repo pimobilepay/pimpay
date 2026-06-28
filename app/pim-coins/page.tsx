@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Coins, Loader2, RefreshCcw, Wallet } from "lucide-react";
 import { PimCoinShop, PimBalanceDisplay } from "@/components/PimCoinShop";
+import { PimCheckoutOverlay } from "@/components/PimCheckoutOverlay";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
+import type { PimPackage } from "@/hooks/usePimCoinPurchase";
 
 export default function PimCoinsPage() {
   const router = useRouter();
@@ -13,6 +15,7 @@ export default function PimCoinsPage() {
   const [piBalance, setPiBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<PimPackage | null>(null);
 
   const fetchBalances = async () => {
     try {
@@ -123,7 +126,7 @@ export default function PimCoinsPage() {
         </div>
 
         {/* PIM Coin Shop */}
-        <PimCoinShop onPurchaseComplete={handlePurchaseComplete} />
+        <PimCoinShop onSelectPackage={(pkg) => setSelectedPackage(pkg)} />
 
         {/* What can you do with PIM */}
         <div className="mt-8">
@@ -150,7 +153,18 @@ export default function PimCoinsPage() {
         </div>
       </div>
 
-      <BottomNav />
+      {/* Checkout flow: summary -> processing -> success / failed */}
+      {selectedPackage && (
+        <PimCheckoutOverlay
+          pkg={selectedPackage}
+          pimBalance={pimBalance}
+          piBalance={piBalance}
+          onClose={() => setSelectedPackage(null)}
+          onPurchaseComplete={handlePurchaseComplete}
+        />
+      )}
+
+      <BottomNav onOpenMenu={() => {}} />
     </div>
   );
 }

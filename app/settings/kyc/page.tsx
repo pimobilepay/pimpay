@@ -108,6 +108,9 @@ export default function KYCPage() {
     flag: c.flag
   })).sort((a, b) => a.name.localeCompare(b.name));
 
+  // Permanent ID cards (e.g. Chinese national ID) never expire
+  const isPermanentDoc = formData.idExpiryDate === "PERMANENT";
+
   // ---- Camera for selfie ----
   const startCamera = useCallback(async () => {
     try {
@@ -416,8 +419,35 @@ export default function KYCPage() {
             <InputField icon={<Fingerprint size={16} />} label={t("kyc.documentNumber")}
               placeholder={t("kyc.documentNumberPlaceholder")} value={formData.idNumber}
               onChange={(v) => updateField("idNumber", v)} />
-            <InputField icon={<Calendar size={16} />} label={t("kyc.expiryDate")} type="date"
-              value={formData.idExpiryDate} onChange={(v) => updateField("idExpiryDate", v)} />
+            {/* Expiry date with permanent (no-expiry) option */}
+            <div className="space-y-2.5">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t("kyc.expiryDate")}</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"><Calendar size={16} /></div>
+                <input
+                  type="date"
+                  disabled={isPermanentDoc}
+                  value={isPermanentDoc ? "" : formData.idExpiryDate}
+                  onChange={(e) => updateField("idExpiryDate", e.target.value)}
+                  className="w-full h-13 bg-white/[0.03] rounded-xl border border-white/5 pl-12 pr-4 text-sm font-semibold text-white outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => updateField("idExpiryDate", isPermanentDoc ? "" : "PERMANENT")}
+                className="flex items-center gap-3 w-full p-3 rounded-xl bg-white/[0.03] border border-white/5 active:scale-[0.99] transition-all"
+              >
+                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
+                  isPermanentDoc ? 'bg-blue-600 border-blue-600' : 'border-white/20'
+                }`}>
+                  {isPermanentDoc && <CheckCircle2 size={14} className="text-white" />}
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-bold text-slate-200">{t("kyc.permanentExpiry")}</p>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">{t("kyc.permanentExpiryDesc")}</p>
+                </div>
+              </button>
+            </div>
 
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
               <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
@@ -607,6 +637,7 @@ export default function KYCPage() {
                 <ReviewRow label={t("kyc.fullName")} value={`${formData.firstName} ${formData.lastName}`} />
                 <ReviewRow label={t("kyc.document")} value={`${formData.idType} - ${formData.idNumber}`} />
                 <ReviewRow label={t("kyc.country")} value={formData.idCountry} />
+                <ReviewRow label={t("kyc.expiryDate")} value={isPermanentDoc ? t("kyc.permanentExpiry") : formData.idExpiryDate} />
                 <ReviewRow label={t("kyc.birthDate")} value={formData.birthDate} />
                 <ReviewRow label={t("kyc.nationality")} value={formData.nationality} />
                 <ReviewRow label={t("kyc.phone")} value={formData.phone} />

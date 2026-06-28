@@ -7,6 +7,11 @@ import { cn } from "@/lib/utils";
 
 interface PimCoinShopProps {
   onPurchaseComplete?: (pimCoins: number) => void;
+  /**
+   * When provided, clicking a package will call this callback (to show a
+   * confirmation/summary step) instead of triggering the purchase directly.
+   */
+  onSelectPackage?: (pkg: PimPackage) => void;
   className?: string;
 }
 
@@ -32,14 +37,21 @@ const PACKAGE_COLORS: Record<string, string> = {
  * Displays available PIM coin packages for purchase with Pi.
  * Uses the U2A payment flow via usePimCoinPurchase hook.
  */
-export function PimCoinShop({ onPurchaseComplete, className }: PimCoinShopProps) {
+export function PimCoinShop({ onPurchaseComplete, onSelectPackage, className }: PimCoinShopProps) {
   const { purchasePimCoins, loading, packages } = usePimCoinPurchase();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [purchasedPackage, setPurchasedPackage] = useState<string | null>(null);
 
   const handlePurchase = async (pkg: PimPackage) => {
     if (loading) return;
-    
+
+    // If a selection handler is provided, defer to the parent's
+    // confirmation/summary flow instead of purchasing immediately.
+    if (onSelectPackage) {
+      onSelectPackage(pkg);
+      return;
+    }
+
     setSelectedPackage(pkg.id);
     const result = await purchasePimCoins(pkg.id);
     

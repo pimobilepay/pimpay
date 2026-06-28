@@ -1475,6 +1475,8 @@ export const fr = {
     documentNumber: "Numero du document",
     documentNumberPlaceholder: "N du titre",
     expiryDate: "Date d'expiration",
+    permanentExpiry: "Document permanent (sans expiration)",
+    permanentExpiryDesc: "Cochez si votre piece d'identite n'a pas de date d'expiration (ex : carte d'identite chinoise).",
     documentTypes: {
       idCard: "Carte d'identite",
       passport: "Passeport",
