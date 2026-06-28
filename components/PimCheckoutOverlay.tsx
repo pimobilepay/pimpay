@@ -6,6 +6,7 @@ import {
   XCircle, Gift, ShieldCheck, RefreshCw,
 } from "lucide-react";
 import { usePimCoinPurchase, type PimPackage } from "@/hooks/usePimCoinPurchase";
+import { useLanguage } from "@/context/LanguageContext";
 
 type CheckoutView = "summary" | "processing" | "success" | "failed";
 
@@ -24,6 +25,7 @@ export function PimCheckoutOverlay({
   onClose,
   onPurchaseComplete,
 }: PimCheckoutOverlayProps) {
+  const { t } = useLanguage();
   const { purchasePimCoins } = usePimCoinPurchase();
   const [view, setView] = useState<CheckoutView>("summary");
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -42,7 +44,7 @@ export function PimCheckoutOverlay({
       setView("success");
       onPurchaseComplete(result.pimCoins || pkg.pimCoins);
     } else {
-      setErrorMsg(result.error || "Le paiement n'a pas pu etre complete.");
+      setErrorMsg(result.error || t("pimCheckout.defaultError"));
       setView("failed");
     }
   };
@@ -62,7 +64,7 @@ export function PimCheckoutOverlay({
           <button
             onClick={onClose}
             className="absolute top-5 right-5 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-            aria-label="Fermer"
+            aria-label={t("pimCheckout.close")}
           >
             <X size={18} className="text-slate-400" />
           </button>
@@ -72,8 +74,8 @@ export function PimCheckoutOverlay({
         {view === "summary" && (
           <div className="space-y-5">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">Recapitulatif</p>
-              <h2 className="text-xl font-black text-white mt-1">Confirmer l&apos;achat</h2>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">{t("pimCheckout.summaryTag")}</p>
+              <h2 className="text-xl font-black text-white mt-1">{t("pimCheckout.confirmTitle")}</h2>
             </div>
 
             {/* Package card */}
@@ -86,24 +88,24 @@ export function PimCheckoutOverlay({
                   <p className="text-2xl font-black text-white leading-none">
                     {totalCoins.toLocaleString()} <span className="text-base text-amber-400">PIM</span>
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">Pack {pkg.label}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t("pimCheckout.pack")} {pkg.label}</p>
                 </div>
               </div>
 
               <div className="space-y-2.5 border-t border-white/5 pt-4">
-                <Row label="Coins de base" value={`${baseCoins.toLocaleString()} PIM`} />
+                <Row label={t("pimCheckout.baseCoins")} value={`${baseCoins.toLocaleString()} PIM`} />
                 {pkg.bonus > 0 && (
                   <Row
                     label={
                       <span className="flex items-center gap-1.5 text-emerald-400">
-                        <Gift size={13} /> Bonus inclus
+                        <Gift size={13} /> {t("pimCheckout.bonusIncluded")}
                       </span>
                     }
                     value={`+${pkg.bonus.toLocaleString()} PIM`}
                     valueClass="text-emerald-400"
                   />
                 )}
-                <Row label="Total credite" value={`${totalCoins.toLocaleString()} PIM`} bold />
+                <Row label={t("pimCheckout.totalCredited")} value={`${totalCoins.toLocaleString()} PIM`} bold />
               </div>
             </div>
 
@@ -111,18 +113,18 @@ export function PimCheckoutOverlay({
             <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm text-slate-300">
-                  <Wallet size={16} className="text-blue-400" /> Montant a payer
+                  <Wallet size={16} className="text-blue-400" /> {t("pimCheckout.amountToPay")}
                 </span>
                 <span className="text-lg font-black text-white">{pkg.piCost} Pi</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Solde Pi actuel</span>
+                <span className="text-slate-500">{t("pimCheckout.currentPiBalance")}</span>
                 <span className={hasEnoughPi ? "text-slate-300" : "text-red-400 font-bold"}>
                   {piBalance.toFixed(4)} Pi
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Solde PIM apres achat</span>
+                <span className="text-slate-500">{t("pimCheckout.pimBalanceAfter")}</span>
                 <span className="text-amber-400 font-bold">
                   {(pimBalance + totalCoins).toLocaleString()} PIM
                 </span>
@@ -131,13 +133,13 @@ export function PimCheckoutOverlay({
 
             {!hasEnoughPi && (
               <p className="text-xs text-red-400 text-center">
-                Solde Pi insuffisant pour cet achat.
+                {t("pimCheckout.insufficientPi")}
               </p>
             )}
 
             <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500">
               <ShieldCheck size={13} className="text-emerald-500" />
-              Paiement securise via le Pi Browser
+              {t("pimCheckout.securePayment")}
             </div>
 
             <button
@@ -145,7 +147,7 @@ export function PimCheckoutOverlay({
               disabled={!hasEnoughPi}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              Payer {pkg.piCost} Pi <ArrowRight size={16} />
+              {t("pimCheckout.pay")} {pkg.piCost} Pi <ArrowRight size={16} />
             </button>
           </div>
         )}
@@ -154,9 +156,9 @@ export function PimCheckoutOverlay({
         {view === "processing" && (
           <div className="py-10 flex flex-col items-center text-center">
             <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-5" />
-            <h2 className="text-lg font-black text-white">Paiement en cours...</h2>
+            <h2 className="text-lg font-black text-white">{t("pimCheckout.processingTitle")}</h2>
             <p className="text-sm text-slate-400 mt-2 max-w-xs">
-              Confirmez la transaction dans le Pi Browser. Ne fermez pas cette fenetre.
+              {t("pimCheckout.processingDesc")}
             </p>
           </div>
         )}
@@ -167,18 +169,18 @@ export function PimCheckoutOverlay({
             <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-5">
               <CheckCircle2 size={44} className="text-emerald-500" />
             </div>
-            <h2 className="text-xl font-black text-white">Achat reussi !</h2>
+            <h2 className="text-xl font-black text-white">{t("pimCheckout.successTitle")}</h2>
             <p className="text-sm text-slate-400 mt-2">
-              <span className="text-amber-400 font-bold">+{totalCoins.toLocaleString()} PIM</span> ont ete
-              ajoutes a votre solde.
+              <span className="text-amber-400 font-bold">+{totalCoins.toLocaleString()} PIM</span>{" "}
+              {t("pimCheckout.successDesc")}
             </p>
 
             <div className="w-full rounded-2xl bg-white/[0.03] border border-white/5 p-4 mt-6 space-y-2.5">
-              <Row label="Coins recus" value={`${totalCoins.toLocaleString()} PIM`} />
-              <Row label="Montant paye" value={`${pkg.piCost} Pi`} />
-              <Row label="Nouveau solde" value={`${(pimBalance + totalCoins).toLocaleString()} PIM`} bold />
+              <Row label={t("pimCheckout.coinsReceived")} value={`${totalCoins.toLocaleString()} PIM`} />
+              <Row label={t("pimCheckout.amountPaid")} value={`${pkg.piCost} Pi`} />
+              <Row label={t("pimCheckout.newBalance")} value={`${(pimBalance + totalCoins).toLocaleString()} PIM`} bold />
               {txid && (
-                <Row label="ID transaction" value={`${txid.slice(0, 10)}...`} valueClass="text-slate-500 font-mono" />
+                <Row label={t("pimCheckout.txId")} value={`${txid.slice(0, 10)}...`} valueClass="text-slate-500 font-mono" />
               )}
             </div>
 
@@ -186,7 +188,7 @@ export function PimCheckoutOverlay({
               onClick={onClose}
               className="w-full py-4 mt-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest active:scale-[0.98] transition-all"
             >
-              Terminer
+              {t("pimCheckout.finish")}
             </button>
           </div>
         )}
@@ -197,7 +199,7 @@ export function PimCheckoutOverlay({
             <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-5">
               <XCircle size={44} className="text-red-500" />
             </div>
-            <h2 className="text-xl font-black text-white">Echec du paiement</h2>
+            <h2 className="text-xl font-black text-white">{t("pimCheckout.failedTitle")}</h2>
             <p className="text-sm text-slate-400 mt-2 max-w-xs">{errorMsg}</p>
 
             <div className="flex gap-3 w-full mt-6">
@@ -205,13 +207,13 @@ export function PimCheckoutOverlay({
                 onClick={onClose}
                 className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-slate-300 text-xs font-black uppercase tracking-widest active:scale-[0.98] transition-all"
               >
-                Annuler
+                {t("pimCheckout.cancel")}
               </button>
               <button
                 onClick={() => setView("summary")}
                 className="flex-1 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
-                <RefreshCw size={14} /> Reessayer
+                <RefreshCw size={14} /> {t("pimCheckout.retry")}
               </button>
             </div>
           </div>
