@@ -1987,4 +1987,24 @@ export const en: TranslationKeys = {
       support: "Contact support",
     },
   },
+
+  kycModal: {
+    titleVerify: "Identity verification required",
+    titleLimit: "Transaction limit reached",
+    introVerify:
+      "To complete this operation and increase your withdrawal limits, an identity verification (KYC) is required. This step secures your account and ensures the compliance of our services.",
+    introLimit:
+      "You have reached a security limit on your account. This measure protects your funds in accordance with our regulatory obligations.",
+    benefit1Prefix: "Withdrawals above",
+    benefit1Suffix: "unlocked",
+    benefit2Prefix: "Limit raised to",
+    benefit2Suffix: "per transaction",
+    benefit3: "Priority and secure processing of your operations",
+    compliancePrefix:
+      "Your data is encrypted and processed in strict compliance with our",
+    complianceSuffix: "and privacy obligations.",
+    verifyButton: "Verify my identity",
+    later: "Later",
+    close: "Close",
+  },
 } as const;

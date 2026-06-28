@@ -11,6 +11,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 
 // Type for contacts from API
 interface P2PContact {
@@ -81,6 +82,7 @@ export default function P2PSendPage() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
+  const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
 
   // New states for search and recent users
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
@@ -461,6 +463,11 @@ const filteredContacts = contacts.filter(
           toast.success(data.message || t("mpay.piTransferSuccess"));
           router.push(`/mpay/success?amount=${amount}&to=${externalAddr.slice(0, 8)}...${externalAddr.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error, code: data.code });
+            setIsLoading(false);
+            return;
+          }
           const errorMsg = data.error || `Erreur ${res.status}`;
           toast.error(errorMsg);
           router.push(`/mpay/failed?reason=${encodeURIComponent(errorMsg)}`);
@@ -489,6 +496,11 @@ const filteredContacts = contacts.filter(
           toast.success(t("mpay.sendFlow.transferSent"));
           router.push(`/mpay/success?amount=${amount}&to=${encodeURIComponent(selectedContact.name || t("mpay.sendFlow.user"))}&txid=${txRef}&newBalance=${data.newBalance || ''}`);
         } else {
+          if (isKycPolicyError(data)) {
+            setKycModal({ open: true, message: data.error, code: data.code });
+            setIsLoading(false);
+            return;
+          }
           toast.error(data.error || t("mpay.sendFlow.transferError"));
           router.push(`/mpay/failed?reason=${encodeURIComponent(data.error || t("mpay.unknownError"))}`);
         }
@@ -512,6 +524,12 @@ const filteredContacts = contacts.filter(
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans overflow-hidden">
+      <KycRequiredModal
+        open={kycModal.open}
+        message={kycModal.message}
+        code={kycModal.code}
+        onClose={() => setKycModal({ open: false })}
+      />
       {/* HEADER */}
       <header className="px-6 pt-12 pb-6 flex items-center justify-between bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
         <button onClick={goBack} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">

@@ -2023,6 +2023,26 @@ export const fr = {
       support: "Contacter le support",
     },
   },
+
+  kycModal: {
+    titleVerify: "Verification d'identite requise",
+    titleLimit: "Limite de transaction atteinte",
+    introVerify:
+      "Pour effectuer cette operation et augmenter vos limites de retrait, une verification d'identite (KYC) est necessaire. Cette etape securise votre compte et garantit la conformite de nos services.",
+    introLimit:
+      "Vous avez atteint une limite de securite sur votre compte. Cette mesure protege vos fonds conformement a nos obligations reglementaires.",
+    benefit1Prefix: "Retraits superieurs a",
+    benefit1Suffix: "debloques",
+    benefit2Prefix: "Plafond porte a",
+    benefit2Suffix: "par transaction",
+    benefit3: "Traitement prioritaire et securise de vos operations",
+    compliancePrefix:
+      "Vos donnees sont chiffrees et traitees dans le strict respect de nos obligations",
+    complianceSuffix: "et de la confidentialite.",
+    verifyButton: "Verifier mon identite",
+    later: "Plus tard",
+    close: "Fermer",
+  },
 } as const;
 
 export type TranslationKeys = typeof fr;

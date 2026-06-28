@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ShieldCheck, X, Lock, BadgeCheck, ArrowRight } from "lucide-react";
+import { useLanguage } from "@/context/LanguageContext";
 
 /**
  * Plafonds appliques cote serveur (lib/withdrawal-limits.ts).
@@ -28,18 +29,17 @@ export interface KycRequiredModalProps {
  */
 export function KycRequiredModal({ open, onClose, message, code }: KycRequiredModalProps) {
   const router = useRouter();
+  const { t } = useLanguage();
 
   if (!open) return null;
 
   const isLimitReached = code === "PER_TX_LIMIT" || code === "DAILY_LIMIT_REACHED";
 
-  const title = isLimitReached ? "Limite de transaction atteinte" : "Vérification d'identité requise";
+  const title = isLimitReached ? t("kycModal.titleLimit") : t("kycModal.titleVerify");
 
   const intro = isLimitReached
-    ? message ||
-      "Vous avez atteint une limite de sécurité sur votre compte. Cette mesure protège vos fonds conformément à nos obligations réglementaires."
-    : message ||
-      "Pour effectuer cette opération et augmenter vos limites de retrait, une vérification d'identité (KYC) est nécessaire. Cette étape sécurise votre compte et garantit la conformité de nos services.";
+    ? message || t("kycModal.introLimit")
+    : message || t("kycModal.introVerify");
 
   return (
     <div
@@ -55,7 +55,7 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
       >
         <button
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label={t("kycModal.close")}
           className="absolute top-4 right-4 p-2 bg-white/5 rounded-xl border border-white/5 active:scale-95 transition-transform"
         >
           <X size={16} className="text-slate-400" />
@@ -76,21 +76,21 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
           <div className="flex items-start gap-3">
             <BadgeCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
-              Retraits supérieurs à{" "}
-              <span className="font-bold text-white">{LIMITS.KYC_FREE_LIMIT_PI} Pi</span> débloqués
+              {t("kycModal.benefit1Prefix")}{" "}
+              <span className="font-bold text-white">{LIMITS.KYC_FREE_LIMIT_PI} Pi</span> {t("kycModal.benefit1Suffix")}
             </p>
           </div>
           <div className="flex items-start gap-3">
             <BadgeCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
-              Plafond porté à{" "}
-              <span className="font-bold text-white">{LIMITS.KYC_MAX_PER_TX_PI} Pi</span> par transaction
+              {t("kycModal.benefit2Prefix")}{" "}
+              <span className="font-bold text-white">{LIMITS.KYC_MAX_PER_TX_PI} Pi</span> {t("kycModal.benefit2Suffix")}
             </p>
           </div>
           <div className="flex items-start gap-3">
             <BadgeCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
-              Traitement prioritaire et sécurisé de vos opérations
+              {t("kycModal.benefit3")}
             </p>
           </div>
         </div>
@@ -99,8 +99,8 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
         <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-blue-600/5 border border-blue-600/10 p-3">
           <Lock size={14} className="text-blue-500 mt-0.5 shrink-0" />
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Vos données sont chiffrées et traitées dans le strict respect de nos obligations{" "}
-            <span className="text-blue-500 font-semibold">AML/KYC</span> et de la confidentialité.
+            {t("kycModal.compliancePrefix")}{" "}
+            <span className="text-blue-500 font-semibold">AML/KYC</span> {t("kycModal.complianceSuffix")}
           </p>
         </div>
 
@@ -110,14 +110,14 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
             onClick={() => router.push("/settings/kyc")}
             className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-black uppercase tracking-widest text-white transition-colors active:scale-[0.98]"
           >
-            Vérifier mon identité
+            {t("kycModal.verifyButton")}
             <ArrowRight size={16} />
           </button>
           <button
             onClick={onClose}
             className="w-full py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
           >
-            Plus tard
+            {t("kycModal.later")}
           </button>
         </div>
       </div>

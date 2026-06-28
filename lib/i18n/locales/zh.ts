@@ -426,7 +426,7 @@ export const zh: TranslationKeys = {
       pimpayFee15: "PimPay 费用（1.5%）",
       youReceive: "您将收到",
       generateSummary: "生成摘要",
-      piAmountToDeposit: "要充值的 Pi 金额",
+      piAmountToDeposit: "要充��的 Pi 金额",
       atCurrentRate: "按当��汇率",
       usdEquivalent: "美元等值",
       verifyDeposit: "验证充值",
@@ -865,7 +865,7 @@ export const zh: TranslationKeys = {
     mpayProtocol: "mPay 协议",
     unknownUser: "未知用户",
     // Toasts
-    piAddressDetected: "检测到 Pi 地址",
+    piAddressDetected: "检测到 Pi 地���",
     merchantDetected: "检测到商家",
     invalidMerchantId: "��效��商�� ID",
     enterAmount: "请输入金额",
@@ -1641,7 +1641,7 @@ export const zh: TranslationKeys = {
 
   staking: {
     title: "质押",
-    subtitle: "赚取被动收入",
+    subtitle: "赚���被动收入",
     staked: "质押中",
     earnings: "收益",
     cumulative: "累计",
@@ -1988,5 +1988,24 @@ export const zh: TranslationKeys = {
       technical: "技术问题",
       support: "联系客服",
     },
+  },
+
+  kycModal: {
+    titleVerify: "需要身份验证",
+    titleLimit: "已达到交易限额",
+    introVerify:
+      "要完成此操作并提高您的提现限额，需要进行身份验证（KYC）。此步骤可确保您的账户安全，并保证我们服务的合规性。",
+    introLimit:
+      "您的账户已达到安全限额。此措施依据我们的监管义务保护您的资金。",
+    benefit1Prefix: "解锁超过",
+    benefit1Suffix: "的提现",
+    benefit2Prefix: "限额提高至每笔交易",
+    benefit2Suffix: "",
+    benefit3: "优先且安全地处理您的操作",
+    compliancePrefix: "您的数据已加密，并严格遵守我们的",
+    complianceSuffix: "及隐私保护义务进行处理。",
+    verifyButton: "验证我的身份",
+    later: "稍后",
+    close: "关闭",
   },
 } as const;
