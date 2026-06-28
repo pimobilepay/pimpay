@@ -50,7 +50,7 @@ export function PimCheckoutOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -58,7 +58,7 @@ export function PimCheckoutOverlay({
       />
 
       {/* Sheet */}
-      <div className="relative w-full sm:max-w-md bg-[#0b1220] border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 pb-8 animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-300">
+      <div className="relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain bg-[#0b1220] border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 pb-[max(2rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-300">
         {/* Close (hidden while processing) */}
         {view !== "processing" && (
           <button
