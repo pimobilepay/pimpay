@@ -81,15 +81,54 @@ function heuristicDetect(ip: string, isp?: string | null): ProxyInfo {
 }
 
 // Détecte les en-têtes de proxy suspects sur la requête entrante (chaînage de proxy).
+//
+// IMPORTANT — réduction des faux positifs : les CDN/hébergeurs légitimes (Vercel,
+// Cloudflare, load-balancers…) ajoutent normalement `via`, `forwarded`,
+// `x-forwarded-host`, `x-forwarded-for`. Ces en-têtes ne sont donc PAS suspects en
+// soi. On ne signale que les en-têtes typiques d'outils de proxy/anonymisation ou
+// un chaînage de proxys anormalement long.
 export function hasSuspiciousProxyHeaders(headers: Headers): boolean {
+  // En-têtes rarement présents hors outils de proxy/anonymisation.
   const suspicious = [
-    "via", "forwarded", "x-forwarded-host", "client-ip", "proxy-connection",
-    "x-proxy-id", "x-real-ip-forwarded",
+    "proxy-connection", "x-proxy-id", "x-real-ip-forwarded",
+    "proxy-authorization", "x-anonymizer",
   ];
-  // Plusieurs IP dans x-forwarded-for = chaînage potentiel de proxys.
+  if (suspicious.some((h) => headers.has(h))) return true;
+
+  // Chaînage de proxys anormalement long (> 4 sauts) — au-delà de l'infra normale.
   const xff = headers.get("x-forwarded-for");
-  if (xff && xff.split(",").length > 2) return true;
-  return suspicious.some((h) => headers.has(h));
+  if (xff && xff.split(",").filter(Boolean).length > 4) return true;
+
+  return false;
+}
+
+// Signatures d'agents automatisés (bots / scrapers / outils en ligne de commande).
+const BOT_UA_PATTERNS: { re: RegExp; name: string }[] = [
+  { re: /\bcurl\//i, name: "curl" },
+  { re: /\bwget\//i, name: "wget" },
+  { re: /python-requests|aiohttp|httpx|urllib/i, name: "python" },
+  { re: /\bgo-http-client\b/i, name: "go-http" },
+  { re: /\bjava\/|okhttp|apache-httpclient/i, name: "java" },
+  { re: /\b(scrapy|puppeteer|playwright|headlesschrome|phantomjs|selenium)\b/i, name: "headless" },
+  { re: /\b(masscan|nmap|nikto|sqlmap|nuclei|zgrab|dirbuster|gobuster|wpscan)\b/i, name: "scanner" },
+  { re: /\b(libwww-perl|guzzlehttp|node-fetch|axios|got)\b/i, name: "http-lib" },
+  { re: /\bbot\b|crawler|spider/i, name: "crawler" },
+];
+
+export interface BotInfo {
+  isBot: boolean;
+  botName: string | null;
+}
+
+// Détection d'agent automatisé à partir du User-Agent. Les UA vides sont aussi
+// considérés comme automatisés (un navigateur réel envoie toujours un UA).
+export function detectBotUserAgent(userAgent: string | null | undefined): BotInfo {
+  const ua = (userAgent || "").trim();
+  if (!ua) return { isBot: true, botName: "no-user-agent" };
+  for (const { re, name } of BOT_UA_PATTERNS) {
+    if (re.test(ua)) return { isBot: true, botName: name };
+  }
+  return { isBot: false, botName: null };
 }
 
 async function apiDetect(ip: string): Promise<ProxyInfo | null> {

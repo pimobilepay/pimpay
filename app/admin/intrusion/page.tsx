@@ -6,7 +6,7 @@ import {
   Loader2, ShieldAlert, ShieldX, ShieldCheck, Radio, Search, X, Clock,
   MapPin, ChevronLeft, ChevronRight, Crosshair, Ban, Activity, Globe,
   AlertTriangle, Zap, Lock, Unlock, ShieldOff, Skull, Wifi, Server,
-  Plus, SlidersHorizontal, Network, Eye,
+  Plus, SlidersHorizontal, Network, Eye, Bot, FileWarning,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
@@ -55,6 +55,8 @@ type DefenseSettings = {
   blockProxy: boolean;
   blockTor: boolean;
   blockDatacenter: boolean;
+  blockBots: boolean;
+  blockHeaderSpoof: boolean;
   riskScoreThreshold: number;
   ipWhitelist: string;
   autoBlockOnDetection: boolean;
@@ -914,6 +916,22 @@ export default function IntrusionPage() {
                     disabled={savingSettings}
                     onToggle={() => updateSetting("blockDatacenter", !settings.blockDatacenter)}
                   />
+                  <SettingRow
+                    icon={<Bot size={15} />}
+                    label="Bots & scrapers"
+                    desc="curl, python-requests, headless, scanners (nmap, sqlmap…)"
+                    on={settings.blockBots}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockBots", !settings.blockBots)}
+                  />
+                  <SettingRow
+                    icon={<FileWarning size={15} />}
+                    label="En-têtes falsifiés"
+                    desc="Chaînage de proxys anormal / en-têtes d'anonymisation"
+                    on={settings.blockHeaderSpoof}
+                    disabled={savingSettings}
+                    onToggle={() => updateSetting("blockHeaderSpoof", !settings.blockHeaderSpoof)}
+                  />
                 </div>
 
                 {/* Auto-blocage */}
@@ -932,7 +950,20 @@ export default function IntrusionPage() {
                 <div className={`rounded-3xl p-4 border bg-white/[0.03] border-white/10 ${!settings.proxyDetectionEnabled ? "opacity-50 pointer-events-none" : ""}`}>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Seuil de risque</label>
-                    <span className="text-[12px] font-black text-white font-mono">{settings.riskScoreThreshold}</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const v = settings.riskScoreThreshold;
+                        const tag = v < 50
+                          ? { label: "Agressif", cls: "bg-red-500/15 text-red-400" }
+                          : v < 70
+                          ? { label: "Strict", cls: "bg-orange-500/15 text-orange-400" }
+                          : v <= 85
+                          ? { label: "Équilibré", cls: "bg-emerald-500/15 text-emerald-400" }
+                          : { label: "Permissif", cls: "bg-slate-500/15 text-slate-400" };
+                        return <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${tag.cls}`}>{tag.label}</span>;
+                      })()}
+                      <span className="text-[12px] font-black text-white font-mono">{settings.riskScoreThreshold}</span>
+                    </div>
                   </div>
                   <input
                     type="range"
@@ -946,8 +977,19 @@ export default function IntrusionPage() {
                     className="w-full accent-red-600"
                   />
                   <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
-                    Score (0-100) au-delà duquel une IP proxy est considérée comme une menace.
+                    Score (0-100) au-delà duquel une IP VPN/proxy est bloquée. Un seuil trop bas
+                    (&lt; 50) bloque des adresses normales sans réelle menace.{" "}
+                    <span className="text-emerald-400/80 font-bold">Recommandé : 75.</span>
                   </p>
+                  {settings.riskScoreThreshold < 50 && (
+                    <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">
+                      <AlertTriangle size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-[9px] text-amber-300/90 leading-relaxed">
+                        Seuil très bas : risque élevé de faux positifs. De nombreuses IP légitimes
+                        seront bloquées. Remontez-le à 75 pour un équilibre sûr.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Liste blanche */}
@@ -1007,7 +1049,7 @@ export default function IntrusionPage() {
                     </ul>
                   ) : (
                     <p className="text-[9px] text-slate-600 mt-3 leading-relaxed">
-                      Aucune adresse de confiance. Ajoutez vos IP fixes (bureau, VPN d&apos;entreprise…) pour qu&apos;elles ne soient jamais bloquées.
+                      Aucune adresse de confiance. Ajoutez vos IP fixes (bureau, VPN d&apos;entreprise���) pour qu&apos;elles ne soient jamais bloquées.
                     </p>
                   )}
                 </div>

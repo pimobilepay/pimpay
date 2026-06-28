@@ -208,7 +208,9 @@ model SystemConfig {
   blockProxy            Boolean  @default(true)
   blockTor              Boolean  @default(true)
   blockDatacenter       Boolean  @default(false)
-  riskScoreThreshold    Int      @default(70) // 0-100, au-delà = blocage
+  blockBots             Boolean  @default(false) // bots / scrapers / outils automatisés (User-Agent)
+  blockHeaderSpoof      Boolean  @default(false) // en-têtes proxy falsifiés / chaînage anormal
+  riskScoreThreshold    Int      @default(75) // 0-100, au-delà = blocage (75 = équilibré, anti faux positifs)
   ipWhitelist           String?  // IP/CIDR de confiance, séparés par virgule
   autoBlockOnDetection  Boolean  @default(false) // ajoute l'IP à la liste noire
 }

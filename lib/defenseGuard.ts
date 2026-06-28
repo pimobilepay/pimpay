@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/rate-limit";
 import { isIpBlocked, normalizeIp, invalidateIpCache } from "@/lib/ipBlock";
-import { detectProxy, hasSuspiciousProxyHeaders, type ProxyInfo } from "@/lib/proxyDetection";
+import { detectProxy, hasSuspiciousProxyHeaders, detectBotUserAgent, type ProxyInfo } from "@/lib/proxyDetection";
 import { logSystemEvent } from "@/lib/systemLogger";
 
 export interface GuardResult {
@@ -49,7 +49,11 @@ export async function getDefenseSettings() {
     blockProxy: data?.blockProxy ?? true,
     blockTor: data?.blockTor ?? true,
     blockDatacenter: data?.blockDatacenter ?? false,
-    riskScoreThreshold: data?.riskScoreThreshold ?? 70,
+    blockBots: data?.blockBots ?? false,
+    blockHeaderSpoof: data?.blockHeaderSpoof ?? false,
+    // 75 = équilibré : assez haut pour ne pas bloquer les IP normales/à faible
+    // risque, assez bas pour stopper VPN/proxy à risque avéré.
+    riskScoreThreshold: data?.riskScoreThreshold ?? 75,
     ipWhitelist: data?.ipWhitelist ?? "",
     autoBlockOnDetection: data?.autoBlockOnDetection ?? false,
   };
@@ -90,13 +94,30 @@ function matchCidr(ip: string, base: string, bits: number): boolean {
   return (ipInt & mask) === (baseInt & mask);
 }
 
-function shouldBlock(proxy: ProxyInfo, s: any): { block: boolean; reason: string } {
+function shouldBlock(
+  proxy: ProxyInfo,
+  s: any,
+  bot?: { isBot: boolean; botName: string | null },
+): { block: boolean; reason: string } {
   const reasons: string[] = [];
+
+  // Tor = réseau d'anonymisation à risque par nature → bloqué dès que la catégorie
+  // est activée, indépendamment du score.
   if (proxy.isTor && s.blockTor) reasons.push("Tor");
-  if (proxy.isVpn && s.blockVpn) reasons.push("VPN");
-  if (proxy.isProxy && !proxy.isVpn && !proxy.isTor && s.blockProxy) reasons.push("Proxy");
-  if (proxy.isDatacenter && s.blockDatacenter) reasons.push("Datacenter");
-  if (proxy.riskScore >= s.riskScoreThreshold && proxy.isProxy) reasons.push(`Risque élevé (${proxy.riskScore})`);
+
+  // VPN / Proxy / Datacenter : on n'applique le blocage QUE si le score de risque
+  // atteint le seuil configuré. Cela évite de bloquer des IP normales/à faible
+  // risque que les heuristiques marquent comme "proxy" sans réelle menace.
+  const meetsThreshold = proxy.riskScore >= s.riskScoreThreshold;
+  if (proxy.isVpn && s.blockVpn && meetsThreshold) reasons.push(`VPN (risque ${proxy.riskScore})`);
+  if (proxy.isProxy && !proxy.isVpn && !proxy.isTor && s.blockProxy && meetsThreshold)
+    reasons.push(`Proxy (risque ${proxy.riskScore})`);
+  if (proxy.isDatacenter && s.blockDatacenter && meetsThreshold)
+    reasons.push(`Datacenter (risque ${proxy.riskScore})`);
+
+  // Bot / scraper / outil automatisé détecté via le User-Agent.
+  if (bot?.isBot && s.blockBots) reasons.push(`Bot (${bot.botName})`);
+
   return { block: reasons.length > 0, reason: reasons.join(", ") };
 }
 
@@ -135,19 +156,26 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
 
   // 4. Détection proxy / VPN / Tor / datacenter.
   const proxy = await detectProxy(ip);
-  const headerSuspicion = hasSuspiciousProxyHeaders(req.headers);
+
+  // 4b. En-têtes proxy falsifiés / chaînage anormal — uniquement si l'admin
+  //     active cette catégorie (évite les faux positifs liés aux CDN légitimes).
+  const headerSuspicion = settings.blockHeaderSpoof && hasSuspiciousProxyHeaders(req.headers);
   if (headerSuspicion && !proxy.isProxy) {
     proxy.isProxy = true;
     proxy.proxyType = proxy.proxyType || "PUB";
-    proxy.riskScore = Math.max(proxy.riskScore, 55);
+    proxy.riskScore = Math.max(proxy.riskScore, settings.riskScoreThreshold);
   }
 
+  // 4c. Détection d'agent automatisé (bot / scraper / outil) via le User-Agent.
+  const bot = detectBotUserAgent(userAgent);
+
   // Rien de suspect : aucune trace pour ne pas polluer le journal.
-  if (!proxy.isProxy && !proxy.isVpn && !proxy.isTor && !proxy.isDatacenter) {
+  const botFlagged = bot.isBot && settings.blockBots;
+  if (!proxy.isProxy && !proxy.isVpn && !proxy.isTor && !proxy.isDatacenter && !botFlagged) {
     return { allowed: true, status: 200, ip, proxy };
   }
 
-  const { block, reason } = shouldBlock(proxy, settings);
+  const { block, reason } = shouldBlock(proxy, settings, bot);
   const enforce = block && settings.proxyDetectionMode === "BLOCK";
   let action: "LOGGED" | "BLOCKED" | "AUTO_BLOCKED" = enforce ? "BLOCKED" : "LOGGED";
 

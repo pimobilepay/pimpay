@@ -425,6 +425,17 @@ export default function SendPage() {
       if (res.ok && isMountedRef.current) {
         const data = await res.json();
         const userWallets: WalletData[] = data.user?.wallets || [];
+
+        // Garantit la présence des devises fiat supportées (ex: Yuan CNY)
+        // même si le portefeuille n'a pas encore été créé côté serveur.
+        const ENSURED_FIATS = ["CNY"];
+        const existing = new Set(userWallets.map((w) => w.currency.toUpperCase()));
+        for (const code of ENSURED_FIATS) {
+          if (!existing.has(code)) {
+            userWallets.push({ currency: code, balance: 0 } as WalletData);
+          }
+        }
+
         setWallets(userWallets);
 
         // Sélection par défaut intelligente : Pi Network en priorité

@@ -334,6 +334,8 @@ export async function POST(req: NextRequest) {
       if (typeof s.blockProxy === "boolean") data.blockProxy = s.blockProxy;
       if (typeof s.blockTor === "boolean") data.blockTor = s.blockTor;
       if (typeof s.blockDatacenter === "boolean") data.blockDatacenter = s.blockDatacenter;
+      if (typeof s.blockBots === "boolean") data.blockBots = s.blockBots;
+      if (typeof s.blockHeaderSpoof === "boolean") data.blockHeaderSpoof = s.blockHeaderSpoof;
       if (typeof s.autoBlockOnDetection === "boolean") data.autoBlockOnDetection = s.autoBlockOnDetection;
       if (Number.isFinite(s.riskScoreThreshold)) {
         data.riskScoreThreshold = Math.max(0, Math.min(100, Math.floor(s.riskScoreThreshold)));
