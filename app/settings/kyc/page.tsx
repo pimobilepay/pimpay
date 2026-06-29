@@ -814,6 +814,28 @@ function DocUploadCard({ label, description, isUploaded, isUploading, onUpload, 
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   uploadingText: string; chooseFileText: string;
 }) {
+  // Local preview generated from the selected file (object URL).
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Revoke the object URL when it changes or the component unmounts to avoid leaks.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Replace the previous preview with the newly selected file.
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+    }
+    onUpload(e);
+  };
+
   return (
     <div className={`rounded-2xl border-2 border-dashed p-6 transition-all ${
       isUploaded ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/[0.02] border-white/10'
@@ -835,15 +857,37 @@ function DocUploadCard({ label, description, isUploaded, isUploading, onUpload, 
           <p className="text-[10px] text-slate-500">{description}</p>
         </div>
       </div>
-      {!isUploaded && (
-        <label className="mt-4 flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600/10 border border-blue-600/20 cursor-pointer active:scale-[0.98] transition-transform">
-          <Upload size={14} className="text-blue-500" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">
-            {isUploading ? uploadingText : chooseFileText}
-          </span>
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={onUpload} disabled={isUploading} />
-        </label>
+
+      {/* Image preview: shows as soon as a file is selected, replaced on new selection */}
+      {previewUrl && (
+        <div className="mt-4 relative rounded-xl overflow-hidden border border-white/10 bg-black/40">
+          <img
+            src={previewUrl}
+            alt={label}
+            className="w-full max-h-56 object-contain"
+            crossOrigin="anonymous"
+          />
+          {isUploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
+              <Loader2 size={28} className="text-blue-400 animate-spin" />
+            </div>
+          )}
+          {isUploaded && !isUploading && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/90 text-white text-[8px] font-black uppercase tracking-widest">
+              <CheckCircle2 size={10} />
+              OK
+            </div>
+          )}
+        </div>
       )}
+
+      <label className="mt-4 flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600/10 border border-blue-600/20 cursor-pointer active:scale-[0.98] transition-transform">
+        <Upload size={14} className="text-blue-500" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">
+          {isUploading ? uploadingText : chooseFileText}
+        </span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} disabled={isUploading} />
+      </label>
     </div>
   );
 }

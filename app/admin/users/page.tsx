@@ -22,6 +22,9 @@ type AdminUser = {
   lastLoginAt: string | null;
   createdAt: string;
   wallets: { balance: number; currency: string }[];
+  stakings?: { amount: number; currency: string; apy: number; rewardsEarned: number }[];
+  stakedByCurrency?: Record<string, number>;
+  totalStaked?: number;
 };
 
 export default function AdminUsersPage() {
@@ -186,6 +189,8 @@ export default function AdminUsersPage() {
         ) : (
           filteredUsers.map(user => {
             const piBalance = user.wallets?.find(w => w.currency?.toUpperCase() === "PI")?.balance || 0;
+            const cnyBalance = user.wallets?.find(w => w.currency?.toUpperCase() === "CNY")?.balance || 0;
+            const totalStaked = user.totalStaked || 0;
             const isPiUser = !!user.piUserId;
 
             return (
@@ -255,6 +260,19 @@ export default function AdminUsersPage() {
                         "bg-slate-500/10 text-slate-400 border border-slate-500/20"
                       }`}>
                         {user.status}
+                      </span>
+                    </div>
+                    {/* Soldes Yuan (CNY) et Staking verrouille */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono">
+                        {`\u00A5 ${cnyBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CNY`}
+                      </span>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider font-mono border ${
+                        totalStaked > 0
+                          ? "bg-violet-500/10 text-violet-300 border-violet-500/20"
+                          : "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                      }`}>
+                        {`STAKE ${totalStaked.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} \u03C0 verrouille`}
                       </span>
                     </div>
                   </div>

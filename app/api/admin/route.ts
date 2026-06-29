@@ -457,15 +457,21 @@ export async function POST(req: NextRequest) {
       // RÉINITIALISATION SOLDE INDIVIDUEL (un seul utilisateur)
       case "RESET_USER_BALANCE": {
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
-        await prisma.wallet.updateMany({
-          where: { userId: targetUserId },
-          data: { balance: 0 },
-        });
+        // Remet les portefeuilles à 0 ET supprime le solde verrouillé (staking) de l'utilisateur
+        await prisma.$transaction([
+          prisma.wallet.updateMany({
+            where: { userId: targetUserId },
+            data: { balance: 0 },
+          }),
+          prisma.staking.deleteMany({
+            where: { userId: targetUserId },
+          }),
+        ]);
         await prisma.notification.create({
           data: {
             userId: targetUserId,
             title: "Solde Réinitialisé",
-            message: "Votre solde a été réinitialisé à 0 par l'administration.",
+            message: "Votre solde (crypto, fiat et staking verrouillé) a été réinitialisé à 0 par l'administration.",
             type: "WARNING"
           }
         });
@@ -482,10 +488,13 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Aucun utilisateur trouvé" }, { status: 400 });
         }
 
-        // Remettre tous les wallets à 0
-        await prisma.wallet.updateMany({
-          data: { balance: 0 }
-        });
+        // Remettre tous les wallets à 0 ET supprimer tout le staking (solde verrouillé)
+        await prisma.$transaction([
+          prisma.wallet.updateMany({
+            data: { balance: 0 }
+          }),
+          prisma.staking.deleteMany({}),
+        ]);
 
         // Notifier tous les utilisateurs
         const notifOps = allWalletUsers.map(u =>

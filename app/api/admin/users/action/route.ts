@@ -197,15 +197,22 @@ export async function POST(req: NextRequest) {
       case "RESET_USER_BALANCE":
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         // Remet TOUS les portefeuilles de l'utilisateur à 0 (toutes devises crypto et fiat)
-        await prisma.wallet.updateMany({
-          where: { userId: targetUserId },
-          data: { balance: 0 },
-        });
+        // ET supprime le solde verrouillé (staking) de l'utilisateur.
+        await prisma.$transaction([
+          prisma.wallet.updateMany({
+            where: { userId: targetUserId },
+            data: { balance: 0 },
+          }),
+          // Supprime tout le staking (solde verrouillé) de l'utilisateur
+          prisma.staking.deleteMany({
+            where: { userId: targetUserId },
+          }),
+        ]);
         await prisma.notification.create({
           data: {
             userId: targetUserId,
             title: "Solde Réinitialisé",
-            message: "L'intégralité de votre solde (crypto et fiat) a été réinitialisée à 0 par l'administration.",
+            message: "L'intégralité de votre solde (crypto, fiat et staking verrouillé) a été réinitialisée à 0 par l'administration.",
             type: "WARNING",
             read: false,
           },
@@ -215,9 +222,13 @@ export async function POST(req: NextRequest) {
       // --- RÉINITIALISATION SOLDE (CRYPTO + FIAT) DE TOUS LES UTILISATEURS ---
       case "RESET_ALL_BALANCES": {
         // Remet TOUS les portefeuilles à 0 (toutes devises crypto et fiat, tous les utilisateurs)
-        await prisma.wallet.updateMany({
-          data: { balance: 0 },
-        });
+        // ET supprime tout le solde verrouillé (staking) de la plateforme.
+        await prisma.$transaction([
+          prisma.wallet.updateMany({
+            data: { balance: 0 },
+          }),
+          prisma.staking.deleteMany({}),
+        ]);
         const allBalanceUsers = await prisma.user.findMany({ select: { id: true } });
         await prisma.$transaction(
           allBalanceUsers.map((u) =>

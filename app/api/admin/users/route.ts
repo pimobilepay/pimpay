@@ -44,6 +44,15 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
             balance: true,
             currency: true
           }
+        },
+        stakings: {
+          where: { isActive: true },
+          select: {
+            amount: true,
+            currency: true,
+            apy: true,
+            rewardsEarned: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -53,10 +62,21 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
     // On s'assure qu'on retourne un tableau d'objets simple
     const formattedUsers = users.map(user => {
       const piWallet = user.wallets?.find(w => w.currency.toUpperCase() === "PI");
+      const stakings = user.stakings || [];
+      // Total verrouillé (staking) par devise
+      const stakedByCurrency: Record<string, number> = {};
+      for (const s of stakings) {
+        const cur = (s.currency || "PI").toUpperCase();
+        stakedByCurrency[cur] = (stakedByCurrency[cur] || 0) + (s.amount || 0);
+      }
+      const totalStaked = stakings.reduce((acc, s) => acc + (s.amount || 0), 0);
       return {
         ...user,
         wallets: user.wallets || [],
-        piBalance: piWallet ? piWallet.balance : 0
+        piBalance: piWallet ? piWallet.balance : 0,
+        stakings,
+        stakedByCurrency,
+        totalStaked
       };
     });
 

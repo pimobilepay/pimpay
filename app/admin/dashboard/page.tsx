@@ -6,7 +6,7 @@ import { BottomNav } from "@/components/bottom-nav";  import { toast } from "son
 import {                                                LogOut, Shield, Users, Zap, Search, Key, CreditCard, CircleDot, UserCog, Ban,                               Settings, Wallet, Megaphone, MonitorSmartphone, Hash, Snowflake, Headphones,
   Flame, Globe, Activity, ShieldCheck, Database, History, X,                                                  Cpu, HardDrive, Server, Terminal, LayoutGrid, ArrowUpRight, CheckCircle2, Send, Clock,
   CalendarClock, RefreshCw, ShoppingBag, Landmark, Percent, Gavel, SmartphoneNfc, Timer, Radio, Gift, Check, ChevronRight, Wrench, AlertTriangle, Trash2 as Trash,
-  Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor, Trash2
+  Loader2, Wifi, WifiOff, MapPin, Eye, Smartphone, Monitor, Trash2, Lock
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { Admin2FAModal } from "@/components/admin/Admin2FAModal";
@@ -36,6 +36,9 @@ type LedgerUser = {
   role: 'ADMIN' | 'USER' | 'MERCHANT' | 'AGENT' | 'BANK_ADMIN' | 'BUSINESS_ADMIN';
   autoApprove: boolean;
   wallets: { balance: number; currency: string }[];
+  stakings?: { amount: number; currency: string; apy: number; rewardsEarned: number }[];
+  stakedByCurrency?: Record<string, number>;
+  totalStaked?: number;
   kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'APPROVED';
   lastLoginIp?: string | null;
   lastLoginAt?: string | null;
@@ -166,6 +169,8 @@ const StatCard = ({ label, value, subText, icon, trend }: { label: string; value
 
 const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, onResetPassword, onToggleRole, onResetPin, onFreeze, onToggleAutoApprove, onIndividualMaintenance, onViewSessions, onSupport, onBan, onAirdrop, onSendMessage, onViewBalance, onDelete, onDisconnect, onSuspend }: any) => {
   const piBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "PI")?.balance || 0;
+  const cnyBalance = user.wallets?.find((w: any) => w.currency.toUpperCase() === "CNY")?.balance || 0;
+  const totalStaked = user.totalStaked || 0;
   const isPiUser = !!user.piUserId;
 
   return (
@@ -207,6 +212,19 @@ const UserRow = ({ user, isSelected, onSelect, onUpdateBalance, onResetBalance, 
             <p className="text-[10px] text-blue-400 font-mono font-bold uppercase tracking-widest">
                 {user.role} {user.email ? `// ${user.email}` : ""} {"// \u03C0"} {piBalance.toLocaleString()}
             </p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono">
+                {`\u00A5 ${cnyBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CNY`}
+              </span>
+              <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider font-mono border flex items-center gap-1 ${
+                totalStaked > 0
+                  ? "bg-violet-500/10 text-violet-300 border-violet-500/20"
+                  : "bg-slate-500/10 text-slate-500 border-slate-500/20"
+              }`}>
+                <Lock size={8} />
+                {`${totalStaked.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} \u03C0 verrouille`}
+              </span>
+            </div>
           </div>
         </div>
         <button
@@ -1772,6 +1790,38 @@ function DashboardContent() {
                       <div className="text-right">
                         <p className="text-sm font-black text-white">{wallet.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</p>
                         <p className="text-[9px] text-slate-500 font-mono">{wallet.currency}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Staking / Solde verrouille */}
+            {balanceModalUser.stakings && balanceModalUser.stakings.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Lock size={14} className="text-violet-400" />
+                  <p className="text-[9px] font-black text-violet-300 uppercase tracking-[2px]">Solde Verrouille (Staking)</p>
+                  <span className="ml-auto text-[9px] font-black text-violet-300 font-mono">
+                    {`\u03C0 ${(balanceModalUser.totalStaked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {balanceModalUser.stakings.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between bg-violet-500/[0.06] border border-violet-500/10 rounded-xl p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                          <Lock size={14} className="text-violet-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white uppercase">{s.currency}</p>
+                          <p className="text-[9px] text-violet-300/70 font-bold">{`APY ${s.apy}% \u2022 +${(s.rewardsEarned || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} gagnes`}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-white">{s.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</p>
+                        <p className="text-[9px] text-violet-300/70 font-mono">verrouille</p>
                       </div>
                     </div>
                   ))}
