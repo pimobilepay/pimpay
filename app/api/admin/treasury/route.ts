@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
+import { getPiPrice } from "@/lib/fees";
+import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
 export async function GET(req: NextRequest) {
   try {
@@ -139,6 +141,84 @@ export async function GET(req: NextRequest) {
       transfers: Math.round(data.transfers),
     }));
 
+    // 8b. Top 20 users by total balance (all wallets aggregated, valued in USD)
+    const piPrice = await getPiPrice();
+    const priceMap: Record<string, number> = {
+      ...DEFAULT_CRYPTO_PRICES,
+      ...FIAT_RATES,
+      PI: piPrice,
+    };
+
+    const userWallets = await prisma.wallet.findMany({
+      where: { balance: { gt: 0 } },
+      select: {
+        balance: true,
+        currency: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            kycStatus: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    const userTotals = new Map<
+      string,
+      {
+        id: string;
+        username: string | null;
+        email: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        avatar: string | null;
+        kycStatus: string;
+        role: string;
+        totalUSD: number;
+        balances: { currency: string; balance: number }[];
+      }
+    >();
+
+    for (const w of userWallets) {
+      if (!w.user) continue;
+      const usdValue = toUsd(w.currency, w.balance, priceMap);
+      const existing = userTotals.get(w.user.id);
+      if (existing) {
+        existing.totalUSD += usdValue;
+        existing.balances.push({ currency: w.currency, balance: w.balance });
+      } else {
+        userTotals.set(w.user.id, {
+          id: w.user.id,
+          username: w.user.username,
+          email: w.user.email,
+          firstName: w.user.firstName,
+          lastName: w.user.lastName,
+          avatar: w.user.avatar,
+          kycStatus: w.user.kycStatus,
+          role: w.user.role,
+          totalUSD: usdValue,
+          balances: [{ currency: w.currency, balance: w.balance }],
+        });
+      }
+    }
+
+    const topUsers = Array.from(userTotals.values())
+      .sort((a, b) => b.totalUSD - a.totalUSD)
+      .slice(0, 20)
+      .map((u) => ({
+        ...u,
+        totalUSD: Math.round(u.totalUSD * 100) / 100,
+        balances: u.balances
+          .sort((a, b) => toUsd(b.currency, b.balance, priceMap) - toUsd(a.currency, a.balance, priceMap))
+          .slice(0, 4),
+      }));
+
     // 9. Calculate exact totals from system wallets (real platform balances)
     const totalSystemBalanceUSD = systemWallets.reduce((sum, w) => sum + w.balanceUSD, 0);
     const totalSystemBalancePi = systemWallets.reduce((sum, w) => sum + w.balancePi, 0);
@@ -182,6 +262,7 @@ export async function GET(req: NextRequest) {
       chartData,
       pendingTransactions,
       largeTransactions,
+      topUsers,
     });
   } catch (error: any) {
     console.error("TREASURY_ERROR:", error);

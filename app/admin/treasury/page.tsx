@@ -135,6 +135,19 @@ type LargeTransaction = {
   flowLabel?: string;
 };
 
+type TopUser = {
+  id: string;
+  username: string | null;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  avatar: string | null;
+  kycStatus: string;
+  role: string;
+  totalUSD: number;
+  balances: { currency: string; balance: number }[];
+};
+
 type TreasuryData = {
   summary: TreasurySummary;
   systemWallets: SystemWalletSnapshot[];
@@ -144,6 +157,7 @@ type TreasuryData = {
   chartData: ChartDataPoint[];
   pendingTransactions: PendingTransaction[];
   largeTransactions: LargeTransaction[];
+  topUsers?: TopUser[];
 };
 
 // --- CENTRALIZED FEES TYPES ---
@@ -1878,7 +1892,7 @@ export default function TreasuryPage() {
     );
   }
 
-  const { chartData, pendingTransactions, largeTransactions, currencyBreakdown, systemWallets: systemWalletsSnapshot, totalFeesCollected } = data;
+  const { chartData, pendingTransactions, largeTransactions, currencyBreakdown, systemWallets: systemWalletsSnapshot, totalFeesCollected, topUsers } = data;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 pb-32" translate="no">
@@ -3468,6 +3482,83 @@ export default function TreasuryPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TOP 20 USERS BY BALANCE */}
+        {topUsers && topUsers.length > 0 && (
+          <div>
+            <SectionTitle>Top 20 - Plus Gros Soldes</SectionTitle>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                  <PiggyBank size={18} className="text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-white uppercase tracking-wide">Classement des utilisateurs</p>
+                  <p className="text-[9px] text-slate-500">Solde total estime, toutes devises confondues (valeur USD)</p>
+                </div>
+              </div>
+              <div className="divide-y divide-white/[0.04]">
+                {topUsers.map((u, index) => {
+                  const displayName =
+                    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+                    u.username ||
+                    u.email ||
+                    "Utilisateur";
+                  const initials = displayName
+                    .split(" ")
+                    .map((p) => p[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
+                  const rankColor =
+                    index === 0
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                      : index === 1
+                      ? "bg-slate-400/20 text-slate-300 border-slate-400/40"
+                      : index === 2
+                      ? "bg-orange-600/20 text-orange-400 border-orange-600/40"
+                      : "bg-white/[0.04] text-slate-500 border-white/[0.06]";
+                  return (
+                    <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                      <div className={`w-7 h-7 shrink-0 rounded-lg border flex items-center justify-center text-[10px] font-black ${rankColor}`}>
+                        {index + 1}
+                      </div>
+                      <div className="w-9 h-9 shrink-0 rounded-full overflow-hidden bg-slate-800 border border-white/[0.06] flex items-center justify-center">
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={displayName} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                        ) : (
+                          <span className="text-[10px] font-black text-slate-400">{initials}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                          {u.kycStatus === "VERIFIED" || u.kycStatus === "APPROVED" ? (
+                            <ShieldCheck size={11} className="text-emerald-400 shrink-0" />
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {u.balances.map((b) => (
+                            <span
+                              key={b.currency}
+                              className="text-[8px] font-bold text-slate-400 bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5"
+                            >
+                              {formatCurrency(b.balance, true)} {b.currency}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-black text-emerald-400">${formatCurrency(u.totalUSD)}</p>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-wider">Valeur estimee</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
