@@ -69,12 +69,33 @@ export function checkRateLimit(
 /**
  * Extrait l'IP du client depuis les headers de la requête.
  * Compatible Vercel Edge / reverse proxy.
+ *
+ * IMPORTANT — Cohérence du blocage IP :
+ * On privilégie `x-forwarded-for` (1ère entrée = vrai client d'origine), car
+ * c'est cette valeur qui est journalisée et affichée dans le tableau de bord
+ * d'intrusion. Le garde de défense (isIpBlocked) DOIT vérifier exactement la
+ * même IP que celle qui est affichée/bloquée par l'admin, sinon le blocage ne
+ * correspond jamais et l'utilisateur passe quand même.
+ *
+ * On nettoie aussi le préfixe IPv6-mapped (::ffff:1.2.3.4 → 1.2.3.4) pour
+ * garantir une correspondance exacte avec les IPv4 stockées en liste noire.
  */
 export function getClientIp(req: Request): string {
   const headers = req.headers as Headers;
-  return (
-    headers.get("x-real-ip") ||
+  const raw =
     headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
+    headers.get("x-real-ip")?.trim() ||
+    "unknown";
+  return stripIpv6MappedPrefix(raw);
+}
+
+/** Normalise les IPv4 encapsulées en IPv6 (::ffff:1.2.3.4 → 1.2.3.4). */
+function stripIpv6MappedPrefix(ip: string): string {
+  if (!ip) return "unknown";
+  const lower = ip.toLowerCase();
+  if (lower.startsWith("::ffff:")) {
+    const v4 = lower.slice(7);
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v4)) return v4;
+  }
+  return ip;
 }

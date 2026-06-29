@@ -23,7 +23,16 @@ const cache = new Map<string, CacheEntry>();
 
 function normalizeIp(ip: string | null | undefined): string {
   if (!ip) return "unknown";
-  return ip.split(",")[0]?.trim() || "unknown";
+  const first = ip.split(",")[0]?.trim();
+  if (!first) return "unknown";
+  // Normalise les IPv4 encapsulées en IPv6 (::ffff:1.2.3.4 → 1.2.3.4) afin que
+  // la comparaison avec les IPv4 stockées en liste noire/blanche soit exacte.
+  const lower = first.toLowerCase();
+  if (lower.startsWith("::ffff:")) {
+    const v4 = lower.slice(7);
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v4)) return v4;
+  }
+  return first;
 }
 
 /**
