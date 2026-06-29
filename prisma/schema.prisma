@@ -1066,3 +1066,248 @@ enum AgentRole {
   AGENT
   SUPERVISOR
 }
+
+// ============================================================================
+// AML / ANTI-FRAUDE
+// ============================================================================
+
+// Profil de risque par utilisateur — scoring comportemental (0-100).
+model RiskProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  score       Int      @default(0) // 0-100
+  level       String   @default("LOW") // LOW | MEDIUM | HIGH | CRITICAL
+  factors     Json?    // détails du calcul : { velocity, amount, geo, kyc, age... }
+  flagsCount  Int      @default(0)
+  lastEventAt DateTime?
+  manualOverride Boolean @default(false)
+  note        String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([level])
+  @@index([score])
+}
+
+// Règle AML configurable (seuils / limites de surveillance).
+model AmlRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   @default("AMOUNT") // AMOUNT | VELOCITY | PATTERN | GEO | STRUCTURING
+  field       String?  // champ surveillé (amount, count...)
+  threshold   Float    @default(0)
+  windowHours Int      @default(24)
+  currency    String?
+  action      String   @default("FLAG") // FLAG | REVIEW | BLOCK
+  severity    String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  enabled     Boolean  @default(true)
+  hits        Int      @default(0)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([type])
+}
+
+// Rapport d'activité suspecte (SAR) — généré par règle ou manuellement.
+model SuspiciousActivity {
+  id            String   @id @default(cuid())
+  userId        String?
+  transactionId String?
+  ruleId        String?
+  title         String
+  type          String   @default("SUSPICIOUS") // SUSPICIOUS | STRUCTURING | VELOCITY | HIGH_AMOUNT | SANCTIONS | OTHER
+  severity      String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status        String   @default("OPEN") // OPEN | REVIEWING | REPORTED | DISMISSED | CLOSED
+  amount        Float?
+  currency      String?
+  description   String?
+  detectedBy    String   @default("RULE") // RULE | MANUAL | SYSTEM
+  riskScore     Int      @default(0)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  resolution    String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// PREUVE DE RÉSERVES / RÉCONCILIATION
+// ============================================================================
+
+// Instantané de réconciliation on-chain (hot/cold) vs passif utilisateurs.
+model ReserveSnapshot {
+  id              String   @id @default(cuid())
+  asset           String
+  onChainHot      Float    @default(0)
+  onChainCold     Float    @default(0)
+  userLiabilities Float    @default(0)
+  difference      Float    @default(0)
+  coverageRatio   Float    @default(0) // réserves / passif
+  priceUSD        Float    @default(0)
+  status          String   @default("BALANCED") // BALANCED | SURPLUS | DEFICIT
+  note            String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@index([asset])
+  @@index([createdAt])
+}
+
+// Écriture de grand livre (comptabilité en partie double) + ajustements manuels.
+model LedgerEntry {
+  id            String   @id @default(cuid())
+  entryDate     DateTime @default(now())
+  reference     String?
+  transactionId String?
+  account       String   // ex: USER_LIABILITY, HOT_WALLET, FEES_INCOME, COLD_WALLET
+  description   String?
+  debit         Float    @default(0)
+  credit        Float    @default(0)
+  currency      String   @default("USD")
+  type          String   @default("AUTO") // AUTO | MANUAL_ADJUSTMENT
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([account])
+  @@index([currency])
+  @@index([entryDate])
+}
+
+// ============================================================================
+// WHITELIST RETRAITS / COLD WALLETS
+// ============================================================================
+
+// Adresse de retrait approuvée (whitelist) par utilisateur et par actif.
+model WithdrawalAddress {
+  id         String   @id @default(cuid())
+  userId     String
+  asset      String   // PI, USDT, BTC, XLM...
+  network    String?  // TRC20, ERC20, Stellar...
+  address    String
+  label      String?
+  status     String   @default("PENDING") // PENDING | APPROVED | REJECTED | REVOKED
+  approvedBy String?
+  approvedAt DateTime?
+  rejectReason String?
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([asset])
+  @@index([status])
+}
+
+// Cold wallet géré par la plateforme (custody hors-ligne).
+model ColdWallet {
+  id          String   @id @default(cuid())
+  asset       String
+  network     String?
+  label       String
+  address     String
+  custodian   String?  // interne, Fireblocks, Ledger...
+  balance     Float    @default(0)
+  priceUSD    Float    @default(0)
+  isActive    Boolean  @default(true)
+  lastSyncAt  DateTime?
+  note        String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([asset])
+  @@index([isActive])
+}
+
+// ============================================================================
+// LITIGES / CHARGEBACKS
+// ============================================================================
+
+model Dispute {
+  id            String   @id @default(cuid())
+  reference     String   @unique @default(cuid())
+  userId        String?
+  transactionId String?
+  type          String   @default("DISPUTE") // DISPUTE | CHARGEBACK | FRAUD | UNAUTHORIZED | DUPLICATE
+  status        String   @default("OPEN") // OPEN | UNDER_REVIEW | RESOLVED | REJECTED | REFUNDED | ESCALATED
+  amount        Float    @default(0)
+  currency      String   @default("XAF")
+  reason        String?
+  description   String?
+  evidence      Json?
+  resolution    String?
+  assignedTo    String?
+  openedAt      DateTime @default(now())
+  resolvedAt    DateTime?
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+
+// ============================================================================
+// TAUX DE CHANGE & LIQUIDITÉ
+// ============================================================================
+
+model ExchangePair {
+  id           String   @id @default(cuid())
+  base         String   // PI, USDT...
+  quote        String   // XAF, USD...
+  rate         Float    @default(0) // taux mid de référence
+  marginBps    Int      @default(50) // marge en points de base (50 = 0.5%)
+  spreadBps    Int      @default(0) // écart bid/ask additionnel
+  minAmount    Float    @default(0)
+  maxAmount    Float    @default(0)
+  liquidity    Float    @default(0) // liquidité disponible côté base
+  source       String   @default("MANUAL") // MANUAL | MARKET
+  enabled      Boolean  @default(true)
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([base, quote])
+  @@index([enabled])
+}
+
+// ============================================================================
+// PARRAINAGE / AFFILIATION
+// ============================================================================
+
+// Configuration globale du programme (singleton).
+model ReferralProgram {
+  id             String   @id @default("GLOBAL_REFERRAL")
+  enabled        Boolean  @default(true)
+  signupBonus    Float    @default(0)
+  commissionRate Float    @default(0.1) // % du fee généré reversé au parrain
+  currency       String   @default("PI")
+  tiers          Json?    // paliers : [{ minReferrals, rate, bonus }]
+  minPayout      Float    @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+// Gain de parrainage attribué à un parrain.
+model ReferralEarning {
+  id            String   @id @default(cuid())
+  referrerId    String
+  refereeId     String?
+  type          String   @default("COMMISSION") // SIGNUP | COMMISSION | BONUS
+  amount        Float    @default(0)
+  currency      String   @default("PI")
+  transactionId String?
+  status        String   @default("PENDING") // PENDING | PAID | CANCELLED
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([status])
+}
