@@ -84,6 +84,7 @@ model User {
   agentRole            AgentRole?       @default(AGENT)
   emailVerified        DateTime?
   accounts             Account[]
+  adminProfile         AdminProfile?    @relation("user_admin_profile")
   auditLogs            AuditLog[]       @relation("admin_actions")
   targetLogs           AuditLog[]       @relation("target_user")
   beneficiaries        Beneficiary[]
@@ -427,9 +428,38 @@ model AuditLog {
   targetId    String?
   targetEmail String?
   details     String?
+  // Champs enrichis pour la traçabilité RBAC (optionnels, rétro-compatibles)
+  category    String?  // users | finance | security | system | kyc | support | rbac...
+  targetType  String?  // user | transaction | ip | config...
+  ip          String?
+  userAgent   String?
+  status      String   @default("SUCCESS") // SUCCESS | DENIED | FAILED
   createdAt   DateTime @default(now())
   admin       User?    @relation("admin_actions", fields: [adminId], references: [id])
   target      User?    @relation("target_user", fields: [targetId], references: [id])
+
+  @@index([adminId])
+  @@index([category])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Profil RBAC d'un administrateur : permissions granulaires + statut super-admin.
+// IMPORTANT (rétro-compatibilité) : un User role=ADMIN SANS AdminProfile est
+// traité comme SUPER-ADMIN (accès total), pour ne casser aucun accès existant.
+model AdminProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  isSuperAdmin Boolean  @default(false)
+  permissions  String[] @default([])
+  title        String?  // ex: "Analyste conformité", "Support N2"...
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation("user_admin_profile", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([active])
 }
 
 model SecurityLog {
