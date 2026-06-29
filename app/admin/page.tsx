@@ -6,7 +6,8 @@ import {
   Users, Wallet, ArrowUpRight, ArrowDownLeft, ShieldCheck, Activity, Landmark, Globe,
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
-  BarChart3, ArrowLeft, History, Eye, Bell, Crosshair
+  BarChart3, ArrowLeft, History, Eye, Bell, Crosshair,
+  ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -88,6 +89,62 @@ export default function AdminDashboard() {
             { label: "Hub Agent", desc: "Operations agents", icon: <Wallet size={20} />, path: "/hub", color: "cyan" },
             { label: "Messages", desc: "Messagerie admin", icon: <MessageSquare size={20} />, path: "/admin/messages", color: "rose" },
             { label: "Recrutement", desc: "Gestion agents", icon: <Users size={20} />, path: "/admin/recruitment", color: "purple" },
+          ].map((item) => {
+            const colorMap: Record<string, string> = {
+              blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
+              purple: "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20",
+              emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20",
+              teal: "bg-teal-500/10 border-teal-500/20 text-teal-400 hover:bg-teal-500/20",
+              amber: "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20",
+              rose: "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20",
+              indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20",
+              cyan: "bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20",
+            };
+            const iconColorMap: Record<string, string> = {
+              blue: "bg-blue-600 shadow-blue-500/30",
+              purple: "bg-purple-600 shadow-purple-500/30",
+              emerald: "bg-emerald-600 shadow-emerald-500/30",
+              teal: "bg-teal-600 shadow-teal-500/30",
+              amber: "bg-amber-600 shadow-amber-500/30",
+              rose: "bg-rose-600 shadow-rose-500/30",
+              indigo: "bg-indigo-600 shadow-indigo-500/30",
+              cyan: "bg-cyan-600 shadow-cyan-500/30",
+            };
+            return (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`flex flex-col items-center gap-3 p-5 rounded-[2rem] border transition-all active:scale-[0.96] ${colorMap[item.color]}`}
+              >
+                <div className={`p-3 rounded-2xl text-white shadow-lg ${iconColorMap[item.color]}`}>
+                  {item.icon}
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-tight text-white leading-none">{item.label}</p>
+                  <p className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-60">{item.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* CONFORMITE & FINANCE */}
+      <section className="mb-10">
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+          <h2 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Conformite & Finance</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "AML", desc: "Anti-fraude & SAR", icon: <ShieldAlert size={20} />, path: "/admin/aml", color: "rose" },
+            { label: "Reserves", desc: "Preuve de reserves", icon: <Vault size={20} />, path: "/admin/reserves", color: "emerald" },
+            { label: "Grand Livre", desc: "Reconciliation", icon: <BookOpen size={20} />, path: "/admin/ledger", color: "blue" },
+            { label: "Retraits", desc: "Whitelist & cold", icon: <Snowflake size={20} />, path: "/admin/withdrawals", color: "cyan" },
+            { label: "Litiges", desc: "Chargebacks", icon: <Gavel size={20} />, path: "/admin/disputes", color: "amber" },
+            { label: "Change", desc: "Paires & liquidite", icon: <ArrowRightLeft size={20} />, path: "/admin/exchange", color: "teal" },
+            { label: "Parrainage", desc: "Affiliation", icon: <Gift size={20} />, path: "/admin/referral", color: "purple" },
+            { label: "RBAC", desc: "Roles & audit", icon: <UserCog size={20} />, path: "/admin/rbac", color: "indigo" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
               blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",
