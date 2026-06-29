@@ -133,7 +133,16 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
   const ip = normalizeIp(getClientIp(req));
   const userAgent = req.headers.get("user-agent") || undefined;
 
-  // 1. Liste noire admin (riposte) — prioritaire.
+  const settings = await getDefenseSettings();
+
+  // 1. Liste blanche (IP/CIDR de confiance) — priorité absolue.
+  //    Court-circuite TOUTE analyse, y compris la liste noire et le
+  //    verrouillage total. Une IP de confiance ne doit jamais être bloquée.
+  if (ipInWhitelist(ip, settings.ipWhitelist)) {
+    return { allowed: true, status: 200, ip };
+  }
+
+  // 2. Liste noire admin (riposte).
   if (await isIpBlocked(ip)) {
     await logSystemEvent({
       level: "WARN",
@@ -145,13 +154,6 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
       userId: opts.userId ?? undefined,
     });
     return { allowed: false, status: 403, reason: "IP bloquée", ip, blockedByList: true };
-  }
-
-  const settings = await getDefenseSettings();
-
-  // 2. Liste blanche — court-circuite la détection proxy.
-  if (ipInWhitelist(ip, settings.ipWhitelist)) {
-    return { allowed: true, status: 200, ip };
   }
 
   // 3. Détection désactivée → on laisse passer.
