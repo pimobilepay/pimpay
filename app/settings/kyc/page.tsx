@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import SideMenu from "@/components/SideMenu";
+import PiVerifyCard from "@/components/PiVerifyCard";
 import countries from "world-countries";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -396,6 +397,11 @@ export default function KYCPage() {
             )}
           </p>
         </div>
+
+        {/* Vérification instantanée PiVerify (chemin rapide recommandé) */}
+        {step === 1 && (
+          <PiVerifyCard kycStatus={kycStatus} onVerified={fetchUserSession} />
+        )}
 
         {/* Step title */}
         <h2 className="text-lg font-black uppercase tracking-tight">
