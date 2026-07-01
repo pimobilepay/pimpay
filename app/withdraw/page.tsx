@@ -25,7 +25,7 @@ import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-mo
 import "flag-icons/css/flag-icons.min.css";
 
 // Ordered list of cryptos available for withdrawal
-const WITHDRAW_ASSET_ORDER = ["PI", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON", "USDT", "USDC", "DAI", "BUSD"];
+const WITHDRAW_ASSET_ORDER = ["PI", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON", "USDT", "USDC", "DAI", "BUSD", "EURC", "OUSD"];
 
 export default function WithdrawPage() {
   const router = useRouter();

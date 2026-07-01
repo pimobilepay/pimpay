@@ -298,6 +298,8 @@ function detectExternalAddress(
     else if (selectedCurrency === "USDC") evmLabel = "USDC ERC20";
     else if (selectedCurrency === "BUSD") evmLabel = "BNB Smart Chain";
     else if (selectedCurrency === "DAI") evmLabel = "DAI ERC20";
+    else if (selectedCurrency === "EURC") evmLabel = "EURC ERC20";
+    else if (selectedCurrency === "OUSD") evmLabel = "OUSD ERC20";
     else if (selectedCurrency === "ETH") evmLabel = "Ethereum";
     else if (selectedCurrency === "BNB") evmLabel = "BNB Smart Chain";
     return { isExternal: true, networkLabel: evmLabel, networkKey: selectedCurrency };
@@ -371,7 +373,7 @@ function sortWallets(wallets: WalletData[]): WalletData[] {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────���────────
 export default function SendPage() {
   const router = useRouter();
   const { t } = useLanguage();

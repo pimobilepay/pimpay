@@ -58,7 +58,7 @@ const USD_TO_XAF = 601.32;
 
 const MARKET_PRICE_INIT: Record<string, number> = {
   PI: 0, SDA: 1.2, USDT: 1.0, BTC: 0, XRP: 0, XLM: 0, USDC: 1.0,
-  DAI: 1.0, BUSD: 1.0, ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0,
+  DAI: 1.0, BUSD: 1.0, EURC: 1.08, OUSD: 1.0, ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0,
 };
 
 const PIE_COLOR_BY_NAME: Record<string, string> = {
@@ -393,7 +393,7 @@ export default function UserDashboard() {
     try {
       const [piRes, othersRes] = await Promise.all([
         fetch("/api/pi-price", { cache: "no-store" }),
-        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd"),
+        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,euro-coin,origin-dollar,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd"),
       ]);
       if (piRes.ok) {
         const piData = await piRes.json();
@@ -408,6 +408,8 @@ export default function UserDashboard() {
           USDC: result["usd-coin"]?.usd || prev.USDC,
           DAI: result.dai?.usd || prev.DAI,
           BUSD: result["binance-usd"]?.usd || prev.BUSD,
+          EURC: result["euro-coin"]?.usd || prev.EURC,
+          OUSD: result["origin-dollar"]?.usd || prev.OUSD,
           XRP: result.ripple?.usd || prev.XRP,
           XLM: result.stellar?.usd || prev.XLM,
           ETH: result.ethereum?.usd || prev.ETH,
@@ -468,6 +470,8 @@ export default function UserDashboard() {
     (balances.USDC || 0) * marketPrices.USDC +
     (balances.DAI || 0) * marketPrices.DAI +
     (balances.BUSD || 0) * marketPrices.BUSD +
+    (balances.EURC || 0) * marketPrices.EURC +
+    (balances.OUSD || 0) * marketPrices.OUSD +
     (balances.XRP || 0) * marketPrices.XRP +
     (balances.XLM || 0) * marketPrices.XLM +
     (balances.ETH || 0) * marketPrices.ETH +

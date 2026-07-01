@@ -316,6 +316,8 @@ const ALL_ASSETS: Asset[] = [
   { id: "USDC", name: "USD Coin",           symbol: "USDC", color: "#2775ca", category: "stablecoin", logo: "/usdc.png", network: "EVM" },
   { id: "DAI",  name: "Dai",               symbol: "DAI",  color: "#f5ac37", category: "stablecoin", logo: "/dai.png",  network: "EVM" },
   { id: "BUSD", name: "Binance USD",        symbol: "BUSD", color: "#f0b90b", category: "stablecoin", logo: "/busd.png", network: "EVM" },
+  { id: "EURC", name: "Euro Coin",          symbol: "EURC", color: "#2775ca", category: "stablecoin", logo: "/eurc.png", network: "EVM" },
+  { id: "OUSD", name: "Origin Dollar",      symbol: "OUSD", color: "#0ea5e9", category: "stablecoin", logo: "/ousd.png", network: "EVM" },
   { id: "USD",  name: "Dollar US",          symbol: "USD",  color: "#22c55e", category: "fiat",       flag: "US",        network: "PimPay" },
   { id: "EUR",  name: "Euro",              symbol: "EUR",  color: "#3b82f6", category: "fiat",       flag: "EU",        network: "PimPay" },
   { id: "XAF",  name: "Franc CFA (BEAC)",  symbol: "XAF",  color: "#0ea5e9", category: "fiat",       flag: "CM",        network: "PimPay" },
@@ -337,7 +339,7 @@ const CATEGORY_ORDER = ["native", "major", "stablecoin", "fiat"];
 
 const CRYPTO_IDS = [
   "PI","SDA","BTC","ETH","BNB","SOL","XRP","XLM",
-  "TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD",
+  "TRX","ADA","DOGE","TON","USDT","USDC","DAI","BUSD","EURC","OUSD",
 ];
 
 // ── Tokens routés via Sun.io (DEX TRON) ──────────────────────────────────────
@@ -345,12 +347,12 @@ const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT"
 
 // ── Tokens routés via ChangeNow (mode fixe) - paires SANS USDT ───────────────
 // ChangeNow ne supporte pas bien USDT, on utilise SimpleSwap pour les paires avec USDT
-const CHANGENOW_TOKENS = new Set(["BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD"]);
+const CHANGENOW_TOKENS = new Set(["BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD", "EURC", "OUSD"]);
 
 // ── Tokens routés via SimpleSwap (paires avec USDT, LTC, et autres) ──────────
 const SIMPLESWAP_TOKENS = new Set([
   "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "ADA", "DOGE", "TON", "TRX",
-  "USDT", "USDC", "DAI", "BUSD", "LTC", "MATIC", "AVAX", "DOT", "ATOM", "LINK"
+  "USDT", "USDC", "DAI", "BUSD", "EURC", "OUSD", "LTC", "MATIC", "AVAX", "DOT", "ATOM", "LINK"
 ]);
 
 // ── Devises FIAT supportées (via swap interne) ───────────────────────────────
@@ -555,7 +557,7 @@ export default function SwapPage() {
 
   // ── Prix ─────────────────────────────────────────────────────────────────
   const [prices, setPrices] = useState<Record<string, number>>({
-    PI: 0, BTC: 95000, SDA: 1.2, USDT: 1, USDC: 1, DAI: 1, BUSD: 1,
+    PI: 0, BTC: 95000, SDA: 1.2, USDT: 1, USDC: 1, DAI: 1, BUSD: 1, EURC: 1.08, OUSD: 1,
     ETH: 3200, BNB: 600, SOL: 180, XRP: 2.5, XLM: 0.4,
     TRX: 0.12, ADA: 0.65, DOGE: 0.15, TON: 5.5,
     USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800,
@@ -601,7 +603,7 @@ export default function SwapPage() {
         if (piData.success && piData.price > 0) setPrices((prev) => ({ ...prev, PI: piData.price }));
       }
       const cryptoRes = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai,euro-coin,origin-dollar&vs_currencies=usd",
         { signal: AbortSignal.timeout(8000), cache: "no-store" }
       );
       const cryptoData = await cryptoRes.json();
@@ -622,6 +624,8 @@ export default function SwapPage() {
         USDT: cryptoData.tether?.usd || 1,
         USDC: cryptoData["usd-coin"]?.usd || 1,
         DAI: cryptoData.dai?.usd || 1,
+        EURC: cryptoData["euro-coin"]?.usd || prev.EURC,
+        OUSD: cryptoData["origin-dollar"]?.usd || 1,
         EUR: fiatData?.rates?.EUR || prev.EUR,
         XAF: fiatData?.rates?.XAF || prev.XAF,
         XOF: fiatData?.rates?.XOF || prev.XOF,
