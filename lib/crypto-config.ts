@@ -209,12 +209,39 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     accentColor: "text-yellow-400",
     defaultPrice: 1.00,
   },
+  EURC: {
+    symbol: "EURC",
+    name: "Euro Coin",
+    chain: "EVM",
+    network: "EVM (ERC20)",
+    logo: "/eurc.png",
+    category: "STABLE",
+    addressField: "sidraAddress",
+    decimals: 4,
+    explorerBase: "https://etherscan.io/tx/",
+    accentColor: "text-blue-400",
+    defaultPrice: 1.08,
+  },
+  OUSD: {
+    symbol: "OUSD",
+    name: "Origin Dollar",
+    chain: "EVM",
+    network: "EVM (ERC20)",
+    logo: "/ousd.png",
+    category: "STABLE",
+    addressField: "sidraAddress",
+    decimals: 4,
+    explorerBase: "https://etherscan.io/tx/",
+    accentColor: "text-cyan-400",
+    defaultPrice: 1.00,
+  },
 };
 
 // --- Helpers de compatibilité ---
 
 export const WALLET_ASSET_ORDER = [
-  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON"
+  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
+  "USDC", "DAI", "BUSD", "EURC", "OUSD"
 ];
 
 export function getAssetConfig(symbol: string): CryptoAsset {

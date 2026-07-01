@@ -86,7 +86,7 @@ export function formatCryptoBalance(
   if (!isFinite(balance)) return '0,00';
   
   // Stablecoins always use 2 decimals
-  const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'XAF', 'XOF'];
+  const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'EURC', 'OUSD', 'XAF', 'XOF'];
   if (stablecoins.includes(currency.toUpperCase())) {
     return balance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -202,7 +202,7 @@ export function formatEURtoXAF(
   return returnFormatted ? formatAmount(xaf, 'XAF') : xaf;
 }
 
-// ─── IBAN & BIC Formatters ────────────────────────────────────────────────────
+// ─── IBAN & BIC Formatters ─────────────────────────────────���──────────────────
 
 /**
  * Formats an IBAN string into groups of 4 characters.
@@ -448,7 +448,7 @@ export function formatFileSize(bytes: number): string {
   }).format(value)}\u00A0${units[i]}`;
 }
 
-// ─── Status Helpers ───────────────────────────────────────────────────────────
+// ─── Status Helpers ───────────────────���───────────────────────────────────────
 
 /**
  * Returns the hex color associated with a given status string.

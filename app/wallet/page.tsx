@@ -62,6 +62,12 @@ const EurcLogo = () => (
   </div>
 );
 
+const OusdLogo = () => (
+  <div className="w-11 h-11 rounded-2xl bg-cyan-900/20 flex items-center justify-center border border-cyan-400/20 p-2">
+    <img src="/ousd.png" alt="OUSD" className="w-full h-full object-contain rounded-lg" />
+  </div>
+);
+
 const XrpLogo = () => (
   <div className="w-11 h-11 rounded-2xl bg-slate-900/60 flex items-center justify-center border border-slate-400/20 p-2">
     <img src="/xrp.png" alt="XRP" className="w-full h-full object-contain" />
@@ -148,7 +154,7 @@ const TonLogo = () => (
 
 // --- TYPES ---
 interface WalletAddresses {
-  PI: string; SDA: string; USDT: string; BTC: string; ETH: string; BNB: string; SOL: string; TRX: string; ADA: string; DOGE: string; TON: string; USDC: string; DAI: string; BUSD: string; EURC: string; XRP: string; XLM: string;
+  PI: string; SDA: string; USDT: string; BTC: string; ETH: string; BNB: string; SOL: string; TRX: string; ADA: string; DOGE: string; TON: string; USDC: string; DAI: string; BUSD: string; EURC: string; OUSD: string; XRP: string; XLM: string;
 }
 
 export default function WalletPage() {
@@ -174,6 +180,7 @@ export default function WalletPage() {
   const [daiBalance, setDaiBalance] = useState("0.0000");
   const [busdBalance, setBusdBalance] = useState("0.0000");
   const [eurcBalance, setEurcBalance] = useState("0.0000");
+  const [ousdBalance, setOusdBalance] = useState("0.0000");
   const [xrpBalance, setXrpBalance] = useState("0.000000");
   const [xlmBalance, setXlmBalance] = useState("0.0000000");
   const [ethBalance, setEthBalance] = useState("0.00000000");
@@ -185,17 +192,17 @@ export default function WalletPage() {
   const [tonBalance, setTonBalance] = useState("0.000000");
 
   const [addresses, setAddresses] = useState<WalletAddresses>({
-    PI: "", SDA: "", USDT: "", BTC: "", ETH: "", BNB: "", SOL: "", TRX: "", ADA: "", DOGE: "", TON: "", USDC: "", DAI: "", BUSD: "", EURC: "", XRP: "", XLM: ""
+    PI: "", SDA: "", USDT: "", BTC: "", ETH: "", BNB: "", SOL: "", TRX: "", ADA: "", DOGE: "", TON: "", USDC: "", DAI: "", BUSD: "", EURC: "", OUSD: "", XRP: "", XLM: ""
   });
 
   const [marketPrices, setMarketPrices] = useState({
-    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 0, USDC: 1.00, DAI: 1.00, BUSD: 1.00, EURC: 1.08, XRP: 0, XLM: 0,
+    BTC: 0, USDT: 1.00, SDA: 1.20, PI: 0, USDC: 1.00, DAI: 1.00, BUSD: 1.00, EURC: 1.08, OUSD: 1.00, XRP: 0, XLM: 0,
     ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
   });
 
   // Price change percentages (24h)
   const [priceChanges, setPriceChanges] = useState<Record<string, number>>({
-    BTC: 0, USDT: 0, SDA: 0, PI: 0, USDC: 0, DAI: 0, BUSD: 0, EURC: 0, XRP: 0, XLM: 0,
+    BTC: 0, USDT: 0, SDA: 0, PI: 0, USDC: 0, DAI: 0, BUSD: 0, EURC: 0, OUSD: 0, XRP: 0, XLM: 0,
     ETH: 0, BNB: 0, SOL: 0, TRX: 0, ADA: 0, DOGE: 0, TON: 0
   });
 
@@ -204,7 +211,7 @@ export default function WalletPage() {
       // Fetch Pi price via internal proxy to avoid CORS/rate-limit issues
       const [piRes, othersRes] = await Promise.all([
         fetch('/api/pi-price', { cache: 'no-store' }),
-        fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,euro-coin,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd&include_24hr_change=true'),
+        fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether,usd-coin,dai,binance-usd,euro-coin,origin-dollar,ripple,stellar,ethereum,binancecoin,solana,tron,cardano,dogecoin,the-open-network&vs_currencies=usd&include_24hr_change=true'),
       ]);
 
       if (piRes.ok) {
@@ -227,6 +234,7 @@ export default function WalletPage() {
           DAI: result.dai?.usd || prev.DAI,
           BUSD: result["binance-usd"]?.usd || prev.BUSD,
           EURC: result["euro-coin"]?.usd || prev.EURC,
+          OUSD: result["origin-dollar"]?.usd || prev.OUSD,
           XRP: result.ripple?.usd || prev.XRP,
           XLM: result.stellar?.usd || prev.XLM,
           ETH: result.ethereum?.usd || prev.ETH,
@@ -246,6 +254,7 @@ export default function WalletPage() {
           DAI: result.dai?.usd_24h_change || 0,
           BUSD: result["binance-usd"]?.usd_24h_change || 0,
           EURC: result["euro-coin"]?.usd_24h_change || 0,
+          OUSD: result["origin-dollar"]?.usd_24h_change || 0,
           XRP: result.ripple?.usd_24h_change || 0,
           XLM: result.stellar?.usd_24h_change || 0,
           ETH: result.ethereum?.usd_24h_change || 0,
@@ -287,6 +296,7 @@ export default function WalletPage() {
         setDaiBalance(parseFloat(balData.DAI || "0").toFixed(4));
         setBusdBalance(parseFloat(balData.BUSD || "0").toFixed(4));
         setEurcBalance(parseFloat(balData.EURC || "0").toFixed(4));
+        setOusdBalance(parseFloat(balData.OUSD || "0").toFixed(4));
         setXrpBalance(parseFloat(balData.XRP || "0").toFixed(6));
         setXlmBalance(parseFloat(balData.XLM || "0").toFixed(7));
         setEthBalance(parseFloat(balData.ETH || "0").toFixed(8));
@@ -298,7 +308,7 @@ export default function WalletPage() {
         setTonBalance(parseFloat(balData.TON || "0").toFixed(6));
         if (balData.addresses) {
           setAddresses({
-            PI: balData.addresses.PI || "", SDA: balData.addresses.SDA || "", USDT: balData.addresses.USDT || "", BTC: balData.addresses.BTC || "", ETH: balData.addresses.ETH || "", BNB: balData.addresses.BNB || "", SOL: balData.addresses.SOL || "", TRX: balData.addresses.TRX || "", ADA: balData.addresses.ADA || "", DOGE: balData.addresses.DOGE || "", TON: balData.addresses.TON || "", USDC: balData.addresses.USDC || "", DAI: balData.addresses.DAI || "", BUSD: balData.addresses.BUSD || "", EURC: balData.addresses.EURC || "", XRP: balData.addresses.XRP || "", XLM: balData.addresses.XLM || "",
+            PI: balData.addresses.PI || "", SDA: balData.addresses.SDA || "", USDT: balData.addresses.USDT || "", BTC: balData.addresses.BTC || "", ETH: balData.addresses.ETH || "", BNB: balData.addresses.BNB || "", SOL: balData.addresses.SOL || "", TRX: balData.addresses.TRX || "", ADA: balData.addresses.ADA || "", DOGE: balData.addresses.DOGE || "", TON: balData.addresses.TON || "", USDC: balData.addresses.USDC || "", DAI: balData.addresses.DAI || "", BUSD: balData.addresses.BUSD || "", EURC: balData.addresses.EURC || "", OUSD: balData.addresses.OUSD || "", XRP: balData.addresses.XRP || "", XLM: balData.addresses.XLM || "",
           });
         }
       }
@@ -366,6 +376,8 @@ export default function WalletPage() {
         const results = await Promise.all([
           fetch("/api/wallet/trx/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch("/api/wallet/usdt/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/wallet/eurc/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/wallet/ousd/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
         const gotDeposit = results.some((d) => d && d.added && parseFloat(d.added) > 0);
         if (gotDeposit) {
@@ -394,6 +406,7 @@ export default function WalletPage() {
     (parseFloat(daiBalance) * marketPrices.DAI) +
     (parseFloat(busdBalance) * marketPrices.BUSD) +
     (parseFloat(eurcBalance) * marketPrices.EURC) +
+    (parseFloat(ousdBalance) * marketPrices.OUSD) +
     (parseFloat(xrpBalance) * marketPrices.XRP) +
     (parseFloat(xlmBalance) * marketPrices.XLM) +
     (parseFloat(ethBalance) * marketPrices.ETH) +
@@ -446,7 +459,7 @@ export default function WalletPage() {
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{userName}</p>
                 </div>
                 <div className="flex gap-1">
-                  {["PI", "BTC", "ETH", "SDA", "USDT", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD", "EURC"].map((c) => (
+                  {["PI", "BTC", "ETH", "SDA", "USDT", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "DOGE", "TON", "USDC", "DAI", "BUSD", "EURC", "OUSD"].map((c) => (
                     <span key={c} className="text-[7px] font-black text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">{c}</span>
                   ))}
                 </div>
@@ -485,7 +498,7 @@ export default function WalletPage() {
         <div>
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
-          <span className="text-[9px] font-bold text-slate-600">16 {t("wallet.assetsCount")}</span>
+          <span className="text-[9px] font-bold text-slate-600">18 {t("wallet.assetsCount")}</span>
         </div>
 
         <div className="space-y-2.5 mb-8">
@@ -507,6 +520,7 @@ export default function WalletPage() {
           <AssetCard logo={<DaiLogo />} name="Dai" symbol="DAI" network="ERC20" balance={daiBalance} marketPrice={marketPrices.DAI} usdValue={parseFloat(daiBalance) * marketPrices.DAI} priceChange={priceChanges.DAI} loading={loading} onClick={() => router.push('/wallet/dai')} />
           <AssetCard logo={<BusdLogo />} name="Binance USD" symbol="BUSD" network="BEP20" balance={busdBalance} marketPrice={marketPrices.BUSD} usdValue={parseFloat(busdBalance) * marketPrices.BUSD} priceChange={priceChanges.BUSD} loading={loading} onClick={() => router.push('/wallet/busd')} />
           <AssetCard logo={<EurcLogo />} name="Euro Coin" symbol="EURC" network="ERC20" balance={eurcBalance} marketPrice={marketPrices.EURC} usdValue={parseFloat(eurcBalance) * marketPrices.EURC} priceChange={priceChanges.EURC} loading={loading} onClick={() => router.push('/wallet/eurc')} />
+          <AssetCard logo={<OusdLogo />} name="Origin Dollar" symbol="OUSD" network="ERC20" balance={ousdBalance} marketPrice={marketPrices.OUSD} usdValue={parseFloat(ousdBalance) * marketPrices.OUSD} priceChange={priceChanges.OUSD} loading={loading} onClick={() => router.push('/wallet/ousd')} />
         </div>
         </div>
         )}

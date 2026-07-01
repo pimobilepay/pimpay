@@ -208,14 +208,36 @@ const ASSET_CONFIG: Record<string, {
     explorerBase: "https://etherscan.io/tx/",
     decimals: 6,
   },
+  EURC: {
+    name: "Euro Coin",
+    network: "ERC20",
+    image: "/eurc.png",
+    accentColor: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    accentBorder: "border-blue-400/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 6,
+  },
+  OUSD: {
+    name: "Origin Dollar",
+    network: "ERC20",
+    image: "/ousd.png",
+    accentColor: "text-cyan-400",
+    accentBg: "bg-cyan-500/10",
+    accentBorder: "border-cyan-400/20",
+    explorerLabel: "Etherscan",
+    explorerBase: "https://etherscan.io/tx/",
+    decimals: 18,
+  },
 };
 
 const MARKET_DEFAULTS: Record<string, number> = {
-  PI: 0, SDA: 1.20, USDT: 1.00, BTC: 52000, ETH: 2800, BNB: 600, XRP: 0.55, XLM: 0.12, USDC: 1.00, TRX: 0.14, ADA: 0.60, DOGE: 0.15, TON: 5.20, SOL: 145, DAI: 1.00, BUSD: 1.00,
+  PI: 0, SDA: 1.20, USDT: 1.00, BTC: 52000, ETH: 2800, BNB: 600, XRP: 0.55, XLM: 0.12, USDC: 1.00, TRX: 0.14, ADA: 0.60, DOGE: 0.15, TON: 5.20, SOL: 145, DAI: 1.00, BUSD: 1.00, EURC: 1.08, OUSD: 1.00,
 };
 
 const COINGECKO_IDS: Record<string, string> = {
-  PI: "pi-network", BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", USDT: "tether", USDC: "usd-coin", XRP: "ripple", XLM: "stellar", TRX: "tron", ADA: "cardano", DOGE: "dogecoin", TON: "the-open-network", SOL: "solana", DAI: "dai", BUSD: "binance-usd",
+  PI: "pi-network", BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", USDT: "tether", USDC: "usd-coin", XRP: "ripple", XLM: "stellar", TRX: "tron", ADA: "cardano", DOGE: "dogecoin", TON: "the-open-network", SOL: "solana", DAI: "dai", BUSD: "binance-usd", EURC: "euro-coin", OUSD: "origin-dollar",
 };
 
 interface TxUser {
@@ -477,6 +499,8 @@ export default function AssetDetailPage() {
       USDC: "/api/wallet/usdc/sync",
       BUSD: "/api/wallet/busd/sync",
       DAI: "/api/wallet/dai/sync",
+      EURC: "/api/wallet/eurc/sync",
+      OUSD: "/api/wallet/ousd/sync",
     };
     // Display precision per asset
     const SYNC_DECIMALS: Record<string, number> = {
@@ -491,9 +515,11 @@ export default function AssetDetailPage() {
       USDC: 4,
       BUSD: 4,
       DAI: 4,
+      EURC: 4,
+      OUSD: 4,
     };
     // Assets whose sync endpoint is throttled server-side to 30s
-    const SLOW_SYNC = new Set(["SDA", "BNB", "USDC", "BUSD", "DAI"]);
+    const SLOW_SYNC = new Set(["SDA", "BNB", "USDC", "BUSD", "DAI", "EURC", "OUSD"]);
     const endpoint = SYNC_ENDPOINTS[assetId];
     if (!endpoint) return;
     const decimals = SYNC_DECIMALS[assetId] ?? 6;

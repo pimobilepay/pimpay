@@ -21,7 +21,7 @@ export const CRYPTO_IDS = [
   "PI", "SDA",
   "BTC", "ETH", "BNB", "SOL", "XRP", "XLM",
   "TRX", "ADA", "DOGE", "TON",
-  "USDT", "USDC", "DAI", "BUSD",
+  "USDT", "USDC", "DAI", "BUSD", "EURC", "OUSD",
 ] as const;
 
 export type CryptoId = (typeof CRYPTO_IDS)[number];
@@ -44,6 +44,8 @@ export const DEFAULT_CRYPTO_PRICES: Record<string, number> = {
   USDC: 1,
   DAI: 1,
   BUSD: 1,
+  EURC: 1.08,
+  OUSD: 1,
 };
 
 /** Taux fiat par defaut (combien de X pour 1 USD) - MIS A JOUR AUTOMATIQUEMENT */
@@ -177,6 +179,8 @@ export const CURRENCIES = {
   USDC: "USDC",
   DAI: "DAI",
   BUSD: "BUSD",
+  EURC: "EURC",
+  OUSD: "OUSD",
   // Fiat
   USD: "USD",
   EUR: "EUR",

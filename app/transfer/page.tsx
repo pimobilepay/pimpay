@@ -109,6 +109,20 @@ const STATIC_META: Record<
     logo: "/dai.png",
     addressType: "evm",
   },
+  EURC: {
+    symbol: "EURC",
+    network: "Ethereum ERC20",
+    color: "text-blue-400",
+    logo: "/eurc.png",
+    addressType: "evm",
+  },
+  OUSD: {
+    symbol: "OUSD",
+    network: "Ethereum ERC20",
+    color: "text-cyan-400",
+    logo: "/ousd.png",
+    addressType: "evm",
+  },
   // ── XRP Ledger ────────────────────────────────────────────────────────────
   XRP: {
     symbol: "XRP",
@@ -334,7 +348,7 @@ function detectExternalAddress(
 const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
 
 // Ordre préféré des cryptos pour le dropdown (PI en premier)
-const TRANSFER_ASSET_ORDER = ["PI", "XAF", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON", "USDT", "USDC", "DAI", "BUSD", "LTC"];
+  const TRANSFER_ASSET_ORDER = ["PI", "XAF", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON", "USDT", "USDC", "DAI", "BUSD", "EURC", "OUSD", "LTC"];
 
 /** Trie les wallets: PI en premier, puis selon l'ordre prédéfini, puis les autres par solde décroissant */
 function sortWallets(wallets: WalletData[]): WalletData[] {
@@ -629,7 +643,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
     parseFloat(amount) > currentWallet.balance ||
     parseFloat(amount) < 0.00000001;
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─────────────────���───────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (

@@ -143,23 +143,40 @@ const BSC_RPC_ENDPOINTS = [
   "https://bsc-dataseed1.defibit.io/",
 ];
 
+// Endpoints RPC publics Ethereum Mainnet (pour EURC / OUSD qui sont natifs ERC20)
+const ETH_RPC_ENDPOINTS = [
+  "https://eth.llamarpc.com",
+  "https://ethereum-rpc.publicnode.com",
+  "https://rpc.ankr.com/eth",
+  "https://cloudflare-eth.com",
+];
+
 const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
-// Contrats officiels sur BSC Mainnet (tous en 18 décimales)
-export const BSC_TOKENS: Record<string, { contract: string; decimals: number }> = {
+// Contrats des stablecoins EVM.
+// - USDC / BUSD / DAI : Binance Smart Chain (18 décimales)
+// - EURC : Euro Coin de Circle sur Ethereum (6 décimales)
+// - OUSD : Origin Dollar sur Ethereum (18 décimales)
+export const BSC_TOKENS: Record<
+  string,
+  { contract: string; decimals: number; rpc?: string[] }
+> = {
   USDC: { contract: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18 },
   BUSD: { contract: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", decimals: 18 },
   DAI: { contract: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", decimals: 18 },
+  EURC: { contract: "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c", decimals: 6, rpc: ETH_RPC_ENDPOINTS },
+  OUSD: { contract: "0x2A8e1E676Ec238d8A992307B495b45B3fEAa5e86", decimals: 18, rpc: ETH_RPC_ENDPOINTS },
 };
 
 export async function getEvmTokenBalance(
   address: string,
-  symbol: "USDC" | "BUSD" | "DAI"
+  symbol: string
 ): Promise<number | null> {
-  const token = BSC_TOKENS[symbol];
+  const token = BSC_TOKENS[symbol.toUpperCase()];
   if (!token) return null;
 
-  for (const rpc of BSC_RPC_ENDPOINTS) {
+  const endpoints = token.rpc ?? BSC_RPC_ENDPOINTS;
+  for (const rpc of endpoints) {
     try {
       const provider = new ethers.JsonRpcProvider(rpc);
       const contract = new ethers.Contract(token.contract, ERC20_ABI, provider);

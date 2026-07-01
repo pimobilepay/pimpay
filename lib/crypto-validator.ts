@@ -71,6 +71,18 @@ export const CRYPTO_RULES: Record<string, CryptoRule> = {
     regex: /^0x[a-fA-F0-9]{40}$/,
     requiresMemo: false,
   },
+  EURC: {
+    name: "Euro Coin (EVM)",
+    prefix: "0x",
+    regex: /^0x[a-fA-F0-9]{40}$/,
+    requiresMemo: false,
+  },
+  OUSD: {
+    name: "Origin Dollar (EVM)",
+    prefix: "0x",
+    regex: /^0x[a-fA-F0-9]{40}$/,
+    requiresMemo: false,
+  },
 
   // --- Tron Group (T...) : TRX, USDT ---
   TRX: {
