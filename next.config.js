@@ -46,11 +46,13 @@ const nextConfig = {
   // 5. Optimisations (On ne garde que ce qui est valide en v16)
   experimental: {
     optimizePackageImports: ["lucide-react", "sonner"],
+    // Réduit fortement l'empreinte mémoire de la compilation Webpack (évite les OOM/SIGKILL au build)
+    webpackMemoryOptimizations: true,
     // On retire 'proxy' et 'turbopack' qui causent l'erreur
   },
 
   // 6. Moteur Webpack (Maintenu pour la Crypto/WASM)
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
@@ -65,6 +67,14 @@ const nextConfig = {
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
       };
+    }
+
+    // Limite la consommation mémoire pendant le build de production
+    if (!dev) {
+      // Désactive le cache mémoire de Webpack qui peut faire exploser la RAM sur un gros graphe de modules
+      config.cache = false;
+      // Limite le nombre de modules compilés en parallèle pour lisser les pics de mémoire
+      config.parallelism = 1;
     }
 
     return config;
