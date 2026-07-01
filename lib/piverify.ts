@@ -64,7 +64,10 @@ export interface PiVerifyWebhookEvent {
 }
 
 function getApiKey(): string {
-  const key = process.env.PIVERIFY_API_KEY;
+  // Nettoyage défensif : un espace, une tabulation ou un retour à la ligne
+  // collé par erreur dans la variable d'environnement est la cause la plus
+  // fréquente d'une erreur « Invalid or inactive API key ».
+  const key = (process.env.PIVERIFY_API_KEY || "").trim();
   if (!key) {
     throw new Error(
       "PIVERIFY_API_KEY manquante. Ajoutez votre clé serveur PiVerify (sbx_... ou live_...)."
@@ -75,7 +78,7 @@ function getApiKey(): string {
 
 /** Indique si l'environnement courant est sandbox (clé sbx_). */
 export function isPiVerifySandbox(): boolean {
-  return (process.env.PIVERIFY_API_KEY || "").startsWith("sbx_");
+  return (process.env.PIVERIFY_API_KEY || "").trim().startsWith("sbx_");
 }
 
 async function piVerifyFetch<T>(
