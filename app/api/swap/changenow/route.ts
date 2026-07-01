@@ -55,6 +55,8 @@ const CN_TICKER: Record<string, string> = {
   USDC: "usdcerc20", // USDC ERC-20 (le plus liquide)
   DAI:  "dai",
   BUSD: "busdbsc",   // BUSD BEP-20
+  EURC: "eurc",      // Euro Coin ERC-20
+  OUSD: "ousd",      // Origin Dollar ERC-20
 };
 
 /** Actifs gérés exclusivement par Sun.io (TRON DEX) */
@@ -332,6 +334,8 @@ export async function POST(req: NextRequest) {
       USDC: user.sidraAddress,
       DAI:  user.sidraAddress,
       BUSD: user.sidraAddress,
+      EURC: user.sidraAddress,
+      OUSD: user.sidraAddress,
       SOL:  user.solAddress,
       XRP:  user.xrpAddress,
       XLM:  user.xlmAddress,

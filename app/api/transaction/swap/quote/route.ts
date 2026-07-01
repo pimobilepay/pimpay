@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       const [fiatRes, cryptoRes] = await Promise.all([
         fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 60 } }),
         fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai&vs_currencies=usd",
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,stellar,tron,cardano,dogecoin,the-open-network,tether,usd-coin,dai,euro-coin,origin-dollar&vs_currencies=usd",
           { signal: AbortSignal.timeout(5000) }
         ),
       ]);
@@ -64,6 +64,8 @@ export async function POST(req: Request) {
         marketRates["USDT"] = cd.tether?.usd || 1;
         marketRates["USDC"] = cd["usd-coin"]?.usd || 1;
         marketRates["DAI"] = cd.dai?.usd || 1;
+        marketRates["EURC"] = cd["euro-coin"]?.usd || 1.08;
+        marketRates["OUSD"] = cd["origin-dollar"]?.usd || 1;
       }
     } catch (e) { console.warn("Fallback rates used"); }
 
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     marketRates["BUSD"] = 1;
 
     // 3. Calcul du taux unifie (via USD comme pivot)
-    const CRYPTO_LIST = ["PI", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "DOGE", "TON", "USDT", "USDC", "DAI", "BUSD"];
+    const CRYPTO_LIST = ["PI", "SDA", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "DOGE", "TON", "USDT", "USDC", "DAI", "BUSD", "EURC", "OUSD"];
     const isFromCrypto = CRYPTO_LIST.includes(fromCurr);
     const isToCrypto = CRYPTO_LIST.includes(toCurr);
 

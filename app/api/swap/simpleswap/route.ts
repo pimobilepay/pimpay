@@ -55,6 +55,8 @@ const SS_TICKER: Record<string, { ticker: string; network: string }> = {
   USDC: { ticker: "usdc", network: "eth" },  // USDC ERC-20
   DAI:  { ticker: "dai",  network: "eth" },
   BUSD: { ticker: "busd", network: "bsc" },
+  EURC: { ticker: "eurc", network: "eth" },  // Euro Coin ERC-20
+  OUSD: { ticker: "ousd", network: "eth" },  // Origin Dollar ERC-20
   LTC:  { ticker: "ltc",  network: "ltc" },
   MATIC: { ticker: "matic", network: "polygon" },
   AVAX: { ticker: "avax", network: "avax" },
@@ -419,6 +421,8 @@ export async function POST(req: NextRequest) {
       USDC:  user.sidraAddress,
       DAI:   user.sidraAddress,
       BUSD:  user.sidraAddress,
+      EURC:  user.sidraAddress,
+      OUSD:  user.sidraAddress,
       LINK:  user.sidraAddress,
       MATIC: user.sidraAddress,
       SOL:   user.solAddress,
