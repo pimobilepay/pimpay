@@ -70,11 +70,11 @@ export async function POST(req: NextRequest) {
         // tempToken invalide ou expiré
         return NextResponse.json({ error: "Session expirée, veuillez vous reconnecter" }, { status: 401 });
       }
-    } else if (piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
-      // [FIX V2/V13] Cas : Pi Browser — fallback avec contraintes renforcées
-      // Longueur CUID (25+) et format alphanumérique requis
-      // TODO V2 complet : valider via GET https://api.minepi.com/v2/me
-      userId = piToken;
+    } else if (piToken) {
+      // [FIX V16] Cas : Pi Browser — pi_session_token vérifié cryptographiquement
+      // (signature JWT, sinon validation via GET https://api.minepi.com/v2/me).
+      const { verifyPiSessionToken } = await import("@/lib/auth");
+      userId = await verifyPiSessionToken(piToken);
     }
 
     if (!userId || !pin) {

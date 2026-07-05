@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT, getAuthUserIdFromBearer } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getAuthUserId, getAuthUserIdFromBearer } from "@/lib/auth";
 
 /**
  * GET /api/security/pin-status
@@ -17,21 +16,9 @@ export async function GET(req: Request) {
     // 1. Bearer token (localStorage) en priorite
     let userId: string | null = await getAuthUserIdFromBearer(req);
 
-    // 2. Fallback sur les cookies (session Pi Network ou JWT classique)
+    // 2. Fallback cookies (JWT classique / pi_session_token) — vérifié cryptographiquement. [FIX V16]
     if (!userId) {
-      const cookieStore = await cookies();
-      const piToken = cookieStore.get("pi_session_token")?.value;
-      const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-      if (piToken && piToken.length > 20) {
-        userId = piToken;
-      } else if (classicToken) {
-        const payload = await verifyJWT(classicToken);
-        if (!payload) {
-          return NextResponse.json({ error: "Session expiree" }, { status: 401 });
-        }
-        userId = payload.id;
-      }
+      userId = await getAuthUserId();
     }
 
     if (!userId) {

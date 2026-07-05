@@ -1,24 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { verifyJWT } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
-    let userId: string | null = null;
-
-    // Récupération sécurisée de l'ID utilisateur via JWT (lib/auth)
-    if (piToken) userId = piToken;
-    else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) return NextResponse.json({ error: "Token invalide" }, { status: 401 });
-      userId = payload.id;
-    }
+    // [FIX V16] Auth centralisée et vérifiée cryptographiquement.
+    const userId = await getAuthUserId();
 
     if (!userId) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 

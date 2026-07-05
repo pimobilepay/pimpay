@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export async function PUT(req: Request) {
@@ -14,24 +13,8 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Le PIN doit contenir exactement 6 chiffres" }, { status: 400 });
     }
 
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
-    let userId: string | null = null;
-
-    // 1. Pi Network session (pi_session_token contient directement le userId)
-    if (piToken && piToken.length > 20) {
-      userId = piToken;
-    } 
-    // 2. Token JWT classique via verifyJWT
-    else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-      userId = payload.id;
-    }
+    // [FIX V16] Auth centralisée et vérifiée cryptographiquement.
+    const userId = await getAuthUserId();
 
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });

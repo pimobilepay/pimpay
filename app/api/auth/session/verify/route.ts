@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
-import { verifyJWT } from "@/lib/auth";
+import { verifyJWT, verifyPiSessionToken } from "@/lib/auth";
 
 /**
  * API pour vérifier si la session actuelle est toujours valide.
@@ -22,31 +22,22 @@ export async function GET() {
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     const piToken = cookieStore.get("pi_session_token")?.value;
 
-    // 1. Vérification pour Pi Network session (pi_session_token peut contenir id ou piUserId)
+    // 1. Vérification pour Pi Network session
+    // [FIX V16] pi_session_token vérifié cryptographiquement (signature JWT,
+    // sinon validation via api.minepi.com/v2/me). Plus aucune confiance dans la
+    // valeur brute du cookie — la faille permettait d'usurper n'importe quel compte.
     if (piToken && piToken.length > 10) {
-      // Essayer de trouver par ID direct
-      let user = await prisma.user.findUnique({
-        where: { id: piToken, status: "ACTIVE" },
-        select: { id: true }
-      });
+      const verifiedUserId = await verifyPiSessionToken(piToken);
 
-      // Si non trouvé, essayer par piUserId
-      if (!user) {
-        user = await prisma.user.findFirst({
-          where: { piUserId: piToken, status: "ACTIVE" },
-          select: { id: true }
-        });
-      }
-
-      if (!user) {
-        return NextResponse.json({ valid: false, reason: "user_not_found" }, { status: 401 });
+      if (!verifiedUserId) {
+        return NextResponse.json({ valid: false, reason: "invalid_token" }, { status: 401 });
       }
 
       // Vérifier que la session existe toujours dans la DB (déconnexion globale)
       const session = await prisma.session.findFirst({
-        where: { 
-          userId: user.id,
-          isActive: true 
+        where: {
+          userId: verifiedUserId,
+          isActive: true
         },
         select: { id: true }
       });

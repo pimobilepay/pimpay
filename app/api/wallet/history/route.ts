@@ -1,28 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-
-    // --- LE VACCIN HYBRIDE (PimPay Standard) ---
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-    let userId: string | null = null;
-
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-      userId = payload.id;
-    }
+    // [FIX V16] Auth centralisée et vérifiée cryptographiquement.
+    const userId = await getAuthUserId();
 
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });

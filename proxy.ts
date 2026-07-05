@@ -127,8 +127,23 @@ export async function proxy(req: NextRequest) {
   }
 
   // 4. SÉCURITÉ PI (Mainnet Ready)
-  if (!userPayload && piToken && piToken.length > 20) {
-    userPayload = { id: piToken, role: "USER", isPi: true };
+  // [FIX V16] pi_session_token est un JWT signé : on VÉRIFIE sa signature au lieu
+  // de faire confiance à la valeur brute (qui permettait d'usurper n'importe quel
+  // compte en posant pi_session_token=<userId_victime>).
+  if (!userPayload && piToken) {
+    try {
+      const secretStr = process.env.JWT_SECRET;
+      if (secretStr) {
+        const secret = new TextEncoder().encode(secretStr);
+        const { payload } = await jose.jwtVerify(piToken, secret);
+        if (payload?.id) {
+          userPayload = { id: payload.id, role: (payload.role as string) || "USER", isPi: true };
+        }
+      }
+    } catch {
+      // pi_session_token invalide ou expiré → non authentifié.
+      // La logique de protection des routes redirigera si nécessaire.
+    }
   }
 
   // 5. REDIRECTIONS BASÉES SUR LE RÔLE

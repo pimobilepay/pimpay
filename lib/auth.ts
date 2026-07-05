@@ -49,13 +49,68 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 }
 
 /**
+ * [FIX V16 — CRITIQUE] Résolution SÉCURISÉE du cookie pi_session_token.
+ *
+ * Contexte : pi_session_token contient un JWT signé (émis par signSessionToken
+ * au signup / pi-login), et NON un userId brut. Les anciennes versions
+ * retournaient la valeur brute du cookie comme userId — permettant à un
+ * attaquant de forger pi_session_token=<userId_victime> et d'usurper n'importe
+ * quel compte (Broken Authentication / IDOR massif).
+ *
+ * Nouvelle logique — la valeur du cookie n'est JAMAIS approuvée telle quelle :
+ *   1. On tente de la vérifier comme JWT signé (signature + session active en DB).
+ *   2. À défaut, on la traite comme un vrai access token Pi Network et on le
+ *      valide auprès de api.minepi.com/v2/me, puis on résout l'utilisateur via
+ *      son piUserId. Le résultat est mis en cache court pour limiter les appels.
+ */
+const PI_TOKEN_CACHE = new Map<string, { userId: string; expires: number }>();
+const PI_TOKEN_CACHE_TTL_MS = 60_000; // 1 minute
+
+export async function verifyPiSessionToken(piToken: string | undefined | null): Promise<string | null> {
+  if (!piToken || typeof piToken !== "string" || piToken.length < 10) return null;
+
+  // 1. Vérification cryptographique : pi_session_token est normalement un JWT signé.
+  const jwtPayload = await verifyJWT(piToken);
+  if (jwtPayload?.id) return jwtPayload.id;
+
+  // 2. Fallback : traiter la valeur comme un access token Pi Network et le valider
+  //    auprès de l'API officielle Pi. On ne fait JAMAIS confiance au contenu local.
+  const cached = PI_TOKEN_CACHE.get(piToken);
+  if (cached && cached.expires > Date.now()) return cached.userId;
+
+  try {
+    const piRes = await fetch("https://api.minepi.com/v2/me", {
+      headers: { Authorization: `Bearer ${piToken}` },
+      // Empêche toute mise en cache implicite d'une réponse d'auth
+      cache: "no-store",
+    });
+
+    if (!piRes.ok) return null;
+
+    const verified = await piRes.json().catch(() => null);
+    const uid = verified?.uid;
+    if (!uid) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { piUserId: String(uid) },
+      select: { id: true, status: true },
+    });
+
+    if (!user || user.status !== "ACTIVE") return null;
+
+    PI_TOKEN_CACHE.set(piToken, { userId: user.id, expires: Date.now() + PI_TOKEN_CACHE_TTL_MS });
+    return user.id;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get authenticated user ID from cookies (supports Pi Browser and classic tokens)
  * This is the primary auth helper for API routes
  *
- * [FIX V2/V13] — pi_session_token est accepté comme fallback UNIQUEMENT s'il a
- * la longueur d'un CUID valide (25 caractères min). Cela ne remplace pas la
- * validation cryptographique via api.minepi.com/v2/me (TODO complet V2),
- * mais bloque les chaînes triviales de >20 caractères forgées à la main.
+ * [FIX V16] — Plus aucune confiance dans la valeur brute d'un cookie. Le JWT
+ * classique et le pi_session_token sont tous deux vérifiés cryptographiquement.
  */
 export async function getAuthUserId(): Promise<string | null> {
   try {
@@ -68,14 +123,9 @@ export async function getAuthUserId(): Promise<string | null> {
       if (payload?.id) return payload.id;
     }
 
-    // 2. Pi Browser token — fallback (TODO V2: valider via api.minepi.com/v2/me)
-    // Contrainte minimale : longueur CUID (25 chars) et format alphanumérique
+    // 2. Pi Browser token — vérifié (signature JWT, sinon validation API Pi)
     const piToken = cookieStore.get("pi_session_token")?.value;
-    if (piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
-      return piToken;
-    }
-
-    return null;
+    return await verifyPiSessionToken(piToken);
   } catch {
     return null;
   }
@@ -95,16 +145,17 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
       })
     );
     
-    // Pi Browser token
-    const piToken = parsedCookies['pi_session_token'];
-    if (piToken) return piToken;
-    
-    // Classic JWT tokens
+    // Classic JWT tokens en priorité (vérification cryptographique réelle)
     const token = parsedCookies['token'] || parsedCookies['pimpay_token'];
-    if (!token) return null;
-    
-    const payload = await verifyJWT(token);
-    return payload?.id || null;
+    if (token) {
+      const payload = await verifyJWT(token);
+      if (payload?.id) return payload.id;
+    }
+
+    // [FIX V16] Pi Browser token — vérifié (signature JWT, sinon validation API Pi).
+    // NE JAMAIS retourner la valeur brute du cookie : c'était la faille d'usurpation.
+    const piToken = parsedCookies['pi_session_token'];
+    return await verifyPiSessionToken(piToken);
   } catch {
     return null;
   }
@@ -114,9 +165,10 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
  * Get authenticated user ID from Bearer token in Authorization header
  * Use for APIs that receive tokens via Authorization: Bearer <token>
  * 
- * Note: This function does NOT check session revocation in DB because
- * localStorage-based tokens may not have corresponding sessions.
- * For admin/sensitive routes, use getAuthPayloadFromBearer instead.
+ * [FIX V16] — Vérifie désormais la révocation de session : si une Session
+ * correspondante existe en DB, elle DOIT être isActive = true. Cela bloque un
+ * token volé après déconnexion. Les tokens sans session en DB (legacy
+ * localStorage) restent tolérés pour compatibilité.
  */
 export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
   try {
@@ -126,12 +178,22 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
     const token = authHeader.split(" ")[1];
     if (!token) return null;
     
-    // Verify JWT without session check (for localStorage tokens)
+    // Vérification cryptographique de la signature + expiration
     const secret = getJwtSecret();
     if (!secret) return null;
 
     const { payload } = await jose.jwtVerify(token, secret);
-    return payload.id as string || null;
+    const userId = (payload.id as string) || null;
+    if (!userId) return null;
+
+    // Révocation : si une session existe pour ce token, elle doit être active.
+    const session = await prisma.session.findFirst({
+      where: { token },
+      select: { isActive: true },
+    });
+    if (session && !session.isActive) return null;
+
+    return userId;
   } catch {
     return null;
   }

@@ -2,10 +2,9 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
-import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
+import { getAuthUserId } from "@/lib/auth";
 import { ethers } from "ethers";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
@@ -97,23 +96,8 @@ async function syncTrxBalanceSafe(
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken =
-      cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-
-    let userId: string | null = null;
-
-    if (piToken) {
-      userId = piToken;
-    } else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expirée" }, { status: 401 });
-      }
-      userId = payload.id;
-    }
+    // [FIX V16] Auth centralisée et vérifiée cryptographiquement.
+    const userId = await getAuthUserId();
 
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });

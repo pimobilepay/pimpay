@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
@@ -21,26 +20,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Le PIN doit contenir 4 ou 6 chiffres." }, { status: 400 });
     }
 
-    // 3. Extraction et validation du Token
-    const cookieStore = await cookies();
-    const piToken = cookieStore.get("pi_session_token")?.value;
-    const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
-    
-    let userId: string | null = null;
+    // 3. [FIX V16] Auth centralisée et vérifiée cryptographiquement.
+    const userId = await getAuthUserId();
 
-    // Pi Network session
-    if (piToken && piToken.length > 20) {
-      userId = piToken;
-    } 
-    // Token JWT classique via verifyJWT
-    else if (classicToken) {
-      const payload = await verifyJWT(classicToken);
-      if (!payload) {
-        return NextResponse.json({ error: "Session expirée ou invalide." }, { status: 401 });
-      }
-      userId = payload.id;
-    }
-    
     if (!userId) {
       return NextResponse.json({ error: "Authentification requise." }, { status: 401 });
     }

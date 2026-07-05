@@ -2,22 +2,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyJWT } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getAuthUserId } from "@/lib/auth";
 
-// Fonction utilitaire interne pour récupérer le userId
+// [FIX V16] Auth centralisée et vérifiée (JWT signé / pi_session_token validé).
+// Ne fait plus jamais confiance à la valeur brute du cookie pi_session_token.
 async function getAuthenticatedUserId() {
-  const cookieStore = await cookies();
-  const piToken = cookieStore.get("pi_session_token")?.value;
-  const classicToken = cookieStore.get("token")?.value;
-
-  if (piToken) return piToken;
-
-  if (classicToken) {
-    const payload = await verifyJWT(classicToken);
-    return payload?.id || null;
-  }
-  return null;
+  return await getAuthUserId();
 }
 
 export async function GET(req: NextRequest) {
