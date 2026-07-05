@@ -124,6 +124,24 @@ type AnalyticsData = {
   recentSignups: RecentUser[];
 };
 
+type GrowthPeriod = "24h" | "7d" | "30d" | "90d" | "all";
+
+type GrowthMetric = { value: number; previous: number; growth: number | null };
+
+type GrowthData = {
+  period: GrowthPeriod;
+  unit: string;
+  hasComparison: boolean;
+  totalUsers: number;
+  metrics: {
+    newUsers: GrowthMetric;
+    transactions: GrowthMetric;
+    volume: GrowthMetric;
+    fees: GrowthMetric;
+  };
+  chart: Array<{ label: string; newUsers: number; transactions: number; volume: number; fees: number }>;
+};
+
 type OnlineUser = {
   userId: string;
   userName: string;
@@ -636,6 +654,10 @@ export default function AdminAnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "health">("overview");
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
   const [visitorsPeriod, setVisitorsPeriod] = useState<"today" | "week" | "month">("today");
+  const [growthPeriod, setGrowthPeriod] = useState<GrowthPeriod>("30d");
+  const [growthMetric, setGrowthMetric] = useState<"newUsers" | "transactions" | "volume" | "fees">("newUsers");
+  const [growthData, setGrowthData] = useState<GrowthData | null>(null);
+  const [growthLoading, setGrowthLoading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineUsersGeo, setOnlineUsersGeo] = useState<OnlineUserGeo[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
@@ -700,6 +722,23 @@ export default function AdminAnalyticsPage() {
     const interval = setInterval(() => { fetchAnalytics(true); }, 8000);
     return () => clearInterval(interval);
   }, [fetchAnalytics]);
+
+  // Fetch growth metrics for the selected period
+  const fetchGrowth = useCallback(async (period: GrowthPeriod) => {
+    try {
+      setGrowthLoading(true);
+      const res = await fetch(`/api/admin/analytics/growth?period=${period}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Erreur API croissance");
+      const json = (await res.json()) as GrowthData;
+      setGrowthData(json);
+    } catch {
+      setGrowthData(null);
+    } finally {
+      setGrowthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchGrowth(growthPeriod); }, [growthPeriod, fetchGrowth]);
 
   // Fetch user session details
   const fetchUserSession = useCallback(async (userId: string) => {
@@ -2371,6 +2410,123 @@ export default function AdminAnalyticsPage() {
               <p className="text-lg font-black text-white">{topCountries.length}</p>
               <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-1">Pays</p>
             </div>
+          </div>
+        </div>
+
+        {/* CROISSANCE - période sélectionnable */}
+        <div>
+          <SectionTitle>Croissance</SectionTitle>
+          <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] p-5">
+            {/* Period selector */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {([
+                { key: "24h", label: "24h" },
+                { key: "7d", label: "7 jours" },
+                { key: "30d", label: "30 jours" },
+                { key: "90d", label: "90 jours" },
+                { key: "all", label: "Toujours" },
+              ] as const).map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setGrowthPeriod(p.key)}
+                  className={`px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                    growthPeriod === p.key
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                      : "bg-white/5 text-slate-500 hover:text-white"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+              {growthLoading && <Loader2 size={16} className="text-blue-400 animate-spin self-center ml-1" />}
+            </div>
+
+            {/* Metric cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { key: "newUsers", label: "Nouveaux utilisateurs", icon: UserPlus, color: "#3b82f6", tint: "bg-blue-500/10 text-blue-400", isPi: false },
+                { key: "transactions", label: "Transactions", icon: Activity, color: "#10b981", tint: "bg-emerald-500/10 text-emerald-400", isPi: false },
+                { key: "volume", label: "Volume", icon: CircleDollarSign, color: "#f59e0b", tint: "bg-amber-500/10 text-amber-400", isPi: true },
+                { key: "fees", label: "Frais collectés", icon: Percent, color: "#06b6d4", tint: "bg-cyan-500/10 text-cyan-400", isPi: true },
+              ] as const).map((m) => {
+                const metric = growthData?.metrics[m.key];
+                const val = metric?.value ?? 0;
+                const g = metric?.growth ?? null;
+                const isSelected = growthMetric === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    onClick={() => setGrowthMetric(m.key)}
+                    className={`text-left p-4 rounded-2xl border transition-all ${
+                      isSelected
+                        ? "bg-white/[0.04] border-blue-500/30"
+                        : "bg-white/[0.02] border-white/[0.04] hover:border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${m.tint}`}>
+                        <m.icon size={16} />
+                      </div>
+                      {g !== null && (
+                        <div className={`flex items-center gap-0.5 text-[9px] font-black px-1.5 py-1 rounded-full ${
+                          g > 0 ? "bg-emerald-500/10 text-emerald-400" : g < 0 ? "bg-red-500/10 text-red-400" : "bg-white/5 text-slate-400"
+                        }`}>
+                          {g > 0 ? <TrendingUp size={11} /> : g < 0 ? <TrendingDown size={11} /> : null}
+                          {Math.abs(g)}%
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xl font-black text-white tracking-tight">
+                      {m.isPi ? formatAmount(val) : val.toLocaleString("fr-FR")}
+                      {m.isPi && <span className="text-[10px] text-slate-500 font-bold ml-1">Pi</span>}
+                    </p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1.5px] mt-1">{m.label}</p>
+                    {metric && growthData?.hasComparison && (
+                      <p className="text-[8px] text-slate-600 mt-0.5">
+                        Préc. : {m.isPi ? formatAmount(metric.previous) : metric.previous.toLocaleString("fr-FR")}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Growth chart for the selected metric */}
+            <div className="h-52 mt-5">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={growthData?.chart || []}>
+                  <defs>
+                    <linearGradient id="gradGrowth" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={20} />
+                  <YAxis tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} width={35} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey={growthMetric}
+                    name={
+                      growthMetric === "newUsers" ? "Nouveaux" :
+                      growthMetric === "transactions" ? "Transactions" :
+                      growthMetric === "volume" ? "Volume" : "Frais"
+                    }
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fill="url(#gradGrowth)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {growthData && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.05]">
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">Base utilisateurs totale</span>
+                <span className="text-[11px] font-black text-blue-400">{growthData.totalUsers.toLocaleString("fr-FR")}</span>
+              </div>
+            )}
           </div>
         </div>
 
