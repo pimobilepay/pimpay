@@ -164,11 +164,16 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
 /**
  * Get authenticated user ID from Bearer token in Authorization header
  * Use for APIs that receive tokens via Authorization: Bearer <token>
- * 
- * [FIX V16] — Vérifie désormais la révocation de session : si une Session
- * correspondante existe en DB, elle DOIT être isActive = true. Cela bloque un
- * token volé après déconnexion. Les tokens sans session en DB (legacy
- * localStorage) restent tolérés pour compatibilité.
+ *
+ * [FIX V16 + V17] — Sécurité renforcée :
+ *   1. Signature + expiration vérifiées cryptographiquement (jose).
+ *   2. Révocation de session : si une Session existe pour ce token, elle DOIT
+ *      être isActive = true (bloque un token volé réutilisé après déconnexion).
+ *   3. [V17] Statut du compte : l'utilisateur doit exister et être ACTIVE.
+ *      Un token cryptographiquement valide d'un compte banni / suspendu /
+ *      supprimé est désormais rejeté (auparavant il restait accepté).
+ *   Les tokens legacy sans Session en DB restent tolérés (compatibilité), mais
+ *   le contrôle de statut du compte s'applique dans tous les cas.
  */
 export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
   try {
@@ -178,7 +183,7 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
     const token = authHeader.split(" ")[1];
     if (!token) return null;
     
-    // Vérification cryptographique de la signature + expiration
+    // 1. Vérification cryptographique de la signature + expiration
     const secret = getJwtSecret();
     if (!secret) return null;
 
@@ -186,12 +191,19 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
     const userId = (payload.id as string) || null;
     if (!userId) return null;
 
-    // Révocation : si une session existe pour ce token, elle doit être active.
+    // 2. Révocation : si une session existe pour ce token, elle doit être active.
     const session = await prisma.session.findFirst({
       where: { token },
       select: { isActive: true },
     });
     if (session && !session.isActive) return null;
+
+    // 3. [V17] Le compte doit exister et être ACTIVE (bloque bannis/supprimés).
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+    if (!user || user.status !== "ACTIVE") return null;
 
     return userId;
   } catch {

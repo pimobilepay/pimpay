@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { signSessionToken } from "@/lib/jwt";
+import { signSessionToken, signRefreshToken } from "@/lib/jwt";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = 'force-dynamic';
@@ -16,10 +16,12 @@ export const dynamic = 'force-dynamic';
  *    Limite intentionnellement plus stricte que /api/auth/login (10/60s).
  *    Après 3 échecs, l'IP est bloquée 5 minutes avec Retry-After header.
  *
- * 2. TOKEN DURÉE RÉDUITE — 1 heure au lieu de 7 jours.
+ * 2. TOKEN DURÉE RÉDUITE — access token 1 heure au lieu de 7 jours.
  *    Un compte admin compromis ne donne plus 7 jours d'accès.
- *    Le panel admin doit renouveler la session toutes les heures.
- *    Pour une session persistante, implémenter un refresh token admin dédié.
+ *    [FIX V17] Refresh token admin dédié (7j, révocable via Session.isActive)
+ *    posé en cookie httpOnly + persisté en DB. Le panel renouvelle
+ *    silencieusement l'access token 1h via POST /api/admin/refresh, sans
+ *    rallonger la durée de vie de l'access token lui-même.
  *
  * 3. ERROR MESSAGE GÉNÉRIQUE — ne pas distinguer "email inconnu" vs "mot de passe
  *    invalide" pour éviter l'énumération de comptes admin.
@@ -72,17 +74,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    // ── 3. Token — 1h (au lieu de 7j) ────────────────────────────────────
-    // Un compte admin compromis ne donne plus accès 7 jours.
-    // Pour une session persistante, ajouter un refresh token admin dédié.
+    // ── 3. Tokens ─────────────────────────────────────────────────────────
+    // Access token 1h : un compte admin compromis ne donne plus 7 jours d'accès.
     const token = await signSessionToken({ id: admin.id, role: admin.role }, "1h");
+
+    // [FIX V17] Refresh token admin 7j — signé avec JWT_REFRESH_SECRET,
+    // persisté en Session (révocable via isActive=false au logout/compromission).
+    const refreshToken = await signRefreshToken({ id: admin.id, role: admin.role });
+
+    // On révoque les anciennes sessions refresh de cet admin puis on crée la nouvelle.
+    await prisma.session.updateMany({
+      where: { userId: admin.id, isActive: true },
+      data: { isActive: false },
+    });
+    await prisma.session.create({
+      data: {
+        userId: admin.id,
+        token: refreshToken,
+        ip,
+        userAgent: req.headers.get("user-agent") || undefined,
+        isActive: true,
+      },
+    });
 
     console.info(`[ADMIN_LOGIN] Connexion réussie — admin: ${admin.id} — IP: ${ip}`);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       admin: { id: admin.id, email: admin.email, name: admin.name },
     });
+
+    // Access token 1h en cookie httpOnly (utilisé par le middleware + routes admin).
+    response.cookies.set("token", token, {
+      httpOnly: true,
+      secure:   true,
+      sameSite: "strict",
+      maxAge:   60 * 60, // 1 heure
+      path:     "/",
+    });
+
+    // Refresh token 7j en cookie httpOnly, réservé au chemin de renouvellement.
+    response.cookies.set("admin_refresh_token", refreshToken, {
+      httpOnly: true,
+      secure:   true,
+      sameSite: "strict",
+      maxAge:   60 * 60 * 24 * 7, // 7 jours
+      path:     "/",
+    });
+
+    return response;
   } catch {
     return NextResponse.json({ error: "Erreur interne" }, { status: 500 });
   }

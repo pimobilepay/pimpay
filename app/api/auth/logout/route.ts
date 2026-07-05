@@ -13,7 +13,11 @@ export async function POST() {
     // [FIX V15] — On révoque le refreshToken (stocké en DB, champ token).
     // L'accessToken (15min) expire naturellement — pas besoin de blacklist.
     const cookieStore2 = await cookies();
-    const refreshToken = cookieStore2.get("refresh_token")?.value || cookieStore2.get("pimpay_refresh")?.value;
+    const refreshToken =
+      cookieStore2.get("refresh_token")?.value ||
+      cookieStore2.get("pimpay_refresh")?.value ||
+      // [FIX V17] Refresh token admin dédié
+      cookieStore2.get("admin_refresh_token")?.value;
     if (refreshToken) {
       try {
         await prisma.session.updateMany({
@@ -62,7 +66,7 @@ export async function POST() {
     };
 
     // Supprimer avec les deux variantes de sameSite pour couvrir tous les cas
-    const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
+    const cookieNames = ["token", "pimpay_token", "session", "pi_session_token", "refresh_token", "pimpay_refresh", "admin_refresh_token"];
 
     for (const name of cookieNames) {
       cookieStore.set(name, "", laxOptions);

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { getAuthUserIdFromBearer } from "@/lib/auth";
+import { getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +47,9 @@ export async function POST(req: NextRequest) {
         securityLogs: {
           create: {
             action: "PASSWORD_CHANGE",
-            ip: req.ip || "unknown",
+            // [FIX V17] req.ip n'existe plus dans Next.js 16 → toujours "unknown".
+            // On extrait l'IP réelle depuis les en-têtes (x-forwarded-for).
+            ip: getClientIp(req),
           }
         }
       },
