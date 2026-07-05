@@ -360,6 +360,29 @@ function getCountryInfo(country: string): CountryInfo | null {
   return null;
 }
 
+// Renders a real flag image via flagcdn.com using the ISO code.
+// This is far more reliable than emoji flags, which fail to render on Windows
+// and many Android devices. Falls back to a MapPin icon when no code is known.
+function CountryFlag({ code, size = 24 }: { code?: string; size?: number }) {
+  const iso = (code || "").trim().toLowerCase();
+  if (!iso || iso.length !== 2) {
+    return <MapPin size={Math.round(size * 0.75)} className="text-blue-400" />;
+  }
+  const w = size <= 24 ? 40 : 80;
+  return (
+    <img
+      src={`https://flagcdn.com/w${w}/${iso}.png`}
+      srcSet={`https://flagcdn.com/w${w * 2}/${iso}.png 2x`}
+      width={size}
+      height={Math.round(size * 0.75)}
+      alt={`Drapeau ${iso.toUpperCase()}`}
+      loading="lazy"
+      className="rounded-[3px] object-cover shadow-sm"
+      style={{ width: size, height: Math.round(size * 0.75) }}
+    />
+  );
+}
+
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 function formatTimeAgo(dateStr: string): string {
@@ -1556,8 +1579,8 @@ export default function AdminAnalyticsPage() {
               <div className="p-4 bg-blue-500/5 border-t border-blue-500/20">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center text-2xl">
-                      {info?.flag ? <span>{info.flag}</span> : <MapPin size={18} className="text-blue-400" />}
+                    <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center overflow-hidden">
+                      <CountryFlag code={info?.code || selectedCountry.country} size={30} />
                     </div>
                     <div>
                       <p className="text-sm font-black text-white flex items-center gap-2">
@@ -1645,8 +1668,19 @@ export default function AdminAnalyticsPage() {
                   </div>
                 )}
 
+                {/* Registered users - highlighted */}
+                <div className="flex items-center justify-between mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Users size={15} className="text-blue-400" />
+                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wide">Utilisateurs inscrits</span>
+                  </div>
+                  <span className="text-base font-black text-blue-400">
+                    {selectedCountry.count.toLocaleString("fr-FR")}
+                  </span>
+                </div>
+
                 {/* User stats */}
-                <div className="grid grid-cols-3 gap-3 mt-3">
+                <div className="grid grid-cols-3 gap-3 mt-2">
                   <div className="text-center p-2 bg-white/[0.02] rounded-xl">
                     <p className="text-sm font-black text-blue-400">{selectedCountry.count}</p>
                     <p className="text-[8px] text-slate-500 uppercase">Total</p>
@@ -1771,11 +1805,7 @@ export default function AdminAnalyticsPage() {
                   }`}
                 >
                   <span className="text-[10px] font-black text-slate-500 w-5">{i + 1}</span>
-                  {info?.flag ? (
-                    <span className="text-base leading-none">{info.flag}</span>
-                  ) : (
-                    <MapPin size={14} className={getCountryCoords(c.country) ? "text-blue-400" : "text-slate-600"} />
-                  )}
+                  <CountryFlag code={info?.code || c.country} size={22} />
                   <div className="flex-1 min-w-0 text-left">
                     <span className="text-[11px] font-bold text-white block truncate">{info?.name || c.country}</span>
                     {info && (
