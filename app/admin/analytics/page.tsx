@@ -12,7 +12,8 @@ import {
   Layers, ArrowRight, Wifi, ZoomIn, ZoomOut, Crosshair, RotateCcw,
   Server, Network, Cloud, Terminal, Globe2, GitBranch,
   CheckCircle2, AlertTriangle, CircleDollarSign, Coins, Percent,
-  Receipt, Gauge, PieChart as PieChartIcon
+  Receipt, Gauge, PieChart as PieChartIcon,
+  Phone, Banknote, Landmark
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,7 @@ import {
   Marker,
   ZoomableGroup
 } from "react-simple-maps";
+import { countries as ALL_COUNTRIES, type Country as CountryInfo } from "@/lib/country-data";
 
 // --- TYPES ---
 type KPIs = {
@@ -326,6 +328,36 @@ for (const entry of COUNTRY_COORDINATES_RAW) {
 function getCountryCoords(country: string): [number, number] | null {
   const norm = normalizeCountry(country);
   return COUNTRY_COORD_MAP.get(norm) ?? null;
+}
+
+// Build lookup maps for rich country metadata (flag, dial code, currency, ...).
+// The DB may store either the ISO code ("NG") or the full name ("Nigeria").
+const COUNTRY_INFO_BY_CODE = new Map<string, CountryInfo>();
+const COUNTRY_INFO_BY_NAME = new Map<string, CountryInfo>();
+for (const c of ALL_COUNTRIES) {
+  COUNTRY_INFO_BY_CODE.set(c.code.toLowerCase(), c);
+  COUNTRY_INFO_BY_NAME.set(normalizeCountry(c.name), c);
+}
+
+const CONTINENT_LABELS: Record<CountryInfo["continent"], string> = {
+  AFRICA: "Afrique",
+  EUROPE: "Europe",
+  AMERICA: "Amerique",
+  ASIA: "Asie",
+  OCEANIA: "Oceanie",
+};
+
+// Resolve full country metadata from whatever value is stored on the user.
+function getCountryInfo(country: string): CountryInfo | null {
+  if (!country) return null;
+  const raw = country.trim();
+  // Try ISO alpha-2 code first (e.g. "NG")
+  const byCode = COUNTRY_INFO_BY_CODE.get(raw.toLowerCase());
+  if (byCode) return byCode;
+  // Fall back to fuzzy name matching (e.g. "Nigeria", "Côte d'Ivoire")
+  const byName = COUNTRY_INFO_BY_NAME.get(normalizeCountry(raw));
+  if (byName) return byName;
+  return null;
 }
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -1518,17 +1550,38 @@ export default function AdminAnalyticsPage() {
             </div>
 
             {/* Selected country detail */}
-            {selectedCountry && (
+            {selectedCountry && (() => {
+              const info = getCountryInfo(selectedCountry.country);
+              return (
               <div className="p-4 bg-blue-500/5 border-t border-blue-500/20">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                      <MapPin size={18} className="text-blue-400" />
+                    <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center text-2xl">
+                      {info?.flag ? <span>{info.flag}</span> : <MapPin size={18} className="text-blue-400" />}
                     </div>
                     <div>
-                      <p className="text-sm font-black text-white">{selectedCountry.country}</p>
+                      <p className="text-sm font-black text-white flex items-center gap-2">
+                        {info?.name || selectedCountry.country}
+                        {info && (
+                          <span className="text-[8px] font-black text-blue-300 bg-blue-500/15 px-1.5 py-0.5 rounded">
+                            {info.code}
+                          </span>
+                        )}
+                        {info && (
+                          <span
+                            className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${
+                              info.isActive
+                                ? "bg-emerald-500/15 text-emerald-400"
+                                : "bg-slate-500/15 text-slate-400"
+                            }`}
+                          >
+                            {info.isActive ? "Actif" : "Bientot"}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[9px] text-slate-500">
                         {selectedCountry.count.toLocaleString("fr-FR")} utilisateurs
+                        {info ? ` · ${CONTINENT_LABELS[info.continent]}` : ""}
                       </p>
                     </div>
                   </div>
@@ -1539,7 +1592,61 @@ export default function AdminAnalyticsPage() {
                     <X size={14} />
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-4">
+
+                {/* Country metadata: dial code, currency, continent */}
+                {info && (
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    <div className="p-2.5 bg-white/[0.02] rounded-xl">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Phone size={10} className="text-cyan-400" />
+                        <span className="text-[7px] text-slate-500 uppercase font-black tracking-wide">Indicatif</span>
+                      </div>
+                      <p className="text-[12px] font-black text-white">{info.dialCode}</p>
+                    </div>
+                    <div className="p-2.5 bg-white/[0.02] rounded-xl">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Banknote size={10} className="text-emerald-400" />
+                        <span className="text-[7px] text-slate-500 uppercase font-black tracking-wide">Monnaie</span>
+                      </div>
+                      <p className="text-[12px] font-black text-white">
+                        {info.currency} <span className="text-slate-400">{info.currencySymbol}</span>
+                      </p>
+                    </div>
+                    <div className="p-2.5 bg-white/[0.02] rounded-xl">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Coins size={10} className="text-amber-400" />
+                        <span className="text-[7px] text-slate-500 uppercase font-black tracking-wide">1 Pi =</span>
+                      </div>
+                      <p className="text-[12px] font-black text-white">
+                        {info.piToLocalRate.toLocaleString("fr-FR")}
+                        <span className="text-slate-400"> {info.currencySymbol}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Banks & operators quick counts */}
+                {info && (info.banks.length > 0 || info.operators.length > 0) && (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="flex items-center gap-2 p-2.5 bg-white/[0.02] rounded-xl">
+                      <Landmark size={13} className="text-blue-400" />
+                      <div>
+                        <p className="text-[12px] font-black text-white leading-none">{info.banks.length}</p>
+                        <p className="text-[7px] text-slate-500 uppercase font-black">Banques</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2.5 bg-white/[0.02] rounded-xl">
+                      <Smartphone size={13} className="text-violet-400" />
+                      <div>
+                        <p className="text-[12px] font-black text-white leading-none">{info.operators.length}</p>
+                        <p className="text-[7px] text-slate-500 uppercase font-black">Operateurs</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* User stats */}
+                <div className="grid grid-cols-3 gap-3 mt-3">
                   <div className="text-center p-2 bg-white/[0.02] rounded-xl">
                     <p className="text-sm font-black text-blue-400">{selectedCountry.count}</p>
                     <p className="text-[8px] text-slate-500 uppercase">Total</p>
@@ -1554,7 +1661,8 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* Selected online user from map */}
             {selectedMapUser && (
@@ -1650,7 +1758,9 @@ export default function AdminAnalyticsPage() {
 
             {/* Country list */}
             <div className="p-4 space-y-2 max-h-60 overflow-y-auto">
-              {topCountries.map((c, i) => (
+              {topCountries.map((c, i) => {
+                const info = getCountryInfo(c.country);
+                return (
                 <button
                   key={c.country}
                   onClick={() => setSelectedCountry(c)}
@@ -1661,8 +1771,19 @@ export default function AdminAnalyticsPage() {
                   }`}
                 >
                   <span className="text-[10px] font-black text-slate-500 w-5">{i + 1}</span>
-                  <MapPin size={14} className={getCountryCoords(c.country) ? "text-blue-400" : "text-slate-600"} />
-                  <span className="text-[11px] font-bold text-white flex-1 text-left truncate">{c.country}</span>
+                  {info?.flag ? (
+                    <span className="text-base leading-none">{info.flag}</span>
+                  ) : (
+                    <MapPin size={14} className={getCountryCoords(c.country) ? "text-blue-400" : "text-slate-600"} />
+                  )}
+                  <div className="flex-1 min-w-0 text-left">
+                    <span className="text-[11px] font-bold text-white block truncate">{info?.name || c.country}</span>
+                    {info && (
+                      <span className="text-[8px] text-slate-500 font-medium">
+                        {info.dialCode} · {info.currency}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 text-right">
                     <div>
                       <p className="text-[10px] font-black text-blue-400">{c.count}</p>
@@ -1679,7 +1800,8 @@ export default function AdminAnalyticsPage() {
                     )}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
