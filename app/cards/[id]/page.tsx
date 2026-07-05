@@ -35,8 +35,11 @@ async function getCardDetails(cardId: string) {
     }
   }
 
-  if (!userId && piToken && piToken.length >= 25 && /^[a-z0-9]+$/i.test(piToken)) {
-    userId = piToken;
+  // [FIX V16] Fallback Pi Browser — pi_session_token vérifié cryptographiquement
+  // (signature JWT, sinon validation via api.minepi.com/v2/me).
+  if (!userId && piToken) {
+    const { verifyPiSessionToken } = await import("@/lib/auth");
+    userId = await verifyPiSessionToken(piToken);
   }
 
   if (!userId) return null;
