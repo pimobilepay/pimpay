@@ -1,6 +1,6 @@
 /**
- * app/api/withdraw/route.ts - UPDATED
- * [FIX V28 + V29] Rate limiting + transactional integrity for withdrawals
+ * app/api/transfer/route.ts - UPDATED
+ * [FIX V28 + V29] Rate limiting + transactional integrity
  */
 
 export const dynamic = 'force-dynamic';
@@ -8,10 +8,11 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/auth";
 import { checkDistributedRateLimit, RATE_LIMITS } from "@/lib/distributedRateLimit";
-import { withdrawToFiatAtomic } from "@/lib/blockchainTransaction";
+import { transferSidraTokensAtomic } from "@/lib/blockchainTransaction";
 import { getClientIp } from "@/lib/rate-limit";
 import { logTransactionEvent } from "@/lib/secureLogger";
 import { validateCsrfMiddleware } from "@/lib/csrf";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
@@ -31,14 +32,14 @@ export async function POST(req: Request) {
 
     const ip = getClientIp(req);
     const rl = await checkDistributedRateLimit(
-      `withdraw:${userId}`,
-      RATE_LIMITS.WITHDRAW.limit,
-      RATE_LIMITS.WITHDRAW.window
+      `transfer:${userId}`,
+      RATE_LIMITS.TRANSFER.limit,
+      RATE_LIMITS.TRANSFER.window
     );
 
     if (rl.limited) {
       await logTransactionEvent(
-        'WITHDRAW_RATE_LIMITED',
+        'TRANSFER_RATE_LIMITED',
         userId,
         0,
         'N/A',
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       );
 
       return NextResponse.json(
-        { error: "Trop de retraits. Veuillez patienter." },
+        { error: "Trop de transferts. Veuillez patienter." },
         {
           status: 429,
           headers: {
@@ -59,58 +60,71 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { amount, currency = "SDA", bankInfo } = body;
+    const { toUserId, amount, currency = "SDA" } = body;
 
     // Validate inputs
-    if (!amount || amount <= 0 || !bankInfo?.accountNumber) {
+    if (!toUserId || !amount || amount <= 0) {
       return NextResponse.json(
         { error: "Paramètres invalides" },
         { status: 400 }
       );
     }
 
-    // [FIX V29] Atomic withdrawal with blockchain transaction
-    const result = await withdrawToFiatAtomic(
+    // Check recipient exists
+    const recipient = await prisma.user.findUnique({
+      where: { id: toUserId },
+      select: { id: true, status: true },
+    });
+
+    if (!recipient || recipient.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Destinataire introuvable ou inactif" },
+        { status: 404 }
+      );
+    }
+
+    // [FIX V29] Atomic transfer with blockchain transaction
+    const result = await transferSidraTokensAtomic(
       userId,
+      toUserId,
       amount,
-      currency,
-      bankInfo
+      currency
     );
 
     if (!result.success) {
       await logTransactionEvent(
-        'WITHDRAW',
+        'TRANSFER',
         userId,
         amount,
         currency,
-        undefined,
+        toUserId,
         'FAILED'
       );
 
       return NextResponse.json(
-        { error: result.error || "Retrait échoué" },
+        { error: result.error || "Transfert échoué" },
         { status: 400 }
       );
     }
 
     // Log successful transaction
     await logTransactionEvent(
-      'WITHDRAW',
+      'TRANSFER',
       userId,
       amount,
       currency,
-      undefined,
+      toUserId,
       'SUCCESS'
     );
 
     return NextResponse.json({
       success: true,
-      message: "Retrait en cours de traitement",
-      withdrawalId: result.withdrawalId,
+      message: "Transfert réussi",
+      txHash: result.txHash,
     });
 
   } catch (error: any) {
-    console.error("WITHDRAW_ERROR:", error);
+    console.error("TRANSFER_ERROR:", error);
     return NextResponse.json(
       { error: "Erreur serveur" },
       { status: 500 }
