@@ -1,90 +1,64 @@
-export const dynamic = 'force-dynamic';
+/**
+ * app/api/auth/logout/route.ts
+ * [FIX V23] Proper token revocation on logout
+ */
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
+import { revokeTokenJWT } from "@/lib/jwt";
+import { cookies } from "next/headers";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
+    const refreshToken = cookieStore.get("refresh_token")?.value;
 
-    // --- 1. Révoquer la session en base de données ---
-    // [FIX V15] — On révoque le refreshToken (stocké en DB, champ token).
-    // L'accessToken (15min) expire naturellement — pas besoin de blacklist.
-    const cookieStore2 = await cookies();
-    const refreshToken =
-      cookieStore2.get("refresh_token")?.value ||
-      cookieStore2.get("pimpay_refresh")?.value ||
-      // [FIX V17] Refresh token admin dédié
-      cookieStore2.get("admin_refresh_token")?.value;
+    // [FIX V23] Revoke both tokens in Redis blacklist
+    if (token) {
+      await revokeTokenJWT(token, 900); // 15 min TTL
+    }
     if (refreshToken) {
-      try {
-        await prisma.session.updateMany({
-          where: { token: refreshToken },
-          data:  { isActive: false },
-        });
-      } catch {
-        // Session déjà expirée ou inexistante — continuer
-      }
-    } else if (token) {
-      // Fallback : ancien format où l'accessToken était stocké en Session
-      try {
-        const userId = await getAuthUserId();
-        if (userId) {
-          await prisma.session.updateMany({
-            where: { userId, token },
-            data:  { isActive: false },
-          });
+      await revokeTokenJWT(refreshToken, 604800); // 7 days TTL
+    }
+
+    // [FIX V23] Invalidate session in DB
+    await prisma.session.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false }
+    }).catch(() => {});
+
+    // Log security event
+    try {
+      await prisma.auditLog.create({
+        data: {
+          adminId: userId,
+          action: "LOGOUT",
+          targetId: userId,
+          category: "security",
+          status: "SUCCESS"
         }
-      } catch {
-        // Token expiré — continuer
-      }
+      });
+    } catch (e) {
+      console.error("Audit log error:", e);
     }
 
-    // --- 2. Supprimer TOUS les cookies de session ---
-    // On doit matcher les memes attributs que ceux utilises a la creation
-    // Pi login utilise sameSite:"none" + secure:true en production
-    const isProduction = process.env.NODE_ENV === "production";
+    const response = NextResponse.json({ success: true, message: "Déconnecté" });
+    
+    // Clear cookies
+    response.cookies.delete("token");
+    response.cookies.delete("pimpay_token");
+    response.cookies.delete("refresh_token");
+    response.cookies.delete("pi_session_token");
 
-    // Options "standard" (login classique avec sameSite:"lax")
-    const laxOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax" as const,
-      expires: new Date(0),
-      path: "/",
-    };
-
-    // Options "Pi Browser" (pi-login utilise sameSite:"none" + secure en prod)
-    const noneOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "none" as const,
-      expires: new Date(0),
-      path: "/",
-    };
-
-    // Supprimer avec les deux variantes de sameSite pour couvrir tous les cas
-    const cookieNames = ["token", "pimpay_token", "session", "pi_session_token", "refresh_token", "pimpay_refresh", "admin_refresh_token"];
-
-    for (const name of cookieNames) {
-      cookieStore.set(name, "", laxOptions);
-      if (isProduction) {
-        cookieStore.set(name, "", noneOptions);
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Deconnecte avec succes",
-      redirectTo: "/auth/login",
-    });
-  } catch (error) {
-    console.error("[PimPay] Logout error:", error);
-    return NextResponse.json(
-      { error: "Erreur lors de la deconnexion" },
-      { status: 500 }
-    );
+    return response;
+  } catch (error: any) {
+    console.error("LOGOUT_ERROR:", error);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

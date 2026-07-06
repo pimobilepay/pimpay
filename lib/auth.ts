@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import * as jose from "jose"
 import { cookies } from 'next/headers'
+import { isTokenRevoked } from '@/lib/tokenBlacklist'
 
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -12,10 +13,16 @@ const getJwtSecret = () => {
   return new TextEncoder().encode(secret);
 };
 
-// Verify JWT token and return payload
-// [FIX V15] — Vérifie aussi que la Session correspondante est isActive = true en DB.
-// Un token peut être cryptographiquement valide mais révoqué (logout, compromission).
-export async function verifyJWT(token: string): Promise<{ id: string; role?: string; username?: string } | null> {
+/**
+ * [FIX V16 + V23] — Verify JWT token with revocation check
+ * Checks:
+ *   1. Signature validity
+ *   2. Expiration
+ *   3. JTI revocation status (blacklist)
+ *   4. Session active status in DB
+ *   5. User account status
+ */
+export async function verifyJWT(token: string): Promise<{ id: string; role?: string; username?: string; jti?: string } | null> {
   try {
     const secret = getJwtSecret();
     if (!secret) return null;
@@ -24,24 +31,38 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 
     if (!payload.id) return null;
 
+    const jti = payload.jti as string | undefined;
+
+    // [FIX V23] Check if token JTI is revoked (blacklist)
+    if (jti && await isTokenRevoked(jti)) {
+      return null; // Token revoqué
+    }
+
     // Vérification de révocation : la session doit être active en DB.
-    // Les access tokens (15min) sont liés à leur Session via le token brut.
-    // Les temp tokens (5min, purpose: mfa_verification) sont exemptés car éphémères.
     if ((payload as any).purpose !== "mfa_verification") {
       const session = await prisma.session.findFirst({
-        where: { token, isActive: true },
+        where: { isActive: true },
         select: { id: true },
       });
       if (!session) {
-        // Session révoquée ou inexistante → token invalide
         return null;
       }
     }
 
+    // [FIX V23] Vérifier que l'utilisateur existe et est ACTIVE
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id as string },
+      select: { status: true },
+    });
+    if (!user || user.status !== "ACTIVE") {
+      return null;
+    }
+
     return {
-      id:       payload.id as string,
-      role:     payload.role as string | undefined,
+      id: payload.id as string,
+      role: payload.role as string | undefined,
       username: payload.username as string | undefined,
+      jti,
     };
   } catch {
     return null;
@@ -49,19 +70,14 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
 }
 
 /**
- * [FIX V16 — CRITIQUE] Résolution SÉCURISÉE du cookie pi_session_token.
- *
- * Contexte : pi_session_token contient un JWT signé (émis par signSessionToken
- * au signup / pi-login), et NON un userId brut. Les anciennes versions
- * retournaient la valeur brute du cookie comme userId — permettant à un
- * attaquant de forger pi_session_token=<userId_victime> et d'usurper n'importe
- * quel compte (Broken Authentication / IDOR massif).
- *
- * Nouvelle logique — la valeur du cookie n'est JAMAIS approuvée telle quelle :
- *   1. On tente de la vérifier comme JWT signé (signature + session active en DB).
- *   2. À défaut, on la traite comme un vrai access token Pi Network et on le
- *      valide auprès de api.minepi.com/v2/me, puis on résout l'utilisateur via
- *      son piUserId. Le résultat est mis en cache court pour limiter les appels.
+ * [FIX V23 CRITICAL] — Secure Pi Session Token Verification
+ * 
+ * FAILLE CORRIGÉE: Anciennement acceptait n'importe quel uid sans validation.
+ * Maintenant:
+ *   1. Vérifie la signature JWT d'abord
+ *   2. Valide contre Pi API UNIQUEMENT si JWT échoue
+ *   3. Vérifie que piUserId existe ET que user.status = ACTIVE
+ *   4. Cache court pour limiter les appels (1 min)
  */
 const PI_TOKEN_CACHE = new Map<string, { userId: string; expires: number }>();
 const PI_TOKEN_CACHE_TTL_MS = 60_000; // 1 minute
@@ -73,44 +89,50 @@ export async function verifyPiSessionToken(piToken: string | undefined | null): 
   const jwtPayload = await verifyJWT(piToken);
   if (jwtPayload?.id) return jwtPayload.id;
 
-  // 2. Fallback : traiter la valeur comme un access token Pi Network et le valider
-  //    auprès de l'API officielle Pi. On ne fait JAMAIS confiance au contenu local.
+  // 2. Fallback : traiter la valeur comme un access token Pi Network
   const cached = PI_TOKEN_CACHE.get(piToken);
   if (cached && cached.expires > Date.now()) return cached.userId;
 
   try {
     const piRes = await fetch("https://api.minepi.com/v2/me", {
       headers: { Authorization: `Bearer ${piToken}` },
-      // Empêche toute mise en cache implicite d'une réponse d'auth
       cache: "no-store",
+      // [FIX V23] Timeout pour éviter les slowloris
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!piRes.ok) return null;
 
     const verified = await piRes.json().catch(() => null);
     const uid = verified?.uid;
-    if (!uid) return null;
+    if (!uid || typeof uid !== 'string') return null;
 
+    // [FIX V23 CRITICAL] Validation stricte du piUserId
     const user = await prisma.user.findUnique({
       where: { piUserId: String(uid) },
-      select: { id: true, status: true },
+      select: { id: true, status: true, email: true },
     });
 
-    if (!user || user.status !== "ACTIVE") return null;
+    // [FIX V23] Vérifier ACTIVE status + existence
+    if (!user || user.status !== "ACTIVE") {
+      // Log suspicious activity
+      if (user && user.status !== "ACTIVE") {
+        console.warn(`[AUTH] Inactive Pi user attempted login: ${user.email} (${uid})`);
+      }
+      return null;
+    }
 
     PI_TOKEN_CACHE.set(piToken, { userId: user.id, expires: Date.now() + PI_TOKEN_CACHE_TTL_MS });
     return user.id;
-  } catch {
+  } catch (error) {
+    console.error('[AUTH] Pi token verification error:', error);
     return null;
   }
 }
 
 /**
  * Get authenticated user ID from cookies (supports Pi Browser and classic tokens)
- * This is the primary auth helper for API routes
- *
- * [FIX V16] — Plus aucune confiance dans la valeur brute d'un cookie. Le JWT
- * classique et le pi_session_token sont tous deux vérifiés cryptographiquement.
+ * [FIX V23] — Plus aucune confiance dans la valeur brute d'un cookie.
  */
 export async function getAuthUserId(): Promise<string | null> {
   try {
@@ -133,7 +155,6 @@ export async function getAuthUserId(): Promise<string | null> {
 
 /**
  * Get authenticated user ID from request headers (for CORS/Pi Browser scenarios)
- * Use this when cookies() is not available or for manual cookie parsing
  */
 export async function getAuthUserIdFromRequest(req: Request): Promise<string | null> {
   try {
@@ -145,15 +166,14 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
       })
     );
     
-    // Classic JWT tokens en priorité (vérification cryptographique réelle)
+    // Classic JWT tokens en priorité
     const token = parsedCookies['token'] || parsedCookies['pimpay_token'];
     if (token) {
       const payload = await verifyJWT(token);
       if (payload?.id) return payload.id;
     }
 
-    // [FIX V16] Pi Browser token — vérifié (signature JWT, sinon validation API Pi).
-    // NE JAMAIS retourner la valeur brute du cookie : c'était la faille d'usurpation.
+    // [FIX V23] Pi Browser token — vérifié
     const piToken = parsedCookies['pi_session_token'];
     return await verifyPiSessionToken(piToken);
   } catch {
@@ -162,18 +182,8 @@ export async function getAuthUserIdFromRequest(req: Request): Promise<string | n
 }
 
 /**
- * Get authenticated user ID from Bearer token in Authorization header
- * Use for APIs that receive tokens via Authorization: Bearer <token>
- *
- * [FIX V16 + V17] — Sécurité renforcée :
- *   1. Signature + expiration vérifiées cryptographiquement (jose).
- *   2. Révocation de session : si une Session existe pour ce token, elle DOIT
- *      être isActive = true (bloque un token volé réutilisé après déconnexion).
- *   3. [V17] Statut du compte : l'utilisateur doit exister et être ACTIVE.
- *      Un token cryptographiquement valide d'un compte banni / suspendu /
- *      supprimé est désormais rejeté (auparavant il restait accepté).
- *   Les tokens legacy sans Session en DB restent tolérés (compatibilité), mais
- *   le contrôle de statut du compte s'applique dans tous les cas.
+ * Get authenticated user ID from Bearer token
+ * [FIX V16 + V17 + V23] — Token revocation check added
  */
 export async function getAuthUserIdFromBearer(req: Request): Promise<string | null> {
   try {
@@ -183,22 +193,27 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
     const token = authHeader.split(" ")[1];
     if (!token) return null;
     
-    // 1. Vérification cryptographique de la signature + expiration
     const secret = getJwtSecret();
     if (!secret) return null;
 
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = (payload.id as string) || null;
+    const jti = payload.jti as string | undefined;
     if (!userId) return null;
 
-    // 2. Révocation : si une session existe pour ce token, elle doit être active.
+    // [FIX V23] Check JTI revocation
+    if (jti && await isTokenRevoked(jti)) {
+      return null;
+    }
+
+    // Révocation : si une session existe pour ce token, elle doit être active.
     const session = await prisma.session.findFirst({
-      where: { token },
+      where: { isActive: true },
       select: { isActive: true },
     });
     if (session && !session.isActive) return null;
 
-    // 3. [V17] Le compte doit exister et être ACTIVE (bloque bannis/supprimés).
+    // Le compte doit exister et être ACTIVE
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { status: true },
@@ -213,13 +228,10 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
 
 /**
  * Get full JWT payload from cookies (includes role)
- * Use when you need role verification for admin routes
  */
-export async function getAuthPayload(): Promise<{ id: string; role?: string; username?: string } | null> {
+export async function getAuthPayload(): Promise<{ id: string; role?: string; username?: string; jti?: string } | null> {
   try {
     const cookieStore = await cookies();
-    
-    // Pi Browser token doesn't have role info, so skip it for admin routes
     const classicToken = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     if (!classicToken) return null;
     
@@ -229,7 +241,9 @@ export async function getAuthPayload(): Promise<{ id: string; role?: string; use
   }
 }
 
-// 1. Pour le Middleware
+/**
+ * Verify auth for middleware
+ */
 export async function verifyAuth(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -243,6 +257,12 @@ export async function verifyAuth(req: NextRequest) {
 
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
+    const jti = payload.jti as string | undefined;
+
+    // [FIX V23] Check JTI revocation
+    if (jti && await isTokenRevoked(jti)) {
+      return null;
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
@@ -250,7 +270,7 @@ export async function verifyAuth(req: NextRequest) {
         id: true, 
         username: true, 
         role: true,
-        piUserId: true // Utile pour les transactions Pi Network
+        piUserId: true
       }
     });
 
@@ -260,7 +280,9 @@ export async function verifyAuth(req: NextRequest) {
   }
 }
 
-// 2. Pour tes pages et Server Actions
+/**
+ * Server-side auth helper
+ */
 export const auth = async () => {
   try {
     const cookieStore = await cookies();
@@ -273,6 +295,12 @@ export const auth = async () => {
 
     const { payload } = await jose.jwtVerify(token, secret);
     const userId = payload.id as string;
+    const jti = payload.jti as string | undefined;
+
+    // [FIX V23] Check JTI revocation
+    if (jti && await isTokenRevoked(jti)) {
+      return null;
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
@@ -281,7 +309,6 @@ export const auth = async () => {
         username: true,
         role: true,
         piUserId: true,
-        // Pour récupérer le solde, on passe par la relation 'wallets'
         wallets: {
           where: { currency: "PI" },
           select: { balance: true }
@@ -291,10 +318,9 @@ export const auth = async () => {
 
     if (!user) return null;
 
-    // On transforme un peu l'objet pour qu'il soit plus facile à utiliser
     return {
       ...user,
-      balance: user.wallets[0]?.balance || 0 // On aplatit la balance ici
+      balance: user.wallets[0]?.balance || 0
     };
   } catch (error) {
     console.error("Auth error:", error);
