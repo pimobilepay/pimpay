@@ -111,18 +111,41 @@ export default function DepositPage() {
     if (!amount || parseFloat(amount) <= 0) { toast.error(t("deposit.flow.invalidAmount")); return; }
     setIsLoading(true);
     try {
-      // Pour les dépôts crypto (Pi), le montant saisi EST déjà en Pi
       const isCrypto = activeTab === "crypto";
+
+      // --- Dépôt MOBILE MONEY : passe par l'agrégateur PawaPay (collecte) ---
+      if (!isCrypto) {
+        if (!phoneNumber) { toast.error(t("deposit.flow.phone")); setIsLoading(false); return; }
+        if (!selectedOperator) { toast.error(t("deposit.flow.noOperator")); setIsLoading(false); return; }
+        const res = await fetch("/api/transaction/deposit/pawapay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountUsd: parseFloat(amount),
+            phone: `${selectedCountry.dialCode}${phoneNumber}`,
+            operatorId: selectedOperator?.id,
+            operatorName: selectedOperator?.name,
+            countryCode: selectedCountry.code,
+          }),
+        });
+        const text = await res.text(); let result; try { result = JSON.parse(text); } catch { throw new Error(t("deposit.flow.serverError")); }
+        if (res.ok && result.reference) {
+          router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}&method=${activeTab}`);
+        } else { toast.error(result.error || t("deposit.flow.initError")); }
+        return;
+      }
+
+      // --- Dépôt CRYPTO (Pi) : le montant saisi EST déjà en Pi ---
       const piAmount = parseFloat(amount);
       const payload = {
-        amount: isCrypto ? piAmount : parseFloat(amount),
-        fee: isCrypto ? parseFloat(feesCalculation.feePi) : parseFloat(feesCalculation.fee),
+        amount: piAmount,
+        fee: parseFloat(feesCalculation.feePi),
         type: "DEPOSIT",
-        currency: isCrypto ? "PI" : "USD",
+        currency: "PI",
         method: activeTab,
-        operatorId: isCrypto ? "pi_network" : selectedOperator?.id,
-        description: isCrypto ? "Dépôt via Pi Network" : `Dépôt via ${selectedOperator?.name}`,
-        accountNumber: isCrypto ? "PI_NETWORK" : `${selectedCountry.dialCode}${phoneNumber}`,
+        operatorId: "pi_network",
+        description: "Dépôt via Pi Network",
+        accountNumber: "PI_NETWORK",
         countryCode: selectedCountry.code,
       };
       const res = await fetch("/api/pi/transaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
