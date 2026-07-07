@@ -12,8 +12,8 @@
  * Une requête est bloquée si l'une OU l'autre limite est dépassée.
  *
  * Variables d'environnement requises (fournies par l'intégration Upstash sur Vercel) :
- *   - KV_REST_API_URL
- *   - KV_REST_API_TOKEN
+ *   - UPSTASH_REDIS_REST_URL   (repli : KV_REST_API_URL)
+ *   - UPSTASH_REDIS_REST_TOKEN (repli : KV_REST_API_TOKEN)
  */
 
 import { Ratelimit } from "@upstash/ratelimit";
@@ -35,8 +35,9 @@ let limiter: Ratelimit | null = null;
 function getLimiter(): Ratelimit | null {
   if (limiter) return limiter;
 
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
 
   const redis = new Redis({ url, token });
@@ -81,7 +82,7 @@ export async function enforceTxRateLimit(
       // Fail-closed : sur une plateforme financière, on refuse plutôt que d'ouvrir
       // une porte sans protection. Indique une mauvaise configuration à corriger.
       console.error(
-        "[tx-rate-limit] Upstash non configuré (KV_REST_API_URL / KV_REST_API_TOKEN manquants)."
+        "[tx-rate-limit] Upstash non configuré (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN manquants)."
       );
       return NextResponse.json(
         { error: "Service temporairement indisponible." },
