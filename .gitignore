@@ -8,3 +8,4 @@ build/
 *.log
 .vercel
 .env*.local
+.env*
