@@ -165,9 +165,18 @@ export function PaymentServices() {
                   className={`absolute -inset-0.5 bg-gradient-to-br ${service.gradient} rounded-2xl blur-md opacity-0 group-hover:opacity-30 transition-opacity duration-300`}
                   aria-hidden="true"
                 />
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleTap(service)}
-                  className={`relative w-full h-full bg-white/[0.03] border border-white/10 rounded-2xl p-3.5 flex flex-col items-start gap-2.5 text-left hover:bg-white/[0.06] hover:border-white/20 transition-all duration-200 ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleTap(service);
+                    }
+                  }}
+                  aria-label={service.name}
+                  className={`relative w-full h-full bg-white/[0.03] border border-white/10 rounded-2xl p-3.5 flex flex-col items-start gap-2.5 text-left cursor-pointer hover:bg-white/[0.06] hover:border-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 transition-all duration-200 ${
                     isTapped ? "scale-95" : "active:scale-95"
                   }`}
                 >
@@ -207,7 +216,7 @@ export function PaymentServices() {
                       {service.description}
                     </p>
                   </div>
-                </button>
+                </div>
               </div>
             );
           })}
