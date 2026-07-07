@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { QRScanner } from "@/components/qr-scanner";
 import { ReceiveQR } from "@/components/receive-qr";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
+import { PaymentServices } from "@/components/mpay/payment-services";
 import { useLanguage } from "@/context/LanguageContext";
 
 // Types for Map of Pi merchants
@@ -871,6 +872,9 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             ))}
           </div>
         </section>
+
+        {/* PAYMENT SERVICES */}
+        <PaymentServices />
 
         {/* MAP OF PI MERCHANTS */}
         <section>
