@@ -88,6 +88,18 @@ function SummaryContent() {
   const fees = transaction?.fee || (rawAmount * 0.01);
   const feePi = isPi ? fees : fees / piPrice;
 
+  // Devise locale du dépôt (ex : XAF pour le Congo). Pour le Mobile Money, le
+  // montant stocké (transaction.amount) est DÉJÀ converti dans la devise locale
+  // par l'agrégateur PawaPay, on affiche donc cette devise et non "USD".
+  const localCurrency: string =
+    (transaction?.metadata as any)?.localCurrency ||
+    transaction?.currency ||
+    "USD";
+  // Frais affichés dans la devise locale pour rester cohérent avec le montant.
+  const localFee = rawAmount * 0.01;
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-36 font-sans overflow-x-hidden">
       <div className="px-6 pt-10 pb-6 flex items-center gap-4">
@@ -120,8 +132,13 @@ function SummaryContent() {
               <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-[0.2em]">{t("deposit.flow.amountToTransfer")}</p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-5xl font-black tracking-tighter">{rawAmount.toLocaleString()}</span>
-                <span className="text-xl font-bold text-blue-500 uppercase">USD</span>
+                <span className="text-xl font-bold text-blue-500 uppercase">{localCurrency}</span>
               </div>
+              {(transaction?.metadata as any)?.usdAmount ? (
+                <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                  ≈ ${fmt((transaction?.metadata as any).usdAmount)} USD
+                </p>
+              ) : null}
             </>
           )}
         </Card>
@@ -138,7 +155,7 @@ function SummaryContent() {
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">{t("deposit.flow.networkFee")}</span>
-            <span className="text-red-400">+{isPi ? feePi.toFixed(7) + " Pi" : fees.toFixed(2) + " USD"}</span>
+            <span className="text-red-400">+{isPi ? feePi.toFixed(7) + " Pi" : fmt(localFee) + " " + localCurrency}</span>
           </div>
           <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-500">{t("deposit.flow.status")}</span>

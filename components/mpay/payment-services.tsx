@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { TapToPhoneTerminal } from "@/components/mpay/tap-to-phone-terminal";
 
 interface PaymentService {
   id: string;
@@ -21,11 +22,13 @@ interface PaymentService {
   glow: string;
   isNew?: boolean;
   route?: string;
+  /** Ouvre le terminal Tap to Phone en overlay (au lieu de naviguer) */
+  opensTerminal?: boolean;
 }
 
 // Full catalog of PimPay payment services (Premium Dark)
 const SERVICES: PaymentService[] = [
-  { id: "visa-contactless", name: "Visa Tap to Phone", description: "Encaisser une carte Visa sans contact", features: ["Tap to Phone", "Encaissement NFC", "Crédit wallet PimPay", "Reçu instantané"], icon: CreditCard, gradient: "from-blue-600 to-indigo-700", glow: "shadow-blue-600/30", isNew: true, route: "/mpay/tap-to-phone" },
+  { id: "visa-contactless", name: "Visa Tap to Phone", description: "Encaisser une carte Visa sans contact", features: ["Tap to Phone", "Encaissement NFC", "Crédit wallet PimPay", "Reçu instantané"], icon: CreditCard, gradient: "from-blue-600 to-indigo-700", glow: "shadow-blue-600/30", isNew: true, opensTerminal: true },
   { id: "pos", name: "POS Payment", description: "Paiement chez les commerçants", features: ["Scanner un QR POS", "Bluetooth terminal POS", "Paiement NFC", "Merchant ID manuel"], icon: Store, gradient: "from-indigo-600 to-violet-700", glow: "shadow-indigo-600/30" },
   { id: "electricity", name: "Electricity", description: "Paiement d'électricité", features: ["Choisir le fournisseur", "Numéro compteur", "Nom du client", "Paiement instantané", "Historique"], icon: Zap, gradient: "from-amber-500 to-orange-600", glow: "shadow-amber-500/30" },
   { id: "water", name: "Water", description: "Paiement facture d'eau", features: ["Choisir compagnie", "Numéro client", "Affichage montant", "Paiement"], icon: Droplets, gradient: "from-sky-500 to-cyan-600", glow: "shadow-sky-500/30" },
@@ -62,6 +65,7 @@ export function PaymentServices() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [tapped, setTapped] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [showTapTerminal, setShowTapTerminal] = useState(false);
 
   useEffect(() => {
     try {
