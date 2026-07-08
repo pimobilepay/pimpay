@@ -301,7 +301,10 @@ export async function requestDeposit(params: RequestDepositParams) {
       },
     },
   };
-  if (params.callbackUrl) body.callbackUrl = params.callbackUrl;
+  // NOTE : L'API PawaPay Merchant v2 n'accepte PAS `callbackUrl` dans le corps
+  // de la requête (paramètre non supporté -> 400). Les URLs de callback/webhook
+  // se configurent depuis le dashboard PawaPay. On conserve le champ dans les
+  // params pour compatibilité, mais on ne l'envoie jamais dans le body.
   if (params.metadata) {
     body.metadata = Object.entries(params.metadata).map(([k, v]) => ({
       [k]: String(v),
@@ -339,7 +342,9 @@ export async function requestPayout(params: RequestPayoutParams) {
       },
     },
   };
-  if (params.callbackUrl) body.callbackUrl = params.callbackUrl;
+  // NOTE : L'API PawaPay Merchant v2 n'accepte PAS `callbackUrl` dans le corps
+  // de la requête (paramètre non supporté -> 400). Les URLs de callback/webhook
+  // se configurent depuis le dashboard PawaPay.
   if (params.metadata) {
     body.metadata = Object.entries(params.metadata).map(([k, v]) => ({
       [k]: String(v),
