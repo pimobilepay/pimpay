@@ -362,6 +362,10 @@ export async function checkPayout(payoutId: string) {
   return pawapayFetch(`/v2/payouts/${payoutId}`, { method: "GET" });
 }
 
+export async function checkRefund(refundId: string) {
+  return pawapayFetch(`/v2/refunds/${refundId}`, { method: "GET" });
+}
+
 // -----------------------------------------------------------------------------
 // Configuration active du compte (providers / devises disponibles)
 // -----------------------------------------------------------------------------
@@ -374,6 +378,18 @@ export async function getActiveConfiguration(
   if (operationType) qs.set("operationType", operationType);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return pawapayFetch(`/v2/active-conf${suffix}`, { method: "GET" });
+}
+
+/**
+ * Extrait le statut « autoritaire » d'une réponse de lookup (GET /v2/deposits/{id}
+ * ou GET /v2/payouts/{id}). L'API v2 renvoie typiquement :
+ *   { "status": "FOUND", "data": { "status": "COMPLETED", ... } }
+ * On privilégie donc `data.status` puis, à défaut, le `status` racine.
+ */
+export function extractLookupStatus(resp: any): string {
+  const inner = resp?.data ?? resp;
+  const nested = Array.isArray(inner) ? inner[0] : inner;
+  return (nested?.status || resp?.status || "").toUpperCase();
 }
 
 /**
