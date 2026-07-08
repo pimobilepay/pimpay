@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const {
       amount,
+      tip = 0,
       currency = "USD",
       cardScheme = "VISA",
       cardLast4,
@@ -45,11 +46,13 @@ export async function POST(req: NextRequest) {
     } = body ?? {};
 
     // 3. VALIDATIONS STRICTES
-    const parsedAmount = parseFloat(amount);
+    const baseAmount = parseFloat(amount);
+    const tipAmount = Math.max(0, Math.round((parseFloat(tip) || 0) * 100) / 100);
+    const parsedAmount = Math.round((baseAmount + tipAmount) * 100) / 100;
     const cur = String(currency).toUpperCase();
     const scheme = String(cardScheme).toUpperCase();
 
-    if (isNaN(parsedAmount) || parsedAmount < MIN_AMOUNT) {
+    if (isNaN(baseAmount) || baseAmount < MIN_AMOUNT) {
       return NextResponse.json(
         { error: `Montant invalide (minimum ${MIN_AMOUNT})` },
         { status: 400 }
@@ -123,6 +126,8 @@ export async function POST(req: NextRequest) {
               authCode,
               feeRate: MERCHANT_FEE_RATE,
               entryMode: "CONTACTLESS",
+              baseAmount,
+              tip: tipAmount,
             },
           },
         });
@@ -157,6 +162,8 @@ export async function POST(req: NextRequest) {
       receipt: {
         reference,
         authCode,
+        baseAmount,
+        tip: tipAmount,
         amount: parsedAmount,
         fee,
         netAmount,
@@ -172,6 +179,48 @@ export async function POST(req: NextRequest) {
     console.error("[TAP_TO_PHONE_ERROR]:", error);
     return NextResponse.json(
       { error: "Échec de l'encaissement", details: error?.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET — Historique des derniers encaissements Tap to Phone du marchand connecté.
+ */
+export async function GET() {
+  try {
+    const user = await auth();
+    if (!user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    const transactions = await prisma.transaction.findMany({
+      where: { toUserId: user.id, purpose: "TAP_TO_PHONE" },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+    });
+
+    const history = transactions.map((t) => {
+      const meta = (t.metadata as Record<string, any> | null) ?? {};
+      return {
+        reference: t.reference,
+        amount: t.amount,
+        fee: t.fee,
+        netAmount: t.netAmount,
+        currency: t.currency,
+        cardScheme: meta.cardScheme ?? "VISA",
+        cardLast4: meta.cardLast4 ?? "----",
+        tip: meta.tip ?? 0,
+        cardHolder: t.accountName ?? null,
+        date: t.createdAt,
+      };
+    });
+
+    return NextResponse.json({ success: true, history });
+  } catch (error: any) {
+    console.error("[TAP_TO_PHONE_HISTORY_ERROR]:", error);
+    return NextResponse.json(
+      { error: "Impossible de charger l'historique" },
       { status: 500 }
     );
   }

@@ -111,6 +111,10 @@ export function PaymentServices() {
   const handleTap = (service: PaymentService) => {
     setTapped(service.id);
     setTimeout(() => setTapped(null), 250);
+    if (service.opensTerminal) {
+      setShowTapTerminal(true);
+      return;
+    }
     if (service.route) {
       router.push(service.route);
       return;
@@ -264,6 +268,11 @@ export function PaymentServices() {
           ))}
         </div>
       </div>
+
+      {/* Terminal Tap to Phone en overlay */}
+      {showTapTerminal && (
+        <TapToPhoneTerminal onClose={() => setShowTapTerminal(false)} />
+      )}
     </section>
   );
 }
