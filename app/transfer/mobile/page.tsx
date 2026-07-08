@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   ChevronDown,
+  Bitcoin,
 } from "lucide-react";
 import {
   countries,
@@ -152,6 +153,21 @@ export default function MobileTransferPage() {
       </header>
 
       <main className="px-6 space-y-6 max-w-md mx-auto">
+        {/* Onglets Crypto / Mobile Money */}
+        <nav className="grid grid-cols-2 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">
+          <button
+            onClick={() => router.push("/transfer")}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all text-slate-500 hover:text-slate-300"
+          >
+            <Bitcoin size={16} /> Crypto
+          </button>
+          <button
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+          >
+            <Smartphone size={16} /> Mobile Money
+          </button>
+        </nav>
+
         {/* Pays + Opérateur */}
         <section className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
           <div className="space-y-2">

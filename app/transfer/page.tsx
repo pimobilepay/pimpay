@@ -16,6 +16,8 @@ import {
   ArrowUpRight,
   X,
   Info,
+  Bitcoin,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
@@ -645,7 +647,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
     parseFloat(amount) > currentWallet.balance ||
     parseFloat(amount) < 0.00000001;
 
-  // ─────────────────���───────────────────────────────────────────────────────
+  // ─────────────────����───────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -672,6 +674,21 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
       </div>
 
       <div className="px-5 pt-6 space-y-5">
+
+        {/* ── ONGLETS CRYPTO / MOBILE MONEY ─────────────────────────────────── */}
+        <nav className="grid grid-cols-2 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">
+          <button
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+          >
+            <Bitcoin size={16} /> {t("transfer.tabCrypto") || "Crypto"}
+          </button>
+          <button
+            onClick={() => router.push("/transfer/mobile")}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all text-slate-500 hover:text-slate-300"
+          >
+            <Smartphone size={16} /> {t("transfer.tabMobile") || "Mobile Money"}
+          </button>
+        </nav>
 
         {/* ── SÉLECTEUR DE PORTEFEUILLE ──────────────────────────────────────── */}
         <div>
