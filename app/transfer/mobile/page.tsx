@@ -18,7 +18,7 @@ import {
   type Country,
   type MobileOperator,
 } from "@/lib/country-data";
-import { isCountrySupported } from "@/lib/pawapay";
+import { isCountrySupported, filterSupportedOperators } from "@/lib/pawapay-catalog";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { toast } from "sonner";
 import "flag-icons/css/flag-icons.min.css";
@@ -37,9 +37,10 @@ export default function MobileTransferPage() {
     supportedCountries.find((c) => c.code === "CG") || supportedCountries[0]
   );
   const [selectedOperator, setSelectedOperator] = useState<MobileOperator | null>(
-    (selectedCountry.operators.find((o) => o.features?.cashOut) ||
-      selectedCountry.operators[0]) ??
-      null
+    filterSupportedOperators(
+      selectedCountry.code,
+      selectedCountry.operators.filter((o) => o.features?.cashOut !== false)
+    )[0] ?? null
   );
   const [phoneNumber, setPhoneNumber] = useState("");
   const [piAmount, setPiAmount] = useState("");
@@ -59,8 +60,11 @@ export default function MobileTransferPage() {
     [supportedCountries, search]
   );
 
-  const payoutOperators = selectedCountry.operators.filter(
-    (o) => o.features?.cashOut !== false
+  // On ne garde que les opérateurs qui (1) autorisent le cash-out ET (2) sont
+  // réellement pris en charge par l'agrégateur PawaPay pour ce pays.
+  const payoutOperators = filterSupportedOperators(
+    selectedCountry.code,
+    selectedCountry.operators.filter((o) => o.features?.cashOut !== false)
   );
 
   const pi = parseFloat(piAmount) || 0;
@@ -357,11 +361,11 @@ export default function MobileTransferPage() {
                   key={c.code}
                   onClick={() => {
                     setSelectedCountry(c);
-                    setSelectedOperator(
-                      c.operators.find((o) => o.features?.cashOut) ||
-                        c.operators[0] ||
-                        null
+                    const supported = filterSupportedOperators(
+                      c.code,
+                      c.operators.filter((o) => o.features?.cashOut !== false)
                     );
+                    setSelectedOperator(supported[0] || null);
                     setIsCountryOpen(false);
                   }}
                   className="w-full p-4 flex items-center justify-between rounded-2xl bg-white/5 border border-white/5"

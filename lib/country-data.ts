@@ -62,6 +62,7 @@ const OP: Record<string, string> = {
   coris:        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
   sama:         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sama_money_logo.png/200px-Sama_money_logo.png",
   celtiis:      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Celtiis_logo.png/200px-Celtiis_logo.png",
+  tnm:          "https://upload.wikimedia.org/wikipedia/en/thumb/6/6e/Telekom_Networks_Malawi_logo.png/200px-Telekom_Networks_Malawi_logo.png",
   togocel:      "https://upload.wikimedia.org/wikipedia/commons/c/cc/Togocom_-_Yas_-_logo.jpg",
   areeba:       "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Areeba_logo.png/200px-Areeba_logo.png",
   express_union:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Express_Union_Logo.png/200px-Express_Union_Logo.png",
@@ -710,13 +711,18 @@ export const worldCountries: Country[] = [
       { name: "Nedbank",        bic: "NEDSZAJJ", swift: "NEDSZAJJ", logo: BK.nedbank },
       { name: "Absa",           bic: "ABSAZAJJ", swift: "ABSAZAJJ", logo: BK.absa },
     ], operators: [] },
-  { name: "Tanzania",  code: "TZ", flag: "TZ", currency: "TZS", currencySymbol: "TSh", piToLocalRate: 2560,  dialCode: "+255", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Tanzania",  code: "TZ", flag: "TZ", currency: "TZS", currencySymbol: "TSh", piToLocalRate: 2560,  dialCode: "+255", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "NMB Bank",  bic: "NMIBTZTZ", swift: "NMIBTZTZ", logo: BK.nmb },
       { name: "CRDB Bank", bic: "CRDBTZTX", swift: "CRDBTZTX", logo: BK.crdb },
     ],
-    operators: [{ id: "vodacom_tz", name: "M-Pesa", icon: OP.mpesa, features: { cashIn: true, cashOut: true, airtime: true } }] },
-  { name: "Uganda",    code: "UG", flag: "UG", currency: "UGX", currencySymbol: "USh", piToLocalRate: 3700,  dialCode: "+256", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+    operators: [
+      { id: "vodacom_tz", name: "Vodacom M-Pesa", icon: OP.mpesa,  features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel_tz",  name: "Airtel Money",   icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "tigo_tz",    name: "Mixx by Yas (Tigo)", icon: OP.tigo, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "halotel_tz", name: "Halotel (Halopesa)", icon: "/placeholder.svg", features: { cashIn: true, cashOut: true, airtime: true } },
+    ] },
+  { name: "Uganda",    code: "UG", flag: "UG", currency: "UGX", currencySymbol: "USh", piToLocalRate: 3700,  dialCode: "+256", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "DFCU Bank",    bic: "DFCUUGKA", swift: "DFCUUGKA", logo: BK.dfcu },
       { name: "Stanbic Uganda",bic: "SBICUGKA", swift: "SBICUGKA", logo: BK.stanbic },
@@ -726,17 +732,25 @@ export const worldCountries: Country[] = [
       { id: "mtn_ug",    name: "MTN MoMo",    icon: OP.mtn,   features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "airtel_ug", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
     ] },
-  { name: "Rwanda",    code: "RW", flag: "RW", currency: "RWF", currencySymbol: "RF",  piToLocalRate: 1280,  dialCode: "+250", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Rwanda",    code: "RW", flag: "RW", currency: "RWF", currencySymbol: "RF",  piToLocalRate: 1280,  dialCode: "+250", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Bank of Kigali", bic: "BKIGRWRW", swift: "BKIGRWRW", logo: BK.bk },
       { name: "Equity Bank RW", bic: "EQBLRWRW", swift: "EQBLRWRW", logo: BK.equity },
     ],
-    operators: [{ id: "mtn_rw", name: "MTN MoMo", icon: OP.mtn, features: { cashIn: true, cashOut: true, airtime: true } }] },
-  { name: "Ethiopia",  code: "ET", flag: "ET", currency: "ETB", currencySymbol: "Br",  piToLocalRate: 57,    dialCode: "+251", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+    operators: [
+      { id: "mtn_rw",    name: "MTN MoMo",     icon: OP.mtn,    features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel_rw", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+    ] },
+  { name: "Ethiopia",  code: "ET", flag: "ET", currency: "ETB", currencySymbol: "Br",  piToLocalRate: 57,    dialCode: "+251", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Commercial Bank of Ethiopia", bic: "CBETETAA", swift: "CBETETAA", logo: BK.cbe },
     ],
-    operators: [{ id: "telebirr_et", name: "Telebirr", icon: OP.telebirr, features: { cashIn: true, cashOut: true, airtime: true } }] },
+    operators: [
+      // PawaPay Éthiopie : Safaricom M-PESA (MPESA_ETH). Telebirr n'est pas
+      // encore pris en charge par l'agrégateur et sera masqué au dépôt/retrait MoMo.
+      { id: "mpesa_et",    name: "Safaricom M-Pesa", icon: OP.mpesa,    features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "telebirr_et", name: "Telebirr",         icon: OP.telebirr, features: { cashIn: true, cashOut: true, airtime: true } },
+    ] },
   { name: "Morocco",   code: "MA", flag: "MA", currency: "MAD", currencySymbol: "MAD", piToLocalRate: 10,    dialCode: "+212", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
     banks: [
       { name: "Attijariwafa Bank",bic: "BCMAMAMC", swift: "BCMAMAMC", logo: BK.attijariwafa },
@@ -786,20 +800,24 @@ export const worldCountries: Country[] = [
       { name: "Ecobank Tchad",bic: "ECOCTDND", swift: "ECOCTDND", logo: BK.ecobank },
     ],
     operators: [{ id: "airtel_td", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } }] },
-  { name: "Zambia",    code: "ZM", flag: "ZM", currency: "ZMW", currencySymbol: "ZK",  piToLocalRate: 26,    dialCode: "+260", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Zambia",    code: "ZM", flag: "ZM", currency: "ZMW", currencySymbol: "ZK",  piToLocalRate: 26,    dialCode: "+260", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Stanbic Zambia",bic: "SBICZMLX", swift: "SBICZMLX", logo: BK.stanbic },
       { name: "Zanaco",        bic: "ZACCZMLU", swift: "ZACCZMLU" },
     ],
     operators: [
-      { id: "mtn_zm",   name: "MTN MoMo",    icon: OP.mtn,   features: { cashIn: true, cashOut: true, airtime: true } },
-      { id: "airtel_zm",name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "mtn_zm",    name: "MTN MoMo",     icon: OP.mtn,    features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "airtel_zm", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "zamtel_zm", name: "Zamtel Kwacha",icon: "/placeholder.svg", features: { cashIn: true, cashOut: true, airtime: true } },
     ] },
-  { name: "Mozambique",code: "MZ", flag: "MZ", currency: "MZN", currencySymbol: "MT",  piToLocalRate: 64,    dialCode: "+258", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Mozambique",code: "MZ", flag: "MZ", currency: "MZN", currencySymbol: "MT",  piToLocalRate: 64,    dialCode: "+258", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Standard Bank MZ",bic: "SBICMZMX", swift: "SBICMZMX", logo: BK.standardbank },
     ],
-    operators: [{ id: "vodacom_mz", name: "M-Pesa", icon: OP.mpesa, features: { cashIn: true, cashOut: true, airtime: true } }] },
+    operators: [
+      { id: "vodacom_mz", name: "Vodacom M-Pesa", icon: OP.mpesa,  features: { cashIn: true, cashOut: true, airtime: true } },
+      { id: "movitel_mz", name: "Movitel (e-Mola)", icon: "/placeholder.svg", features: { cashIn: true, cashOut: true, airtime: true } },
+    ] },
   // --- Additional African countries (data completeness) ---
   { name: "Algeria",            code: "DZ", flag: "🇩🇿", currency: "DZD", currencySymbol: "دج",  piToLocalRate: 134,   dialCode: "+213",  continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },
   { name: "Libya",              code: "LY", flag: "🇱🇾", currency: "LYD", currencySymbol: "ل.د",  piToLocalRate: 4.8,   dialCode: "+218",  continent: "AFRICA", isoStandard: "ISO20022", isActive: false, banks: [], operators: [] },

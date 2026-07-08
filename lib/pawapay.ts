@@ -103,177 +103,25 @@ export function newPawaPayId(): string {
 }
 
 // -----------------------------------------------------------------------------
-// Table des pays supportés par PawaPay : code ISO alpha-2 -> { alpha3, currency }
+// Catalogue des pays / providers PawaPay.
+// La source de vérité est `lib/pawapay-catalog.ts` (safe client + serveur), afin
+// que le frontend (filtrage des opérateurs) et le backend (résolution du provider)
+// partagent EXACTEMENT la même liste. On ré-exporte ici pour compatibilité.
 // -----------------------------------------------------------------------------
-interface PawaPayCountry {
-  alpha3: string;
-  currency: string;
-}
-
-const PAWAPAY_COUNTRIES: Record<string, PawaPayCountry> = {
-  BJ: { alpha3: "BEN", currency: "XOF" }, // Bénin
-  BF: { alpha3: "BFA", currency: "XOF" }, // Burkina Faso
-  CM: { alpha3: "CMR", currency: "XAF" }, // Cameroun
-  CG: { alpha3: "COG", currency: "XAF" }, // Congo Brazzaville
-  CD: { alpha3: "COD", currency: "CDF" }, // RDC
-  CI: { alpha3: "CIV", currency: "XOF" }, // Côte d'Ivoire
-  GA: { alpha3: "GAB", currency: "XAF" }, // Gabon
-  GH: { alpha3: "GHA", currency: "GHS" }, // Ghana
-  KE: { alpha3: "KEN", currency: "KES" }, // Kenya
-  MW: { alpha3: "MWI", currency: "MWK" }, // Malawi
-  MZ: { alpha3: "MOZ", currency: "MZN" }, // Mozambique
-  NG: { alpha3: "NGA", currency: "NGN" }, // Nigeria
-  RW: { alpha3: "RWA", currency: "RWF" }, // Rwanda
-  SN: { alpha3: "SEN", currency: "XOF" }, // Sénégal
-  SL: { alpha3: "SLE", currency: "SLE" }, // Sierra Leone
-  TZ: { alpha3: "TZA", currency: "TZS" }, // Tanzanie
-  UG: { alpha3: "UGA", currency: "UGX" }, // Ouganda
-  ZM: { alpha3: "ZMB", currency: "ZMW" }, // Zambie
-};
-
-// -----------------------------------------------------------------------------
-// Mapping opérateur -> code provider PawaPay.
-// La clé est le code pays alpha-2 ; pour chaque pays, on associe des mots-clés de
-// marque (présents dans l'id/nom de l'opérateur de l'app) au code provider PawaPay.
-// -----------------------------------------------------------------------------
-interface ProviderRule {
-  keywords: string[]; // mots-clés recherchés dans l'id/nom opérateur (minuscule)
-  provider: string; // code provider PawaPay
-}
-
-const PROVIDER_RULES: Record<string, ProviderRule[]> = {
-  BJ: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_BEN" },
-    { keywords: ["moov"], provider: "MOOV_BEN" },
-  ],
-  BF: [
-    { keywords: ["moov"], provider: "MOOV_BFA" },
-    { keywords: ["orange"], provider: "ORANGE_BFA" },
-  ],
-  CM: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_CMR" },
-    { keywords: ["orange"], provider: "ORANGE_CMR" },
-  ],
-  CG: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_COG" },
-    { keywords: ["airtel"], provider: "AIRTEL_COG" },
-  ],
-  CD: [
-    { keywords: ["vodacom", "mpesa", "m-pesa"], provider: "VODACOM_MPESA_COD" },
-    { keywords: ["airtel"], provider: "AIRTEL_COD" },
-    { keywords: ["orange"], provider: "ORANGE_COD" },
-  ],
-  CI: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_CIV" },
-    { keywords: ["orange"], provider: "ORANGE_CIV" },
-    { keywords: ["moov"], provider: "MOOV_CIV" },
-    { keywords: ["wave"], provider: "WAVE_CIV" },
-  ],
-  GA: [{ keywords: ["airtel"], provider: "AIRTEL_GAB" }],
-  GH: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_GHA" },
-    { keywords: ["airteltigo", "tigo", "airtel"], provider: "AIRTELTIGO_GHA" },
-    { keywords: ["vodafone", "telecel"], provider: "VODAFONE_GHA" },
-  ],
-  KE: [
-    { keywords: ["mpesa", "m-pesa", "safaricom"], provider: "MPESA_KEN" },
-    { keywords: ["airtel"], provider: "AIRTEL_KEN" },
-  ],
-  MW: [
-    { keywords: ["airtel"], provider: "AIRTEL_MWI" },
-    { keywords: ["tnm"], provider: "TNM_MWI" },
-  ],
-  MZ: [
-    { keywords: ["vodacom", "mpesa", "m-pesa"], provider: "VODACOM_MOZ" },
-    { keywords: ["movitel"], provider: "MOVITEL_MOZ" },
-  ],
-  NG: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_NGA" },
-    { keywords: ["airtel"], provider: "AIRTEL_NGA" },
-  ],
-  RW: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_RWA" },
-    { keywords: ["airtel"], provider: "AIRTEL_RWA" },
-  ],
-  SN: [
-    { keywords: ["free"], provider: "FREE_SEN" },
-    { keywords: ["orange"], provider: "ORANGE_SEN" },
-    { keywords: ["expresso"], provider: "EXPRESSO_SEN" },
-    { keywords: ["wave"], provider: "WAVE_SEN" },
-  ],
-  SL: [
-    { keywords: ["orange"], provider: "ORANGE_SLE" },
-    { keywords: ["africell"], provider: "AFRICELL_SLE" },
-  ],
-  TZ: [
-    { keywords: ["airtel"], provider: "AIRTEL_TZA" },
-    { keywords: ["vodacom", "mpesa", "m-pesa"], provider: "VODACOM_TZA" },
-    { keywords: ["tigo", "mixx", "yas"], provider: "TIGO_TZA" },
-    { keywords: ["halotel", "halo"], provider: "HALOTEL_TZA" },
-  ],
-  UG: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_UGA" },
-    { keywords: ["airtel"], provider: "AIRTEL_UGA" },
-  ],
-  ZM: [
-    { keywords: ["mtn"], provider: "MTN_MOMO_ZMB" },
-    { keywords: ["airtel"], provider: "AIRTEL_OAPI_ZMB" },
-    { keywords: ["zamtel"], provider: "ZAMTEL_ZMB" },
-  ],
-};
-
-export interface ResolvedProvider {
-  provider: string; // code provider PawaPay (ex: MTN_MOMO_ZMB)
-  currency: string; // devise du pays (ex: ZMW)
-  alpha3: string; // code pays ISO alpha-3 (ex: ZMB)
-  supported: boolean; // true si le pays/opérateur est pris en charge par PawaPay
-}
-
-/**
- * Résout un provider PawaPay à partir du code pays (alpha-2) et de l'opérateur
- * sélectionné dans l'app (id ou nom, ex: "mtn_zm", "MTN MoMo", "airtel_ng").
- */
-export function resolveProvider(
-  countryCode: string,
-  operatorHint: string
-): ResolvedProvider {
-  const cc = (countryCode || "").toUpperCase();
-  const country = PAWAPAY_COUNTRIES[cc];
-  const hint = (operatorHint || "").toLowerCase();
-
-  if (!country) {
-    return { provider: "", currency: "", alpha3: "", supported: false };
-  }
-
-  const rules = PROVIDER_RULES[cc] || [];
-  let match = rules.find((r) => r.keywords.some((k) => hint.includes(k)));
-
-  // Repli : si aucun mot-clé ne matche mais le pays n'a qu'un seul provider,
-  // on prend le premier disponible.
-  if (!match && rules.length > 0) {
-    match = rules[0];
-  }
-
-  if (!match) {
-    return {
-      provider: "",
-      currency: country.currency,
-      alpha3: country.alpha3,
-      supported: false,
-    };
-  }
-
-  return {
-    provider: match.provider,
-    currency: country.currency,
-    alpha3: country.alpha3,
-    supported: true,
-  };
-}
-
-export function isCountrySupported(countryCode: string): boolean {
-  return !!PAWAPAY_COUNTRIES[(countryCode || "").toUpperCase()];
-}
+export {
+  PAWAPAY_COUNTRIES,
+  PROVIDER_RULES,
+  resolveProvider,
+  isCountrySupported,
+  getSupportedProviders,
+  isOperatorSupported,
+  filterSupportedOperators,
+} from "./pawapay-catalog";
+export type {
+  PawaPayCountry,
+  ProviderRule,
+  ResolvedProvider,
+} from "./pawapay-catalog";
 
 // -----------------------------------------------------------------------------
 // DÉPÔT (collecte) : POST /v2/deposits

@@ -75,48 +75,16 @@ export default async function RootLayout({
           nonce={nonce}
         />
 
-        {/* Initialisation immediate du SDK Pi apres chargement */}
-        <Script
-          id="pi-sdk-init"
-          strategy="afterInteractive"
-          nonce={nonce}
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function initPiSDK() {
-                if (typeof window === "undefined") return;
-                
-                function tryInit() {
-                  if (window.Pi && !window.__PI_SDK_READY__ && !window.__PI_SDK_INITIALIZING__) {
-                    try {
-                      window.__PI_SDK_INITIALIZING__ = true;
-                      window.Pi.init({ version: "2.0", sandbox: false });
-                      window.__PI_SDK_READY__ = true;
-                      window.__PI_SDK_INITIALIZING__ = false;
-                      console.log("[PimPay] SDK Pi 2.0 initialise via script inline");
-                    } catch (e) {
-                      window.__PI_SDK_INITIALIZING__ = false;
-                      if (e && e.message && e.message.includes("already")) {
-                        window.__PI_SDK_READY__ = true;
-                        console.log("[PimPay] SDK Pi deja initialise");
-                      } else {
-                        console.error("[PimPay] Erreur init SDK Pi:", e);
-                      }
-                    }
-                  } else if (!window.Pi) {
-                    setTimeout(tryInit, 100);
-                  }
-                }
-                
-                if (document.readyState === "complete") {
-                  tryInit();
-                } else {
-                  window.addEventListener("load", tryInit);
-                }
-                setTimeout(tryInit, 500);
-              })();
-            `,
-          }}
-        />
+        {/*
+          NOTE: L'initialisation du SDK Pi est geree UNIQUEMENT par <PiInitializer />.
+          Un ancien script inline forcait ici `Pi.init({ sandbox: false })` de maniere
+          immediate, ce qui entrait en concurrence avec PiInitializer/usePiAuth (qui, eux,
+          respectent le mode reseau configure par l'admin via /api/pi-network).
+          Comme le SDK Pi ne peut etre initialise QU'UNE SEULE FOIS, le premier appel
+          gagnait la course : selon le timing, le SDK etait parfois initialise sur le
+          mauvais reseau -> login "qui marche parfois" + deconnexions.
+          On laisse donc PiInitializer etre le point d'initialisation unique et coherent.
+        */}
 
         {/* Google Analytics */}
         <Script
