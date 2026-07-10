@@ -1,0 +1,218 @@
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getAuthUserId } from "@/lib/auth";
+import { nanoid } from "nanoid";
+import { convert } from "@/lib/exchange";
+import { getPiPrice, getFeeConfig } from "@/lib/fees";
+import {
+  createPayment,
+  unwrap,
+  resolveMomoMethod,
+  normalizePhone,
+  type GeniusPayPayment,
+} from "@/lib/geniuspay";
+
+/**
+ * POST /api/transaction/deposit/geniuspay
+ *
+ * Initie un dépôt via l'agrégateur GeniusPay (XOF / FCFA).
+ *   - Si un opérateur Mobile Money est reconnu (Wave / Orange / MTN / Moov),
+ *     GeniusPay déclenche un push de paiement sur le téléphone du client.
+ *   - Sinon, l'API renvoie une `checkout_url` (page hébergée, carte bancaire)
+ *     que le frontend ouvre pour finaliser le paiement.
+ *
+ * Le crédit effectif du wallet PI n'a lieu QU'À la réception du webhook
+ * /api/transaction/webhook (event payment.success), jamais ici — anti-fraude.
+ *
+ * Body attendu :
+ *   { amountUsd: number, phone?: string, operatorId?: string,
+ *     operatorName?: string, method?: "card" | "momo", customerName?: string,
+ *     customerEmail?: string }
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const userId = await getAuthUserId();
+    if (!userId)
+      return NextResponse.json({ error: "Session expirée" }, { status: 401 });
+
+    const body = await req.json();
+    const {
+      amountUsd,
+      phone,
+      operatorId,
+      operatorName,
+      method,
+      customerName,
+      customerEmail,
+    } = body;
+
+    const usd = parseFloat(amountUsd);
+    if (!usd || usd <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
+
+    // 1. Déterminer le moyen de paiement.
+    //    method === "card"  -> checkout hébergé (aucun payment_method envoyé)
+    //    sinon on tente de résoudre un opérateur MoMo depuis le libellé fourni.
+    const momoMethod =
+      method === "card"
+        ? undefined
+        : resolveMomoMethod(`${operatorId || ""} ${operatorName || ""}`);
+
+    // Un paiement Mobile Money exige un numéro de téléphone.
+    if (momoMethod && !phone) {
+      return NextResponse.json(
+        { error: "Numéro de téléphone requis pour Mobile Money" },
+        { status: 400 }
+      );
+    }
+
+    // 2. Conversion USD -> XOF (montant facturé au client)
+    const xofAmount = Math.round(convert("USD", "XOF", usd));
+    if (xofAmount <= 0) {
+      return NextResponse.json(
+        { error: "Montant converti invalide" },
+        { status: 400 }
+      );
+    }
+
+    // 3. Frais + montant net crédité (en Pi)
+    const feeConfig = await getFeeConfig();
+    const feeRate = momoMethod
+      ? feeConfig.depositMobileFee
+      : feeConfig.depositCardFee;
+    const piPrice = await getPiPrice();
+    const feeUsd = usd * feeRate;
+    const netUsd = usd - feeUsd;
+    const netPi = piPrice > 0 ? netUsd / piPrice : 0;
+
+    // 4. Anti-doublon (30s)
+    const existingTx = await prisma.transaction.findFirst({
+      where: {
+        fromUserId: userId,
+        type: "DEPOSIT",
+        status: "PENDING",
+        createdAt: { gte: new Date(Date.now() - 30 * 1000) },
+      },
+    });
+    if (existingTx) {
+      return NextResponse.json(
+        { error: "Un dépôt est déjà en cours, veuillez patienter." },
+        { status: 409 }
+      );
+    }
+
+    // 5. Créer la transaction PENDING
+    const reference = `DEP-${nanoid(10).toUpperCase()}`;
+    const normalizedPhone = phone ? normalizePhone(phone) : undefined;
+
+    const transaction = await prisma.transaction.create({
+      data: {
+        reference,
+        amount: xofAmount,
+        fee: feeUsd,
+        netAmount: netUsd,
+        currency: "XOF",
+        destCurrency: "PI",
+        type: "DEPOSIT",
+        status: "PENDING",
+        description: `Dépôt via GeniusPay${
+          momoMethod ? ` (${operatorName || momoMethod})` : " (Carte)"
+        }`,
+        operatorId: operatorId || null,
+        accountNumber: normalizedPhone || null,
+        countryCode: "CI",
+        fromUserId: userId,
+        metadata: {
+          aggregator: "GENIUSPAY",
+          paymentMethod: momoMethod || "card",
+          phoneNumber: normalizedPhone || null,
+          xofAmount,
+          usdAmount: usd,
+          feeUsd,
+          netUsd,
+          netPi,
+          piPrice,
+          submittedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    // 6. Appel GeniusPay (création du paiement)
+    const gp = await createPayment({
+      amount: xofAmount,
+      currency: "XOF",
+      paymentMethod: momoMethod,
+      description: `PimobiPay dépôt ${reference}`,
+      customer: {
+        name: customerName,
+        email: customerEmail,
+        phone: normalizedPhone,
+        country: "CI",
+      },
+      metadata: { reference, userId, kind: "deposit" },
+    });
+
+    // 7. Gérer la réponse de l'agrégateur
+    const payment = unwrap<GeniusPayPayment>(gp.data);
+    const gpStatus = (payment?.status || "").toLowerCase();
+    const accepted =
+      gp.ok &&
+      !!payment?.reference &&
+      ["pending", "processing", "initiated"].includes(gpStatus);
+
+    if (!accepted) {
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: "FAILED",
+          statusClass: "AGGREGATOR_REJECTED",
+          metadata: {
+            ...(transaction.metadata as any),
+            geniusPayResponse: gp.data,
+          },
+        },
+      });
+      const reason =
+        payment?.["message" as keyof GeniusPayPayment] ||
+        (gp.data as any)?.message ||
+        (gp.data as any)?.error ||
+        "Le paiement a été refusé par l'agrégateur GeniusPay.";
+      return NextResponse.json({ error: reason }, { status: 400 });
+    }
+
+    // 8. Persister la référence GeniusPay (= externalId, utilisé par le webhook)
+    await prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        externalId: payment.reference,
+        metadata: {
+          ...(transaction.metadata as any),
+          geniusPayReference: payment.reference,
+          checkoutUrl: payment.checkout_url || null,
+          netAmountXof: payment.net_amount ?? null,
+        },
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      reference,
+      geniusPayReference: payment.reference,
+      status: "PENDING",
+      xofAmount,
+      currency: "XOF",
+      paymentMethod: momoMethod || "card",
+      // Présent uniquement pour le paiement par carte / checkout hébergé
+      checkoutUrl: payment.checkout_url || null,
+    });
+  } catch (error: any) {
+    console.error("[v0] GENIUSPAY_DEPOSIT_ERROR:", error.message);
+    return NextResponse.json(
+      { error: error.message || "Erreur lors de l'initiation du dépôt" },
+      { status: 500 }
+    );
+  }
+}
