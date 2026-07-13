@@ -13,6 +13,7 @@ import {
   normalizePhone,
   type GeniusPayPayment,
 } from "@/lib/geniuspay";
+import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 
 /**
  * POST /api/transaction/card/fund/geniuspay
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Carte requise" }, { status: 400 });
     }
 
+    // Pays sélectionné + devise locale résolue dynamiquement (jamais codée en dur).
+    const countryCode = (body.countryCode || "CI").toUpperCase();
+    const currency = getGeniusPayCurrency(countryCode) || "XOF";
+
     // 1. Vérifier que la carte appartient bien à l'utilisateur (scope userId)
     const card = await prisma.virtualCard.findFirst({
       where: { id: cardId, userId },
@@ -81,9 +86,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Conversion USD -> XOF + frais
-    const xofAmount = Math.round(convert("USD", "XOF", usd));
-    if (xofAmount <= 0) {
+    // 3. Conversion USD -> devise locale + frais
+    const localAmount = Math.round(convert("USD", currency, usd));
+    if (localAmount <= 0) {
       return NextResponse.json(
         { error: "Montant converti invalide" },
         { status: 400 }
@@ -119,10 +124,10 @@ export async function POST(req: NextRequest) {
     const transaction = await prisma.transaction.create({
       data: {
         reference,
-        amount: xofAmount,
+        amount: localAmount,
         fee: feeUsd,
         netAmount: netUsd,
-        currency: "XOF",
+        currency,
         destCurrency: "USD",
         type: "CARD_RECHARGE",
         status: "PENDING",
@@ -131,7 +136,7 @@ export async function POST(req: NextRequest) {
         }`,
         operatorId: operatorId || null,
         accountNumber: normalizedPhone || null,
-        countryCode: "CI",
+        countryCode,
         fromUserId: userId,
         metadata: {
           aggregator: "GENIUSPAY",
@@ -139,7 +144,8 @@ export async function POST(req: NextRequest) {
           cardId,
           paymentMethod: momoMethod || "card",
           phoneNumber: normalizedPhone || null,
-          xofAmount,
+          localAmount,
+          localCurrency: currency,
           usdAmount: usd,
           feeUsd,
           netUsd,
@@ -150,15 +156,15 @@ export async function POST(req: NextRequest) {
 
     // 6. Créer le paiement GeniusPay
     const gp = await createPayment({
-      amount: xofAmount,
-      currency: "XOF",
+      amount: localAmount,
+      currency,
       paymentMethod: momoMethod,
       description: `PimobiPay recharge carte ${reference}`,
       customer: {
         name: customerName || card.holder,
         email: customerEmail,
         phone: normalizedPhone,
-        country: "CI",
+        country: countryCode,
       },
       metadata: { reference, userId, kind: "card_fund", cardId },
     });

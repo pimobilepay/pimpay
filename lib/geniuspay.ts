@@ -28,6 +28,15 @@
 // -----------------------------------------------------------------------------
 
 import crypto from "crypto";
+import {
+  GENIUSPAY_MOMO_METHODS,
+  resolveMomoMethod,
+  type GeniusPayMomoMethod,
+} from "./geniuspay-catalog";
+
+// Ré-export depuis le catalogue partagé (source de vérité unique, safe client).
+export { GENIUSPAY_MOMO_METHODS, resolveMomoMethod };
+export type { GeniusPayMomoMethod };
 
 export type GeniusPayEnv = "sandbox" | "production";
 
@@ -134,33 +143,6 @@ export function normalizePhone(input: string): string {
   const digits = (input || "").replace(/[^\d+]/g, "");
   if (!digits) return "";
   return digits.startsWith("+") ? digits : `+${digits.replace(/^0+/, "")}`;
-}
-
-// -----------------------------------------------------------------------------
-// Moyens de paiement Mobile Money supportés par GeniusPay
-// -----------------------------------------------------------------------------
-export const GENIUSPAY_MOMO_METHODS = [
-  "wave",
-  "orange_money",
-  "mtn",
-  "moov",
-] as const;
-export type GeniusPayMomoMethod = (typeof GENIUSPAY_MOMO_METHODS)[number];
-
-/**
- * Résout un `payment_method` GeniusPay à partir d'un libellé d'opérateur libre.
- * Retourne `undefined` si aucun opérateur ne correspond -> checkout carte hébergé.
- */
-export function resolveMomoMethod(
-  operator?: string | null
-): GeniusPayMomoMethod | undefined {
-  const s = (operator || "").toLowerCase();
-  if (!s) return undefined;
-  if (s.includes("wave")) return "wave";
-  if (s.includes("orange") || s.includes("om")) return "orange_money";
-  if (s.includes("mtn") || s.includes("momo")) return "mtn";
-  if (s.includes("moov") || s.includes("flooz")) return "moov";
-  return undefined;
 }
 
 // -----------------------------------------------------------------------------

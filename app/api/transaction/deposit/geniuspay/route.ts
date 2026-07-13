@@ -13,6 +13,7 @@ import {
   normalizePhone,
   type GeniusPayPayment,
 } from "@/lib/geniuspay";
+import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 
 /**
  * POST /api/transaction/deposit/geniuspay
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
+    // Pays sélectionné + devise locale résolue dynamiquement (jamais codée en dur).
+    // GeniusPay couvre la zone XOF ; la devise est déduite du pays choisi.
+    const countryCode = (body.countryCode || "CI").toUpperCase();
+    const currency = getGeniusPayCurrency(countryCode) || "XOF";
+
     // 1. Déterminer le moyen de paiement.
     //    method === "card"  -> checkout hébergé (aucun payment_method envoyé)
     //    sinon on tente de résoudre un opérateur MoMo depuis le libellé fourni.
@@ -69,9 +75,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Conversion USD -> XOF (montant facturé au client)
-    const xofAmount = Math.round(convert("USD", "XOF", usd));
-    if (xofAmount <= 0) {
+    // 2. Conversion USD -> devise locale (montant facturé au client)
+    const localAmount = Math.round(convert("USD", currency, usd));
+    if (localAmount <= 0) {
       return NextResponse.json(
         { error: "Montant converti invalide" },
         { status: 400 }
@@ -111,10 +117,10 @@ export async function POST(req: NextRequest) {
     const transaction = await prisma.transaction.create({
       data: {
         reference,
-        amount: xofAmount,
+        amount: localAmount,
         fee: feeUsd,
         netAmount: netUsd,
-        currency: "XOF",
+        currency,
         destCurrency: "PI",
         type: "DEPOSIT",
         status: "PENDING",
@@ -123,13 +129,14 @@ export async function POST(req: NextRequest) {
         }`,
         operatorId: operatorId || null,
         accountNumber: normalizedPhone || null,
-        countryCode: "CI",
+        countryCode,
         fromUserId: userId,
         metadata: {
           aggregator: "GENIUSPAY",
           paymentMethod: momoMethod || "card",
           phoneNumber: normalizedPhone || null,
-          xofAmount,
+          localAmount,
+          localCurrency: currency,
           usdAmount: usd,
           feeUsd,
           netUsd,
@@ -142,15 +149,15 @@ export async function POST(req: NextRequest) {
 
     // 6. Appel GeniusPay (création du paiement)
     const gp = await createPayment({
-      amount: xofAmount,
-      currency: "XOF",
+      amount: localAmount,
+      currency,
       paymentMethod: momoMethod,
       description: `PimobiPay dépôt ${reference}`,
       customer: {
         name: customerName,
         email: customerEmail,
         phone: normalizedPhone,
-        country: "CI",
+        country: countryCode,
       },
       metadata: { reference, userId, kind: "deposit" },
     });
@@ -202,8 +209,8 @@ export async function POST(req: NextRequest) {
       reference,
       geniusPayReference: payment.reference,
       status: "PENDING",
-      xofAmount,
-      currency: "XOF",
+      localAmount,
+      currency,
       paymentMethod: momoMethod || "card",
       // Présent uniquement pour le paiement par carte / checkout hébergé
       checkoutUrl: payment.checkout_url || null,

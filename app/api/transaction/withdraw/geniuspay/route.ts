@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee, convert } from "@/lib/exchange";
+import { calculateExchangeWithFee } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
@@ -13,22 +13,31 @@ import {
   evaluatePiWithdrawal,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
-import { createPayout, unwrap, normalizePhone, type GeniusPayPayout } from "@/lib/geniuspay";
+import {
+  createPayout,
+  unwrap,
+  normalizePhone,
+  type GeniusPayPayout,
+} from "@/lib/geniuspay";
+import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 
 /**
  * POST /api/transaction/withdraw/geniuspay
  *
  * Retrait (cashout) Mobile Money via GeniusPay : débite le wallet PI de
- * l'utilisateur puis déclenche un payout XOF depuis le wallet marchand GeniusPay
- * vers le numéro du bénéficiaire.
+ * l'utilisateur puis déclenche un payout dans la devise locale (XOF pour la zone
+ * couverte par GeniusPay) vers le numéro du bénéficiaire.
+ *
+ * Ce endpoint accepte EXACTEMENT le même corps que /api/transaction/withdraw
+ * (route PawaPay), afin que la page de confirmation puisse simplement choisir
+ * l'URL en fonction de l'agrégateur résolu (GeniusPay primaire, PawaPay secours).
+ *
+ * Body : { amount | piAmount, method, currency, details:{ phone, provider,
+ *          accountName? }, countryCode, fiatAmount, fiatCurrency }
  *
  * Sécurité : le débit Pi est fait AVANT l'appel payout (anti-double-dépense) ;
- * si GeniusPay refuse, on rembourse immédiatement. La finalisation (SUCCESS/FAILED)
- * est confirmée par le webhook /api/transaction/webhook (events cashout.*).
- *
- * Body attendu :
- *   { amount: number (Pi), phone: string, recipientName?: string,
- *     countryCode?: string }
+ * si GeniusPay refuse, on rembourse immédiatement. La finalisation (SUCCESS /
+ * FAILED) est confirmée par le webhook /api/transaction/webhook (events cashout.*).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -43,39 +52,51 @@ export async function POST(req: NextRequest) {
     const userId = payload.id;
 
     const body = await req.json();
-    const { amount, phone, recipientName } = body;
+    const { details } = body;
 
-    const piAmount = parseFloat(amount);
+    const piAmount = parseFloat(body.piAmount ?? body.amount);
     if (!piAmount || piAmount <= 0) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
     }
 
-    const recipientPhone = normalizePhone(phone || "");
+    const recipientPhone = normalizePhone(details?.phone || "");
     if (!recipientPhone) {
       return NextResponse.json(
         { error: "Numéro de téléphone du bénéficiaire manquant" },
         { status: 400 }
       );
     }
+    const recipientName = details?.accountName || null;
 
-    // 1. Conversion Pi -> XOF (montant net versé au bénéficiaire)
+    // Pays + devise locale résolus dynamiquement (jamais codés en dur).
+    const countryCode = (body.countryCode || "CI").toUpperCase();
+    const currency =
+      body.fiatCurrency || getGeniusPayCurrency(countryCode) || "XOF";
+
+    // Montant net versé au bénéficiaire (devise locale).
+    // On privilégie le montant déjà calculé/affiché côté client (fiatAmount) ;
+    // à défaut, on recalcule Pi -> devise locale avec les frais retrait mobile.
     const feeConfig = await getFeeConfig();
     const piPrice = await getPiPrice();
     const conversion = calculateExchangeWithFee(
       piAmount,
-      "XOF",
+      currency,
       feeConfig.withdrawMobileFee,
       piPrice
     );
-    const xofAmount = Math.round(conversion.total);
-    if (xofAmount <= 0) {
+    const localAmount = Math.round(
+      parseFloat(body.fiatAmount) > 0
+        ? parseFloat(body.fiatAmount)
+        : conversion.total
+    );
+    if (localAmount <= 0) {
       return NextResponse.json(
         { error: "Montant converti invalide" },
         { status: 400 }
       );
     }
 
-    // 2. Débit atomique du wallet PI + création de la transaction PENDING
+    // 1. Débit atomique du wallet PI + création de la transaction PENDING
     const result = await prisma.$transaction(
       async (tx) => {
         const user = await tx.user.findUnique({
@@ -112,20 +133,23 @@ export async function POST(req: NextRequest) {
               : "AGGREGATOR_PENDING",
             fromUserId: userId,
             fromWalletId: userWallet.id,
-            description: `Retrait Mobile Money via GeniusPay`,
+            description: `Retrait Mobile Money via GeniusPay${
+              details?.provider ? ` (${details.provider})` : ""
+            }`,
             currency: "PI",
-            destCurrency: "XOF",
-            countryCode: body.countryCode || "CI",
+            destCurrency: currency,
+            countryCode,
             fee: feePi,
             accountNumber: recipientPhone,
-            accountName: recipientName || null,
+            accountName: recipientName,
             metadata: {
               aggregator: "GENIUSPAY",
               method: "mobile",
+              provider: details?.provider || null,
               phoneNumber: recipientPhone,
-              recipientName: recipientName || null,
-              localAmount: xofAmount,
-              localCurrency: "XOF",
+              recipientName,
+              localAmount,
+              localCurrency: currency,
               exchangeRate: piPrice,
               debitedPi: piAmount, // utilisé par le webhook pour rembourser si échec
               feePi,
@@ -169,13 +193,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Déclencher le payout GeniusPay (sauf validation admin requise)
+    // 2. Déclencher le payout GeniusPay (sauf validation admin requise)
     if (!result.requiresAdminApproval) {
       try {
         const gp = await createPayout({
-          amount: xofAmount,
-          currency: "XOF",
-          recipient: { phone: recipientPhone, name: recipientName },
+          amount: localAmount,
+          currency,
+          recipient: { phone: recipientPhone, name: recipientName || undefined },
           description: `PimobiPay retrait ${result.transaction.reference}`,
           metadata: { reference: result.transaction.reference, userId },
         });
@@ -255,7 +279,8 @@ export async function POST(req: NextRequest) {
         : "Demande de retrait transmise avec succès",
       requiresAdminApproval: result.requiresAdminApproval,
       reference: result.transaction.reference,
-      xofAmount,
+      localAmount,
+      currency,
       newBalance: result.newBalance,
     });
   } catch (error: any) {
