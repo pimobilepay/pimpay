@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
   } catch (error: any) {
-    console.error("Erreur de confirmation Pimpay:", error);
+    console.error("Erreur de confirmation PIMOBIPAY:", error);
     
     if (error.code === 'P2025') {
       return NextResponse.json(

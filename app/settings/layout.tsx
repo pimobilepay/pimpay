@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: 'Paramètres | PimPay',
-  description: 'Configurez votre compte et votre sécurité PimPay',
+  title: 'Paramètres | PIMOBIPAY',
+  description: 'Configurez votre compte et votre sécurité PIMOBIPAY',
 }
 
 export const viewport: Viewport = {

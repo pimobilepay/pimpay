@@ -111,12 +111,12 @@ export default function TransactionDetailsPage() {
   const shareTransaction = async () => {
     if (!transaction) return;
     
-    const shareText = `Transaction PimPay\nReference: ${transaction.reference}\nMontant: ${transaction.amount} ${transaction.currency}\nStatut: ${transaction.status}`;
+    const shareText = `Transaction PIMOBIPAY\nReference: ${transaction.reference}\nMontant: ${transaction.amount} ${transaction.currency}\nStatut: ${transaction.status}`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Transaction PimPay",
+          title: "Transaction PIMOBIPAY",
           text: shareText,
         });
       } catch {
@@ -177,7 +177,7 @@ export default function TransactionDetailsPage() {
     
     // Handle CARD_PURCHASE transactions
     if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY") || ref.includes("CARD_PURCHASE")) {
-      return "Achat Carte PimPay";
+      return "Achat Carte PIMOBIPAY";
     }
     // Handle card recharge/withdraw
     if (txType === "CARD_RECHARGE" || txType === "CARD_WITHDRAW") {
@@ -309,7 +309,7 @@ export default function TransactionDetailsPage() {
         </button>
         <div className="text-center">
           <h1 className="text-base font-black uppercase tracking-tight">Reçu de transaction</h1>
-          <p className="text-[9px] font-bold text-blue-400/80 tracking-[3px] uppercase mt-0.5">PimPay Network</p>
+          <p className="text-[9px] font-bold text-blue-400/80 tracking-[3px] uppercase mt-0.5">PIMOBIPAY Network</p>
         </div>
         <button
           onClick={shareTransaction}
@@ -546,7 +546,7 @@ export default function TransactionDetailsPage() {
           {/* Authenticity footer */}
           <div className="flex items-center justify-center gap-2 py-4 bg-white/[0.02] border-t border-white/5 relative z-10">
             <ShieldCheck size={13} className="text-emerald-400/70" />
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Authentifié par PimPay</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Authentifié par PIMOBIPAY</p>
           </div>
         </section>
 

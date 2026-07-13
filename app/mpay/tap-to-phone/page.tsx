@@ -152,7 +152,7 @@ export default function TapToPhonePage() {
     });
   };
 
-  // ── Appel API : crédite le wallet PimPay ───────────────────────────────────
+  // ── Appel API : crédite le wallet PIMOBIPAY ───────────────────────────────────
   const processPayment = async (
     detected: { cardScheme: string; cardLast4: string; cardHolder: string },
     _pin: string
@@ -433,7 +433,7 @@ export default function TapToPhonePage() {
               </div>
               <h2 className="text-2xl font-black uppercase tracking-tight">Paiement accepté</h2>
               <p className="text-[11px] text-emerald-400 font-black mt-1 uppercase tracking-widest">
-                Crédité sur votre wallet PimPay
+                Crédité sur votre wallet PIMOBIPAY
               </p>
             </div>
 

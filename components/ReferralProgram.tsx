@@ -103,9 +103,9 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
   function handleShare() {
     if (!data?.referralCode) return;
     const link = `${typeof window !== "undefined" ? window.location.origin : ""}/auth/signup?ref=${data.referralCode}`;
-    const text = `Rejoins PimPay et gagne un bonus apres ton KYC et premier depot ! Utilise mon lien : ${link}`;
+    const text = `Rejoins PIMOBIPAY et gagne un bonus apres ton KYC et premier depot ! Utilise mon lien : ${link}`;
     if (navigator.share) {
-      navigator.share({ title: "PimPay - Programme de Parrainage", text, url: link }).catch(() => null);
+      navigator.share({ title: "PIMOBIPAY - Programme de Parrainage", text, url: link }).catch(() => null);
     } else {
       navigator.clipboard.writeText(text);
       toast.success("Lien copie !");

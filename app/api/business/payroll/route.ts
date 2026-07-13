@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Entreprise non trouvee" }, { status: 404 });
     }
 
-    // Get employees with their user accounts (try multiple ways to find their PimPay account)
+    // Get employees with their user accounts (try multiple ways to find their PIMOBIPAY account)
     const employeesWithUsers = await Promise.all(
       (business.BusinessEmployee as any[]).map(async (emp) => {
         let userAccount = null;

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const expiry = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${(now.getFullYear() + 3).toString().slice(-2)}`;
 
-    // 3. Enregistrer dans la base de données (Respect du schéma Pimpay)
+    // 3. Enregistrer dans la base de données (Respect du schéma PIMOBIPAY)
     const newCard = await prisma.virtualCard.create({
       data: {
         userId: user.id,

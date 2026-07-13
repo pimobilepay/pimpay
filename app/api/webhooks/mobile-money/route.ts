@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Référence manquante" }, { status: 400 });
     }
 
-    // 1. Trouver la transaction PENDING dans PimPay
+    // 1. Trouver la transaction PENDING dans PIMOBIPAY
     const transaction = await prisma.transaction.findUnique({
       where: { reference },
       include: { toWallet: true, toUser: true },
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
           data: {
             userId: transaction.toUserId,
             title: "Dépôt Réussi",
-            message: `Votre dépôt de ${creditAmount} ${transaction.currency} a été crédité sur votre compte PimPay.`,
+            message: `Votre dépôt de ${creditAmount} ${transaction.currency} a été crédité sur votre compte PIMOBIPAY.`,
             type: "payment",
           },
         }),

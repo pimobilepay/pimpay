@@ -33,7 +33,7 @@ interface AdminTopNavProps {
 
 export function AdminTopNav({ 
   title = "Administration", 
-  subtitle = "PimPay",
+  subtitle = "PIMOBIPAY",
   onRefresh,
   showBack = true,
   backPath = "/"

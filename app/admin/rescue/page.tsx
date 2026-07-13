@@ -101,7 +101,7 @@ export default function RescuePage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Mode Rescue</h1>
           </div>
           <div className="w-11" />
@@ -314,7 +314,7 @@ export default function RescuePage() {
         {/* FOOTER */}
         <div className="flex flex-col items-center gap-2 pt-6 opacity-20">
           <Shield size={14} />
-          <p className="text-[8px] font-black uppercase tracking-[0.4em]">PimPay Rescue Module v4.0</p>
+          <p className="text-[8px] font-black uppercase tracking-[0.4em]">PIMOBIPAY Rescue Module v4.0</p>
         </div>
       </div>
     </div>

@@ -206,7 +206,7 @@ export default async function CardDetailsPage({
                     </h3>
                     <div className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md">
                       <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter italic">
-                        PimPay Protected
+                        PIMOBIPAY Protected
                       </span>
                     </div>
                   </div>
@@ -331,7 +331,7 @@ export default async function CardDetailsPage({
                     {"Securise"}
                   </p>
                   <p className="text-[9px] text-white/40 mt-1">
-                    3DS + PimPay Shield
+                    3DS + PIMOBIPAY Shield
                   </p>
                 </div>
               </div>

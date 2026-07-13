@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         toUserId: userId,
         toWalletId: wallet.id,
         metadata: {
-          initiationSource: "PimPay Mobile App",
+          initiationSource: "PIMOBIPAY Mobile App",
           phone_used: phone,
         },
       },
@@ -95,6 +95,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("DEPOSIT_API_ERROR:", error);
-    return NextResponse.json({ success: false, message: "Erreur serveur PimPay" }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Erreur serveur PIMOBIPAY" }, { status: 500 });
   }
 }

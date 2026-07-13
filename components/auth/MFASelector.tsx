@@ -374,7 +374,7 @@ export default function MFASelector({
                   {step === "select" ? "Authentification MFA" : selectedMethod === "pin" ? (needsPinUpdate ? "Migration PIN" : "Code PIN") : "Google Authenticator"}
                 </h2>
                 <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">
-                  {step === "select" ? "Choisissez votre methode" : "Securise par PimPay"}
+                  {step === "select" ? "Choisissez votre methode" : "Securise par PIMOBIPAY"}
                 </p>
               </div>
             </div>
@@ -440,7 +440,7 @@ export default function MFASelector({
                         <div>
                           <p className="text-xs font-bold text-amber-400">Migration securite requise</p>
                           <p className="text-[10px] text-amber-400/70 mt-1">
-                            PimPay renforce votre securite. Passez au PIN a 6 chiffres.
+                            PIMOBIPAY renforce votre securite. Passez au PIN a 6 chiffres.
                           </p>
                         </div>
                       </motion.div>
@@ -711,7 +711,7 @@ export default function MFASelector({
                 </div>
               ) : (
                 <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">
-                  PimPay Protocol v2.0
+                  PIMOBIPAY Protocol v2.0
                 </p>
               )}
             </div>

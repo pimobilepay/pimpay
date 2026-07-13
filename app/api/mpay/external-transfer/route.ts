@@ -619,9 +619,9 @@ export async function POST(req: NextRequest) {
   const senderKyc = senderForKyc?.kycStatus;
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 4bis. RÉSOLUTION INTERNE PimPay
+  // 4bis. RÉSOLUTION INTERNE PIMOBIPAY
   // Une adresse Pi interne (UID préfixé "P" ou adresse Pi enregistrée) peut
-  // appartenir à un membre PimPay. Dans ce cas on effectue un transfert INTERNE
+  // appartenir à un membre PIMOBIPAY. Dans ce cas on effectue un transfert INTERNE
   // instantané au lieu d'un appel Pi Platform A2U — qui échouerait avec
   // "User with uid ... was not found" pour un compte non enregistré côté Pi.
   // On teste la valeur brute ET la valeur sans le préfixe "P".
@@ -673,7 +673,7 @@ export async function POST(req: NextRequest) {
       where: { id: senderId },
       select: { name: true, username: true },
     });
-    const senderName = sender?.name || sender?.username || "Un membre PimPay";
+    const senderName = sender?.name || sender?.username || "Un membre PIMOBIPAY";
 
     try {
       const internalResult = await prisma.$transaction(async (txdb) => {
@@ -706,11 +706,11 @@ export async function POST(req: NextRequest) {
             toUserId: internalRecipient.id,
             fromWalletId: senderWallet.id,
             toWalletId: toWallet.id,
-            description: `Transfert interne Pi vers @${internalRecipient.username || internalRecipient.name || "membre PimPay"}`,
+            description: `Transfert interne Pi vers @${internalRecipient.username || internalRecipient.name || "membre PIMOBIPAY"}`,
             metadata: {
               internalTransfer: true,
               piAddress: destTrimmed,
-              network: "PimPay (interne)",
+              network: "PIMOBIPAY (interne)",
               completedAt: new Date().toISOString(),
             },
           },
@@ -789,7 +789,7 @@ export async function POST(req: NextRequest) {
 
   // 5. Creer la transaction DB et debiter le wallet (atomique)
   const txRef = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-  const memoText = memo || `Retrait PimPay ${txRef.slice(-8)}`;
+  const memoText = memo || `Retrait PIMOBIPAY ${txRef.slice(-8)}`;
 
   const [dbTx] = await prisma.$transaction([
     prisma.transaction.create({

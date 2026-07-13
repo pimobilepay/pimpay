@@ -234,7 +234,7 @@ export function usePermissions(): PermissionsContextValue {
   const ctx = useContext(PermissionsContext);
   if (!ctx) {
     throw new Error(
-      '[PIMPAY] usePermissions must be used within a <PermissionProvider>.'
+      '[PIMOBIPAY] usePermissions must be used within a <PermissionProvider>.'
     );
   }
   return ctx;

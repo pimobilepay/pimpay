@@ -50,7 +50,7 @@ export async function GET(request: Request) {
         // 1. Si l'utilisateur n'existe pas
         if (!user) {
             return NextResponse.json(
-                { error: "Cet identifiant n'existe pas sur PimPay" },
+                { error: "Cet identifiant n'existe pas sur PIMOBIPAY" },
                 { status: 404 }
             );
         }

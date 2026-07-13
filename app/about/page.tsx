@@ -64,7 +64,7 @@ const socialLinks = [
 ];
 
 const milestones = [
-  { year: "2022", title: "Lancement de PimPay", desc: "Creation de la vision d'une banque virtuelle basee sur Pi Network." },
+  { year: "2022", title: "Lancement de PIMOBIPAY", desc: "Creation de la vision d'une banque virtuelle basee sur Pi Network." },
   { year: "2023", title: "Premiere version beta", desc: "Deploiement de la plateforme de paiement pour les premiers Pioneers." },
   { year: "2024", title: "Expansion internationale", desc: "Ouverture des services en Afrique, Asie et Moyen-Orient." },
   { year: "2025", title: "Siege a Dubai", desc: "Etablissement du siege social a Dubai, Emirats Arabes Unis." },
@@ -113,7 +113,7 @@ export default function AboutPage() {
           Aimard Swana
         </h2>
         <p className="mt-1 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-          Chief Executive Officer - PimPay
+          Chief Executive Officer - PIMOBIPAY
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export default function AboutPage() {
         <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 relative">
           <Quote size={20} className="text-blue-500/30 absolute top-4 left-4" />
           <p className="text-sm text-slate-300 leading-relaxed italic pl-6">
-            {"\"Notre mission est de démocratiser l'accès aux services financiers pour chaque Pioneer à travers le monde. PimPay n'est pas seulement une application, c'est un pont entre la Pi Network et l'économie réelle.\""}
+            {"\"Notre mission est de démocratiser l'accès aux services financiers pour chaque Pioneer à travers le monde. PIMOBIPAY n'est pas seulement une application, c'est un pont entre la Pi Network et l'économie réelle.\""}
           </p>
         </div>
       </div>
@@ -137,7 +137,7 @@ export default function AboutPage() {
           </h3>
           <div className="bg-white/5 border border-white/10 rounded-[28px] p-6">
             <p className="text-sm text-slate-300 leading-relaxed">
-              Aimard Swana est un entrepreneur visionnaire passionné par la technologie blockchain et l'inclusion financière. Né avec la conviction que la finance doit être accessible à tous, il a fondé PimPay pour offrir aux Pioneers du monde entier une plateforme de paiement securisée, rapide et intuitive.
+              Aimard Swana est un entrepreneur visionnaire passionné par la technologie blockchain et l'inclusion financière. Né avec la conviction que la finance doit être accessible à tous, il a fondé PIMOBIPAY pour offrir aux Pioneers du monde entier une plateforme de paiement securisée, rapide et intuitive.
             </p>
           </div>
         </section>
@@ -157,7 +157,7 @@ export default function AboutPage() {
                 <span className="text-sm font-bold text-white">Vision</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed pl-11">
-                Faire de PimPay la première banque virtuelle mondiale basee sur Pi Network, accessible a chaque Pioneer, partout dans le monde.
+                Faire de PIMOBIPAY la première banque virtuelle mondiale basee sur Pi Network, accessible a chaque Pioneer, partout dans le monde.
               </p>
             </div>
             <div className="p-5">
@@ -183,7 +183,7 @@ export default function AboutPage() {
           <div className="bg-white/5 border border-white/10 rounded-[28px] overflow-hidden">
             {[
               { icon: <MapPin size={18} />, label: "Localisation", value: "Dubai, Emirats Arabes Unis" },
-              { icon: <Briefcase size={18} />, label: "Poste", value: "CEO & Fondateur de PimPay" },
+              { icon: <Briefcase size={18} />, label: "Poste", value: "CEO & Fondateur de PIMOBIPAY" },
               { icon: <GraduationCap size={18} />, label: "Formation", value: "A renseigner" },
               { icon: <Heart size={18} />, label: "Passion", value: "Blockchain, Fintech, Innovation" },
             ].map((item, idx) => (
@@ -207,7 +207,7 @@ export default function AboutPage() {
         <section>
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[2px] mb-4 ml-2 flex items-center gap-2">
             <Briefcase size={12} />
-            Parcours PimPay
+            Parcours PIMOBIPAY
           </h3>
           <div className="space-y-3">
             {milestones.map((m, idx) => (
@@ -253,7 +253,7 @@ export default function AboutPage() {
       <div className="mt-12 px-6">
         <div className="border-t border-white/5 pt-6 text-center">
           <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">
-            PimPay Financial Technologies - Dubai, UAE
+            PIMOBIPAY Financial Technologies - Dubai, UAE
           </p>
           <p className="text-[9px] text-slate-700 mt-1">
             &copy; 2026 Tous droits reserves

@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Signature invalide" }, { status: 401 });
     }
 
-    // external_id correspond à l'ID de la transaction dans notre DB Pimpay
+    // external_id correspond à l'ID de la transaction dans notre DB PIMOBIPAY
     const { external_id, status, amount: amountReceived, reference } = payload;
 
     // 2. Trouver la transaction et inclure les infos de l'utilisateur
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
             transactionId: transaction.id,
             method: `Mobile Money (${conversion.currency})`,
             status: "SUCCESS",
-            network: "PimPay",
+            network: "PIMOBIPAY",
             fromAmount: verifiedAmount,
             fromCurrency: conversion.currency,
             toAmount: conversion.piAmount,
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         }
       });
 
-      console.log(`✅ Pimpay: Wallet mis à jour pour ${external_id}`);
+      console.log(`✅ PIMOBIPAY: Wallet mis à jour pour ${external_id}`);
     } else {
       // 4. Gestion de l'échec (Annulation)
       await prisma.transaction.update({

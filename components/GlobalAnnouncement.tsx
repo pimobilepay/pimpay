@@ -15,7 +15,7 @@ interface AnnouncementConfig {
   dismissible?: boolean;
 }
 
-// ─── Couleurs par type (harmonie avec la palette émeraude PimPay) ─────────────
+// ─── Couleurs par type (harmonie avec la palette émeraude PIMOBIPAY) ─────────────
 const TYPE_STYLES: Record<AnnouncementType, {
   bg: string;
   border: string;
@@ -61,7 +61,7 @@ const TYPE_STYLES: Record<AnnouncementType, {
 // ─── Fallback messages selon l'état réseau ───────────────────────────────────
 const FALLBACK_MESSAGES: AnnouncementConfig[] = [
   {
-    message: "Bienvenue sur PimPay — Réseau opérationnel · Transactions sécurisées 24h/24",
+    message: "Bienvenue sur PIMOBIPAY — Réseau opérationnel · Transactions sécurisées 24h/24",
     type: "success",
   },
 ];
@@ -109,7 +109,7 @@ export default function GlobalAnnouncement() {
 
           setAnnouncements([
             {
-              message: msg || "Nouvelle annonce PimPay",
+              message: msg || "Nouvelle annonce PIMOBIPAY",
               type,
               link: link || undefined,
               image: image || undefined,

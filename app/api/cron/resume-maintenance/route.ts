@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
           userId: u.id,
           title: "Maintenance Terminée ✅",
           message:
-            "La maintenance de votre compte est terminée automatiquement. Vous pouvez à nouveau utiliser tous les services PimPay.",
+            "La maintenance de votre compte est terminée automatiquement. Vous pouvez à nouveau utiliser tous les services PIMOBIPAY.",
           type: "SUCCESS",
         },
       }),

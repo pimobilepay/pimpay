@@ -59,8 +59,8 @@ function isExternalAddress(identifier: string): boolean {
  * TRON depuis le wallet Tron de l'expéditeur vers une adresse Tron destinataire.
  *
  * Utilisé pour :
- *   - les retraits EXTERNES (adresse hors PimPay)
- *   - les transferts INTERNES TRX/USDT (membre PimPay possédant une adresse Tron)
+ *   - les retraits EXTERNES (adresse hors PIMOBIPAY)
+ *   - les transferts INTERNES TRX/USDT (membre PIMOBIPAY possédant une adresse Tron)
  *     afin que le solde reçu soit AUSSI visible on-chain sur TRON.
  *
  * Retourne le hash de la transaction blockchain. Lève une erreur en cas d'échec
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
     // POLITIQUE KYC + PLAFONDS (denominee en Pi) — uniquement pour la devise PI.
     //  - Sortie vers une adresse externe => retrait (limite journaliere + retenue
     //    admin pour les gros montants des comptes verifies).
-    //  - Sortie vers un membre PimPay => transfert interne (pas de limite
+    //  - Sortie vers un membre PIMOBIPAY => transfert interne (pas de limite
     //    journaliere ni de retenue admin).
     // ─────────────────────────────────────────────────────────────────────────
     let piRequiresAdminApproval = false;
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
         });
 
         const senderName =
-          senderUser?.name || senderUser?.username || "Un utilisateur PimPay";
+          senderUser?.name || senderUser?.username || "Un utilisateur PIMOBIPAY";
 
         const senderWallet = await tx.wallet.findUnique({
           where: { userId_currency: { userId: senderId, currency } },
@@ -285,13 +285,13 @@ export async function POST(req: NextRequest) {
           : recipientInput;
 
         // UID Pi Network préfixé "P" : on prépare aussi la version sans le "P"
-        // pour résoudre un membre PimPay dont le piUserId/walletAddress est stocké
+        // pour résoudre un membre PIMOBIPAY dont le piUserId/walletAddress est stocké
         // sans préfixe (ex: P024E6679... -> 024E6679...).
         const cleanInputNoP = /^P[0-9A-Fa-f]{20,}$/.test(cleanInput)
           ? cleanInput.slice(1)
           : cleanInput;
 
-        // Recherche destinataire (interne PimPay)
+        // Recherche destinataire (interne PIMOBIPAY)
         let recipientUser = null;
         if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
           const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
           data: { balance: { decrement: totalDebit } },
         });
 
-        // ─── Transfert INTERNE (P2P entre utilisateurs PimPay) ───────────
+        // ─── Transfert INTERNE (P2P entre utilisateurs PIMOBIPAY) ───────────
         // Mise à jour des soldes DB. Pour TRX/USDT, si le destinataire possède
         // une adresse TRON, on diffusera AUSSI le transfert sur la blockchain
         // TRON (hors transaction Prisma) afin que le solde reçu soit visible

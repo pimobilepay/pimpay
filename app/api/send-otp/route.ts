@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     );
 
     await client.messages.create({
-      body: `Code PIMPAY : ${code}`,
+      body: `Code PIMOBIPAY : ${code}`,
       from: process.env.TWILIO_PHONE_NUMBER,
       to: phone, // Exemple : "+242065540305"
     });

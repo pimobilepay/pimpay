@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: "Générez d'abord votre adresse principale" }, { status: 400 });
     }
 
-    // On renvoie l'adresse EVM (partagée par USDC, DAI, BUSD, EURC, OUSD sur PimPay)
+    // On renvoie l'adresse EVM (partagée par USDC, DAI, BUSD, EURC, OUSD sur PIMOBIPAY)
     return NextResponse.json({
       address: user.sidraAddress,
       network: "EVM (ERC20)",

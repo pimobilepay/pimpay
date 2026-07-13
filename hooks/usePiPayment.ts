@@ -28,7 +28,7 @@ interface PaymentCallbacks {
 /**
  * Hook pour les paiements Pi Network (U2A - User to App)
  * 
- * Utilise pour la recharge de solde : l'utilisateur paie en Pi pour crediter son compte PimPay.
+ * Utilise pour la recharge de solde : l'utilisateur paie en Pi pour crediter son compte PIMOBIPAY.
  * 
  * Le flux complet :
  * 1. Pi.createPayment() ouvre le dialog de paiement Pi
@@ -62,7 +62,7 @@ export const usePiPayment = () => {
       window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
-      console.log(`[PimPay] SDK Pi 2.0 initialise par usePiPayment (sandbox=${getCachedPiSandbox()})`);
+      console.log(`[PIMOBIPAY] SDK Pi 2.0 initialise par usePiPayment (sandbox=${getCachedPiSandbox()})`);
       return true;
     } catch (e: any) {
       window.__PI_SDK_INITIALIZING__ = false;
@@ -70,7 +70,7 @@ export const usePiPayment = () => {
         window.__PI_SDK_READY__ = true;
         return true;
       }
-      console.error("[PimPay] Erreur init SDK Pi:", e);
+      console.error("[PIMOBIPAY] Erreur init SDK Pi:", e);
       return false;
     }
   }, []);
@@ -114,7 +114,7 @@ export const usePiPayment = () => {
    * est reste en suspend. Elle tente de le completer via notre API.
    */
   const onIncompletePaymentFound = useCallback(async (payment: any) => {
-    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+    console.log("[PIMOBIPAY] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     
     try {
       const response = await fetch("/api/payments/incomplete", {
@@ -130,15 +130,15 @@ export const usePiPayment = () => {
       const data = await response.json();
       
       if (response.ok) {
-        console.log(`[PimPay] Paiement incomplet ${payment.identifier} traite: ${data.action}`);
+        console.log(`[PIMOBIPAY] Paiement incomplet ${payment.identifier} traite: ${data.action}`);
         if (data.action === "completed") {
           toast.success(`Paiement recupere: ${data.message}`);
         }
       } else {
-        console.error(`[PimPay] Echec traitement paiement incomplet:`, data);
+        console.error(`[PIMOBIPAY] Echec traitement paiement incomplet:`, data);
       }
     } catch (error) {
-      console.error("[PimPay] Erreur reseau lors du traitement du paiement incomplet:", error);
+      console.error("[PIMOBIPAY] Erreur reseau lors du traitement du paiement incomplet:", error);
     }
   }, []);
 
@@ -154,7 +154,7 @@ export const usePiPayment = () => {
     }
 
     if (paymentInProgressRef.current) {
-      console.warn("[PimPay] Paiement deja en cours");
+      console.warn("[PIMOBIPAY] Paiement deja en cours");
       return { success: false, error: "Un paiement est deja en cours" };
     }
 
@@ -167,7 +167,7 @@ export const usePiPayment = () => {
       
       if (!sdkReady || !window.Pi) {
         const errorMsg = !window.Pi 
-          ? "Veuillez ouvrir PimPay dans le Pi Browser."
+          ? "Veuillez ouvrir PIMOBIPAY dans le Pi Browser."
           : "Le SDK Pi n'a pas pu s'initialiser. Rechargez la page.";
         toast.error(errorMsg, { duration: 5000 });
         return { success: false, error: errorMsg };
@@ -178,15 +178,15 @@ export const usePiPayment = () => {
       // l'erreur "Cannot create a payment without 'payments' scope".
       try {
         await window.Pi.authenticate(["username", "payments"], onIncompletePaymentFound);
-        console.log("[PimPay] Authentification avec scope payments reussie");
+        console.log("[PIMOBIPAY] Authentification avec scope payments reussie");
       } catch (authError: any) {
-        console.error("[PimPay] Erreur authentification scope payments:", authError);
+        console.error("[PIMOBIPAY] Erreur authentification scope payments:", authError);
         const msg = authError?.message || "Authentification Pi requise pour le paiement";
         toast.error(msg, { duration: 5000 });
         return { success: false, error: msg };
       }
 
-      console.log("[PimPay] Creation paiement Pi:", config);
+      console.log("[PIMOBIPAY] Creation paiement Pi:", config);
 
       return new Promise((resolve) => {
         const paymentData = {
@@ -198,7 +198,7 @@ export const usePiPayment = () => {
         const paymentCallbacks: PaymentCallbacks = {
           // Callback 1: Le paiement est cree, on doit l'approuver cote serveur
           onReadyForServerApproval: async (id: string) => {
-            console.log("[PimPay] onReadyForServerApproval:", id);
+            console.log("[PIMOBIPAY] onReadyForServerApproval:", id);
             setPaymentId(id);
             
             try {
@@ -217,21 +217,21 @@ export const usePiPayment = () => {
               const data = await res.json();
 
               if (!res.ok) {
-                console.error("[PimPay] Erreur approbation:", data);
+                console.error("[PIMOBIPAY] Erreur approbation:", data);
                 toast.error(data.error || "Erreur lors de l'approbation");
                 // On ne resolve pas ici, on attend onError ou onCancel
               } else {
-                console.log("[PimPay] Paiement approuve:", id);
+                console.log("[PIMOBIPAY] Paiement approuve:", id);
               }
             } catch (error: any) {
-              console.error("[PimPay] Erreur reseau approbation:", error);
+              console.error("[PIMOBIPAY] Erreur reseau approbation:", error);
               toast.error("Erreur reseau lors de l'approbation");
             }
           },
 
           // Callback 2: L'utilisateur a signe, on doit completer cote serveur
           onReadyForServerCompletion: async (id: string, txid: string) => {
-            console.log("[PimPay] onReadyForServerCompletion:", id, "txid:", txid);
+            console.log("[PIMOBIPAY] onReadyForServerCompletion:", id, "txid:", txid);
 
             // Achat de PIM Coins -> route dediee qui credite le wallet PIM.
             // Sinon -> route generique de recharge qui credite le wallet PI.
@@ -260,11 +260,11 @@ export const usePiPayment = () => {
               const data = await res.json();
 
               if (!res.ok) {
-                console.error("[PimPay] Erreur completion:", data);
+                console.error("[PIMOBIPAY] Erreur completion:", data);
                 toast.error(data.error || "Erreur lors de la completion");
                 resolve({ success: false, error: data.error });
               } else {
-                console.log("[PimPay] Paiement complete:", id);
+                console.log("[PIMOBIPAY] Paiement complete:", id);
                 // Le toast de succes PIM est gere par usePimCoinPurchase.
                 if (!isPimPurchase) {
                   toast.success(`Recharge de ${config.amount} Pi effectuee !`);
@@ -272,7 +272,7 @@ export const usePiPayment = () => {
                 resolve({ success: true, txid });
               }
             } catch (error: any) {
-              console.error("[PimPay] Erreur reseau completion:", error);
+              console.error("[PIMOBIPAY] Erreur reseau completion:", error);
               toast.error("Erreur reseau lors de la completion");
               resolve({ success: false, error: "Erreur reseau" });
             }
@@ -280,14 +280,14 @@ export const usePiPayment = () => {
 
           // Callback 3: L'utilisateur a annule
           onCancel: (id: string) => {
-            console.log("[PimPay] Paiement annule:", id);
+            console.log("[PIMOBIPAY] Paiement annule:", id);
             toast.info("Paiement annule");
             resolve({ success: false, error: "Paiement annule par l'utilisateur" });
           },
 
           // Callback 4: Une erreur est survenue
           onError: (error: Error, payment?: any) => {
-            console.error("[PimPay] Erreur paiement:", error, payment);
+            console.error("[PIMOBIPAY] Erreur paiement:", error, payment);
             toast.error(error.message || "Erreur lors du paiement");
             resolve({ success: false, error: error.message });
           },
@@ -298,7 +298,7 @@ export const usePiPayment = () => {
       });
 
     } catch (error: any) {
-      console.error("[PimPay] Erreur creation paiement:", error);
+      console.error("[PIMOBIPAY] Erreur creation paiement:", error);
       toast.error(error.message || "Erreur lors du paiement");
       return { success: false, error: error.message };
     } finally {
@@ -321,7 +321,7 @@ export const usePiPayment = () => {
 
     return createPayment({
       amount,
-      memo: `Recharge PimPay: ${amount} Pi`,
+      memo: `Recharge PIMOBIPAY: ${amount} Pi`,
       metadata: {
         type: "BALANCE_TOPUP",
         currency: "PI",

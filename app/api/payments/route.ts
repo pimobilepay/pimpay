@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { amount, currency, method, type, phoneNumber, operatorId, bankDetails, countryCode } = body;
 
-    // 2. Création de la transaction (Respect strict du schéma Pimpay)
+    // 2. Création de la transaction (Respect strict du schéma PIMOBIPAY)
     const transaction = await prisma.transaction.create({
       data: {
         // 'reference' est UNIQUE et OBLIGATOIRE dans ton schéma

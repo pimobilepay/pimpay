@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Échange (Swap) | PimPay',
-  description: 'Convertissez vos actifs instantanément au meilleur taux sur PimPay.',
+  title: 'Échange (Swap) | PIMOBIPAY',
+  description: 'Convertissez vos actifs instantanément au meilleur taux sur PIMOBIPAY.',
 };
 
 export default function SwapLayout({

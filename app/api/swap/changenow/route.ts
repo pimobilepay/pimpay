@@ -17,7 +17,7 @@
  *   1. GET /api/swap/changenow?from=BTC&to=ETH&amount=0.1
  *      → retourne { estimatedAmount, validUntil, rateId, ... }
  *   2. POST /api/swap/changenow { rateId, fromToken, toToken, amount, toAddress }
- *      → crée l'échange ChangeNow, débite le wallet PimPay,
+ *      → crée l'échange ChangeNow, débite le wallet PIMOBIPAY,
  *        retourne { payinAddress, id, reference }
  * ============================================================
  */
@@ -38,7 +38,7 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 const CN_BASE = "https://api.changenow.io/v2";
 
 /**
- * Mapping symbol PimPay → ticker ChangeNow.
+ * Mapping symbol PIMOBIPAY → ticker ChangeNow.
  * ChangeNow utilise parfois des suffixes réseau (ex: usdcerc20, busdbsc).
  * Ce mapping cible le réseau le plus liquide pour chaque actif.
  */
@@ -62,7 +62,7 @@ const CN_TICKER: Record<string, string> = {
 /** Actifs gérés exclusivement par Sun.io (TRON DEX) */
 const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT", "WIN", "NFT", "WTRX"]);
 
-/** Actifs internes PimPay (pas listés sur ChangeNow) */
+/** Actifs internes PIMOBIPAY (pas listés sur ChangeNow) */
 const INTERNAL_TOKENS = new Set(["PI", "SDA"]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ export function isChangeNowSwap(from: string, to: string): boolean {
   const f = from.toUpperCase();
   const t = to.toUpperCase();
   if (SUNIO_TOKENS.has(f) && SUNIO_TOKENS.has(t)) return false; // Géré par Sun.io
-  if (INTERNAL_TOKENS.has(f) || INTERNAL_TOKENS.has(t)) return false; // Interne PimPay
+  if (INTERNAL_TOKENS.has(f) || INTERNAL_TOKENS.has(t)) return false; // Interne PIMOBIPAY
   return f in CN_TICKER && t in CN_TICKER && f !== t;
 }
 
@@ -354,7 +354,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Vérifier le solde PimPay du wallet source
+    // 4. Vérifier le solde PIMOBIPAY du wallet source
     const fromWallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency: fromToken } },
     });
@@ -368,7 +368,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Calculer les frais PimPay
+    // 5. Calculer les frais PIMOBIPAY
     const feeConfig = await getFeeConfig();
     const { feeAmount: pimpayFee } = calculateFee(amount, feeConfig, "transfer");
 
@@ -453,7 +453,7 @@ export async function POST(req: NextRequest) {
 
         // Mettre à jour la transaction → SUCCESS
         // Note : ChangeNow peut mettre 10-60 min pour finaliser l'échange on-chain,
-        // mais du point de vue PimPay, l'échange est confirmé dès la création.
+        // mais du point de vue PIMOBIPAY, l'échange est confirmé dès la création.
         prisma.transaction.update({
           where: { id: txRecord.id },
           data: {
@@ -491,7 +491,7 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
-      // Auto-conversion des frais PimPay en PI
+      // Auto-conversion des frais PIMOBIPAY en PI
       if (pimpayFee > 0) {
         autoConvertFeeToPi(pimpayFee, fromToken, txRecord.id, txRecord.reference).catch(() => {});
       }

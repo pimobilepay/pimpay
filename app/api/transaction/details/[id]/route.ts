@@ -84,7 +84,7 @@ export async function GET(
 
     // Special handling for card purchases
     if (transaction.type === "CARD_PURCHASE" || transaction.reference?.toUpperCase().startsWith("CARD-BUY")) {
-      toDisplayName = "Achat Carte PimPay";
+      toDisplayName = "Achat Carte PIMOBIPAY";
     }
 
     // Special handling for deposits

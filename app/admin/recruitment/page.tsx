@@ -632,7 +632,7 @@ export default function RecruitmentPage() {
       <div className="max-w-2xl mx-auto px-4 pt-4">
         <AdminTopNav
           title="Recrutement"
-          subtitle="Agents PimPay"
+          subtitle="Agents PIMOBIPAY"
           onRefresh={() => fetchAgents({ silent: true })}
           backPath="/admin"
         />

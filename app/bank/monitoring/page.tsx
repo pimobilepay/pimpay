@@ -132,7 +132,7 @@ export default function MonitoringPage() {
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Monitoring Système</h1>
           </div>
-          <p className="text-sm text-zinc-500 ml-11">Surveillance en temps réel — PIMPAY Infrastructure</p>
+          <p className="text-sm text-zinc-500 ml-11">Surveillance en temps réel — PIMOBIPAY Infrastructure</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800">

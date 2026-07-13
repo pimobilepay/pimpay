@@ -330,7 +330,7 @@ export default function SecurityConfigPage() {
           </button>
           <div className="text-center">
             <p className="text-[9px] font-black text-cyan-500 uppercase tracking-[4px]">
-              PimPay
+              PIMOBIPAY
             </p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">
               Configuration Securite

@@ -301,7 +301,7 @@ function ConfirmContent() {
               />
               <StepIndicator
                 icon={<ShieldCheck size={14} />}
-                label="Verification et credit sur PimPay"
+                label="Verification et credit sur PIMOBIPAY"
                 status="pending"
               />
             </div>
@@ -328,7 +328,7 @@ function ConfirmContent() {
             </div>
             <div className="text-left">
               <p className="text-[10px] font-black text-white uppercase tracking-widest">
-                PimPay Gateway
+                PIMOBIPAY Gateway
               </p>
               <p className="text-[8px] font-bold text-slate-500 uppercase">
                 Securise par protocole bancaire

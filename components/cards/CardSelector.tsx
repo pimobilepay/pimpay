@@ -65,7 +65,7 @@ export default function CardSelector({ piPriceInUsd, onCardCreated }: { piPriceI
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: selectedCard,
-          holderName: "Utilisateur PimPay", 
+          holderName: "Utilisateur PIMOBIPAY", 
           paymentCurrency: paymentMethod
         }),
       });

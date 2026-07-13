@@ -293,7 +293,7 @@ async function syncCryptoBalance({
           data: {
             userId,
             title: `Dépôt ${currency} reçu !`,
-            message: `Vous avez reçu ${depositDiff.toFixed(decimals)} ${currency} sur votre wallet PimPay.`,
+            message: `Vous avez reçu ${depositDiff.toFixed(decimals)} ${currency} sur votre wallet PIMOBIPAY.`,
             type: "SUCCESS",
             read: false,
             metadata: JSON.stringify({

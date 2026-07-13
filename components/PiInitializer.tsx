@@ -42,17 +42,17 @@ export function PiInitializer() {
           window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
           window.__PI_SDK_READY__ = true;
           window.__PI_SDK_INITIALIZING__ = false;
-          console.log(`[PimPay] SDK Pi 2.0 initialise (sandbox=${getCachedPiSandbox()})`);
+          console.log(`[PIMOBIPAY] SDK Pi 2.0 initialise (sandbox=${getCachedPiSandbox()})`);
           return true;
         } catch (error: any) {
           window.__PI_SDK_INITIALIZING__ = false;
           // Si l'erreur est "already initialized", on considere que c'est OK
           if (error?.message?.includes("already initialized") || error?.message?.includes("already")) {
             window.__PI_SDK_READY__ = true;
-            console.log("[PimPay] SDK Pi deja initialise");
+            console.log("[PIMOBIPAY] SDK Pi deja initialise");
             return true;
           } else {
-            console.error("[PimPay] Erreur init SDK Pi:", error);
+            console.error("[PIMOBIPAY] Erreur init SDK Pi:", error);
             return false;
           }
         }
@@ -72,7 +72,7 @@ export function PiInitializer() {
         });
         const data = await res.json();
         if (data.details?.length > 0) {
-          console.log(`[PimPay] ${data.details.length} paiement(s) incomplet(s) resolus au chargement`);
+          console.log(`[PIMOBIPAY] ${data.details.length} paiement(s) incomplet(s) resolus au chargement`);
         }
       } catch {
         // Silencieux - ne pas bloquer l'app
@@ -105,7 +105,7 @@ export function PiInitializer() {
       const timeout = setTimeout(() => {
         clearInterval(interval);
         if (!window.Pi) {
-          console.log("[PimPay] SDK Pi non disponible (navigateur classique)");
+          console.log("[PIMOBIPAY] SDK Pi non disponible (navigateur classique)");
         }
         // Still try to resolve incomplete payments via server even without SDK
         checkIncompletePayments();

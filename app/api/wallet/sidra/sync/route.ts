@@ -16,7 +16,7 @@ import { getSidraBalance } from "@/lib/blockchain/sidra";
 /**
  * POST /api/wallet/sidra/sync
  * 
- * Synchronise le solde Sidra du wallet PimPay avec le solde reel sur la blockchain.
+ * Synchronise le solde Sidra du wallet PIMOBIPAY avec le solde reel sur la blockchain.
  * Le body est optionnel : si `realBlockchainBalance` est fourni, on l'utilise ;
  * sinon on va le chercher directement sur la Sidra Chain via l'adresse de l'utilisateur.
  */
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
 
             // Si la difference positive correspond environ aux retraits recents,
             // c'est que la blockchain n'a pas encore reflete les sorties
-            // OU le solde blockchain inclut une erreur - on garde le solde PimPay
+            // OU le solde blockchain inclut une erreur - on garde le solde PIMOBIPAY
             if (diff <= totalRecentWithdrawals * 1.1) {
               console.log(
                 `[SIDRA_SYNC] Ignoring positive diff ${diff} - recent withdrawals: ${totalRecentWithdrawals}`
@@ -201,7 +201,7 @@ export async function POST(req: Request) {
         }
 
         // FIX CRITIQUE: Detecter les transferts internes SDA recents (P2P sans blockchain)
-        // cote EXPEDITEUR. Si l'utilisateur a envoye des SDA en interne, son solde PimPay
+        // cote EXPEDITEUR. Si l'utilisateur a envoye des SDA en interne, son solde PIMOBIPAY
         // a ete debite SANS transaction blockchain => diff positif artificiel.
         // On doit ignorer cette difference pour ne pas re-crediter l'expediteur.
         if (diff > 0) {
@@ -223,7 +223,7 @@ export async function POST(req: Request) {
           );
 
           // Si la difference positive correspond aux envois internes recents,
-          // c'est que le solde blockchain n'a pas bouge mais le solde PimPay a ete debite.
+          // c'est que le solde blockchain n'a pas bouge mais le solde PIMOBIPAY a ete debite.
           // On ne re-credite pas l'expediteur.
           if (totalInternalSent > 0 && diff <= totalInternalSent * 1.01) {
             console.log(
@@ -253,7 +253,7 @@ export async function POST(req: Request) {
         }
 
         // FIX: Ne pas ecraser le solde avec le solde blockchain!
-        // Le wallet PimPay peut contenir des SDA recus via P2P interne (sans blockchain).
+        // Le wallet PIMOBIPAY peut contenir des SDA recus via P2P interne (sans blockchain).
         // On doit AJOUTER la difference (depot blockchain) et non REMPLACER le solde.
         
         // Verifier si c'est un vrai depot blockchain ou juste une difference
@@ -275,7 +275,7 @@ export async function POST(req: Request) {
           0
         );
 
-        // Si l'utilisateur a recu des transferts P2P internes, son solde PimPay
+        // Si l'utilisateur a recu des transferts P2P internes, son solde PIMOBIPAY
         // peut etre superieur au solde blockchain - c'est normal!
         // Dans ce cas, on ne synchronise que si le solde blockchain a AUGMENTE
         // par rapport a sa derniere valeur connue (nouveau depot externe)

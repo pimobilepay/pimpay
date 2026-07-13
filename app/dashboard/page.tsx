@@ -90,7 +90,7 @@ const formatDescription = (description: string): string => {
 const DASH_T = {
   fr: {
     virtualBank: "Virtual Bank",
-    account: "Compte PimPay",
+    account: "Compte PIMOBIPAY",
     profile: "Profil",
     myWallet: "Mon Wallet",
     referral: "Parrainage",
@@ -125,13 +125,13 @@ const DASH_T = {
     svcPimTitle: "Pim Coins", svcPimSub: "Récompenses",
     svcSupportTitle: "Support", svcSupportSub: "Aide & contact",
     recentTransactions: "Transactions Récentes",
-    txTo: "À:", txFrom: "DE:", systemPimpay: "SYSTÈME PIMPAY",
+    txTo: "À:", txFrom: "DE:", systemPimpay: "SYSTÈME PIMOBIPAY",
     noTransaction: "Aucune transaction",
     currencyLabel: "Devise",
   },
   en: {
     virtualBank: "Virtual Bank",
-    account: "PimPay Account",
+    account: "PIMOBIPAY Account",
     profile: "Profile",
     myWallet: "My Wallet",
     referral: "Referral",
@@ -166,13 +166,13 @@ const DASH_T = {
     svcPimTitle: "Pim Coins", svcPimSub: "Rewards",
     svcSupportTitle: "Support", svcSupportSub: "Help & contact",
     recentTransactions: "Recent Transactions",
-    txTo: "To:", txFrom: "FROM:", systemPimpay: "PIMPAY SYSTEM",
+    txTo: "To:", txFrom: "FROM:", systemPimpay: "PIMOBIPAY SYSTEM",
     noTransaction: "No transactions",
     currencyLabel: "Currency",
   },
   zh: {
     virtualBank: "虚拟银行",
-    account: "PimPay 账户",
+    account: "PIMOBIPAY 账户",
     profile: "个人资料",
     myWallet: "我的钱包",
     referral: "推荐",
@@ -207,7 +207,7 @@ const DASH_T = {
     svcPimTitle: "Pim 币", svcPimSub: "奖励",
     svcSupportTitle: "客服", svcSupportSub: "帮助与联系",
     recentTransactions: "最近交易",
-    txTo: "至:", txFrom: "来自:", systemPimpay: "PIMPAY 系统",
+    txTo: "至:", txFrom: "来自:", systemPimpay: "PIMOBIPAY 系统",
     noTransaction: "暂无交易",
     currencyLabel: "货币",
   },
@@ -361,7 +361,7 @@ export default function UserDashboard() {
               lastSupportMsgId = supportMsg.id;
               sessionStorage.setItem("dashboard_last_support_msg_id", supportMsg.id);
               toast(supportMsg.title || "Message du Support", {
-                description: supportMsg.message || "Vous avez recu un message du support PimPay",
+                description: supportMsg.message || "Vous avez recu un message du support PIMOBIPAY",
                 duration: 8000,
                 icon: "📧",
                 action: {
@@ -558,7 +558,7 @@ export default function UserDashboard() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
           <div>
-            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMPAY</h1>
+            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMOBIPAY</h1>
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">{tr.virtualBank}</p>
           </div>
         </div>
@@ -683,7 +683,7 @@ export default function UserDashboard() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-violet-400">PIMPAY FINTECH</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-violet-400">PIMOBIPAY FINTECH</span>
                   </div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{tr.totalPortfolio}</p>
                 </div>
@@ -974,7 +974,7 @@ export default function UserDashboard() {
           </a>
         </div>
         <div className="text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PimPay Virtual Bank</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">© 2026 PIMOBIPAY Virtual Bank</p>
           <p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-1">Pi Mobile Payment Solution</p>
         </div>
       </footer>

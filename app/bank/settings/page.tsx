@@ -331,7 +331,7 @@ export default function SettingsPage() {
                         />
                       ))}
                     </div>
-                    <p className="text-xs text-zinc-700 font-mono">OTPAUTH://TOTP/PIMPAY:a.dubois</p>
+                    <p className="text-xs text-zinc-700 font-mono">OTPAUTH://TOTP/PIMOBIPAY:a.dubois</p>
                   </div>
                 )}
               </div>

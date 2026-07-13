@@ -137,7 +137,7 @@ export default function AdminUsersPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Utilisateurs</h1>
           </div>
           <button onClick={fetchUsers} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">

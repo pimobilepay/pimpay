@@ -1,5 +1,5 @@
 // ============================================================================
-// SessionsPage.tsx — PimPay Security · Sessions Management
+// SessionsPage.tsx — PIMOBIPAY Security · Sessions Management
 // Next.js App Router Server Component (RSC)
 // Auth + data fetching happen on the server; all UI text is rendered by the
 // client component SessionsView so it respects the user's selected language.

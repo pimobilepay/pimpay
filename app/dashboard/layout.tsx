@@ -3,7 +3,7 @@ import ClientLayout from "@/components/ClientLayout";
 // 🛡️ Audit de Sécurité : On ne définit pas de metadata ici si elles sont 
 // déjà dans la racine, sauf si on veut surcharger le titre.
 export const metadata = {
-  title: "Dashboard | PimPay",
+  title: "Dashboard | PIMOBIPAY",
 };
 
 export default function DashboardLayout({

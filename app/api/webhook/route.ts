@@ -42,7 +42,7 @@ export async function POST(req: Request) {
           data: {
             userId: userId,
             title: "Dépôt Réussi 💰",
-            message: `Votre compte PimPay a été crédité de ${amountUSD.toFixed(2)}$`,
+            message: `Votre compte PIMOBIPAY a été crédité de ${amountUSD.toFixed(2)}$`,
             type: "success"
           }
         });

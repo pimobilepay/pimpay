@@ -57,7 +57,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
         toast.error(data.error || "L'action a echoue");
       }
     } catch (err) {
-      toast.error("Erreur de connexion au noyau PimPay");
+      toast.error("Erreur de connexion au noyau PIMOBIPAY");
     } finally {
       setLoadingAction(null);
     }
@@ -170,7 +170,7 @@ export const AdminControlPanel = ({ userId, userName, userEmail, currentRole }: 
             <ShieldAlert size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tight italic">PIMPAY<span className="text-blue-500">CORE</span></h2>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight italic">PIMOBIPAY<span className="text-blue-500">CORE</span></h2>
             <p className="text-[10px] text-blue-400 font-bold uppercase tracking-[3px]">Security & Control Unit</p>
           </div>
         </div>

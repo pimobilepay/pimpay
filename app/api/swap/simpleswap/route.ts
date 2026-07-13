@@ -16,7 +16,7 @@
  *   1. GET /api/swap/simpleswap?from=BTC&to=USDT&amount=0.1
  *      → retourne { estimatedAmount, min, max, rateId, ... }
  *   2. POST /api/swap/simpleswap { fromToken, toToken, amount, toAddress, rateId }
- *      → crée l'échange SimpleSwap, débite le wallet PimPay,
+ *      → crée l'échange SimpleSwap, débite le wallet PIMOBIPAY,
  *        retourne { depositAddress, id, reference }
  * ============================================================
  */
@@ -37,7 +37,7 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 const SS_BASE = "https://api.simpleswap.io/v3";
 
 /**
- * Mapping symbol PimPay → ticker:network SimpleSwap.
+ * Mapping symbol PIMOBIPAY → ticker:network SimpleSwap.
  * SimpleSwap utilise un format ticker:network pour identifier les devises.
  */
 const SS_TICKER: Record<string, { ticker: string; network: string }> = {
@@ -68,7 +68,7 @@ const SS_TICKER: Record<string, { ticker: string; network: string }> = {
 /** Actifs gérés exclusivement par Sun.io (TRON DEX interne) */
 const SUNIO_TOKENS = new Set(["TRX", "USDT", "USDC", "USDD", "SUN", "JST", "BTT", "WIN", "NFT", "WTRX"]);
 
-/** Actifs internes PimPay (pas listés sur SimpleSwap) */
+/** Actifs internes PIMOBIPAY (pas listés sur SimpleSwap) */
 const INTERNAL_TOKENS = new Set(["PI", "SDA"]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ export function isSimpleSwapSupported(from: string, to: string): boolean {
   const t = to.toUpperCase();
   // Sun.io gère les paires TRX internes
   if (SUNIO_TOKENS.has(f) && SUNIO_TOKENS.has(t)) return false;
-  // Tokens internes PimPay
+  // Tokens internes PIMOBIPAY
   if (INTERNAL_TOKENS.has(f) || INTERNAL_TOKENS.has(t)) return false;
   // Vérifier si supporté par SimpleSwap
   return f in SS_TICKER && t in SS_TICKER && f !== t;
@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Vérifier le solde PimPay du wallet source
+    // 4. Vérifier le solde PIMOBIPAY du wallet source
     const fromWallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency: fromToken } },
     });
@@ -463,7 +463,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Calculer les frais PimPay
+    // 5. Calculer les frais PIMOBIPAY
     const feeConfig = await getFeeConfig();
     const { feeAmount: pimpayFee } = calculateFee(amount, feeConfig, "transfer");
 
@@ -588,7 +588,7 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
-      // Auto-conversion des frais PimPay en PI
+      // Auto-conversion des frais PIMOBIPAY en PI
       if (pimpayFee > 0) {
         autoConvertFeeToPi(pimpayFee, fromToken, txRecord.id, txRecord.reference).catch(() => {});
       }

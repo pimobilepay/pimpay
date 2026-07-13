@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Retrait | PimPay',
+  title: 'Retrait | PIMOBIPAY',
   description: 'Retirez vos fonds en toute sécurité vers votre wallet Pi ou compte bancaire.',
 };
 

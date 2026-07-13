@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
             metadata: {
               fromAdmin: true,
               adminId: requester.id,
-              adminName: requester.name || requester.email || "Support PimPay",
+              adminName: requester.name || requester.email || "Support PIMOBIPAY",
               canReply: true,
               sentAt: new Date().toISOString(),
             },
@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
               data: {
                 userId: u.id,
                 title: "Solde Réinitialisé",
-                message: "L'intégralité de votre solde (crypto et fiat) a été réinitialisée à 0 par l'administration PimPay.",
+                message: "L'intégralité de votre solde (crypto et fiat) a été réinitialisée à 0 par l'administration PIMOBIPAY.",
                 type: "WARNING",
                 read: false,
               },

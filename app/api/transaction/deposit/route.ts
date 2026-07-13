@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Portefeuille ${currency} introuvable` }, { status: 404 });
     }
 
-    // 5. Création de la transaction dans PimPay
+    // 5. Création de la transaction dans PIMOBIPAY
     // Toutes les transactions entrantes sont approuvées automatiquement
     const finalAmount = parseFloat(amount) || 0;
 

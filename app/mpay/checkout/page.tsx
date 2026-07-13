@@ -18,13 +18,13 @@ export default function MPayCheckout() {
   const [selectedMethod, setSelectedMethod] = useState("wallet");
   const [loading, setLoading] = useState(false);
 
-  const receiver = params.get("to") || "Utilisateur PimPay";
+  const receiver = params.get("to") || "Utilisateur PIMOBIPAY";
   const txid = params.get("txid") || "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase();
 
   const methods = [
-    { id: "wallet", title: "Wallet Pi", desc: "Solde interne PimPay", icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", activeBg: "bg-amber-600" },
+    { id: "wallet", title: "Wallet Pi", desc: "Solde interne PIMOBIPAY", icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", activeBg: "bg-amber-600" },
     { id: "usd", title: "Solde USD", desc: "Fonds en dollars", icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10", activeBg: "bg-emerald-600" },
-    { id: "card", title: "Visa PimPay", desc: "Carte virtuelle", icon: CreditCard, color: "text-blue-500", bg: "bg-blue-500/10", activeBg: "bg-blue-600" },
+    { id: "card", title: "Visa PIMOBIPAY", desc: "Carte virtuelle", icon: CreditCard, color: "text-blue-500", bg: "bg-blue-500/10", activeBg: "bg-blue-600" },
     { id: "external", title: "Pi Browser", desc: "Wallet externe", icon: Wallet, color: "text-indigo-500", bg: "bg-indigo-500/10", activeBg: "bg-indigo-600" },
   ];
 
@@ -54,7 +54,7 @@ export default function MPayCheckout() {
             <ArrowLeft size={20} />
           </button>
           <div className="text-center">
-            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">PimPay Terminal</p>
+            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">PIMOBIPAY Terminal</p>
             <p className="text-[10px] text-slate-500 uppercase font-bold">{step === 1 ? "Saisie Montant" : "Mode de paiement"}</p>
           </div>
           <div className="w-11" />
@@ -154,7 +154,7 @@ export default function MPayCheckout() {
 
         <div className="mt-6 flex items-center justify-center gap-2 opacity-30">
           <ShieldCheck size={12} className="text-blue-500" />
-          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PimPay Secure Node V2</p>
+          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PIMOBIPAY Secure Node V2</p>
         </div>
       </div>
     </main>

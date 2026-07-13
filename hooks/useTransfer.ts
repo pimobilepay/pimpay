@@ -10,7 +10,7 @@ export const useTransfer = () => {
     // 1. Interdire l'envoi à soi-même (évite les boucles infinies de solde)
     if (destination === currentUserAddress) return 'SELF_TRANSFER_INVALID';
 
-    // 2. Transfert interne PimPay
+    // 2. Transfert interne PIMOBIPAY
     if (destination.startsWith('@')) return 'INTERNAL_USER'; 
 
     switch (type) {

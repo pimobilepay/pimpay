@@ -18,7 +18,7 @@ import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 /**
  * POST /api/transaction/card/fund/geniuspay
  *
- * Recharge une carte virtuelle PimPay via GeniusPay (Mobile Money ou carte).
+ * Recharge une carte virtuelle PIMOBIPAY via GeniusPay (Mobile Money ou carte).
  * Le client paie en XOF ; la carte est créditée en USD une fois le paiement
  * confirmé par le webhook /api/transaction/webhook (event payment.success).
  *

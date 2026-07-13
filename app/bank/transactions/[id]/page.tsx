@@ -38,7 +38,7 @@ const mockTransaction = {
   },
   timeline: [
     { id: 1, status: 'CREATED', label: 'Transaction créée', timestamp: '2024-01-15T09:23:41Z', actor: 'M. Laurent Dupont', color: 'blue' },
-    { id: 2, status: 'VALIDATED', label: 'Validation initiale', timestamp: '2024-01-15T09:45:12Z', actor: 'Système PIMPAY', color: 'indigo' },
+    { id: 2, status: 'VALIDATED', label: 'Validation initiale', timestamp: '2024-01-15T09:45:12Z', actor: 'Système PIMOBIPAY', color: 'indigo' },
     { id: 3, status: 'STP_CHECK', label: 'Contrôle STP réussi', timestamp: '2024-01-15T09:45:45Z', actor: 'Moteur STP', color: 'purple' },
     { id: 4, status: 'COMPLIANCE', label: 'Contrôle conformité passé', timestamp: '2024-01-15T10:02:33Z', actor: 'Module AML', color: 'yellow' },
     { id: 5, status: 'PENDING_APPROVAL', label: 'En attente d\'approbation', timestamp: '2024-01-15T10:15:22Z', actor: 'Workflow Maker-Checker', color: 'orange' },

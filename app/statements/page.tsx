@@ -70,7 +70,7 @@ async function getStatementsData() {
 
     return { transactions: formattedTransactions, stats, userId };
   } catch (error) {
-    console.error("Erreur Statements (Pimpay):", error);
+    console.error("Erreur Statements (PIMOBIPAY):", error);
     return null;
   }
 }

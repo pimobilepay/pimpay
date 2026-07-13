@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     // Default settings
     const settings = {
       general: {
-        institutionName: platformConfig?.siteName || "PimPay Institution Financiere",
+        institutionName: platformConfig?.siteName || "PIMOBIPAY Institution Financiere",
         timezone: "Africa/Kinshasa",
         language: "fr",
         currency: "USD",
@@ -194,7 +194,7 @@ export async function PUT(req: Request) {
           },
           create: {
             id: "main",
-            siteName: "PimPay",
+            siteName: "PIMOBIPAY",
             maintenanceMode: settings.enabled,
             maintenanceMessage: settings.message,
           },

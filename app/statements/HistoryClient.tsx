@@ -74,23 +74,23 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
 
     // Recharge de carte / service mobile money
     if (combined.includes("carte") || combined.includes("card") || combined.includes("visa") || combined.includes("mastercard")) {
-      return role === "from" ? "Recharge Carte" : "PimPay Card";
+      return role === "from" ? "Recharge Carte" : "PIMOBIPAY Card";
     }
     if (combined.includes("mobile money") || combined.includes("momo") || combined.includes("airtel") || combined.includes("mtn")) {
       const op = combined.includes("airtel") ? "Airtel Money"
                : combined.includes("mtn")    ? "MTN Mobile Money"
                : "Mobile Money";
-      return role === "from" ? op : "PimPay Wallet";
+      return role === "from" ? op : "PIMOBIPAY Wallet";
     }
     if (combined.includes("wave")) {
-      return role === "from" ? "Wave" : "PimPay Wallet";
+      return role === "from" ? "Wave" : "PIMOBIPAY Wallet";
     }
     if (combined.includes("paypal")) {
-      return role === "from" ? "PayPal" : "PimPay Wallet";
+      return role === "from" ? "PayPal" : "PIMOBIPAY Wallet";
     }
     // Swap / exchange interne
     if (combined.includes("swap") || combined.includes("exchange") || combined.includes("conversion") || combined.includes("convert")) {
-      return role === "from" ? "PimPay Exchange" : "PimPay Wallet";
+      return role === "from" ? "PIMOBIPAY Exchange" : "PIMOBIPAY Wallet";
     }
     // Depot ou réception depuis blockchain
     if (role === "from" && isBlockchainDeposit && !tx.fromUser) {
@@ -100,20 +100,20 @@ export default function HistoryClient({ initialTransactions, stats, currentUserI
     if (role === "to" && isBlockchainWithdraw && !tx.toUser) {
       return blockchainName[currency] || `${currency} Network`;
     }
-    // Transfert PimPay interne
+    // Transfert PIMOBIPAY interne
     if (combined.includes("pimpay") || combined.includes("pim-pay") || combined.includes("transfer")) {
-      return role === "from" ? "PimPay" : "PimPay";
+      return role === "from" ? "PIMOBIPAY" : "PIMOBIPAY";
     }
     // Recharge téléphone
     if (combined.includes("recharge") || combined.includes("top-up") || combined.includes("topup")) {
-      return role === "from" ? "PimPay Wallet" : "Opérateur Télécom";
+      return role === "from" ? "PIMOBIPAY Wallet" : "Opérateur Télécom";
     }
     // Paiement marchand
     if (combined.includes("paiement") || combined.includes("payment") || combined.includes("achat") || combined.includes("purchase")) {
-      return role === "from" ? "PimPay Wallet" : "Marchand";
+      return role === "from" ? "PIMOBIPAY Wallet" : "Marchand";
     }
 
-    return role === "from" ? "PimPay" : "PimPay";
+    return role === "from" ? "PIMOBIPAY" : "PIMOBIPAY";
   };
 
   // Mapping des transactions
@@ -591,7 +591,7 @@ function TransactionItem({ tx, onPress }: { tx: any; onPress: () => void }) {
   );
 }
 
-// Détecter si un nom est un service/réseau externe (pas un utilisateur PimPay)
+// Détecter si un nom est un service/réseau externe (pas un utilisateur PIMOBIPAY)
 function isExternalService(name: string): boolean {
   const services = [
     "network", "chain", "blockchain", "ledger", "exchange",

@@ -284,7 +284,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
         {/* Footer */}
         <div className="px-4 py-2 border-t border-[#1e2130] flex items-center justify-between">
           <span className="text-[10px] text-[#374151] uppercase tracking-widest font-medium">
-            PIMPAY Rates
+            PIMOBIPAY Rates
           </span>
           <span className="text-[10px] text-[#374151]">
             {filtered.length} currencies
@@ -576,7 +576,7 @@ const DEMO_EVENTS: TimelineEvent[] = [
     status: 'processing',
     title: 'Transaction en cours',
     description: 'Votre virement de 150 000 XAF est en cours de traitement par notre système.',
-    actor: 'PIMPAY System',
+    actor: 'PIMOBIPAY System',
   },
   {
     id: '2',
@@ -591,7 +591,7 @@ const DEMO_EVENTS: TimelineEvent[] = [
     timestamp: new Date(Date.now() - 12 * 60 * 1000),
     status: 'pending',
     title: 'Validation manuelle requise',
-    description: 'Un agent PIMPAY doit valider cette transaction avant traitement.',
+    description: 'Un agent PIMOBIPAY doit valider cette transaction avant traitement.',
     actor: 'Agent Jean-Pierre',
   },
   {
@@ -608,7 +608,7 @@ const DEMO_EVENTS: TimelineEvent[] = [
     status: 'error',
     title: 'Tentative échouée',
     description: 'Solde insuffisant lors de la première tentative. Réessai effectué.',
-    actor: 'PIMPAY Gateway',
+    actor: 'PIMOBIPAY Gateway',
   },
 ];
 

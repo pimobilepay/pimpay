@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       if (user) finalUserId = user.id;
     }
 
-    // 2. Si non trouvé par ID, on tente par Email (sécurité PimPay)
+    // 2. Si non trouvé par ID, on tente par Email (sécurité PIMOBIPAY)
     if (!finalUserId && email) {
       const userByEmail = await prisma.user.findUnique({ where: { email: email } });
       if (userByEmail) finalUserId = userByEmail.id;

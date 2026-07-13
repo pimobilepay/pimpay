@@ -469,7 +469,7 @@ export default function SignupPage() {
               )}
             </div>
             <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">
-              PIMPAY<span className={`not-italic ${signupType === "business" ? "text-amber-500" : "text-blue-500"}`}>.</span>
+              PIMOBIPAY<span className={`not-italic ${signupType === "business" ? "text-amber-500" : "text-blue-500"}`}>.</span>
             </h1>
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
               {signupType === "business" ? "Inscription Entreprise" : t("extra.createAccount")}
@@ -713,7 +713,7 @@ export default function SignupPage() {
                 <Link href="/legal/privacy" target="_blank" className="text-blue-500 font-bold hover:underline">
                   politique de confidentialite
                 </Link>
-                {" de PimPay."}
+                {" de PIMOBIPAY."}
               </span>
             </label>
 
@@ -811,7 +811,7 @@ export default function SignupPage() {
                     </div>
                   ) : (
                     <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">
-                      PimPay Protocol v2.0
+                      PIMOBIPAY Protocol v2.0
                     </p>
                   )}
                 </div>
@@ -971,7 +971,7 @@ export default function SignupPage() {
                     <p className="text-[9px] text-blue-500/70 uppercase font-black tracking-[0.2em]">{t("extra.initializing")}</p>
                   </div>
                 ) : (
-                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PimPay Protocol v2.0</p>
+                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PIMOBIPAY Protocol v2.0</p>
                 )}
               </div>
             </motion.div>

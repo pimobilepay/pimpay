@@ -1154,7 +1154,7 @@ export default function AdminAnalyticsPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Analytics</h1>
           </div>
           <button onClick={() => fetchAnalytics()} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
@@ -2659,7 +2659,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Google Analytics est actif sur toutes les pages de PimPay. Pour voir les rapports complets en temps reel (audience, acquisition, comportement, conversions), accedez directement au tableau de bord Google Analytics.
+              Google Analytics est actif sur toutes les pages de PIMOBIPAY. Pour voir les rapports complets en temps reel (audience, acquisition, comportement, conversions), accedez directement au tableau de bord Google Analytics.
             </p>
             <a
               href="https://analytics.google.com/analytics/web/#/p/G-W8HP6W3DM4"

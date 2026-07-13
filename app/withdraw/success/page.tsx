@@ -420,7 +420,7 @@ function SuccessContent() {
             onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: "PimPay Retrait",
+                  title: "PIMOBIPAY Retrait",
                   text: `Retrait de ${formatAmount(amount)} ${currency} en cours. Ref: ${ref}`,
                 });
               } else {
@@ -446,7 +446,7 @@ function SuccessContent() {
       <div className="flex flex-col items-center gap-2 opacity-20 relative z-10">
         <div className="flex items-center gap-2">
           <Activity size={12} />
-          <span className="text-[9px] font-black uppercase tracking-[0.4em]">PimPay Secure Protocol</span>
+          <span className="text-[9px] font-black uppercase tracking-[0.4em]">PIMOBIPAY Secure Protocol</span>
         </div>
       </div>
     </div>

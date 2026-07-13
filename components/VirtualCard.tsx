@@ -66,11 +66,11 @@ export const VirtualCard = ({
         {isVisa && !isLocked && <VisaPattern />}
         {isMasterCard && !isLocked && <MasterCardPattern />}
 
-        {/* Header - PIMPAY VIRTUAL in gold */}
+        {/* Header - PIMOBIPAY VIRTUAL in gold */}
         <div className="relative z-10 flex justify-between items-start mb-4">
           <div className="flex items-center gap-1.5">
             <ShieldCheck size={14} className="text-[#FFD700]" />
-            <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+            <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
           </div>
           {isVisa ? (
             <span className="text-2xl font-black italic text-[#3b82f6] tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>

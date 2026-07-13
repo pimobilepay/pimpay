@@ -21,7 +21,7 @@ export default function McardSuccessPage() {
   // Données extraites de tes captures d'écran réelles
   const amount = searchParams.get("amount") || "1.0";
   const recipientAddress = "GD3SGMIZH6NAQ3RY7KQZDSSDHTN2K2HFKRRPEVAWWF JGL4CZ7MXW7UQR";
-  const payingFor = "Depot PimPay - 314159 USD";
+  const payingFor = "Depot PIMOBIPAY - 314159 USD";
   const txId = `TX-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
 
   useEffect(() => {

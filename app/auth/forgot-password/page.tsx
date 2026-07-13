@@ -216,7 +216,7 @@ export default function ForgotPasswordPage() {
         <div className="mt-auto pt-8 text-center flex flex-col items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-white/5 opacity-50">
                 <EyeOff size={10} className="text-slate-500" />
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">PimPay Military Grade Security</span>
+                <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">PIMOBIPAY Military Grade Security</span>
             </div>
         </div>
       </main>

@@ -28,7 +28,7 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
       {/* Menu Drawer */}
       <aside className="relative w-80 h-full bg-[#020617] border-r border-white/10 p-6 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
         <div className="flex justify-between items-center mb-10">
-          <h2 className="text-xl font-black italic text-blue-500">PIMPAY</h2>
+          <h2 className="text-xl font-black italic text-blue-500">PIMOBIPAY</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-400">
             <X size={24} />
           </button>

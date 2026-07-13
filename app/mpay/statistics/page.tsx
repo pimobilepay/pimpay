@@ -67,7 +67,7 @@ const getTransactionInfo = (tx: Transaction, userId: string): { name: string; cu
   
   // Handle card purchases
   if (txType === "CARD_PURCHASE" || tx.reference?.toUpperCase().startsWith("CARD-BUY")) {
-    return { name: "Achat Carte PimPay", currency, isSent: true };
+    return { name: "Achat Carte PIMOBIPAY", currency, isSent: true };
   }
   
   // Handle card recharge/withdraw

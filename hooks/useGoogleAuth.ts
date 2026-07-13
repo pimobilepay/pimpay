@@ -13,7 +13,7 @@ declare global {
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 
 /**
- * Hook d'authentification Google pour PimPay.
+ * Hook d'authentification Google pour PIMOBIPAY.
  *
  * Reproduit le flux de usePiAuth :
  *   popup OAuth (code flow) -> sync backend (/api/auth/google-login) -> session cookie.
@@ -119,7 +119,7 @@ export const useGoogleAuth = () => {
         codeClientRef.current.requestCode();
       });
 
-      // Echange du code cote serveur + synchronisation PimPay.
+      // Echange du code cote serveur + synchronisation PIMOBIPAY.
       const response = await fetch("/api/auth/google-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,7 +130,7 @@ export const useGoogleAuth = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Echec de synchronisation PimPay");
+        throw new Error(result.error || "Echec de synchronisation PIMOBIPAY");
       }
 
       setUser(result.user);
@@ -138,7 +138,7 @@ export const useGoogleAuth = () => {
 
       return { success: true, user: result.user };
     } catch (error: any) {
-      console.error("[PimPay] Erreur authentification Google:", error);
+      console.error("[PIMOBIPAY] Erreur authentification Google:", error);
 
       let errorMsg = "Echec de la connexion Google";
       const errStr = String(error?.message || error || "").toLowerCase();
@@ -150,7 +150,7 @@ export const useGoogleAuth = () => {
       ) {
         errorMsg = "Connexion annulee";
       } else if (errStr.includes("access_denied") || errStr.includes("denied")) {
-        errorMsg = "Acces refuse. Veuillez autoriser PimPay.";
+        errorMsg = "Acces refuse. Veuillez autoriser PIMOBIPAY.";
       } else if (errStr.includes("network") || errStr.includes("fetch")) {
         errorMsg = "Erreur reseau. Verifiez votre connexion internet.";
       } else if (errStr.includes("server") || errStr.includes("500")) {

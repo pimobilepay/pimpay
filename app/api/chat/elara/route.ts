@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  *
  * Endpoint direct d'Elara (sans persistance de ticket). Utilise le même
  * cerveau IA que le chat support : Vercel AI Gateway + base de connaissances
- * PimPay, avec repli sur la FAQ si l'IA est indisponible.
+ * PIMOBIPAY, avec repli sur la FAQ si l'IA est indisponible.
  */
 export async function POST(req: Request) {
   try {

@@ -453,7 +453,7 @@ export default function EmployeesPage() {
                       </div>
                       {emp.userId && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#34d399' }}>
-                          <CheckCircle size={10} /> Compte PimPay lie
+                          <CheckCircle size={10} /> Compte PIMOBIPAY lie
                         </div>
                       )}
                     </div>
@@ -710,7 +710,7 @@ export default function EmployeesPage() {
             </div>
             <p style={{ fontSize: '11px', color: '#6B7280', marginTop: '12px' }}>
               <AlertCircle size={12} style={{ display: 'inline', marginRight: '4px' }} />
-              L&apos;employe sera automatiquement lie a son compte PimPay s&apos;il existe (via email ou telephone)
+              L&apos;employe sera automatiquement lie a son compte PIMOBIPAY s&apos;il existe (via email ou telephone)
             </p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAdd(false)} style={{ padding: '10px 18px', borderRadius: '8px', background: '#1F2937', border: 'none', color: '#9CA3AF', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
@@ -834,7 +834,7 @@ export default function EmployeesPage() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: '#fbbf24', flexShrink: 0, marginTop: '2px' }} />
                 <p style={{ fontSize: '11px', color: '#fbbf24' }}>
-                  Les employes non lies a un compte PimPay recevront un paiement en attente. 
+                  Les employes non lies a un compte PIMOBIPAY recevront un paiement en attente. 
                   Le montant sera credite automatiquement lorsqu&apos;ils lieront leur compte.
                 </p>
               </div>

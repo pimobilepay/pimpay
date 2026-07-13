@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PimPay - Core Ledger",
+  title: "PIMOBIPAY - Core Ledger",
   description: "L'avenir de vos transactions Pi sur pimpay.pi",
   robots: "noindex, nofollow",
   icons: {

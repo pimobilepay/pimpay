@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Transaction invalide ou utilisateur manquant" }, { status: 400 });
     }
 
-    // 3. Utiliser une TRANSACTION Prisma pour l'intégrité de Pimpay
+    // 3. Utiliser une TRANSACTION Prisma pour l'intégrité de PIMOBIPAY
     const result = await prisma.$transaction(async (tx) => {
       // A. Mettre à jour la transaction
       const updatedTx = await tx.transaction.update({

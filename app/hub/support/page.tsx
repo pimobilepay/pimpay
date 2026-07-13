@@ -229,7 +229,7 @@ export default function AgentSupportPage() {
             <div className="flex items-center justify-between p-4 border-b border-white/5">
               <div className="flex items-center justify-center flex-1">
                 <div>
-                  <h1 className="text-sm font-black text-white text-center">PIMPAY</h1>
+                  <h1 className="text-sm font-black text-white text-center">PIMOBIPAY</h1>
                   <p className="text-[9px] font-bold text-emerald-500 uppercase text-center">Agent Hub</p>
                 </div>
               </div>
@@ -307,7 +307,7 @@ export default function AgentSupportPage() {
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
             <Menu className="h-5 w-5" />
           </button>
-          <h1 className="text-sm font-black text-white">PIMPAY</h1>
+          <h1 className="text-sm font-black text-white">PIMOBIPAY</h1>
           <div className="w-9" />
         </div>
 

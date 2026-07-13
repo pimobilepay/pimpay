@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     // 3. Find recipient by merchant ID or username
     let recipientId: string | null = null;
     
-    // Check if it's a PIMPAY merchant ID format
+    // Check if it's a PIMOBIPAY merchant ID format
     if (to.startsWith("PIMPAY-")) {
       const userIdPart = to.replace("PIMPAY-", "").toLowerCase();
       const recipient = await prisma.user.findFirst({

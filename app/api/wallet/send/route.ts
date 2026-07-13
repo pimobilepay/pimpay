@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (!senderWallet || senderWallet.balance < amount) {
-        throw new Error(`Solde ${currency} insuffisant sur PimPay.`);
+        throw new Error(`Solde ${currency} insuffisant sur PIMOBIPAY.`);
       }
 
       const cleanInput = recipientInput.startsWith('@') ? recipientInput.substring(1) : recipientInput;
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
           data: {
             userId: recipientUser.id,
             title: "Fonds reçus ! 💸",
-            message: `Vous avez reçu ${amount} ${currency} de la part d'un membre PimPay.`,
+            message: `Vous avez reçu ${amount} ${currency} de la part d'un membre PIMOBIPAY.`,
             type: "payment_received"
           }
         }).catch((e) => console.log("[v1] [WALLET_SEND] Erreur notification:", e.message));

@@ -71,7 +71,7 @@ export async function GET(req: Request) {
     }, { status: 200 });
 
   } catch (error) {
-    return NextResponse.json({ error: "Erreur serveur Pimpay" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur PIMOBIPAY" }, { status: 500 });
   } finally {
     await prisma.$disconnect();
   }

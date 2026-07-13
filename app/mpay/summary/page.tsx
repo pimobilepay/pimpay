@@ -22,7 +22,7 @@ export default function PaymentSummary() {
   const methodLabels: Record<string, string> = {
     wallet: "Pi Wallet",
     usd: t("mpay.summaryPage.usdBalance"),
-    card: "Visa PimPay",
+    card: "Visa PIMOBIPAY",
     external: "Pi Browser"
   };
 
@@ -141,7 +141,7 @@ export default function PaymentSummary() {
         {/* Footer */}
         <div className="mt-8 flex items-center justify-center gap-2 opacity-30">
           <Landmark size={12} className="text-blue-500" />
-          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PimPay mPay Protocol V2</p>
+          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PIMOBIPAY mPay Protocol V2</p>
         </div>
       </div>
     </main>

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Solde Pi insuffisant" }, { status: 400 });
     }
 
-    // 5. TRANSACTION ATOMIQUE (Sécurité financière Pimpay)
+    // 5. TRANSACTION ATOMIQUE (Sécurité financière PIMOBIPAY)
     const result = await prisma.$transaction(async (tx) => {
       // Débiter le compte avec vérification de solde intégrée (Double sécurité)
       const updatedWallet = await tx.wallet.update({

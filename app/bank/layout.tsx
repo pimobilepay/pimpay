@@ -754,7 +754,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* ── Footer ── */}
         <footer className="border-t border-[#1F2937] px-3 md:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
-          <span className="text-[#374151] text-[10px] md:text-xs">2024 PIMPAY — Tous droits reserves</span>
+          <span className="text-[#374151] text-[10px] md:text-xs">2024 PIMOBIPAY — Tous droits reserves</span>
           <div className="flex items-center gap-3 md:gap-4">
             <span className="text-[#374151] text-[10px] md:text-xs hidden sm:inline">v2.4.1</span>
             <span className="flex items-center gap-1.5 text-[#22C55E] text-[10px] md:text-xs">

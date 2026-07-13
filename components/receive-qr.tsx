@@ -18,8 +18,8 @@ export function ReceiveQR({ userIdentifier }: { userIdentifier: string }) {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'Mon ID PimPay',
-        text: `Envoyez-moi des Pi via PimPay: ${userIdentifier}`,
+        title: 'Mon ID PIMOBIPAY',
+        text: `Envoyez-moi des Pi via PIMOBIPAY: ${userIdentifier}`,
       });
     } else {
       copyToClipboard();
@@ -37,7 +37,7 @@ export function ReceiveQR({ userIdentifier }: { userIdentifier: string }) {
           includeMargin={true}
         />
         <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-          <p className="text-black font-black text-4xl rotate-12">PIMPAY</p>
+          <p className="text-black font-black text-4xl rotate-12">PIMOBIPAY</p>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export function ReceiveQR({ userIdentifier }: { userIdentifier: string }) {
       {/* Security Badge */}
       <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-full">
         <ShieldCheck size={14} />
-        <span className="text-[10px] font-black uppercase tracking-wider">Securise par PimPay Ledger</span>
+        <span className="text-[10px] font-black uppercase tracking-wider">Securise par PIMOBIPAY Ledger</span>
       </div>
     </div>
   );

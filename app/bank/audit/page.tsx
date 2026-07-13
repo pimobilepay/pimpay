@@ -375,7 +375,7 @@ export default function AuditPage() {
                 <span className="text-emerald-400 text-xs font-semibold">Intégrité Chaîne Vérifiée</span>
               </div>
             </div>
-            <p className="text-gray-400 text-sm mt-0.5">Traçabilité complète des opérations · PIMPAY Banking</p>
+            <p className="text-gray-400 text-sm mt-0.5">Traçabilité complète des opérations · PIMOBIPAY Banking</p>
           </div>
         </div>
         <button

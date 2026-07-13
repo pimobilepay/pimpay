@@ -119,7 +119,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Mot de passe PimPay mis à jour avec succès !",
+      message: "Mot de passe PIMOBIPAY mis à jour avec succès !",
     });
 
   } catch (error: unknown) {

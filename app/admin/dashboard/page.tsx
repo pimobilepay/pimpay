@@ -735,7 +735,7 @@ function DashboardContent() {
       {/* TOP NAV WITH NOTIFICATIONS */}
       <AdminTopNav 
         title="Admin Dashboard" 
-        subtitle="PimPay Core"
+        subtitle="PIMOBIPAY Core"
         onRefresh={fetchData}
         backPath="/admin"
       />
@@ -1041,7 +1041,7 @@ function DashboardContent() {
                         pendingTransactions.map(tx => {
                           const user = tx.fromUser || tx.toUser;
                           const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
-                          const userName = fullName || user?.username || 'Utilisateur PimPay';
+                          const userName = fullName || user?.username || 'Utilisateur PIMOBIPAY';
                           return (
                             <Card 
                               key={`tx-${tx.id}`} 
@@ -1160,7 +1160,7 @@ function DashboardContent() {
                         <Card className="bg-slate-900/60 border-white/5 rounded-[2.5rem] p-6 text-white space-y-4">
                           <div className="flex items-center gap-3 border-b border-white/5 pb-3">
                             <Server size={18} className="text-blue-400" />
-                            <p className="text-[10px] font-black uppercase tracking-widest">Infos Systeme PimPay</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest">Infos Systeme PIMOBIPAY</p>
                           </div>
                           <div className="grid grid-cols-1 gap-3">
                             {[
@@ -1305,7 +1305,7 @@ function DashboardContent() {
                           <div className="flex items-center gap-4">
                             <div className="p-3 bg-amber-500 rounded-2xl text-white"><SmartphoneNfc size={18} /></div>
                             <div>
-                              <p className="text-[10px] font-black text-white uppercase">PimPay Hub</p>
+                              <p className="text-[10px] font-black text-white uppercase">PIMOBIPAY Hub</p>
                               <p className="text-[8px] font-bold text-amber-400 uppercase">Gestion des Agents</p>
                             </div>
                           </div>
@@ -1864,7 +1864,7 @@ function DashboardContent() {
       {selectedTx && (() => {
         const user = selectedTx.fromUser || selectedTx.toUser;
         const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
-        const userName = fullName || user?.username || 'Utilisateur PimPay';
+        const userName = fullName || user?.username || 'Utilisateur PIMOBIPAY';
         const isSuccess = selectedTx.status === "SUCCESS";
         const isPending = selectedTx.status === "PENDING";
         const PI_GCV_PRICE = piPrice;
@@ -2019,7 +2019,7 @@ function DashboardContent() {
 
               {/* Footer */}
               <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
-                <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PimPay Admin Console</p>
+                <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PIMOBIPAY Admin Console</p>
               </div>
             </div>
           </div>

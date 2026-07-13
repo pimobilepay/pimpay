@@ -13,7 +13,7 @@ declare global {
 }
 
 /**
- * Hook d'authentification Pi Network pour PimPay
+ * Hook d'authentification Pi Network pour PIMOBIPAY
  * 
  * S'appuie sur PiInitializer pour l'init du SDK.
  * Gere le flux complet: authenticate -> sync backend -> session cookie.
@@ -28,7 +28,7 @@ export const usePiAuth = () => {
    * Cette fonction DOIT retourner une Promise pour que le SDK Pi puisse continuer
    */
   const handleIncompletePayment = useCallback(async (payment: any) => {
-    console.warn("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+    console.warn("[PIMOBIPAY] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     
     try {
       const response = await fetch("/api/payments/incomplete", {
@@ -44,15 +44,15 @@ export const usePiAuth = () => {
       const data = await response.json();
       
       if (response.ok) {
-        console.log("[PimPay] Paiement incomplet traite:", payment.identifier, data.action);
+        console.log("[PIMOBIPAY] Paiement incomplet traite:", payment.identifier, data.action);
         if (data.action === "completed") {
           toast.success(`Paiement recupere: ${data.message}`);
         }
       } else {
-        console.error("[PimPay] Echec traitement paiement incomplet:", data);
+        console.error("[PIMOBIPAY] Echec traitement paiement incomplet:", data);
       }
     } catch (error) {
-      console.error("[PimPay] Erreur reseau traitement paiement incomplet:", error);
+      console.error("[PIMOBIPAY] Erreur reseau traitement paiement incomplet:", error);
     }
   }, []);
 
@@ -79,7 +79,7 @@ export const usePiAuth = () => {
       window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
-      console.log(`[PimPay] SDK Pi 2.0 initialise par usePiAuth (sandbox=${getCachedPiSandbox()})`);
+      console.log(`[PIMOBIPAY] SDK Pi 2.0 initialise par usePiAuth (sandbox=${getCachedPiSandbox()})`);
       return true;
     } catch (e: any) {
       window.__PI_SDK_INITIALIZING__ = false;
@@ -88,7 +88,7 @@ export const usePiAuth = () => {
         window.__PI_SDK_READY__ = true;
         return true;
       }
-      console.error("[PimPay] Erreur init SDK Pi:", e);
+      console.error("[PIMOBIPAY] Erreur init SDK Pi:", e);
       return false;
     }
   }, []);
@@ -104,28 +104,28 @@ export const usePiAuth = () => {
     const checkInterval = 100;
     let attempts = 0;
     
-    console.log("[PimPay] Attente du SDK Pi...");
+    console.log("[PIMOBIPAY] Attente du SDK Pi...");
     
     while (Date.now() - start < maxWait) {
       attempts++;
       
       // Verifier si deja pret
       if (window.__PI_SDK_READY__) {
-        console.log(`[PimPay] SDK Pi deja pret (tentative ${attempts})`);
+        console.log(`[PIMOBIPAY] SDK Pi deja pret (tentative ${attempts})`);
         return true;
       }
       
       if (window.Pi) {
         // SDK charge, on tente l'initialisation
         if (initializePiSDK()) {
-          console.log(`[PimPay] SDK Pi initialise avec succes (tentative ${attempts})`);
+          console.log(`[PIMOBIPAY] SDK Pi initialise avec succes (tentative ${attempts})`);
           return true;
         }
         // Si en cours d'init par un autre, attendre un peu plus
         if (window.__PI_SDK_INITIALIZING__) {
           await new Promise(resolve => setTimeout(resolve, 50));
           if (window.__PI_SDK_READY__) {
-            console.log(`[PimPay] SDK Pi initialise par un autre processus (tentative ${attempts})`);
+            console.log(`[PIMOBIPAY] SDK Pi initialise par un autre processus (tentative ${attempts})`);
             return true;
           }
         }
@@ -133,7 +133,7 @@ export const usePiAuth = () => {
       await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
     
-    console.warn(`[PimPay] SDK Pi non disponible apres ${maxWait}ms (${attempts} tentatives). window.Pi=${!!window.Pi}, __PI_SDK_READY__=${window.__PI_SDK_READY__}`);
+    console.warn(`[PIMOBIPAY] SDK Pi non disponible apres ${maxWait}ms (${attempts} tentatives). window.Pi=${!!window.Pi}, __PI_SDK_READY__=${window.__PI_SDK_READY__}`);
     return window.__PI_SDK_READY__ || false;
   }, [initializePiSDK]);
 
@@ -147,7 +147,7 @@ export const usePiAuth = () => {
 
     // Eviter les doubles authentifications
     if (authInProgressRef.current) {
-      console.warn("[PimPay] Authentification deja en cours");
+      console.warn("[PIMOBIPAY] Authentification deja en cours");
       return { success: false, error: "Authentification en cours" };
     }
 
@@ -157,7 +157,7 @@ export const usePiAuth = () => {
     try {
       // Verifier d'abord si on est dans un environnement avec Pi SDK
       if (typeof window.Pi === "undefined") {
-        console.warn("[PimPay] window.Pi n'existe pas - pas dans Pi Browser?");
+        console.warn("[PIMOBIPAY] window.Pi n'existe pas - pas dans Pi Browser?");
       }
       
       // Attendre que le SDK soit charge et initialise (max 10s)
@@ -165,7 +165,7 @@ export const usePiAuth = () => {
       
       if (!sdkReady || !window.Pi) {
         const errorMsg = !window.Pi 
-          ? "Veuillez ouvrir PimPay dans le Pi Browser pour vous connecter."
+          ? "Veuillez ouvrir PIMOBIPAY dans le Pi Browser pour vous connecter."
           : "Le SDK Pi n'a pas pu s'initialiser. Rechargez la page.";
         toast.error(errorMsg, { duration: 5000 });
         return { success: false, error: errorMsg };
@@ -188,9 +188,9 @@ export const usePiAuth = () => {
         throw new Error("Autorisation refusee par l'utilisateur.");
       }
 
-      console.log("[PimPay] Authentification Pi reussie, sync backend...");
+      console.log("[PIMOBIPAY] Authentification Pi reussie, sync backend...");
 
-      // Synchronisation avec le backend PimPay
+      // Synchronisation avec le backend PIMOBIPAY
       // Pi Network retourne le phone dans auth.user.credentials.phone_number si le scope est approuve
       const phone = auth.user?.credentials?.phone_number || null;
       
@@ -209,10 +209,10 @@ export const usePiAuth = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Echec de synchronisation PimPay");
+        throw new Error(result.error || "Echec de synchronisation PIMOBIPAY");
       }
 
-      console.log("[PimPay] Connexion reussie:", result.user?.username);
+      console.log("[PIMOBIPAY] Connexion reussie:", result.user?.username);
 
       // Les cookies httpOnly sont poses automatiquement par la reponse API
       // On stocke uniquement les infos non-sensibles cote client
@@ -221,7 +221,7 @@ export const usePiAuth = () => {
 
       return { success: true, user: result.user };
     } catch (error: any) {
-      console.error("[PimPay] Erreur authentification Pi:", error);
+      console.error("[PIMOBIPAY] Erreur authentification Pi:", error);
 
       let errorMsg = "Echec de la connexion securisee";
       

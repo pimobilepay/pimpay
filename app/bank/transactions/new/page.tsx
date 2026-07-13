@@ -198,7 +198,7 @@ export default function NewTransactionPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[#C8A961] text-xs font-semibold uppercase tracking-widest">PIMPAY</span>
+            <span className="text-[#C8A961] text-xs font-semibold uppercase tracking-widest">PIMOBIPAY</span>
             <span className="text-gray-600 text-xs">/</span>
             <span className="text-gray-400 text-xs">Nouvelle Transaction</span>
           </div>

@@ -113,7 +113,7 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
               <Wallet className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-black text-white tracking-tight">PIMPAY</h1>
+              <h1 className="text-sm font-black text-white tracking-tight">PIMOBIPAY</h1>
               <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Agent Hub</p>
             </div>
           </div>

@@ -47,7 +47,7 @@ export default function SupportReplyListener({ userId }: SupportReplyListenerPro
 
         if (latest.id !== lastSeenIdRef.current) {
           lastSeenIdRef.current = latest.id;
-          toast(latest.title || "Message du Support PimPay", {
+          toast(latest.title || "Message du Support PIMOBIPAY", {
             description: latest.message || "Vous avez recu un nouveau message du support",
             duration: 8000,
             icon: <MessageSquare size={18} className="text-cyan-400" />,

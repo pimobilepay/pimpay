@@ -196,7 +196,7 @@ export default function WithdrawPage() {
           body: JSON.stringify({
             destination: cryptoAddress,
             amount: cryptoAmount,
-            memo: cryptoMemo || `Retrait PimPay`,
+            memo: cryptoMemo || `Retrait PIMOBIPAY`,
           }),
         });
 
@@ -625,7 +625,7 @@ export default function WithdrawPage() {
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>{"PimPay Fees (2%)"}</span>
+                      <span>{"PIMOBIPAY Fees (2%)"}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
@@ -826,7 +826,7 @@ export default function WithdrawPage() {
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>{"PimPay Fees (2%)"}</span>
+                      <span>{"PIMOBIPAY Fees (2%)"}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
@@ -1215,9 +1215,9 @@ export default function WithdrawPage() {
             <ShieldCheck size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">PimPay Protection</p>
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">PIMOBIPAY Protection</p>
             <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-              Fonds proteges. Traitement : 15 min (Mobile) a 48h (Banque). Toutes les transactions sont securisees par le protocole PimPay.
+              Fonds proteges. Traitement : 15 min (Mobile) a 48h (Banque). Toutes les transactions sont securisees par le protocole PIMOBIPAY.
             </p>
           </div>
         </div>
@@ -1345,7 +1345,7 @@ export default function WithdrawPage() {
         <div className="bg-slate-900/90 backdrop-blur-xl border border-white/5 py-3 px-5 rounded-2xl flex items-center justify-between shadow-2xl">
           <div className="flex items-center gap-2.5 text-slate-400">
             <Activity size={14} className="text-blue-500" />
-            <span className="text-[8px] font-black uppercase tracking-widest">PimPay Withdraw Protocol</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">PIMOBIPAY Withdraw Protocol</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />

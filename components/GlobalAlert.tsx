@@ -127,7 +127,7 @@ const spaceStyles = `
     100% { transform: translate(0, 0); }
   }
 
-  /* ── PIMPAY LOGO ── */
+  /* ── PIMOBIPAY LOGO ── */
   .pimpay-logo {
     font-size: 3rem; font-weight: 900; letter-spacing: 0.3em;
     color: #fff; position: relative; display: inline-block;
@@ -685,7 +685,7 @@ export default function GlobalAlert() {
             <div className="alert-title">Compte Suspendu</div>
             <p className="alert-body">
               Votre compte a été suspendu pour violation des conditions
-              d&apos;utilisation de PIMPAY. Toutes les sessions actives ont
+              d&apos;utilisation de PIMOBIPAY. Toutes les sessions actives ont
               été déconnectées.
             </p>
             {config.userStatus?.banReason && (
@@ -715,7 +715,7 @@ export default function GlobalAlert() {
             <div className="alert-title">Compte Gelé</div>
             <p className="alert-body">
               Votre compte est temporairement gelé pour vérification
-              de sécurité. Veuillez contacter le support PIMPAY.
+              de sécurité. Veuillez contacter le support PIMOBIPAY.
             </p>
             {config.userStatus?.freezeReason && (
               <p className="alert-body" style={{ marginTop: 8 }}>
@@ -815,9 +815,9 @@ export default function GlobalAlert() {
               overflow: "hidden",
             }}
           >
-            {/* ── PIMPAY Logo ── */}
+            {/* ── PIMOBIPAY Logo ── */}
             <div style={{ textAlign: "center", flexShrink: 0 }}>
-              <div className="pimpay-logo logo-glitch">PIMPAY</div>
+              <div className="pimpay-logo logo-glitch">PIMOBIPAY</div>
               <div className="core-system">CORE SYSTEM</div>
             </div>
 
@@ -1025,9 +1025,9 @@ export default function GlobalAlert() {
               overflow: "hidden",
             }}
           >
-            {/* ── PIMPAY Logo ── */}
+            {/* ── PIMOBIPAY Logo ── */}
             <div style={{ textAlign: "center", flexShrink: 0 }}>
-              <div className="pimpay-logo logo-glitch">PIMPAY</div>
+              <div className="pimpay-logo logo-glitch">PIMOBIPAY</div>
               <div className="core-system">CORE SYSTEM</div>
             </div>
 
@@ -1068,7 +1068,7 @@ export default function GlobalAlert() {
                 <div className="maintenance-title">LANCEMENT IMMINENT...</div>
                 <div className="maintenance-desc">
                   {config.comingSoonMessage ||
-                    "PIMPAY se prépare pour son lancement officiel. Le service sera accessible automatiquement à la date prévue."}
+                    "PIMOBIPAY se prépare pour son lancement officiel. Le service sera accessible automatiquement à la date prévue."}
                 </div>
               </div>
 

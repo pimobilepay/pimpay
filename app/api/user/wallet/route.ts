@@ -130,7 +130,7 @@ export async function GET() {
     return NextResponse.json({
       profile: {
         id: user.id,
-        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Utilisateur PimPay",
+        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Utilisateur PIMOBIPAY",
         kycStatus: user.kycStatus,
         avatar: user.avatar,
         addresses: {

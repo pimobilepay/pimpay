@@ -51,7 +51,7 @@ export async function POST() {
           userId: userId,
           type: "SECURITY",
           title: "Alerte de sécurité",
-          message: `Action confirmée : ${result.count} session(s) tierce(s) déconnectée(s) de votre compte PimPay. Les appareils concernés seront automatiquement déconnectés dans les prochaines secondes.`,
+          message: `Action confirmée : ${result.count} session(s) tierce(s) déconnectée(s) de votre compte PIMOBIPAY. Les appareils concernés seront automatiquement déconnectés dans les prochaines secondes.`,
         }
       });
     } catch (notifError) {

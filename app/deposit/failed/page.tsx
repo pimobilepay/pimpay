@@ -113,7 +113,7 @@ function FailedContent() {
                 Conseil :{" "}
               </span>
               Verifiez votre solde operateur et reessayez dans quelques
-              instants. Si le probleme persiste, contactez le support PimPay.
+              instants. Si le probleme persiste, contactez le support PIMOBIPAY.
             </p>
           </div>
         </div>

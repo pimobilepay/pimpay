@@ -486,7 +486,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           router.push(`/mpay/failed?reason=${encodeURIComponent(errorMsg)}`);
         }
       } else {
-        // Utiliser l'API mpay/confirm pour les ID marchands PimPay
+        // Utiliser l'API mpay/confirm pour les ID marchands PIMOBIPAY
         const res = await fetch("/api/mpay/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -737,7 +737,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                   </div>
                   <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                     <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">{t("mpay.protocol")}</span>
-                    <span className="font-black text-xs uppercase">PimPay mPay</span>
+                    <span className="font-black text-xs uppercase">PIMOBIPAY mPay</span>
                   </div>
                   <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                     <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">{t("mpay.priority")}</span>

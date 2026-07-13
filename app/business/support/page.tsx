@@ -57,7 +57,7 @@ const TICKETS: Ticket[] = [
   { id: 'TKT-006', subject: 'Facture en double pour mars 2024', category: 'facturation', priority: 'haute', status: 'resolu', createdAt: '2024-04-05 11:30', lastReply: '2024-04-07 16:00', assignedTo: 'Marie Ngo',
     messages: [{ id: 1, author: 'Jean-Pierre Mbarga', role: 'client', content: 'Nous avons reçu deux factures identiques pour mars 2024 (BILL-2024-03). Merci de corriger.', timestamp: '2024-04-05 11:30', avatar: 'JPM' }]},
   { id: 'TKT-007', subject: 'Demande d\'accès API pour intégration', category: 'compte', priority: 'basse', status: 'resolu', createdAt: '2024-04-03 09:00', lastReply: '2024-04-04 14:20', assignedTo: 'Paul Essomba',
-    messages: [{ id: 1, author: 'Marc Eyinga', role: 'client', content: 'Nous souhaitons obtenir des clés API pour intégrer PimPay à notre ERP.', timestamp: '2024-04-03 09:00', avatar: 'ME' }]},
+    messages: [{ id: 1, author: 'Marc Eyinga', role: 'client', content: 'Nous souhaitons obtenir des clés API pour intégrer PIMOBIPAY à notre ERP.', timestamp: '2024-04-03 09:00', avatar: 'ME' }]},
   { id: 'TKT-008', subject: 'Problème de connexion 2FA', category: 'compte', priority: 'haute', status: 'resolu', createdAt: '2024-04-02 07:45', lastReply: '2024-04-02 10:30', assignedTo: 'Marie Ngo',
     messages: [{ id: 1, author: 'Pauline Ndam', role: 'client', content: 'Je ne reçois plus les codes SMS 2FA. Mon numéro est +237 699 88 77 66.', timestamp: '2024-04-02 07:45', avatar: 'PN' }]},
   { id: 'TKT-009', subject: 'Exportation CSV des transactions incomplète', category: 'technique', priority: 'moyenne', status: 'ferme', createdAt: '2024-03-28 13:15', lastReply: '2024-03-30 09:00', assignedTo: 'Paul Essomba',

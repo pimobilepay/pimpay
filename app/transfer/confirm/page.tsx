@@ -30,7 +30,7 @@ function ConfirmContent() {
   const recipientName = searchParams.get("recipientName") || searchParams.get("name") || "Utilisateur";
   const amount = parseFloat(searchParams.get("amount") || "0");
   const currency = (searchParams.get("currency") || "XAF").toUpperCase();
-  const description = searchParams.get("description") || "Transfert PimPay";
+  const description = searchParams.get("description") || "Transfert PIMOBIPAY";
 
   // Determine if currency is fiat and use appropriate fee
   const isFiat = FIAT_CURRENCIES.includes(currency);
@@ -159,7 +159,7 @@ function ConfirmContent() {
           <ArrowLeft size={20} />
         </button>
         <div className="text-right">
-          <h1 className="text-xl font-black uppercase italic">PimPay<span className="text-blue-500">.Sign</span></h1>
+          <h1 className="text-xl font-black uppercase italic">PIMOBIPAY<span className="text-blue-500">.Sign</span></h1>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("transfer.confirmTransfer") || "Confirmer le transfert"}</p>
         </div>
       </div>

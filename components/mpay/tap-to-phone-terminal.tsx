@@ -194,7 +194,7 @@ export function TapToPhoneTerminal({ onClose }: { onClose: () => void }) {
     });
   };
 
-  // ── Appel API : crédite le wallet PimPay ───────────────────────────────────
+  // ── Appel API : crédite le wallet PIMOBIPAY ───────────────────────────────────
   const processPayment = async (
     detected: { cardScheme: string; cardLast4: string; cardHolder: string },
     _pin: string
@@ -265,7 +265,7 @@ export function TapToPhoneTerminal({ onClose }: { onClose: () => void }) {
   // ── Reçu : texte partageable ──────────────────────────────────────────────
   const receiptText = (r: ReceiptData) =>
     [
-      "PimPay — Reçu Tap to Phone",
+      "PIMOBIPAY — Reçu Tap to Phone",
       "----------------------------------------",
       `Référence   : ${r.reference}`,
       `Date        : ${new Date(r.date).toLocaleString("fr-FR")}`,
@@ -280,7 +280,7 @@ export function TapToPhoneTerminal({ onClose }: { onClose: () => void }) {
       `Net encaissé: ${r.currency} ${fmt(r.netAmount)}`,
       "----------------------------------------",
       `Nouveau solde: ${r.currency} ${fmt(r.newBalance)}`,
-      "Merci d'utiliser PimPay.",
+      "Merci d'utiliser PIMOBIPAY.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -290,7 +290,7 @@ export function TapToPhoneTerminal({ onClose }: { onClose: () => void }) {
     const text = receiptText(receipt);
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
-        await navigator.share({ title: "Reçu PimPay", text });
+        await navigator.share({ title: "Reçu PIMOBIPAY", text });
         return;
       } catch {
         /* annulé / non supporté → fallback copie */
@@ -640,7 +640,7 @@ export function TapToPhoneTerminal({ onClose }: { onClose: () => void }) {
               </div>
               <h2 className="text-2xl font-black uppercase tracking-tight">Paiement accepté</h2>
               <p className="text-[11px] text-emerald-400 font-black mt-1 uppercase tracking-widest">
-                Crédité sur votre wallet PimPay
+                Crédité sur votre wallet PIMOBIPAY
               </p>
             </div>
 

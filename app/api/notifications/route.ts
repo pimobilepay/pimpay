@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       unreadCount
     });
   } catch (error) {
-    console.error("Erreur GET Notifications PimPay:", error);
+    console.error("Erreur GET Notifications PIMOBIPAY:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

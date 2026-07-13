@@ -157,7 +157,7 @@ export default function PinCodeModal({
                 <p className="text-[9px] text-blue-500/70 uppercase font-black tracking-[0.2em]">Vérification...</p>
               </div>
             ) : (
-              <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PimPay Protocol v1.0</p>
+              <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PIMOBIPAY Protocol v1.0</p>
             )}
           </div>
         </motion.div>

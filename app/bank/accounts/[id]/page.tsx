@@ -562,7 +562,7 @@ export default function AccountDetailPage({ params }: { params: { id: string } }
 
         {/* ── Footer ── */}
         <div className="text-center py-4">
-          <p className="text-xs text-zinc-600">PIMPAY Banking Portal · Données mises à jour le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="text-xs text-zinc-600">PIMOBIPAY Banking Portal · Données mises à jour le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
         </div>
 
       </div>

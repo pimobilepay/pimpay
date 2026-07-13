@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { UserStatus, UserRole } from "@prisma/client";
 
 /**
- * API ADMINISTRATIVE PIMPAY CORE
+ * API ADMINISTRATIVE PIMOBIPAY CORE
  * Gère les utilisateurs, la finance et la configuration système.
  */
 export async function POST(req: NextRequest) {
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: targetUserId,
               title: "Suspension Levee",
-              message: "La suspension de votre compte a ete levee. Vous pouvez a nouveau utiliser tous les services PimPay.",
+              message: "La suspension de votre compte a ete levee. Vous pouvez a nouveau utiliser tous les services PIMOBIPAY.",
               type: "SUCCESS"
             }
           })
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: targetUserId,
               title: "Compte Reactive",
-              message: "Votre compte a ete reactive. Vous pouvez a nouveau utiliser tous les services PimPay.",
+              message: "Votre compte a ete reactive. Vous pouvez a nouveau utiliser tous les services PIMOBIPAY.",
               type: "SUCCESS"
             }
           })
@@ -245,14 +245,14 @@ export async function POST(req: NextRequest) {
         await prisma.notification.create({
           data: {
             userId: targetUserId,
-            title: "Notification du Support PimPay",
+            title: "Notification du Support PIMOBIPAY",
             message: extraData,
             type: "SUPPORT_NOTIFICATION",
             read: false,
             metadata: {
               fromAdmin: true,
               adminId: requester.id,
-              adminName: requester.name || requester.email || "Support PimPay",
+              adminName: requester.name || requester.email || "Support PIMOBIPAY",
               canReply: false,
               sentAt: new Date().toISOString(),
             },
@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: targetUserId,
               title: "Airdrop Recu",
-              message: `Vous avez recu un airdrop de ${airdropAmount} PI de la part de PimPay.`,
+              message: `Vous avez recu un airdrop de ${airdropAmount} PI de la part de PIMOBIPAY.`,
               type: "SUCCESS"
             }
           })
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: user.id,
               title: "Airdrop Global",
-              message: `Vous avez recu un airdrop global de ${globalAmount} PI de la part de PimPay.`,
+              message: `Vous avez recu un airdrop global de ${globalAmount} PI de la part de PIMOBIPAY.`,
               type: "SUCCESS"
             }
           })
@@ -420,7 +420,7 @@ export async function POST(req: NextRequest) {
               data: {
                 userId: targetUserId,
                 title: "Maintenance Terminee",
-                message: "La maintenance de votre compte est terminee. Vous pouvez a nouveau utiliser tous les services PimPay.",
+                message: "La maintenance de votre compte est terminee. Vous pouvez a nouveau utiliser tous les services PIMOBIPAY.",
                 type: "SUCCESS"
               }
             })
@@ -502,7 +502,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: u.id,
               title: "Solde Réinitialisé",
-              message: "Votre solde a été réinitialisé à 0 par l'administration PimPay.",
+              message: "Votre solde a été réinitialisé à 0 par l'administration PIMOBIPAY.",
               type: "WARNING"
             }
           })

@@ -40,7 +40,7 @@ export default function RechargeBalancePage() {
   // Calcul des frais et totaux
   const calculation = useMemo(() => {
     const piAmount = parseFloat(amount) || 0;
-    const fee = piAmount * 0.01; // 1% frais PimPay
+    const fee = piAmount * 0.01; // 1% frais PIMOBIPAY
     const netAmount = piAmount - fee;
     const usdEquivalent =
       piAmount > 0 && piPrice > 0
@@ -161,7 +161,7 @@ export default function RechargeBalancePage() {
                       Recharge de Solde Pi
                     </p>
                     <p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">
-                      Payez en Pi pour créditer votre compte PimPay. Le montant
+                      Payez en Pi pour créditer votre compte PIMOBIPAY. Le montant
                       sera ajouté instantanément à votre solde.
                     </p>
                   </div>
@@ -256,7 +256,7 @@ export default function RechargeBalancePage() {
                       </span>
                     </div>
                     <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500">
-                      <span>Frais PimPay (1%)</span>
+                      <span>Frais PIMOBIPAY (1%)</span>
                       <span>- {calculation.fee} Pi</span>
                     </div>
                     <div className="border-t border-white/5 pt-3 space-y-2">
@@ -369,7 +369,7 @@ export default function RechargeBalancePage() {
                 {/* ── PiButton — initie le paiement Pi Network ────────── */}
                 <PiButton
                   amount={calculation.piAmount}
-                  memo={`Recharge PimPay: ${calculation.piAmount} Pi`}
+                  memo={`Recharge PIMOBIPAY: ${calculation.piAmount} Pi`}
                   metadata={{
                     type: "BALANCE_TOPUP",
                     currency: "PI",

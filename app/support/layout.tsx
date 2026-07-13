@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Centre d’aide | PimPay',
+  title: 'Centre d’aide | PIMOBIPAY',
   description: 'Besoin d’aide avec vos transactions Pi ? Notre équipe est là pour vous accompagner.',
 };
 

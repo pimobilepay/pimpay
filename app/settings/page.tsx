@@ -72,7 +72,7 @@ export default function SettingsPage() {
         router.push("/auth/login");
       }
     } catch (err) {
-      console.error("Erreur de synchronisation Pimpay:", err);
+      console.error("Erreur de synchronisation PIMOBIPAY:", err);
     } finally {
       setIsLoading(false);
     }
@@ -338,7 +338,7 @@ export default function SettingsPage() {
 
         <div className="text-center space-y-1 pb-10">
           <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest">
-            PIMPAY PROTOCOL v2.4.0-STABLE
+            PIMOBIPAY PROTOCOL v2.4.0-STABLE
           </p>
           <p className="text-[8px] text-slate-800 font-bold uppercase tracking-tighter">
             Distributed Ledger Technology • GCV Verified

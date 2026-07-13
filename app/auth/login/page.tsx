@@ -301,7 +301,7 @@ export default function LoginPage() {
             {transitionStep === "success" ? <CheckCircle2 className="w-12 h-12 text-white" /> : <ShieldCheck className="w-12 h-12 text-white animate-pulse" />}
           </div>
           <h2 className="mt-6 text-white text-xl font-bold tracking-tighter uppercase">
-            PIMPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
+            PIMOBIPAY<span className={transitionStep === "success" ? "text-green-500" : "text-blue-500"}>.</span>
           </h2>
           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">{dynamicMessage}...</p>
         </div>
@@ -325,7 +325,7 @@ export default function LoginPage() {
             )}
           </div>
           <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1">
-            PIMPAY
+            PIMOBIPAY
             <span className={`not-italic ${
               loginType === "bank" ? "text-emerald-500" : loginType === "business" ? "text-amber-500" : "text-blue-500"
             }`}>.</span>
@@ -508,7 +508,7 @@ export default function LoginPage() {
             <p className={`text-xs ${loginType === "bank" ? "text-emerald-400" : "text-amber-400"}`}>
               {loginType === "bank" 
                 ? "Acces reserve aux administrateurs de la Banque Centrale. Contactez le support pour obtenir vos identifiants."
-                : "Espace dedie aux entreprises partenaires PIMPAY. Inscrivez votre entreprise pour obtenir un acces."}
+                : "Espace dedie aux entreprises partenaires PIMOBIPAY. Inscrivez votre entreprise pour obtenir un acces."}
             </p>
           </div>
         )}

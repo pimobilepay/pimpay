@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 4. Générer une référence de transaction unique PimPay
+    // 4. Générer une référence de transaction unique PIMOBIPAY
     const reference = `CARD-${detectedType}-${uuidv4().split("-")[0].toUpperCase()}`;
     
     // Mask card number for storage (only keep last 4 digits)

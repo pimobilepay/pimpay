@@ -29,7 +29,7 @@ interface PiButtonProps {
 }
 
 /**
- * Bouton de paiement Pi Network pour PimPay
+ * Bouton de paiement Pi Network pour PIMOBIPAY
  * 
  * S'appuie sur PiInitializer pour l'init du SDK (charge dans layout.tsx).
  * Gere le flux complet: authenticate -> createPayment -> approve -> complete.
@@ -43,7 +43,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
     if (typeof window === "undefined") return false;
 
     if (!window.Pi) {
-      toast.error("Ouvrez PimPay dans le Pi Browser pour effectuer cette operation.");
+      toast.error("Ouvrez PIMOBIPAY dans le Pi Browser pour effectuer cette operation.");
       return false;
     }
 
@@ -82,7 +82,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
   }, []);
 
   const handleIncompletePayment = useCallback(async (payment: any) => {
-    console.log("[PimPay] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
+    console.log("[PIMOBIPAY] Paiement incomplet detecte:", payment.identifier, "txid:", payment.transaction?.txid);
     try {
       const res = await fetch("/api/payments/incomplete", {
         method: "POST",
@@ -98,14 +98,14 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
         toast.success(`Paiement recupere: ${data.message}`);
       }
     } catch (error) {
-      console.error("[PimPay] Erreur traitement paiement incomplet:", error);
+      console.error("[PIMOBIPAY] Erreur traitement paiement incomplet:", error);
     }
   }, []);
 
   const handlePayment = async () => {
     // Eviter les doubles paiements
     if (paymentInProgressRef.current) {
-      console.warn("[PimPay] Paiement deja en cours");
+      console.warn("[PIMOBIPAY] Paiement deja en cours");
       return;
     }
 
@@ -123,7 +123,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
 
     try {
       // Etape 1: Authentification pour obtenir les scopes payments
-      console.log("[PimPay] Authentification pour paiement...");
+      console.log("[PIMOBIPAY] Authentification pour paiement...");
       const auth = await window.Pi.authenticate(
         ["username", "payments"],
         handleIncompletePayment
@@ -133,11 +133,11 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
         throw new Error("Autorisation refusee par l'utilisateur.");
       }
 
-      console.log("[PimPay] Authentifie, creation du paiement...");
+      console.log("[PIMOBIPAY] Authentifie, creation du paiement...");
       toast.loading("Ouverture du wallet Pi...", { id: loadingToast });
 
       // Etape 2: Creation du paiement
-      const paymentMemo = memo || `Depot PimPay - ${amount} Pi`;
+      const paymentMemo = memo || `Depot PIMOBIPAY - ${amount} Pi`;
 
       await window.Pi.createPayment(
         {
@@ -151,7 +151,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
         },
         {
           onReadyForServerApproval: async (paymentId: string) => {
-            console.log("[PimPay] Approbation serveur pour:", paymentId);
+            console.log("[PIMOBIPAY] Approbation serveur pour:", paymentId);
             toast.loading("Approbation en cours...", { id: loadingToast });
 
             const res = await fetch("/api/payments/approve", {
@@ -167,17 +167,17 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
 
             if (!res.ok) {
               const errorData = await res.json();
-              console.error("[PimPay] Erreur approbation:", errorData);
+              console.error("[PIMOBIPAY] Erreur approbation:", errorData);
               throw new Error(errorData.error || "Approbation refusee par le serveur.");
             }
 
-            console.log("[PimPay] Paiement approuve, en attente signature utilisateur...");
+            console.log("[PIMOBIPAY] Paiement approuve, en attente signature utilisateur...");
             toast.loading("Signez la transaction dans Pi Browser...", { id: loadingToast });
             return res.json();
           },
 
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-            console.log("[PimPay] Transaction blockchain confirmee, txid:", txid);
+            console.log("[PIMOBIPAY] Transaction blockchain confirmee, txid:", txid);
             toast.loading("Finalisation du depot...", { id: loadingToast });
 
             const res = await fetch("/api/payments/complete", {
@@ -210,7 +210,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
 
           onError: (error: Error) => {
             toast.dismiss(loadingToast);
-            console.error("[PimPay] Erreur SDK:", error.message);
+            console.error("[PIMOBIPAY] Erreur SDK:", error.message);
             const msg = "Erreur reseau Pi. Veuillez reessayer.";
             toast.error(msg);
             onError?.(msg);
@@ -221,7 +221,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
       );
     } catch (err: any) {
       toast.dismiss(loadingToast);
-      console.error("[PimPay] Erreur critique:", err);
+      console.error("[PIMOBIPAY] Erreur critique:", err);
       paymentInProgressRef.current = false;
 
       let errorMsg = "Action impossible pour le moment.";

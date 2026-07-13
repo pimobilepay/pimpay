@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    // 1. Extraction du token depuis les cookies (Méthode PimPay stable)
+    // 1. Extraction du token depuis les cookies (Méthode PIMOBIPAY stable)
     const cookieHeader = req.headers.get("cookie");
     const currentToken = cookieHeader
       ?.split("; ")

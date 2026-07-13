@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. EXTRACTION DES DONNÉES (PimPay Core)
+    // 2. EXTRACTION DES DONNÉES (PIMOBIPAY Core)
     const [users, config, logs] = await Promise.all([
       prisma.user.findMany({ take: 5000 }),
       prisma.systemConfig.findFirst(),

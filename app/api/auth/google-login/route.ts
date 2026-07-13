@@ -10,7 +10,7 @@ import { SignJWT } from "jose";
  * Recoit le code d'autorisation Google (popup OAuth code flow), l'echange
  * contre des tokens, recupere le profil utilisateur, puis synchronise
  * l'utilisateur et son compte (model Account) dans Prisma.
- * Cree le meme JWT de session PimPay que la connexion Pi Browser.
+ * Cree le meme JWT de session PIMOBIPAY que la connexion Pi Browser.
  */
 export async function POST(request: Request) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      console.error("[PimPay] Credentials Google non configures");
+      console.error("[PIMOBIPAY] Credentials Google non configures");
       return NextResponse.json({ error: "Config Google manquante" }, { status: 500 });
     }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const tokenData = await tokenRes.json();
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      console.error("[PimPay] Echec echange token Google:", tokenData);
+      console.error("[PIMOBIPAY] Echec echange token Google:", tokenData);
       return NextResponse.json(
         { error: tokenData.error_description || "Echec authentification Google" },
         { status: 401 }
@@ -232,10 +232,10 @@ export async function POST(request: Request) {
       update: accountData,
     });
 
-    // 5) Creation du JWT PimPay (identique au flux Pi).
+    // 5) Creation du JWT PIMOBIPAY (identique au flux Pi).
     const SECRET = process.env.JWT_SECRET;
     if (!SECRET) {
-      console.error("[PimPay] JWT_SECRET non configure");
+      console.error("[PIMOBIPAY] JWT_SECRET non configure");
       return NextResponse.json({ error: "Config JWT manquante" }, { status: 500 });
     }
 
@@ -275,7 +275,7 @@ export async function POST(request: Request) {
           country,
         },
       })
-      .catch((e) => console.error("[PimPay] Session creation error:", e));
+      .catch((e) => console.error("[PIMOBIPAY] Session creation error:", e));
 
     prisma.notification
       .create({
@@ -287,7 +287,7 @@ export async function POST(request: Request) {
           metadata: { ip, device: "Google Login" },
         },
       })
-      .catch((e) => console.error("[PimPay] Notification creation error:", e));
+      .catch((e) => console.error("[PIMOBIPAY] Notification creation error:", e));
 
     prisma.systemLog
       .create({
@@ -301,7 +301,7 @@ export async function POST(request: Request) {
           userAgent,
         },
       })
-      .catch((e) => console.error("[PimPay] SystemLog error:", e));
+      .catch((e) => console.error("[PIMOBIPAY] SystemLog error:", e));
 
     const response = NextResponse.json({
       success: true,
@@ -331,7 +331,7 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error: any) {
-    console.error("[PimPay] Google Login Error:", error);
+    console.error("[PIMOBIPAY] Google Login Error:", error);
 
     if (error?.code === "P2002") {
       const target = error?.meta?.target;

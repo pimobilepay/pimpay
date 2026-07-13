@@ -575,7 +575,7 @@ export default function WalletPage() {
   <a href="https://www.tiktok.com/@pimobilepay" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-pink-400 transition-colors"><Music2 size={16} /></a>
         </div>
         <div className="text-center">
-          <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600">2026 PimPay Virtual Bank</p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600">2026 PIMOBIPAY Virtual Bank</p>
           <p className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mt-0.5">Pi Mobile Payment Solution</p>
         </div>
       </footer>

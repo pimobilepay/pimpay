@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // Récupération de l'utilisateur avec ses relations (Schéma Pimpay)
+    // Récupération de l'utilisateur avec ses relations (Schéma PIMOBIPAY)
     const userWithData = await prisma.user.findUnique({
       where: { id: userId },
       include: {

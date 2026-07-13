@@ -76,12 +76,12 @@ const SWAP_T = {
     sold: "Vendu", received: "Reçu",
     rate: "Taux", fees: "Frais", date: "Date", status: "Statut",
     inProgress: "En cours", confirmed: "Confirmé",
-    refPimpay: "Reference PimPay",
+    refPimpay: "Reference PIMOBIPAY",
     hashTron: "Hash TRON (Sun.io)",
     idChangenow: "ID ChangeNow", idSimpleswap: "ID SimpleSwap",
     newSwap: "Nouveau Swap",
     backToDashboard: "Retour au Dashboard",
-    shareText1: "J'ai converti", shareText2: "en", shareText3: "sur PimPay!",
+    shareText1: "J'ai converti", shareText2: "en", shareText3: "sur PIMOBIPAY!",
     // main UI
     loadingQuote: "Chargement devis...", liveRate: "Taux en direct",
     sell: "Vendre", receive: "Recevoir", balance: "Solde",
@@ -102,7 +102,7 @@ const SWAP_T = {
     marketPrice: "Prix du marché",
     updated: "MAJ",
     source: "Source", refreshed: "rafraîchi toutes les 30s",
-    securedBy: "Securise par PimPay Ledger Technology",
+    securedBy: "Securise par PIMOBIPAY Ledger Technology",
     // selector
     select: "Selectionner", assetToSell: "Actif a vendre", assetToReceive: "Actif a recevoir",
     searchAsset: "Rechercher un actif...", noMatchingAsset: "Aucun actif correspondant",
@@ -110,7 +110,7 @@ const SWAP_T = {
     summaryOf: "Resume du", verifyDetails: "Verifiez les details avant confirmation",
     routeSunio: "Sun.io · SunSwap TRON on-chain",
     routeChangenow: "ChangeNow · Taux Fixe Garanti",
-    routeInternal: "PimPay · Conversion interne",
+    routeInternal: "PIMOBIPAY · Conversion interne",
     youSell: "Vous vendez", youReceive: "Vous recevez",
     exchangeRate: "Taux de change",
     fixedGuaranteed: "✓ Fixe — Montant garanti",
@@ -159,12 +159,12 @@ const SWAP_T = {
     sold: "Sold", received: "Received",
     rate: "Rate", fees: "Fees", date: "Date", status: "Status",
     inProgress: "In progress", confirmed: "Confirmed",
-    refPimpay: "PimPay Reference",
+    refPimpay: "PIMOBIPAY Reference",
     hashTron: "TRON Hash (Sun.io)",
     idChangenow: "ChangeNow ID", idSimpleswap: "SimpleSwap ID",
     newSwap: "New Swap",
     backToDashboard: "Back to Dashboard",
-    shareText1: "I converted", shareText2: "to", shareText3: "on PimPay!",
+    shareText1: "I converted", shareText2: "to", shareText3: "on PIMOBIPAY!",
     loadingQuote: "Loading quote...", liveRate: "Live rate",
     sell: "Sell", receive: "Receive", balance: "Balance",
     rateLabel: "Rate", networkFee: "Network fee",
@@ -184,13 +184,13 @@ const SWAP_T = {
     marketPrice: "Market price",
     updated: "Updated",
     source: "Source", refreshed: "refreshed every 30s",
-    securedBy: "Secured by PimPay Ledger Technology",
+    securedBy: "Secured by PIMOBIPAY Ledger Technology",
     select: "Select", assetToSell: "Asset to sell", assetToReceive: "Asset to receive",
     searchAsset: "Search an asset...", noMatchingAsset: "No matching asset",
     summaryOf: "Summary of", verifyDetails: "Check the details before confirming",
     routeSunio: "Sun.io · SunSwap TRON on-chain",
     routeChangenow: "ChangeNow · Guaranteed Fixed Rate",
-    routeInternal: "PimPay · Internal conversion",
+    routeInternal: "PIMOBIPAY · Internal conversion",
     youSell: "You sell", youReceive: "You receive",
     exchangeRate: "Exchange rate",
     fixedGuaranteed: "✓ Fixed — Guaranteed amount",
@@ -239,12 +239,12 @@ const SWAP_T = {
     sold: "卖出", received: "收到",
     rate: "汇率", fees: "费用", date: "日期", status: "状态",
     inProgress: "进行中", confirmed: "已确认",
-    refPimpay: "PimPay 参考号",
+    refPimpay: "PIMOBIPAY 参考号",
     hashTron: "TRON 哈希 (Sun.io)",
     idChangenow: "ChangeNow ID", idSimpleswap: "SimpleSwap ID",
     newSwap: "新建兑换",
     backToDashboard: "返回仪表盘",
-    shareText1: "我在 PimPay 上将", shareText2: "兑换为", shareText3: "！",
+    shareText1: "我在 PIMOBIPAY 上将", shareText2: "兑换为", shareText3: "！",
     loadingQuote: "正在加载报价…", liveRate: "实时汇率",
     sell: "卖出", receive: "收到", balance: "余额",
     rateLabel: "汇率", networkFee: "网络费用",
@@ -264,13 +264,13 @@ const SWAP_T = {
     marketPrice: "市场价格",
     updated: "更新",
     source: "来源", refreshed: "每 30 秒刷新一次",
-    securedBy: "由 PimPay Ledger 技术保障",
+    securedBy: "由 PIMOBIPAY Ledger 技术保障",
     select: "选择", assetToSell: "卖出资产", assetToReceive: "收到资产",
     searchAsset: "搜索资产…", noMatchingAsset: "没有匹配的资产",
     summaryOf: "兑换", verifyDetails: "确认前请核对详情",
     routeSunio: "Sun.io · SunSwap TRON 链上",
     routeChangenow: "ChangeNow · 保证固定汇率",
-    routeInternal: "PimPay · 内部兑换",
+    routeInternal: "PIMOBIPAY · 内部兑换",
     youSell: "您卖出", youReceive: "您收到",
     exchangeRate: "兑换汇率",
     fixedGuaranteed: "✓ 固定 — 保证金额",
@@ -318,15 +318,15 @@ const ALL_ASSETS: Asset[] = [
   { id: "BUSD", name: "Binance USD",        symbol: "BUSD", color: "#f0b90b", category: "stablecoin", logo: "/busd.png", network: "EVM" },
   { id: "EURC", name: "Euro Coin",          symbol: "EURC", color: "#2775ca", category: "stablecoin", logo: "/eurc.png", network: "EVM" },
   { id: "OUSD", name: "Origin Dollar",      symbol: "OUSD", color: "#0ea5e9", category: "stablecoin", logo: "/ousd.png", network: "EVM" },
-  { id: "USD",  name: "Dollar US",          symbol: "USD",  color: "#22c55e", category: "fiat",       flag: "US",        network: "PimPay" },
-  { id: "EUR",  name: "Euro",              symbol: "EUR",  color: "#3b82f6", category: "fiat",       flag: "EU",        network: "PimPay" },
-  { id: "XAF",  name: "Franc CFA (BEAC)",  symbol: "XAF",  color: "#0ea5e9", category: "fiat",       flag: "CM",        network: "PimPay" },
-  { id: "XOF",  name: "Franc CFA (BCEAO)", symbol: "XOF",  color: "#06b6d4", category: "fiat",       flag: "SN",        network: "PimPay" },
-  { id: "CDF",  name: "Franc Congolais",    symbol: "CDF",  color: "#0284c7", category: "fiat",       flag: "CD",        network: "PimPay" },
-  { id: "NGN",  name: "Naira Nigerian",     symbol: "NGN",  color: "#16a34a", category: "fiat",       flag: "NG",        network: "PimPay" },
-  { id: "AED",  name: "Dirham Emirats",     symbol: "AED",  color: "#dc2626", category: "fiat",       flag: "AE",        network: "PimPay" },
-  { id: "MGA",  name: "Ariary Malgache",    symbol: "MGA",  color: "#059669", category: "fiat",       flag: "MG",        network: "PimPay" },
-  { id: "CNY",  name: "Yuan Chinois",       symbol: "CNY",  color: "#de2910", category: "fiat",       flag: "CN",        network: "PimPay" },
+  { id: "USD",  name: "Dollar US",          symbol: "USD",  color: "#22c55e", category: "fiat",       flag: "US",        network: "PIMOBIPAY" },
+  { id: "EUR",  name: "Euro",              symbol: "EUR",  color: "#3b82f6", category: "fiat",       flag: "EU",        network: "PIMOBIPAY" },
+  { id: "XAF",  name: "Franc CFA (BEAC)",  symbol: "XAF",  color: "#0ea5e9", category: "fiat",       flag: "CM",        network: "PIMOBIPAY" },
+  { id: "XOF",  name: "Franc CFA (BCEAO)", symbol: "XOF",  color: "#06b6d4", category: "fiat",       flag: "SN",        network: "PIMOBIPAY" },
+  { id: "CDF",  name: "Franc Congolais",    symbol: "CDF",  color: "#0284c7", category: "fiat",       flag: "CD",        network: "PIMOBIPAY" },
+  { id: "NGN",  name: "Naira Nigerian",     symbol: "NGN",  color: "#16a34a", category: "fiat",       flag: "NG",        network: "PIMOBIPAY" },
+  { id: "AED",  name: "Dirham Emirats",     symbol: "AED",  color: "#dc2626", category: "fiat",       flag: "AE",        network: "PIMOBIPAY" },
+  { id: "MGA",  name: "Ariary Malgache",    symbol: "MGA",  color: "#059669", category: "fiat",       flag: "MG",        network: "PIMOBIPAY" },
+  { id: "CNY",  name: "Yuan Chinois",       symbol: "CNY",  color: "#de2910", category: "fiat",       flag: "CN",        network: "PIMOBIPAY" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -358,7 +358,7 @@ const SIMPLESWAP_TOKENS = new Set([
 // ── Devises FIAT supportées (via swap interne) ───────────────────────────────
 const FIAT_CURRENCIES = new Set(["USD", "EUR", "XAF", "XOF", "CDF", "NGN", "AED", "MGA", "CNY"]);
 
-// ── Tokens internes PimPay (PI, SDA) ─────────────────────────────────────────
+// ── Tokens internes PIMOBIPAY (PI, SDA) ─────────────────────────────────────────
 const INTERNAL_TOKENS = new Set(["PI", "SDA"]);
 
 function isSunioSwap(from: string, to: string): boolean {
@@ -950,7 +950,7 @@ export default function SwapPage() {
         return;
       }
 
-      // ── Route 4 : Swap interne PimPay ─────────────────────────────────
+      // ── Route 4 : Swap interne PIMOBIPAY ─────────────────────────────────
       const quoteRes = await fetch("/api/transaction/swap/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1229,7 +1229,7 @@ export default function SwapPage() {
             className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Reference PimPay</p>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Reference PIMOBIPAY</p>
                 <p className="text-xs font-mono font-bold text-white">{transactionRef}</p>
               </div>
               <button onClick={copyRef} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all">
@@ -1274,7 +1274,7 @@ export default function SwapPage() {
                 <RotateCcw size={14} /> Nouveau Swap
               </button>
               <button onClick={() => {
-                const text = `J'ai converti ${fromAmount} ${fromAsset.symbol} en ${formatToAmount()} ${toAsset.symbol} sur PimPay!`;
+                const text = `J'ai converti ${fromAmount} ${fromAsset.symbol} en ${formatToAmount()} ${toAsset.symbol} sur PIMOBIPAY!`;
                 if (navigator.share) navigator.share({ text }); else { navigator.clipboard.writeText(text); toast.success("Copie!"); }
               }} className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-all">
                 <Share2 size={18} />
@@ -1549,7 +1549,7 @@ export default function SwapPage() {
         <div className="mt-8 flex flex-col items-center opacity-30">
           <div className="flex items-center gap-2">
             <AlertCircle size={12} />
-            <span className="text-[8px] font-black uppercase tracking-widest text-center">Securise par PimPay Ledger Technology</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-center">Securise par PIMOBIPAY Ledger Technology</span>
           </div>
         </div>
       </div>
@@ -1682,7 +1682,7 @@ export default function SwapPage() {
                 }`}>
                   {swapRoute === "SUNIO" && "Sun.io · SunSwap TRON on-chain"}
                   {swapRoute === "CHANGENOW" && "ChangeNow · Taux Fixe Garanti"}
-                  {swapRoute === "INTERNAL" && "PimPay · Conversion interne"}
+                  {swapRoute === "INTERNAL" && "PIMOBIPAY · Conversion interne"}
                 </span>
               </motion.div>
             </div>

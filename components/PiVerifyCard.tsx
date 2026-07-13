@@ -7,7 +7,7 @@ import { toast } from "sonner";
 const STORAGE_KEY = "piverify_session";
 
 type Props = {
-  /** Statut KYC courant côté PimPay (NONE | PENDING | REJECTED | ...). */
+  /** Statut KYC courant côté PIMOBIPAY (NONE | PENDING | REJECTED | ...). */
   kycStatus: string;
   /** Appelé lorsque la vérification aboutit (approuvée) pour rafraîchir la page. */
   onVerified?: () => void;

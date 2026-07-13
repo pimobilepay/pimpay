@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         const currentBalance = wallet.balance;
 
         // ✅ FIX CRITIQUE : On prend le MAX entre le solde on-chain et le solde DB
-        // Les swaps/transferts internes PimPay créditent le DB sans passer par la blockchain.
+        // Les swaps/transferts internes PIMOBIPAY créditent le DB sans passer par la blockchain.
         // Si on écrase avec blockchainBalance, le solde interne (ex: reçu par swap) disparaît.
         // Règle : si DB > on-chain → un crédit interne existe → on garde DB.
         //         si on-chain > DB → un dépôt externe est arrivé → on prend on-chain.
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
             data: {
               userId,
               title: "Dépôt USDT reçu !",
-              message: `Vous avez reçu ${diff.toFixed(6)} USDT (TRC20) sur votre wallet PimPay.`,
+              message: `Vous avez reçu ${diff.toFixed(6)} USDT (TRC20) sur votre wallet PIMOBIPAY.`,
               type: "SUCCESS",
               read: false,
               metadata: JSON.stringify({

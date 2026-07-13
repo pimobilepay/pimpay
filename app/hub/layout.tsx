@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'PimPay Hub | Agent Dashboard',
-  description: 'Portail Agent - Gestion des transactions cash-in/cash-out PimPay',
+  title: 'PIMOBIPAY Hub | Agent Dashboard',
+  description: 'Portail Agent - Gestion des transactions cash-in/cash-out PIMOBIPAY',
 };
 
 export default function HubLayout({

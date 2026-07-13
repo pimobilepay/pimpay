@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/wallet/xrp/sync
- * Synchronise le solde XRP du wallet PimPay avec le solde réel on-chain.
+ * Synchronise le solde XRP du wallet PIMOBIPAY avec le solde réel on-chain.
  */
 
 import { NextResponse } from "next/server";

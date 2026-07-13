@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import BusinessClientLayout from "./BusinessClientLayout";
 
 export const metadata: Metadata = {
-  title: 'Business | PimPay',
-  description: 'Portail Entreprise - Gestion des salaires et trésorerie PimPay',
+  title: 'Business | PIMOBIPAY',
+  description: 'Portail Entreprise - Gestion des salaires et trésorerie PIMOBIPAY',
 };
 
 export default function BusinessLayout({

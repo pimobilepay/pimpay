@@ -510,13 +510,13 @@ export default function SecurityPage() {
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge,
         rp: {
-          name: "PimPay",
+          name: "PIMOBIPAY",
           id: window.location.hostname,
         },
         user: {
           id: new Uint8Array(16),
           name: "user@pimpay.com",
-          displayName: "Utilisateur PimPay",
+          displayName: "Utilisateur PIMOBIPAY",
         },
         pubKeyCredParams: [
           { alg: -7, type: "public-key" }, // ES256

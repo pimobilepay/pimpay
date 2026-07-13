@@ -283,7 +283,7 @@ export default function BusinessDashboard() {
           </div>
           <div style={{ background: goldGradient, borderRadius: '14px', padding: '10px 14px' }} className="hidden md:flex items-center gap-2">
             <Wallet size={22} color="#fff" />
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px' }}>PimPay</span>
+            <span style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px' }}>PIMOBIPAY</span>
           </div>
           <div>
             <h1 style={{ color: '#fff', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }} className="text-lg md:text-[22px]">Tableau de Bord Business</h1>
@@ -666,7 +666,7 @@ export default function BusinessDashboard() {
 
       {/* Footer */}
       <div className="text-center mt-6 md:mt-8 pb-2">
-        <p style={{ color: '#374151' }} className="text-[10px] md:text-xs">PimPay Business Dashboard 2024 — Donnees synchronisees en temps reel</p>
+        <p style={{ color: '#374151' }} className="text-[10px] md:text-xs">PIMOBIPAY Business Dashboard 2024 — Donnees synchronisees en temps reel</p>
       </div>
     </div>
   );

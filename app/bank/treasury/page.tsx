@@ -243,7 +243,7 @@ export default function TreasuryPage() {
             </h1>
           </div>
           <p className="text-gray-400 text-sm pl-13 ml-13">
-            Gestion des positions, réserves et flux de trésorerie · PIMPAY
+            Gestion des positions, réserves et flux de trésorerie · PIMOBIPAY
           </p>
         </div>
         <div className="flex items-center gap-3">

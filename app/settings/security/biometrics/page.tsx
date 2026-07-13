@@ -130,7 +130,7 @@ export default function BiometricPage() {
         <div className="mt-10 pt-8 border-t border-white/5 text-center">
             <div className="flex items-center justify-center gap-2 opacity-30">
                 <Zap size={14} fill="currentColor" className="text-blue-500" />
-                <span className="text-[10px] font-black uppercase tracking-tighter italic">PimPay Security Node</span>
+                <span className="text-[10px] font-black uppercase tracking-tighter italic">PIMOBIPAY Security Node</span>
             </div>
         </div>
       </div>

@@ -6,14 +6,14 @@ import { verifyAuth } from '@/lib/auth';
 
 /**
  * GET /api/user/balance
- * Récupère le solde de l'utilisateur authentifié depuis le Wallet Pimpay
+ * Récupère le solde de l'utilisateur authentifié depuis le Wallet PIMOBIPAY
  */
 export async function GET(req: NextRequest) {
   try {
     // 1. Vérification de la session
     const authUser = await verifyAuth(req) as any;
 
-    // CORRECTION : On vérifie .id (structure standard Pimpay)
+    // CORRECTION : On vérifie .id (structure standard PIMOBIPAY)
     if (!authUser || !authUser.id) {
       return NextResponse.json(
         { error: "Authentification requise" },

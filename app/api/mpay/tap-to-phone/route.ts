@@ -14,7 +14,7 @@ import { sendNotification } from "@/lib/notifications";
  * (ex : Stripe Tap to Pay, Adyen, etc.) via un acquéreur agréé Visa.
  *
  * Cette route reçoit le RÉSULTAT d'un tap (montant + données non sensibles de
- * la carte : réseau, 4 derniers chiffres) et crédite le portefeuille PimPay du
+ * la carte : réseau, 4 derniers chiffres) et crédite le portefeuille PIMOBIPAY du
  * marchand connecté. Aucune donnée de carte complète (PAN, CVV) n'est acceptée
  * ni stockée — conformément aux règles PCI-DSS.
  */
@@ -23,7 +23,7 @@ const SUPPORTED_CURRENCIES = ["USD", "EUR", "XAF", "XOF"];
 const CARD_SCHEMES = ["VISA", "MASTERCARD", "AMEX", "DISCOVER"];
 const MIN_AMOUNT = 0.5;
 const MAX_AMOUNT = 5000;
-const MERCHANT_FEE_RATE = 0.015; // 1.5% frais marchand PimPay
+const MERCHANT_FEE_RATE = 0.015; // 1.5% frais marchand PIMOBIPAY
 
 export async function POST(req: NextRequest) {
   try {

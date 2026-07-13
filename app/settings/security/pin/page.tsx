@@ -209,8 +209,8 @@ export default function ChangePinPage() {
     ? ["", "Code PIN Actuel", "Creer votre Code PIN", "Confirmer le PIN"]
     : ["", "Code PIN Actuel", "Nouveau Code PIN", "Confirmer le PIN"];
   const subtitles = isCreateMode
-    ? ["", "Securise par PimPay", "Choisissez 6 chiffres", "Confirmez votre code PIN"]
-    : ["", "Securise par PimPay", "Choisissez 6 chiffres", "Confirmez votre nouveau code"];
+    ? ["", "Securise par PIMOBIPAY", "Choisissez 6 chiffres", "Confirmez votre code PIN"]
+    : ["", "Securise par PIMOBIPAY", "Choisissez 6 chiffres", "Confirmez votre nouveau code"];
 
   // Ecran de chargement pendant la detection de l'existence d'un PIN
   if (isCreateMode === null) {
@@ -342,7 +342,7 @@ export default function ChangePinPage() {
 
         {/* Footer */}
         <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest mt-6">
-          PimPay Protocol v2.0
+          PIMOBIPAY Protocol v2.0
         </p>
       </div>
 

@@ -92,7 +92,7 @@ export default function PaymentFailed() {
 
         <div className="mt-8 flex items-center justify-center gap-2 opacity-30">
           <ShieldAlert size={12} className="text-red-500" />
-          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PimPay Error Handler V2</p>
+          <p className="text-[8px] font-bold uppercase tracking-[0.2em]">PIMOBIPAY Error Handler V2</p>
         </div>
       </div>
     </main>

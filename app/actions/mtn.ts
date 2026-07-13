@@ -45,7 +45,7 @@ export async function processMTNDeposit(amount: string, phone: string) {
         currency: "EUR", // En Sandbox MTN utilise souvent EUR/USD par défaut
         externalId: "PIMPAY_DEP_" + Date.now(),
         payer: { partyIdType: "MSISDN", partyId: phone },
-        payerMessage: "Depot sur PimPay",
+        payerMessage: "Depot sur PIMOBIPAY",
         payeeNote: "Liquidity Inflow"
       })
     });

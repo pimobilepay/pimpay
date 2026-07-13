@@ -91,13 +91,13 @@ export async function POST(
       await prisma.notification.create({
         data: {
           userId: ticket.userId,
-          title: "Reponse du Support PimPay",
+          title: "Reponse du Support PIMOBIPAY",
           message: content.trim(),
           type: "SUPPORT_MESSAGE",
           read: false,
           metadata: {
             fromAdmin: true,
-            adminName: "Support PimPay",
+            adminName: "Support PIMOBIPAY",
             canReply: true,
             ticketId: id,
             sentAt: new Date().toISOString(),

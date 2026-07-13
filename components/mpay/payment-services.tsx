@@ -26,9 +26,9 @@ interface PaymentService {
   opensTerminal?: boolean;
 }
 
-// Full catalog of PimPay payment services (Premium Dark)
+// Full catalog of PIMOBIPAY payment services (Premium Dark)
 const SERVICES: PaymentService[] = [
-  { id: "visa-contactless", name: "Visa Tap to Phone", description: "Encaisser une carte Visa sans contact", features: ["Tap to Phone", "Encaissement NFC", "Crédit wallet PimPay", "Reçu instantané"], icon: CreditCard, gradient: "from-blue-600 to-indigo-700", glow: "shadow-blue-600/30", isNew: true, opensTerminal: true },
+  { id: "visa-contactless", name: "Visa Tap to Phone", description: "Encaisser une carte Visa sans contact", features: ["Tap to Phone", "Encaissement NFC", "Crédit wallet PIMOBIPAY", "Reçu instantané"], icon: CreditCard, gradient: "from-blue-600 to-indigo-700", glow: "shadow-blue-600/30", isNew: true, opensTerminal: true },
   { id: "pos", name: "POS Payment", description: "Paiement chez les commerçants", features: ["Scanner un QR POS", "Bluetooth terminal POS", "Paiement NFC", "Merchant ID manuel"], icon: Store, gradient: "from-indigo-600 to-violet-700", glow: "shadow-indigo-600/30" },
   { id: "electricity", name: "Electricity", description: "Paiement d'électricité", features: ["Choisir le fournisseur", "Numéro compteur", "Nom du client", "Paiement instantané", "Historique"], icon: Zap, gradient: "from-amber-500 to-orange-600", glow: "shadow-amber-500/30" },
   { id: "water", name: "Water", description: "Paiement facture d'eau", features: ["Choisir compagnie", "Numéro client", "Affichage montant", "Paiement"], icon: Droplets, gradient: "from-sky-500 to-cyan-600", glow: "shadow-sky-500/30" },
@@ -48,7 +48,7 @@ const SERVICES: PaymentService[] = [
   { id: "gift-cards", name: "Gift Cards", description: "Google Play, Apple, Amazon, Netflix", features: ["Google Play", "Apple", "Amazon", "Netflix", "Steam"], icon: Gift, gradient: "from-pink-500 to-rose-600", glow: "shadow-pink-500/30" },
   { id: "international", name: "International Transfers", description: "Envoyer de l'argent à l'international", features: ["Visa Direct", "Mastercard Send", "SWIFT", "Stablecoins", "Pi / USDT / USDC"], icon: Globe, gradient: "from-cyan-600 to-blue-700", glow: "shadow-cyan-600/30", isNew: true },
   { id: "shopping", name: "Online Shopping", description: "Amazon, Alibaba, Temu, AliExpress, eBay", features: ["Amazon", "Alibaba", "Temu", "AliExpress", "eBay"], icon: ShoppingCart, gradient: "from-orange-500 to-red-600", glow: "shadow-orange-500/30" },
-  { id: "cash", name: "Cash In / Cash Out", description: "Dépôt & retrait espèces via Agents PimPay", features: ["Dépôt espèces", "Retrait espèces", "Agents PimPay"], icon: Banknote, gradient: "from-green-500 to-emerald-600", glow: "shadow-green-500/30" },
+  { id: "cash", name: "Cash In / Cash Out", description: "Dépôt & retrait espèces via Agents PIMOBIPAY", features: ["Dépôt espèces", "Retrait espèces", "Agents PIMOBIPAY"], icon: Banknote, gradient: "from-green-500 to-emerald-600", glow: "shadow-green-500/30" },
   { id: "merchant", name: "Merchant Payment", description: "Paiement commerçant", features: ["QR Code", "Merchant ID", "NFC", "POS"], icon: QrCode, gradient: "from-blue-600 to-cyan-700", glow: "shadow-blue-600/30" },
 ];
 
@@ -120,7 +120,7 @@ export function PaymentServices() {
       return;
     }
     toast.success(service.name, {
-      description: `${service.description} — Bientôt disponible sur PimPay`,
+      description: `${service.description} — Bientôt disponible sur PIMOBIPAY`,
       duration: 3000,
     });
   };

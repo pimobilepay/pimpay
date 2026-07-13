@@ -124,7 +124,7 @@ export function BankSidebar({ isMobile = false }: BankSidebarProps) {
               <Landmark className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-black text-white tracking-tight">PIMPAY</h1>
+              <h1 className="text-sm font-black text-white tracking-tight">PIMOBIPAY</h1>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Institution</p>
             </div>
           </div>

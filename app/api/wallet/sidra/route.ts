@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     // 2. GÉNÉRATION : Création d'un wallet Sidra (compatible EVM/Ethereum)
     const wallet = Wallet.createRandom();
 
-    // 3. TRANSACTION ATOMIQUE : Sécurité bancaire PimPay
+    // 3. TRANSACTION ATOMIQUE : Sécurité bancaire PIMOBIPAY
     const result = await prisma.$transaction(async (tx) => {
       // Mise à jour des clés sur le profil utilisateur (clé privée chiffrée)
       const updatedUser = await tx.user.update({
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return updatedUser;
     }, { maxWait: 10000, timeout: 30000 });
 
-    console.log(`[PIMPAY] Nouveau Wallet Sidra généré pour ${userId}: ${result.sidraAddress}`);
+    console.log(`[PIMOBIPAY] Nouveau Wallet Sidra généré pour ${userId}: ${result.sidraAddress}`);
 
     return NextResponse.json({
       success: true,

@@ -89,7 +89,7 @@ export default function DepositModal({ isOpen, onClose, wallets }: DepositModalP
         {/* Footer info */}
         <div className="p-4 bg-slate-800/50 text-center">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-            PimPay Secure Gateway v2.4
+            PIMOBIPAY Secure Gateway v2.4
           </p>
         </div>
       </div>

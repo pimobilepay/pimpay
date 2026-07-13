@@ -30,7 +30,7 @@ export default function HelpPage() {
       desc: "Gestion des soldes, devises et KYC",
       id: "wallet",
       details: [
-        "PimPay prend en charge les wallets multi-devises : XAF, EUR, USD, CDF, Pi et Sidra.",
+        "PIMOBIPAY prend en charge les wallets multi-devises : XAF, EUR, USD, CDF, Pi et Sidra.",
         "Chaque wallet est associe a une devise unique par utilisateur (contrainte userId + currency).",
         "Le solde gele (frozenBalance) est reserve pour les transactions en attente de confirmation.",
         "Les depots sont traces via un memo unique (depositMemo) pour chaque wallet.",
@@ -83,10 +83,10 @@ export default function HelpPage() {
       id: "sidra",
       details: [
         "La Sidra Chain est une blockchain conforme aux principes de la finance islamique (elimination du Riba et du Gharar).",
-        "PimPay est connecte au Sidra Chain Mainnet via un noeud RPC (node.sidrachain.com).",
+        "PIMOBIPAY est connecte au Sidra Chain Mainnet via un noeud RPC (node.sidrachain.com).",
         "Les frais de gaz sur la Sidra Chain sont quasi-nuls (environ 0.0001 SDA par transaction).",
         "Chaque utilisateur peut avoir une adresse Sidra unique avec cle privee chiffree.",
-        "Les wallets de type SIDRA permettent de stocker et echanger des tokens Sidra directement dans PimPay.",
+        "Les wallets de type SIDRA permettent de stocker et echanger des tokens Sidra directement dans PIMOBIPAY.",
         "La conformite Sharia est assuree par un Conseil de Surveillance (SSB) selon le standard SMIIC 1:2020.",
       ],
     },
@@ -96,12 +96,12 @@ export default function HelpPage() {
       desc: "Ecosysteme Pi et integration SDK",
       id: "pi",
       details: [
-        "PimPay est integre a l'ecosysteme Pi Network via le SDK Pi v2.0 pour l'authentification et les paiements.",
-        "Chaque utilisateur peut lier son Pi User ID (piUserId) a son compte PimPay.",
+        "PIMOBIPAY est integre a l'ecosysteme Pi Network via le SDK Pi v2.0 pour l'authentification et les paiements.",
+        "Chaque utilisateur peut lier son Pi User ID (piUserId) a son compte PIMOBIPAY.",
         "Les wallets de type PI permettent de gerer votre solde Pi directement depuis l'application.",
-        "Le swap Pi vers Fiat (XAF, EUR, USD) utilise le taux de consensus PimPay mis a jour en temps reel.",
+        "Le swap Pi vers Fiat (XAF, EUR, USD) utilise le taux de consensus PIMOBIPAY mis a jour en temps reel.",
         "Les frais de reseau Pi (0.01 Pi) sont appliques a chaque operation de retrait ou de swap.",
-        "L'integration P2P permet les transferts entre Pioneers directement dans PimPay.",
+        "L'integration P2P permet les transferts entre Pioneers directement dans PIMOBIPAY.",
       ],
     },
   ];
@@ -109,7 +109,7 @@ export default function HelpPage() {
   const faqs = [
     {
       q: "Comment fonctionne le swap Pi/Fiat ?",
-      a: "Le swap utilise le systeme de cotation SwapQuote de PimPay. Un taux est calcule en temps reel base sur le consensusPrice (actuellement 314,159 XAF/Pi). La cotation a une duree d'expiration pour vous proteger de la volatilite. Une fois confirme, le montant est debite de votre wallet Pi et credite sur votre wallet Fiat (XAF, EUR ou USD) apres deduction des frais.",
+      a: "Le swap utilise le systeme de cotation SwapQuote de PIMOBIPAY. Un taux est calcule en temps reel base sur le consensusPrice (actuellement 314,159 XAF/Pi). La cotation a une duree d'expiration pour vous proteger de la volatilite. Une fois confirme, le montant est debite de votre wallet Pi et credite sur votre wallet Fiat (XAF, EUR ou USD) apres deduction des frais.",
     },
     {
       q: "Quels sont les delais de retrait ?",
@@ -120,15 +120,15 @@ export default function HelpPage() {
       a: "Le processus KYC comprend la verification de votre piece d'identite (recto/verso) et un selfie. Les statuts possibles sont : NONE, PENDING, VERIFIED, REJECTED, APPROVED. La validation peut prendre jusqu'a 24h. Assurez-vous que vos documents (kycFrontUrl, kycBackUrl, kycSelfieUrl) sont lisibles et a jour.",
     },
     {
-      q: "Comment fonctionne la Sidra Chain dans PimPay ?",
-      a: "PimPay se connecte au Sidra Chain Mainnet via un noeud RPC. Votre adresse Sidra (sidraAddress) est unique et liee a votre compte. Les transactions Sidra sont conformes a la Charia : pas de Riba (interet), transparence totale des frais (Anti-Gharar), et validation par le Conseil de Surveillance Sharia (SSB) selon le SMIIC 1:2020.",
+      q: "Comment fonctionne la Sidra Chain dans PIMOBIPAY ?",
+      a: "PIMOBIPAY se connecte au Sidra Chain Mainnet via un noeud RPC. Votre adresse Sidra (sidraAddress) est unique et liee a votre compte. Les transactions Sidra sont conformes a la Charia : pas de Riba (interet), transparence totale des frais (Anti-Gharar), et validation par le Conseil de Surveillance Sharia (SSB) selon le SMIIC 1:2020.",
     },
     {
       q: "Comment generer une carte virtuelle ?",
       a: "Rendez-vous dans la section Cartes et selectionnez le type de carte souhaite (CLASSIC, GOLD, BUSINESS, ULTRA). La carte est generee instantanement avec un numero unique, une date d'expiration et un CVV. Vous pouvez definir un code PIN, ajuster la limite quotidienne et configurer les devises autorisees.",
     },
     {
-      q: "Qu'est-ce que le Staking PimPay ?",
+      q: "Qu'est-ce que le Staking PIMOBIPAY ?",
       a: "Le staking vous permet de bloquer un montant de tokens pour une duree determinee et de recevoir des recompenses (STAKING_REWARD). Le taux APY est configure dans le systeme (stakingAPY). Les recompenses accumulees (rewardsEarned) sont ajoutees a votre solde a la fin de la periode de staking.",
     },
     {
@@ -137,11 +137,11 @@ export default function HelpPage() {
     },
     {
       q: "Mes fonds sont-ils en securite ?",
-      a: "Oui. PimPay utilise un chiffrement AES-256 pour les donnees au repos et TLS 1.3 en transit. Les cles privees (Sidra, USDT) sont chiffrees cote serveur. L'authentification 2FA, le code PIN transactionnel et le suivi des sessions ajoutent des couches de protection supplementaires. Un journal d'audit complet trace chaque action administrative.",
+      a: "Oui. PIMOBIPAY utilise un chiffrement AES-256 pour les donnees au repos et TLS 1.3 en transit. Les cles privees (Sidra, USDT) sont chiffrees cote serveur. L'authentification 2FA, le code PIN transactionnel et le suivi des sessions ajoutent des couches de protection supplementaires. Un journal d'audit complet trace chaque action administrative.",
     },
     {
       q: "Quelles devises sont supportees ?",
-      a: "PimPay supporte les wallets multi-devises : XAF (Franc CFA), EUR (Euro), USD (Dollar), CDF (Franc congolais), Pi (Pi Network) et Sidra (Sidra Chain). Les types de wallet sont FIAT, PI, CRYPTO et SIDRA. Chaque utilisateur peut avoir un wallet par devise.",
+      a: "PIMOBIPAY supporte les wallets multi-devises : XAF (Franc CFA), EUR (Euro), USD (Dollar), CDF (Franc congolais), Pi (Pi Network) et Sidra (Sidra Chain). Les types de wallet sont FIAT, PI, CRYPTO et SIDRA. Chaque utilisateur peut avoir un wallet par devise.",
     },
     {
       q: "Comment fonctionne le systeme de parrainage ?",
@@ -415,7 +415,7 @@ export default function HelpPage() {
               Avertissement de securite
             </h3>
             <p className="text-[10px] text-amber-400/70 leading-relaxed">
-              PimPay ne vous demandera jamais votre phrase de recuperation Pi, votre cle privee Sidra ou votre code PIN par email ou message direct. Signalez toute tentative suspecte au support.
+              PIMOBIPAY ne vous demandera jamais votre phrase de recuperation Pi, votre cle privee Sidra ou votre code PIN par email ou message direct. Signalez toute tentative suspecte au support.
             </p>
           </div>
         </div>
@@ -424,7 +424,7 @@ export default function HelpPage() {
       {/* Footer */}
       <div className="px-6 text-center pb-10">
         <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest flex items-center justify-center gap-2">
-          PimPay Protocol <ExternalLink size={10} /> v2.4.0
+          PIMOBIPAY Protocol <ExternalLink size={10} /> v2.4.0
         </p>
         <p className="text-[8px] text-slate-700 mt-1">
           Sidra Chain + Pi Network - Finance Ethique

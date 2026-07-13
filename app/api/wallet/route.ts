@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         .slice(0, 10)
         .map(tx => ({
           id: tx.id,
-          label: tx.description || "Transaction PimPay",
+          label: tx.description || "Transaction PIMOBIPAY",
           amount: tx.amount,
           direction: tx.fromUserId === userId ? "OUT" : "IN",
           currency: tx.currency,

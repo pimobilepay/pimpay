@@ -48,7 +48,7 @@ export default function TransactionDetailsPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-      <div className="animate-pulse text-blue-500 font-black italic">PIMPAY...</div>
+      <div className="animate-pulse text-blue-500 font-black italic">PIMOBIPAY...</div>
     </div>
   );
 
@@ -154,7 +154,7 @@ export default function TransactionDetailsPage() {
       </button>
 
       <div className="mt-8 text-center">
-        <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Propulsé par PIMPAY Network</p>
+        <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Propulsé par PIMOBIPAY Network</p>
       </div>
     </div>
   );

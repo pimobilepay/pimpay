@@ -12,7 +12,7 @@ export default function HomePage() {
     if (!token) {
       router.replace("/auth/login");
     } else {
-      // 🚀 LOGIQUE PIMPAY : Préparer les wallets avant la redirection
+      // 🚀 LOGIQUE PIMOBIPAY : Préparer les wallets avant la redirection
       const syncBlockchainIdentities = async () => {
         try {
           // On appelle l'API de génération d'adresses
@@ -38,7 +38,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-3">
-      {/* Loader unifié PimPay */}
+      {/* Loader unifié PIMOBIPAY */}
       <div
         className="rounded-full border-2 border-blue-500/25 border-t-blue-500 animate-spin"
         style={{ width: 28, height: 28, animationDuration: "0.6s" }}

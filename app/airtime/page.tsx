@@ -300,7 +300,7 @@ export default function RechargePage() {
           <div>
             <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Livraison Instantanee</p>
             <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-              Le credit est envoye directement sur le numero apres validation. Debite de votre solde Pi PimPay.
+              Le credit est envoye directement sur le numero apres validation. Debite de votre solde Pi PIMOBIPAY.
             </p>
           </div>
         </div>

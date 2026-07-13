@@ -24,7 +24,7 @@ async function getCurrentNetwork(): Promise<PiNetwork> {
     const val = (cfg as any)?.piNetwork;
     return val === "mainnet" ? "mainnet" : "testnet";
   } catch (error) {
-    console.error("[PimPay API] Erreur Prisma, fallback sur testnet:", error);
+    console.error("[PIMOBIPAY API] Erreur Prisma, fallback sur testnet:", error);
     return "testnet";
   }
 }

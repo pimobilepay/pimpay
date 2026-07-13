@@ -21,7 +21,7 @@ function resolveUserName(user?: { firstName?: string; lastName?: string; usernam
   if (fullName) return { displayName: fullName, subLabel: user.username ? `@${user.username}` : (user.email || "") };
   if (user.username) return { displayName: `@${user.username}`, subLabel: user.email || "" };
   if (user.email) return { displayName: user.email, subLabel: "" };
-  return { displayName: "Utilisateur PimPay", subLabel: "" };
+  return { displayName: "Utilisateur PIMOBIPAY", subLabel: "" };
 }
 
 interface TransactionUser {
@@ -240,7 +240,7 @@ function TransactionDetailView({ tx, onClose, onApprove, onReject, isProcessing,
 
         {/* Footer */}
         <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
-          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PimPay Admin Console</p>
+          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PIMOBIPAY Admin Console</p>
         </div>
       </div>
     </div>
@@ -300,7 +300,7 @@ export default function AdminTransactionsPage() {
         t.status === 'PENDING' || t.status === 'PENDING_CONFIRMATION'
       ));
     } catch (error) {
-      toast.error("PimPay : Impossible de charger les flux");
+      toast.error("PIMOBIPAY : Impossible de charger les flux");
       console.error(error);
     } finally {
       setLoading(false);
@@ -354,7 +354,7 @@ export default function AdminTransactionsPage() {
         toast.error(result.error || "Echec de l'operation");
       }
     } catch {
-      toast.error("Erreur de communication avec le serveur PimPay");
+      toast.error("Erreur de communication avec le serveur PIMOBIPAY");
     } finally {
       setIsProcessing(null);
     }
@@ -391,7 +391,7 @@ export default function AdminTransactionsPage() {
               <ArrowLeft size={18} />
             </button>
             <div className="text-center">
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
               <h1 className="text-sm font-black text-white uppercase tracking-wider">Transactions</h1>
             </div>
             <button onClick={fetchTransactions} disabled={loading} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">

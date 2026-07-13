@@ -170,7 +170,7 @@ export default function ChangePasswordPage() {
 
           <div className="p-4 bg-slate-900/30 border border-white/5 rounded-2xl flex items-center gap-3">
              <CheckCircle2 size={16} className="text-emerald-500" />
-             <p className="text-[10px] text-slate-500 uppercase font-bold">Données chiffrées par PimPay Protocol</p>
+             <p className="text-[10px] text-slate-500 uppercase font-bold">Données chiffrées par PIMOBIPAY Protocol</p>
           </div>
         </div>
       </div>

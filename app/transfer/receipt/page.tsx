@@ -123,7 +123,7 @@ function ReceiptContent() {
       });
 
       const link = document.createElement("a");
-      link.download = `PimPay_Transfer_${displayRef}.png`;
+      link.download = `PIMOBIPAY_Transfer_${displayRef}.png`;
       link.href = dataUrl;
       link.style.display = "none";
       document.body.appendChild(link);
@@ -146,7 +146,7 @@ function ReceiptContent() {
         const newTab = window.open();
         if (newTab) {
           newTab.document.write(`<img src="${dataUrl}" style="max-width:100%;"/>`);
-          newTab.document.title = "PimPay Receipt";
+          newTab.document.title = "PIMOBIPAY Receipt";
           toast.info("Reçu ouvert dans un nouvel onglet. Maintenez l'image pour la sauvegarder.");
         } else {
           toast.error("Veuillez autoriser les pop-ups pour télécharger le reçu");
@@ -162,7 +162,7 @@ function ReceiptContent() {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'Reçu PimPay',
+        title: 'Reçu PIMOBIPAY',
         text: `Transfert de ${amountDisplay} ${currency} vers ${beneficiary} réussi. Réf: ${displayRef}`
       });
     } else {
@@ -292,7 +292,7 @@ function ReceiptContent() {
 
             {/* Footer Reçu */}
             <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
-              <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">Authentifié par PimPay Network</p>
+              <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">Authentifié par PIMOBIPAY Network</p>
             </div>
           </Card>
         </div>

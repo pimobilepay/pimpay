@@ -12,24 +12,24 @@ export async function POST(request: Request) {
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
-      console.error("[PIMPAY] PI_API_KEY non configuree");
+      console.error("[PIMOBIPAY] PI_API_KEY non configuree");
       return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
     }
 
     // --- 1. AUTHENTIFICATION ---
     const userId = await getAuthUserId();
     if (!userId) {
-      console.error("[PIMPAY] Utilisateur non authentifie pour complete");
+      console.error("[PIMOBIPAY] Utilisateur non authentifie pour complete");
       return NextResponse.json({ error: "Session expiree. Veuillez vous reconnecter." }, { status: 401 });
     }
 
     const { paymentId, txid } = await request.json();
     if (!paymentId || !txid) {
-      console.error("[PIMPAY] Donnees incompletes pour complete:", { paymentId, txid });
+      console.error("[PIMOBIPAY] Donnees incompletes pour complete:", { paymentId, txid });
       return NextResponse.json({ error: "Donnees incompletes (paymentId et txid requis)" }, { status: 400 });
     }
 
-    console.log(`[PIMPAY] Complete paiement: ${paymentId}, txid: ${txid}, user: ${userId}`);
+    console.log(`[PIMOBIPAY] Complete paiement: ${paymentId}, txid: ${txid}, user: ${userId}`);
 
     // --- 2. VALIDATION PI NETWORK (S2S) ---
     // On valide d'abord avec Pi Network pour obtenir les détails réels du paiement (montant)
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const piPayment = await getPiPayment(paymentId);
 
     if (!piPayment) {
-      console.error("[PIMPAY] Paiement Pi introuvable cote serveur:", paymentId);
+      console.error("[PIMOBIPAY] Paiement Pi introuvable cote serveur:", paymentId);
       return NextResponse.json({ error: "Paiement Pi introuvable" }, { status: 404 });
     }
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       isAlreadyCompleted;
 
     if (!isVerified) {
-      console.error("[PIMPAY] Paiement Pi non verifie:", paymentId, piPayment.status);
+      console.error("[PIMOBIPAY] Paiement Pi non verifie:", paymentId, piPayment.status);
       return NextResponse.json(
         { error: "Paiement non verifie sur la blockchain Pi", retryable: true },
         { status: 409 }
@@ -81,14 +81,14 @@ export async function POST(request: Request) {
     // Le txid fourni doit correspondre a celui enregistre par Pi (si present).
     const piTxid = piPayment.transaction?.txid;
     if (piTxid && txid && piTxid !== txid) {
-      console.error("[PIMPAY] txid incoherent:", { fourni: txid, attendu: piTxid });
+      console.error("[PIMOBIPAY] txid incoherent:", { fourni: txid, attendu: piTxid });
       return NextResponse.json({ error: "txid incoherent avec Pi Network" }, { status: 403 });
     }
 
     // Montant reellement paye, valide cote serveur.
     const verifiedAmount = Number(piPayment.amount);
     if (!Number.isFinite(verifiedAmount) || verifiedAmount <= 0) {
-      console.error("[PIMPAY] Montant Pi invalide:", piPayment.amount);
+      console.error("[PIMOBIPAY] Montant Pi invalide:", piPayment.amount);
       return NextResponse.json({ error: "Montant Pi invalide" }, { status: 400 });
     }
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
     // Si la transaction n'existe pas (cas du db-clean-up), on la recrée
     if (!transaction) {
-      console.warn(`[PIMPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
+      console.warn(`[PIMOBIPAY] ⚠️ Transaction ${paymentId} absente après cleanup. Récréation...`);
 
       transaction = await prisma.transaction.create({
         data: {
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       });
     }, { maxWait: 10000, timeout: 30000 });
   
-    console.log(`[PIMPAY] Portefeuille credite : ${verifiedAmount} PI pour ${userId}`);
+    console.log(`[PIMOBIPAY] Portefeuille credite : ${verifiedAmount} PI pour ${userId}`);
 
     return NextResponse.json({
       success: true,

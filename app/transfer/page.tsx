@@ -55,7 +55,7 @@ const STATIC_META: Record<
   // ── Fiat ──────────────────────────────────────────────────────────────────
   XAF: {
     symbol: "XAF",
-    network: "PimPay",
+    network: "PIMOBIPAY",
     color: "text-emerald-400",
     logo: "",
     addressType: "internal",
@@ -245,7 +245,7 @@ function getCurrencyMeta(currency: string) {
   if (flag) {
     return {
       symbol: key,
-      network: "PimPay",
+      network: "PIMOBIPAY",
       color: "text-emerald-400",
       logo: "",
       flag,
@@ -664,7 +664,7 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
           <p className="font-black text-lg">{t("transfer.title")}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
-            <span className="text-[10px] text-slate-500">PimPay Secure Protocol</span>
+            <span className="text-[10px] text-slate-500">PIMOBIPAY Secure Protocol</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 bg-blue-600/10 border border-blue-500/20 rounded-xl px-3 py-1.5">

@@ -305,7 +305,7 @@ function TransactionDetailModal({ tx, onClose, piPrice, priceMode }: { tx: Trans
 
         {/* Footer */}
         <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
-          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PimPay Admin Console</p>
+          <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">PIMOBIPAY Admin Console</p>
         </div>
       </div>
     </div>
@@ -410,7 +410,7 @@ export default function AdminHistoriquePage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Historique</h1>
           </div>
           <button onClick={fetchHistory} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">

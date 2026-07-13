@@ -114,7 +114,7 @@ async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise
     // 1. Connexion au serveur Horizon Pi Network
     const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL, { allowHttp: PI_HORIZON_URL.includes("localhost") });
     
-    // 2. Charger le compte source (Master Wallet PimPay)
+    // 2. Charger le compte source (Master Wallet PIMOBIPAY)
     const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
     
     // 3. Vérifier que le compte source a assez de fonds

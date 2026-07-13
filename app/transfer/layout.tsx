@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Transfert de fonds | PimPay',
-  description: 'Envoyez des Pi instantanément à d’autres utilisateurs PimPay.',
+  title: 'Transfert de fonds | PIMOBIPAY',
+  description: 'Envoyez des Pi instantanément à d’autres utilisateurs PIMOBIPAY.',
 };
 
 export default function TransferLayout({

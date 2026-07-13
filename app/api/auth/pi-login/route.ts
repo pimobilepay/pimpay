@@ -8,7 +8,7 @@ import { SignJWT } from "jose";
  * POST /api/auth/pi-login
  * 
  * Recoit le token d'authentification Pi SDK et synchronise l'utilisateur
- * dans la base de donnees Prisma. Cree un JWT pour la session PimPay.
+ * dans la base de donnees Prisma. Cree un JWT pour la session PIMOBIPAY.
  */
 export async function POST(request: Request) {
   try {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         verifiedUser = await piRes.json();
       }
     } catch (err) {
-      console.warn("[PimPay] Verification Pi API echouee, fallback local:", err);
+      console.warn("[PIMOBIPAY] Verification Pi API echouee, fallback local:", err);
     }
 
     // On utilise les donnees verifiees si disponibles, sinon celles envoyees par le client
@@ -128,10 +128,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Creation du JWT PimPay
+    // Creation du JWT PIMOBIPAY
     const SECRET = process.env.JWT_SECRET;
     if (!SECRET) {
-      console.error("[PimPay] JWT_SECRET non configure");
+      console.error("[PIMOBIPAY] JWT_SECRET non configure");
       return NextResponse.json({ error: "Config JWT manquante" }, { status: 500 });
     }
 
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
         city,
         country,
       },
-    }).catch((e) => console.error("[PimPay] Session creation error:", e));
+    }).catch((e) => console.error("[PIMOBIPAY] Session creation error:", e));
 
     prisma.notification.create({
       data: {
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
         message: `Connecte depuis ${city || "inconnu"}, ${country} via Pi Browser`,
         metadata: { ip, device: "Pi Browser" },
       },
-    }).catch((e) => console.error("[PimPay] Notification creation error:", e));
+    }).catch((e) => console.error("[PIMOBIPAY] Notification creation error:", e));
 
     // Log dans SystemLog (non-bloquant)
     prisma.systemLog.create({
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         ip,
         userAgent,
       },
-    }).catch((e) => console.error("[PimPay] SystemLog error:", e));
+    }).catch((e) => console.error("[PIMOBIPAY] SystemLog error:", e));
 
     const response = NextResponse.json({
       success: true,
@@ -221,7 +221,7 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error: any) {
-    console.error("[PimPay] Pi Login Error:", error);
+    console.error("[PIMOBIPAY] Pi Login Error:", error);
 
     // Gestion explicite d'une violation d'unicite residuelle -> 409 au lieu d'un 500 opaque
     if (error?.code === "P2002") {

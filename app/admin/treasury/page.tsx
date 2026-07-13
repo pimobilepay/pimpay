@@ -1906,7 +1906,7 @@ export default function TreasuryPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-amber-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-amber-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Tresorerie</h1>
           </div>
           <div className="flex items-center gap-2">

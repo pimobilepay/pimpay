@@ -469,7 +469,7 @@ export default function McardPage() {
     PLATINIUM: {
       gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
       shadow: "shadow-2xl shadow-cyan-600/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "mastercard",
       accentColor: "text-cyan-400",
@@ -478,7 +478,7 @@ export default function McardPage() {
     PREMIUM: {
       gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
       shadow: "shadow-2xl shadow-teal-600/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "mastercard",
       accentColor: "text-teal-400",
@@ -487,7 +487,7 @@ export default function McardPage() {
     GOLD: {
       gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
       shadow: "shadow-2xl shadow-indigo-600/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "mastercard",
       accentColor: "text-indigo-300",
@@ -496,7 +496,7 @@ export default function McardPage() {
     ULTRA: {
       gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
       shadow: "shadow-2xl shadow-white/10",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "mastercard",
       accentColor: "text-white",
@@ -506,7 +506,7 @@ export default function McardPage() {
     VISA_CLASSIC: {
       gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
       shadow: "shadow-2xl shadow-indigo-900/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "visa",
       accentColor: "text-[#3b5bdb]",
@@ -515,7 +515,7 @@ export default function McardPage() {
     VISA_GOLD: {
       gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
       shadow: "shadow-2xl shadow-amber-600/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#1a1a1a]",
       pattern: "visa",
       accentColor: "text-amber-300",
@@ -524,7 +524,7 @@ export default function McardPage() {
     VISA_PLATINUM: {
       gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
       shadow: "shadow-2xl shadow-slate-500/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "visa",
       accentColor: "text-slate-300",
@@ -533,7 +533,7 @@ export default function McardPage() {
     VISA_INFINITE: {
       gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
       shadow: "shadow-2xl shadow-white/10",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "visa",
       accentColor: "text-white",
@@ -547,7 +547,7 @@ export default function McardPage() {
       return {
         gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
         shadow: "shadow-2xl shadow-indigo-900/30",
-        label: "PIMPAY VIRTUAL",
+        label: "PIMOBIPAY VIRTUAL",
         labelColor: "text-[#FFD700]",
         pattern: "visa",
         accentColor: "text-[#3b5bdb]",
@@ -557,7 +557,7 @@ export default function McardPage() {
     return {
       gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
       shadow: "shadow-2xl shadow-blue-600/20",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "mastercard",
       accentColor: "text-blue-400",
@@ -600,7 +600,7 @@ export default function McardPage() {
           </div>
           <div className="text-center space-y-2">
             <h2 className="text-xl font-black uppercase tracking-tight">Aucune carte</h2>
-            <p className="text-sm text-slate-400 font-bold">Commandez votre carte virtuelle PimPay pour commencer.</p>
+            <p className="text-sm text-slate-400 font-bold">Commandez votre carte virtuelle PIMOBIPAY pour commencer.</p>
           </div>
           <button
             onClick={() => router.push("/dashboard/card/order")}
@@ -771,7 +771,7 @@ export default function McardPage() {
 
                     {/* Legal text */}
                     <div className="mt-auto">
-                      <p className="text-[8px] text-white/30">{"Cette carte est la propriete de Pimpay. Usage personnel uniquement."}</p>
+                      <p className="text-[8px] text-white/30">{"Cette carte est la propriete de PIMOBIPAY. Usage personnel uniquement."}</p>
                     </div>
                   </div>
                 </div>
@@ -908,7 +908,7 @@ export default function McardPage() {
                 { label: "CVV / CVC", value: showDetails ? cardCvv : "•••" },
                 { label: "Type de carte", value: `${cardBrand} ${cardType}` },
                 { label: "Reseau", value: `${cardBrand} Worldwide` },
-                { label: "Emetteur", value: "PimPay Financial Services" },
+                { label: "Emetteur", value: "PIMOBIPAY Financial Services" },
                 { label: "Devises", value: "USD / EUR" },
                 { label: "Securite", value: "3D Secure 2.0" },
               ].map((row, i) => (
@@ -1089,7 +1089,7 @@ export default function McardPage() {
             {/* Physical Card Promo */}
             <div className="relative overflow-hidden rounded-[2rem] p-8 border border-white/5 bg-slate-900/60">
               <div className="relative z-10">
-                <h3 className="text-lg font-black uppercase tracking-tighter mb-2 italic">Carte physique PimPay</h3>
+                <h3 className="text-lg font-black uppercase tracking-tighter mb-2 italic">Carte physique PIMOBIPAY</h3>
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-4 tracking-widest">Bientot disponible pour les pionniers certifies KYC.</p>
                 <button className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-[3px]">
                   {"S'inscrire sur la liste"} <ChevronRight size={14} />

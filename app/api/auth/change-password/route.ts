@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tous les champs sont requis" }, { status: 400 });
     }
 
-    // 4. Trouver l'utilisateur dans la base PimPay
+    // 4. Trouver l'utilisateur dans la base PIMOBIPAY
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });

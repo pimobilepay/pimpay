@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // --- 1. RECHERCHE INTERNE (PimPay Database) ---
+    // --- 1. RECHERCHE INTERNE (PIMOBIPAY Database) ---
     let foundUser = null;
     
     // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
@@ -43,10 +43,10 @@ export async function GET(request: Request) {
     }
     
     // UID Pi Network préfixé "P" : préparer la version sans préfixe pour
-    // retrouver un membre PimPay (ex: P024E6679... -> 024E6679...).
+    // retrouver un membre PIMOBIPAY (ex: P024E6679... -> 024E6679...).
     const queryNoP = /^P[0-9A-Fa-f]{20,}$/.test(query) ? query.slice(1) : query;
 
-    // Si pas trouve par PIMPAY, rechercher par autres identifiants
+    // Si pas trouve par PIMOBIPAY, rechercher par autres identifiants
     if (!foundUser) {
       foundUser = await prisma.user.findFirst({
         where: {

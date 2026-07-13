@@ -283,7 +283,7 @@ export default function BusinessSignupPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-600/10 border border-amber-500/20 mb-6">
               <Building2 className="w-10 h-10 text-amber-500" />
             </div>
-            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMPAY<span className="text-amber-500 not-italic">.</span></h1>
+            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMOBIPAY<span className="text-amber-500 not-italic">.</span></h1>
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Inscription Entreprise</p>
           </div>
 
@@ -410,7 +410,7 @@ export default function BusinessSignupPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-600/10 border border-amber-500/20 mb-6">
               <User className="w-10 h-10 text-amber-500" />
             </div>
-            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMPAY<span className="text-amber-500 not-italic">.</span></h1>
+            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-1 uppercase">PIMOBIPAY<span className="text-amber-500 not-italic">.</span></h1>
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Representant Legal</p>
           </div>
 
@@ -625,7 +625,7 @@ export default function BusinessSignupPage() {
                     <p className="text-[9px] text-amber-500/70 uppercase font-black tracking-[0.2em]">Configuration...</p>
                   </div>
                 ) : (
-                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PimPay Business v1.0</p>
+                  <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">PIMOBIPAY Business v1.0</p>
                 )}
               </div>
             </motion.div>

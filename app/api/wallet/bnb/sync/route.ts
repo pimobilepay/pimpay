@@ -16,7 +16,7 @@ import { getBnbBalance } from "@/lib/blockchain/bnb";
 /**
  * POST /api/wallet/bnb/sync
  *
- * Synchronise le solde BNB (BSC/BEP20) du wallet PimPay avec le solde réel
+ * Synchronise le solde BNB (BSC/BEP20) du wallet PIMOBIPAY avec le solde réel
  * sur la Binance Smart Chain. Utilise la même adresse EVM que Sidra (sidraAddress).
  *
  * Body optionnel :

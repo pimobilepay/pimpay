@@ -59,7 +59,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    // 3. Formatage intelligent pour Pimpay
+    // 3. Formatage intelligent pour PIMOBIPAY
     const isSender = transaction.fromUserId === userId;
 
     return NextResponse.json({
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
       status: transaction.status,
 
       // Gestion des noms (Priorité Name > Username > Phone)
-      sender: isSender ? "Moi" : (transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur Pimpay"),
+      sender: isSender ? "Moi" : (transaction.fromUser?.name || transaction.fromUser?.username || "Utilisateur PIMOBIPAY"),
       recipient: isSender ? (transaction.toUser?.name || transaction.toUser?.username || "Destinataire") : "Moi",
 
       // Adresses et Réseaux
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
       blockchainTx: transaction.blockchainTx,
       
       // Métadonnées
-      description: transaction.description || transaction.purpose || "Transfert PimPay",
+      description: transaction.description || transaction.purpose || "Transfert PIMOBIPAY",
       note: transaction.note
     });
 

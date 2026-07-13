@@ -40,7 +40,7 @@ export async function GET() {
       });
 
       if (completeRes.ok) {
-        // 3. Si Pi valide, on met à jour notre base PimPay en "SUCCESS"
+        // 3. Si Pi valide, on met à jour notre base PIMOBIPAY en "SUCCESS"
         await prisma.transaction.updateMany({
           where: { externalId: paymentId },
           data: { 

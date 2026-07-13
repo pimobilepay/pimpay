@@ -8,7 +8,7 @@ import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
 const PI_API_KEY = () => {
   const key = process.env.PI_API_KEY;
   if (!key) {
-    console.warn("[PIMPAY] PI_API_KEY non configuree");
+    console.warn("[PIMOBIPAY] PI_API_KEY non configuree");
   }
   return key;
 };
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   try {
     const apiKey = PI_API_KEY();
     if (!apiKey) {
-      console.warn("[PIMPAY] POST /api/payments/incomplete: PI_API_KEY non configuree");
+      console.warn("[PIMOBIPAY] POST /api/payments/incomplete: PI_API_KEY non configuree");
       return NextResponse.json({ 
         success: false, 
         action: "skipped", 
@@ -78,14 +78,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "paymentId manquant" }, { status: 400 });
     }
 
-    console.log(`[PIMPAY] Traitement paiement incomplet: ${paymentId}, txid: ${txid || "aucun"}`);
+    console.log(`[PIMOBIPAY] Traitement paiement incomplet: ${paymentId}, txid: ${txid || "aucun"}`);
 
     // 1. Get payment status from Pi Network
     const piPayment = await getPiPaymentDetails(paymentId);
 
     if (!piPayment) {
       // Payment not found on Pi side - try cancelling to unblock
-      console.warn(`[PIMPAY] Paiement ${paymentId} introuvable sur Pi Network. Tentative d'annulation...`);
+      console.warn(`[PIMOBIPAY] Paiement ${paymentId} introuvable sur Pi Network. Tentative d'annulation...`);
       await cancelPayment(paymentId);
       return NextResponse.json({ success: true, action: "cancelled", message: "Paiement introuvable, annulation envoyee" });
     }
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     const piAmount = piPayment.amount;
     const piUserId = piPayment.metadata?.userId;
 
-    console.log(`[PIMPAY] Pi payment status: ${JSON.stringify(piPayment.status)}, txid: ${piTxid}`);
+    console.log(`[PIMOBIPAY] Pi payment status: ${JSON.stringify(piPayment.status)}, txid: ${piTxid}`);
 
     // ── CASE A: Payment already completed on Pi side ─────────────────────────
     // The blockchain transaction exists. We need to complete it on our side too.
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     // ── CASE B: Payment has a blockchain txid but server hasn't completed it ──
     // The user signed but our /complete was never called (app crashed, network error, etc.)
     if (piTxid) {
-      console.log(`[PIMPAY] Tentative de completion S2S pour ${paymentId}`);
+      console.log(`[PIMOBIPAY] Tentative de completion S2S pour ${paymentId}`);
 
       const completeRes = await completePayment(paymentId, piTxid);
       const completeData = await completeRes.json().catch(() => ({}));
@@ -124,12 +124,12 @@ export async function POST(req: Request) {
       const serverApproved = piPayment.status?.developer_approved;
       
       if (!serverApproved) {
-        console.log(`[PIMPAY] Paiement ${paymentId} non approuve. Approbation puis annulation...`);
+        console.log(`[PIMOBIPAY] Paiement ${paymentId} non approuve. Approbation puis annulation...`);
         await approvePayment(paymentId);
       }
 
       // Now cancel it to free up the user
-      console.log(`[PIMPAY] Annulation du paiement ${paymentId} (pas de txid)`);
+      console.log(`[PIMOBIPAY] Annulation du paiement ${paymentId} (pas de txid)`);
       const cancelRes = await cancelPayment(paymentId);
       const cancelData = await cancelRes.json().catch(() => ({}));
 
@@ -154,7 +154,7 @@ export async function POST(req: Request) {
       }
 
       // If cancel also fails, return the error but don't crash
-      console.error(`[PIMPAY] Echec annulation ${paymentId}:`, cancelData);
+      console.error(`[PIMOBIPAY] Echec annulation ${paymentId}:`, cancelData);
       return NextResponse.json({
         success: false,
         action: "cancel_failed",
@@ -188,11 +188,11 @@ async function syncCompletedPayment(
   const finalAmount = existingTx?.amount || amount;
 
   if (!finalUserId) {
-    console.error(`[PIMPAY] Impossible de crediter: userId introuvable pour ${paymentId}`);
+    console.error(`[PIMOBIPAY] Impossible de crediter: userId introuvable pour ${paymentId}`);
     return NextResponse.json({
       success: true,
       action: "completed_no_user",
-      message: "Paiement complete sur Pi Network mais utilisateur introuvable dans PimPay",
+      message: "Paiement complete sur Pi Network mais utilisateur introuvable dans PIMOBIPAY",
     });
   }
 
@@ -246,7 +246,7 @@ async function syncCompletedPayment(
     return updatedTx;
   }, { maxWait: 10000, timeout: 30000 });
 
-  console.log(`[PIMPAY] Paiement ${paymentId} recupere et credite: ${finalAmount} PI`);
+  console.log(`[PIMOBIPAY] Paiement ${paymentId} recupere et credite: ${finalAmount} PI`);
 
   return NextResponse.json({
     success: true,
@@ -262,7 +262,7 @@ export async function GET() {
     const apiKey = PI_API_KEY();
     if (!apiKey) {
       // En mode dev sans cle API, on retourne juste vide au lieu d'une erreur
-      console.warn("[PIMPAY] GET /api/payments/incomplete: PI_API_KEY non configuree");
+      console.warn("[PIMOBIPAY] GET /api/payments/incomplete: PI_API_KEY non configuree");
       return NextResponse.json({ message: "Configuration en attente", count: 0, details: [] });
     }
 

@@ -291,11 +291,11 @@ export default function CardOrderPage() {
               </div>
 
               <div className="relative h-full p-6 flex flex-col justify-between z-10">
-                {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
+                {/* Header - PIMOBIPAY VIRTUAL in gold + Brand logo */}
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-1.5">
                     <ShieldCheck size={14} className="text-[#FFD700]" />
-                    <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+                    <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
                   </div>
                   {selectedCard.brand === "VISA" ? (
                     <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
@@ -468,7 +468,7 @@ export default function CardOrderPage() {
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-1.5">
                       <ShieldCheck size={14} className="text-[#FFD700]" />
-                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
                     </div>
                     {selectedCard.brand === "VISA" ? (
                       <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
@@ -625,7 +625,7 @@ export default function CardOrderPage() {
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Protocole</span>
-                  <span className="font-black text-xs uppercase text-emerald-400">PimPay Secure</span>
+                  <span className="font-black text-xs uppercase text-emerald-400">PIMOBIPAY Secure</span>
                 </div>
                 <div className="flex justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Equivalent</span>
@@ -658,7 +658,7 @@ export default function CardOrderPage() {
         <div className="bg-slate-900/90 backdrop-blur-xl border border-white/5 py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-2xl">
           <div className="flex items-center gap-2.5 text-slate-400">
             <Activity size={14} className="text-blue-500" />
-            <span className="text-[8px] font-black uppercase tracking-widest">PimPay Card Issuer</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">PIMOBIPAY Card Issuer</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />

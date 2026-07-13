@@ -47,7 +47,7 @@ function detectNetwork(identifier: string, currency: string): string {
   if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(clean)) return "Bitcoin";
   if (/^[LM][a-km-zA-HJ-NP-Z1-9]{26,33}$/.test(clean)) return "Litecoin";
   if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean)) return "Solana";
-  return currency === "PI" ? "Réseau PimPay" : `Réseau ${currency}`;
+  return currency === "PI" ? "Réseau PIMOBIPAY" : `Réseau ${currency}`;
 }
 // Formate un montant Pi proprement (sans zéros superflus)
 function fmtPi(value: number): string {
@@ -175,7 +175,7 @@ const data = useMemo(() => {
   const avatar = searchParams.get("recipientAvatar") || "";
   const currency = (searchParams.get("currency") || "XAF").toUpperCase();
   const amount = parseFloat(searchParams.get("amount") || "0");
-  const description = searchParams.get("description") || "Transfert PimPay";
+  const description = searchParams.get("description") || "Transfert PIMOBIPAY";
   
   // Determine if currency is fiat and use appropriate fee rate
   const isFiat = FIAT_CURRENCIES.includes(currency);
@@ -280,7 +280,7 @@ const data = useMemo(() => {
           body: JSON.stringify({
             destination: data.recipientId,
             amount: data.amount,
-            memo: data.description || `Retrait PimPay`,
+            memo: data.description || `Retrait PIMOBIPAY`,
           }),
         });
         const result = await response.json().catch(() => ({}));
@@ -503,7 +503,7 @@ const data = useMemo(() => {
                 }`}
               >
                 {data.isExternal ? <Globe size={10} /> : <Users size={10} />}
-                {data.isExternal ? "Adresse externe" : "Compte PimPay"}
+                {data.isExternal ? "Adresse externe" : "Compte PIMOBIPAY"}
               </p>
             </div>
           </div>
@@ -584,7 +584,7 @@ const data = useMemo(() => {
         <div className="flex items-center justify-center gap-2 opacity-30 pt-2">
           <Lock size={12} />
           <span className="text-[8px] font-bold uppercase tracking-widest text-white">
-            Sécurisé par PimPay Flow Engine
+            Sécurisé par PIMOBIPAY Flow Engine
           </span>
         </div>
       </main>

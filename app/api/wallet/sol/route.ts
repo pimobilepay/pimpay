@@ -57,7 +57,7 @@ export async function POST() {
     const address = keypair.publicKey.toBase58();
     const privateKey = b58.encode(keypair.secretKey);
 
-    // 3. Sauvegarder dans Pimpay
+    // 3. Sauvegarder dans PIMOBIPAY
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {

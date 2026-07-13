@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       // Construction du nom complet à partir de ton schéma
       const fullName = user 
         ? `${user.firstName || ''} ${user.lastName || ''}`.trim() 
-        : (user?.username || "Client PimPay");
+        : (user?.username || "Client PIMOBIPAY");
 
       // Logique de détection du type de retrait
       // Retrait blockchain externe = a une adresse externe dans metadata

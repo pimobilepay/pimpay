@@ -194,14 +194,14 @@ function inferTxParties(notif: Notification, t: (key: string) => string): { send
     : isMoMo    ? "Mobile Money"
     : isWave    ? "Wave"
     : isPaypal  ? "PayPal"
-    : isSwap    ? "PimPay Exchange"
+    : isSwap    ? "PIMOBIPAY Exchange"
     : isRecharge? t("notifications.telecomOperator")
     : isPayment ? t("notifications.merchant")
     : null;
 
   if (notif.type === "PAYMENT_RECEIVED" || notif.type === "SUCCESS") {
     // Argent recu : expediteur = source externe ou utilisateur
-    const sender    = explicitSender    || serviceName || (isDeposit ? networkName : "PimPay");
+    const sender    = explicitSender    || serviceName || (isDeposit ? networkName : "PIMOBIPAY");
     const recipient = explicitRecipient || t("notifications.you");
     return { sender, recipient };
   }
@@ -215,7 +215,7 @@ function inferTxParties(notif: Notification, t: (key: string) => string): { send
 
   // Types generiques avec montant (MERCHANT, SYSTEM, etc.)
   return {
-    sender:    explicitSender    || "PimPay",
+    sender:    explicitSender    || "PIMOBIPAY",
     recipient: explicitRecipient || t("notifications.you"),
   };
 }

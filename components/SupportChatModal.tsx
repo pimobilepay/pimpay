@@ -49,7 +49,7 @@ function SenderBadge({ senderId }: { senderId: string }) {
         <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
           <Headphones size={10} className="text-white" />
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PimPay</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PIMOBIPAY</span>
       </div>
     );
   }
@@ -204,7 +204,7 @@ export default function SupportChatModal({ isOpen, onClose, ticketId }: SupportC
                   <Headphones size={18} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black tracking-tight text-white">Support PimPay</h2>
+                  <h2 className="text-sm font-black tracking-tight text-white">Support PIMOBIPAY</h2>
                   <div className="flex items-center gap-1">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">En ligne</p>
@@ -240,7 +240,7 @@ export default function SupportChatModal({ isOpen, onClose, ticketId }: SupportC
                   </div>
                   <h3 className="text-base font-black text-white mb-1">Discutez avec le support</h3>
                   <p className="text-xs text-slate-500 leading-relaxed max-w-[240px]">
-                    Posez votre question, un agent PimPay vous repondra ici directement.
+                    Posez votre question, un agent PIMOBIPAY vous repondra ici directement.
                   </p>
                 </div>
               )}

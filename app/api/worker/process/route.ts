@@ -147,7 +147,7 @@ async function processExternalTransfers() {
         hash = await sendXRP(tx, destination, sender.xrpPrivateKey);
       } 
       else if (tx.currency === "PI") {
-        // Pi Network: utiliser le MASTER WALLET de PimPay (les fonds sont centralisés)
+        // Pi Network: utiliser le MASTER WALLET de PIMOBIPAY (les fonds sont centralisés)
         // Les utilisateurs déposent vers le master wallet, et on envoie depuis le master wallet
         hash = await sendPiFromMasterWallet(tx, destination);
       }
@@ -265,11 +265,11 @@ async function sendPiA2UOfficial(
   
   const paymentBody = {
     amount: Number(tx.amount),
-    memo: `PimPay: ${tx.reference || 'Retrait'}`,
+    memo: `PIMOBIPAY: ${tx.reference || 'Retrait'}`,
     metadata: { 
       transactionId: tx.id,
       reference: tx.reference,
-      platform: "PimPay"
+      platform: "PIMOBIPAY"
     },
     uid: userUid
   };
@@ -505,7 +505,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
         amount: tx.amount.toFixed(7),
       })
     )
-    .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PimPay"))
+    .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PIMOBIPAY"))
     .setTimeout(180)
     .build();
   
@@ -595,7 +595,7 @@ async function sendStellarBased(tx: any, dest: string, encryptedKey: string | nu
       asset: StellarSdk.Asset.native(),
       amount: tx.amount.toFixed(7) // Stellar utilise 7 décimales max
     }))
-    .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PimPay"))
+    .addMemo(StellarSdk.Memo.text(tx.reference?.substring(0, 28) || "PIMOBIPAY"))
     .setTimeout(180) // 3 minutes timeout
     .build();
     

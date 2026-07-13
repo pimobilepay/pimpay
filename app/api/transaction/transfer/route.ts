@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Recherche du destinataire par email, username, telephone ou code PIMPAY
+    // Recherche du destinataire par email, username, telephone ou code PIMOBIPAY
     let cleanInput = recipientId.startsWith("@") ? recipientId.substring(1) : recipientId;
     
     // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Si pas trouve par PIMPAY, rechercher par autres identifiants
+    // Si pas trouve par PIMOBIPAY, rechercher par autres identifiants
     if (!recipient) {
       recipient = await prisma.user.findFirst({
         where: {
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
       // Creation de la transaction avec REFERENCE OBLIGATOIRE
       const transaction = await tx.transaction.create({
         data: {
-          // Generation d'une reference unique pour Pimpay
+          // Generation d'une reference unique pour PIMOBIPAY
           reference: `P2P-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
           amount: amountNum,
           netAmount: amountNum,
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: recipient.id,
           title: "Paiement recu !",
-          message: `Vous avez recu ${amountNum.toLocaleString()} PI de ${sender.username || sender.name || 'un utilisateur PimPay'}.`,
+          message: `Vous avez recu ${amountNum.toLocaleString()} PI de ${sender.username || sender.name || 'un utilisateur PIMOBIPAY'}.`,
           type: "PAYMENT_RECEIVED",
           metadata: { amount: amountNum, currency: "PI", reference: transaction.reference }
         }

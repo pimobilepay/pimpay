@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuth } from "@/lib/auth"; // Utilisation du helper standard pour Pimpay
+import { verifyAuth } from "@/lib/auth"; // Utilisation du helper standard pour PIMOBIPAY
 
 export async function GET(
   req: NextRequest, 

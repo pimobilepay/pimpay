@@ -576,7 +576,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Frais PimPay (swap = type "transfer")
+    // 7. Frais PIMOBIPAY (swap = type "transfer")
     const feeConfig = await getFeeConfig();
     const { feeAmount: pimpayFee } = calculateFee(amountIn, feeConfig, "transfer");
 
@@ -702,7 +702,7 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
-      // Auto-conversion des frais PimPay
+      // Auto-conversion des frais PIMOBIPAY
       if (pimpayFee > 0) {
         autoConvertFeeToPi(pimpayFee, fromToken, txRecord.id, txRecord.reference).catch(
           () => {}

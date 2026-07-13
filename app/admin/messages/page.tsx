@@ -43,12 +43,12 @@ const wrapHtml = (content: string): string => `<!DOCTYPE html>
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:24px;border:1px solid rgba(255,255,255,0.06);overflow:hidden;">
   <tr><td style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);padding:32px 40px;text-align:center;">
-    <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:900;letter-spacing:3px;text-transform:uppercase;">PimPay</h1>
+    <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:900;letter-spacing:3px;text-transform:uppercase;">PIMOBIPAY</h1>
     <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Plateforme de Paiement Digital</p>
   </td></tr>
   <tr><td style="padding:40px;">${content}</td></tr>
   <tr><td style="padding:24px 40px;border-top:1px solid rgba(255,255,255,0.05);text-align:center;">
-    <p style="margin:0;color:rgba(148,163,184,0.6);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PimPay - Tous droits reserves</p>
+    <p style="margin:0;color:rgba(148,163,184,0.6);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PIMOBIPAY - Tous droits reserves</p>
   </td></tr>
 </table>
 </td></tr>
@@ -59,9 +59,9 @@ const wrapHtml = (content: string): string => `<!DOCTYPE html>
 // --- TEMPLATES ---
 const EMAIL_TEMPLATES: Template[] = [
   {
-    id: "welcome", name: "Bienvenue", icon: <Sparkles size={20} />, subject: "Bienvenue sur PimPay !",
+    id: "welcome", name: "Bienvenue", icon: <Sparkles size={20} />, subject: "Bienvenue sur PIMOBIPAY !",
     color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20",
-    body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Bienvenue sur PimPay !</h2>
+    body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Bienvenue sur PIMOBIPAY !</h2>
 <p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous sommes ravis de vous accueillir sur notre plateforme de paiement digital. Votre compte est maintenant actif et pret a etre utilise.</p>
 <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:16px;padding:20px;margin:20px 0;">
   <p style="margin:0;color:#34d399;font-size:13px;font-weight:700;">Commencez des maintenant :</p>
@@ -71,10 +71,10 @@ const EMAIL_TEMPLATES: Template[] = [
     <li>Decouvrez nos offres exclusives</li>
   </ul>
 </div>
-<p style="margin:20px 0 0;color:#94a3b8;font-size:13px;">A bientot sur PimPay !</p>`,
+<p style="margin:20px 0 0;color:#94a3b8;font-size:13px;">A bientot sur PIMOBIPAY !</p>`,
   },
   {
-    id: "maintenance", name: "Maintenance", icon: <Wrench size={20} />, subject: "Maintenance programmee - PimPay",
+    id: "maintenance", name: "Maintenance", icon: <Wrench size={20} />, subject: "Maintenance programmee - PIMOBIPAY",
     color: "text-orange-400", bgColor: "bg-orange-500/10", borderColor: "border-orange-500/20",
     body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Maintenance Programmee</h2>
 <p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous vous informons qu'une maintenance est prevue sur notre plateforme afin d'ameliorer nos services.</p>
@@ -88,7 +88,7 @@ const EMAIL_TEMPLATES: Template[] = [
 <p style="margin:20px 0 0;color:#94a3b8;font-size:13px;">Nous nous excusons pour la gene occasionnee. Vos fonds restent en securite.</p>`,
   },
   {
-    id: "promo", name: "Promotion", icon: <Megaphone size={20} />, subject: "Offre Speciale PimPay !",
+    id: "promo", name: "Promotion", icon: <Megaphone size={20} />, subject: "Offre Speciale PIMOBIPAY !",
     color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/20",
     body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Offre Speciale !</h2>
 <p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Profitez d'une offre exclusive reservee a nos utilisateurs fideles.</p>
@@ -99,10 +99,10 @@ const EMAIL_TEMPLATES: Template[] = [
 <p style="margin:20px 0 0;color:#94a3b8;font-size:13px;">Ne manquez pas cette opportunite unique !</p>`,
   },
   {
-    id: "security", name: "Securite", icon: <Lock size={20} />, subject: "Alerte Securite - PimPay",
+    id: "security", name: "Securite", icon: <Lock size={20} />, subject: "Alerte Securite - PIMOBIPAY",
     color: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/20",
     body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Alerte Securite</h2>
-<p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous vous contactons au sujet de la securite de votre compte PimPay.</p>
+<p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous vous contactons au sujet de la securite de votre compte PIMOBIPAY.</p>
 <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:16px;padding:20px;margin:20px 0;">
   <p style="margin:0 0 10px;color:#f87171;font-size:14px;font-weight:700;">Recommandations importantes :</p>
   <ul style="margin:0;padding-left:20px;color:#94a3b8;font-size:13px;line-height:2;">
@@ -115,10 +115,10 @@ const EMAIL_TEMPLATES: Template[] = [
 <p style="margin:20px 0 0;color:#94a3b8;font-size:13px;">Si vous n'etes pas a l'origine de cette action, contactez-nous immediatement.</p>`,
   },
   {
-    id: "update", name: "Mise a jour", icon: <RefreshCw size={20} />, subject: "Nouveautes PimPay - Mise a jour",
+    id: "update", name: "Mise a jour", icon: <RefreshCw size={20} />, subject: "Nouveautes PIMOBIPAY - Mise a jour",
     color: "text-cyan-400", bgColor: "bg-cyan-500/10", borderColor: "border-cyan-500/20",
     body: `<h2 style="margin:0 0 16px;color:#ffffff;font-size:20px;font-weight:900;">Nouvelles Fonctionnalites !</h2>
-<p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous avons le plaisir de vous annoncer de nouvelles fonctionnalites sur PimPay.</p>
+<p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.7;">Nous avons le plaisir de vous annoncer de nouvelles fonctionnalites sur PIMOBIPAY.</p>
 <div style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:16px;padding:20px;margin:20px 0;">
   <p style="margin:0 0 12px;color:#22d3ee;font-size:14px;font-weight:700;">Quoi de neuf ?</p>
   <ul style="margin:0;padding-left:20px;color:#94a3b8;font-size:13px;line-height:2;">
@@ -323,7 +323,7 @@ export default function AdminMessagesPage() {
               <ArrowLeft size={16} />
             </button>
             <div>
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
               <p className="text-sm font-black text-white uppercase tracking-wider">Campagne Email</p>
             </div>
           </div>

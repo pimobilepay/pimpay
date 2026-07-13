@@ -51,7 +51,7 @@ export default function SendModal({
     setStatus("loading");
 
     try {
-      // Utilisation de l'API de transfert universelle de PimPay
+      // Utilisation de l'API de transfert universelle de PIMOBIPAY
       const res = await fetch("/api/wallet/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,7 +120,7 @@ export default function SendModal({
           <X size={20} />
         </button>
 
-        <p className="text-[10px] font-black uppercase text-blue-500 mb-2 text-center tracking-widest">PimPay Transfer</p>
+        <p className="text-[10px] font-black uppercase text-blue-500 mb-2 text-center tracking-widest">PIMOBIPAY Transfer</p>
         <h4 className="text-lg font-black text-white mb-1 uppercase text-center tracking-tighter">Envoyer {currency}</h4>
         <p className="text-[9px] font-bold text-slate-600 text-center mb-6 uppercase">{config.network}</p>
 

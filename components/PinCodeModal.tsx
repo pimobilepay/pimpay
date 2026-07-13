@@ -81,7 +81,7 @@ export default function PinCodeModal({ isOpen, onClose, onSuccess, title = "Vali
             </div>
             <h3 className="text-xl font-black uppercase tracking-tighter italic">{title}</h3>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">
-              Entrez votre code secret Pimpay
+              Entrez votre code secret PIMOBIPAY
             </p>
           </div>
 

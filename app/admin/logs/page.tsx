@@ -464,7 +464,7 @@ export default function AdminLogsPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Logs</h1>
           </div>
           <button

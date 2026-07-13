@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Paiement Rapide | PimPay',
+  title: 'Paiement Rapide | PIMOBIPAY',
   description: 'Effectuez des transferts instantanés sur le réseau Pi Network.',
 };
 

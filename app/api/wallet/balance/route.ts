@@ -57,7 +57,7 @@ const TRON_VALID_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 //   On prend donc le MAX des deux valeurs.
 //
 // Pourquoi ?
-//   Les transferts internes PimPay ne passent PAS par la blockchain.
+//   Les transferts internes PIMOBIPAY ne passent PAS par la blockchain.
 //   Le solde on-chain ne les reflète pas. Si on l'écrase, le destinataire
 //   perd son crédit et seul l'historique de transaction reste visible.
 // ---------------------------------------------------------------------------

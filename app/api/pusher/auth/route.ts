@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const presenceData = {
         user_id: userId,
         user_info: {
-          name: "PimPay User",
+          name: "PIMOBIPAY User",
           role: "customer",
         },
       };

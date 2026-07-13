@@ -88,7 +88,7 @@ function DetailsContent() {
     </div>
   );
 
-  // --- LOGIQUE FINANCIÈRE PIMPAY ---
+  // --- LOGIQUE FINANCIÈRE PIMOBIPAY ---
   const currency = transaction?.currency || "PI";
   const isPi = currency === "PI";
   const amount = transaction?.amount || 0;
@@ -133,7 +133,7 @@ function DetailsContent() {
 
       // Try downloading as image directly (most compatible with mobile/Pi Browser)
       const link = document.createElement("a");
-      link.download = `PimPay_Receipt_${displayRef}.png`;
+      link.download = `PIMOBIPAY_Receipt_${displayRef}.png`;
       link.href = dataUrl;
       link.style.display = "none";
       document.body.appendChild(link);
@@ -158,7 +158,7 @@ function DetailsContent() {
         const newTab = window.open();
         if (newTab) {
           newTab.document.write(`<img src="${dataUrl}" style="max-width:100%;"/>`);
-          newTab.document.title = "PimPay Receipt";
+          newTab.document.title = "PIMOBIPAY Receipt";
           toast.info("Recu ouvert dans un nouvel onglet. Maintenez l'image pour la sauvegarder.");
         } else {
           toast.error("Veuillez autoriser les pop-ups pour telecharger le recu");
@@ -233,7 +233,7 @@ function DetailsContent() {
 
             {/* Footer Reçu */}
             <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
-              <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">Authentifié par PimPay Network</p>
+              <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">Authentifié par PIMOBIPAY Network</p>
             </div>
           </Card>
         </div>
@@ -250,7 +250,7 @@ function DetailsContent() {
 
           <button
             onClick={() => {
-                if(navigator.share) navigator.share({ title: 'Reçu PimPay', text: `Transaction de ${amount} ${currency} réussie.` });
+                if(navigator.share) navigator.share({ title: 'Reçu PIMOBIPAY', text: `Transaction de ${amount} ${currency} réussie.` });
             }}
             className="w-16 h-16 bg-white/5 text-white rounded-2xl border border-white/10 flex items-center justify-center active:scale-90 transition-all"
           >

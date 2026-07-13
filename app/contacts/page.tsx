@@ -11,7 +11,7 @@ export default function ContactsPage() {
   const router = useRouter();
 
   const handleOpenMenu = () => {
-    console.log("Pimpay Protocol: Menu Request");
+    console.log("PIMOBIPAY Protocol: Menu Request");
   };
 
   const [formData, setFormData] = useState({
@@ -22,7 +22,7 @@ export default function ContactsPage() {
   });
   const [isSending, setIsSending] = useState(false);
 
-  // MODIFICATION : Connexion réelle à l'API PimPay Support
+  // MODIFICATION : Connexion réelle à l'API PIMOBIPAY Support
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSending(true);
@@ -36,7 +36,7 @@ export default function ContactsPage() {
 
       if (!response.ok) throw new Error("Server Unreachable");
 
-      toast.success("Ticket PimPay transmis", {
+      toast.success("Ticket PIMOBIPAY transmis", {
         description: "Votre requête est en cours d'analyse par le protocole.",
       });
 
@@ -149,7 +149,7 @@ export default function ContactsPage() {
                 <input
                   type="email"
                   required
-                  placeholder="JEAN@PIMPAY.PI"
+                  placeholder="JEAN@PIMOBIPAY.PI"
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700 text-white"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -210,7 +210,7 @@ export default function ContactsPage() {
                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Connexion chiffrée de bout en bout</span>
             </div>
             <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">
-              PIMPAY SUPPORT PROTOCOL • KINSHASA, RDC
+              PIMOBIPAY SUPPORT PROTOCOL • KINSHASA, RDC
             </p>
         </div>
 

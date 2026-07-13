@@ -47,7 +47,7 @@ function SuccessContent() {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'PimPay Airtime',
+        title: 'PIMOBIPAY Airtime',
         text: `Recharge ${operator} de ${local} ${currency} pour ${phone} effectuee avec succes !`
       });
     } else {

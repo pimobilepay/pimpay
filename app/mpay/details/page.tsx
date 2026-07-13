@@ -25,7 +25,7 @@ export default function PaymentDetailsPage() {
     return n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
   };
   const amount = formatPiAmount(rawAmount);
-  const to = searchParams.get("to") || "Utilisateur PimPay";
+  const to = searchParams.get("to") || "Utilisateur PIMOBIPAY";
   const txid = searchParams.get("txid") || "TX-PI-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const method = searchParams.get("method") || "wallet";
   const date = new Date().toLocaleString("fr-FR", {
@@ -42,7 +42,7 @@ export default function PaymentDetailsPage() {
   const methodLabels: Record<string, string> = {
     wallet: "Pi Wallet",
     usd: "Solde USD",
-    card: "Visa PimPay",
+    card: "Visa PIMOBIPAY",
     external: "Pi Browser"
   };
 
@@ -157,7 +157,7 @@ export default function PaymentDetailsPage() {
 
         <div className="mt-8 flex items-center justify-center gap-2 opacity-30">
           <ShieldCheck size={12} className="text-emerald-500" />
-          <p className="text-[8px] font-black uppercase tracking-[0.3em]">Certifie PimPay Ledger</p>
+          <p className="text-[8px] font-black uppercase tracking-[0.3em]">Certifie PIMOBIPAY Ledger</p>
         </div>
       </div>
     </main>

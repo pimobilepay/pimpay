@@ -124,7 +124,7 @@ export default function LiquidityPage() {
                   <Landmark className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-sm font-black text-white">PIMPAY</h1>
+                  <h1 className="text-sm font-black text-white">PIMOBIPAY</h1>
                   <p className="text-[9px] font-bold text-slate-400 uppercase">Institution</p>
                 </div>
               </div>

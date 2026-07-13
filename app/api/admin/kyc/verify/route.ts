@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       await sendNotification({
         userId,
         title: "KYC approuve !",
-        message: "Felicitations ! Votre identite a ete verifiee avec succes. Vous avez maintenant acces a toutes les fonctionnalites de PimPay.",
+        message: "Felicitations ! Votre identite a ete verifiee avec succes. Vous avez maintenant acces a toutes les fonctionnalites de PIMOBIPAY.",
         type: "SUCCESS",
         metadata: { status: "APPROVED" },
       });

@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       return updatedUser;
     }, { maxWait: 10000, timeout: 30000 });
 
-    console.log(`[PIMPAY] Nouveau Wallet USDT (TRC20) pour ${userId}: ${result.usdtAddress}`);
+    console.log(`[PIMOBIPAY] Nouveau Wallet USDT (TRC20) pour ${userId}: ${result.usdtAddress}`);
 
     return NextResponse.json({
       success: true,

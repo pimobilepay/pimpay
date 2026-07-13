@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     });
 
     if (!user || !user.email) {
-      console.log(`[PIMPAY] Échec : ${cleanId} n'existe pas ou n'a pas d'email.`);
+      console.log(`[PIMOBIPAY] Échec : ${cleanId} n'existe pas ou n'a pas d'email.`);
       return NextResponse.json({ error: "Utilisateur ou email introuvable" }, { status: 404 });
     }
 

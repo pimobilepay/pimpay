@@ -742,7 +742,7 @@ export default function AssetDetailPage() {
           if (tx.description && (txType.includes("CARD") || tx.description.toUpperCase().includes("CARTE"))) {
             return tx.description.charAt(0).toUpperCase() + tx.description.slice(1).toLowerCase();
           }
-          if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY")) return "Achat Carte PimPay";
+          if (txType === "CARD_PURCHASE" || ref.startsWith("CARD-BUY")) return "Achat Carte PIMOBIPAY";
           if (txType === "WITHDRAWAL" || ref.startsWith("WD-")) return "Retrait Externe";
           if (txType === "DEPOSIT") return "Depot";
           
@@ -794,9 +794,9 @@ export default function AssetDetailPage() {
         });
 
         const handleShare = async () => {
-          const text = `Transaction PimPay\nReference: ${tx.reference || tx.id}\nMontant: ${amountFormatted} ${tx.currency}\nStatut: ${tx.status}`;
+          const text = `Transaction PIMOBIPAY\nReference: ${tx.reference || tx.id}\nMontant: ${amountFormatted} ${tx.currency}\nStatut: ${tx.status}`;
           if (navigator.share) {
-            try { await navigator.share({ title: "Transaction PimPay", text }); } catch { navigator.clipboard.writeText(text); toast.success("Details copies"); }
+            try { await navigator.share({ title: "Transaction PIMOBIPAY", text }); } catch { navigator.clipboard.writeText(text); toast.success("Details copies"); }
           } else {
             navigator.clipboard.writeText(text);
             toast.success("Details copies");
@@ -1186,7 +1186,7 @@ export default function AssetDetailPage() {
                           body: JSON.stringify({
                             destination: sendAddress,
                             amount: parseFloat(sendAmount),
-                            memo: `Retrait PimPay Wallet`,
+                            memo: `Retrait PIMOBIPAY Wallet`,
                           }),
                         });
                         const result = await res.json();
@@ -1239,7 +1239,7 @@ export default function AssetDetailPage() {
                           
                           if (result.mode === "INTERNAL") {
                             setSendStatus("success");
-                            setSendMessage("Transfert instantané réussi vers PimPay");
+                            setSendMessage("Transfert instantané réussi vers PIMOBIPAY");
                             setSendTxHash(result.transaction?.reference || "");
                             toast.success("Transfert SDA réussi !");
                           } else {
@@ -1278,9 +1278,9 @@ export default function AssetDetailPage() {
                       if (res.ok && result.success) { 
                         // Déterminer le statut selon le type de transfert retourné par l'API
                         if (result.mode === "INTERNAL") {
-                          // Transfert instantané entre membres PimPay
+                          // Transfert instantané entre membres PIMOBIPAY
                           setSendStatus("success"); 
-                          setSendMessage("Transfert instantané réussi vers PimPay");
+                          setSendMessage("Transfert instantané réussi vers PIMOBIPAY");
                           setSendTxHash(result.transaction?.reference || "");
                           toast.success(`Transfert ${assetId} réussi !`);
                         } else {

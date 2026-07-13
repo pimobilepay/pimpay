@@ -168,7 +168,7 @@ export default function ChangePinPage() {
         </button>
         <div>
           <h1 className="text-xl font-bold tracking-tight">Securite</h1>
-          <p className="text-[10px] text-blue-500 uppercase font-bold tracking-[0.2em]">PimPay Protocol v2.0</p>
+          <p className="text-[10px] text-blue-500 uppercase font-bold tracking-[0.2em]">PIMOBIPAY Protocol v2.0</p>
         </div>
       </div>
 
@@ -201,7 +201,7 @@ export default function ChangePinPage() {
                 <div>
                   <p className="text-xs font-bold text-amber-400">Securite renforcee</p>
                   <p className="text-[10px] text-amber-400/70 mt-1">
-                    PimPay utilise desormais des codes PIN a 6 chiffres pour une meilleure protection.
+                    PIMOBIPAY utilise desormais des codes PIN a 6 chiffres pour une meilleure protection.
                   </p>
                 </div>
               </motion.div>
@@ -304,7 +304,7 @@ export default function ChangePinPage() {
             </div>
           ) : (
             <p className="text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest">
-              Securise par PimPay
+              Securise par PIMOBIPAY
             </p>
           )}
         </div>

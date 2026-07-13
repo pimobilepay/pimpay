@@ -89,7 +89,7 @@ function ReceiptContent() {
         style: { transform: "none" },
       });
       const link = document.createElement("a");
-      link.download = `PimPay_Retrait_${ref}.png`;
+      link.download = `PIMOBIPAY_Retrait_${ref}.png`;
       link.href = dataUrl;
       link.style.display = "none";
       document.body.appendChild(link);
@@ -107,7 +107,7 @@ function ReceiptContent() {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: "Recu PimPay Retrait",
+        title: "Recu PIMOBIPAY Retrait",
         text: `Retrait de ${formatAmount()} ${currency} en cours. Ref: ${ref}`,
       });
     } else {
@@ -274,7 +274,7 @@ function ReceiptContent() {
                   <p className="text-[10px] font-bold text-amber-300/80 text-left leading-relaxed">
                     {isCrypto
                       ? `Ce retrait crypto est en cours de traitement sur la blockchain ${CRYPTO_ASSETS[currency]?.network || currency}. Délai estimé : 1-5 minutes.`
-                      : `Ce retrait est en attente de validation par l'administration PimPay. Délai estimé : 15 min (Mobile) — 48h (Banque).`
+                      : `Ce retrait est en attente de validation par l'administration PIMOBIPAY. Délai estimé : 15 min (Mobile) — 48h (Banque).`
                     }
                   </p>
                 </div>
@@ -284,7 +284,7 @@ function ReceiptContent() {
             {/* Receipt footer */}
             <div className="bg-white/[0.02] py-4 text-center border-t border-white/5">
               <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.5em]">
-                Authentifie par PimPay Network
+                Authentifie par PIMOBIPAY Network
               </p>
             </div>
           </Card>
@@ -324,7 +324,7 @@ function ReceiptContent() {
         {/* Footer secure badge */}
         <div className="flex items-center justify-center gap-2 text-slate-700 mt-6">
           <Activity size={12} />
-          <span className="text-[8px] font-black uppercase tracking-widest">PimPay Secure Protocol</span>
+          <span className="text-[8px] font-black uppercase tracking-widest">PIMOBIPAY Secure Protocol</span>
         </div>
       </div>
 

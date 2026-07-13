@@ -194,7 +194,7 @@ export default function FXPage() {
             <h1 className="text-3xl font-bold tracking-tight" style={{ color: GOLD }}>
               Taux de Change
             </h1>
-            <p className="text-gray-400 mt-1 text-sm">Marchés des changes en temps réel — PIMPAY FX Desk</p>
+            <p className="text-gray-400 mt-1 text-sm">Marchés des changes en temps réel — PIMOBIPAY FX Desk</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} />

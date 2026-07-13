@@ -78,7 +78,7 @@ function SummaryContent() {
     </div>
   );
 
-  // LOGIQUE DE CONVERSION PIMPAY
+  // LOGIQUE DE CONVERSION PIMOBIPAY
   // Le taux Pi provient de la configuration admin (GCV ou Marché) via usePiPrice.
   // Pour les dépôts crypto, le montant est déjà stocké en PI (pas besoin de re-convertir)
   const isPi = method.toLowerCase().includes("pi") || method === "crypto";

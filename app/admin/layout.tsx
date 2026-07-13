@@ -4,8 +4,8 @@ import AdminGlobalCallReceiver from "@/components/AdminGlobalCallReceiver";
 import AdminGlobalKycNotifier from "@/components/AdminGlobalKycNotifier";
 
 export const metadata: Metadata = {
-  title: 'Administration | PimPay',
-  description: 'Portail de gestion securise PimPay',
+  title: 'Administration | PIMOBIPAY',
+  description: 'Portail de gestion securise PIMOBIPAY',
 };
 
 export default function AdminLayout({

@@ -89,8 +89,8 @@ function SuccessContent() {
   const fee = transaction?.fee ?? (currency === "PI" ? "0.01 PI" : "0.00");
   const network = currency === "PI" ? "Pi Network" 
     : currency === "USDT" ? "TRON TRC20"
-    : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" 
-    : "PimPay";
+    : currency === "XAF" || currency === "XOF" ? "PIMOBIPAY Fiat" 
+    : "PIMOBIPAY";
 
   // Crypto currencies that display 8 decimal places
   const CRYPTO_CURRENCIES = ["PI", "BTC", "ETH", "USDT", "USDC", "BNB", "SOL", "XRP"];
@@ -567,7 +567,7 @@ function SuccessContent() {
         >
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-[9px] font-bold text-slate-400">PimPay</span>
+            <span className="text-[9px] font-bold text-slate-400">PIMOBIPAY</span>
           </div>
           <ArrowRight size={12} className="text-slate-600" />
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
@@ -597,7 +597,7 @@ function SuccessContent() {
             </Link>
             <button
               onClick={() => {
-                const shareText = `J'ai envoye ${formatAmount(amount, currency)} ${currency} a ${recipientName} via PimPay !`;
+                const shareText = `J'ai envoye ${formatAmount(amount, currency)} ${currency} a ${recipientName} via PIMOBIPAY !`;
                 if (navigator.share) {
                   navigator.share({ text: shareText });
                 } else {

@@ -61,7 +61,7 @@ export async function POST(req: Request) {
         where: { id: senderId },
         select: { name: true, username: true }
       });
-      const senderName = senderUser?.name || senderUser?.username || "Un utilisateur PimPay";
+      const senderName = senderUser?.name || senderUser?.username || "Un utilisateur PIMOBIPAY";
 
       // Lecture du wallet expediteur
       const senderWallet = await tx.wallet.findUnique({

@@ -32,14 +32,14 @@ export async function POST(request: Request) {
     // 2. Récupérer les infos utilisateur pour le nom sur la carte
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    // 3. CRÉATION DE LA CARTE DANS LA BDD (Respect du schéma Pimpay)
+    // 3. CRÉATION DE LA CARTE DANS LA BDD (Respect du schéma PIMOBIPAY)
     const newCard = await prisma.virtualCard.create({
       data: {
         userId: userId,
         number: generateCardNumber(),
         exp: "12/28",
         cvv: Math.floor(100 + Math.random() * 900).toString(),
-        holder: (user?.name || user?.username || "PIMPAY USER").toUpperCase(),
+        holder: (user?.name || user?.username || "PIMOBIPAY USER").toUpperCase(),
         brand: "MASTERCARD",
         // CORRECTION : On utilise isFrozen (false = Active) au lieu de status
         isFrozen: false, 

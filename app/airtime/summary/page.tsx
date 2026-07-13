@@ -131,7 +131,7 @@ function SummaryContent() {
             <Info size={14} className="text-blue-500" />
           </div>
           <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
-            La transaction sera traitee instantanement via le protocole securise PimPay. Aucun frais supplementaire.
+            La transaction sera traitee instantanement via le protocole securise PIMOBIPAY. Aucun frais supplementaire.
           </p>
         </div>
 
@@ -157,7 +157,7 @@ function SummaryContent() {
         <div className="bg-slate-900/90 backdrop-blur-xl border border-white/5 py-3 px-5 rounded-2xl flex items-center justify-between shadow-2xl">
           <div className="flex items-center gap-2.5 text-slate-400">
             <Activity size={14} className="text-blue-500" />
-            <span className="text-[8px] font-black uppercase tracking-widest">PimPay Secure</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">PIMOBIPAY Secure</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />

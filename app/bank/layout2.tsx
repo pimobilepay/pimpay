@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Institution Financiere | PimPay',
-  description: 'Portail Banquier - Reporting et monitoring des liquidites PimPay',
+  title: 'Institution Financiere | PIMOBIPAY',
+  description: 'Portail Banquier - Reporting et monitoring des liquidites PIMOBIPAY',
 };
 
 export default function BankLayout({

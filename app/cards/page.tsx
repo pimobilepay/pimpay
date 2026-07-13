@@ -1,5 +1,5 @@
 /**
- * PimPay — Page Cartes Virtuelles (Redesign FinTech Pro)
+ * PIMOBIPAY — Page Cartes Virtuelles (Redesign FinTech Pro)
  * Fichier : app/cards/page.tsx
  *
  * Nouvelles fonctionnalités :
@@ -211,7 +211,7 @@ export default async function GlobalCardsPage({
               Accès restreint
             </h2>
             <p className="text-white/40 text-sm">
-              Connectez-vous pour gérer vos cartes PimPay
+              Connectez-vous pour gérer vos cartes PIMOBIPAY
             </p>
           </div>
           <Link
@@ -725,7 +725,7 @@ export default async function GlobalCardsPage({
                 </h2>
                 <p className="text-white/35 text-sm text-center max-w-xs leading-relaxed mb-6">
                   Créez votre première carte virtuelle{" "}
-                  <span className="text-sky-400 font-bold">PimPay</span> et
+                  <span className="text-sky-400 font-bold">PIMOBIPAY</span> et
                   commencez à dépenser avec Pi.
                 </p>
                 <Link

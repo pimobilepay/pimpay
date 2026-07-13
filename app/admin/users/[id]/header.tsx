@@ -13,7 +13,7 @@ export function UserDetailHeader({ userName, userId }: { userName: string; userI
           <ArrowLeft size={18} />
         </button>
         <div className="text-center">
-          <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+          <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
           <h1 className="text-sm font-black text-white uppercase tracking-wider">{userName}</h1>
         </div>
         <div className="w-11" />

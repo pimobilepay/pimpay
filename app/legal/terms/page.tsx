@@ -25,91 +25,91 @@ export default function TermsPage() {
       id: "1",
       title: "Acceptation des conditions",
       content:
-        "En utilisant l'application PimPay, vous acceptez sans reserve les presentes conditions d'utilisation. Ce service est reserve aux membres des ecosystemes Pi Network et Sidra Chain ayant complete leur enregistrement. L'acces a certaines fonctionnalites (retraits, swaps, cartes virtuelles) est conditionne a la verification de votre identite (KYC). PimPay est une plateforme fintech conforme aux principes de la finance islamique, operant sous les standards SMIIC et AAOIFI.",
+        "En utilisant l'application PIMOBIPAY, vous acceptez sans reserve les presentes conditions d'utilisation. Ce service est reserve aux membres des ecosystemes Pi Network et Sidra Chain ayant complete leur enregistrement. L'acces a certaines fonctionnalites (retraits, swaps, cartes virtuelles) est conditionne a la verification de votre identite (KYC). PIMOBIPAY est une plateforme fintech conforme aux principes de la finance islamique, operant sous les standards SMIIC et AAOIFI.",
     },
     {
       icon: <UserCheck size={16} />,
       id: "2",
       title: "Inscription et compte utilisateur",
       content:
-        "Pour creer un compte PimPay, vous devez fournir :\n\n- Un numero de telephone ou une adresse email valide et unique.\n- Un mot de passe securise (chiffre cote serveur).\n- Un code PIN pour la validation des transactions sensibles.\n\nVotre compte peut etre lie a :\n- Un Pi User ID (piUserId) pour l'integration Pi Network.\n- Une adresse Sidra (sidraAddress) pour l'ecosysteme Sidra Chain.\n- Une adresse USDT TRC20 pour les transactions stablecoin.\n\nLes roles disponibles sont : USER, MERCHANT, AGENT, ADMIN. Chaque role dispose de privileges specifiques. Le statut de votre compte (ACTIVE, BANNED, PENDING, FROZEN, SUSPENDED) determine votre niveau d'acces au service.",
+        "Pour creer un compte PIMOBIPAY, vous devez fournir :\n\n- Un numero de telephone ou une adresse email valide et unique.\n- Un mot de passe securise (chiffre cote serveur).\n- Un code PIN pour la validation des transactions sensibles.\n\nVotre compte peut etre lie a :\n- Un Pi User ID (piUserId) pour l'integration Pi Network.\n- Une adresse Sidra (sidraAddress) pour l'ecosysteme Sidra Chain.\n- Une adresse USDT TRC20 pour les transactions stablecoin.\n\nLes roles disponibles sont : USER, MERCHANT, AGENT, ADMIN. Chaque role dispose de privileges specifiques. Le statut de votre compte (ACTIVE, BANNED, PENDING, FROZEN, SUSPENDED) determine votre niveau d'acces au service.",
     },
     {
       icon: <ArrowRightLeft size={16} />,
       id: "3",
       title: "Transactions et operations",
       content:
-        "PimPay prend en charge les types d'operations suivants : TRANSFER, WITHDRAW, DEPOSIT, PAYMENT, EXCHANGE, STAKING_REWARD, AIRDROP, CARD_PURCHASE.\n\nRegles applicables :\n- Toutes les transactions sont irrevocables une fois confirmees sur la blockchain (Pi Network ou Sidra Chain).\n- Chaque transaction possede une reference unique et peut etre tracee via son identifiant blockchain (blockchainTx).\n- Les frais de transaction sont fixes et bases sur les couts operationnels reels du reseau, sans marge d'interet (conformite Anti-Riba).\n- Les frais sont affiches de maniere claire et transparente avant chaque confirmation (conformite Anti-Gharar).\n- Le montant minimum de retrait est de 1.0 unite et le maximum est de 5,000 unites par transaction.\n- Les limites quotidiennes (par defaut 1,000) et mensuelles (par defaut 10,000) s'appliquent a chaque utilisateur.",
+        "PIMOBIPAY prend en charge les types d'operations suivants : TRANSFER, WITHDRAW, DEPOSIT, PAYMENT, EXCHANGE, STAKING_REWARD, AIRDROP, CARD_PURCHASE.\n\nRegles applicables :\n- Toutes les transactions sont irrevocables une fois confirmees sur la blockchain (Pi Network ou Sidra Chain).\n- Chaque transaction possede une reference unique et peut etre tracee via son identifiant blockchain (blockchainTx).\n- Les frais de transaction sont fixes et bases sur les couts operationnels reels du reseau, sans marge d'interet (conformite Anti-Riba).\n- Les frais sont affiches de maniere claire et transparente avant chaque confirmation (conformite Anti-Gharar).\n- Le montant minimum de retrait est de 1.0 unite et le maximum est de 5,000 unites par transaction.\n- Les limites quotidiennes (par defaut 1,000) et mensuelles (par defaut 10,000) s'appliquent a chaque utilisateur.",
     },
     {
       icon: <CreditCard size={16} />,
       id: "4",
       title: "Cartes virtuelles",
       content:
-        "PimPay propose 4 types de cartes virtuelles : CLASSIC, GOLD, BUSINESS et ULTRA.\n\nConditions d'utilisation :\n- Chaque carte est associee a un numero unique, une date d'expiration, un CVV et un code PIN optionnel.\n- La limite quotidienne par defaut est de 1,000 USD, ajustable selon le type de carte.\n- Les devises autorisees par defaut sont USD et XAF, configurables par l'utilisateur.\n- Le gel d'une carte (isFrozen) est instantane et peut etre effectue par l'utilisateur ou par le systeme en cas de suspicion de fraude.\n- Les depenses totales (totalSpent) sont tracees et visibles dans votre tableau de bord.\n- Les achats par carte (CARD_PURCHASE) sont debites de votre wallet principal dans la devise correspondante.",
+        "PIMOBIPAY propose 4 types de cartes virtuelles : CLASSIC, GOLD, BUSINESS et ULTRA.\n\nConditions d'utilisation :\n- Chaque carte est associee a un numero unique, une date d'expiration, un CVV et un code PIN optionnel.\n- La limite quotidienne par defaut est de 1,000 USD, ajustable selon le type de carte.\n- Les devises autorisees par defaut sont USD et XAF, configurables par l'utilisateur.\n- Le gel d'une carte (isFrozen) est instantane et peut etre effectue par l'utilisateur ou par le systeme en cas de suspicion de fraude.\n- Les depenses totales (totalSpent) sont tracees et visibles dans votre tableau de bord.\n- Les achats par carte (CARD_PURCHASE) sont debites de votre wallet principal dans la devise correspondante.",
     },
     {
       icon: <Globe size={16} />,
       id: "5",
       title: "Wallets multi-devises",
       content:
-        "PimPay offre des wallets multi-devises avec les types suivants : FIAT, PI, CRYPTO, SIDRA.\n\nDevises supportees : XAF (Franc CFA), EUR (Euro), USD (Dollar US), CDF (Franc congolais), Pi (Pi Network), Sidra (Sidra Chain).\n\nRegles :\n- Chaque utilisateur peut detenir un wallet par devise (contrainte unique userId + currency).\n- Le solde gele (frozenBalance) correspond aux montants reserves pour des transactions en cours de validation.\n- Les depots sont identifies via un memo unique (depositMemo).\n- Le swap entre devises utilise le systeme SwapQuote avec un taux et une duree d'expiration pour proteger l'utilisateur.\n- Le taux de consensus PimPay (consensusPrice) est mis a jour regulierement et sert de reference pour les conversions.",
+        "PIMOBIPAY offre des wallets multi-devises avec les types suivants : FIAT, PI, CRYPTO, SIDRA.\n\nDevises supportees : XAF (Franc CFA), EUR (Euro), USD (Dollar US), CDF (Franc congolais), Pi (Pi Network), Sidra (Sidra Chain).\n\nRegles :\n- Chaque utilisateur peut detenir un wallet par devise (contrainte unique userId + currency).\n- Le solde gele (frozenBalance) correspond aux montants reserves pour des transactions en cours de validation.\n- Les depots sont identifies via un memo unique (depositMemo).\n- Le swap entre devises utilise le systeme SwapQuote avec un taux et une duree d'expiration pour proteger l'utilisateur.\n- Le taux de consensus PIMOBIPAY (consensusPrice) est mis a jour regulierement et sert de reference pour les conversions.",
     },
     {
       icon: <Zap size={16} />,
       id: "6",
       title: "Ecosysteme Sidra Chain",
       content:
-        "L'integration Sidra Chain dans PimPay est regie par les principes suivants :\n\n- La Sidra Chain est une blockchain conforme a la Charia, eliminant le Riba (interet) et le Gharar (incertitude).\n- PimPay se connecte au Sidra Chain Mainnet via le noeud RPC (node.sidrachain.com).\n- Les frais de gaz sont quasi-nuls (environ 0.0001 SDA par transaction), bases sur les couts reels de l'infrastructure.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque produit financier avant sa mise en service, conformement au standard SMIIC 1:2020.\n- Les modules educatifs integres dans l'application expliquent les principes de la finance ethique aux utilisateurs.\n- Toute transaction sur la Sidra Chain est transparente et immutable par nature.",
+        "L'integration Sidra Chain dans PIMOBIPAY est regie par les principes suivants :\n\n- La Sidra Chain est une blockchain conforme a la Charia, eliminant le Riba (interet) et le Gharar (incertitude).\n- PIMOBIPAY se connecte au Sidra Chain Mainnet via le noeud RPC (node.sidrachain.com).\n- Les frais de gaz sont quasi-nuls (environ 0.0001 SDA par transaction), bases sur les couts reels de l'infrastructure.\n- Le Conseil de Surveillance Sharia (SSB) valide chaque produit financier avant sa mise en service, conformement au standard SMIIC 1:2020.\n- Les modules educatifs integres dans l'application expliquent les principes de la finance ethique aux utilisateurs.\n- Toute transaction sur la Sidra Chain est transparente et immutable par nature.",
     },
     {
       icon: <Zap size={16} />,
       id: "7",
       title: "Ecosysteme Pi Network",
       content:
-        "L'integration Pi Network dans PimPay est soumise aux conditions suivantes :\n\n- L'authentification Pi utilise le SDK Pi v2.0 officiel.\n- Votre Pi User ID est lie de maniere unique a votre compte PimPay.\n- Les transferts entre Pioneers sont traites en peer-to-peer (P2P) directement dans l'application.\n- Le swap Pi vers Fiat utilise le taux de consensus PimPay avec un systeme de cotation a duree limitee.\n- Les frais de reseau Pi (0.01 Pi) sont appliques a chaque operation de retrait ou de swap.\n- PimPay ne stocke jamais votre phrase de recuperation Pi (passphrase). Ne la partagez avec personne.",
+        "L'integration Pi Network dans PIMOBIPAY est soumise aux conditions suivantes :\n\n- L'authentification Pi utilise le SDK Pi v2.0 officiel.\n- Votre Pi User ID est lie de maniere unique a votre compte PIMOBIPAY.\n- Les transferts entre Pioneers sont traites en peer-to-peer (P2P) directement dans l'application.\n- Le swap Pi vers Fiat utilise le taux de consensus PIMOBIPAY avec un systeme de cotation a duree limitee.\n- Les frais de reseau Pi (0.01 Pi) sont appliques a chaque operation de retrait ou de swap.\n- PIMOBIPAY ne stocke jamais votre phrase de recuperation Pi (passphrase). Ne la partagez avec personne.",
     },
     {
       icon: <Lock size={16} />,
       id: "8",
       title: "Securite du compte",
       content:
-        "Vous êtes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via TOTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PimPay ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
+        "Vous êtes responsable de la confidentialite de votre compte et de vos identifiants.\n\nMesures de securite :\n- Activez l'authentification a deux facteurs (2FA) via TOTP pour une protection maximale.\n- Definissez un code PIN robuste pour les transactions sensibles.\n- Ne partagez jamais votre mot de passe, PIN, phrase de recuperation Pi ou cle privee Sidra.\n- PIMOBIPAY ne vous demandera jamais ces informations par email, SMS ou message direct.\n- En cas de suspicion de compromission, gelez immediatement votre compte via les parametres ou le support.\n- Les tentatives de connexion echouees sont tracees et un gel automatique peut etre declenche.",
     },
     {
       icon: <Landmark size={16} />,
       id: "9",
       title: "Staking et epargne",
       content:
-        "PimPay propose un service de staking avec les conditions suivantes :\n\n- Le montant stake est bloque pour une duree determinee (startDate a endDate).\n- Le taux APY (stakingAPY) est defini dans la configuration systeme et peut etre ajuste.\n- Les recompenses accumulees (rewardsEarned) sont de type STAKING_REWARD et creditees selon les conditions du programme.\n- L'annulation anticipee du staking peut entrainer la perte partielle des recompenses.\n- Le staking PimPay ne genere pas d'interet usuraire : les rendements sont bases sur la participation au reseau, conformement aux principes de la Moudaraba islamique.",
+        "PIMOBIPAY propose un service de staking avec les conditions suivantes :\n\n- Le montant stake est bloque pour une duree determinee (startDate a endDate).\n- Le taux APY (stakingAPY) est defini dans la configuration systeme et peut etre ajuste.\n- Les recompenses accumulees (rewardsEarned) sont de type STAKING_REWARD et creditees selon les conditions du programme.\n- L'annulation anticipee du staking peut entrainer la perte partielle des recompenses.\n- Le staking PIMOBIPAY ne genere pas d'interet usuraire : les rendements sont bases sur la participation au reseau, conformement aux principes de la Moudaraba islamique.",
     },
     {
       icon: <Ban size={16} />,
       id: "10",
       title: "Comportements interdits",
       content:
-        "Les comportements suivants sont strictement interdits et entraineront la suspension ou le bannissement du compte :\n\n- Toute tentative d'exploitation frauduleuse des taux de change ou du protocole de swap.\n- L'utilisation de comptes multiples pour contourner les limites de transaction.\n- Le blanchiment d'argent ou le financement d'activites illicites.\n- L'usurpation d'identite ou la soumission de documents KYC falsifies.\n- Toute tentative d'attaque contre l'infrastructure PimPay (DDoS, injection SQL, etc.).\n- Le partage de votre compte avec des tiers.\n- L'utilisation de VPN pour contourner les geo-restrictions.",
+        "Les comportements suivants sont strictement interdits et entraineront la suspension ou le bannissement du compte :\n\n- Toute tentative d'exploitation frauduleuse des taux de change ou du protocole de swap.\n- L'utilisation de comptes multiples pour contourner les limites de transaction.\n- Le blanchiment d'argent ou le financement d'activites illicites.\n- L'usurpation d'identite ou la soumission de documents KYC falsifies.\n- Toute tentative d'attaque contre l'infrastructure PIMOBIPAY (DDoS, injection SQL, etc.).\n- Le partage de votre compte avec des tiers.\n- L'utilisation de VPN pour contourner les geo-restrictions.",
     },
     {
       icon: <AlertTriangle size={16} />,
       id: "11",
       title: "Limitation de responsabilite",
       content:
-        "PimPay ne pourra etre tenu responsable :\n\n- Des pertes resultant de la volatilite du marche des actifs numeriques (Pi, Sidra, Bitcoin, USDT).\n- Des erreurs de saisie de l'utilisateur lors des transferts (adresse de wallet incorrecte, montant errone).\n- Des interruptions de service dues a la maintenance du Sidra Chain Mainnet ou du reseau Pi.\n- Des consequences liees a la perte de vos identifiants, code PIN ou cles privees.\n- Des decisions d'investissement prises par l'utilisateur sur la base des informations affichees.\n- Des retards de traitement imputables aux reseaux blockchain sous-jacents.",
+        "PIMOBIPAY ne pourra etre tenu responsable :\n\n- Des pertes resultant de la volatilite du marche des actifs numeriques (Pi, Sidra, Bitcoin, USDT).\n- Des erreurs de saisie de l'utilisateur lors des transferts (adresse de wallet incorrecte, montant errone).\n- Des interruptions de service dues a la maintenance du Sidra Chain Mainnet ou du reseau Pi.\n- Des consequences liees a la perte de vos identifiants, code PIN ou cles privees.\n- Des decisions d'investissement prises par l'utilisateur sur la base des informations affichees.\n- Des retards de traitement imputables aux reseaux blockchain sous-jacents.",
     },
     {
       icon: <Globe size={16} />,
       id: "12",
       title: "Juridiction et conformite",
       content:
-        "PimPay opere sous le cadre reglementaire suivant :\n\n- Modele Banking-as-a-Service (BaaS) utilisant des licences d'institutions financieres partenaires.\n- Conformite avec les standards AAOIFI pour la finance islamique.\n- Conformite avec les standards SMIIC (1:2020 pour la gouvernance, 8:2022 pour la protection des donnees).\n- Application des principes Basel III pour le suivi des ratios de liquidite.\n- Geo-restriction par IP et geolocalisation pour respecter les lois bancaires de chaque juridiction.\n- En cas de litige, le droit applicable est celui du siege social de PimPay.",
+        "PIMOBIPAY opere sous le cadre reglementaire suivant :\n\n- Modele Banking-as-a-Service (BaaS) utilisant des licences d'institutions financieres partenaires.\n- Conformite avec les standards AAOIFI pour la finance islamique.\n- Conformite avec les standards SMIIC (1:2020 pour la gouvernance, 8:2022 pour la protection des donnees).\n- Application des principes Basel III pour le suivi des ratios de liquidite.\n- Geo-restriction par IP et geolocalisation pour respecter les lois bancaires de chaque juridiction.\n- En cas de litige, le droit applicable est celui du siege social de PIMOBIPAY.",
     },
     {
       icon: <Gavel size={16} />,
       id: "13",
       title: "Modifications et resiliation",
       content:
-        "PimPay se reserve le droit de :\n\n- Modifier les presentes conditions a tout moment. Les utilisateurs seront notifies via le systeme de notifications in-app.\n- Suspendre ou cloturer un compte en cas de violation des conditions d'utilisation.\n- Ajuster les frais de transaction, les limites et les taux de swap avec un preavis raisonnable.\n- Mettre le service en mode maintenance (maintenanceMode) lorsque necessaire.\n\nL'utilisateur peut cloturer son compte a tout moment en contactant le support. Les fonds restants seront transferes selon les modalites en vigueur.",
+        "PIMOBIPAY se reserve le droit de :\n\n- Modifier les presentes conditions a tout moment. Les utilisateurs seront notifies via le systeme de notifications in-app.\n- Suspendre ou cloturer un compte en cas de violation des conditions d'utilisation.\n- Ajuster les frais de transaction, les limites et les taux de swap avec un preavis raisonnable.\n- Mettre le service en mode maintenance (maintenanceMode) lorsque necessaire.\n\nL'utilisateur peut cloturer son compte a tout moment en contactant le support. Les fonds restants seront transferes selon les modalites en vigueur.",
     },
   ];
 
@@ -127,7 +127,7 @@ export default function TermsPage() {
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-xl font-black uppercase tracking-tighter italic">
-            PimPay <span className="text-blue-500">Terms</span>
+            PIMOBIPAY <span className="text-blue-500">Terms</span>
           </h1>
           <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500 border border-white/10">
             <ScrollText size={18} />
@@ -228,7 +228,7 @@ export default function TermsPage() {
       {/* Footer */}
       <div className="mt-8 text-center px-6">
         <p className="text-[8px] font-black text-slate-700 uppercase tracking-[0.3em]">
-          PimPay Protocol Compliance Office
+          PIMOBIPAY Protocol Compliance Office
         </p>
         <p className="text-[8px] text-slate-800 mt-1">
           Sidra Chain + Pi Network - Finance Ethique Conforme

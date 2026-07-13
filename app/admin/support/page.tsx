@@ -63,7 +63,7 @@ function AdminSenderBadge({ kind }: { kind: "elara" | "support" | "client" }) {
         <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
           <Headphones size={10} className="text-white" />
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PimPay</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Support PIMOBIPAY</span>
         <span className="px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">Agent</span>
       </div>
     );
@@ -208,7 +208,7 @@ export default function AdminSupportPage() {
       const result = await res.json();
       setData(result);
     } catch {
-      toast.error("Erreur protocole PimPay : Impossible de charger les donnees");
+      toast.error("Erreur protocole PIMOBIPAY : Impossible de charger les donnees");
     } finally {
       setLoading(false);
     }
@@ -475,7 +475,7 @@ export default function AdminSupportPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PimPay</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
             <h1 className="text-sm font-black text-white uppercase tracking-wider">Support</h1>
           </div>
           <div className="flex items-center gap-2">

@@ -417,7 +417,7 @@ export default function AdminNotificationsPage() {
 
       <div className="mt-12 flex flex-col items-center gap-2 opacity-15">
         <Shield size={14} />
-        <p className="text-[8px] font-black uppercase tracking-[0.4em]">PimPay Admin Notifications v1.1</p>
+        <p className="text-[8px] font-black uppercase tracking-[0.4em]">PIMOBIPAY Admin Notifications v1.1</p>
       </div>
     </div>
   );

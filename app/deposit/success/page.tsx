@@ -108,7 +108,7 @@ function SuccessContent() {
   const createdAt = transaction?.createdAt ? new Date(transaction.createdAt) : new Date();
 
   const fee = transaction?.fee ?? (currency === "PI" ? 0.01 : 0);
-  const network = currency === "PI" ? "Pi Network" : currency === "XAF" || currency === "XOF" ? "PimPay Fiat" : "PimPay";
+  const network = currency === "PI" ? "Pi Network" : currency === "XAF" || currency === "XOF" ? "PIMOBIPAY Fiat" : "PIMOBIPAY";
 
   // Crypto currencies that display 8 decimal places
   const CRYPTO_CURRENCIES = ["PI", "BTC", "ETH", "USDT", "USDC", "BNB", "SOL", "XRP", "SDA", "XLM", "TRX", "TON", "ADA", "DOGE"];
@@ -293,7 +293,7 @@ function SuccessContent() {
             Depot <span className="text-emerald-400">Reussi</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium">
-            Transfert confirme par PimPay
+            Transfert confirme par PIMOBIPAY
           </p>
         </motion.div>
 
@@ -421,7 +421,7 @@ function SuccessContent() {
           <ArrowRight size={12} className="text-slate-600" />
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-[9px] font-bold text-slate-400">PimPay Wallet</span>
+            <span className="text-[9px] font-bold text-slate-400">PIMOBIPAY Wallet</span>
           </div>
         </motion.div>
 
@@ -494,7 +494,7 @@ function SuccessContent() {
             </motion.button>
             <button
               onClick={() => {
-                const shareText = `J'ai depose ${formatAmount(amount, currency)} ${currency} sur PimPay !`;
+                const shareText = `J'ai depose ${formatAmount(amount, currency)} ${currency} sur PIMOBIPAY !`;
                 if (navigator.share) {
                   navigator.share({ text: shareText });
                 } else {

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Wifi, RotateCcw } from "lucide-react";
 
-// Card style configurations matching the order page - ALL labels are "PIMPAY VIRTUAL"
+// Card style configurations matching the order page - ALL labels are "PIMOBIPAY VIRTUAL"
 const CARD_STYLES: Record<string, {
   gradient: string;
   shadow: string;
@@ -16,7 +16,7 @@ const CARD_STYLES: Record<string, {
   PLATINIUM: {
     gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
     shadow: "shadow-2xl shadow-cyan-600/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "mastercard",
     accentColor: "text-cyan-400",
@@ -25,7 +25,7 @@ const CARD_STYLES: Record<string, {
   PREMIUM: {
     gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
     shadow: "shadow-2xl shadow-teal-600/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "mastercard",
     accentColor: "text-teal-400",
@@ -34,7 +34,7 @@ const CARD_STYLES: Record<string, {
   GOLD: {
     gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
     shadow: "shadow-2xl shadow-indigo-600/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "mastercard",
     accentColor: "text-indigo-300",
@@ -43,7 +43,7 @@ const CARD_STYLES: Record<string, {
   ULTRA: {
     gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
     shadow: "shadow-2xl shadow-white/10",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "mastercard",
     accentColor: "text-white",
@@ -53,7 +53,7 @@ const CARD_STYLES: Record<string, {
   VISA_CLASSIC: {
     gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
     shadow: "shadow-2xl shadow-indigo-900/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "visa",
     accentColor: "text-[#3b5bdb]",
@@ -62,7 +62,7 @@ const CARD_STYLES: Record<string, {
   VISA_GOLD: {
     gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
     shadow: "shadow-2xl shadow-amber-600/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#1a1a1a]",
     pattern: "visa",
     accentColor: "text-amber-300",
@@ -71,7 +71,7 @@ const CARD_STYLES: Record<string, {
   VISA_PLATINUM: {
     gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
     shadow: "shadow-2xl shadow-slate-500/30",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "visa",
     accentColor: "text-slate-300",
@@ -80,7 +80,7 @@ const CARD_STYLES: Record<string, {
   VISA_INFINITE: {
     gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
     shadow: "shadow-2xl shadow-white/10",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "visa",
     accentColor: "text-white",
@@ -94,7 +94,7 @@ const getDefaultStyle = (brand: string) => {
     return {
       gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
       shadow: "shadow-2xl shadow-indigo-900/30",
-      label: "PIMPAY VIRTUAL",
+      label: "PIMOBIPAY VIRTUAL",
       labelColor: "text-[#FFD700]",
       pattern: "visa",
       accentColor: "text-[#3b5bdb]",
@@ -104,7 +104,7 @@ const getDefaultStyle = (brand: string) => {
   return {
     gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
     shadow: "shadow-2xl shadow-blue-600/20",
-    label: "PIMPAY VIRTUAL",
+    label: "PIMOBIPAY VIRTUAL",
     labelColor: "text-[#FFD700]",
     pattern: "mastercard",
     accentColor: "text-blue-400",
@@ -179,11 +179,11 @@ export default function VirtualCard({ card }: { card: any }) {
             {isMasterCard && !card.isFrozen && <MasterCardPattern />}
 
             <div className="relative h-full flex flex-col justify-between z-10">
-              {/* Header - PIMPAY VIRTUAL in gold + Brand logo */}
+              {/* Header - PIMOBIPAY VIRTUAL in gold + Brand logo */}
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck size={14} className="text-[#FFD700]" />
-                  <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMPAY VIRTUAL</span>
+                  <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
                 </div>
                 {isVisa ? (
                   <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
@@ -254,7 +254,7 @@ export default function VirtualCard({ card }: { card: any }) {
               </div>
 
               {/* Legal text */}
-              <p className="text-[8px] text-white/30">{"Cette carte est la propriete de Pimpay. Usage personnel uniquement."}</p>
+              <p className="text-[8px] text-white/30">{"Cette carte est la propriete de PIMOBIPAY. Usage personnel uniquement."}</p>
             </div>
           </div>
         </div>

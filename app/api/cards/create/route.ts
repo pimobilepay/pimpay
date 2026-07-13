@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       const encryptedNumber = encrypt(cardNumber);
 
       // ✅ CORRECTION ICI : Utilisation de username au lieu de name
-      const finalHolder = (holderName || userPayload.username || "PimPay User").toUpperCase().trim();
+      const finalHolder = (holderName || userPayload.username || "PIMOBIPAY User").toUpperCase().trim();
 
       return await tx.virtualCard.create({
         data: {

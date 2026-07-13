@@ -123,7 +123,7 @@ const MOCK_NOTIFICATIONS = [
     iconColor: '#a78bfa',
     iconBg: 'rgba(167,139,250,0.12)',
     title: 'Mise a jour systeme',
-    message: 'PimPay Business v2.4.1 deploye avec succes',
+    message: 'PIMOBIPAY Business v2.4.1 deploye avec succes',
     timestamp: 'Il y a 3h',
     read: true,
   },
@@ -317,7 +317,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                 lineHeight: 1.2,
               }}
             >
-              PimPay
+              PIMOBIPAY
               <span
                 style={{
                   background: 'linear-gradient(135deg, #C8A961 0%, #8B6914 100%)',

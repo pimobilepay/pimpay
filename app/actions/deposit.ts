@@ -33,7 +33,7 @@ export async function processDeposit(formData: {
 
     if (!user) return { success: false, error: "Utilisateur introuvable." };
 
-    // Vérifier si le wallet USD existe, sinon le créer (Sécurité PimPay)
+    // Vérifier si le wallet USD existe, sinon le créer (Sécurité PIMOBIPAY)
     let wallet = user.wallets[0];
     if (!wallet) {
       wallet = await prisma.wallet.create({
@@ -78,8 +78,8 @@ export async function processDeposit(formData: {
               partyIdType: "MSISDN",
               partyId: formData.phone.replace('+', '').trim()
             },
-            payerMessage: `PimPay Deposit: ${formData.amount} USD`,
-            payeeNote: "PimPay Core Protocol"
+            payerMessage: `PIMOBIPAY Deposit: ${formData.amount} USD`,
+            payeeNote: "PIMOBIPAY Core Protocol"
           })
         });
 
@@ -133,7 +133,7 @@ export async function processDeposit(formData: {
     };
 
   } catch (error) {
-    console.error("❌ Erreur Interne PimPay:", error);
+    console.error("❌ Erreur Interne PIMOBIPAY:", error);
     return { success: false, error: "Le protocole de dépôt a rencontré une erreur." };
   }
 }

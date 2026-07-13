@@ -766,7 +766,7 @@ export default function SystemSettings() {
               <ArrowLeft size={14} className="text-blue-400 group-hover:-translate-x-0.5 transition-transform" />
             </div>
             <div className="text-left">
-              <p className="text-[8px] font-bold text-blue-500/70 uppercase tracking-[3px]">PimPay Admin</p>
+              <p className="text-[8px] font-bold text-blue-500/70 uppercase tracking-[3px]">PIMOBIPAY Admin</p>
               <p className="text-[11px] font-bold text-white">Paramètres</p>
             </div>
           </button>
@@ -1333,7 +1333,7 @@ export default function SystemSettings() {
                 {/* Payment Fees */}
                 {feeTab === 'payment' && (
                   <div className="space-y-3">
-                    <FeeRow icon={<CreditCard size={15} />} label="Carte Virtuelle" sub="Achats avec carte PimPay" value={config.cardPaymentFee} onChange={v => setConfig({ ...config, cardPaymentFee: v })} accent="pink" />
+                    <FeeRow icon={<CreditCard size={15} />} label="Carte Virtuelle" sub="Achats avec carte PIMOBIPAY" value={config.cardPaymentFee} onChange={v => setConfig({ ...config, cardPaymentFee: v })} accent="pink" />
                     <FeeRow icon={<Landmark size={15} />} label="Paiement Marchand" sub="Paiements aux commerçants" value={config.merchantPaymentFee} onChange={v => setConfig({ ...config, merchantPaymentFee: v })} accent="emerald" />
                     <FeeRow icon={<Zap size={15} />} label="Paiement Factures" sub="Électricité, eau, internet..." value={config.billPaymentFee} onChange={v => setConfig({ ...config, billPaymentFee: v })} accent="amber" />
                     <FeeRow icon={<Eye size={15} />} label="Paiement QR Code" sub="Scan et paiement QR" value={config.qrPaymentFee} onChange={v => setConfig({ ...config, qrPaymentFee: v })} accent="cyan" />
@@ -1946,7 +1946,7 @@ export default function SystemSettings() {
                 <div className="p-4 bg-amber-500/5 border border-amber-500/15 rounded-2xl flex items-start gap-3">
                   <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
                   <p className="text-[10px] text-amber-300/70 leading-relaxed font-medium">
-                    Les clés API permettent aux développeurs d&apos;accéder aux fonctionnalités de PimPay. Gardez vos clés secrètes et ne les partagez jamais publiquement.
+                    Les clés API permettent aux développeurs d&apos;accéder aux fonctionnalités de PIMOBIPAY. Gardez vos clés secrètes et ne les partagez jamais publiquement.
                   </p>
                 </div>
 

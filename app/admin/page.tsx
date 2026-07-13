@@ -58,7 +58,7 @@ export default function AdminDashboard() {
       {/* HEADER WITH NOTIFICATIONS */}
       <AdminTopNav 
         title="Administration" 
-        subtitle="PimPay"
+        subtitle="PIMOBIPAY"
         onRefresh={() => { setLoading(true); fetchDashboardData(); }}
         backPath="/"
       />
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
       {/* SECURITY FOOTER */}
       <div className="mt-12 flex flex-col items-center gap-2 opacity-15">
         <Shield size={14} />
-        <p className="text-[8px] font-black uppercase tracking-[0.4em]">PimPay Admin Encrypted v4.0</p>
+        <p className="text-[8px] font-black uppercase tracking-[0.4em]">PIMOBIPAY Admin Encrypted v4.0</p>
       </div>
     </div>
   );

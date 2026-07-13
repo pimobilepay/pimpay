@@ -42,13 +42,13 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`[PIMPAY] PIM purchase request for user ${userId}, paymentId: ${paymentId}`);
+    console.log(`[PIMOBIPAY] PIM purchase request for user ${userId}, paymentId: ${paymentId}`);
 
     // 2. VALIDATION PI NETWORK (S2S) — indispensable pour que Pi Wallet
     // marque le paiement comme complete (sinon il reste "incomplet/expire").
     const PI_API_KEY = process.env.PI_API_KEY;
     if (!PI_API_KEY) {
-      console.error("[PIMPAY] PI_API_KEY non configuree");
+      console.error("[PIMOBIPAY] PI_API_KEY non configuree");
       return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       const piResult = await completePiPayment(paymentId, txid, { retries: 4, delayMs: 1500 });
 
       if (!piResult.ok) {
-        console.error("[PIMPAY] Echec completion Pi Network apres retries:", piResult.data);
+        console.error("[PIMOBIPAY] Echec completion Pi Network apres retries:", piResult.data);
         // On laisse la transaction en PENDING (creee a l'approbation) pour
         // qu'elle puisse etre reprise via /api/payments/incomplete ou le mode rescue.
         return NextResponse.json(
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         );
       }
 
-      console.log(`[PIMPAY] Paiement Pi confirme cote serveur: ${paymentId}`);
+      console.log(`[PIMOBIPAY] Paiement Pi confirme cote serveur: ${paymentId}`);
     }
 
     // 2bis. SOURCE DE VERITE : montant Pi reellement paye + statut verifie.
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       piPayment.transaction?.verified === true;
 
     if (!isVerified) {
-      console.error("[PIMPAY] Paiement PIM non verifie:", paymentId, piPayment.status);
+      console.error("[PIMOBIPAY] Paiement PIM non verifie:", paymentId, piPayment.status);
       return NextResponse.json(
         { error: "Paiement non verifie sur la blockchain Pi", retryable: true },
         { status: 409 }
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     // Calcul EXCLUSIVEMENT cote serveur du nombre de PIM a crediter.
     const resolved = resolvePimCoins(metadata?.productId, verifiedPiAmount);
     if (!resolved.ok) {
-      console.error("[PIMPAY] Resolution PIM refusee:", resolved.reason);
+      console.error("[PIMOBIPAY] Resolution PIM refusee:", resolved.reason);
       return NextResponse.json(
         { error: resolved.reason || "Achat PIM invalide" },
         { status: 400 }
@@ -188,7 +188,7 @@ export async function POST(req: Request) {
       // Notification non-bloquante
     }
 
-    console.log(`[PIMPAY] PIM credited: ${pimCoins} PIM to user ${userId}`);
+    console.log(`[PIMOBIPAY] PIM credited: ${pimCoins} PIM to user ${userId}`);
 
     return NextResponse.json({
       success: true,

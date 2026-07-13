@@ -36,7 +36,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Code PIN PimPay mis à jour avec succès" 
+      message: "Code PIN PIMOBIPAY mis à jour avec succès" 
     }, { status: 200 });
 
   } catch (error) {

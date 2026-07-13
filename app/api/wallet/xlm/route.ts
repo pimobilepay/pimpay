@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimpay-default-secret-key-32-chars";
 
 /**
- * Chiffre la clé privée avec AES-256-GCM (Standard PimPay)
+ * Chiffre la clé privée avec AES-256-GCM (Standard PIMOBIPAY)
  */
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(12);

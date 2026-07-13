@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const PI_API_KEY = process.env.PI_API_KEY;
 
     if (!PI_API_KEY) {
-      console.error("[PIMPAY] PI_API_KEY non configuree");
+      console.error("[PIMOBIPAY] PI_API_KEY non configuree");
       return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
     }
 
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     // 1. AUTHENTIFICATION
     const userId = await getAuthUserId();
     if (!userId) {
-      console.error("[PIMPAY] Utilisateur non authentifie pour approve");
+      console.error("[PIMOBIPAY] Utilisateur non authentifie pour approve");
       return NextResponse.json({ error: "Non authentifie. Veuillez vous reconnecter." }, { status: 401 });
     }
 
@@ -87,9 +87,9 @@ export async function POST(req: Request) {
           },
         });
       } catch (e) {
-        console.warn("[PIMPAY] Upsert transaction PIM PENDING non bloquant:", e);
+        console.warn("[PIMOBIPAY] Upsert transaction PIM PENDING non bloquant:", e);
       }
-      console.log(`[PIMPAY] Approbation achat PIM Coins: ${paymentId} pour ${userId}`);
+      console.log(`[PIMOBIPAY] Approbation achat PIM Coins: ${paymentId} pour ${userId}`);
       return NextResponse.json({ success: true, type: "PIM_COIN_PURCHASE" });
     }
 

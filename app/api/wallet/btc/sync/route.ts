@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/wallet/btc/sync
- * Synchronise le solde BTC du wallet PimPay avec le solde réel on-chain.
+ * Synchronise le solde BTC du wallet PIMOBIPAY avec le solde réel on-chain.
  */
 
 import { NextResponse } from "next/server";

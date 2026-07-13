@@ -331,7 +331,7 @@ export default function UsersPage() {
           </div>
           <p className="text-slate-400 text-sm ml-13 pl-13">
             <span className="ml-13">{users.length} utilisateurs •</span>
-            <span className="text-yellow-400 font-medium"> PIMPAY Banking Portal</span>
+            <span className="text-yellow-400 font-medium"> PIMOBIPAY Banking Portal</span>
           </p>
         </div>
         <button

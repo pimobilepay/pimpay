@@ -16,7 +16,7 @@ async function getDynamicFees() {
   try {
     const res = await fetch('https://mempool.space/api/v1/fees/recommended');
     const fees = await res.json();
-    // On prend la priorité haute (fastestFee) pour garantir une transaction PimPay rapide
+    // On prend la priorité haute (fastestFee) pour garantir une transaction PIMOBIPAY rapide
     // Ou la priorité moyenne (hourFee) pour économiser
     return fees;
   } catch (e) {

@@ -55,7 +55,7 @@ export default function KYCComingSoon() {
           <ArrowLeft size={20} />
         </button>
         <div className="text-right">
-          <p className="text-[8px] font-black text-blue-500 uppercase tracking-[4px]">PIMPAY</p>
+          <p className="text-[8px] font-black text-blue-500 uppercase tracking-[4px]">PIMOBIPAY</p>
           <p className="text-[10px] font-bold text-slate-500 uppercase">KYC Gateway</p>
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function KYCComingSoon() {
         </h1>
         
         <p className="text-sm text-slate-400 font-medium leading-relaxed mb-10 px-4 max-w-sm">
-          Le protocole de verification d&apos;identite arrive. Preparez vos documents pour debloquer toutes les fonctionnalites de <span className="text-white font-bold">PimPay</span>.
+          Le protocole de verification d&apos;identite arrive. Preparez vos documents pour debloquer toutes les fonctionnalites de <span className="text-white font-bold">PIMOBIPAY</span>.
         </p>
 
         {/* Countdown */}
