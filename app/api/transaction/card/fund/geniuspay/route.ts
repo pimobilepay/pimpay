@@ -212,8 +212,8 @@ export async function POST(req: NextRequest) {
       reference,
       geniusPayReference: payment.reference,
       status: "PENDING",
-      xofAmount,
-      currency: "XOF",
+      localAmount,
+      currency,
       paymentMethod: momoMethod || "card",
       checkoutUrl: payment.checkout_url || null,
     });
