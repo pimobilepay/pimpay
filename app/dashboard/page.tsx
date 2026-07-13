@@ -7,7 +7,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   RefreshCcw,
-  Bell,
   ArrowUpCircle,
   ArrowDownCircle,
   Eye,
@@ -53,6 +52,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyContext";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PartnersMarquee } from "@/components/PartnersMarquee";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const USD_TO_XAF = 601.32;
 
@@ -213,7 +213,7 @@ const DASH_T = {
   },
 } as const;
 
-// ─── Subcomponents ─────────────────────────────────────────────────────────
+// ─── Subcomponents ─────────���───────────────────────────────────────────────
 
 function QuickActionBtn({
   icon,
@@ -569,17 +569,10 @@ export default function UserDashboard() {
           >
             <RefreshCcw size={20} className={isLoading ? "animate-spin" : ""} />
           </button>
-          <button
-            onClick={() => router.push("/notifications")}
-            className="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-black text-white px-1">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </button>
+          <NotificationBell
+            buttonClassName="p-3 rounded-2xl bg-white/5 text-slate-400 active:scale-90 transition-all relative"
+            badgeClassName="absolute -top-1 -right-1 min-w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-black text-white px-1"
+          />
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}

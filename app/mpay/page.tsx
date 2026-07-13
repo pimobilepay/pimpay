@@ -5,7 +5,7 @@ import {
   Scan, ArrowLeft, Zap, ShieldCheck,
   Store, Loader2, CheckCircle2,
   Search, Fingerprint, Activity,
-  Send, QrCode, Users, Bell,
+  Send, QrCode, Users,
   Clock, ArrowUpRight, ArrowDownLeft,
   Eye, EyeOff, ChevronRight, Star,
   Wallet, Plus, TrendingUp, BarChart3,
@@ -18,6 +18,7 @@ import { ReceiveQR } from "@/components/receive-qr";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 import { PaymentServices } from "@/components/mpay/payment-services";
 import { useLanguage } from "@/context/LanguageContext";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 // Types for Map of Pi merchants
 interface MapOfPiMerchant {
@@ -805,17 +806,10 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[2px]">{isOnline ? t("mpay.networkActive") : t("mpay.offline")}</p>
           </div>
         </div>
-        <button
-          onClick={() => router.push("/notifications")}
-          className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all relative"
-        >
-          <Bell size={20} />
-          {notifications > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[#020617] animate-pulse">
-              {notifications > 9 ? "9+" : notifications}
-            </span>
-          )}
-        </button>
+        <NotificationBell
+          buttonClassName="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all relative"
+          badgeClassName="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[#020617] animate-pulse"
+        />
       </header>
 
       <main className="px-6 pt-6 pb-32 space-y-8">
