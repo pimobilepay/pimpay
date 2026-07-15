@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
+import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -74,12 +75,12 @@ function SuccessContent() {
   const isExternalMode = modeParam === "external";
   const isPiPending = currency === "PI" && isExternalMode;
 
-  const amountUSD =
-    currency === "PI"
-      ? amount * piPrice
-      : currency === "XAF"
-      ? amount / 600
-      : amount;
+  // Conversion USD centralisée : prix Pi (admin) + taux fiat officiels (CDF, XAF, ...).
+  const amountUSD = toUsd(currency, amount, {
+    ...DEFAULT_CRYPTO_PRICES,
+    ...FIAT_RATES,
+    PI: piPrice,
+  });
 
   const reference = transaction?.reference || ref || "PIMPAY-TR";
   const createdAt = transaction?.createdAt ? new Date(transaction.createdAt) : new Date();

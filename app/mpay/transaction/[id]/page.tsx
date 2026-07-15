@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
+import { usePiPrice } from "@/hooks/usePiPrice";
+import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
 interface TransactionDetails {
   id: string;
@@ -69,6 +71,8 @@ export default function TransactionDetailsPage() {
   const [transaction, setTransaction] = useState<TransactionDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string>("");
+  // Prix du Pi (GCV / marché) contrôlé par l'admin — source unique via /api/pi-price
+  const { price: piPrice } = usePiPrice();
 
   useEffect(() => {
     const fetchTransaction = async () => {
@@ -257,30 +261,10 @@ export default function TransactionDetailsPage() {
     });
   };
   
-  // Currency to USD conversion rates
-  const CURRENCY_RATES: Record<string, number> = {
-    PI: 314159,
-    SDA: 1.2,
-    USDT: 1.0,
-    USDC: 1.0,
-    DAI: 1.0,
-    BUSD: 1.0,
-    XAF: 1 / 615,
-    XOF: 1 / 615,
-    BTC: 65000,
-    ETH: 3500,
-    BNB: 600,
-    SOL: 150,
-    XRP: 0.5,
-    XLM: 0.1,
-    TRX: 0.12,
-    ADA: 0.45,
-    DOGE: 0.15,
-    TON: 6.5,
-  };
-  
-  const rateToUSD = CURRENCY_RATES[transaction.currency?.toUpperCase()] || 1;
-  const amountUSD = transaction.amount * rateToUSD;
+  // Conversion en USD : le prix du Pi vient de l'admin (GCV/marché) et les
+  // taux fiat des taux centralisés — plus aucune valeur codée en dur.
+  const conversionPrices = { ...DEFAULT_CRYPTO_PRICES, ...FIAT_RATES, PI: piPrice };
+  const amountUSD = toUsd(transaction.currency || "USD", transaction.amount, conversionPrices);
   
   const formattedAmount = formatAmount(transaction.amount, transaction.currency);
 

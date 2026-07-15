@@ -23,9 +23,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
+import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
-// Valeur de repli si l'API prix est injoignable
-const FALLBACK_PI_PRICE = 314159;
+// Valeur de repli si l'API prix est injoignable (le vrai prix vient de /api/pi-price)
+const FALLBACK_PI_PRICE = 1.5;
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -97,12 +98,12 @@ function SuccessContent() {
   const amount = Number(transaction?.amount) || Number(urlAmount) || 0;
   const blockchainTxHash = transaction?.blockchainTxId || transaction?.txid || txid;
 
-  const amountUSD =
-    currency === "PI"
-      ? amount * piPrice
-      : currency === "XAF"
-      ? amount / 600
-      : amount;
+  // Conversion USD centralisée : prix Pi (admin) + taux fiat officiels (CDF, XAF, ...).
+  const amountUSD = toUsd(currency, amount, {
+    ...DEFAULT_CRYPTO_PRICES,
+    ...FIAT_RATES,
+    PI: piPrice,
+  });
 
   const reference = transaction?.reference || ref || txid || "PIMPAY-TX";
   const createdAt = transaction?.createdAt ? new Date(transaction.createdAt) : new Date();
