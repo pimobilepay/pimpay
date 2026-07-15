@@ -24,8 +24,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
-
-const PI_GCV_PRICE = 314159;
+import { usePiPrice } from "@/hooks/usePiPrice";
+import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
 function ReceiptContent() {
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -40,6 +40,8 @@ function ReceiptContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Prix du Pi (GCV / marché) défini par l'admin — source unique via /api/pi-price
+  const { price: piPrice } = usePiPrice();
 
   const fetchTx = useCallback(async () => {
     if (!ref) {
@@ -84,15 +86,12 @@ function ReceiptContent() {
   
   const isPi = currency === "PI";
   const amountDisplay = amount;
-  let amountUSD = 0;
-
-  if (isPi) {
-    amountUSD = amount * PI_GCV_PRICE;
-  } else if (currency === "XAF") {
-    amountUSD = amount / 600;
-  } else {
-    amountUSD = amount;
-  }
+  // Conversion USD centralisée : prix Pi (admin/GCV) + taux fiat officiels (XAF, CDF, ...).
+  const amountUSD = toUsd(currency, amount, {
+    ...DEFAULT_CRYPTO_PRICES,
+    ...FIAT_RATES,
+    PI: piPrice,
+  });
 
   const feeAmount = transaction?.fee || (amount * 0.01);
   const displayRef = transaction?.reference || ref || "PIMPAY-TR";
