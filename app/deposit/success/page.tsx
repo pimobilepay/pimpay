@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
+import { AssetLogo } from "@/components/AssetLogo";
 
 // Valeur de repli si l'API prix est injoignable (le vrai prix vient de /api/pi-price)
 const FALLBACK_PI_PRICE = 1.5;
@@ -311,12 +312,7 @@ function SuccessContent() {
               Montant Depose
             </p>
             <div className="flex items-center gap-2">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-black text-white text-sm"
-                style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
-              >
-                <ArrowDownToLine size={20} />
-              </div>
+              <AssetLogo symbol={currency} className="w-10 h-10" rounded="rounded-full" textClassName="text-xs" />
               <div className="text-center">
                 <p className="text-4xl font-black text-white">
                   {formatAmount(amount, currency)}

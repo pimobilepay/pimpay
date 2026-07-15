@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
+import { AssetLogo } from "@/components/AssetLogo";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -357,12 +358,7 @@ function SuccessContent() {
                 Montant Envoye
               </p>
               <div className="flex items-center gap-2">
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-black text-white text-sm"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
-                >
-                  {currency === "PI" ? "PI" : currency === "XAF" ? "XA" : currency.slice(0, 2)}
-                </div>
+                <AssetLogo symbol={currency} className="w-9 h-9" rounded="rounded-full" textClassName="text-[11px]" />
                 <div className="min-w-0">
                   <p className="text-lg font-black truncate text-white">
                     {formatAmount(amount, currency)}
