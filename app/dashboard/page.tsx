@@ -558,7 +558,9 @@ export default function UserDashboard() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
           <div>
-            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">PIMOBIPAY</h1>
+            <h1 className="text-base font-black italic uppercase tracking-tighter leading-none">
+              PIMOBIPAY<span className="not-italic text-blue-500">.</span>
+            </h1>
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">{tr.virtualBank}</p>
           </div>
         </div>
