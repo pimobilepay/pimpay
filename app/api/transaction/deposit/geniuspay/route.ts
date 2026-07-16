@@ -213,12 +213,22 @@ export async function POST(req: NextRequest) {
     });
 
     // 7. Gérer la réponse de l'agrégateur
+    const rawGpResponse = gp.data as any;
     const payment = unwrap<GeniusPayPayment>(gp.data);
     const gpStatus = (payment?.status || "").toLowerCase();
+    // En Sandbox, GeniusPay renvoie souvent `data.status: null` et place le
+    // véritable indicateur de succès au niveau racine de la réponse
+    // (`success: true`, `scenario: "success"`, `message: "...initiated
+    // successfully"`). Un `status` vide ne doit donc PAS être traité comme un
+    // rejet si la racine confirme le succès de l'initiation.
+    const rootIndicatesSuccess =
+      rawGpResponse?.success === true ||
+      rawGpResponse?.data?.scenario === "success";
     const accepted =
       gp.ok &&
       !!payment?.reference &&
-      ["pending", "processing", "initiated"].includes(gpStatus);
+      (["pending", "processing", "initiated"].includes(gpStatus) ||
+        (!gpStatus && rootIndicatesSuccess));
 
     if (!accepted) {
       await prisma.transaction.update({

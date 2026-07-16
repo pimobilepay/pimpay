@@ -204,12 +204,22 @@ export async function POST(req: NextRequest) {
           metadata: { reference: result.transaction.reference, userId },
         });
 
+        const rawGpResponse = gp.data as any;
         const payout = unwrap<GeniusPayPayout>(gp.data);
         const gpStatus = (payout?.status || "").toLowerCase();
+        // En Sandbox, `data.status` peut être `null` alors que la racine de la
+        // réponse confirme le succès (`success: true`, `scenario: "success"`).
+        // Ne pas rejeter le payout dans ce cas.
+        const rootIndicatesSuccess =
+          rawGpResponse?.success === true ||
+          rawGpResponse?.data?.scenario === "success";
         const accepted =
           gp.ok &&
           !!payout?.reference &&
-          ["pending", "processing", "requested", "approved"].includes(gpStatus);
+          (["pending", "processing", "requested", "approved"].includes(
+            gpStatus
+          ) ||
+            (!gpStatus && rootIndicatesSuccess));
 
         if (!accepted) {
           // Refus immédiat → rembourser les Pi débités
