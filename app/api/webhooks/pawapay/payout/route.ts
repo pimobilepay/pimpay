@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus } from "@prisma/client";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   checkPayout,
   extractLookupStatus,
@@ -20,11 +21,22 @@ import {
  * SÉCURITÉ : on ré-interroge l'API PawaPay (GET /v2/payouts/{id}) pour obtenir
  * le statut autoritaire ; on ne se fie pas au payload du webhook.
  *
+ * [FIX] Rate limiting ajouté (voir même TODO détaillé que
+ * /api/webhooks/pawapay/deposit concernant la signature RFC-9421 optionnelle
+ * de PawaPay, volontairement non implémentée ici sans pouvoir la tester
+ * contre leur sandbox).
+ *
  * URL à configurer côté PawaPay :
  *   https://<votre-domaine>/api/webhooks/pawapay/payout
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`pawapay-webhook-payout:${ip}`, 30, 60_000);
+    if (rl.limited) {
+      return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 });
+    }
+
     const rawBody = await req.text();
     let body: any = {};
     try {

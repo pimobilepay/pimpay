@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
@@ -17,6 +18,19 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    // [FIX] Rate limiting — 5 tentatives / 5 min par utilisateur, même
+    // politique que /api/auth/verify-pin et /api/user/verify-pin. Un PIN à
+    // 4 chiffres (10 000 combinaisons) est brute-forçable en quelques
+    // minutes sans cette limite si une session est compromise.
+    const rl = checkRateLimit(`verify-pin:${userId}`, 5, 5 * 60_000);
+    if (rl.limited) {
+      const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Trop de tentatives. Réessayez dans quelques minutes." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      );
     }
 
     const user = await prisma.user.findUnique({

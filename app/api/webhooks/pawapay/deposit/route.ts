@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   checkDeposit,
   extractLookupStatus,
@@ -20,12 +21,41 @@ import {
  * pour obtenir le statut « autoritaire » avant de créditer quoi que ce soit.
  * Le montant crédité provient TOUJOURS de la transaction stockée en base
  * (metadata.netPi calculé à l'initiation) — anti-injection de montant.
+ * C'est ce qui empêche un faux callback de créditer frauduleusement un compte.
+ *
+ * [FIX] Rate limiting ajouté par IP (30 req/min) : sans signature crypto,
+ * rien n'empêchait un tiers de spammer cet endpoint avec des depositId
+ * devinés/fuités pour déclencher des appels répétés à l'API PawaPay
+ * (bruit, consommation de quota). Le rate-limit borne ce risque résiduel.
+ *
+ * TODO (non fait ici, à faire volontairement) : PawaPay propose une
+ * signature cryptographique optionnelle des callbacks (ECDSA P-256,
+ * RFC-9421 "HTTP Message Signatures" — pas un simple HMAC à secret
+ * partagé). Elle nécessite : 1) d'activer "signed callbacks" + uploader
+ * votre clé publique dans le Dashboard PawaPay, 2) de récupérer la clé
+ * publique de PawaPay via leur endpoint "Public Keys", 3) de reconstruire
+ * exactement la chaîne canonique signée (@method, @authority, @path,
+ * signature-date, content-digest, content-type) pour vérifier la
+ * signature ECDSA. Je ne l'implémente pas ici : une implémentation RFC-9421
+ * légèrement fausse peut soit tout rejeter en silence (dépôts bloqués),
+ * soit donner un faux sentiment de sécurité. Vu que le garde-fou principal
+ * (re-vérification autoritaire ci-dessous) neutralise déjà le risque de
+ * fraude, mieux vaut l'implémenter et le tester proprement contre le
+ * sandbox PawaPay plutôt que de le deviner. Voir docs.pawapay.io/using_the_api
+ * section "Verify callback signature".
  *
  * URL à configurer côté PawaPay :
  *   https://<votre-domaine>/api/webhooks/pawapay/deposit
  */
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting défensif — voir commentaire ci-dessus.
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`pawapay-webhook-deposit:${ip}`, 30, 60_000);
+    if (rl.limited) {
+      return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 });
+    }
+
     const rawBody = await req.text();
     let body: any = {};
     try {

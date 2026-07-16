@@ -4,15 +4,26 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; 
 // Correction : Chemin vers lib/ au lieu de data/ pour éviter l'erreur de build
 import { conversionService } from "@/services/conversionService";
+import { timingSafeEqual } from "crypto";
+
+// [FIX] Comparaison à temps constant — une comparaison `!==` classique sur un
+// secret fuit sa longueur/son préfixe via le temps de réponse (timing attack).
+function safeCompareSecret(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
     const headers = req.headers;
 
-    // 1. SÉCURITÉ : Vérification du secret Webhook
-    const webhookSecret = headers.get("x-webhook-secret");
-    if (webhookSecret !== process.env.PAYMENT_WEBHOOK_SECRET) {
+    // 1. SÉCURITÉ : Vérification du secret Webhook (temps constant)
+    const webhookSecret = headers.get("x-webhook-secret") || "";
+    const expectedSecret = process.env.PAYMENT_WEBHOOK_SECRET || "";
+    if (!expectedSecret || !safeCompareSecret(webhookSecret, expectedSecret)) {
       return NextResponse.json({ error: "Signature invalide" }, { status: 401 });
     }
 

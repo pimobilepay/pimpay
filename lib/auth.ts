@@ -214,12 +214,19 @@ export async function getAuthUserIdFromBearer(req: Request): Promise<string | nu
       return null;
     }
 
-    // Révocation : si une session existe pour ce token, elle doit être active.
-    const session = await prisma.session.findFirst({
-      where: { isActive: true },
-      select: { isActive: true },
-    });
-    if (session && !session.isActive) return null;
+    // [FIX] Révocation scopée à CET utilisateur — même logique que verifyJWT().
+    // L'ancienne requête (`findFirst({ where: { isActive: true } })`, sans
+    // filtre userId) était tautologique : en filtrant déjà sur isActive:true,
+    // `session.isActive` valait toujours true si une session était trouvée,
+    // donc `!session.isActive` n'était jamais vrai. Un token Bearer volé
+    // restait donc valide même après "déconnecter tous les appareils".
+    if ((payload as any).purpose !== "mfa_verification") {
+      const [activeCount, totalCount] = await Promise.all([
+        prisma.session.count({ where: { userId, isActive: true } }),
+        prisma.session.count({ where: { userId } }),
+      ]);
+      if (totalCount > 0 && activeCount === 0) return null;
+    }
 
     // Le compte doit exister et être ACTIVE
     const user = await prisma.user.findUnique({
