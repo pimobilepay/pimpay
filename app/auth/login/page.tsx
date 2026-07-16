@@ -241,7 +241,7 @@ export default function LoginPage() {
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-start sm:items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-8 sm:py-12 font-sans">
+    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-4 sm:py-8 font-sans">
       
       <MFASelector
         isOpen={showMFAModal}
@@ -307,9 +307,9 @@ export default function LoginPage() {
         </div>
       )}
 
-      <Card className="relative z-10 w-full max-w-[420px] p-6 sm:p-10 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[32px]">
-        <div className="text-center mb-6">
-          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 transition-all duration-300 ${
+      <Card className="relative z-10 w-full max-w-[420px] p-6 sm:p-8 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[32px]">
+        <div className="text-center mb-5">
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 transition-all duration-300 ${
             loginType === "bank" 
               ? "bg-emerald-600/10 border border-emerald-500/20" 
               : loginType === "business" 
@@ -340,7 +340,7 @@ export default function LoginPage() {
         </div>
 
         {/* Selecteur de type de connexion */}
-        <div className="flex gap-2 mb-6 p-1 bg-slate-950/50 rounded-2xl">
+        <div className="flex gap-2 mb-5 p-1 bg-slate-950/50 rounded-2xl">
           {loginTypes.map((type) => {
             const Icon = type.icon;
             const isActive = loginType === type.id;
