@@ -12,8 +12,10 @@ import {
   resolveMomoMethod,
   normalizePhone,
   type GeniusPayPayment,
+  type GeniusPayMomoMethod,
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
+import { resolveProvider } from "@/lib/pawapay-catalog";
 
 /**
  * POST /api/transaction/deposit/geniuspay
@@ -59,16 +61,45 @@ export async function POST(req: NextRequest) {
     const countryCode = (body.countryCode || "CI").toUpperCase();
     const currency = getGeniusPayCurrency(countryCode) || "XOF";
 
-    // 1. Déterminer le moyen de paiement.
-    //    method === "card"  -> checkout hébergé (aucun payment_method envoyé)
-    //    sinon on tente de résoudre un opérateur MoMo depuis le libellé fourni.
-    const momoMethod =
-      method === "card"
-        ? undefined
-        : resolveMomoMethod(`${operatorId || ""} ${operatorName || ""}`);
+    // 1. Déterminer le moyen de paiement GeniusPay.
+    //    - method === "card"        -> checkout hébergé (aucun payment_method)
+    //    - zone XOF native (UEMOA)  -> payment_method direct
+    //                                  (wave / orange_money / mtn_money / moov_money)
+    //    - autre zone Mobile Money  -> payment_method="pawapay" + mmo_provider
+    //      (ex. Congo XAF => AIRTEL_COG / MTN_MOMO_COG).
+    //
+    //    IMPORTANT : hors zone XOF, les codes MoMo directs (airtel_money,
+    //    mtn_money, ...) ne figurent PAS dans la règle `in:` de l'API GeniusPay
+    //    et provoquaient l'erreur "validation.in". On passe donc par le
+    //    fournisseur PawaPay explicite.
+    const operatorHint = `${operatorId || ""} ${operatorName || ""}`;
+    const XOF_NATIVE_ZONE = new Set([
+      "CI", "SN", "BJ", "BF", "ML", "TG", "NE", "GW",
+    ]);
+
+    let paymentMethod: GeniusPayMomoMethod | "pawapay" | undefined;
+    let mmoProvider: string | undefined;
+    let isMobileMoney = false;
+
+    if (method !== "card") {
+      if (XOF_NATIVE_ZONE.has(countryCode)) {
+        // Opérateur XOF direct (Wave, Orange, MTN, Moov).
+        paymentMethod = resolveMomoMethod(operatorHint);
+        isMobileMoney = !!paymentMethod;
+      } else {
+        // Hors zone XOF : GeniusPay route via PawaPay -> mmo_provider explicite.
+        const pp = resolveProvider(countryCode, operatorHint);
+        if (pp.supported && pp.provider) {
+          paymentMethod = "pawapay";
+          mmoProvider = pp.provider;
+          isMobileMoney = true;
+        }
+        // Sinon : aucun opérateur reconnu -> repli checkout hébergé (carte).
+      }
+    }
 
     // Un paiement Mobile Money exige un numéro de téléphone.
-    if (momoMethod && !phone) {
+    if (isMobileMoney && !phone) {
       return NextResponse.json(
         { error: "Numéro de téléphone requis pour Mobile Money" },
         { status: 400 }
@@ -86,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Frais + montant net crédité (en Pi)
     const feeConfig = await getFeeConfig();
-    const feeRate = momoMethod
+    const feeRate = isMobileMoney
       ? feeConfig.depositMobileFee
       : feeConfig.depositCardFee;
     const piPrice = await getPiPrice();
@@ -125,7 +156,9 @@ export async function POST(req: NextRequest) {
         type: "DEPOSIT",
         status: "PENDING",
         description: `Dépôt via GeniusPay${
-          momoMethod ? ` (${operatorName || momoMethod})` : " (Carte)"
+          isMobileMoney
+            ? ` (${operatorName || mmoProvider || paymentMethod})`
+            : " (Carte)"
         }`,
         operatorId: operatorId || null,
         accountNumber: normalizedPhone || null,
@@ -133,7 +166,8 @@ export async function POST(req: NextRequest) {
         fromUserId: userId,
         metadata: {
           aggregator: "GENIUSPAY",
-          paymentMethod: momoMethod || "card",
+          paymentMethod: paymentMethod || "card",
+          mmoProvider: mmoProvider || null,
           phoneNumber: normalizedPhone || null,
           localAmount,
           localCurrency: currency,
@@ -153,10 +187,18 @@ export async function POST(req: NextRequest) {
       process.env.APP_URL ||
       "https://pimpay.vercel.app"
     ).replace(/\/$/, "");
+    console.log("[v0] GENIUSPAY_DEPOSIT_REQUEST:", {
+      country: countryCode,
+      currency,
+      amount: localAmount,
+      paymentMethod: paymentMethod || "(hosted checkout / card)",
+      mmoProvider: mmoProvider || null,
+    });
     const gp = await createPayment({
       amount: localAmount,
       currency,
-      paymentMethod: momoMethod,
+      paymentMethod,
+      mmoProvider,
       description: `PimobiPay depot ${reference}`,
       customer: {
         name: customerName,
@@ -189,14 +231,36 @@ export async function POST(req: NextRequest) {
           },
         },
       });
-      // GeniusPay renvoie l'erreur sous la forme { success:false, error:{code,message} }
-      // ou { message }. On extrait un message lisible dans tous les cas.
+      // GeniusPay renvoie l'erreur sous plusieurs formes :
+      //   { success:false, error:{code,message} } | { message } |
+      //   { message, errors: { champ: ["validation.in", ...] } }  (format Laravel)
+      // On extrait un message lisible ET on nomme le(s) champ(s) fautif(s)
+      // pour identifier précisément l'origine du refus (ex: "payment_method").
+      console.error("[v0] GENIUSPAY_DEPOSIT_REJECTED:", {
+        status: gp.status,
+        response: gp.data,
+      });
+
       const errObj = (gp.data as any)?.error;
-      const reason =
+      const errorsObj = (gp.data as any)?.errors;
+      let fieldErrors = "";
+      if (errorsObj && typeof errorsObj === "object") {
+        fieldErrors = Object.entries(errorsObj)
+          .map(
+            ([field, msgs]) =>
+              `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : msgs}`
+          )
+          .join(" | ");
+      }
+
+      const baseReason =
         (typeof errObj === "object" ? errObj?.message : errObj) ||
         (gp.data as any)?.message ||
         payment?.["message" as keyof GeniusPayPayment] ||
         "Le paiement a été refusé par l'agrégateur GeniusPay.";
+      const reason = fieldErrors
+        ? `${baseReason} (${fieldErrors})`
+        : baseReason;
       return NextResponse.json({ error: reason }, { status: 400 });
     }
 
@@ -225,7 +289,7 @@ export async function POST(req: NextRequest) {
       status: "PENDING",
       localAmount,
       currency,
-      paymentMethod: momoMethod || "card",
+      paymentMethod: paymentMethod || "card",
       // Lien de paiement direct (Wave...) ou page de checkout hébergée.
       checkoutUrl: paymentUrl,
     });
