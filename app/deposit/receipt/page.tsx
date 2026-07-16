@@ -97,9 +97,16 @@ function DetailsContent() {
   const CURRENCY_RATES: Record<string, number> = {
     PI: piPrice,
     SDA: 1.2,  // Sidra Chain
+    USD: 1.0,
     USDT: 1.0,
     USDC: 1.0,
+    EUR: 1 / 0.92,
     XAF: 1 / 615,
+    XOF: 1 / 615,
+    CDF: 1 / 2800,
+    NGN: 1 / 1580,
+    AED: 1 / 3.67,
+    MGA: 1 / 4500,
     BTC: 65000,
     ETH: 3500,
   };
