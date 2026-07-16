@@ -16,6 +16,7 @@ import {
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 import { resolveProvider } from "@/lib/pawapay-catalog";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 /**
  * POST /api/transaction/deposit/geniuspay
@@ -271,6 +272,31 @@ export async function POST(req: NextRequest) {
       const reason = fieldErrors
         ? `${baseReason} (${fieldErrors})`
         : baseReason;
+
+      // Envoie l'erreur vers les logs Admin (onglet « Système »), source
+      // GENIUSPAY_DEPOSIT. On y consigne le corps exact envoyé + le champ
+      // rejeté par GeniusPay pour un diagnostic direct depuis le back-office.
+      await logSystemEvent({
+        level: "ERROR",
+        source: "GENIUSPAY_DEPOSIT",
+        action: "PAYMENT_REJECTED",
+        message: reason,
+        userId,
+        requestId: reference,
+        details: {
+          httpStatus: gp.status,
+          fieldErrors: errorsObj ?? null,
+          sentRequest: {
+            country: countryCode,
+            currency,
+            amount: localAmount,
+            paymentMethod: paymentMethod || "(hosted checkout / card)",
+            mmoProvider: mmoProvider || null,
+          },
+          geniusPayResponse: gp.data,
+        },
+      });
+
       return NextResponse.json({ error: reason }, { status: 400 });
     }
 
@@ -305,6 +331,17 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[v0] GENIUSPAY_DEPOSIT_ERROR:", error.message);
+    // Consigne aussi les exceptions inattendues dans les logs Admin (Système).
+    await logSystemEvent({
+      level: "ERROR",
+      source: "GENIUSPAY_DEPOSIT",
+      action: "EXCEPTION",
+      message: error?.message || "Erreur lors de l'initiation du dépôt",
+      details: {
+        name: error?.name,
+        stack: error?.stack?.substring(0, 2000),
+      },
+    });
     return NextResponse.json(
       { error: error.message || "Erreur lors de l'initiation du dépôt" },
       { status: 500 }
