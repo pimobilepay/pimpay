@@ -44,6 +44,9 @@ interface Notification {
     device?: string;
     ip?: string;
     location?: string;
+    country?: string;
+    city?: string;
+    provider?: string;
     os?: string;
     browser?: string;
     fromCurrency?: string;
@@ -702,6 +705,41 @@ export default function NotificationsPage() {
                   </div>
                 )}
 
+                {/* Pays & Ville côte à côte (si disponibles séparément) */}
+                {(metadata.country || metadata.city) && (
+                  <div className="flex gap-3">
+                    {metadata.country && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.country")}</p>
+                        <div className="flex items-center gap-2">
+                          <Globe size={16} className="text-slate-400 shrink-0" />
+                          <p className="text-sm font-bold text-white truncate">{metadata.country}</p>
+                        </div>
+                      </div>
+                    )}
+                    {metadata.city && (
+                      <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.city")}</p>
+                        <div className="flex items-center gap-2">
+                          <MapPin size={16} className="text-slate-400 shrink-0" />
+                          <p className="text-sm font-bold text-white truncate">{metadata.city}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fournisseur d'accès Internet (FAI) */}
+                {metadata.provider && (
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.provider")}</p>
+                    <div className="flex items-center gap-2">
+                      <Wifi size={16} className="text-slate-400 shrink-0" />
+                      <p className="text-sm font-bold text-white">{metadata.provider}</p>
+                    </div>
+                  </div>
+                )}
+
                 {metadata.os && (
                   <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.system")}</p>
@@ -967,7 +1005,7 @@ export default function NotificationsPage() {
                         );
                       })()}
 
-                      {/* Badges inline — Swap */}
+                      {/* Badges inline �� Swap */}
                       {notif.metadata && notif.type === "SWAP" && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/15">

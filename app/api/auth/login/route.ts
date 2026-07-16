@@ -9,6 +9,7 @@ import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { guardRequest } from "@/lib/defenseGuard";
+import { detectProxy } from "@/lib/proxyDetection";
 
 export async function POST(req: Request) {
   try {
@@ -134,6 +135,26 @@ export async function POST(req: Request) {
       const failClientIp = req.headers.get("x-forwarded-for")?.split(",")[0] || ip || "Inconnue";
       const failCountry = req.headers.get("x-vercel-ip-country") || null;
       const failCity = req.headers.get("x-vercel-ip-city") || null;
+      const failRegion = req.headers.get("x-vercel-ip-country-region") || null;
+
+      // Enrichissement géo/FAI (pays + fournisseur d'accès) via le moteur de
+      // détection proxy. On l'exécute au mieux : en cas d'échec on garde les
+      // en-têtes Vercel comme valeurs de repli.
+      let failIsp: string | null = null;
+      let failGeoCountry: string | null = null;
+      try {
+        const geo = await detectProxy(failClientIp);
+        failIsp = geo.isp || geo.provider || null;
+        failGeoCountry = geo.country || null;
+      } catch (e) {
+        console.error("Geo lookup error (failed login):", e);
+      }
+
+      // Libellés lisibles : localisation complète (ville, pays) et pays seul.
+      const failCountryLabel = failGeoCountry || failCountry || null;
+      const failLocationLabel = [failCity, failRegion, failCountryLabel]
+        .filter(Boolean)
+        .join(", ") || null;
 
       // Journal de sécurité rattaché à l'utilisateur (visible dans son historique)
       try {
@@ -185,7 +206,7 @@ export async function POST(req: Request) {
               title: reachedLimit ? "Compte utilisateur verrouille" : "Tentative de connexion echouee",
               message: reachedLimit
                 ? `Le compte ${user.email || user.username} a ete verrouille (48h) apres ${MAX_FAILED_ATTEMPTS} tentatives echouees.`
-                : `Tentative echouee ${newAttempts}/${MAX_FAILED_ATTEMPTS} sur ${user.email || user.username} (IP ${failClientIp}).`,
+                : `Tentative echouee ${newAttempts}/${MAX_FAILED_ATTEMPTS} sur ${user.email || user.username} (IP ${failClientIp}${failLocationLabel ? ` — ${failLocationLabel}` : ""}${failIsp ? `, ${failIsp}` : ""}).`,
               metadata: {
                 targetUserId: user.id,
                 email: user.email,
@@ -193,6 +214,11 @@ export async function POST(req: Request) {
                 attempts: newAttempts,
                 locked: reachedLimit,
                 ip: failClientIp,
+                location: failLocationLabel,
+                country: failCountryLabel,
+                city: failCity,
+                provider: failIsp,
+                device: failUserAgent,
               },
             })),
           });
@@ -211,13 +237,16 @@ export async function POST(req: Request) {
             title: reachedLimit ? "Compte temporairement bloque" : "Tentative de connexion echouee",
             message: reachedLimit
               ? `Votre compte a ete bloque pendant 48h apres ${MAX_FAILED_ATTEMPTS} tentatives de connexion echouees. Si ce n'etait pas vous, changez votre mot de passe.`
-              : `Une tentative de connexion a votre compte a echoue (${newAttempts}/${MAX_FAILED_ATTEMPTS}) depuis ${failCity || failCountry || "un lieu inconnu"} (IP ${failClientIp}). Si ce n'etait pas vous, securisez votre compte.`,
+              : `Une tentative de connexion a votre compte a echoue (${newAttempts}/${MAX_FAILED_ATTEMPTS}) depuis ${failLocationLabel || "un lieu inconnu"} (IP ${failClientIp}${failIsp ? `, ${failIsp}` : ""}). Si ce n'etait pas vous, securisez votre compte.`,
             metadata: {
               attempts: newAttempts,
               maxAttempts: MAX_FAILED_ATTEMPTS,
               locked: reachedLimit,
               ip: failClientIp,
-              location: failCity || failCountry ? `${failCity || ""}${failCity && failCountry ? ", " : ""}${failCountry || ""}` : null,
+              location: failLocationLabel,
+              country: failCountryLabel,
+              city: failCity,
+              provider: failIsp,
               device: failUserAgent,
             },
           },
