@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react"; import { useRouter } from "next/navigation"; import { motion, AnimatePresence } from "framer-motion"; import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, Calendar, User } from "lucide-react"; import { countries, searchCountries, type Country, type MobileOperator } from "@/lib/country-data"; import { BottomNav } from "@/components/bottom-nav"; import SideMenu from "@/components/SideMenu"; import { toast } from "sonner"; import { useLanguage } from "@/context/LanguageContext"; import { usePiPrice } from "@/hooks/usePiPrice"; import "flag-icons/css/flag-icons.min.css";
+import { useState, useEffect, useMemo } from "react"; import { useRouter } from "next/navigation"; import { motion, AnimatePresence } from "framer-motion"; import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, Calendar, User } from "lucide-react"; import { countries, searchCountries, type Country, type MobileOperator } from "@/lib/country-data"; import { resolveEndpoint } from "@/lib/aggregator-client"; import { BottomNav } from "@/components/bottom-nav"; import SideMenu from "@/components/SideMenu"; import { toast } from "sonner"; import { useLanguage } from "@/context/LanguageContext"; import { usePiPrice } from "@/hooks/usePiPrice"; import "flag-icons/css/flag-icons.min.css";
 
 // Card type detection based on BIN (Bank Identification Number)
 type CardType = "visa" | "mastercard" | "unknown";
@@ -113,11 +113,20 @@ export default function DepositPage() {
     try {
       const isCrypto = activeTab === "crypto";
 
-      // --- Dépôt MOBILE MONEY : passe par l'agrégateur PawaPay (collecte) ---
+      // --- Dépôt MOBILE MONEY : passe par l'agrégateur (GeniusPay primaire,
+      //     PawaPay en secours). GeniusPay couvre tous les pays : Mobile Money
+      //     dans sa zone native, sinon repli sur son checkout carte hébergé. ---
       if (!isCrypto) {
         if (!phoneNumber) { toast.error(t("deposit.flow.phone")); setIsLoading(false); return; }
         if (!selectedOperator) { toast.error(t("deposit.flow.noOperator")); setIsLoading(false); return; }
-        const res = await fetch("/api/transaction/deposit/pawapay", {
+        const operatorHint = `${selectedOperator?.id || ""} ${selectedOperator?.name || ""}`;
+        const routed = resolveEndpoint("deposit", selectedCountry.code, operatorHint);
+        if (!routed.endpoint) {
+          toast.error(t("deposit.flow.initError"));
+          setIsLoading(false);
+          return;
+        }
+        const res = await fetch(routed.endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -130,6 +139,15 @@ export default function DepositPage() {
         });
         const text = await res.text(); let result; try { result = JSON.parse(text); } catch { throw new Error(t("deposit.flow.serverError")); }
         if (res.ok && result.reference) {
+          // Repli carte : GeniusPay renvoie une page de paiement hébergée.
+          if (result.checkoutUrl) {
+            if (typeof window !== "undefined" && window.self !== window.top) {
+              window.open(result.checkoutUrl, "_blank", "noopener,noreferrer");
+            } else {
+              window.location.href = result.checkoutUrl;
+            }
+            return;
+          }
           router.push(`/deposit/summary?ref=${result.reference}&amount=${amount}&method=${activeTab}`);
         } else { toast.error(result.error || t("deposit.flow.initError")); }
         return;

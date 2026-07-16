@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { resolveEndpoint } from "@/lib/aggregator-client";
 import "flag-icons/css/flag-icons.min.css";
 
 export default function SummaryPage() {
@@ -31,7 +32,16 @@ export default function SummaryPage() {
   const confirmCashout = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/transaction/withdraw", {
+      // Retrait Mobile Money : routé via l'agrégateur (GeniusPay primaire,
+      // PawaPay/legacy en secours). Les virements bancaires restent sur la
+      // route legacy dédiée.
+      let endpoint = "/api/transaction/withdraw";
+      if (data.method === "mobile") {
+        const operatorHint = `${data.details?.operatorId || ""} ${data.details?.provider || ""}`;
+        const routed = resolveEndpoint("withdraw", data.countryCode || data.country || "", operatorHint);
+        if (routed.endpoint) endpoint = routed.endpoint;
+      }
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
