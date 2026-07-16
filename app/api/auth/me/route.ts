@@ -9,47 +9,26 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import * as jose from "jose";
 import { prisma } from "@/lib/prisma";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token =
-      cookieStore.get("token")?.value ||
-      cookieStore.get("pimpay_token")?.value;
+    // Résolution unifiée de la session : JWT classique (cookies token /
+    // pimpay_token) ET session Pi Browser (cookie pi_session_token).
+    // Auparavant cette route ne vérifiait que le JWT classique, ce qui
+    // renvoyait un 401 aux utilisateurs connectés via Pi Browser.
+    const userId = await getAuthUserId();
 
-    if (!token) {
+    if (!userId) {
       return NextResponse.json(
         { error: "Non authentifié" },
         { status: 401 }
       );
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-    let payload: jose.JWTPayload;
-
-    try {
-      const verified = await jose.jwtVerify(token, secret);
-      payload = verified.payload;
-    } catch {
-      // Token expiré ou invalide
-      const response = NextResponse.json(
-        { error: "Session expirée" },
-        { status: 401 }
-      );
-      response.cookies.delete("token");
-      response.cookies.delete("pimpay_token");
-      return response;
-    }
-
-    if (!payload.id) {
-      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
-    }
-
     const user = await prisma.user.findUnique({
-      where: { id: payload.id as string },
+      where: { id: userId },
       select: {
         id: true,
         email: true,

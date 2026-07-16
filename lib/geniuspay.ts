@@ -117,6 +117,23 @@ export async function geniusPayFetch<T = any>(
       "X-API-Secret": getApiSecret(),
       "Content-Type": "application/json",
       Accept: "application/json",
+      // ---------------------------------------------------------------------
+      // Contournement Imunify360 (bot-protection) côté pay.genius.ci.
+      // Les fonctions serverless Vercel utilisent un User-Agent "node" par
+      // défaut, systématiquement bloqué par Imunify360 ("Access denied by
+      // Imunify360 bot-protection"). On envoie des en-têtes de navigateur
+      // réalistes pour être traité comme un client légitime.
+      // NB : la solution définitive reste le whitelisting des IP de sortie
+      // Vercel dans le tableau de bord Imunify360 de GeniusPay.
+      "User-Agent":
+        process.env.GENIUSPAY_USER_AGENT ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Dest": "empty",
+      Origin: getAppBaseUrl(),
+      Referer: `${getAppBaseUrl()}/`,
       ...(init?.headers || {}),
     },
     // Ne jamais mettre en cache les appels à l'agrégateur
@@ -129,6 +146,23 @@ export async function geniusPayFetch<T = any>(
     data = text ? JSON.parse(text) : null;
   } catch {
     data = text;
+  }
+
+  // Détection explicite d'un blocage Imunify360 (réponse HTML, pas JSON).
+  // On renvoie un message clair au lieu d'un "refus agrégateur" générique.
+  if (
+    typeof data === "string" &&
+    /imunify360|bot-protection|access denied/i.test(data)
+  ) {
+    return {
+      ok: false,
+      status: res.status || 403,
+      data: {
+        error:
+          "Le service de paiement GeniusPay a bloqué la requête (protection anti-bot Imunify360). Les IP de sortie Vercel doivent être ajoutées à la liste blanche côté GeniusPay.",
+        blocked: "IMUNIFY360",
+      } as any,
+    };
   }
 
   return { ok: res.ok, status: res.status, data };

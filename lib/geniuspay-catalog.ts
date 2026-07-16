@@ -72,6 +72,7 @@ export const GENIUSPAY_MOMO_COUNTRIES: Record<string, GeniusPayCountry> = {
   TG: { alpha3: "TGO", currency: "XOF" }, // Togo
   NE: { alpha3: "NER", currency: "XOF" }, // Niger
   GW: { alpha3: "GNB", currency: "XOF" }, // Guinée-Bissau
+  CG: { alpha3: "COG", currency: "XAF" }, // Congo (Brazzaville) — via GeniusPay
 };
 
 /**
