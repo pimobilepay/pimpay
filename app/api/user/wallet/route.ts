@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ethers } from "ethers";
 // Correction de l'import pour la version 6.1.1 de TronWeb
 import { TronWeb } from 'tronweb'; 
+import { auth } from "@/lib/auth";
 
 // Force le rendu dynamique pour éviter les erreurs de build statique
 export const dynamic = 'force-dynamic';
@@ -54,9 +55,20 @@ async function getLiveSidraBalance(address: string) {
 
 export async function GET() {
   try {
-    // 1. Récupération de l'utilisateur et de ses relations
-    // Note: Dans une version sécurisée, on filtrerait par l'ID de session ici
-    const user = await prisma.user.findFirst({
+    // [FIX] L'ancienne version utilisait prisma.user.findFirst() SANS AUCUN
+    // FILTRE — elle renvoyait donc les wallets, cartes virtuelles et
+    // dernières transactions du premier utilisateur de la base à QUICONQUE
+    // appelait cette route, sans authentification. Le commentaire d'origine
+    // ("dans une version sécurisée, on filtrerait par l'ID de session ici")
+    // documentait déjà le problème sans le corriger.
+    const session = await auth() as { id?: string } | null;
+    if (!session?.id) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    // 1. Récupération de l'utilisateur authentifié et de ses relations
+    const user = await prisma.user.findUnique({
+      where: { id: session.id },
       include: {
         wallets: true,
         virtualCards: true,
