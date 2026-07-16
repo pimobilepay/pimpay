@@ -262,6 +262,7 @@ export async function createPayment(params: CreatePaymentParams) {
   if (params.errorUrl) body.error_url = params.errorUrl;
   if (params.metadata) body.metadata = params.metadata;
 
+  console.log("[v0] GENIUSPAY_CREATE_PAYMENT_BODY:", JSON.stringify(body));
   return geniusPayFetch<{ data: GeniusPayPayment } | GeniusPayPayment>(
     "/payments",
     { method: "POST", body: JSON.stringify(body) }

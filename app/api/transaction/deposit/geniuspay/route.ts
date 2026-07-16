@@ -233,16 +233,26 @@ export async function POST(req: NextRequest) {
       });
       // GeniusPay renvoie l'erreur sous plusieurs formes :
       //   { success:false, error:{code,message} } | { message } |
-      //   { message, errors: { champ: ["validation.in", ...] } }  (format Laravel)
+      //   { message, errors: { champ: [...] } }                 (racine, Laravel)
+      //   { error:{ message:"validation.in", errors:{ champ:[...] } } } (imbriqué)
       // On extrait un message lisible ET on nomme le(s) champ(s) fautif(s)
       // pour identifier précisément l'origine du refus (ex: "payment_method").
+      const errObj = (gp.data as any)?.error;
+      // Le détail des champs peut être à la racine OU sous `error.errors`.
+      const errorsObj =
+        (gp.data as any)?.errors ||
+        (typeof errObj === "object" ? errObj?.errors : undefined);
+
+      // Log détaillé : on déplie explicitement le champ fautif pour le diagnostic.
       console.error("[v0] GENIUSPAY_DEPOSIT_REJECTED:", {
         status: gp.status,
+        message:
+          (typeof errObj === "object" ? errObj?.message : errObj) ??
+          (gp.data as any)?.message,
+        fieldErrors: errorsObj ?? null,
         response: gp.data,
       });
 
-      const errObj = (gp.data as any)?.error;
-      const errorsObj = (gp.data as any)?.errors;
       let fieldErrors = "";
       if (errorsObj && typeof errorsObj === "object") {
         fieldErrors = Object.entries(errorsObj)
