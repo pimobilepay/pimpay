@@ -1,4 +1,4 @@
-# 💳 PimPay - Plateforme Fintech Multi-Chain
+# 💳 PiMobiPay - Plateforme Fintech Multi-Chain
 
 ![Status](https://img.shields.io/badge/Status-In_Development-blueviolet?style=for-the-badge)
 ![Sidra Chain](https://img.shields.io/badge/Blockchain-Sidra_Chain-green?style=for-the-badge)
@@ -9,13 +9,13 @@
 ![JOSE](https://img.shields.io/badge/jose_6.1.3-blue?style=for-the-badge)
 ![Compliance](https://img.shields.io/badge/Compliance-SMIIC_%7C_AAOIFI-gold?style=for-the-badge)
 
-**PimPay** est une solution fintech de banque virtuelle de pointe, multi-chaînes, intégrée aux écosystèmes **Sidra Chain** et **Pi Network**. Notre mission est de combler le fossé entre les actifs numériques et les services financiers traditionnels (Fiat), tout en garantissant une conformité éthique et légale stricte.
+**PiMobiPay** est une solution fintech de banque virtuelle de pointe, multi-chaînes, intégrée aux écosystèmes **Sidra Chain** et **Pi Network**. Notre mission est de combler le fossé entre les actifs numériques et les services financiers traditionnels (Fiat), tout en garantissant une conformité éthique et légale stricte.
 
 ---
 
 ## 🚀 Vision du Projet
 
-PimPay évolue pour devenir une plateforme bancaire hybride et conforme :
+PiMobiPay évolue pour devenir une plateforme bancaire hybride et conforme :
 * **Finance Islamique :** Intégration native des principes de la Sidra Chain (élimination du Riba et du Gharar).
 * **Pi Network :** Passerelle entre l'écosystème Pi et les services financiers traditionnels via le SDK Pi v2.0.
 * **P2P & Fiat :** Passer des actifs numériques vers les monnaies locales (XAF, EUR, USD, CDF).
@@ -142,7 +142,7 @@ Pour repondre aux standards **AAOIFI**, **SMIIC** et **Basel III**, PimPay integ
 ## 📁  Structure du Projet
 
 ```text
-pimpay/
+pimobipay/
 ├── app/                    # Routes Next.js 16 (Dashboard, Wallet, Auth, Cards, Swap, Support)
 │   ├── api/                # Routes API (wallet, user, card, auth, transactions)
 │   ├── auth/               # Pages d'authentification (login, register, reset-password)
@@ -219,4 +219,4 @@ pimpay/
 
 ---
 
-*PimPay Protocol - Sidra Chain + Pi Network - Finance Ethique Conforme SMIIC / AAOIFI / Basel III*
+*PiMobiPay Protocol - Sidra Chain + Pi Network - Finance Ethique Conforme SMIIC / AAOIFI / Basel III*
