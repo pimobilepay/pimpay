@@ -52,9 +52,18 @@ export function getGeniusPayEnv(): GeniusPayEnv {
  * (pk_sandbox_/sk_sandbox_ vs pk_live_/sk_live_). L'API vit sur le même hôte.
  */
 export function getGeniusPayBaseUrl(): string {
-  return (
-    process.env.GENIUSPAY_BASE_URL || "https://pay.genius.ci/api/v1/merchant"
+  // IMPORTANT : l'API COURANTE de GeniusPay vit sur `geniuspay.ci`.
+  // L'ancien hôte `pay.genius.ci` est LEGACY et protégé par Imunify360
+  // (bot-protection) qui bloque les IP serverless Vercel + renvoie des 400.
+  // On force donc `geniuspay.ci` par défaut. Si GENIUSPAY_BASE_URL pointe
+  // encore vers l'ancien hôte, on le réécrit automatiquement.
+  const raw = (
+    process.env.GENIUSPAY_BASE_URL || "https://geniuspay.ci/api/v1/merchant"
   ).replace(/\/$/, "");
+  return raw.replace(
+    /^https?:\/\/pay\.genius\.ci/i,
+    "https://geniuspay.ci"
+  );
 }
 
 function getApiKey(): string {
@@ -190,31 +199,45 @@ export interface GeniusPayCustomer {
 }
 
 export interface CreatePaymentParams {
-  /** Montant en XOF (entier). */
+  /** Montant dans la devise indiquée (entier). Min 200 XOF. */
   amount: number;
-  /** Devise, toujours "XOF" chez GeniusPay. */
+  /** Devise : XOF, XAF, CDF, USD, KES, RWF, SLE, UGX, ZMW. Défaut XOF. */
   currency?: string;
   /**
-   * Moyen de paiement Mobile Money (wave / orange_money / mtn / moov).
-   * Si omis, GeniusPay renvoie une `checkout_url` (page hébergée, carte bancaire).
+   * Moyen de paiement (wave / orange_money / mtn_money / moov_money /
+   * airtel_money / pawapay / card). Si omis, GeniusPay renvoie une
+   * `checkout_url` (page hébergée : le client choisit son moyen de paiement).
    */
-  paymentMethod?: GeniusPayMomoMethod;
+  paymentMethod?: GeniusPayMomoMethod | "pawapay" | "card";
+  /** Code fournisseur MMO PawaPay explicite (ex: AIRTEL_COG, MTN_MOMO_COG). */
+  mmoProvider?: string;
   description?: string;
   customer?: GeniusPayCustomer;
+  /** URL de redirection après succès (page checkout hébergée). */
+  successUrl?: string;
+  /** URL de redirection après échec (page checkout hébergée). */
+  errorUrl?: string;
   /** Données personnalisées retournées telles quelles dans les webhooks. */
   metadata?: Record<string, any>;
 }
 
 export interface GeniusPayPayment {
+  id?: number;
   reference: string;
   amount: number;
+  fees?: number;
   net_amount?: number;
   currency?: string;
   status: string;
+  /** Page de checkout hébergée (moyen de paiement non spécifié). */
   checkout_url?: string;
+  /** Lien de paiement direct (ex: lien Wave) quand payment_method est fourni. */
+  payment_url?: string;
+  gateway?: string;
   payment_method?: string | null;
   customer?: GeniusPayCustomer;
   metadata?: Record<string, any>;
+  expires_at?: string;
   created_at?: string;
   completed_at?: string | null;
 }
@@ -225,6 +248,7 @@ export async function createPayment(params: CreatePaymentParams) {
     currency: params.currency || "XOF",
   };
   if (params.paymentMethod) body.payment_method = params.paymentMethod;
+  if (params.mmoProvider) body.mmo_provider = params.mmoProvider;
   if (params.description) body.description = params.description.slice(0, 500);
   if (params.customer) {
     const c: GeniusPayCustomer = {};
@@ -234,6 +258,8 @@ export async function createPayment(params: CreatePaymentParams) {
     if (params.customer.country) c.country = params.customer.country;
     body.customer = c;
   }
+  if (params.successUrl) body.success_url = params.successUrl;
+  if (params.errorUrl) body.error_url = params.errorUrl;
   if (params.metadata) body.metadata = params.metadata;
 
   return geniusPayFetch<{ data: GeniusPayPayment } | GeniusPayPayment>(

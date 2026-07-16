@@ -29,17 +29,23 @@ import { countries } from "./country-data";
 // -----------------------------------------------------------------------------
 // Moyens de paiement Mobile Money supportés par GeniusPay
 // -----------------------------------------------------------------------------
+// Codes EXACTS attendus par le paramètre `payment_method` de l'API GeniusPay
+// (cf. doc officielle https://geniuspay.ci/docs/api → « Méthodes de paiement »).
 export const GENIUSPAY_MOMO_METHODS = [
   "wave",
   "orange_money",
-  "mtn",
-  "moov",
+  "mtn_money",
+  "moov_money",
+  "airtel_money",
 ] as const;
 export type GeniusPayMomoMethod = (typeof GENIUSPAY_MOMO_METHODS)[number];
 
 /**
  * Résout un `payment_method` GeniusPay à partir d'un libellé d'opérateur libre.
  * Retourne `undefined` si aucun opérateur ne correspond (-> checkout carte).
+ *
+ * NB : les codes renvoyés sont ceux EXACTS de l'API GeniusPay
+ * (`orange_money`, `mtn_money`, `moov_money`, `airtel_money`, `wave`).
  */
 export function resolveMomoMethod(
   operator?: string | null
@@ -48,8 +54,9 @@ export function resolveMomoMethod(
   if (!s) return undefined;
   if (s.includes("wave")) return "wave";
   if (s.includes("orange") || s.includes("om")) return "orange_money";
-  if (s.includes("mtn") || s.includes("momo")) return "mtn";
-  if (s.includes("moov") || s.includes("flooz")) return "moov";
+  if (s.includes("airtel")) return "airtel_money";
+  if (s.includes("mtn") || s.includes("momo")) return "mtn_money";
+  if (s.includes("moov") || s.includes("flooz")) return "moov_money";
   return undefined;
 }
 

@@ -148,17 +148,24 @@ export async function POST(req: NextRequest) {
     });
 
     // 6. Appel GeniusPay (création du paiement)
+    const appBaseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      "https://pimpay.vercel.app"
+    ).replace(/\/$/, "");
     const gp = await createPayment({
       amount: localAmount,
       currency,
       paymentMethod: momoMethod,
-      description: `PimobiPay dépôt ${reference}`,
+      description: `PimobiPay depot ${reference}`,
       customer: {
         name: customerName,
         email: customerEmail,
         phone: normalizedPhone,
         country: countryCode,
       },
+      successUrl: `${appBaseUrl}/deposit?status=success&ref=${reference}`,
+      errorUrl: `${appBaseUrl}/deposit?status=error&ref=${reference}`,
       metadata: { reference, userId, kind: "deposit" },
     });
 
@@ -182,13 +189,20 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+      // GeniusPay renvoie l'erreur sous la forme { success:false, error:{code,message} }
+      // ou { message }. On extrait un message lisible dans tous les cas.
+      const errObj = (gp.data as any)?.error;
       const reason =
-        payment?.["message" as keyof GeniusPayPayment] ||
+        (typeof errObj === "object" ? errObj?.message : errObj) ||
         (gp.data as any)?.message ||
-        (gp.data as any)?.error ||
+        payment?.["message" as keyof GeniusPayPayment] ||
         "Le paiement a été refusé par l'agrégateur GeniusPay.";
       return NextResponse.json({ error: reason }, { status: 400 });
     }
+
+    // URL de paiement : `payment_url` (lien direct Wave/opérateur) OU
+    // `checkout_url` (page de paiement hébergée GeniusPay) selon le mode.
+    const paymentUrl = payment.payment_url || payment.checkout_url || null;
 
     // 8. Persister la référence GeniusPay (= externalId, utilisé par le webhook)
     await prisma.transaction.update({
@@ -198,7 +212,7 @@ export async function POST(req: NextRequest) {
         metadata: {
           ...(transaction.metadata as any),
           geniusPayReference: payment.reference,
-          checkoutUrl: payment.checkout_url || null,
+          checkoutUrl: paymentUrl,
           netAmountXof: payment.net_amount ?? null,
         },
       },
@@ -212,8 +226,8 @@ export async function POST(req: NextRequest) {
       localAmount,
       currency,
       paymentMethod: momoMethod || "card",
-      // Présent uniquement pour le paiement par carte / checkout hébergé
-      checkoutUrl: payment.checkout_url || null,
+      // Lien de paiement direct (Wave...) ou page de checkout hébergée.
+      checkoutUrl: paymentUrl,
     });
   } catch (error: any) {
     console.error("[v0] GENIUSPAY_DEPOSIT_ERROR:", error.message);

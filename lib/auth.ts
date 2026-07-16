@@ -38,13 +38,21 @@ export async function verifyJWT(token: string): Promise<{ id: string; role?: str
       return null; // Token revoqué
     }
 
-    // Vérification de révocation : la session doit être active en DB.
+    // Vérification de révocation, SCOPÉE à l'utilisateur du token.
+    // BUG CORRIGÉ : auparavant on cherchait n'importe quelle session active
+    // dans toute la base (`findFirst({ where: { isActive: true } })`), ce qui
+    // renvoyait 401 à TOUS les utilisateurs dès que la table sessions était
+    // vide/purgée. On vérifie désormais les sessions de CET utilisateur :
+    // l'accès n'est révoqué que s'il possède des sessions mais aucune active
+    // (déconnexion explicite). Un utilisateur sans session (ex: certains flux
+    // Pi) n'est pas bloqué.
     if ((payload as any).purpose !== "mfa_verification") {
-      const session = await prisma.session.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      if (!session) {
+      const uid = payload.id as string;
+      const [activeCount, totalCount] = await Promise.all([
+        prisma.session.count({ where: { userId: uid, isActive: true } }),
+        prisma.session.count({ where: { userId: uid } }),
+      ]);
+      if (totalCount > 0 && activeCount === 0) {
         return null;
       }
     }
