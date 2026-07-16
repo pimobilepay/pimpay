@@ -39,7 +39,8 @@ const COUNTRIES: Country[] = worldCountries
 // Priority countries to show at top (African French-speaking countries first)
 const PRIORITY_CODES = [
   "CG", "CD", "CM", "GA", "SN", "CI", "ML", "BF", "NE", "TG", "BJ", "GN",
-  "MG", "TN", "MA", "DZ", "NG", "GH", "FR", "BE", "CH", "CA", "US", "GB"
+  "MG", "TN", "MA", "DZ", "NG", "GH", "FR", "BE", "CH", "CA", "US", "GB",
+  "IN", "ID"
 ];
 
 function getSortedCountries(countries: Country[]): Country[] {
@@ -440,15 +441,15 @@ export default function SignupPage() {
   if (!mounted) return <div className="min-h-screen bg-[#020617]" />;
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-start sm:items-center justify-center overflow-y-auto overflow-x-hidden font-sans px-4 py-8 sm:py-12">
+    <div className="relative min-h-[100dvh] w-full bg-[#020617] flex items-center justify-center overflow-y-auto overflow-x-hidden font-sans px-4 py-4 sm:py-8">
       {/* Background Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
 
       {/* STEP 1: FORMULAIRE D'INSCRIPTION */}
       {step === 1 && (
-        <Card className="relative z-10 w-full max-w-[440px] p-6 sm:p-10 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[40px]">
+        <Card className="relative z-10 w-full max-w-[440px] p-6 sm:p-8 bg-slate-900/40 backdrop-blur-3xl border-white/10 shadow-2xl rounded-[40px]">
           {refCode && (
-            <div className="mb-6 p-4 bg-emerald-600/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+            <div className="mb-5 p-4 bg-emerald-600/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
               <Gift className="text-emerald-400 flex-shrink-0" size={20} />
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Bonus Parrainage</p>
@@ -456,8 +457,8 @@ export default function SignupPage() {
               </div>
             </div>
           )}
-          <div className="text-center mb-8">
-            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 transition-all duration-300 ${
+          <div className="text-center mb-5">
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 transition-all duration-300 ${
               signupType === "business" 
                 ? "bg-amber-600/10 border border-amber-500/20"
                 : "bg-blue-600/10 border border-blue-500/20"
@@ -477,7 +478,7 @@ export default function SignupPage() {
           </div>
 
           {/* Selecteur de type d'inscription */}
-          <div className="flex gap-2 mb-6 p-1 bg-slate-950/50 rounded-2xl">
+          <div className="flex gap-2 mb-5 p-1 bg-slate-950/50 rounded-2xl">
             <button
               type="button"
               onClick={() => setSignupType("user")}
