@@ -557,12 +557,22 @@ export default function UserDashboard() {
     <div className="min-h-screen bg-[#020617] text-white font-sans flex flex-col">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
+
+
+
+
+
+
+
+
+
+
       {/* ── Header ── */}
       <header className="px-6 py-6 flex justify-between items-center bg-[#020617]/80 backdrop-blur-md sticky top-0 z-[100] border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center font-bold italic shadow-lg text-white text-xl">P</div>
           <div>
-            <h1 className="text-base font-black italic uppercase tracking-tighter leading-none">
+            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">
               PIMOBIPAY<span className="not-italic text-blue-500">.</span>
             </h1>
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mt-1">{tr.virtualBank}</p>
@@ -584,7 +594,7 @@ export default function UserDashboard() {
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="w-11 h-11 rounded-2xl bg-white/5 text-slate-400 overflow-hidden flex items-center justify-center"
             >
-              {data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={20} />}
+              {data?.avatar ? <img src={data.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover" /> : <User size={18} />}
             </button>
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-slate-900 border border-white/10 rounded-[24px] shadow-2xl p-2 z-[110]">

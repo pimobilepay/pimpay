@@ -4,7 +4,7 @@ import AdminGlobalCallReceiver from "@/components/AdminGlobalCallReceiver";
 import AdminGlobalKycNotifier from "@/components/AdminGlobalKycNotifier";
 
 export const metadata: Metadata = {
-  title: 'Administration | PIMOBIPAY',
+  title: 'CORE LEDGER | PIMOBIPAY',
   description: 'Portail de gestion securise PIMOBIPAY',
 };
 
