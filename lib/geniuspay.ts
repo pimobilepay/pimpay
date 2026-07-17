@@ -31,43 +31,24 @@ import crypto from "crypto";
 import {
   GENIUSPAY_MOMO_METHODS,
   resolveMomoMethod,
+  resolveApiCurrency,
+  isGeniusPayCurrencySupported,
   type GeniusPayMomoMethod,
 } from "./geniuspay-catalog";
 
 // Ré-export depuis le catalogue partagé (source de vérité unique, safe client).
-export { GENIUSPAY_MOMO_METHODS, resolveMomoMethod };
+export { GENIUSPAY_MOMO_METHODS, resolveMomoMethod, resolveApiCurrency, isGeniusPayCurrencySupported };
 export type { GeniusPayMomoMethod };
 
 // -----------------------------------------------------------------------------
 // Normalisation de la devise envoyée à l'API GeniusPay
 // -----------------------------------------------------------------------------
-// La doc GeniusPay est contradictoire : le tableau de référence des paramètres
-// de POST /payments n'accepte que `XOF`, `EUR`, `USD` (règle `in:` côté
-// serveur), alors qu'une section plus bas sur PawaPay annonce 9 devises
-// supportées (XOF, XAF, CDF, USD, KES, RWF, SLE, UGX, ZMW) avec "conversion
-// automatique vers XOF". En pratique, envoyer `currency: "XAF"` renvoie un 422
-// `{ "currency": ["validation.in"] }` — c'est donc bien le tableau de
-// référence qui fait foi côté validation serveur.
-//
-// XAF (CFA Afrique Centrale) et XOF (CFA Afrique de l'Ouest) sont tous deux
-// arrimés à taux FIXE à l'euro (655,957 XAF/EUR = 655,957 XOF/EUR) : 1 XAF =
-// 1 XOF exactement, toujours. On peut donc remapper XAF -> XOF pour l'appel
-// API sans convertir le montant : aucun risque de sur/sous-facturation.
-//
-// Pour les autres devises hors liste (KES, RWF, SLE, UGX, ZMW, CDF...), on
-// laisse la valeur telle quelle : les remapper vers XOF sans conversion de
-// montant *changerait* le montant réellement facturé, ce qui serait dangereux.
-// Si l'une d'elles échoue avec la même erreur, il faudra une vraie conversion
-// de montant (via lib/exchange) avant l'appel, pas un simple remap de libellé.
-const GENIUSPAY_API_CURRENCIES = new Set(["XOF", "EUR", "USD"]);
-const CFA_PEGGED_1_TO_1: Record<string, string> = { XAF: "XOF" };
-
-function resolveApiCurrency(currency?: string): string {
-  const c = (currency || "XOF").toUpperCase();
-  if (GENIUSPAY_API_CURRENCIES.has(c)) return c;
-  if (CFA_PEGGED_1_TO_1[c]) return CFA_PEGGED_1_TO_1[c];
-  return c;
-}
+// [Déplacé vers lib/geniuspay-catalog.ts] `resolveApiCurrency` /
+// `isGeniusPayCurrencySupported` vivent maintenant dans le catalogue partagé
+// (safe client) car `lib/aggregator.ts` en a besoin pour décider, dès la
+// sélection de l'agrégateur, si GeniusPay peut réellement traiter la devise
+// du pays — sinon on bascule vers PawaPay. Voir le commentaire détaillé dans
+// geniuspay-catalog.ts pour l'historique complet (erreur 422 "validation.in").
 
 export type GeniusPayEnv = "sandbox" | "production";
 

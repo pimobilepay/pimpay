@@ -120,14 +120,55 @@ function isMomoZone(countryCode: string): boolean {
   return !!GENIUSPAY_MOMO_COUNTRIES[(countryCode || "").toUpperCase()];
 }
 
+// -----------------------------------------------------------------------------
+// Devises RÉELLEMENT acceptées par l'API GeniusPay (POST /payments)
+// -----------------------------------------------------------------------------
+// La doc GeniusPay est contradictoire : le tableau de référence des paramètres
+// n'accepte que `XOF`, `EUR`, `USD` (règle `in:` côté serveur), alors qu'une
+// section plus bas annonce 9 devises supportées avec "conversion automatique".
+// En pratique, envoyer une devise hors liste renvoie un 422
+// `{ "currency": ["validation.in"] }` — le tableau de référence fait donc foi.
+//
+// XAF (CFA Afrique Centrale) et XOF (CFA Afrique de l'Ouest) sont arrimés à
+// taux FIXE (655,957 pour 1 EUR, tous les deux) : 1 XAF = 1 XOF exactement,
+// toujours. On peut donc remapper XAF -> XOF pour l'appel API sans convertir
+// le montant. Les autres devises hors liste (GHS, KES, NGN, RWF, SLE, UGX,
+// ZMW, CDF, ETB, MZN, LSL...) N'ONT PAS de peg fixe : les envoyer telles
+// quelles à GeniusPay échoue systématiquement (422 validation.in).
+export const GENIUSPAY_API_CURRENCIES = new Set(["XOF", "EUR", "USD"]);
+export const CFA_PEGGED_1_TO_1: Record<string, string> = { XAF: "XOF" };
+
+export function resolveApiCurrency(currency?: string): string {
+  const c = (currency || "XOF").toUpperCase();
+  if (GENIUSPAY_API_CURRENCIES.has(c)) return c;
+  if (CFA_PEGGED_1_TO_1[c]) return CFA_PEGGED_1_TO_1[c];
+  return c;
+}
+
+/** true si GeniusPay peut réellement traiter cette devise (native ou peg XAF->XOF). */
+export function isGeniusPayCurrencySupported(currency?: string): boolean {
+  const c = (currency || "").toUpperCase();
+  return GENIUSPAY_API_CURRENCIES.has(c) || !!CFA_PEGGED_1_TO_1[c];
+}
+
 /**
  * Résout la configuration GeniusPay pour un pays (alpha-2) + un opérateur donné.
  *
- * GeniusPay étant universel, `supported` est vrai dès que le pays est connu de
- * l'application (devise locale disponible). Le moyen de paiement Mobile Money
- * n'est renseigné que dans la zone MoMo native (UEMOA / XOF) ET si l'opérateur
- * est reconnu ; sinon `method` reste `undefined` et le paiement passe par le
- * checkout carte hébergé de GeniusPay (repli carte).
+ * [FIX] `supported` n'est plus systématiquement vrai pour tout pays connu de
+ * l'app. Avant ce correctif, un pays comme le Ghana (GHS), le Kenya (KES) ou
+ * le Nigeria (NGN) était marqué "supported: true" par simple présence dans le
+ * catalogue pays — alors que l'API GeniusPay ne peut PAS traiter ces devises
+ * (elle renvoie 422 `validation.in`, cf. GENIUSPAY_API_CURRENCIES ci-dessus).
+ * Résultat concret : `lib/aggregator.ts` sélectionnait GeniusPay en priorité
+ * pour ces pays (car "supported" y était toujours vrai) et ne basculait
+ * JAMAIS vers PawaPay — qui, lui, couvre nativement le Ghana/Kenya/Nigeria/etc.
+ * dans leur devise locale. Le dépôt échouait donc à chaque fois avec l'erreur
+ * "validation.in (currency: validation.in)" visible côté utilisateur.
+ *
+ * Désormais : `supported` n'est vrai que si GeniusPay peut réellement traiter
+ * la devise du pays (zone MoMo native XOF/XAF, ou checkout carte en
+ * XOF/XAF/EUR/USD). Pour tout le reste, `resolveAggregator()` (lib/aggregator.ts)
+ * bascule automatiquement et correctement vers PawaPay.
  */
 export function resolveGeniusPay(
   countryCode: string,
@@ -138,12 +179,15 @@ export function resolveGeniusPay(
   if (!currency) {
     return { currency: "", alpha3: "", supported: false };
   }
+  if (!isGeniusPayCurrencySupported(currency)) {
+    return { currency, alpha3: "", supported: false };
+  }
   const method = isMomoZone(cc) ? resolveMomoMethod(operatorHint) : undefined;
   return {
     method,
     currency,
     alpha3: GENIUSPAY_MOMO_COUNTRIES[cc]?.alpha3 || "",
-    supported: true, // universel : repli carte si aucun moyen MoMo
+    supported: true, // devise compatible : push MoMo natif OU repli carte
   };
 }
 
