@@ -24,6 +24,7 @@
 import { prisma } from "@/lib/prisma";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { checkPayment, unwrap, mapGeniusPayStatus } from "@/lib/geniuspay";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 export type ReconcileResult =
   | { outcome: "not_found" }
@@ -46,13 +47,68 @@ export async function reconcileGeniusPayPayment(
 
   // Statut autoritaire re-vérifié auprès de GeniusPay (jamais celui du client)
   const lookup = await checkPayment(externalReference);
+
+  // [FIX] Avant ce correctif, un échec de l'appel GET /payments/{ref} (401,
+  // 404, blocage Imunify360, timeout réseau, etc.) était traité EN SILENCE
+  // comme "encore en attente" : `payment?.status` valait `undefined`,
+  // `mapGeniusPayStatus("")` renvoie "PENDING" par défaut. Résultat : la
+  // transaction restait indéfiniment bloquée sur PENDING après le clic sur
+  // "Terminer" côté checkout GeniusPay, SANS AUCUNE trace exploitable — le
+  // vrai problème (échec de l'appel de vérification) n'apparaissait nulle
+  // part. On journalise maintenant explicitement ce cas dans les logs
+  // Admin (onglet Système, source GENIUSPAY_RECONCILE) pour le diagnostiquer.
+  if (!lookup.ok) {
+    console.error("[GENIUSPAY_RECONCILE] checkPayment a échoué:", {
+      externalReference,
+      httpStatus: lookup.status,
+      response: lookup.data,
+    });
+    await logSystemEvent({
+      level: "ERROR",
+      source: "GENIUSPAY_RECONCILE",
+      action: "CHECK_PAYMENT_FAILED",
+      message:
+        (lookup.data as any)?.error ||
+        (lookup.data as any)?.message ||
+        "Échec de la vérification du statut auprès de GeniusPay (GET /payments/{reference}).",
+      requestId: transaction.reference,
+      details: {
+        externalReference,
+        httpStatus: lookup.status,
+        response: lookup.data,
+        event,
+      },
+    }).catch(() => {});
+    return { outcome: "pending", providerStatus: "CHECK_PAYMENT_API_ERROR" };
+  }
+
   const payment = unwrap<any>(lookup.data);
   const authoritative = (payment?.status || "").toLowerCase();
+
+  // Idem si l'appel a réussi mais que la réponse ne contient aucun statut
+  // exploitable (forme de réponse inattendue) : on le journalise aussi,
+  // plutôt que de retomber silencieusement sur "pending".
+  if (!authoritative) {
+    console.warn("[GENIUSPAY_RECONCILE] Réponse sans statut exploitable:", {
+      externalReference,
+      response: lookup.data,
+    });
+    await logSystemEvent({
+      level: "WARN",
+      source: "GENIUSPAY_RECONCILE",
+      action: "CHECK_PAYMENT_NO_STATUS",
+      message:
+        "La réponse GeniusPay ne contient aucun champ `status` exploitable.",
+      requestId: transaction.reference,
+      details: { externalReference, response: lookup.data, event },
+    }).catch(() => {});
+  }
+
   const status = mapGeniusPayStatus(authoritative);
   const meta = (transaction.metadata as any) || {};
 
   if (status === "PENDING") {
-    return { outcome: "pending", providerStatus: authoritative };
+    return { outcome: "pending", providerStatus: authoritative || "UNKNOWN" };
   }
 
   if (status === "FAILED") {

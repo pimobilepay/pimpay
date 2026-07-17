@@ -71,6 +71,10 @@ export async function GET(req: NextRequest) {
       case "already_processed":
         return NextResponse.json({ status: result.status });
       case "pending":
+        return NextResponse.json({
+          status: "PENDING",
+          providerStatus: result.providerStatus,
+        });
       case "not_found":
       default:
         return NextResponse.json({ status: "PENDING" });
