@@ -195,6 +195,15 @@ export async function POST(req: NextRequest) {
       paymentMethod: paymentMethod || "(hosted checkout / card)",
       mmoProvider: mmoProvider || null,
     });
+    // [FIX] Le successUrl/errorUrl pointait vers /deposit (le formulaire brut,
+    // qui affiche par défaut l'onglet Crypto à 0.00) — l'utilisateur qui
+    // terminait son paiement chez GeniusPay/PawaPay atterrissait donc sur la
+    // page de dépôt générale au lieu d'une page dédiée de confirmation.
+    // On route maintenant vers /deposit/summary (page dédiée : affiche le
+    // statut, relance la réconciliation active GeniusPay, puis redirige
+    // automatiquement vers /deposit/success une fois confirmé) et vers
+    // /deposit/failed en cas d'échec (page dédiée avec message d'erreur).
+    const depositMethodLabel = isMobileMoney ? "mobile" : "card";
     const gp = await createPayment({
       amount: localAmount,
       currency,
@@ -207,8 +216,8 @@ export async function POST(req: NextRequest) {
         phone: normalizedPhone,
         country: countryCode,
       },
-      successUrl: `${appBaseUrl}/deposit?status=success&ref=${reference}`,
-      errorUrl: `${appBaseUrl}/deposit?status=error&ref=${reference}`,
+      successUrl: `${appBaseUrl}/deposit/summary?ref=${reference}&method=${depositMethodLabel}&amount=${usd}`,
+      errorUrl: `${appBaseUrl}/deposit/failed?ref=${reference}`,
       metadata: { reference, userId, kind: "deposit" },
     });
 
