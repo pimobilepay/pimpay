@@ -205,6 +205,61 @@ export async function requestPayout(params: RequestPayoutParams) {
 }
 
 // -----------------------------------------------------------------------------
+// PAGE DE PAIEMENT HÉBERGÉE (checkout) : POST /v1/widget/sessions
+// -----------------------------------------------------------------------------
+// Contrairement à /v2/deposits (push MoMo direct, sans redirection), cette
+// API crée une session sur la Payment Page hébergée par PawaPay et renvoie
+// une `redirectUrl` : le client doit être redirigé vers cette page pour
+// choisir son opérateur / saisir son numéro et confirmer le paiement — un
+// parcours "checkout" équivalent à celui de GeniusPay (checkout_url).
+//
+// Une fois le paiement terminé, PawaPay renvoie le client vers `returnUrl`
+// (avec `depositId` en paramètre de requête). Le dépôt correspondant est
+// ensuite vérifiable via GET /v2/deposits/{depositId} (checkDeposit) ou reçu
+// par webhook, EXACTEMENT comme pour un dépôt direct — même `depositId`,
+// même logique de crédit, aucune duplication de flux de confirmation.
+// -----------------------------------------------------------------------------
+export interface PawaPayMetadataField {
+  fieldName: string;
+  fieldValue: string;
+  isPII?: boolean;
+}
+
+export interface CreatePaymentPageSessionParams {
+  depositId: string;
+  amount: string; // montant en devise locale, string (ex: "1500")
+  returnUrl: string;
+  msisdn?: string; // pré-remplit le numéro (le client ne peut plus le changer si fourni)
+  country?: string; // ISO 3166-1 alpha-3 (ex: "ZMB") — restreint le pays sur la page
+  language?: "EN" | "FR";
+  reason?: string; // affiché au client (1-50 caractères)
+  statementDescription?: string; // 4-22 caractères alphanumériques + espaces
+  metadata?: PawaPayMetadataField[];
+}
+
+export async function createPaymentPageSession(
+  params: CreatePaymentPageSessionParams
+) {
+  const body: any = {
+    depositId: params.depositId,
+    returnUrl: params.returnUrl,
+    amount: params.amount,
+  };
+  if (params.msisdn) body.msisdn = normalizeMsisdn(params.msisdn);
+  if (params.country) body.country = params.country;
+  if (params.language) body.language = params.language;
+  if (params.reason) body.reason = params.reason;
+  if (params.statementDescription)
+    body.statementDescription = params.statementDescription;
+  if (params.metadata && params.metadata.length) body.metadata = params.metadata;
+
+  return pawapayFetch<{ redirectUrl?: string }>("/v1/widget/sessions", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// -----------------------------------------------------------------------------
 // Vérification de statut (polling de secours si le webhook n'est pas reçu)
 // -----------------------------------------------------------------------------
 export async function checkDeposit(depositId: string) {

@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 import { convert } from "@/lib/exchange";
 import { getPiPrice } from "@/lib/fees";
 import {
-  requestDeposit,
+  createPaymentPageSession,
   resolveProvider,
   normalizeMsisdn,
   newPawaPayId,
@@ -17,10 +17,23 @@ import {
 /**
  * POST /api/transaction/deposit/pawapay
  *
- * Initie un dépôt Mobile Money via l'agrégateur PawaPay (collecte / cash-in).
- * Le client reçoit une demande de paiement sur son téléphone (USSD / push).
- * Le crédit effectif du wallet est réalisé à la réception du webhook
- * /api/webhooks/pawapay/deposit (statut COMPLETED).
+ * Initie un dépôt Mobile Money via l'agrégateur PawaPay (API PawaPay
+ * DIRECTE — pas de proxy via GeniusPay), utilisé pour tout pays/opérateur
+ * pris en charge par PawaPay mais PAS par GeniusPay (repli de
+ * lib/aggregator.ts).
+ *
+ * Le client est redirigé vers la Payment Page hébergée par PawaPay
+ * (POST /v1/widget/sessions -> `redirectUrl`) pour choisir son opérateur et
+ * confirmer le paiement — un parcours "checkout" équivalent à celui de
+ * GeniusPay (`checkoutUrl`). Le frontend (app/deposit/page.tsx) gère déjà
+ * cette redirection de façon générique via `result.checkoutUrl`, qu'il
+ * s'agisse de GeniusPay ou de PawaPay.
+ *
+ * Le crédit effectif du wallet est réalisé :
+ *   - normalement à la réception du webhook /api/webhooks/pawapay/deposit
+ *     (statut COMPLETED) ;
+ *   - en filet de sécurité, via /api/transaction/deposit/pawapay/confirm
+ *     (réconciliation active) quand le client revient sur /deposit/summary.
  *
  * Body attendu :
  *   { amountUsd: number, phone: string, operatorId?: string,
@@ -132,22 +145,32 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 6. Appel PawaPay (collecte)
-    const callbackUrl = `${getAppBaseUrl()}/api/webhooks/pawapay/deposit`;
-    const pp = await requestDeposit({
+    // 6. Appel PawaPay — création de la session Payment Page (checkout hébergé).
+    //    On redirige le client vers `redirectUrl` pour qu'il finalise son
+    //    paiement chez PawaPay, exactement comme pour le `checkoutUrl` de
+    //    GeniusPay. Le callback/webhook est configuré depuis le dashboard
+    //    PawaPay (le paramètre `callbackUrl` n'est pas accepté dans le corps
+    //    de la requête, cf. lib/pawapay.ts).
+    const appBaseUrl = getAppBaseUrl();
+    const returnUrl = `${appBaseUrl}/deposit/summary?ref=${reference}&method=mobile&amount=${usd}`;
+    const pp = await createPaymentPageSession({
       depositId,
       amount: String(localAmount),
-      currency: resolved.currency,
-      phoneNumber: normalizedPhone,
-      provider: resolved.provider,
-      callbackUrl,
-      metadata: { reference, userId },
+      returnUrl,
+      msisdn: normalizedPhone,
+      country: resolved.alpha3,
+      language: "FR",
+      reason: `Depot PimobiPay ${reference}`,
+      statementDescription: "PimobiPay Depot",
+      metadata: [
+        { fieldName: "reference", fieldValue: reference },
+        { fieldName: "userId", fieldValue: userId, isPII: true },
+      ],
     });
 
     // 7. Gérer la réponse de l'agrégateur
-    const ppStatus = (pp.data?.status || "").toUpperCase();
-    const accepted =
-      pp.ok && ["ACCEPTED", "SUBMITTED", "ENQUEUED", "PENDING"].includes(ppStatus);
+    const redirectUrl = pp.data?.redirectUrl || null;
+    const accepted = pp.ok && !!redirectUrl;
 
     if (!accepted) {
       await prisma.transaction.update({
@@ -162,12 +185,22 @@ export async function POST(req: NextRequest) {
         },
       });
       const reason =
-        pp.data?.rejectionReason?.rejectionMessage ||
-        pp.data?.failureReason?.failureMessage ||
-        pp.data?.message ||
+        (pp.data as any)?.errorMessage ||
+        (pp.data as any)?.message ||
         "Le dépôt a été refusé par l'agrégateur Mobile Money.";
       return NextResponse.json({ error: reason }, { status: 400 });
     }
+
+    // 8. Persister l'URL de checkout (traçabilité / debug)
+    await prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        metadata: {
+          ...(transaction.metadata as any),
+          checkoutUrl: redirectUrl,
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -177,6 +210,10 @@ export async function POST(req: NextRequest) {
       localAmount,
       localCurrency: resolved.currency,
       provider: resolved.provider,
+      // Le frontend (app/deposit/page.tsx) redirige automatiquement vers
+      // cette URL dès qu'elle est présente dans la réponse — même logique
+      // que pour le checkout GeniusPay.
+      checkoutUrl: redirectUrl,
     });
   } catch (error: any) {
     console.error("[v0] PAWAPAY_DEPOSIT_ERROR:", error.message);

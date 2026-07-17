@@ -31,34 +31,47 @@ function SummaryContent() {
   }, [router]);
 
   // [FIX] Filet de sécurité webhook manquant sur la page Summary : cette
-  // page (utilisée pour les dépôts Mobile Money via push GeniusPay) ne
-  // faisait que LIRE la transaction en base (/api/pi/transaction), sans
-  // jamais re-vérifier le statut auprès de GeniusPay. Si le webhook
-  // n'arrivait jamais (fréquent en sandbox, ou URL de webhook non
-  // enregistrée), la transaction restait bloquée en PENDING indéfiniment
-  // et la page de succès ne s'affichait jamais. On applique donc la même
-  // réconciliation active que sur /deposit?status=success : si la
-  // transaction est un dépôt GeniusPay toujours PENDING, on interroge
-  // /api/transaction/deposit/geniuspay/confirm (statut AUTORITAIRE
-  // GeniusPay) avant de conclure qu'elle est encore en attente.
+  // page (utilisée pour les dépôts Mobile Money via push GeniusPay, et pour
+  // le retour du checkout hébergé PawaPay "Payment Page") ne faisait que
+  // LIRE la transaction en base (/api/pi/transaction), sans jamais
+  // re-vérifier le statut auprès de l'agrégateur. Si le webhook n'arrivait
+  // jamais (fréquent en sandbox, ou URL de webhook non enregistrée), la
+  // transaction restait bloquée en PENDING indéfiniment et la page de
+  // succès ne s'affichait jamais. On applique donc la même réconciliation
+  // active pour les deux agrégateurs :
+  //   - GENIUSPAY -> /api/transaction/deposit/geniuspay/confirm
+  //   - PAWAPAY   -> /api/transaction/deposit/pawapay/confirm (retour du
+  //     checkout hébergé "Payment Page")
   const reconcileIfPending = useCallback(
-    async (data: any): Promise<boolean> => {
-      if (data?.status !== "PENDING") return false;
+    async (data: any): Promise<"success" | "failed" | null> => {
+      if (data?.status !== "PENDING") return null;
       const aggregator = (data?.metadata as any)?.aggregator;
-      if (aggregator !== "GENIUSPAY") return false;
+      const confirmPath =
+        aggregator === "GENIUSPAY"
+          ? "/api/transaction/deposit/geniuspay/confirm"
+          : aggregator === "PAWAPAY"
+          ? "/api/transaction/deposit/pawapay/confirm"
+          : null;
+      if (!confirmPath) return null;
       try {
         const confirmRes = await fetch(
-          `/api/transaction/deposit/geniuspay/confirm?ref=${encodeURIComponent(ref || "")}`,
+          `${confirmPath}?ref=${encodeURIComponent(ref || "")}`,
           { cache: "no-store" }
         );
         const confirmData = await confirmRes.json().catch(() => ({}));
-        return confirmData?.status === "SUCCESS";
+        if (confirmData?.status === "SUCCESS") return "success";
+        if (confirmData?.status === "FAILED") return "failed";
+        return null;
       } catch {
-        return false;
+        return null;
       }
     },
     [ref]
   );
+
+  const goToFailed = useCallback((reference: string) => {
+    router.push(`/deposit/failed?ref=${reference}`);
+  }, [router]);
 
   // Récupération des détails de la transaction créée à l'étape précédente
   const fetchTransactionDetails = useCallback(async () => {
@@ -72,8 +85,17 @@ function SummaryContent() {
           goToSuccess(ref);
           return;
         }
-        if (await reconcileIfPending(data)) {
+        if (data.status === "FAILED") {
+          goToFailed(ref);
+          return;
+        }
+        const reconciled = await reconcileIfPending(data);
+        if (reconciled === "success") {
           goToSuccess(ref);
+          return;
+        }
+        if (reconciled === "failed") {
+          goToFailed(ref);
           return;
         }
         setTransaction(data);
@@ -83,7 +105,7 @@ function SummaryContent() {
     } finally {
       setLoading(false);
     }
-  }, [ref, mounted, goToSuccess, reconcileIfPending]);
+  }, [ref, mounted, goToSuccess, goToFailed, reconcileIfPending]);
 
   useEffect(() => { fetchTransactionDetails(); }, [fetchTransactionDetails]);
 
@@ -100,15 +122,24 @@ function SummaryContent() {
             goToSuccess(ref);
             return;
           }
-          if (await reconcileIfPending(data)) {
+          if (data.status === "FAILED") {
+            clearInterval(interval);
+            goToFailed(ref);
+            return;
+          }
+          const reconciled = await reconcileIfPending(data);
+          if (reconciled === "success") {
             clearInterval(interval);
             goToSuccess(ref);
+          } else if (reconciled === "failed") {
+            clearInterval(interval);
+            goToFailed(ref);
           }
         }
       } catch (e) { console.error("Polling error", e); }
     }, 5000);
     return () => clearInterval(interval);
-  }, [ref, method, goToSuccess, reconcileIfPending]);
+  }, [ref, method, goToSuccess, goToFailed, reconcileIfPending]);
 
   if (!mounted || loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
