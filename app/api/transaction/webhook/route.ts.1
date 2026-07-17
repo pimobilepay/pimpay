@@ -2,13 +2,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import {
   verifyWebhookSignature,
+  checkPayment,
   checkPayout,
   unwrap,
   mapGeniusPayStatus,
 } from "@/lib/geniuspay";
-import { reconcileGeniusPayPayment } from "@/lib/geniuspay-reconcile";
 
 /**
  * POST /api/transaction/webhook
@@ -91,33 +92,203 @@ export async function POST(req: NextRequest) {
 /*  PAIEMENTS (dépôt wallet PI + financement carte virtuelle)          */
 /* ------------------------------------------------------------------ */
 async function handlePayment(reference: string, event: string) {
-  const result = await reconcileGeniusPayPayment(reference, event);
-
-  switch (result.outcome) {
-    case "not_found":
-      return NextResponse.json(
-        { message: "Transaction inconnue, ignorée" },
-        { status: 200 }
-      );
-    case "already_processed":
-      return NextResponse.json(
-        { message: "Transaction déjà traitée" },
-        { status: 200 }
-      );
-    case "pending":
-      return NextResponse.json({
-        message: "En attente",
-        status: result.providerStatus,
-      });
-    case "failed":
-      return NextResponse.json({ success: false, status: "FAILED" });
-    case "success":
-      return NextResponse.json({
-        success: true,
-        status: "SUCCESS",
-        credited: result.credited,
-      });
+  const transaction = await prisma.transaction.findFirst({
+    where: { externalId: reference },
+  });
+  if (!transaction) {
+    return NextResponse.json(
+      { message: "Transaction inconnue, ignorée" },
+      { status: 200 }
+    );
   }
+  if (transaction.status !== "PENDING") {
+    return NextResponse.json(
+      { message: "Transaction déjà traitée" },
+      { status: 200 }
+    );
+  }
+
+  // Statut autoritaire re-vérifié auprès de GeniusPay
+  const lookup = await checkPayment(reference);
+  const payment = unwrap<any>(lookup.data);
+  const authoritative = (payment?.status || "").toLowerCase();
+  const status = mapGeniusPayStatus(authoritative);
+  const meta = (transaction.metadata as any) || {};
+
+  if (status === "PENDING") {
+    return NextResponse.json({ message: "En attente", status: authoritative });
+  }
+
+  if (status === "FAILED") {
+    await prisma.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "FAILED",
+        statusClass: "AGGREGATOR_FAILED",
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+    if (transaction.fromUserId) {
+      await prisma.notification.create({
+        data: {
+          userId: transaction.fromUserId,
+          title: "Paiement échoué",
+          message: `Votre transaction GeniusPay (${transaction.reference}) n'a pas abouti.`,
+          type: "ERROR",
+        },
+      });
+    }
+    return NextResponse.json({ success: false, status: "FAILED" });
+  }
+
+  // SUCCÈS -> financement carte virtuelle OU crédit wallet PI
+  if (meta.kind === "card_fund") {
+    return await creditVirtualCard(transaction, meta, authoritative, event);
+  }
+  return await creditPiWallet(transaction, meta, authoritative, event);
+}
+
+/** Crédite le wallet PI du montant NET (calculé à l'initiation). */
+async function creditPiWallet(
+  transaction: any,
+  meta: any,
+  authoritative: string,
+  event: string
+) {
+  const netPi = Number(meta.netPi) || 0;
+  const userId = transaction.fromUserId as string | null;
+
+  if (!userId || netPi <= 0) {
+    await prisma.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+    return NextResponse.json({ success: true, status: "SUCCESS", credited: 0 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const wallet = await tx.wallet.upsert({
+      where: { userId_currency: { userId, currency: "PI" } },
+      update: { balance: { increment: netPi } },
+      create: { userId, currency: "PI", balance: netPi, type: "PI" },
+    });
+
+    await tx.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        netAmount: netPi,
+        toUserId: userId,
+        toWalletId: wallet.id,
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId,
+        title: "Dépôt réussi",
+        message: `Votre compte a été crédité de ${netPi.toFixed(7)} PI.`,
+        type: "SUCCESS",
+        metadata: JSON.stringify({
+          amount: netPi,
+          currency: "PI",
+          reference: transaction.reference,
+          method: "GeniusPay",
+          status: "SUCCESS",
+        }),
+      },
+    });
+
+    await tx.securityLog.create({
+      data: {
+        userId,
+        action: `DEPOSIT_GENIUSPAY_SUCCESS | ref:${transaction.reference} | ${netPi} PI`,
+        ip: "SYSTEM_WEBHOOK",
+      },
+    });
+  });
+
+  if (transaction.fee && transaction.fee > 0) {
+    autoConvertFeeToPi(
+      transaction.fee,
+      "USD",
+      transaction.id,
+      transaction.reference
+    ).catch((err) =>
+      console.error("[GENIUSPAY_WEBHOOK] Fee conversion:", err.message)
+    );
+  }
+
+  return NextResponse.json({ success: true, status: "SUCCESS", credited: netPi });
+}
+
+/** Crédite le solde d'une carte virtuelle (financement via GeniusPay). */
+async function creditVirtualCard(
+  transaction: any,
+  meta: any,
+  authoritative: string,
+  event: string
+) {
+  const cardId = meta.cardId as string | undefined;
+  const fundUsd = Number(meta.netUsd) || 0;
+  const userId = transaction.fromUserId as string | null;
+
+  if (!cardId || fundUsd <= 0) {
+    await prisma.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+    return NextResponse.json({ success: true, status: "SUCCESS", credited: 0 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.virtualCard.update({
+      where: { id: cardId },
+      data: { balanceUSD: { increment: fundUsd } },
+    });
+
+    await tx.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        netAmount: fundUsd,
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+
+    if (userId) {
+      await tx.notification.create({
+        data: {
+          userId,
+          title: "Carte rechargée",
+          message: `Votre carte virtuelle a été rechargée de ${fundUsd.toFixed(
+            2
+          )} USD.`,
+          type: "SUCCESS",
+          metadata: JSON.stringify({
+            amount: fundUsd,
+            currency: "USD",
+            reference: transaction.reference,
+            method: "GeniusPay",
+            status: "SUCCESS",
+          }),
+        },
+      });
+    }
+  });
+
+  return NextResponse.json({ success: true, status: "SUCCESS", credited: fundUsd });
 }
 
 /* ------------------------------------------------------------------ */

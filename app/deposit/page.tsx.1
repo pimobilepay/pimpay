@@ -107,67 +107,6 @@ export default function DepositPage() {
     };
   }, [amount, piPrice]);
   useEffect(() => { setMounted(true); }, []);
-
-  // [FIX] Filet de sécurité webhook manquant : quand GeniusPay redirige
-  // l'utilisateur vers cette page avec ?status=success&ref=..., on ne peut
-  // pas se fier uniquement au webhook (souvent absent en sandbox, ou si
-  // l'URL de webhook n'est pas enregistrée côté GeniusPay pour ce
-  // déploiement). On demande donc au backend de re-vérifier le statut
-  // AUTORITAIRE auprès de GeniusPay et de créditer immédiatement si
-  // confirmé, au lieu de laisser la transaction bloquée en PENDING en
-  // attendant une confirmation manuelle d'un admin.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const status = params.get("status");
-    const ref = params.get("ref");
-    if (status !== "success" || !ref) return;
-
-    // Nettoie l'URL immédiatement pour éviter un double traitement si la
-    // page est rechargée ou l'effet ré-exécuté.
-    window.history.replaceState({}, "", window.location.pathname);
-
-    let cancelled = false;
-    let attempts = 0;
-
-    const poll = async () => {
-      if (cancelled) return;
-      attempts += 1;
-      try {
-        const res = await fetch(
-          `/api/transaction/deposit/geniuspay/confirm?ref=${encodeURIComponent(ref)}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json().catch(() => ({}));
-
-        if (data.status === "SUCCESS") {
-          toast.success("Dépôt confirmé !");
-          router.push(`/deposit/success?ref=${encodeURIComponent(ref)}`);
-          return;
-        }
-        if (data.status === "FAILED") {
-          toast.error("Le dépôt a échoué.");
-          return;
-        }
-      } catch {
-        // Erreur réseau : on retente ci-dessous, silencieusement.
-      }
-
-      // GeniusPay confirme parfois le paiement quelques secondes après
-      // l'écran "succès" — on retente pendant ~30s avant d'abandonner
-      // (l'utilisateur garde alors la possibilité de vérifier plus tard
-      // depuis l'historique, la transaction restant PENDING sans perte).
-      if (!cancelled && attempts < 6) {
-        setTimeout(poll, 5000);
-      }
-    };
-
-    poll();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const handleInitiateDeposit = async () => {
     if (!amount || parseFloat(amount) <= 0) { toast.error(t("deposit.flow.invalidAmount")); return; }
     setIsLoading(true);
@@ -412,7 +351,7 @@ export default function DepositPage() {
         {activeTab === "crypto" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-slate-900/30 rounded-3xl border border-white/5 p-6 space-y-6 text-center">
             <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto border border-blue-500/20"><Bitcoin size={40} className="text-blue-500" /></div>
-            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">{t("deposit.flow.piAmountToDeposit")}</label><div className="relative"><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 pr-20 text-2xl font-black text-blue-500 outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-800" /><span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Pi</span></div>{parseFloat(amount) > 0 && piPrice > 0 && (<p className="text-[10px] text-slate-500 ml-1 mt-1">≈ <span className="text-blue-400 font-bold">${feesCalculation.usdEquivalent} USD</span> {t("deposit.flow.atCurrentRate")}</p>)}</div>
+            <div className="space-y-2 text-left"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">{t("deposit.flow.piAmountToDeposit")}</label><div className="relative"><input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-16 bg-slate-900/80 rounded-2xl border border-white/10 px-6 pr-20 text-2xl font-black text-blue-500 outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-800" disabled={isPriceLoading} /><span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Pi</span></div>{parseFloat(amount) > 0 && piPrice > 0 && (<p className="text-[10px] text-slate-500 ml-1 mt-1">≈ <span className="text-blue-400 font-bold">${feesCalculation.usdEquivalent} USD</span> {t("deposit.flow.atCurrentRate")}</p>)}</div>
             {parseFloat(amount) > 0 && piPrice > 0 && (
               <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3 text-left">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>{t("deposit.flow.amountEntered")}</span><span className="text-white">{parseFloat(amount).toLocaleString()} Pi</span></div>
@@ -611,4 +550,3 @@ export default function DepositPage() {
     </div>
   );
 }
-
