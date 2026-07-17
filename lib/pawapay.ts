@@ -205,7 +205,7 @@ export async function requestPayout(params: RequestPayoutParams) {
 }
 
 // -----------------------------------------------------------------------------
-// PAGE DE PAIEMENT HÉBERGÉE (checkout) : POST /v1/widget/sessions
+// PAGE DE PAIEMENT HÉBERGÉE (checkout) : POST /v2/paymentpage
 // -----------------------------------------------------------------------------
 // Contrairement à /v2/deposits (push MoMo direct, sans redirection), cette
 // API crée une session sur la Payment Page hébergée par PawaPay et renvoie
@@ -213,28 +213,37 @@ export async function requestPayout(params: RequestPayoutParams) {
 // choisir son opérateur / saisir son numéro et confirmer le paiement — un
 // parcours "checkout" équivalent à celui de GeniusPay (checkout_url).
 //
+// [FIX] Endpoint corrigé : `/v1/widget/sessions` (obsolète, cf. "Upgrading
+// from V1" dans la doc PawaPay) a été remplacé par `/v2/paymentpage`, dont le
+// schéma de requête est DIFFÉRENT :
+//   - le numéro de téléphone est `phoneNumber` (PAS `msisdn`) ;
+//   - le montant est imbriqué dans `amountDetails: { amount, currency }`
+//     (PAS un champ `amount` à plat) ;
+//   - le texte affiché au client est `customerMessage` (4-22 caractères),
+//     PAS `statementDescription` ;
+//   - `metadata` utilise le format `[{ clé: valeur }, ...]` (identique à
+//     /v2/deposits), PAS `{ fieldName, fieldValue }`.
+// Envoyer `msisdn` (au lieu de `phoneNumber`) faisait que PawaPay ne recevait
+// AUCUN numéro valide pour le champ attendu, d'où l'erreur
+// "INVALID_PAYER_FORMAT: The given MSISDN is invalid."
+//
 // Une fois le paiement terminé, PawaPay renvoie le client vers `returnUrl`
 // (avec `depositId` en paramètre de requête). Le dépôt correspondant est
 // ensuite vérifiable via GET /v2/deposits/{depositId} (checkDeposit) ou reçu
 // par webhook, EXACTEMENT comme pour un dépôt direct — même `depositId`,
 // même logique de crédit, aucune duplication de flux de confirmation.
 // -----------------------------------------------------------------------------
-export interface PawaPayMetadataField {
-  fieldName: string;
-  fieldValue: string;
-  isPII?: boolean;
-}
-
 export interface CreatePaymentPageSessionParams {
   depositId: string;
   amount: string; // montant en devise locale, string (ex: "1500")
+  currency: string; // devise locale (ex: "GHS", "ZMW") — requis par amountDetails
   returnUrl: string;
-  msisdn?: string; // pré-remplit le numéro (le client ne peut plus le changer si fourni)
+  phoneNumber?: string; // pré-remplit le numéro (le client ne peut plus le changer si fourni)
   country?: string; // ISO 3166-1 alpha-3 (ex: "ZMB") — restreint le pays sur la page
   language?: "EN" | "FR";
-  reason?: string; // affiché au client (1-50 caractères)
-  statementDescription?: string; // 4-22 caractères alphanumériques + espaces
-  metadata?: PawaPayMetadataField[];
+  reason?: string; // affiché au client (texte libre)
+  customerMessage?: string; // 4-22 caractères alphanumériques + espaces
+  metadata?: Array<Record<string, string | boolean>>;
 }
 
 export async function createPaymentPageSession(
@@ -243,17 +252,19 @@ export async function createPaymentPageSession(
   const body: any = {
     depositId: params.depositId,
     returnUrl: params.returnUrl,
-    amount: params.amount,
+    amountDetails: {
+      amount: params.amount,
+      currency: params.currency,
+    },
   };
-  if (params.msisdn) body.msisdn = normalizeMsisdn(params.msisdn);
+  if (params.phoneNumber) body.phoneNumber = normalizeMsisdn(params.phoneNumber);
   if (params.country) body.country = params.country;
   if (params.language) body.language = params.language;
   if (params.reason) body.reason = params.reason;
-  if (params.statementDescription)
-    body.statementDescription = params.statementDescription;
+  if (params.customerMessage) body.customerMessage = params.customerMessage;
   if (params.metadata && params.metadata.length) body.metadata = params.metadata;
 
-  return pawapayFetch<{ redirectUrl?: string }>("/v1/widget/sessions", {
+  return pawapayFetch<{ redirectUrl?: string }>("/v2/paymentpage", {
     method: "POST",
     body: JSON.stringify(body),
   });

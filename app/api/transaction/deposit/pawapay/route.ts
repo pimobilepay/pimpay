@@ -23,7 +23,7 @@ import {
  * lib/aggregator.ts).
  *
  * Le client est redirigé vers la Payment Page hébergée par PawaPay
- * (POST /v1/widget/sessions -> `redirectUrl`) pour choisir son opérateur et
+ * (POST /v2/paymentpage -> `redirectUrl`) pour choisir son opérateur et
  * confirmer le paiement — un parcours "checkout" équivalent à celui de
  * GeniusPay (`checkoutUrl`). Le frontend (app/deposit/page.tsx) gère déjà
  * cette redirection de façon générique via `result.checkoutUrl`, qu'il
@@ -156,15 +156,16 @@ export async function POST(req: NextRequest) {
     const pp = await createPaymentPageSession({
       depositId,
       amount: String(localAmount),
+      currency: resolved.currency,
       returnUrl,
-      msisdn: normalizedPhone,
+      phoneNumber: normalizedPhone,
       country: resolved.alpha3,
       language: "FR",
       reason: `Depot PimobiPay ${reference}`,
-      statementDescription: "PimobiPay Depot",
+      customerMessage: "PimobiPay Depot",
       metadata: [
-        { fieldName: "reference", fieldValue: reference },
-        { fieldName: "userId", fieldValue: userId, isPII: true },
+        { reference },
+        { userId, isPII: true },
       ],
     });
 
