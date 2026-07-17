@@ -30,6 +30,36 @@ function SummaryContent() {
     router.push(`/deposit/success?ref=${reference}`);
   }, [router]);
 
+  // [FIX] Filet de sécurité webhook manquant sur la page Summary : cette
+  // page (utilisée pour les dépôts Mobile Money via push GeniusPay) ne
+  // faisait que LIRE la transaction en base (/api/pi/transaction), sans
+  // jamais re-vérifier le statut auprès de GeniusPay. Si le webhook
+  // n'arrivait jamais (fréquent en sandbox, ou URL de webhook non
+  // enregistrée), la transaction restait bloquée en PENDING indéfiniment
+  // et la page de succès ne s'affichait jamais. On applique donc la même
+  // réconciliation active que sur /deposit?status=success : si la
+  // transaction est un dépôt GeniusPay toujours PENDING, on interroge
+  // /api/transaction/deposit/geniuspay/confirm (statut AUTORITAIRE
+  // GeniusPay) avant de conclure qu'elle est encore en attente.
+  const reconcileIfPending = useCallback(
+    async (data: any): Promise<boolean> => {
+      if (data?.status !== "PENDING") return false;
+      const aggregator = (data?.metadata as any)?.aggregator;
+      if (aggregator !== "GENIUSPAY") return false;
+      try {
+        const confirmRes = await fetch(
+          `/api/transaction/deposit/geniuspay/confirm?ref=${encodeURIComponent(ref || "")}`,
+          { cache: "no-store" }
+        );
+        const confirmData = await confirmRes.json().catch(() => ({}));
+        return confirmData?.status === "SUCCESS";
+      } catch {
+        return false;
+      }
+    },
+    [ref]
+  );
+
   // Récupération des détails de la transaction créée à l'étape précédente
   const fetchTransactionDetails = useCallback(async () => {
     if (!ref || !mounted) return;
@@ -42,6 +72,10 @@ function SummaryContent() {
           goToSuccess(ref);
           return;
         }
+        if (await reconcileIfPending(data)) {
+          goToSuccess(ref);
+          return;
+        }
         setTransaction(data);
       }
     } catch (e) {
@@ -49,7 +83,7 @@ function SummaryContent() {
     } finally {
       setLoading(false);
     }
-  }, [ref, mounted, goToSuccess]);
+  }, [ref, mounted, goToSuccess, reconcileIfPending]);
 
   useEffect(() => { fetchTransactionDetails(); }, [fetchTransactionDetails]);
 
@@ -64,12 +98,17 @@ function SummaryContent() {
           if (data.status === "SUCCESS") {
             clearInterval(interval);
             goToSuccess(ref);
+            return;
+          }
+          if (await reconcileIfPending(data)) {
+            clearInterval(interval);
+            goToSuccess(ref);
           }
         }
       } catch (e) { console.error("Polling error", e); }
     }, 5000);
     return () => clearInterval(interval);
-  }, [ref, method, goToSuccess]);
+  }, [ref, method, goToSuccess, reconcileIfPending]);
 
   if (!mounted || loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">

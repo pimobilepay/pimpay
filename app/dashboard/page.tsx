@@ -273,7 +273,7 @@ function StatCard({
 
 export default function UserDashboard() {
   const router = useRouter();
-  const { locale, setLocale } = useLanguage();
+  const { locale, setLocale, t } = useLanguage();
   const tr = DASH_T[locale as keyof typeof DASH_T] ?? DASH_T.fr;
   const pieLabel = (name: string): string => {
     const map: Record<string, string> = {
@@ -536,7 +536,11 @@ export default function UserDashboard() {
     .slice(0, 4);
 
   const handleLogout = async () => {
+    // Signale au SessionGuard qu'il s'agit d'une déconnexion VOLONTAIRE, pour
+    // éviter le faux toast "déconnecté par l'administrateur" pendant l'appel.
+    window.dispatchEvent(new Event("pimpay:logging-out"));
     await fetch("/api/auth/logout", { method: "POST" });
+    toast.success(t("settings.logoutSuccess"));
     router.push("/auth/login");
   };
 

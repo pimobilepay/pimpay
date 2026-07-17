@@ -10,6 +10,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import LogoutOverlay from "@/components/LogoutOverlay";
+import { toast } from "sonner";
 
 interface UserData {
   name: string;
@@ -175,6 +176,11 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       // En cas d'erreur réseau, forcer quand même la déconnexion locale
       clearClientSession();
     }
+
+    // Confirmation traduite (fr / en / zh selon la langue de l'utilisateur) —
+    // remplace le faux message "déconnecté par l'administrateur" qui pouvait
+    // s'afficher à cause d'une vérification de session concurrente.
+    toast.success(t("settings.logoutSuccess"));
 
     // 3. Laisser l'écran de chargement visible un court instant puis rediriger
     setTimeout(() => {

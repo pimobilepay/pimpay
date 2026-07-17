@@ -90,6 +90,11 @@ export default function SettingsPage() {
   const userId = user?.id?.substring(0, 8).toUpperCase() || "ID-WAIT";
 
   const handleLogout = async () => {
+    // Signale au SessionGuard qu'il s'agit d'une déconnexion VOLONTAIRE, pour
+    // éviter que sa vérification périodique ne détecte la session en cours
+    // d'invalidation et affiche par erreur le toast "déconnecté par
+    // l'administrateur" pendant les quelques centaines de ms de l'appel API.
+    window.dispatchEvent(new Event("pimpay:logging-out"));
     try {
       const loadingToast = toast.loading(t("settings.closingSession"));
 

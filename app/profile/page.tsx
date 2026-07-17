@@ -596,11 +596,16 @@ export default function ProfilePage() {
           onClick={async () => {
             if (loggingOut) return;
             setLoggingOut(true);
+            // Signale au SessionGuard qu'il s'agit d'une déconnexion
+            // VOLONTAIRE pour éviter le faux toast "déconnecté par
+            // l'administrateur" pendant l'appel de déconnexion.
+            window.dispatchEvent(new Event("pimpay:logging-out"));
             try {
               await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
             } catch {
               /* forcer la deconnexion meme en cas d'erreur reseau */
             }
+            toast.success(t("settings.logoutSuccess"));
             setTimeout(() => {
               window.location.href = "/auth/login";
             }, 700);

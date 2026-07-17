@@ -2046,6 +2046,13 @@ export const fr = {
     later: "Plus tard",
     close: "Fermer",
   },
+
+  sessionGuard: {
+    revokedByAdmin: "Votre session a ete deconnectee par l'administrateur.",
+    revokedBySelf: "Session deconnectee avec succes.",
+    expired: "Votre session a expire. Veuillez vous reconnecter.",
+    terminated: "Session terminee.",
+  },
 } as const;
 
 export type TranslationKeys = typeof fr;

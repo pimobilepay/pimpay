@@ -2010,4 +2010,11 @@ export const en: TranslationKeys = {
     later: "Later",
     close: "Close",
   },
+
+  sessionGuard: {
+    revokedByAdmin: "Your session was disconnected by the administrator.",
+    revokedBySelf: "Session logged out successfully.",
+    expired: "Your session has expired. Please log in again.",
+    terminated: "Session ended.",
+  },
 } as const;

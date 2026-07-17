@@ -2011,4 +2011,11 @@ export const zh: TranslationKeys = {
     later: "稍后",
     close: "关闭",
   },
+
+  sessionGuard: {
+    revokedByAdmin: "您的会话已被管理员断开连接。",
+    revokedBySelf: "会话已成功退出登录。",
+    expired: "您的会话已过期，请重新登录。",
+    terminated: "会话已结束。",
+  },
 } as const;

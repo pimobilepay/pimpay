@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { clearSessionKeepLanguage } from "@/lib/clear-session";
+import { useLanguage } from "@/context/LanguageContext";
 
 const SESSION_CHECK_INTERVAL = 10000; // 10 seconds - for instant logout detection across devices
 
@@ -30,6 +31,7 @@ interface SessionGuardProps {
 export default function SessionGuard({ children }: SessionGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isCheckingRef = useRef(false);
   // Flag pour savoir si c'est l'utilisateur lui-même qui a révoqué une session
@@ -66,25 +68,26 @@ export default function SessionGuard({ children }: SessionGuardProps) {
     document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     clearSessionKeepLanguage();
 
-    // Afficher un message approprié selon la raison et l'origine
+    // Afficher un message approprié selon la raison et l'origine, traduit
+    // dans la langue actuelle de l'utilisateur (fr / en / zh).
     if (reason === "session_revoked") {
       if (selfRevokedRef.current) {
         // L'utilisateur a lui-même révoqué sa propre session depuis settings
         // (ex: "Déconnecter les autres appareils" ou révocation d'une session active)
         // → pas de toast d'erreur alarmant, juste une info neutre
-        toast.info("Session déconnectée avec succès.", { duration: 3000 });
+        toast.info(t("sessionGuard.revokedBySelf"), { duration: 3000 });
       } else {
         // Révocation par l'admin ou depuis un autre appareil
-        toast.error("Votre session a été déconnectée par l'administrateur.", {
+        toast.error(t("sessionGuard.revokedByAdmin"), {
           duration: 6000,
         });
       }
     } else if (reason === "session_expired") {
-      toast.error("Votre session a expiré. Veuillez vous reconnecter.", {
+      toast.error(t("sessionGuard.expired"), {
         duration: 4000,
       });
     } else {
-      toast.error("Session terminée.", { duration: 3000 });
+      toast.error(t("sessionGuard.terminated"), { duration: 3000 });
     }
 
     selfRevokedRef.current = false;
@@ -92,7 +95,7 @@ export default function SessionGuard({ children }: SessionGuardProps) {
     // Rediriger vers la page de connexion
     router.push("/auth/login");
     router.refresh();
-  }, [router]);
+  }, [router, t]);
 
   const checkSession = useCallback(async () => {
     // Éviter les vérifications en parallèle
