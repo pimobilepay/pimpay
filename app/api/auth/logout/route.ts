@@ -49,12 +49,30 @@ export async function POST(req: Request) {
     }
 
     const response = NextResponse.json({ success: true, message: "Déconnecté" });
-    
-    // Clear cookies
-    response.cookies.delete("token");
-    response.cookies.delete("pimpay_token");
-    response.cookies.delete("refresh_token");
-    response.cookies.delete("pi_session_token");
+
+    // [FIX] Le Pi Browser charge PimPay dans une iframe cross-origin (voir
+    // proxy.ts / CSP frame-ancestors). Les cookies de session sont donc poses
+    // avec SameSite=None; Secure (obligatoire pour survivre dans ce contexte
+    // cross-site). `response.cookies.delete(name)` genere un Set-Cookie de
+    // suppression SANS ces attributs : dans un contexte cross-site, le
+    // navigateur ignore silencieusement une suppression de cookie qui ne
+    // porte pas SameSite=None; Secure, donc le cookie httpOnly "token" /
+    // "pimpay_token" restait vivant et l'utilisateur Pi Network restait
+    // connecte apres avoir clique sur Deconnexion. On reecrit chaque cookie
+    // avec exactement les memes attributs qu'a la pose (voir pi-login) mais
+    // avec maxAge: 0, pour que la suppression soit acceptee dans TOUS les
+    // contextes (Pi Browser iframe ET navigateur classique).
+    const isProduction = process.env.NODE_ENV === "production";
+    const clearCookieOptions = {
+      path: "/",
+      maxAge: 0,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      secure: isProduction,
+      httpOnly: true,
+    };
+    for (const name of ["token", "pimpay_token", "refresh_token", "pi_session_token"]) {
+      response.cookies.set(name, "", clearCookieOptions);
+    }
 
     return response;
   } catch (error: any) {

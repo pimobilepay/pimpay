@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
+import { randomUUID } from "crypto";
 
 /**
  * POST /api/auth/pi-login
@@ -136,6 +137,11 @@ export async function POST(request: Request) {
     }
 
     const secretKey = new TextEncoder().encode(SECRET);
+    // [FIX] jti unique obligatoire : sans lui, deux connexions Pi rapprochees
+    // (meme seconde, meme payload) generent un JWT identique -> collision sur
+    // la contrainte unique Session.token -> la session ne se cree jamais ->
+    // 401 permanent pour l'utilisateur (verifyJWT le detecte comme "revoque").
+    const jti = randomUUID();
     const token = await new SignJWT({
       id: user.id,
       role: user.role,
@@ -144,6 +150,7 @@ export async function POST(request: Request) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
+      .setJti(jti)
       .setExpirationTime("30d")
       .sign(secretKey);
 
@@ -153,21 +160,30 @@ export async function POST(request: Request) {
     const country = request.headers.get("x-vercel-ip-country") || "CG";
     const city = request.headers.get("x-vercel-ip-city") || "";
 
-    // Executer en arriere-plan sans bloquer la reponse
-    prisma.session.create({
-      data: {
-        userId: user.id,
-        token,
-        isActive: true,
-        userAgent,
-        ip,
-        deviceName: "Pi Browser",
-        browser: "Pi Browser",
-        os: userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iOS" : "Desktop",
-        city,
-        country,
-      },
-    }).catch((e) => console.error("[PIMOBIPAY] Session creation error:", e));
+    // [FIX] La session DOIT exister en base AVANT que la reponse (et son
+    // cookie) ne parte : verifyJWT() rejette (401) tout JWT valide dont
+    // l'utilisateur a des sessions en base mais aucune active. En creant la
+    // session en arriere-plan (non attendue), le client Pi Browser pouvait
+    // appeler /api/auth/me, /api/user/profile, /api/user/activity... avant
+    // que la ligne Session ne soit inseree, et se faire rejeter en 401.
+    try {
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token,
+          isActive: true,
+          userAgent,
+          ip,
+          deviceName: "Pi Browser",
+          browser: "Pi Browser",
+          os: userAgent.includes("Android") ? "Android" : userAgent.includes("iPhone") ? "iOS" : "Desktop",
+          city,
+          country,
+        },
+      });
+    } catch (e) {
+      console.error("[PIMOBIPAY] Session creation error:", e);
+    }
 
     prisma.notification.create({
       data: {
