@@ -277,6 +277,13 @@ export default function ChatPage() {
   const [showFAQ, setShowFAQ] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showVoipCall, setShowVoipCall] = useState(false);
+  // [FIX] Identifiant stable à utiliser pour le canal d'appel VoIP. Pour les
+  // invités (support externe), on réutilise le même identifiant opaque que
+  // celui déjà associé à leurs tickets de support (cookie httpOnly côté
+  // serveur) — récupéré via /api/guest/track ci-dessous — plutôt qu'un ID
+  // aléatoire généré à chaque ouverture, qui empêchait toute cohérence entre
+  // la signalisation WebRTC et l'autorisation du canal Pusher.
+  const [voipUserId, setVoipUserId] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   // Image televersee mais PAS encore envoyee : on la met en attente jusqu'a ce
   // que l'utilisateur ajoute un message texte (envoi combine image + texte).
@@ -300,7 +307,12 @@ export default function ChatPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ page: "/chat" }),
-    }).catch(() => {});
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.guestId) setVoipUserId(data.guestId);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -579,6 +591,7 @@ export default function ChatPage() {
       <VoipCallOverlay 
         isOpen={showVoipCall} 
         onClose={() => setShowVoipCall(false)} 
+        userId={voipUserId}
       />
 
       {/* Visionneuse d'image plein écran (remplace l'ouverture en popup) */}

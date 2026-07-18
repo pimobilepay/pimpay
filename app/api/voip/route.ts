@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pusherServer, VOIP_EVENTS } from "@/lib/pusher-server";
+import { pusherServer, VOIP_EVENTS, isPusherServerConfigured } from "@/lib/pusher-server";
 import { logSystemEvent } from "@/lib/systemLogger";
 
 const VOIP_CHANNEL = "presence-cache-voip";
 
 export async function POST(request: NextRequest) {
+  // [FIX] Erreur claire et immédiate si Pusher n'est pas configuré, plutôt
+  // qu'un 500 générique qui masquait la vraie cause (bouton d'appel muet).
+  if (!isPusherServerConfigured()) {
+    return NextResponse.json(
+      { error: "Service d'appel non configuré (Pusher manquant côté serveur)." },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { event, data } = body;

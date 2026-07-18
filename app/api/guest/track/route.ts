@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       create: { guestId, ...common },
     });
 
-    const res = NextResponse.json({ tracked: true });
+    const res = NextResponse.json({ tracked: true, guestId });
     if (newGuestCookie) {
       res.cookies.set(GUEST_COOKIE, newGuestCookie, guestCookieOptions());
     }

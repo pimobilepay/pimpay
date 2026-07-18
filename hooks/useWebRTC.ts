@@ -452,11 +452,32 @@ export function useWebRTC({
   // Previously, putting remoteUserId in deps caused the channel to re-subscribe mid-call,
   // dropping signaling events and breaking the WebRTC handshake between two devices.
   useEffect(() => {
-    const pusher = getPusherClient();
+    let pusher: ReturnType<typeof getPusherClient>;
+    try {
+      pusher = getPusherClient();
+    } catch (error) {
+      // [FIX] Avant : getPusherClient() pouvait lever une exception (clé
+      // manquante) directement dans le useEffect, sans aucun retour visible
+      // pour l'utilisateur — le bouton d'appel semblait "ne rien faire".
+      console.error("[WebRTC] Pusher indisponible:", error);
+      onError?.("Service d'appel indisponible pour le moment.");
+      return;
+    }
     pusher.config.authEndpoint = "/api/pusher/auth";
 
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
     channelRef.current = channel;
+
+    // [FIX] Si l'autorisation du canal échoue (ex: session invité expirée,
+    // Pusher mal configuré côté serveur), on prévient l'utilisateur au lieu
+    // de le laisser bloqué sur "Connexion en cours..." indéfiniment.
+    channel.bind("pusher:subscription_error", (status: unknown) => {
+      console.error("[WebRTC] Échec d'abonnement au canal VoIP:", status);
+      onError?.("Impossible de se connecter au service d'appel. Réessayez plus tard.");
+      if (callStateRef.current === "calling") {
+        updateCallState("idle");
+      }
+    });
 
     channel.bind(
       VOIP_EVENTS.CALL_OFFER,
